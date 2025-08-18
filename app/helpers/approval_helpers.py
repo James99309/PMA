@@ -252,8 +252,95 @@ def get_step_actual_approver(step, approval_instance):
     elif approver_type == 'user' and approver_user_id:
         # 固定用户
         return User.query.get(approver_user_id)
+    elif approver_type == 'branch':
+        # 分支决策：根据条件确定审批人
+        return get_branch_approver(step, approval_instance)
     
     current_app.logger.warning(f"无法确定步骤审批人: approver_type={approver_type}, approver_user_id={approver_user_id}")
+    return None
+
+def get_branch_approver(step, approval_instance):
+    """根据分支条件确定审批人
+    
+    Args:
+        step: 审批步骤对象或字典
+        approval_instance: 审批实例对象
+        
+    Returns:
+        User对象或None
+    """
+    from app.models.user import User
+    from app.models.project import Project
+    import json
+    
+    # 获取分支条件配置
+    if isinstance(step, dict):
+        branch_condition = step.get('branch_condition')
+    else:
+        branch_condition = step.branch_condition
+    
+    if not branch_condition:
+        step_info = f"步骤ID: {step.get('id') if isinstance(step, dict) else step.id}, 步骤名称: {step.get('step_name') if isinstance(step, dict) else step.step_name}"
+        current_app.logger.warning(f"分支步骤缺少条件配置 - {step_info}")
+        return None
+    
+    # 如果是字符串，解析为JSON
+    if isinstance(branch_condition, str):
+        try:
+            branch_condition = json.loads(branch_condition)
+        except json.JSONDecodeError as e:
+            current_app.logger.error(f"分支条件JSON解析失败: {e}")
+            return None
+    
+    # 获取项目对象
+    if approval_instance.object_type == 'project':
+        project = Project.query.get(approval_instance.object_id)
+        if not project:
+            current_app.logger.error(f"找不到项目对象: {approval_instance.object_id}")
+            return None
+        
+        # 获取条件字段值
+        field_name = branch_condition.get('field')
+        if not field_name:
+            current_app.logger.error(f"分支条件缺少field配置")
+            return None
+        
+        field_value = getattr(project, field_name, None)
+        current_app.logger.info(f"分支条件匹配: {field_name}={field_value}")
+        
+        # 遍历条件列表寻找匹配项
+        conditions = branch_condition.get('conditions', [])
+        for condition in conditions:
+            operator = condition.get('operator')
+            expected_value = condition.get('value')
+            approver_id = condition.get('approver_id')
+            
+            match_found = False
+            if operator == 'equals' and field_value == expected_value:
+                match_found = True
+            elif operator == 'in' and field_value == expected_value:
+                match_found = True
+            elif operator == 'contains' and expected_value in str(field_value):
+                match_found = True
+                
+            if match_found:
+                current_app.logger.info(f"找到匹配条件: {field_value} {operator} {expected_value}, 审批人ID: {approver_id}")
+                if approver_id:
+                    return User.query.get(approver_id)
+        
+        # 没有匹配条件时使用默认分支
+        default_branch = branch_condition.get('default_branch')
+        if default_branch:
+            default_approver_id = default_branch.get('approver_id')
+            default_approver_type = default_branch.get('approver_type')
+            if default_approver_id:
+                current_app.logger.info(f"使用默认分支审批人ID: {default_approver_id}")
+                return User.query.get(default_approver_id)
+            elif default_approver_type == 'next_branch':
+                current_app.logger.info(f"默认分支指向下一个分支步骤")
+                return None  # 让系统继续到下一个步骤
+    
+    current_app.logger.warning(f"无法确定分支审批人 - 字段: {field_name}, 值: {field_value}, 条件数量: {len(conditions)}")
     return None
 
 def create_or_get_unified_authorization_template():
@@ -1685,7 +1772,7 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
             ApprovalStep,
             and_(
                 ApprovalStep.process_id == ApprovalInstance.process_id,
-                ApprovalStep.step_order == ApprovalInstance.current_step
+                ApprovalStep.id == ApprovalInstance.current_step
             )
         ).filter(
             ApprovalStep.approver_user_id == user_id
@@ -2229,8 +2316,7 @@ def get_current_step_info(instance):
                 if approval_instance:
                     # 获取当前步骤
                     return ApprovalStep.query.filter_by(
-                        process_id=approval_instance.process_id,
-                        step_order=approval_instance.current_step
+                        id=approval_instance.current_step
                     ).first()
         return None
     
@@ -2290,7 +2376,7 @@ def get_current_step_info(instance):
             current_step_data = None
             
             for step_data in steps_data:
-                if step_data.get('step_order') == instance.current_step:
+                if step_data.get('step_id') == instance.current_step:
                     current_step_data = step_data
                     break
         
@@ -2302,15 +2388,15 @@ def get_current_step_info(instance):
             # 🔥 修复：如果审批人未分配（ID为None），尝试重新计算审批人
             if not current_step_data.get('approver_user_id') and current_step_data.get('approver_type'):
                 approver_type = current_step_data.get('approver_type')
-                if approver_type == 'next_level':
-                    # 尝试重新计算上级审批人
+                if approver_type in ['next_level', 'branch']:
+                    # 尝试重新计算审批人
                     try:
                         actual_approver = get_step_actual_approver(current_step_data, instance)
                         if actual_approver:
                             approver = actual_approver
-                            current_app.logger.info(f"重新计算审批人成功：{approver.username}")
+                            current_app.logger.info(f"重新计算审批人成功：{approver.username} (类型: {approver_type})")
                         else:
-                            current_app.logger.warning(f"重新计算审批人失败，审批实例 {instance.id}，步骤 {current_step_data.get('step_order')}")
+                            current_app.logger.warning(f"重新计算审批人失败，审批实例 {instance.id}，步骤 {current_step_data.get('step_order')}，类型: {approver_type}")
                     except Exception as e:
                         current_app.logger.error(f"重新计算审批人时出错：{e}")
                         import traceback
@@ -2337,6 +2423,8 @@ def get_current_step_info(instance):
                 'send_email': current_step_data.get('send_email', True),
                 'description': current_step_data.get('description', ''),
                 'process_id': instance.process_id,
+                'branch_condition': current_step_data.get('branch_condition'),  # 🔥 修复：添加分支条件属性
+                'step_type': current_step_data.get('step_type', 'normal'),  # 🔥 修复：添加步骤类型属性
                 # 添加额外的快照信息
                 'approver_username': approver.username if approver else current_step_data.get('approver_username'),
                 'approver_real_name': approver.real_name if approver and hasattr(approver, 'real_name') else current_step_data.get('approver_real_name')
@@ -2348,8 +2436,7 @@ def get_current_step_info(instance):
     # 回退：如果没有快照或快照中没有步骤信息，使用数据库中的模板步骤（兼容旧数据）
     current_app.logger.warning(f"模板快照不可用，回退到数据库模板 - 审批实例 {instance.id}")
     steps = ApprovalStep.query.filter_by(
-        process_id=instance.process_id,
-        step_order=instance.current_step
+        id=instance.current_step
     ).first()
     
     return steps
@@ -2702,7 +2789,7 @@ def delete_approval_template(template_id):
         }
 
 
-def add_approval_step(template_id, step_name, approver_id, send_email=True, editable_fields=None, cc_users=None, cc_enabled=False, approver_type='user'):
+def add_approval_step(template_id, step_name, approver_id, send_email=True, editable_fields=None, cc_users=None, cc_enabled=False, approver_type='user', step_type='normal', branch_condition=None, parent_step_id=None, is_parallel=False, branch_group_id=None, branch_level=0, branch_path=None, merge_step_id=None):
     """添加审批步骤
     
     Args:
@@ -2714,6 +2801,10 @@ def add_approval_step(template_id, step_name, approver_id, send_email=True, edit
         cc_users: 抄送用户ID列表
         cc_enabled: 是否启用抄送
         approver_type: 审批人类型 ('user', 'next_level', 'auto')
+        step_type: 步骤类型 ('normal', 'branch')
+        branch_condition: 分支条件配置
+        parent_step_id: 上级步骤ID（用于并行分支）
+        is_parallel: 是否为并行分支
         
     Returns:
         新创建的步骤对象，如果模板不存在则返回None
@@ -2745,7 +2836,15 @@ def add_approval_step(template_id, step_name, approver_id, send_email=True, edit
         send_email=send_email,
         editable_fields=editable_fields,
         cc_users=cc_users,
-        cc_enabled=cc_enabled
+        cc_enabled=cc_enabled,
+        step_type=step_type,
+        branch_condition=branch_condition,
+        parent_step_id=parent_step_id,
+        is_parallel=is_parallel,
+        branch_group_id=branch_group_id,
+        branch_level=branch_level,
+        branch_path=branch_path,
+        merge_step_id=merge_step_id
     )
     
     db.session.add(step)
@@ -3372,7 +3471,8 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
                 'action_params': step.action_params,
                 'editable_fields': step.editable_fields or [],
                 'cc_users': step.cc_users or [],
-                'cc_enabled': step.cc_enabled
+                'cc_enabled': step.cc_enabled,
+                'branch_condition': step.branch_condition  # 🔥 关键修复：添加 branch_condition 字段
             }
             template_snapshot['steps'].append(step_data)
         
@@ -3416,12 +3516,21 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
         # 🔥 重要：不再提交模板步骤的更新，因为我们只修改快照
         # db.session.commit()  # 删除这行，避免修改数据库中的模板
         
+        # 获取第一步的step_id
+        first_step = ApprovalStep.query.filter_by(
+            process_id=template_id,
+            step_order=1
+        ).first()
+        
+        if not first_step:
+            raise ValueError(f"审批模板 {template_id} 没有找到第一步")
+        
         # 创建审批实例
         instance = ApprovalInstance(
             process_id=template_id,
             object_id=object_id,
             object_type=object_type,
-            current_step=1,  # 从第一步开始
+            current_step=first_step.id,  # 使用第一步的step_id
             status=ApprovalStatus.PENDING,
             started_at=datetime.now(),
             created_by=user_id,
@@ -3551,6 +3660,46 @@ def _get_field_display_name(field_name):
     return field_map.get(field_name, field_name)
 
 
+def process_auto_step(instance_id, user_id=None):
+    """自动处理自动执行步骤
+    
+    Args:
+        instance_id: 审批实例ID
+        user_id: 操作人ID（用于记录）
+        
+    Returns:
+        布尔值，表示操作是否成功
+    """
+    instance = ApprovalInstance.query.get(instance_id)
+    if not instance or instance.status != ApprovalStatus.PENDING:
+        return False
+    
+    if user_id is None:
+        user_id = current_user.id
+    
+    # 获取当前步骤
+    current_step = instance.get_current_step_info()
+    if not current_step:
+        return False
+    
+    # 检查是否为自动步骤
+    if isinstance(current_step, dict):
+        approver_type = current_step.get('approver_type', 'user')
+        action_type = current_step.get('action_type')
+    else:
+        approver_type = getattr(current_step, 'approver_type', 'user')
+        action_type = getattr(current_step, 'action_type', None)
+    
+    if approver_type != 'auto':
+        return False
+    
+    print(f"🔥 自动处理步骤: {current_step.get('step_name') if isinstance(current_step, dict) else current_step.step_name}")
+    print(f"🔥 步骤动作类型: {action_type}")
+    
+    # 自动批准处理
+    return process_approval_with_project_type(instance_id, 'approve', None, '自动执行', user_id)
+
+
 def process_approval_with_project_type(instance_id, action, project_type=None, comment=None, user_id=None):
     """处理审批操作，支持项目类型修改 - 修复版：支付步骤保持PENDING状态
     
@@ -3576,19 +3725,66 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
     if not current_step:
         return False
     
-    # 使用新的动态审批人确定函数检查权限
-    actual_approver = get_step_actual_approver(current_step, instance)
-    if not actual_approver or actual_approver.id != user_id:
-        return False
+    # 检查步骤类型
+    if isinstance(current_step, dict):
+        approver_type = current_step.get('approver_type', 'user')
+    else:
+        approver_type = getattr(current_step, 'approver_type', 'user')
+    
+    # 对于自动步骤，跳过权限检查并自动执行
+    if approver_type == 'auto':
+        print(f"🔥 检测到自动步骤，跳过权限检查，自动执行")
+        # 自动步骤使用系统用户ID进行记录
+        if user_id is None:
+            user_id = current_user.id
+    else:
+        # 使用新的动态审批人确定函数检查权限
+        actual_approver = get_step_actual_approver(current_step, instance)
+        if not actual_approver or actual_approver.id != user_id:
+            return False
     
     # 检查是否是授权编号步骤
+    is_authorization_step = False
+    
+    # 获取action_type
     if isinstance(current_step, dict):
-        is_authorization_step = current_step.get('action_type') == 'authorization'
+        action_type = current_step.get('action_type')
+        branch_condition = current_step.get('branch_condition')
     else:
-        is_authorization_step = (
-            hasattr(current_step, 'action_type') and 
-            current_step.action_type == 'authorization'
-        )
+        action_type = getattr(current_step, 'action_type', None)
+        branch_condition = getattr(current_step, 'branch_condition', None)
+    
+    # 判断是否为授权步骤，同时获取分支授权动作
+    branch_action = None
+    if action_type == 'authorization':
+        is_authorization_step = True
+    elif action_type == 'branch_decision' and branch_condition:
+        # 对于分支步骤，检查匹配的分支action是否为授权类型
+        # 简化版本：检查当前项目类型匹配的分支action是否包含'authorization'
+        try:
+            import json
+            if isinstance(branch_condition, str):
+                branch_condition = json.loads(branch_condition)
+            
+            if instance.object_type == 'project':
+                project = Project.query.get(instance.object_id)
+                if project:
+                    field_name = branch_condition.get('field')
+                    if field_name:
+                        field_value = getattr(project, field_name, None)
+                        conditions = branch_condition.get('conditions', [])
+                        for condition in conditions:
+                            if ((condition.get('operator') == 'equals' and field_value == condition.get('value')) or
+                                (condition.get('operator') == 'in' and field_value == condition.get('value')) or
+                                (condition.get('operator') == 'contains' and condition.get('value') in str(field_value))):
+                                action_type_found = condition.get('action', '')
+                                is_authorization_step = 'authorization' in action_type_found
+                                if is_authorization_step:
+                                    branch_action = action_type_found
+                                break
+        except Exception as e:
+            current_app.logger.error(f"检查分支授权步骤失败: {e}")
+            is_authorization_step = False
     
     # 确保action是枚举类型
     if not isinstance(action, ApprovalAction):
@@ -3626,8 +3822,15 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
     
     # 处理授权编号逻辑 - 只有通过且是授权步骤时才执行
     authorization_result = None
+    print(f"🔥 授权检查: action={action}, is_authorization_step={is_authorization_step}, object_type={instance.object_type}")
+    print(f"🔥 授权检查: branch_action={branch_action}")
+    
     if action == ApprovalAction.APPROVE and is_authorization_step and instance.object_type == 'project':
-        authorization_result = _handle_project_authorization(instance, project_type)
+        print(f"🔥 开始执行项目授权逻辑")
+        authorization_result = _handle_project_authorization(instance, project_type, preview_only=False, branch_action=branch_action)
+        print(f"🔥 项目授权结果: {authorization_result}")
+    else:
+        print(f"🔥 跳过授权逻辑: action={action == ApprovalAction.APPROVE}, auth_step={is_authorization_step}, obj_type={instance.object_type == 'project'}")
     
     # 如果拒绝，直接结束流程
     if action == ApprovalAction.REJECT:
@@ -3678,8 +3881,10 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
             # 🔥 注释掉：支付完成的报销单应该保持锁定，不应该解锁
             # unlock_expense(instance.object_id, user_id)
         else:
-            # 🔥 修复：使用快照数据获取下一步骤
-            next_step_order = instance.current_step + 1
+            # 🔥 修复：使用快照数据获取下一步骤，需要先获取当前step_order
+            current_step_obj = ApprovalStep.query.filter_by(id=instance.current_step).first()
+            current_step_order = current_step_obj.step_order if current_step_obj else 1
+            next_step_order = current_step_order + 1
             next_step = None
             
             # 从模板快照中查找下一步骤
@@ -3701,15 +3906,45 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
             current_app.logger.info(f"[DEBUG] 查找下一步骤: next_step_order={next_step_order}, found={next_step is not None}")
             
             if next_step:
-                # 更新到下一步
-                instance.current_step = next_step_order
+                # 更新到下一步，使用step_id而不是step_order
+                next_step_id = next_step.get('step_id') if isinstance(next_step, dict) else next_step.id
+                instance.current_step = next_step_id
                 
                 # 特殊处理：如果下一步是支付步骤，需要更新业务对象状态
                 next_step_action_type = next_step.get('action_type') if isinstance(next_step, dict) else getattr(next_step, 'action_type', None)
                 if next_step_action_type == 'payment_processing' and instance.object_type == 'expense':
                     _update_expense_status_for_payment_stage(instance, user_id, comment)
             else:
-                # 所有步骤已完成，流程通过
+                # 🔥 修复：所有步骤已完成，但要先执行当前步骤的动作（如分支决策）
+                print(f"🔥 所有步骤已完成，当前步骤动作类型: {current_step_action_type}")
+                
+                # 先执行当前步骤的动作（特别是分支决策步骤）
+                if current_step_action_type and action == ApprovalAction.APPROVE:
+                    print(f"🔥 执行最后步骤动作: {current_step_action_type}")
+                    
+                    # 创建临时的ApprovalStep对象来执行动作
+                    if current_step_obj:
+                        try:
+                            target_object = None
+                            if instance.object_type == 'project':
+                                from app.models.project import Project
+                                target_object = Project.query.get(instance.object_id)
+                            elif instance.object_type == 'expense':
+                                from app.models.expense import Expense
+                                target_object = Expense.query.get(instance.object_id)
+                            
+                            if target_object:
+                                print(f"🔥 调用当前步骤的execute_action方法")
+                                result = current_step_obj.execute_action(record, target_object)
+                                print(f"🔥 步骤动作执行结果: {result}")
+                            else:
+                                print(f"🔥 未找到目标对象，跳过步骤动作执行")
+                        except Exception as e:
+                            print(f"🔥 执行步骤动作失败: {str(e)}")
+                            import traceback
+                            traceback.print_exc()
+                
+                # 流程通过
                 instance.status = ApprovalStatus.APPROVED
                 instance.ended_at = datetime.now()
                 
@@ -3743,40 +3978,75 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
         return False
 
 
-def _handle_project_authorization(instance, project_type):
+
+def _handle_project_authorization(instance, project_type, preview_only=False, branch_action=None):
     """处理项目授权编号逻辑
     
     Args:
         instance: 审批实例对象
         project_type: 用户选择的项目类型
+        preview_only: 仅预览模式，不实际修改数据库
+        branch_action: 分支授权动作类型 (如 'channel_authorization', 'business_authorization')
         
     Returns:
         生成的授权编号或None
     """
+    print(f"🔥 _handle_project_authorization 被调用")
+    print(f"🔥 参数: instance_id={instance.id}, project_type={project_type}, branch_action={branch_action}")
+    
     project = Project.query.get(instance.object_id)
     if not project:
+        print(f"🔥 错误: 找不到项目 {instance.object_id}")
         current_app.logger.error(f"找不到项目: {instance.object_id}")
         return None
     
+    print(f"🔥 项目信息: id={project.id}, name={project.project_name}, type={project.project_type}")
+    print(f"🔥 当前授权编码: {project.authorization_code}")
+    
     # 如果已经有授权编号，则不做处理
-    if project.authorization_code:
+    if project.authorization_code and not preview_only:
         current_app.logger.warning(f"项目已有授权编号，不进行处理: {project.id} - {project.authorization_code}")
         return project.authorization_code
     
     try:
+        # 确定要使用的项目类型
+        effective_project_type = project_type if project_type else project.project_type
+        
+        # 根据分支授权动作类型选择对应的生成函数
+        if branch_action:
+            # 在预览模式下，使用默认的审批人ID (0)
+            approver_id = getattr(instance, 'processed_by', 0) if not preview_only else 0
+            
+            if branch_action == 'channel_authorization':
+                from app.utils.authorization import generate_channel_authorization_code
+                authorization_code = generate_channel_authorization_code(effective_project_type, project.id, approver_id)
+            elif branch_action == 'business_authorization':
+                from app.utils.authorization import generate_business_authorization_code
+                authorization_code = generate_business_authorization_code(effective_project_type, project.id, approver_id)
+            elif branch_action == 'project_authorization':
+                from app.utils.authorization import generate_project_authorization_code
+                authorization_code = generate_project_authorization_code(effective_project_type, project.id, approver_id)
+            else:
+                # 默认使用通用授权编码生成
+                from app.utils.authorization import generate_authorization_code
+                authorization_code = generate_authorization_code(effective_project_type)
+        else:
+            # 使用原有的生成方式
+            project_type_for_code = project_type_label(effective_project_type)
+            authorization_code = Project.generate_authorization_code(project_type_for_code)
+        
+        if not authorization_code:
+            current_app.logger.error(f"无法为项目生成授权编号: {project.id}, 类型: {effective_project_type}, 动作: {branch_action}")
+            return None
+        
+        # 预览模式不修改数据库
+        if preview_only:
+            return authorization_code
+        
         # 如果提供了项目类型，则更新项目类型
         if project_type and project_type != project.project_type:
             current_app.logger.info(f"更新项目类型: {project.id}, 原类型: {project.project_type}, 新类型: {project_type}")
             project.project_type = project_type
-        
-        # 将英文类型映射为中文，用于生成授权编号
-        project_type_for_code = project_type_label(project.project_type)
-        
-        # 生成授权编号
-        authorization_code = Project.generate_authorization_code(project_type_for_code)
-        if not authorization_code:
-            current_app.logger.error(f"无法为项目生成授权编号: {project.id}, 类型: {project_type_for_code}")
-            return None
         
         # 更新项目信息
         project.authorization_code = authorization_code
@@ -3931,8 +4201,10 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
             # 🔥 注释掉：支付完成的报销单应该保持锁定，不应该解锁
             # unlock_expense(instance.object_id, user_id)
         else:
-            # 🔥 修复：使用快照数据获取下一步骤
-            next_step_order = instance.current_step + 1
+            # 🔥 修复：使用快照数据获取下一步骤，需要先获取当前step_order
+            current_step_obj = ApprovalStep.query.filter_by(id=instance.current_step).first()
+            current_step_order = current_step_obj.step_order if current_step_obj else 1
+            next_step_order = current_step_order + 1
             next_step = None
             
             # 从模板快照中查找下一步骤
@@ -3954,8 +4226,9 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
             current_app.logger.info(f"[DEBUG] 查找下一步骤: next_step_order={next_step_order}, found={next_step is not None}")
             
             if next_step:
-                # 更新到下一步
-                instance.current_step = next_step_order
+                # 更新到下一步，使用step_id而不是step_order
+                next_step_id = next_step.get('step_id') if isinstance(next_step, dict) else next_step.id
+                instance.current_step = next_step_id
                 
                 # 特殊处理：如果下一步是支付步骤，需要更新业务对象状态
                 next_step_action_type = next_step.get('action_type') if isinstance(next_step, dict) else getattr(next_step, 'action_type', None)
@@ -4493,8 +4766,9 @@ def get_workflow_steps(approval_instance, current_user_id=None):
     # 构建步骤信息
     workflow_steps = []
     
-    # 确定当前步骤：基于审批实例的current_step字段（step_order）
-    current_step_order = approval_instance.current_step
+    # 确定当前步骤：需要从step_id转换为step_order
+    current_step_obj = ApprovalStep.query.filter_by(id=approval_instance.current_step).first()
+    current_step_order = current_step_obj.step_order if current_step_obj else 1
     
     for i, step in enumerate(template_steps):
         # 处理快照数据（字典）和模型对象两种情况
@@ -4660,9 +4934,24 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                     current_app.logger.info(f"报价单 {quotation.quotation_number} 审批被拒绝")
         
         elif instance.object_type == 'project':
-            # 项目审批状态更新逻辑（如果需要的话）
-            # 这里可以根据项目的具体需求来实现
-            pass
+            # 更新项目的状态
+            from app.models.project import Project
+            project = Project.query.get(instance.object_id)
+            
+            if project:
+                if action == ApprovalAction.APPROVE:
+                    # 审批通过
+                    if instance.status == ApprovalStatus.APPROVED:
+                        # 流程完全通过
+                        project.status = 'approved'
+                    else:
+                        # 还在审批中
+                        project.status = 'pending'
+                elif action == ApprovalAction.REJECT:
+                    # 审批拒绝
+                    project.status = 'rejected'
+                
+                current_app.logger.info(f"项目 {project.project_name} 状态已更新为: {project.status}")
             
         elif instance.object_type == 'customer':
             # 客户审批状态更新逻辑（如果需要的话）
@@ -5857,7 +6146,12 @@ def resubmit_approval(object_type, object_id, user_id):
         if approval_instance:
             # 重置审批实例状态
             approval_instance.status = ApprovalStatus.PENDING
-            approval_instance.current_step = 1
+            # 获取第一步的step_id
+            first_step = ApprovalStep.query.filter_by(
+                process_id=approval_instance.process_id,
+                step_order=1
+            ).first()
+            approval_instance.current_step = first_step.id if first_step else 1
             approval_instance.started_at = datetime.now()
             approval_instance.ended_at = None
             
@@ -6754,3 +7048,41 @@ def check_universal_approval_permission(object_type, object_id, user_id, permiss
             'can_action': False,
             'message': f'不支持的权限类型: {permission_type}'
         }
+
+
+def is_current_approver(object_type, object_id, user_id):
+    """
+    检查用户是否是当前审批步骤的审批人
+    
+    Args:
+        object_type: 对象类型 
+        object_id: 对象ID
+        user_id: 用户ID
+        
+    Returns:
+        bool: 是否为当前审批人
+    """
+    try:
+        # 获取审批实例
+        approval_instance = get_object_approval_instance(object_type, object_id)
+        if not approval_instance or approval_instance.status != ApprovalStatus.PENDING:
+            return False
+            
+        # 获取当前审批步骤
+        current_step = ApprovalStep.query.filter_by(id=approval_instance.current_step).first()
+        if not current_step:
+            return False
+            
+        # 获取实际审批人
+        actual_approver = get_step_actual_approver(current_step, approval_instance)
+        if not actual_approver:
+            return False
+            
+        # 检查是否为当前审批人
+        # get_step_actual_approver返回User对象，需要获取id
+        approver_id = actual_approver.id if hasattr(actual_approver, 'id') else actual_approver.get('approver_id') if isinstance(actual_approver, dict) else None
+        return approver_id == user_id
+        
+    except Exception as e:
+        current_app.logger.error(f"检查审批人权限失败: {str(e)}")
+        return False

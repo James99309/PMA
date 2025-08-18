@@ -480,32 +480,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.success && data.data) {
                     console.log(`找到 ${data.data.length} 个企业`);
                     
-                    // 按企业分组用户，根据企业的厂商标识过滤
+                    // 显示所有企业和部门的用户，不进行厂商过滤
                     data.data.forEach(company => {
-                        // 使用is_vendor字段判断是否为厂商企业
-                        const isVendorCompany = company.is_vendor === true;
-                        
                         if (company.users && company.users.length > 0) {
-                            if (isVendorCompany) {
-                                // 厂商下拉菜单：只显示真实姓名，不显示角色信息
-                                company.users.forEach(user => {
-                                    const option = document.createElement('option');
-                                    option.value = user.id;
-                                    // 只显示真实姓名
-                                    const displayName = user.real_name || user.name;
-                                    option.textContent = displayName;
-                                    
-                                    // 如果是编辑模式且当前项目有设置厂商销售负责人，则选中
-                                    {% if project and project.vendor_sales_manager_id %}
-                                    if (user.id === {{ project.vendor_sales_manager_id }}) {
-                                        option.selected = true;
-                                        console.log(`选中厂商负责人: ${displayName} (ID: ${user.id})`);
-                                    }
-                                    {% endif %}
-                                    
-                                    select.appendChild(option);
-                                });
-                            }
+                            // 添加企业分组标识（可选）
+                            const companyGroup = document.createElement('optgroup');
+                            companyGroup.label = company.name;
+                            
+                            company.users.forEach(user => {
+                                const option = document.createElement('option');
+                                option.value = user.id;
+                                // 显示姓名和公司信息
+                                const displayName = user.real_name || user.name;
+                                option.textContent = `${displayName} (${company.name})`;
+                                
+                                // 如果是编辑模式且当前项目有设置厂商销售负责人，则选中
+                                {% if project and project.vendor_sales_manager_id %}
+                                if (user.id === {{ project.vendor_sales_manager_id }}) {
+                                    option.selected = true;
+                                    console.log(`选中负责人: ${displayName} (ID: ${user.id})`);
+                                }
+                                {% endif %}
+                                
+                                companyGroup.appendChild(option);
+                            });
+                            
+                            select.appendChild(companyGroup);
                         }
                     });
                 } else {

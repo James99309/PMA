@@ -262,7 +262,8 @@ function setupFilterSearch(config) {
         console.log('🚀 AJAX模式下自动触发初次数据加载');
         // 使用 requestAnimationFrame 确保DOM完全渲染后再执行，比setTimeout更高效
         requestAnimationFrame(() => {
-            const targetElement = document.querySelector(config.ajax_target);
+            const targetSelector = config.ajax_target.startsWith('#') ? config.ajax_target : '#' + config.ajax_target;
+            const targetElement = document.querySelector(targetSelector);
             // 检查是否存在加载状态标记
             const loadingElement = targetElement ? targetElement.querySelector('[data-loading-state="true"]') : null;
             
@@ -731,7 +732,7 @@ function performGenericAjaxFilter(config) {
     console.log('📋 筛选参数:', params);
     
     // 显示加载状态
-    const targetElement = document.querySelector(config.ajax_target);
+    const targetElement = document.querySelector(config.ajax_target.startsWith('#') ? config.ajax_target : '#' + config.ajax_target);
     if (!targetElement) {
         console.error(`❌ 找不到目标元素: ${config.ajax_target}`);
         return;

@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 import json
-from app.permissions import admin_required
+from app.permissions import admin_required, permission_required
 from app.helpers.approval_helpers import (
     get_approval_templates,
     get_template_details,
@@ -22,6 +22,269 @@ from app.models.approval import ApprovalProcessTemplate, ApprovalStep, ApprovalI
 from app.models.user import User
 from app import db, csrf
 from flask import current_app
+
+def handle_branch_condition_add(step, form_data):
+    """处理分支条件添加"""
+    try:
+        # 获取表单数据
+        branch_operator = form_data.get('branch_operator')
+        branch_value = form_data.get('branch_value')
+        branch_value_final = form_data.get('branch_value_final')
+        branch_value_select = form_data.get('branch_value_select')  # 新增：获取下拉框值
+        true_branch_approver = form_data.get('true_branch_approver')
+        true_branch_action = form_data.get('true_branch_action')
+        
+        # 获取最终的条件值 - 优先使用branch_value_final，然后是下拉框值，最后是文本输入值
+        final_branch_value = branch_value_final if branch_value_final and branch_value_final != 'None' else (
+            branch_value_select if branch_value_select else branch_value
+        )
+        
+        # 处理操作符转换
+        standard_operator = branch_operator
+        if branch_operator == 'equals_from_list':
+            standard_operator = 'equals'
+        elif branch_operator == 'in_from_list':
+            standard_operator = 'in'
+        
+        # 详细调试信息
+        current_app.logger.info(f"添加分支条件调试 - 所有表单数据: {dict(form_data)}")
+        current_app.logger.info(f"添加分支条件 - operator: '{branch_operator}' -> '{standard_operator}', branch_value: '{branch_value}', branch_value_select: '{branch_value_select}', branch_value_final: '{branch_value_final}', final_value: '{final_branch_value}'")
+        current_app.logger.info(f"添加分支条件 - approver: '{true_branch_approver}', action: '{true_branch_action}'")
+        
+        # 验证必填字段
+        if not branch_operator:
+            flash('条件操作符不能为空', 'danger')
+            return redirect(url_for('approval_config.template_detail', template_id=step.process_id))
+        
+        if not final_branch_value and branch_operator not in ['is_null', 'is_not_null', 'is_empty', 'is_not_empty']:
+            current_app.logger.error(f"条件值验证失败 - final_branch_value: '{final_branch_value}', operator: '{branch_operator}'")
+            current_app.logger.error(f"原始数据 - branch_value: '{branch_value}', branch_value_final: '{branch_value_final}'")
+            flash('条件值不能为空', 'danger')
+            return redirect(url_for('approval_config.template_detail', template_id=step.process_id))
+        
+        if not true_branch_approver:
+            flash('审批人不能为空', 'danger')
+            return redirect(url_for('approval_config.template_detail', template_id=step.process_id))
+        
+        # 处理审批人类型
+        approver_type = 'user'
+        approver_id = None
+        current_app.logger.info(f"处理审批人 - true_branch_approver: '{true_branch_approver}', 类型: {type(true_branch_approver)}")
+        if true_branch_approver == 'next_level':
+            approver_type = 'next_level'
+            current_app.logger.info("设置审批人类型为 next_level")
+        elif true_branch_approver == 'next_branch':
+            approver_type = 'next_branch'
+            current_app.logger.info("设置审批人类型为 next_branch")
+        elif true_branch_approver and true_branch_approver.isdigit():
+            approver_id = int(true_branch_approver)
+            current_app.logger.info(f"设置审批人ID为 {approver_id}")
+        
+        current_app.logger.info(f"最终审批人配置 - approver_type: '{approver_type}', approver_id: {approver_id}")
+        
+        # 获取当前分支条件
+        current_condition = step.branch_condition or {}
+        
+        # 如果当前是简单的true/false结构，转换为多条件结构
+        if 'true_branch' in current_condition and 'false_branch' in current_condition:
+            # 转换为新的多条件结构
+            field = current_condition.get('field')
+            conditions = []
+            
+            # 添加原有的true_branch作为第一个条件
+            if current_condition.get('operator') and current_condition.get('value'):
+                conditions.append({
+                    'operator': current_condition['operator'],
+                    'value': current_condition['value'],
+                    'approver_id': current_condition['true_branch'].get('approver_id'),
+                    'approver_type': current_condition['true_branch'].get('approver_type', 'user'),
+                    'action': current_condition['true_branch'].get('action')
+                })
+            
+            new_condition = {
+                'field': field,
+                'conditions': conditions,
+                'default_branch': current_condition.get('false_branch', {})
+            }
+            current_condition = new_condition
+        
+        # 添加新的条件
+        if 'conditions' not in current_condition:
+            current_condition['conditions'] = []
+        
+        # 添加新条件
+        new_condition_item = {
+            'operator': standard_operator,
+            'value': final_branch_value,
+            'approver_id': approver_id,
+            'approver_type': approver_type,
+            'action': true_branch_action
+        }
+        
+        current_app.logger.info(f"准备添加新条件: {new_condition_item}")
+        current_app.logger.info(f"当前分支条件结构: {current_condition}")
+        
+        current_condition['conditions'].append(new_condition_item)
+        
+        current_app.logger.info(f"添加条件后的分支条件结构: {current_condition}")
+        current_app.logger.info(f"条件数量: {len(current_condition['conditions'])}")
+        
+        # 更新步骤
+        step.branch_condition = current_condition
+        
+        # 标记字段为已修改 - 确保SQLAlchemy检测到JSON字段的变化
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(step, 'branch_condition')
+        
+        current_app.logger.info(f"准备提交数据库更改...")
+        db.session.commit()
+        current_app.logger.info(f"数据库更改已提交")
+        
+        flash('分支条件添加成功', 'success')
+        return redirect(url_for('approval_config.template_detail', template_id=step.process_id))
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"添加分支条件失败: {str(e)}")
+        flash(f'添加失败: {str(e)}', 'danger')
+        return redirect(url_for('approval_config.template_detail', template_id=step.process_id))
+
+
+def handle_branch_condition_edit(step, form_data):
+    """处理分支条件编辑"""
+    try:
+        condition_index = int(form_data.get('condition_index', 0))
+        
+        # 获取表单数据
+        branch_operator = form_data.get('branch_operator')
+        branch_value = form_data.get('branch_value')
+        branch_value_final = form_data.get('branch_value_final')
+        branch_value_select = form_data.get('branch_value_select')
+        true_branch_approver = form_data.get('true_branch_approver')
+        true_branch_action = form_data.get('true_branch_action')
+        
+        # 获取最终的条件值
+        final_branch_value = branch_value_final if branch_value_final and branch_value_final != 'None' else (
+            branch_value_select if branch_value_select else branch_value
+        )
+        
+        current_app.logger.info(f"编辑分支条件 - 索引: {condition_index}, operator: '{branch_operator}', final_value: '{final_branch_value}'")
+        
+        # 验证必填字段
+        if not branch_operator:
+            flash('条件操作符不能为空', 'danger')
+            return redirect(url_for('approval_config.template_detail', template_id=step.process_id))
+        
+        if not final_branch_value and branch_operator not in ['is_null', 'is_not_null', 'is_empty', 'is_not_empty']:
+            flash('条件值不能为空', 'danger')
+            return redirect(url_for('approval_config.template_detail', template_id=step.process_id))
+        
+        if not true_branch_approver:
+            flash('审批人不能为空', 'danger')
+            return redirect(url_for('approval_config.template_detail', template_id=step.process_id))
+        
+        # 处理审批人类型
+        approver_type = 'user'
+        approver_id = None
+        if true_branch_approver == 'next_level':
+            approver_type = 'next_level'
+        elif true_branch_approver == 'next_branch':
+            approver_type = 'next_branch'
+        elif true_branch_approver and true_branch_approver.isdigit():
+            approver_id = int(true_branch_approver)
+        
+        # 获取当前分支条件
+        current_condition = step.branch_condition or {}
+        
+        if 'conditions' in current_condition and condition_index < len(current_condition['conditions']):
+            # 更新指定索引的条件
+            current_condition['conditions'][condition_index] = {
+                'operator': branch_operator,
+                'value': final_branch_value,
+                'approver_id': approver_id,
+                'approver_type': approver_type,
+                'action': true_branch_action
+            }
+            
+            # 更新步骤
+            step.branch_condition = current_condition
+            db.session.commit()
+            
+            flash('分支条件编辑成功', 'success')
+        else:
+            flash('指定的分支条件不存在', 'danger')
+            
+        return redirect(url_for('approval_config.template_detail', template_id=step.process_id))
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"编辑分支条件失败: {str(e)}")
+        flash(f'编辑失败: {str(e)}', 'danger')
+        return redirect(url_for('approval_config.template_detail', template_id=step.process_id))
+
+
+def handle_branch_condition_delete(step, form_data):
+    """处理分支条件删除"""
+    try:
+        condition_index = int(form_data.get('condition_index', 0))
+        
+        current_app.logger.info(f"🗑️ 删除分支条件请求 - 步骤ID: {step.id}, 条件索引: {condition_index}")
+        current_app.logger.info(f"🔍 删除请求表单数据: {dict(form_data)}")
+        
+        # 获取当前分支条件
+        current_condition = step.branch_condition or {}
+        current_app.logger.info(f"📊 删除前的分支条件: {current_condition}")
+        
+        if 'conditions' in current_condition:
+            current_app.logger.info(f"📋 删除前条件数量: {len(current_condition['conditions'])}")
+            for i, cond in enumerate(current_condition['conditions']):
+                current_app.logger.info(f"  条件 {i}: {cond.get('value')} -> 审批人 {cond.get('approver_id')}")
+        else:
+            current_app.logger.error("❌ current_condition中没有conditions字段")
+        
+        if 'conditions' not in current_condition:
+            current_app.logger.error(f"❌ 分支条件中没有conditions字段")
+            flash('分支条件数据结构错误', 'danger')
+            return redirect(url_for('approval_config.template_detail', template_id=step.process_id))
+            
+        if condition_index >= len(current_condition['conditions']):
+            current_app.logger.error(f"❌ 条件索引 {condition_index} 超出范围，总条件数: {len(current_condition['conditions'])}")
+            flash('指定的分支条件不存在', 'danger')
+            return redirect(url_for('approval_config.template_detail', template_id=step.process_id))
+            
+        # 检查是否还有其他条件
+        if len(current_condition['conditions']) <= 1:
+            current_app.logger.error(f"❌ 不能删除最后一个分支条件，当前条件数: {len(current_condition['conditions'])}")
+            flash('不能删除最后一个分支条件', 'danger')
+            return redirect(url_for('approval_config.template_detail', template_id=step.process_id))
+        
+        # 删除指定索引的条件
+        deleted_condition = current_condition['conditions'][condition_index]
+        current_app.logger.info(f"🗑️ 即将删除的条件: {deleted_condition}")
+        
+        del current_condition['conditions'][condition_index]
+        current_app.logger.info(f"📋 删除后条件数量: {len(current_condition['conditions'])}")
+        
+        # 更新步骤 - 使用深拷贝确保SQLAlchemy检测到变化
+        import copy
+        step.branch_condition = copy.deepcopy(current_condition)
+        
+        # 标记字段为已修改
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(step, 'branch_condition')
+        
+        current_app.logger.info(f"📝 准备提交数据库事务...")
+        db.session.commit()
+        current_app.logger.info(f"✅ 数据库事务提交成功")
+        
+        flash(f'分支条件删除成功，剩余 {len(current_condition["conditions"])} 个条件', 'success')
+        return redirect(url_for('approval_config.template_detail', template_id=step.process_id))
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"删除分支条件失败: {str(e)}")
+        flash(f'删除失败: {str(e)}', 'danger')
+        return redirect(url_for('approval_config.template_detail', template_id=step.process_id))
 
 # 创建Blueprint
 approval_config_bp = Blueprint('approval_config', __name__, url_prefix='/admin/approval')
@@ -83,14 +346,41 @@ def create_template():
         if template:
             flash('审批流程模板创建成功', 'success')
             return redirect(url_for('approval_config.template_detail', template_id=template.id))
-        else:
-            flash('创建审批流程模板失败', 'danger')
+
+
+@approval_config_bp.route('/api/get-field-values')
+@login_required
+@admin_required
+def get_field_values():
+    """获取指定字段的可选值API"""
+    object_type = request.args.get('object_type')
+    field_name = request.args.get('field_name')
     
-    # GET请求，显示创建表单
-    object_types = get_object_types()
-    return render_template('approval_config/template_form.html', 
-                         object_types=object_types, 
-                         is_edit=False)
+    if not object_type or not field_name:
+        return jsonify({
+            'success': False,
+            'message': '缺少必要参数 object_type 或 field_name'
+        }), 400
+    
+    try:
+        from app.utils.field_value_helper import get_field_available_values
+        
+        # 获取字段可选值
+        values = get_field_available_values(object_type, field_name)
+        
+        return jsonify({
+            'success': True,
+            'field_name': field_name,
+            'object_type': object_type,
+            'values': values
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"获取字段值失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'获取字段值失败: {str(e)}'
+        }), 500
 
 
 @approval_config_bp.route('/process/<int:template_id>')
@@ -238,11 +528,135 @@ def toggle_template(template_id):
 def add_step():
     """添加审批步骤"""
     template_id = request.form.get('template_id', type=int)
-    step_name = request.form.get('step_name')
+    step_name = request.form.get('step_name', '').strip()
     approver_type = request.form.get('approver_type', 'user')
     approver_id = request.form.get('approver_id', type=int)
     send_email = request.form.get('send_email') == 'on'
     action_type = request.form.get('action_type')
+    
+    # 调试信息
+    current_app.logger.info(f"添加步骤 - approver_type: {approver_type}, approver_id: {approver_id}")
+    
+    # 如果是分支步骤且没有设置步骤名称，使用默认名称
+    if not step_name and request.form.get('step_type') == 'branch':
+        step_name = '分支决策步骤'
+    
+    # 新增：分支步骤支持
+    step_type = request.form.get('step_type', 'normal')
+    
+    # 更详细的调试信息
+    current_app.logger.info(f"添加步骤详细信息 - step_type: {step_type}, step_name: {step_name}")
+    current_app.logger.info(f"表单所有参数: {dict(request.form)}")
+    
+    # 分支步骤立即设置特殊的审批人类型，避免后续验证问题
+    if step_type == 'branch':
+        approver_type = 'branch'
+        approver_id = None  # 分支步骤不需要主审批人
+        current_app.logger.info("分支步骤：设置approver_type=branch, approver_id=None")
+    
+    branch_condition = None
+    branch_group_id = None
+    branch_level = 0
+    parent_step_id = None
+    is_parallel = False
+    
+    # 检查是否是继承模式（添加新分支时从已有分支继承条件字段）
+    inherit_from_step = request.form.get('inherit_from_step', type=int)
+    
+    if step_type == 'branch':
+        # 处理分支条件
+        branch_field = request.form.get('branch_field')
+        branch_operator = request.form.get('branch_operator') 
+        branch_value = request.form.get('branch_value')
+        
+        # 如果是继承模式且字段为空，从父步骤继承条件字段和操作符
+        if inherit_from_step and (not branch_field or not branch_operator):
+            parent_step = ApprovalStep.query.get(inherit_from_step)
+            if parent_step and parent_step.branch_condition:
+                parent_condition = parent_step.branch_condition
+                if not branch_field:
+                    branch_field = parent_condition.get('field', '')
+                if not branch_operator:
+                    branch_operator = parent_condition.get('operator', '')
+                # 注意：不继承值，新分支需要设置自己的值
+        
+        true_branch_approver = request.form.get('true_branch_approver')
+        true_branch_action = request.form.get('true_branch_action')
+        false_branch_approver = request.form.get('false_branch_approver')
+        false_branch_action = request.form.get('false_branch_action')
+        
+        # 获取最终的条件值（来自值选择或手动输入）
+        branch_value_final = request.form.get('branch_value_final')
+        final_branch_value = branch_value_final if branch_value_final else branch_value
+        
+        if branch_field and branch_operator and final_branch_value:
+            # 转换列表选择操作符为标准操作符
+            standard_operator = branch_operator
+            if branch_operator == 'equals_from_list':
+                standard_operator = 'equals'
+            elif branch_operator == 'in_from_list':
+                standard_operator = 'in'
+            
+            # 处理true分支
+            true_approver_type = 'user'
+            true_approver_id = None
+            if true_branch_approver == 'next_level':
+                true_approver_type = 'next_level'
+            elif true_branch_approver == 'next_branch':
+                true_approver_type = 'next_branch'
+            elif true_branch_approver and true_branch_approver.isdigit():
+                true_approver_id = int(true_branch_approver)
+            
+            # 处理false分支
+            false_approver_type = 'user'
+            false_approver_id = None
+            if false_branch_approver == 'next_level':
+                false_approver_type = 'next_level'
+            elif false_branch_approver == 'next_branch':
+                false_approver_type = 'next_branch'
+            elif false_branch_approver and false_branch_approver.isdigit():
+                false_approver_id = int(false_branch_approver)
+            
+            branch_condition = {
+                'field': branch_field,
+                'operator': standard_operator,
+                'value': final_branch_value,
+                'true_branch': {
+                    'approver_id': true_approver_id,
+                    'approver_type': true_approver_type,
+                    'action': true_branch_action
+                },
+                'false_branch': {
+                    'approver_id': false_approver_id,
+                    'approver_type': false_approver_type,
+                    'action': false_branch_action
+                }
+            }
+            # 分支步骤强制使用分支决策动作
+            action_type = 'branch_decision'
+            
+            # 生成分支组ID（用当前时间戳生成唯一ID）
+            import time
+            branch_group_id = f"branch_{int(time.time())}_{template_id}"
+            
+            # 分支步骤的审批人已在前面设置为None和'branch'类型
+        else:
+            # 分支条件不完整时的错误处理
+            if not branch_field:
+                flash('分支步骤必须设置条件字段', 'danger')
+                return redirect(url_for('approval_config.template_detail', template_id=template_id))
+            if not branch_operator:
+                flash('分支步骤必须设置条件操作符', 'danger')
+                return redirect(url_for('approval_config.template_detail', template_id=template_id))
+            if not final_branch_value and branch_operator not in ['is_null', 'is_not_null', 'is_empty', 'is_not_empty']:
+                flash('分支步骤必须设置条件值', 'danger')
+                return redirect(url_for('approval_config.template_detail', template_id=template_id))
+            if not true_branch_approver:
+                flash('分支步骤必须设置条件满足时的审批人', 'danger')
+                return redirect(url_for('approval_config.template_detail', template_id=template_id))
+            if not false_branch_approver:
+                flash('分支步骤必须设置条件不满足时的审批人', 'danger')
+                return redirect(url_for('approval_config.template_detail', template_id=template_id))
     
     # 新增字段
     # 支持新格式的JSON字段数据
@@ -268,8 +682,9 @@ def add_step():
         flash('模板ID和步骤名称不能为空', 'danger')
         return redirect(url_for('approval_config.template_detail', template_id=template_id))
     
-    # 验证审批人配置
-    if approver_type == 'user' and not approver_id and action_type != 'authorization':
+    # 验证审批人配置（分支步骤和特殊类型步骤不需要这个验证）
+    # 分支步骤的审批人在分支条件中指定，不在主步骤中
+    if step_type != 'branch' and approver_type == 'user' and not approver_id and action_type != 'authorization':
         flash('选择指定用户时必须选择具体的审批人', 'danger')
         return redirect(url_for('approval_config.template_detail', template_id=template_id))
     
@@ -282,7 +697,13 @@ def add_step():
         editable_fields=editable_fields,
         cc_users=[int(user_id) for user_id in cc_users if user_id.isdigit()],
         cc_enabled=cc_enabled,
-        approver_type=approver_type
+        approver_type=approver_type,
+        step_type=step_type,
+        branch_condition=branch_condition,
+        branch_group_id=branch_group_id,
+        branch_level=branch_level,
+        parent_step_id=parent_step_id,
+        is_parallel=is_parallel
     )
     
     # 如果添加成功且设置了动作类型，更新动作类型
@@ -304,11 +725,133 @@ def edit_step(step_id):
     step = ApprovalStep.query.get_or_404(step_id)
     template_id = step.process_id
     
+    # 检查编辑模式
+    is_branch_edit = request.form.get('is_branch_edit') == 'true'
+    is_branch_condition_add = request.form.get('is_branch_condition_add') == 'true'
+    is_branch_condition_edit = request.form.get('is_branch_condition_edit') == 'true'
+    action = request.form.get('action')
+    branch_type = request.form.get('branch_type')
+    
+    current_app.logger.info(f"编辑模式检查 - is_branch_edit: {is_branch_edit}, is_branch_condition_add: {is_branch_condition_add}, is_branch_condition_edit: {is_branch_condition_edit}, action: {action}")
+    current_app.logger.info(f"🔍 edit_step收到的所有表单数据: {dict(request.form)}")
+    
+    if action == 'delete_branch_condition':
+        # 处理分支条件删除
+        current_app.logger.info(f"🗑️ 进入删除分支条件处理逻辑 - 步骤ID: {step_id}")
+        return handle_branch_condition_delete(step, request.form)
+    
+    if is_branch_condition_add:
+        # 处理分支条件添加
+        return handle_branch_condition_add(step, request.form)
+    
+    if is_branch_condition_edit:
+        # 处理分支条件编辑
+        return handle_branch_condition_edit(step, request.form)
+    
+    if is_branch_edit and branch_type:
+        # 处理分支编辑，现在支持完整的分支条件编辑
+        step_name = request.form.get('step_name')
+        branch_field = request.form.get('branch_field')
+        branch_operator = request.form.get('branch_operator')
+        branch_value = request.form.get('branch_value')
+        
+        # 分支审批人配置
+        true_branch_approver = request.form.get('true_branch_approver')
+        true_branch_action = request.form.get('true_branch_action')
+        false_branch_approver = request.form.get('false_branch_approver')
+        false_branch_action = request.form.get('false_branch_action')
+        
+        # 获取最终的条件值（来自值选择或手动输入）
+        branch_value_final = request.form.get('branch_value_final')
+        final_branch_value = branch_value_final if branch_value_final else branch_value
+        
+        # 验证必填字段
+        if not step_name:
+            flash('步骤名称不能为空', 'danger')
+            return redirect(url_for('approval_config.template_detail', template_id=template_id))
+        
+        if not branch_field or not branch_operator:
+            flash('分支条件字段和操作符不能为空', 'danger')
+            return redirect(url_for('approval_config.template_detail', template_id=template_id))
+        
+        if not final_branch_value and branch_operator not in ['is_null', 'is_not_null', 'is_empty', 'is_not_empty']:
+            flash('分支条件值不能为空', 'danger')
+            return redirect(url_for('approval_config.template_detail', template_id=template_id))
+        
+        try:
+            # 更新步骤名称
+            step.step_name = step_name
+            
+            # 处理true分支审批人
+            true_approver_type = 'user'
+            true_approver_id = None
+            if true_branch_approver == 'next_level':
+                true_approver_type = 'next_level'
+            elif true_branch_approver == 'next_branch':
+                true_approver_type = 'next_branch'
+            elif true_branch_approver and true_branch_approver.startswith('user_'):
+                true_approver_id = int(true_branch_approver.replace('user_', ''))
+            
+            # 处理false分支审批人
+            false_approver_type = 'user'
+            false_approver_id = None
+            if false_branch_approver == 'next_level':
+                false_approver_type = 'next_level'
+            elif false_branch_approver == 'next_branch':
+                false_approver_type = 'next_branch'
+            elif false_branch_approver and false_branch_approver.startswith('user_'):
+                false_approver_id = int(false_branch_approver.replace('user_', ''))
+            
+            # 更新完整的分支条件配置
+            step.branch_condition = {
+                'field': branch_field,
+                'operator': branch_operator,
+                'value': final_branch_value,
+                'true_branch': {
+                    'approver_id': true_approver_id,
+                    'approver_type': true_approver_type,
+                    'action': true_branch_action
+                },
+                'false_branch': {
+                    'approver_id': false_approver_id,
+                    'approver_type': false_approver_type,
+                    'action': false_branch_action
+                }
+            }
+            
+            # 确保动作类型为分支决策
+            step.action_type = 'branch_decision'
+            
+            # 标记字段为已修改并保存
+            db.session.merge(step)
+            db.session.commit()
+            
+            flash('分支条件更新成功', 'success')
+            return redirect(url_for('approval_config.template_detail', template_id=template_id))
+            
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"更新分支条件失败: {str(e)}")
+            flash(f'更新失败: {str(e)}', 'danger')
+            return redirect(url_for('approval_config.template_detail', template_id=template_id))
+    
+    # 常规步骤编辑逻辑
     step_name = request.form.get('step_name')
     approver_type = request.form.get('approver_type', 'user')
     approver_id = request.form.get('approver_id', type=int)
     send_email = request.form.get('send_email') == 'on'
     action_type = request.form.get('action_type')
+    
+    # 调试信息
+    current_app.logger.info(f"编辑步骤 {step_id} - step.step_type: {step.step_type}")
+    current_app.logger.info(f"编辑步骤参数 - approver_type: {approver_type}, approver_id: {approver_id}")
+    current_app.logger.info(f"表单所有参数: {dict(request.form)}")
+    
+    # 如果当前步骤是分支步骤，设置正确的审批人类型
+    if step.step_type == 'branch':
+        approver_type = 'branch'
+        approver_id = None  # 分支步骤不需要主审批人
+        current_app.logger.info("分支步骤编辑：设置approver_type=branch, approver_id=None")
     
     # 新增字段
     # 支持新格式的JSON字段数据
@@ -334,8 +877,9 @@ def edit_step(step_id):
         flash('步骤名称不能为空', 'danger')
         return redirect(url_for('approval_config.template_detail', template_id=template_id))
     
-    # 验证审批人配置
-    if approver_type == 'user' and not approver_id and action_type != 'authorization':
+    # 验证审批人配置（分支步骤和特殊类型步骤不需要这个验证）
+    # 分支步骤的审批人在分支条件中指定，不在主步骤中
+    if step.step_type != 'branch' and approver_type == 'user' and not approver_id and action_type != 'authorization':
         flash('选择指定用户时必须选择具体的审批人', 'danger')
         return redirect(url_for('approval_config.template_detail', template_id=template_id))
     
@@ -453,4 +997,92 @@ def get_field_options(object_type):
             'message': f'获取字段选项出错: {str(e)}'
         })
         response.headers.add('Access-Control-Allow-Origin', '*')
-        return response, 500 
+        return response, 500
+
+
+@approval_config_bp.route('/api/dynamic-fields/<string:object_type>', methods=['GET'])
+@login_required
+@permission_required('approval', 'edit')
+def get_dynamic_fields(object_type):
+    """API端点：获取对象的动态字段列表
+    
+    Args:
+        object_type: 对象类型 (project, quotation, customer, etc.)
+    
+    Returns:
+        JSON格式的动态字段列表
+    """
+    try:
+        from app.utils.field_value_helper import get_supported_fields_for_object
+        
+        # 获取支持的字段
+        supported_fields = get_supported_fields_for_object(object_type)
+        
+        # 转换为前端需要的格式
+        fields = []
+        for field_info in supported_fields:
+            fields.append({
+                'value': field_info['field'],
+                'label': field_info['label'],
+                'has_mapping': field_info.get('has_mapping', False),
+                'type': field_info.get('type', 'string')
+            })
+        
+        current_app.logger.info(f"动态字段获取成功 - 对象类型: {object_type}, 字段数量: {len(fields)}")
+        
+        return jsonify({
+            'success': True,
+            'object_type': object_type,
+            'fields': fields
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"获取动态字段失败: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        
+        return jsonify({
+            'success': False,
+            'message': f'获取字段失败: {str(e)}'
+        }), 500
+
+
+@approval_config_bp.route('/step/<int:step_id>/details', methods=['GET'])
+@login_required
+@permission_required('approval', 'edit')
+def get_step_details(step_id):
+    """API端点：获取步骤详细信息
+    
+    Args:
+        step_id: 步骤ID
+    
+    Returns:
+        JSON格式的步骤详细信息
+    """
+    try:
+        step = ApprovalStep.query.get_or_404(step_id)
+        
+        step_data = {
+            'id': step.id,
+            'step_name': step.step_name,
+            'step_type': step.step_type,
+            'approver_type': step.approver_type,
+            'approver_user_id': step.approver_user_id,
+            'action_type': step.action_type,
+            'branch_condition': step.branch_condition
+        }
+        
+        return jsonify({
+            'success': True,
+            'step': step_data
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"获取步骤详情失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'获取步骤详情失败: {str(e)}'
+        }), 500
+
+
+ 

@@ -5,6 +5,7 @@ from flask_login import login_required, current_user
 from app import db, csrf
 from app.models.project import Project
 from app.models.customer import Company, Contact
+from app.models.approval import ApprovalStatus
 from app.decorators import permission_required, permission_required_with_approval_context
 from app.utils.access_control import get_viewable_data, can_edit_data, get_accessible_data, can_change_project_owner, can_view_project
 import logging
@@ -25,6 +26,7 @@ from flask_wtf.csrf import CSRFProtect
 from app.models.action import Action, ActionReply
 from app.models.projectpm_stage_history import ProjectStageHistory  # 导入阶段历史记录模型
 from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS, INDUSTRY_OPTIONS, get_industry_options, get_project_type_options, get_report_source_options, get_product_situation_options, get_project_stage_options, get_default_currency, get_currency_symbol, get_amount_unit_config
+from app.utils.chinese_mapping_manager import mapping_manager
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
 from app.utils.notification_helpers import trigger_event_notification
@@ -326,24 +328,24 @@ def list_projects():
         'filter_fields': [
             {
                 'name': 'owner_id',
-                'label': _('拥有人'),
-                'all_option_text': _('全部拥有人'),
+                'label': _(mapping_manager.get_field_display_name('project', 'owner_id')),
+                'all_option_text': _('全部负责人'),
                 'current_value': request.args.get('owner_id', ''),
                 'col_width': 2,
                 'options': _get_project_owner_options(current_user)
             },
             {
                 'name': 'vendor_sales_manager_id',
-                'label': '厂商负责人',
-                'all_option_text': '全部负责人',
+                'label': _(mapping_manager.get_field_display_name('project', 'vendor_sales_manager_id')),
+                'all_option_text': _('全部厂商销售'),
                 'current_value': request.args.get('vendor_sales_manager_id', ''),
                 'col_width': 2,
                 'options': _get_vendor_manager_options(current_user)
             },
             {
                 'name': 'is_active',
-                'label': '活跃状态',
-                'all_option_text': '全部状态',
+                'label': _(mapping_manager.get_field_display_name('common', 'is_active')),
+                'all_option_text': _('全部状态'),
                 'current_value': request.args.get('is_active', ''),
                 'col_width': 2,
                 'options': [
@@ -353,8 +355,8 @@ def list_projects():
             },
             {
                 'name': 'industry',
-                'label': '行业',
-                'all_option_text': '全部行业',
+                'label': _(mapping_manager.get_field_display_name('project', 'industry')),
+                'all_option_text': _('全部行业'),
                 'current_value': request.args.get('industry', ''),
                 'col_width': 2,
                 'options': [
@@ -364,8 +366,8 @@ def list_projects():
             },
             {
                 'name': 'report_source',
-                'label': '来源',
-                'all_option_text': '全部来源',
+                'label': _(mapping_manager.get_field_display_name('project', 'report_source')),
+                'all_option_text': _('全部来源'),
                 'current_value': request.args.get('report_source', ''),
                 'col_width': 2,
                 'options': [
@@ -413,7 +415,7 @@ def list_projects():
         'adaptive_button_layout': True # 启用自适应按钮布局
     }
     
-    # 表格配置
+    # 表格配置 - 支持动态字段映射
     table_config = {
         'ajax_target': 'projectTableBody',
         'title': _('项目列表'),
@@ -421,52 +423,60 @@ def list_projects():
         'show_header': True,
         'enhanced_striping': True,  # 启用增强斑马线
         'fixed_height_scroll': True,  # 启用列表内滚动
+        'table_name': 'project',  # 新增：指定数据库表名用于动态映射
         'columns': [
             {
                 'key': 'owner', 
-                'label': _('拥有者'), 
+                'field': 'owner_id',  # 新增：指定对应的数据库字段名
+                'label': _(mapping_manager.get_field_display_name('project', 'owner_id')),
                 'type': 'custom',
                 'render': 'render_owner',
                 'width': '120px'
             },
             {
                 'key': 'vendor_sales_manager', 
-                'label': _('厂商负责人'), 
+                'field': 'vendor_sales_manager_id',  # 新增：指定对应的数据库字段名
+                'label': _(mapping_manager.get_field_display_name('project', 'vendor_sales_manager_id')),
                 'type': 'custom',
                 'render': 'render_owner',
                 'width': '120px'
             },
             {
                 'key': 'authorization_code', 
-                'label': _('授权编号'), 
+                'field': 'authorization_code',  # 新增：指定对应的数据库字段名
+                'label': _(mapping_manager.get_field_display_name('project', 'authorization_code')),
                 'type': 'custom',
                 'render': 'render_project_authorization',
                 'width': '120px'
             },
             {
                 'key': 'project_name', 
-                'label': _('项目名称'), 
+                'field': 'project_name',  # 新增：指定对应的数据库字段名
+                'label': _(mapping_manager.get_field_display_name('project', 'project_name')),
                 'type': 'link',
                 'url_template': '/project/view/{id}',
                 'width': '200px'
             },
             {
                 'key': 'is_active', 
-                'label': _('活跃状态'), 
+                'field': 'is_active',  # 新增：指定对应的数据库字段名
+                'label': _(mapping_manager.get_field_display_name('common', 'is_active')),
                 'type': 'custom',
                 'render': 'render_status_badge',
                 'width': '80px'
             },
             {
                 'key': 'current_stage', 
-                'label': _('当前阶段'), 
+                'field': 'current_stage',  # 新增：指定对应的数据库字段名
+                'label': _(mapping_manager.get_field_display_name('project', 'current_stage')),
                 'type': 'custom',
                 'render': 'render_project_stage',
                 'width': '120px'
             },
             {
                 'key': 'project_type', 
-                'label': _('项目类型'), 
+                'field': 'project_type',  # 新增：指定对应的数据库字段名
+                'label': _(mapping_manager.get_field_display_name('project', 'project_type')),
                 'type': 'custom',
                 'render': 'render_project_type',
                 'width': '100px',
@@ -474,45 +484,55 @@ def list_projects():
             },
             {
                 'key': 'quotation_customer', 
-                'label': _('报价'), 
+                'field': 'quotation_customer',  # 新增：指定对应的数据库字段名
+                'label': _(mapping_manager.get_field_display_name('project', 'quotation_customer')), 
                 'type': 'number',
                 'format': 'currency',
+                'sort_type': 'currency',  # 新增：排序类型
                 'width': '120px', 
                 'align': 'end'
             },
             {
                 'key': 'industry', 
-                'label': _('行业'), 
+                'field': 'industry',  # 新增：指定对应的数据库字段名
+                'label': _(mapping_manager.get_field_display_name('project', 'industry')), 
                 'type': 'custom',
                 'render': 'render_industry_badge',
                 'width': '100px'
             },
             {
                 'key': 'report_source', 
-                'label': _('来源'), 
+                'field': 'report_source',  # 新增：指定对应的数据库字段名
+                'label': _(mapping_manager.get_field_display_name('project', 'report_source')), 
                 'type': 'custom',
                 'render': 'render_report_source_badge',
                 'width': '100px'
             },
             {
                 'key': 'delivery_forecast', 
-                'label': _('预测出货时间'), 
+                'field': 'delivery_forecast',  # 新增：指定对应的数据库字段名
+                'label': _(mapping_manager.get_field_display_name('project', 'delivery_forecast')), 
                 'type': 'date',
                 'format': '%Y-%m-%d',
+                'sort_type': 'date',  # 新增：排序类型
                 'width': '150px'
             },
             {
                 'key': 'updated_at', 
-                'label': _('更新时间'), 
+                'field': 'updated_at',  # 新增：指定对应的数据库字段名
+                'label': _(mapping_manager.get_field_display_name('common', 'updated_at')), 
                 'type': 'date',
                 'format': '%Y-%m-%d %H:%M',
+                'sort_type': 'date',  # 新增：排序类型
                 'width': '150px'
             },
             {
                 'key': 'created_at', 
-                'label': _('创建时间'), 
+                'field': 'created_at',  # 新增：指定对应的数据库字段名
+                'label': _(mapping_manager.get_field_display_name('common', 'created_at')), 
                 'type': 'date',
                 'format': '%Y-%m-%d %H:%M',
+                'sort_type': 'date',  # 新增：排序类型
                 'width': '150px'
             }
         ]
@@ -573,6 +593,10 @@ def project_list_ajax():
         # 分页参数 - 默认30条支持无限滚动
         offset = request.args.get('offset', 0, type=int)
         limit = request.args.get('limit', 30, type=int)
+        
+        # 排序参数
+        sort_field = request.args.get('sort_field', '')
+        sort_direction = request.args.get('sort_direction', 'asc')
         
         # 限制每次加载数量范围
         if limit > 100:
@@ -660,9 +684,30 @@ def project_list_ajax():
         # 计算总数
         total_count = query.count()
         
+        # 使用通用排序服务
+        from app.utils.sorting_service import SortingService, create_user_relation_config, create_basic_field_mappings
+        from app.models.user import User
+        
+        # 创建排序配置
+        sorting_config = {
+            'field_mappings': create_basic_field_mappings(Project, [
+                'project_name', 'current_stage', 'quotation_customer', 'delivery_forecast', 
+                'report_source', 'created_at', 'updated_at'
+            ]),
+            'relation_mappings': {
+                'owner_id': create_user_relation_config(Project.owner_id),
+                'vendor_sales_manager_id': create_user_relation_config(Project.vendor_sales_manager_id)
+            },
+            'default_sort': {'field': 'updated_at', 'direction': 'desc'}
+        }
+        
+        # 创建排序服务并应用排序
+        sorting_service = SortingService(Project, sorting_config)
+        query = sorting_service.apply_sort(query, sort_field, sort_direction)
+        
         # 获取项目数据（应用分页）
         try:
-            projects = query.order_by(Project.updated_at.desc()).offset(offset).limit(limit).all()
+            projects = query.offset(offset).limit(limit).all()
             current_app.logger.info(f"查询到 {len(projects)} 条项目 (总数: {total_count})")
         except Exception as e:
             current_app.logger.error(f"查询项目失败: {e}")
@@ -719,19 +764,19 @@ def project_list_ajax():
             else:
                 # 桌面端：使用表格渲染
                 table_columns = [
-                    {'key': 'owner', 'label': '拥有者', 'type': 'custom', 'render': 'render_owner', 'width': '120px'},
-                    {'key': 'vendor_sales_manager', 'label': '厂商负责人', 'type': 'custom', 'render': 'render_owner', 'width': '120px'},
-                    {'key': 'authorization_code', 'label': '授权编号', 'type': 'custom', 'render': 'render_project_authorization', 'width': '120px'},
-                    {'key': 'project_name', 'label': '项目名称', 'type': 'link', 'url_template': '/project/view/{id}', 'width': '200px'},
-                    {'key': 'is_active', 'label': '活跃状态', 'type': 'custom', 'render': 'render_status_badge', 'width': '80px'},
-                    {'key': 'current_stage', 'label': '当前阶段', 'type': 'custom', 'render': 'render_project_stage', 'width': '120px'},
-                    {'key': 'project_type', 'label': '项目类型', 'type': 'custom', 'render': 'render_project_type', 'width': '100px', 'align': 'start'},
-                    {'key': 'quotation_customer', 'label': '报价', 'type': 'number', 'format': 'currency', 'width': '120px', 'align': 'end'},
-                    {'key': 'industry', 'label': '行业', 'type': 'custom', 'render': 'render_industry_badge', 'width': '100px'},
-                    {'key': 'report_source', 'label': '来源', 'type': 'custom', 'render': 'render_report_source_badge', 'width': '100px'},
-                    {'key': 'delivery_forecast', 'label': _('预测出货时间'), 'type': 'date', 'format': '%Y-%m-%d', 'width': '150px'},
-                    {'key': 'updated_at', 'label': '更新时间', 'type': 'date', 'format': '%Y-%m-%d %H:%M', 'width': '150px'},
-                    {'key': 'created_at', 'label': '创建时间', 'type': 'date', 'format': '%Y-%m-%d %H:%M', 'width': '150px'}
+                    {'key': 'owner', 'label': _(mapping_manager.get_field_display_name('project', 'owner_id')), 'type': 'custom', 'render': 'render_owner', 'width': '120px'},
+                    {'key': 'vendor_sales_manager', 'label': _(mapping_manager.get_field_display_name('project', 'vendor_sales_manager_id')), 'type': 'custom', 'render': 'render_owner', 'width': '120px'},
+                    {'key': 'authorization_code', 'label': _(mapping_manager.get_field_display_name('project', 'authorization_code')), 'type': 'custom', 'render': 'render_project_authorization', 'width': '120px'},
+                    {'key': 'project_name', 'label': _(mapping_manager.get_field_display_name('project', 'project_name')), 'type': 'link', 'url_template': '/project/view/{id}', 'width': '200px'},
+                    {'key': 'is_active', 'label': _(mapping_manager.get_field_display_name('common', 'is_active')), 'type': 'custom', 'render': 'render_status_badge', 'width': '80px'},
+                    {'key': 'current_stage', 'label': _(mapping_manager.get_field_display_name('project', 'current_stage')), 'type': 'custom', 'render': 'render_project_stage', 'width': '120px'},
+                    {'key': 'project_type', 'label': _(mapping_manager.get_field_display_name('project', 'project_type')), 'type': 'custom', 'render': 'render_project_type', 'width': '100px', 'align': 'start'},
+                    {'key': 'quotation_customer', 'label': _(mapping_manager.get_field_display_name('project', 'quotation_customer')), 'type': 'number', 'format': 'currency', 'width': '120px', 'align': 'end'},
+                    {'key': 'industry', 'label': _(mapping_manager.get_field_display_name('project', 'industry')), 'type': 'custom', 'render': 'render_industry_badge', 'width': '100px'},
+                    {'key': 'report_source', 'label': _(mapping_manager.get_field_display_name('project', 'report_source')), 'type': 'custom', 'render': 'render_report_source_badge', 'width': '100px'},
+                    {'key': 'delivery_forecast', 'label': _(mapping_manager.get_field_display_name('project', 'delivery_forecast')), 'type': 'date', 'format': '%Y-%m-%d', 'width': '150px'},
+                    {'key': 'updated_at', 'label': _(mapping_manager.get_field_display_name('common', 'updated_at')), 'type': 'date', 'format': '%Y-%m-%d %H:%M', 'width': '150px'},
+                    {'key': 'created_at', 'label': _(mapping_manager.get_field_display_name('common', 'created_at')), 'type': 'date', 'format': '%Y-%m-%d %H:%M', 'width': '150px'}
                 ]
                 html = render_template('project/project_rows_standard.html', projects=projects, table_columns=table_columns)
                 current_app.logger.info("桌面端表格渲染成功")
@@ -1197,7 +1242,9 @@ def view_project(project_id):
                          can_view_sharing=can_view_sharing,
                          shareable_users_tree=shareable_users_tree,
                          # 数据权限
-                         can_edit_project_data=can_edit_project_data)
+                         can_edit_project_data=can_edit_project_data,
+                         # 中文映射管理器
+                         mapping_manager=mapping_manager)
 
 @project.route('/add', methods=['GET', 'POST'])
 @permission_required('project', 'create')
@@ -3542,4 +3589,616 @@ def render_customer_associations_list(project_id):
         return jsonify({
             'success': False,
             'message': '渲染客户关联列表失败，请重试'
+        }), 500
+
+
+@project.route('/<int:project_id>/start_approval', methods=['POST'])
+@login_required
+@permission_required('project', 'edit')
+def start_project_approval(project_id):
+    """启动项目审批流程"""
+    try:
+        project_obj = Project.query.get_or_404(project_id)
+        
+        # 检查权限
+        if not can_edit_data(project_obj, current_user):
+            return jsonify({
+                'success': False,
+                'message': '您没有权限提交此项目的审批'
+            }), 403
+        
+        # 检查项目类型是否填写
+        if not project_obj.project_type or project_obj.project_type.strip() == '':
+            return jsonify({
+                'success': False,
+                'message': '项目类型未填写，无法提交审批。请先完善项目信息。'
+            }), 400
+        
+        # 检查是否已经有进行中的审批
+        from app.helpers.approval_helpers import get_object_approval_instance
+        existing_approval = get_object_approval_instance('project', project_id)
+        if existing_approval and existing_approval.status == 'pending':
+            return jsonify({
+                'success': False,
+                'message': '此项目已有进行中的审批流程'
+            }), 400
+        
+        # 获取可用的审批模板
+        from app.helpers.approval_helpers import get_available_templates
+        templates = get_available_templates('project')
+        if not templates:
+            return jsonify({
+                'success': False,
+                'message': '未找到可用的项目审批模板，请联系管理员配置'
+            }), 400
+        
+        # 使用第一个可用模板（通常是"测试流程分支"）
+        template = templates[0]
+        
+        # 启动审批流程
+        from app.helpers.approval_helpers import start_approval_process
+        approval_instance = start_approval_process(
+            object_type='project',
+            object_id=project_id,
+            template_id=template.id,
+            user_id=current_user.id
+        )
+        
+        if approval_instance:
+            db.session.commit()
+            logging.info(f"项目 {project_id} 审批流程启动成功，审批实例ID: {approval_instance.id}")
+            return jsonify({
+                'success': True,
+                'message': '项目审批已提交成功',
+                'approval_instance_id': approval_instance.id
+            })
+        else:
+            db.session.rollback()
+            return jsonify({
+                'success': False,
+                'message': '启动审批流程失败，请检查项目状态或联系管理员'
+            }), 500
+            
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"启动项目审批失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'系统错误: {str(e)}'
+        }), 500
+
+
+# ==================== 订单审批系统风格的项目审批API端点 ====================
+
+@project.route('/api/approval/<int:project_id>/templates')
+@login_required
+@permission_required('project', 'view')
+def get_project_approval_templates(project_id):
+    """获取项目审批模板列表"""
+    try:
+        # 检查项目访问权限
+        viewable_projects = get_viewable_data(Project, current_user)
+        project_obj = viewable_projects.filter_by(id=project_id).first()
+        if not project_obj:
+            return jsonify({
+                'success': False,
+                'message': '项目不存在或无权限访问'
+            }), 404
+        
+        # 获取项目类型的审批模板
+        from app.models.approval import ApprovalProcessTemplate
+        templates = ApprovalProcessTemplate.query.filter_by(
+            object_type='project',
+            is_active=True
+        ).order_by(ApprovalProcessTemplate.name).all()
+        
+        template_list = []
+        for template in templates:
+            template_list.append({
+                'id': template.id,
+                'name': template.name,
+                'description': template.description or '',
+                'total_steps': len(template.steps)
+            })
+        
+        return jsonify({
+            'success': True,
+            'templates': template_list
+        })
+    except Exception as e:
+        logging.error(f"获取项目审批模板失败：{str(e)}")
+        return jsonify({'success': False, 'message': f'获取失败：{str(e)}'})
+
+
+@project.route('/api/approval/<int:project_id>/preview-authorization', methods=['POST'])
+@login_required
+@permission_required('project', 'view')
+def preview_project_authorization(project_id):
+    """预览项目授权编码"""
+    try:
+        # 获取项目
+        viewable_projects = get_viewable_data(Project, current_user)
+        project_obj = viewable_projects.filter_by(id=project_id).first()
+        if not project_obj:
+            return jsonify({
+                'success': False,
+                'message': '项目不存在或无权限访问'
+            }), 404
+        
+        # 获取当前审批实例和步骤
+        from app.helpers.approval_helpers import get_object_approval_instance
+        approval_instance = get_object_approval_instance('project', project_id)
+        if not approval_instance:
+            return jsonify({
+                'success': False,
+                'message': '项目暂无审批流程'
+            })
+        
+        # 获取当前步骤
+        from app.models.approval import ApprovalStep
+        current_step = ApprovalStep.query.get(approval_instance.current_step)
+        if not current_step:
+            return jsonify({
+                'success': False,
+                'message': '未找到当前审批步骤'
+            })
+        
+        # 检查是否为授权步骤（简化版本）
+        is_auth_step = False
+        if current_step.action_type == 'authorization':
+            is_auth_step = True
+        elif current_step.action_type == 'branch_decision' and current_step.branch_condition:
+            try:
+                import json
+                branch_condition = current_step.branch_condition
+                if isinstance(branch_condition, str):
+                    branch_condition = json.loads(branch_condition)
+                
+                field_name = branch_condition.get('field')
+                if field_name:
+                    field_value = getattr(project_obj, field_name, None)
+                    conditions = branch_condition.get('conditions', [])
+                    for condition in conditions:
+                        if ((condition.get('operator') == 'equals' and field_value == condition.get('value')) or
+                            (condition.get('operator') == 'in' and field_value == condition.get('value')) or
+                            (condition.get('operator') == 'contains' and condition.get('value') in str(field_value))):
+                            is_auth_step = 'authorization' in condition.get('action', '')
+                            break
+            except Exception as e:
+                logging.error(f"检查分支授权步骤失败: {e}")
+                
+        if not is_auth_step:
+            return jsonify({
+                'success': False,
+                'message': '当前步骤不是授权步骤'
+            })
+        
+        # 获取匹配的分支授权动作
+        branch_action = None
+        if current_step.action_type == 'branch_decision' and current_step.branch_condition:
+            try:
+                import json
+                branch_condition = current_step.branch_condition
+                if isinstance(branch_condition, str):
+                    branch_condition = json.loads(branch_condition)
+                
+                field_name = branch_condition.get('field')
+                if field_name:
+                    field_value = getattr(project_obj, field_name, None)
+                    conditions = branch_condition.get('conditions', [])
+                    for condition in conditions:
+                        if ((condition.get('operator') == 'equals' and field_value == condition.get('value')) or
+                            (condition.get('operator') == 'in' and field_value == condition.get('value')) or
+                            (condition.get('operator') == 'contains' and condition.get('value') in str(field_value))):
+                            branch_action = condition.get('action')
+                            break
+            except Exception as e:
+                logging.error(f"解析分支条件失败: {e}")
+        
+        # 使用重构后的授权处理函数（预览模式）
+        from app.helpers.approval_helpers import _handle_project_authorization
+        preview_code = _handle_project_authorization(
+            approval_instance, 
+            project_obj.project_type, 
+            preview_only=True, 
+            branch_action=branch_action
+        )
+        
+        return jsonify({
+            'success': True,
+            'authorization_code': preview_code,
+            'message': f'通过审批后将授予授权编码：{preview_code}'
+        })
+        
+    except Exception as e:
+        logging.error(f"预览授权编码失败：{str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'预览失败：{str(e)}'
+        }), 500
+
+
+@project.route('/api/approval/<int:project_id>/submit', methods=['POST'])
+@login_required
+@permission_required('project', 'edit')
+def submit_project_approval_standard(project_id):
+    """提交项目审批 - 标准化API"""
+    try:
+        logging.info(f"提交项目审批请求: project_id={project_id}, user_id={current_user.id}")
+        
+        # 获取项目
+        viewable_projects = get_viewable_data(Project, current_user)
+        project_obj = viewable_projects.filter_by(id=project_id).first()
+        if not project_obj:
+            logging.warning(f"项目不存在或无权限访问: project_id={project_id}")
+            return jsonify({
+                'success': False,
+                'message': '项目不存在或无权限访问'
+            }), 404
+        
+        logging.info(f"项目当前状态: status={project_obj.status}, is_locked={project_obj.is_locked}")
+        
+        # 检查项目状态
+        if project_obj.status not in ['draft', 'rejected']:
+            logging.warning(f"项目状态不允许提交审批: status={project_obj.status}")
+            return jsonify({
+                'success': False, 
+                'message': '只有草稿或被拒绝状态的项目才能提交审批'
+            })
+        
+        # 检查编辑权限
+        if not can_edit_data(project_obj, current_user):
+            logging.warning(f"无编辑权限: project_id={project_id}, user_id={current_user.id}")
+            return jsonify({
+                'success': False,
+                'message': '只有项目创建人可以提交审批'
+            }), 403
+        
+        # 导入审批相关函数
+        from app.helpers.approval_helpers import start_approval_process, get_available_templates
+        
+        # 获取可用的审批模板
+        templates = get_available_templates('project')
+        if not templates:
+            return jsonify({
+                'success': False,
+                'message': '未找到可用的项目审批模板'
+            }), 400
+        
+        # 获取请求数据
+        data = request.get_json() or {}
+        template_id = data.get('template_id')
+        
+        # 如果未指定模板，使用默认模板
+        if not template_id:
+            from app.models.approval import ApprovalProcessTemplate
+            default_template = ApprovalProcessTemplate.query.filter_by(
+                object_type='project',
+                is_active=True
+            ).first()
+            
+            if not default_template:
+                return jsonify({
+                    'success': False,
+                    'message': '未找到可用的项目审批模板'
+                }), 400
+                
+            template_id = default_template.id
+        
+        # 启动审批流程
+        approval_instance = start_approval_process('project', project_id, template_id, current_user.id)
+        
+        if approval_instance:
+            # 更新项目状态为待审批
+            project_obj.status = 'pending'
+            # 确保项目状态更新也在同一个事务中
+            db.session.add(project_obj)
+            db.session.commit()
+            return jsonify({
+                'success': True,
+                'message': '项目审批已提交',
+                'approval_instance_id': approval_instance.id
+            })
+        else:
+            db.session.rollback()
+            return jsonify({
+                'success': False,
+                'message': '启动审批流程失败'
+            }), 500
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"提交项目审批失败：{str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'提交失败：{str(e)}'
+        }), 500
+
+
+@project.route('/api/approval/<int:project_id>/flow')
+@login_required
+@permission_required('project', 'view')
+def get_project_approval_flow(project_id):
+    """获取项目审批流程数据"""
+    try:
+        # 检查项目访问权限 - 优先检查是否为项目审批人
+        from app.helpers.approval_helpers import is_current_approver
+        is_approver = is_current_approver('project', project_id, current_user.id)
+        
+        if is_approver:
+            # 如果是当前审批人，直接获取项目（绕过常规权限检查）
+            project_obj = Project.query.filter_by(id=project_id).first()
+        else:
+            # 否则使用常规权限检查
+            viewable_projects = get_viewable_data(Project, current_user)
+            project_obj = viewable_projects.filter_by(id=project_id).first()
+            
+        if not project_obj:
+            return jsonify({
+                'success': False,
+                'message': '项目不存在或无权限访问'
+            }), 404
+        
+        # 获取审批实例
+        from app.helpers.approval_helpers import get_object_approval_instance
+        approval_instance = get_object_approval_instance('project', project_id)
+        
+        if not approval_instance:
+            return jsonify({
+                'success': True,
+                'has_approval': False,
+                'message': '项目暂无审批流程'
+            })
+        
+        # 获取审批流程数据 - 使用与报销相同的格式
+        from app.helpers.approval_helpers import can_recall_approval, can_resubmit_approval
+        from app.models.approval import ApprovalRecord, ApprovalStep
+        
+        # 获取审批步骤（从模板获取）
+        steps = approval_instance.get_steps()
+        if not steps:
+            return jsonify({'success': False, 'message': '审批流程配置错误'})
+        
+        # 获取已有的审批记录
+        records = ApprovalRecord.query.filter_by(
+            instance_id=approval_instance.id
+        ).order_by(ApprovalRecord.timestamp.asc()).all()
+        
+        # 构建审批阶段数据
+        stages_data = []
+        current_step_id = approval_instance.current_step  # 当前步骤ID
+        
+        # 获取当前步骤的顺序，用于状态判断
+        current_step_order = None
+        for step in steps:
+            if step.get('step_id') == current_step_id:
+                current_step_order = step['step_order']
+                break
+        
+        for i, step in enumerate(steps):
+            # 确定审批人
+            from app.helpers.approval_helpers import get_step_actual_approver
+            actual_approver = get_step_actual_approver(step, approval_instance)
+            
+            # 获取这个步骤的审批记录
+            step_records = []
+            if step.get('step_id'):
+                step_records = [r for r in records if r.step_id == step['step_id']]
+            
+            stage_data = {
+                'id': step['step_id'],
+                'stage_name': step['step_name'],
+                'stage_order': step['step_order'],
+                'approver_name': actual_approver.real_name if actual_approver else '待确定',
+                'approver_id': actual_approver.id if actual_approver else None,
+                'status': 'pending',
+                'completed_time': None,
+                'comment': None,
+                'action': None,
+                'arrived_at': None,
+                'can_approve': False
+            }
+            
+            # 处理审批记录
+            if step_records:
+                latest_record = step_records[-1]
+                stage_data.update({
+                    'status': 'approved' if latest_record.action == 'approve' else 'rejected',
+                    'completed_time': latest_record.timestamp.isoformat(),
+                    'comment': latest_record.comment,
+                    'action': latest_record.action,
+                    'arrived_at': latest_record.timestamp.isoformat()
+                })
+            elif step['step_id'] == current_step_id:
+                # 当前步骤：使用步骤ID比较而非步骤顺序
+                stage_data['status'] = 'current'
+                stage_data['can_approve'] = (actual_approver and actual_approver.id == current_user.id)
+            elif current_step_order and step['step_order'] < current_step_order:
+                # 已处理的步骤（通常是已通过）：仅在有当前步骤顺序时比较
+                stage_data['status'] = 'approved'
+            
+            stages_data.append(stage_data)
+        
+        # 获取实际状态
+        from app.models.approval import ApprovalStatus
+        actual_status = approval_instance.status.value if hasattr(approval_instance.status, 'value') else str(approval_instance.status).lower()
+        
+        # 检查是否被召回
+        last_record = records[-1] if records else None
+        if last_record and last_record.action == 'recall':
+            actual_status = 'recalled'
+        
+        return jsonify({
+            'success': True,
+            'approval_flow': {
+                'instance_id': approval_instance.id,
+                'stages': stages_data,
+                'current_stage': current_step_order,
+                'can_approve': any(stage.get('can_approve', False) for stage in stages_data),
+                'status': actual_status,
+                'can_recall': can_recall_approval('project', project_id, current_user.id),
+                'can_resubmit': can_resubmit_approval('project', project_id, current_user.id),
+                'is_creator': approval_instance.created_by == current_user.id,
+                'creator_id': approval_instance.created_by
+            }
+        })
+    except Exception as e:
+        logging.error(f"获取项目审批流程失败：{str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'获取失败：{str(e)}'
+        }), 500
+
+
+@project.route('/api/approval/<int:project_id>/recall', methods=['POST'])
+@login_required
+@permission_required('project', 'edit')
+def recall_project_approval(project_id):
+    """召回项目审批"""
+    try:
+        logging.info(f"项目召回请求: project_id={project_id}, user_id={current_user.id}")
+        
+        # 获取项目
+        viewable_projects = get_viewable_data(Project, current_user)
+        project_obj = viewable_projects.filter_by(id=project_id).first()
+        if not project_obj:
+            logging.warning(f"项目不存在或无权限访问: project_id={project_id}")
+            return jsonify({
+                'success': False,
+                'message': '项目不存在或无权限访问'
+            }), 404
+        
+        # 获取审批实例
+        from app.helpers.approval_helpers import get_object_approval_instance
+        approval_instance = get_object_approval_instance('project', project_id)
+        
+        if not approval_instance:
+            logging.warning(f"项目没有审批流程: project_id={project_id}")
+            return jsonify({
+                'success': False,
+                'message': '项目没有审批流程'
+            }), 400
+        
+        logging.info(f"审批实例状态: instance_id={approval_instance.id}, status={approval_instance.status}, created_by={approval_instance.created_by}")
+        
+        # 检查召回权限
+        if approval_instance.created_by != current_user.id:
+            logging.warning(f"召回权限检查失败: created_by={approval_instance.created_by}, current_user={current_user.id}")
+            return jsonify({
+                'success': False,
+                'message': '只有审批发起人可以召回'
+            }), 403
+        
+        if approval_instance.status != ApprovalStatus.PENDING:
+            logging.warning(f"审批状态不正确: status={approval_instance.status}, 期望状态=ApprovalStatus.PENDING")
+            return jsonify({
+                'success': False,
+                'message': '只有进行中的审批可以召回'
+            }), 400
+        
+        # 执行召回
+        from app.helpers.approval_helpers import recall_approval
+        result = recall_approval('project', project_id, current_user.id)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'message': result['message']
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': result['message']
+            }), 500
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"召回项目审批失败：{str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'召回失败：{str(e)}'
+        }), 500
+
+
+@project.route('/api/approval/<int:project_id>/resubmit', methods=['POST'])
+@login_required
+@permission_required('project', 'edit')
+def resubmit_project_approval(project_id):
+    """重新提交项目审批"""
+    try:
+        # 重新提交实际上就是提交审批，所以直接调用提交接口
+        return submit_project_approval_standard(project_id)
+    except Exception as e:
+        logging.error(f"重新提交项目审批失败：{str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'重新提交失败：{str(e)}'
+        }), 500
+
+
+@project.route('/<int:project_id>/generate_authorization', methods=['POST'])
+@login_required
+@permission_required('project', 'edit')
+def generate_authorization_code(project_id):
+    """审批通过后生成项目授权编号"""
+    try:
+        # 获取项目
+        viewable_projects = get_viewable_data(Project, current_user)
+        project = viewable_projects.filter_by(id=project_id).first()
+        if not project:
+            return jsonify({
+                'success': False,
+                'message': '项目不存在或无权限访问'
+            }), 404
+        
+        # 检查编辑权限
+        if not can_edit_data(project, current_user):
+            return jsonify({
+                'success': False,
+                'message': '只有项目创建人可以生成授权编号'
+            }), 403
+        
+        # 检查是否已有授权编号
+        if project.authorization_code and project.authorization_code.strip():
+            return jsonify({
+                'success': False,
+                'message': '项目已有授权编号，无需重复生成'
+            }), 400
+        
+        # 检查审批状态
+        from app.helpers.approval_helpers import get_object_approval_instance
+        approval_instance = get_object_approval_instance('project', project_id)
+        
+        if not approval_instance or approval_instance.status != 'approved':
+            return jsonify({
+                'success': False,
+                'message': '只有审批通过的项目才能生成授权编号'
+            }), 400
+        
+        # 生成授权编号
+        from app.helpers.authorization_helpers import generate_project_authorization_code
+        authorization_code = generate_project_authorization_code(project)
+        
+        if authorization_code:
+            project.authorization_code = authorization_code
+            project.authorization_status = 'approved'
+            project.authorization_date = datetime.now()
+            
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': '授权编号生成成功',
+                'authorization_code': authorization_code
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '授权编号生成失败'
+            }), 500
+            
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"生成授权编号失败：{str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'生成失败：{str(e)}'
         }), 500

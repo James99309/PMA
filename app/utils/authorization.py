@@ -12,11 +12,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# 项目类型对应的授权编号前缀
+# 项目类型对应的授权编号前缀（支持中英文项目类型）
 PROJECT_TYPE_PREFIXES = {
+    # 中文项目类型
     '销售重点': 'SPJ',
     '渠道跟进': 'CPJ',
-    '客户服务': 'APJ'  # 客户服务类型项目（原业务机会），使用APJ前缀
+    '客户服务': 'APJ',  # 客户服务类型项目（原业务机会），使用APJ前缀
+    # 英文项目类型
+    'sales_focus': 'SPJ',
+    'channel_follow': 'CPJ',
+    'business_opportunity': 'APJ',
+    'sales_key': 'SPJ'  # 销售重点的另一种英文表示
 }
 
 def generate_authorization_code(project_type):
@@ -61,5 +67,140 @@ def generate_authorization_code(project_type):
     # 格式化授权编号: 前缀 + 年月 + 序号
     authorization_code = f"{prefix}{year_month}-{str(seq_num).zfill(3)}"
     logger.info(f"生成授权编号: {authorization_code}")
+    
+    return authorization_code
+
+
+def generate_project_authorization_code(project_type, project_id, approver_id):
+    """
+    生成项目授权编号（专项授权）
+    
+    Args:
+        project_type (str): 项目类型
+        project_id (int): 项目ID
+        approver_id (int): 审批人ID
+    
+    Returns:
+        str: 格式化的项目授权编号，格式为{前缀}P{年份}{月份}-{序号}
+    """
+    # 在函数内部导入Project，避免循环导入
+    from app.models.project import Project
+    
+    # 检查项目类型是否支持授权
+    if project_type not in PROJECT_TYPE_PREFIXES:
+        logger.warning(f"不支持的项目类型: {project_type}")
+        return None
+        
+    prefix = PROJECT_TYPE_PREFIXES[project_type] + 'P'  # 项目授权加P标识
+    current_date = datetime.now()
+    year_month = current_date.strftime('%Y%m')
+    
+    # 查找当前年月的最大序号
+    last_project = Project.query.filter(
+        Project.authorization_code.like(f'{prefix}{year_month}-%')
+    ).order_by(Project.authorization_code.desc()).first()
+    
+    # 提取序号并递增
+    if last_project and last_project.authorization_code:
+        match = re.search(r'-(\d{3})$', last_project.authorization_code)
+        if match:
+            seq_num = int(match.group(1)) + 1
+        else:
+            seq_num = 1
+    else:
+        seq_num = 1
+        
+    authorization_code = f"{prefix}{year_month}-{str(seq_num).zfill(3)}"
+    logger.info(f"生成项目授权编号: {authorization_code}, 项目ID: {project_id}, 审批人ID: {approver_id}")
+    
+    return authorization_code
+
+
+def generate_channel_authorization_code(project_type, project_id, approver_id):
+    """
+    生成渠道授权编号（专项授权）
+    
+    Args:
+        project_type (str): 项目类型
+        project_id (int): 项目ID
+        approver_id (int): 审批人ID
+    
+    Returns:
+        str: 格式化的渠道授权编号，格式为{前缀}C{年份}{月份}-{序号}
+    """
+    # 在函数内部导入Project，避免循环导入
+    from app.models.project import Project
+    
+    # 检查项目类型是否支持授权
+    if project_type not in PROJECT_TYPE_PREFIXES:
+        logger.warning(f"不支持的项目类型: {project_type}")
+        return None
+        
+    prefix = PROJECT_TYPE_PREFIXES[project_type] + 'C'  # 渠道授权加C标识
+    current_date = datetime.now()
+    year_month = current_date.strftime('%Y%m')
+    
+    # 查找当前年月的最大序号
+    last_project = Project.query.filter(
+        Project.authorization_code.like(f'{prefix}{year_month}-%')
+    ).order_by(Project.authorization_code.desc()).first()
+    
+    # 提取序号并递增
+    if last_project and last_project.authorization_code:
+        match = re.search(r'-(\d{3})$', last_project.authorization_code)
+        if match:
+            seq_num = int(match.group(1)) + 1
+        else:
+            seq_num = 1
+    else:
+        seq_num = 1
+        
+    authorization_code = f"{prefix}{year_month}-{str(seq_num).zfill(3)}"
+    logger.info(f"生成渠道授权编号: {authorization_code}, 项目ID: {project_id}, 审批人ID: {approver_id}")
+    
+    return authorization_code
+
+
+def generate_business_authorization_code(project_type, project_id, approver_id):
+    """
+    生成业务授权编号（专项授权）
+    
+    Args:
+        project_type (str): 项目类型
+        project_id (int): 项目ID
+        approver_id (int): 审批人ID
+    
+    Returns:
+        str: 格式化的业务授权编号，格式为{前缀}B{年份}{月份}-{序号}
+    """
+    # 在函数内部导入Project，避免循环导入
+    from app.models.project import Project
+    
+    # 检查项目类型是否支持授权
+    if project_type not in PROJECT_TYPE_PREFIXES:
+        logger.warning(f"不支持的项目类型: {project_type}")
+        return None
+        
+    prefix = PROJECT_TYPE_PREFIXES[project_type] + 'B'  # 业务授权加B标识
+    current_date = datetime.now()
+    year_month = current_date.strftime('%Y%m')
+    
+    # 查找当前年月的最大序号
+    last_project = Project.query.filter(
+        Project.authorization_code.like(f'{prefix}{year_month}-%')
+    ).order_by(Project.authorization_code.desc()).first()
+    
+    # 提取序号并递增
+    if last_project and last_project.authorization_code:
+        match = re.search(r'-(\d{3})$', last_project.authorization_code)
+        if match:
+            seq_num = int(match.group(1)) + 1
+        else:
+            seq_num = 1
+    else:
+        seq_num = 1
+        
+    authorization_code = f"{prefix}{year_month}-{str(seq_num).zfill(3)}"
+    logger.info(f"生成业务授权编号: {authorization_code}, 项目ID: {project_id}, 审批人ID: {approver_id}")
     
     return authorization_code 

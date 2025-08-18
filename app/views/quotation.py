@@ -18,6 +18,7 @@ from decimal import Decimal
 import json
 from flask import current_app
 from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS, get_currency_type_options
+from app.utils.chinese_mapping_manager import mapping_manager
 from app.utils.notification_helpers import trigger_event_notification
 from app.services.event_dispatcher import notify_project_created, notify_project_status_updated
 from app.helpers.project_helpers import is_project_editable
@@ -302,7 +303,7 @@ def list_quotations():
             
             'search_field': {
                 'name': 'search',
-                'label': _('搜索'),
+                'label': _(mapping_manager.get_field_display_name('common', 'search')),
                 'placeholder': _('报价单编号或项目名称'),
                 'value': search,
                 'col_width': 4
@@ -311,7 +312,7 @@ def list_quotations():
             'filter_fields': [
                 {
                     'name': 'owner_filter',
-                    'label': _('负责人'),
+                    'label': _(mapping_manager.get_field_display_name('common', 'owner_id')),
                     'all_option_text': _('全部负责人'),
                     'current_value': owner_filter if owner_filter and request.args else '',
                     'col_width': 2,
@@ -322,7 +323,7 @@ def list_quotations():
                 },
                 {
                     'name': 'project_type_filter',
-                    'label': _('项目类型'),
+                    'label': _(mapping_manager.get_field_display_name('project', 'project_type')),
                     'all_option_text': _('全部类型'),
                     'current_value': project_type_filter if project_type_filter and request.args else '',
                     'col_width': 2,
@@ -330,7 +331,7 @@ def list_quotations():
                 },
                 {
                     'name': 'project_stage_filter',
-                    'label': _('项目阶段'),
+                    'label': _(mapping_manager.get_field_display_name('project', 'project_stage')),
                     'all_option_text': _('全部阶段'),
                     'current_value': project_stage_filter if project_stage_filter and request.args else '',
                     'col_width': 2,
@@ -431,62 +432,79 @@ def list_quotations():
                 'icon': 'fas fa-table',
                 'fixed_height_scroll': True,     # 启用固定高度滚动（蓝色滚动条）
                 'enhanced_striping': True,       # 启用增强斑马纹效果
+                'table_name': 'quotation',       # 指定数据库表名用于动态映射
                 'columns': [
                     {
                         'key': 'quotation_number',
-                        'label': _('报价单编号'),
+                        'field': 'quotation_number',
+                        'label': _(mapping_manager.get_field_display_name('quotation', 'quotation_number')),
                         'type': 'link',
                         'url_template': '/quotation/{id}/detail',
                         'width': '160px',
-                        'render': 'render_quotation_number'
+                        'render': 'render_quotation_number',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'owner',
-                        'label': _('拥有人'),
+                        'field': 'owner_id',
+                        'label': _(mapping_manager.get_field_display_name('common', 'owner_id')),
                         'type': 'text',
-                        'width': '100px'
+                        'width': '100px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'project_name',
-                        'label': _('关联项目'),
+                        'field': 'project_id',
+                        'label': _(mapping_manager.get_field_display_name('project', 'project_name')),
                         'type': 'text',
-                        'width': '200px'
+                        'width': '200px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'amount',
-                        'label': _('总价'),
+                        'field': 'total_amount',
+                        'label': _(mapping_manager.get_field_display_name('common', 'total_amount')),
                         'type': 'number',
                         'format': 'currency',
                         'align': 'end',
-                        'width': '120px'
+                        'width': '120px',
+                        'sort_type': 'currency'
                     },
                     {
                         'key': 'project_stage',
-                        'label': _('阶段'),
+                        'field': 'project_stage',
+                        'label': _(mapping_manager.get_field_display_name('project', 'project_stage')),
                         'type': 'text',
                         'width': '100px',
-                        'render': 'render_project_stage'
+                        'render': 'render_project_stage',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'project_type',
-                        'label': _('类型'),
+                        'field': 'project_type',
+                        'label': _(mapping_manager.get_field_display_name('project', 'project_type')),
                         'type': 'text',
                         'width': '100px',
-                        'render': 'render_project_type'
+                        'render': 'render_project_type',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'updated_at',
-                        'label': _('更新时间'),
+                        'field': 'updated_at',
+                        'label': _(mapping_manager.get_field_display_name('common', 'updated_at')),
                         'type': 'date',
                         'format': '%Y-%m-%d',
-                        'width': '120px'
+                        'width': '120px',
+                        'sort_type': 'date'
                     },
                     {
                         'key': 'created_at',
-                        'label': _('创建时间'),
+                        'field': 'created_at',
+                        'label': _(mapping_manager.get_field_display_name('common', 'created_at')),
                         'type': 'date',
                         'format': '%Y-%m-%d',
-                        'width': '120px'
+                        'width': '120px',
+                        'sort_type': 'date'
                     }
                 ]
             },
@@ -633,6 +651,10 @@ def quotations_list_ajax():
         offset = request.args.get('offset', 0, type=int)
         limit = request.args.get('limit', 60, type=int)
         
+        # 排序参数
+        sort_field = request.args.get('sort_field', '')
+        sort_direction = request.args.get('sort_direction', 'asc')
+        
         # 限制每次加载数量范围
         if limit > 100:
             limit = 100  # 最大100条防止性能问题
@@ -700,9 +722,29 @@ def quotations_list_ajax():
         # 计算总数
         total_count = query.count()
         
+        # 使用通用排序服务
+        from app.utils.sorting_service import SortingService, create_user_relation_config, create_project_relation_config, create_basic_field_mappings
+        
+        # 创建排序配置
+        sorting_config = {
+            'field_mappings': create_basic_field_mappings(Quotation, [
+                'quotation_number', 'amount', 'project_stage', 'project_type', 
+                'approval_status', 'created_at', 'updated_at'
+            ]),
+            'relation_mappings': {
+                'owner_id': create_user_relation_config(Quotation.owner_id),
+                'project_id': create_project_relation_config(Quotation.project_id)
+            },
+            'default_sort': {'field': 'updated_at', 'direction': 'desc'}
+        }
+        
+        # 创建排序服务并应用排序
+        sorting_service = SortingService(Quotation, sorting_config)
+        query = sorting_service.apply_sort(query, sort_field, sort_direction)
+        
         # 获取报价单数据（应用分页）
         try:
-            quotations = query.order_by(Quotation.updated_at.desc()).offset(offset).limit(limit).all()
+            quotations = query.offset(offset).limit(limit).all()
             current_app.logger.info(f"查询到 {len(quotations)} 条报价单 (总数: {total_count})")
         except Exception as e:
             current_app.logger.error(f"查询报价单失败: {e}")

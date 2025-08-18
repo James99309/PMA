@@ -327,6 +327,28 @@
 
 
 {% macro render_button(text, href=None, color="primary", size="md", icon=None, rounded="pill", extra_class="", type="a", attrs=None, onclick=None, mobile_mode=None) %}
+  {# 处理属性字典转换为HTML属性字符串 #}
+  {%- set attrs_str = "" %}
+  {%- if attrs %}
+    {%- if attrs is mapping %}
+      {# 如果是字典类型 #}
+      {%- set attrs_parts = [] %}
+      {%- for key, value in attrs.items() %}
+        {%- set value_str = value|string %}
+        {%- if value_str.startswith('"') and value_str.endswith('"') %}
+          {# JSON值已经被引号包围，去掉外层引号 #}
+          {%- set clean_value = value_str[1:-1] %}
+          {%- set _ = attrs_parts.append(key + '="' + clean_value + '"') %}
+        {%- else %}
+          {%- set _ = attrs_parts.append(key + '="' + value_str + '"') %}
+        {%- endif %}
+      {%- endfor %}
+      {%- set attrs_str = attrs_parts|join(' ') %}
+    {%- else %}
+      {# 如果是字符串类型，直接使用 #}
+      {%- set attrs_str = attrs|string %}
+    {%- endif %}
+  {%- endif %}
   {%- set inline_style = "" %}
   {# 优化尺寸系统 - 确保最小宽度能容纳图标+4个字符 #}
   {%- if size == "sm" %}
@@ -492,7 +514,7 @@
   {%- if extra_class %} {%- set btn_class = btn_class + " " + extra_class %} {%- endif %}
   {% if type == "a" %}
     <a href="{{ href or '#' }}" class="{{ btn_class }}" style="{{ inline_style }}" 
-       {% if onclick %}onclick="{{ onclick }}"{% endif %} {{ attrs|safe }}>
+       {% if onclick %}onclick="{{ onclick }}"{% endif %} {{ attrs_str|safe }}>
       {%- if icon %}<i class="{{ icon }} me-1"></i>{% endif -%}
       {%- if icon %}
         <span class="d-none d-md-inline">{{ display_text }}</span>
@@ -502,7 +524,7 @@
     </a>
   {% elif type == "button" %}
     <button type="button" class="{{ btn_class }}" style="{{ inline_style }}" 
-            {% if onclick %}onclick="{{ onclick }}"{% endif %} {{ attrs|safe }}>
+            {% if onclick %}onclick="{{ onclick }}"{% endif %} {{ attrs_str|safe }}>
       {%- if icon %}<i class="{{ icon }} me-1"></i>{% endif -%}
       {%- if icon %}
         <span class="d-none d-md-inline">{{ display_text }}</span>
@@ -512,7 +534,7 @@
     </button>
   {% elif type == "submit" %}
     <button type="submit" class="{{ btn_class }}" style="{{ inline_style }}" 
-            {% if onclick %}onclick="{{ onclick }}"{% endif %} {{ attrs|safe }}>
+            {% if onclick %}onclick="{{ onclick }}"{% endif %} {{ attrs_str|safe }}>
       {%- if icon %}<i class="{{ icon }} me-1"></i>{% endif -%}
       {%- if icon %}
         <span class="d-none d-md-inline">{{ display_text }}</span>
@@ -572,10 +594,19 @@
   {% endif %}
 {% endmacro %}
 
-{% macro render_authorization_status_badge(authorization_code, authorization_status, project_type=None) %}
+{% macro render_authorization_status_badge(authorization_code, authorization_status, project_type=None, project_status=None) %}
   {% if authorization_code %}
-    {# 已有授权编号，显示编号（使用授权编号宏的逻辑） #}
-    {{ render_authorization_code(authorization_code, project_type) }}
+    {# 已有授权编号，显示编号和审核状态圆圈 #}
+    <span style="display: inline-flex; align-items: center; gap: 4px;">
+      {% if project_status == 'pending' %}
+        {# 审核状态：黄色圆圈+审核图标 #}
+        <span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background-color: #ffc107; color: #fff; font-size: 10px; line-height: 1; vertical-align: middle;" 
+              title="{{ _('项目审核中') }}" class="approval-status-badge">
+          <i class="fas fa-search" style="font-size: 9px;"></i>
+        </span>
+      {% endif %}
+      {{ render_authorization_code(authorization_code, project_type) }}
+    </span>
   {% elif authorization_status == 'pending' %}
     {# 申请中 - 橙色徽章 #}
     <span class="badge rounded-pill authorization-status-badge"
@@ -585,6 +616,12 @@
                  background-color: #fd7e14;
                  color: #fff;">
       {{ _('申请中') }}
+    </span>
+  {% elif project_status == 'pending' %}
+    {# 仅审核状态，无授权编号：显示黄色圆圈+审核图标 #}
+    <span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background-color: #ffc107; color: #fff; font-size: 10px; line-height: 1; vertical-align: middle;" 
+          title="{{ _('项目审核中') }}" class="approval-status-badge">
+      <i class="fas fa-search" style="font-size: 9px;"></i>
     </span>
   {% endif %}
   {# 未申请时不显示任何内容 #}
@@ -2022,7 +2059,7 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
     {% endif %}
     <div class="card-body p-0">
         <!-- 桌面端表格布局 -->
-        <div class="table-responsive data-list-table-responsive{% if table_config.fixed_height_scroll %} fixed-height-scroll{% endif %}{% if table_config.infinite_scroll %} infinite-scroll-container{% endif %}"
+        <div class="table-responsive data-list-table-responsive{% if table_config.fixed_height_scroll != false %} fixed-height-scroll{% endif %}{% if table_config.infinite_scroll %} infinite-scroll-container{% endif %}"
              {% if table_config.max_height or table_config.min_height %}
              style="{% if table_config.max_height %}max-height: {{ table_config.max_height }}; overflow-y: auto;{% endif %}{% if table_config.min_height %}min-height: {{ table_config.min_height }};{% endif %}"
              {% endif %}>
@@ -2032,8 +2069,30 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
                     <tr>
                         {% for column in table_config.columns %}
                         <th {% if column.width %}style="width: {{ column.width }}"{% endif %}
-                            {% if column.align %}class="text-{{ column.align }}"{% endif %}>
-                            {{ _(column.label) }}
+                            class="{% if column.align %}text-{{ column.align }}{% endif %}{% if column.field and column.sortable != false %} sortable-column{% endif %}"
+                            {% if column.field and column.sortable != false %}
+                            data-field="{{ column.field }}" 
+                            data-sort-type="{{ column.sort_type|default('string') }}"
+                            style="cursor: pointer; user-select: none;{% if column.width %} width: {{ column.width }};{% endif %}"
+                            {% endif %}>
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span class="column-title">
+                                    {% if table_config.table_name and column.field and get_field_display_name %}
+                                        {# 使用动态映射 #}
+                                        {{ get_column_title(table_config.table_name, column.field, column.label) }}
+                                    {% else %}
+                                        {# 回退到原有标签 #}
+                                        {{ _(column.label) }}
+                                    {% endif %}
+                                </span>
+                                {% if column.field and column.sortable != false %}
+                                <span class="sort-indicator ms-1">
+                                    <i class="fas fa-sort text-muted sort-icon-default"></i>
+                                    <i class="fas fa-sort-up text-primary sort-icon-asc" style="display: none;"></i>
+                                    <i class="fas fa-sort-down text-primary sort-icon-desc" style="display: none;"></i>
+                                </span>
+                                {% endif %}
+                            </div>
                         </th>
                         {% endfor %}
                     </tr>
@@ -2161,6 +2220,334 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
         </div>
         {% endif %}
     </div>
+    
+    <!-- 表格排序功能 JavaScript -->
+    <script>
+    (function() {
+        
+        // 更新排序指示器
+        function updateSortIndicators(table, activeField, direction) {
+            const headers = table.querySelectorAll('.sortable-column');
+            
+            headers.forEach(header => {
+                const field = header.dataset.field;
+                const icons = {
+                    default: header.querySelector('.sort-icon-default'),
+                    asc: header.querySelector('.sort-icon-asc'),
+                    desc: header.querySelector('.sort-icon-desc')
+                };
+                
+                // 重置所有图标
+                Object.values(icons).forEach(icon => {
+                    if (icon) icon.style.display = 'none';
+                });
+                
+                // 移除活跃状态
+                header.classList.remove('sort-active');
+                
+                if (field === activeField) {
+                    // 设置当前活跃列
+                    header.classList.add('sort-active');
+                    if (direction === 'asc' && icons.asc) {
+                        icons.asc.style.display = 'inline';
+                    } else if (direction === 'desc' && icons.desc) {
+                        icons.desc.style.display = 'inline';
+                    }
+                } else {
+                    // 显示默认图标
+                    if (icons.default) {
+                        icons.default.style.display = 'inline';
+                    }
+                }
+            });
+        }
+        
+        // 表格排序核心逻辑
+        function sortTable(tbody, field, direction, sortType) {
+            const rows = Array.from(tbody.querySelectorAll('tr:not([data-loading-state])'));
+            console.log('🔍 排序调试 - 找到行数:', rows.length, '字段:', field, '方向:', direction, '类型:', sortType);
+            
+            if (rows.length === 0) {
+                console.warn('⚠️ 没有找到可排序的表格行');
+                return;
+            }
+            
+            rows.sort((a, b) => {
+                const cellA = getCellValue(a, field);
+                const cellB = getCellValue(b, field);
+                
+                console.log('🔍 排序值比较:', cellA, 'vs', cellB);
+                
+                let result = 0;
+                
+                switch (sortType) {
+                    case 'number':
+                        result = parseFloat(cellA || 0) - parseFloat(cellB || 0);
+                        break;
+                    case 'date':
+                        result = new Date(cellA || 0) - new Date(cellB || 0);
+                        break;
+                    case 'currency':
+                        // 处理货币格式，移除符号和千分位分隔符
+                        const numA = parseFloat((cellA || '0').replace(/[^0-9.-]/g, '')) || 0;
+                        const numB = parseFloat((cellB || '0').replace(/[^0-9.-]/g, '')) || 0;
+                        result = numA - numB;
+                        break;
+                    default: // string
+                        result = (cellA || '').localeCompare(cellB || '', 'zh-CN', {numeric: true});
+                }
+                
+                return direction === 'desc' ? -result : result;
+            });
+            
+            // 重新插入排序后的行
+            rows.forEach(row => tbody.appendChild(row));
+        }
+        
+        // 获取单元格值用于排序
+        function getCellValue(row, field) {
+            const cells = row.querySelectorAll('td');
+            const headers = row.closest('table').querySelectorAll('th');
+            
+            console.log('🔍 getCellValue调试 - 字段:', field, '单元格数量:', cells.length, '表头数量:', headers.length);
+            
+            // 找到对应字段的列索引
+            let columnIndex = -1;
+            headers.forEach((header, index) => {
+                console.log('🔍 表头', index, ':', header.dataset.field);
+                if (header.dataset.field === field) {
+                    columnIndex = index;
+                }
+            });
+            
+            console.log('🔍 目标字段', field, '在列索引:', columnIndex);
+            
+            if (columnIndex === -1 || !cells[columnIndex]) {
+                console.warn('⚠️ 未找到字段或单元格:', field, columnIndex);
+                return '';
+            }
+            
+            const cell = cells[columnIndex];
+            
+            // 尝试从data属性获取排序值
+            if (cell.dataset.sortValue) {
+                console.log('🔍 使用data-sort-value:', cell.dataset.sortValue);
+                return cell.dataset.sortValue;
+            }
+            
+            // 获取纯文本内容，移除HTML标签
+            const cellValue = cell.textContent.trim();
+            console.log('🔍 使用文本内容:', cellValue);
+            return cellValue;
+        }
+        
+        // 初始化所有表格的排序功能
+        function initAllTableSort() {
+            const tables = document.querySelectorAll('.data-list-table:not([data-sort-initialized])');
+            console.log('发现未初始化的表格数量:', tables.length);
+            
+            tables.forEach(table => {
+                const tableContainer = table.closest('.card');
+                if (tableContainer) {
+                    initTableSortForContainer(tableContainer);
+                } else {
+                    console.warn('表格没有找到父级.card容器:', table);
+                }
+            });
+        }
+        
+        // 为特定容器初始化排序功能
+        function initTableSortForContainer(tableContainer) {
+            const table = tableContainer.querySelector('.data-list-table');
+            const tbody = table ? table.querySelector('tbody') : null;
+            
+            if (!table || !tbody || table.hasAttribute('data-sort-initialized')) return;
+            
+            // 标记已初始化
+            table.setAttribute('data-sort-initialized', 'true');
+            
+            console.log('表格排序功能已初始化:', table);
+            
+            // 当前排序状态
+            let currentSortField = null;
+            let currentSortDirection = 'asc';
+            
+            // 为所有可排序列添加点击事件
+            const sortableHeaders = table.querySelectorAll('.sortable-column');
+            console.log('找到可排序列数量:', sortableHeaders.length);
+            
+            sortableHeaders.forEach(header => {
+                header.addEventListener('click', function() {
+                    const field = this.dataset.field;
+                    const sortType = this.dataset.sortType || 'string';
+                    
+                    console.log('点击排序列:', field, '类型:', sortType);
+                    console.log('🔍 点击排序 - tbody:', tbody, 'tbody行数:', tbody ? tbody.querySelectorAll('tr').length : 0);
+                    
+                    // 确定排序方向
+                    if (currentSortField === field) {
+                        currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        currentSortDirection = 'asc';
+                    }
+                    
+                    currentSortField = field;
+                    
+                    console.log('🔍 排序参数 - 字段:', field, '方向:', currentSortDirection, '类型:', sortType);
+                    
+                    // 更新视觉状态
+                    updateSortIndicators(table, field, currentSortDirection);
+                    
+                    // 执行排序
+                    console.log('🔍 准备执行排序...');
+                    try {
+                        // 检查是否为AJAX模式，如果是则使用服务器端排序
+                        const tableConfig = table.closest('.card').getAttribute('data-table-config');
+                        const isAjaxMode = table.closest('[data-ajax-mode="true"]') || 
+                                         (window.currentDataListConfig && window.currentDataListConfig.ajax_mode);
+                        
+                        if (isAjaxMode && window.currentDataListConfig && window.currentDataListConfig.ajax_endpoint) {
+                            console.log('🔍 AJAX模式，使用服务器端排序');
+                            executeServerSideSort(field, currentSortDirection, sortType);
+                        } else {
+                            console.log('🔍 非AJAX模式，使用客户端排序');
+                            sortTable(tbody, field, currentSortDirection, sortType);
+                        }
+                        console.log('🔍 排序执行完成');
+                    } catch (error) {
+                        console.error('❌ 排序执行失败:', error);
+                    }
+                });
+            });
+        }
+        
+        // 页面加载完成后初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('DOM加载完成，初始化表格排序...');
+                initAllTableSort();
+            });
+        } else {
+            console.log('DOM已准备好，立即初始化表格排序...');
+            initAllTableSort();
+        }
+        
+        // 延迟初始化，确保AJAX内容加载完成
+        setTimeout(function() {
+            console.log('延迟初始化表格排序...');
+            initAllTableSort();
+        }, 1000);
+        
+        // 服务器端排序功能
+        function executeServerSideSort(field, direction, sortType) {
+            console.log('🔍 执行服务器端排序:', field, direction, sortType);
+            
+            const config = window.currentDataListConfig;
+            if (!config || !config.ajax_endpoint) {
+                console.error('❌ 缺少AJAX配置，无法执行服务器端排序');
+                return;
+            }
+            
+            // 构建排序参数
+            const currentUrl = new URL(window.location);
+            const params = new URLSearchParams(currentUrl.search);
+            
+            // 设置排序参数
+            params.set('sort_field', field);
+            params.set('sort_direction', direction);
+            params.set('offset', '0'); // 重置到第一页
+            
+            // 构建新的URL
+            const sortUrl = config.ajax_endpoint + '?' + params.toString();
+            console.log('🔍 排序请求URL:', sortUrl);
+            
+            // 显示加载状态
+            const targetSelector = config.ajax_target.startsWith('#') ? config.ajax_target : '#' + config.ajax_target;
+            const tbody = document.querySelector(targetSelector);
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="20" class="text-center py-4"><i class="fas fa-spinner fa-spin me-2"></i>排序中...</td></tr>';
+            }
+            
+            // 发送AJAX请求
+            fetch(sortUrl, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('🔍 服务器端排序响应:', data);
+                
+                if (data.success && data.html) {
+                    // 更新表格内容
+                    if (tbody) {
+                        tbody.innerHTML = data.html;
+                    }
+                    
+                    // 更新统计信息
+                    if (data.statistics && window.updateStatsFromAjax) {
+                        window.updateStatsFromAjax(data.statistics);
+                    }
+                    
+                    // 更新URL（不刷新页面）
+                    const newUrl = window.location.pathname + '?' + params.toString();
+                    window.history.pushState({}, '', newUrl);
+                    
+                } else {
+                    console.error('❌ 服务器端排序失败:', data.message || '未知错误');
+                    if (tbody) {
+                        tbody.innerHTML = '<tr><td colspan="20" class="text-center py-4 text-danger">排序失败，请重试</td></tr>';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('❌ 服务器端排序请求失败:', error);
+                if (tbody) {
+                    tbody.innerHTML = '<tr><td colspan="20" class="text-center py-4 text-danger">网络错误，请重试</td></tr>';
+                }
+            });
+        }
+        
+        // 暴露初始化函数到全局作用域，供其他模块调用
+        window.initAllTableSort = initAllTableSort;
+        window.initTableSortForContainer = initTableSortForContainer;
+        window.executeServerSideSort = executeServerSideSort;
+        
+        // 监听新表格的加载（用于AJAX内容）
+        if (typeof MutationObserver !== 'undefined') {
+            const observer = new MutationObserver(function(mutations) {
+                let hasNewTables = false;
+                mutations.forEach(function(mutation) {
+                    mutation.addedNodes.forEach(function(node) {
+                        if (node.nodeType === 1) { // 元素节点
+                            // 检查新添加的节点是否包含表格
+                            const newTables = node.querySelectorAll ? node.querySelectorAll('.data-list-table:not([data-sort-initialized])') : [];
+                            if (newTables.length > 0) {
+                                hasNewTables = true;
+                            }
+                            
+                            // 检查节点本身是否是表格
+                            if (node.classList && node.classList.contains('data-list-table') && !node.hasAttribute('data-sort-initialized')) {
+                                hasNewTables = true;
+                            }
+                        }
+                    });
+                });
+                
+                if (hasNewTables) {
+                    console.log('检测到新的表格，重新初始化排序功能...');
+                    setTimeout(initAllTableSort, 100); // 短暂延迟确保DOM稳定
+                }
+            });
+            
+            // 开始观察DOM变化
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+        }
+    })();
+    </script>
 </div>
 {% endmacro %}
 
@@ -2314,7 +2701,7 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
         {% elif column.render == 'render_authorization_code' %}
             {{ render_authorization_code(value) }}
         {% elif column.render == 'render_project_authorization' %}
-            {{ render_authorization_status_badge(item.authorization_code, item.authorization_status, item.project_type) }}
+            {{ render_authorization_status_badge(item.authorization_code, item.authorization_status, item.project_type, item.status) }}
         {% elif column.render == 'render_date' %}
             {{ render_date(value) }}
         {% elif column.render == 'render_industry_badge' %}
@@ -6914,7 +7301,7 @@ document.addEventListener('DOMContentLoaded', function() {
     {% elif renderer_name == 'render_report_source_badge' or renderer_name == 'report_source_badge' %}
         {{ render_report_source_badge(detail_value) }}
     {% elif renderer_name == 'render_project_authorization' %}
-        {{ render_authorization_status_badge(item.authorization_code, item.authorization_status, item.project_type) }}
+        {{ render_authorization_status_badge(item.authorization_code, item.authorization_status, item.project_type, item.status) }}
     {% elif renderer_name == 'render_product_type_badge' %}
         {{ render_product_type_badge(detail_value) }}
     {% elif renderer_name == 'render_product_status_badge' %}
@@ -6990,5 +7377,247 @@ document.addEventListener('DOMContentLoaded', function() {
     {% for item in items %}
         {{ render_smart_mobile_card(item, card_config) }}
     {% endfor %}
+{% endmacro %}
+
+{#
+=============================================================================
+ 🌍 统一中文映射宏 - 动态字段标题支持
+=============================================================================
+
+以下宏用于实现统一的中文字段映射功能，支持将数据库字段名动态转换为中文显示名称。
+
+优先级规则：
+1. 配置表中的专用映射
+2. 全局映射文件中的通用映射  
+3. 字典映射中的业务映射
+4. 系统生成的友好名称
+
+使用方式：
+- get_column_title(table_name, field_name, fallback_label): 获取列标题
+- render_dynamic_column_header(column, table_name): 渲染动态列头
+- render_auto_mapped_table(table_config, items, table_name): 自动映射表格
+
+注意事项：
+- 支持向后兼容，当映射不存在时自动回退到原有标签
+- 可选择性启用，不会影响现有硬编码标题的正常工作
+- 提供调试信息便于排查映射问题
+
+=============================================================================
+#}
+
+{# 
+获取列标题的统一映射函数
+参数：
+- table_name: 表名（如 'projects'）
+- field_name: 字段名（如 'project_name'）  
+- fallback_label: 回退标签（原有的硬编码标签）
+#}
+{% macro get_column_title(table_name, field_name, fallback_label=none) %}
+    {% if get_field_display_name %}
+        {# 优先使用动态映射 #}
+        {% set mapped_title = get_field_display_name(table_name, field_name, fallback_label) %}
+        {% if mapped_title != field_name %}
+            {{ _(mapped_title) }}
+        {% elif fallback_label %}
+            {{ _(fallback_label) }}
+        {% else %}
+            {{ _(field_name) }}
+        {% endif %}
+    {% elif fallback_label %}
+        {# 回退到原有标签 #}
+        {{ _(fallback_label) }}
+    {% else %}
+        {# 最终回退到字段名 #}
+        {{ _(field_name) }}
+    {% endif %}
+{% endmacro %}
+
+{# 
+渲染动态列头组件
+参数：
+- column: 列配置对象，包含 field、label 等属性
+- table_name: 表名，用于查找字段映射
+#}
+{% macro render_dynamic_column_header(column, table_name='') %}
+    <th {% if column.width %}style="width: {{ column.width }}"{% endif %}
+        {% if column.align %}class="text-{{ column.align }}"{% endif %}>
+        {% if table_name and column.field %}
+            {# 使用动态映射 #}
+            {{ get_column_title(table_name, column.field, column.label) }}
+        {% elif column.label %}
+            {# 使用原有标签 #}
+            {{ _(column.label) }}
+        {% else %}
+            {# 回退到字段名 #}
+            {{ _(column.field or 'N/A') }}
+        {% endif %}
+    </th>
+{% endmacro %}
+
+{# 
+自动映射数据表格组件（扩展版本）
+在原有 render_data_table 基础上增加自动字段映射功能
+参数：
+- table_config: 表格配置对象
+- items: 数据项列表  
+- table_name: 数据库表名，用于字段映射
+- ajax_mode: 是否AJAX模式
+#}
+{% macro render_auto_mapped_table(table_config, items=[], table_name='', ajax_mode=false) %}
+<div class="card">
+    {% if table_config.title %}
+    <div class="card-header data-list-table-header">
+        <div class="list-title-container">
+            <div class="list-title-main">
+                <h5 class="mb-0">
+                    {% if table_config.icon %}<i class="{{ table_config.icon }} me-2"></i>{% endif %}
+                    {{ _(table_config.title) }}
+                    {% if table_config.badge_text %}
+                    <span class="badge bg-primary ms-2">{{ _(table_config.badge_text) }}</span>
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="list-title-stats">
+                {% if ajax_mode %}
+                <span class="list-item-count count-loading" id="listItemCount">
+                    {{ _('加载中') }}
+                </span>
+                {% else %}
+                <span class="list-item-count count-total" id="listItemCount">
+                    {{ _('共') }} {{ items|length }} {{ _('项') }}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    <div class="card-body p-0">
+        <div class="table-responsive data-list-table-responsive{% if table_config.fixed_height_scroll %} fixed-height-scroll{% endif %}{% if table_config.infinite_scroll %} infinite-scroll-container{% endif %}"
+             {% if table_config.max_height or table_config.min_height %}
+             style="{% if table_config.max_height %}max-height: {{ table_config.max_height }}; overflow-y: auto;{% endif %}{% if table_config.min_height %}min-height: {{ table_config.min_height }};{% endif %}"
+             {% endif %}>
+            <table class="table table-hover mb-0 data-list-table{% if table_config.enhanced_striping %} table-striped{% endif %}{% if table_config.compact %} table-sm{% endif %}">
+                {% if table_config.show_header|default(true) %}
+                <thead class="table-light">
+                    <tr>
+                        {% for column in table_config.columns %}
+                        {# 使用动态映射列头 #}
+                        {{ render_dynamic_column_header(column, table_name) }}
+                        {% endfor %}
+                    </tr>
+                </thead>
+                {% endif %}
+                <tbody {% if ajax_mode %}id="{{ table_config.ajax_target }}"{% endif %}>
+                    {% if ajax_mode %}
+                        <!-- AJAX模式：内容将通过JavaScript动态加载 -->
+                        <tr>
+                            <td colspan="{{ table_config.columns|length }}" class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">{{ _('加载中...') }}</span>
+                                </div>
+                            </td>
+                        </tr>
+                    {% else %}
+                        {% if items %}
+                            {% for item in items %}
+                                <tr>
+                                    {% for column in table_config.columns %}
+                                        {% if column.cell_renderer %}
+                                            {{ column.cell_renderer(item, column)|safe }}
+                                        {% else %}
+                                            {{ render_table_cell(item, column) }}
+                                        {% endif %}
+                                    {% endfor %}
+                                </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="{{ table_config.columns|length }}" class="text-center text-muted py-4">
+                                    <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                                    {{ _(table_config.empty_message or '暂无数据') }}
+                                </td>
+                            </tr>
+                        {% endif %}
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{#
+=============================================================================
+ 📋 表单标签统一映射宏 - 支持翻译的字段标签
+=============================================================================
+
+以下宏用于表单输入字段的标签统一映射，支持：
+- 数据库字段名到中文显示名的映射
+- 翻译系统集成（支持多语言环境）  
+- 必填字段标记
+- 智能回退机制
+
+使用方式：
+- get_form_label(table_name, field_name, fallback_label, required): 获取表单标签
+- render_form_label(table_name, field_name, for_id, fallback_label, required): 渲染完整标签HTML
+
+=============================================================================
+#}
+
+{# 
+获取表单标签文本（支持翻译）
+参数：
+- table_name: 表名（如 'companies'）
+- field_name: 字段名（如 'company_name'）  
+- fallback_label: 回退标签（原有的硬编码标签）
+- required: 是否为必填字段
+#}
+{% macro get_form_label(table_name, field_name, fallback_label='', required=false) %}
+    {% if get_field_display_name_i18n %}
+        {% set label_text = get_field_display_name_i18n(table_name, field_name, fallback_label) %}
+    {% else %}
+        {% set label_text = _(fallback_label) if fallback_label else _(field_name) %}
+    {% endif %}
+    {{ label_text }}{% if required %} <span class="text-danger">*</span>{% endif %}
+{% endmacro %}
+
+{# 
+渲染完整的表单标签HTML
+参数：
+- table_name: 表名
+- field_name: 字段名
+- for_id: 对应的input元素ID
+- fallback_label: 回退标签
+- required: 是否必填
+- extra_class: 额外的CSS类
+#}
+{% macro render_form_label(table_name, field_name, for_id, fallback_label='', required=false, extra_class='') %}
+    <label for="{{ for_id }}" class="form-label{% if extra_class %} {{ extra_class }}{% endif %}">
+        {{ get_form_label(table_name, field_name, fallback_label, required) }}
+    </label>
+{% endmacro %}
+
+{# 
+获取筛选标签文本（支持翻译）
+用于筛选组件和搜索框标签
+#}
+{% macro get_filter_label(table_name, field_name, fallback_label='') %}
+    {% if get_field_display_name_i18n %}
+        {{ get_field_display_name_i18n(table_name, field_name, fallback_label) }}
+    {% else %}
+        {{ _(fallback_label) if fallback_label else _(field_name) }}
+    {% endif %}
+{% endmacro %}
+
+{# 
+获取统计卡片标题（支持翻译）
+用于数据统计展示卡片
+#}
+{% macro get_stats_title(table_name, field_name, fallback_title='') %}
+    {% if get_field_display_name_i18n %}
+        {{ get_field_display_name_i18n(table_name, field_name, fallback_title) }}
+    {% else %}
+        {{ _(fallback_title) if fallback_title else _(field_name) }}
+    {% endif %}
 {% endmacro %}
 

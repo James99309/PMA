@@ -1154,11 +1154,20 @@ def can_view_project(user, project):
     5. 销售经理特殊权限：归属关系中的非客户服务项目
     6. 共享（如有 shared_with_users 字段，暂未支持）
     7. 客户拥有者权限：如果用户拥有与项目关联的任一客户，则可以查看该项目
+    8. 审批人权限：如果用户是当前审批步骤的审批人，则可以查看该项目
     """
     if user.role == 'admin':
         return True
     if user.id == project.owner_id:
         return True
+    
+    # 检查是否为当前审批人
+    try:
+        from app.helpers.approval_helpers import is_current_approver
+        if is_current_approver('project', project.id, user.id):
+            return True
+    except Exception as e:
+        logger.warning(f"检查审批人权限时出错: {e}")
     
     # 厂商负责人可以查看项目
     if hasattr(project, 'vendor_sales_manager_id') and project.vendor_sales_manager_id == user.id:
@@ -1515,10 +1524,9 @@ def can_view_in_approval_context(user, object_type, object_id):
     ).first()
     
     if approval_instance:
-        # 获取当前步骤
+        # 获取当前步骤 - 🔥 修复：current_step存储的是step_id，不是step_order
         current_step = ApprovalStep.query.filter_by(
-            process_id=approval_instance.process_id,
-            step_order=approval_instance.current_step
+            id=approval_instance.current_step
         ).first()
         
         if current_step and current_step.approver_user_id == user.id:
@@ -1549,9 +1557,9 @@ def can_view_in_approval_context(user, object_type, object_id):
             ).first()
             
             if order_approval_instance:
+                # 🔥 修复：current_step存储的是step_id，不是step_order
                 current_step = ApprovalStep.query.filter_by(
-                    process_id=order_approval_instance.process_id,
-                    step_order=order_approval_instance.current_step
+                    id=order_approval_instance.current_step
                 ).first()
                 
                 if current_step and current_step.approver_user_id == user.id:

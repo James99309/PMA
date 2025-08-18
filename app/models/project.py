@@ -36,6 +36,9 @@ class Project(SharingMixin, db.Model):
     authorization_status = Column(String(20), nullable=True, default=None)  # None, 'pending', 'rejected'
     feedback = Column(Text, nullable=True)  # 存储申请反馈或驳回原因
     
+    # 项目审批状态字段 - 与其他模块保持一致
+    status = Column(String(20), default='draft', nullable=False)  # draft, pending, approved, rejected, recalled
+    
     # 项目锁定相关字段
     is_locked = Column(Boolean, default=False, nullable=False)  # 是否锁定
     locked_reason = Column(String(100), nullable=True)  # 锁定原因

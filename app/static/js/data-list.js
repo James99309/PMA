@@ -212,7 +212,7 @@ function setupDataList(config) {
         // 只在没有配置筛选或筛选未启用自动提交时，才手动触发数据加载
         if (!config.filter || !config.filter.auto_submit) {
             // 检查是否已有初始数据
-            const targetElement = document.querySelector(config.ajax_target);
+            const targetElement = document.querySelector(config.ajax_target.startsWith('#') ? config.ajax_target : '#' + config.ajax_target);
             const noDataText = (config.i18n && config.i18n.noData) || '暂无数据';
             const loadingText = (config.i18n && config.i18n.loading) || '加载中';
             const hasInitialData = targetElement && targetElement.children.length > 0 && 
@@ -389,7 +389,7 @@ function loadInitialData(config) {
     
     console.log('🔄 加载初始数据');
     
-    const targetElement = document.querySelector(config.ajax_target);
+    const targetElement = document.querySelector(config.ajax_target.startsWith('#') ? config.ajax_target : '#' + config.ajax_target);
     if (!targetElement) {
         console.error(`❌ 找不到目标元素: ${config.ajax_target}`);
         return;
@@ -797,7 +797,7 @@ function setupInfiniteScroll(config) {
             .then(data => {
                 if (data.success && data.html) {
                     // 将新数据追加到表格
-                    const targetElement = document.querySelector(config.ajax_target);
+                    const targetElement = document.querySelector(config.ajax_target.startsWith('#') ? config.ajax_target : '#' + config.ajax_target);
                     if (targetElement) {
                         targetElement.insertAdjacentHTML('beforeend', data.html);
                     }
@@ -831,7 +831,7 @@ function setupInfiniteScroll(config) {
                 infiniteScrollState.hasMore = false;
                 
                 // 显示错误信息给用户
-                const targetElement = document.querySelector(config.ajax_target);
+                const targetElement = document.querySelector(config.ajax_target.startsWith('#') ? config.ajax_target : '#' + config.ajax_target);
                 if (targetElement) {
                     const errorRow = document.createElement('tr');
                     errorRow.innerHTML = `<td colspan="6" class="text-center text-muted p-3"><i class="fas fa-exclamation-triangle"></i> 加载失败，请刷新页面重试</td>`;

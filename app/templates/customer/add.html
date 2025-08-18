@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel %}
 {% from 'macros/ui_helpers.html' import render_company_code %}
+{% from 'macros/ui_helpers.html' import get_form_label, render_form_label %}
 
 {% block title %}{{ _('添加客户') }}{% endblock %}
 
@@ -42,7 +43,7 @@
                     <form id="customer-add-form" method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3 position-relative">
-                            <label for="company_name" class="form-label">{{ _('企业名称') }} <span class="text-danger">*</span></label>
+                            <label for="company_name" class="form-label">{{ get_form_label('company', 'company_name', '企业名称', required=true) }}</label>
                             <input type="text" class="form-control" id="company_name" name="company_name" required>
                             <div id="company-suggestions" class="position-absolute w-100 mt-1 d-none" style="z-index: 1000;"></div>
                             <div id="company-name-error" class="invalid-feedback"></div>
@@ -50,13 +51,13 @@
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="country" class="form-label">{{ _('国家/地区') }} <span class="text-danger">*</span></label>
+                                <label for="country" class="form-label">{{ get_form_label('company', 'country', '国家/地区', required=true) }}</label>
                                 <select class="form-select" id="country" name="country" required disabled>
                                     <option value="">{{ _('请选择国家') }}</option>
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label for="region" class="form-label">{{ _('省/州') }} <span class="text-danger">*</span></label>
+                                <label for="region" class="form-label">{{ get_form_label('company', 'region', '省/州', required=true) }}</label>
                                 <select class="form-select" id="region" name="region" required disabled>
                                     <option value="">{{ _('请选择省/州') }}</option>
                                 </select>
@@ -64,13 +65,13 @@
                         </div>
 
                         <div class="mb-3">
-                            <label for="address" class="form-label">{{ _('详细地址') }} <span class="text-danger">*</span></label>
+                            <label for="address" class="form-label">{{ get_form_label('company', 'address', '详细地址', required=true) }}</label>
                             <input type="text" class="form-control" id="address" name="address" placeholder="{{ _('示例：中国 北京市 朝阳区xx路') }}" required disabled>
                         </div>
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="industry" class="form-label">{{ _('行业') }} <span class="text-danger">*</span></label>
+                                <label for="industry" class="form-label">{{ get_form_label('company', 'industry', '行业', required=true) }}</label>
                                 <select class="form-select" id="industry" name="industry" required>
                                     <option value="">{{ _('请选择行业') }}</option>
                                     {% for value, label in INDUSTRY_OPTIONS %}
@@ -79,7 +80,7 @@
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label for="company_type" class="form-label">{{ _('企业类型') }} <span class="text-danger">*</span></label>
+                                <label for="company_type" class="form-label">{{ get_form_label('company', 'company_type', '企业类型', required=true) }}</label>
                                 <select class="form-select" id="company_type" name="company_type" required>
                                     <option value="">{{ _('请选择企业类型') }}</option>
                                     {% for value, label in COMPANY_TYPE_OPTIONS %}
@@ -90,7 +91,7 @@
                         </div>
 
                         <div class="mb-3">
-                            <label for="notes" class="form-label">{{ _('备注') }}</label>
+                            <label for="notes" class="form-label">{{ get_form_label('company', 'notes', '备注') }}</label>
                             <textarea class="form-control" id="notes" name="notes" rows="3" disabled></textarea>
                         </div>
 
@@ -99,33 +100,33 @@
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="contact_name" class="form-label">{{ _('联系人姓名') }}</label>
+                                <label for="contact_name" class="form-label">{{ get_form_label('contact', 'contact_name', '联系人姓名') }}</label>
                                 <input type="text" class="form-control" id="contact_name" name="contact_name" disabled>
                             </div>
                             <div class="col-md-6">
-                                <label for="contact_department" class="form-label">{{ _('部门') }}</label>
+                                <label for="contact_department" class="form-label">{{ get_form_label('contact', 'contact_department', '部门') }}</label>
                                 <input type="text" class="form-control" id="contact_department" name="contact_department" disabled>
                             </div>
                         </div>
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="contact_position" class="form-label">{{ _('职位') }}</label>
+                                <label for="contact_position" class="form-label">{{ get_form_label('contact', 'contact_position', '职位') }}</label>
                                 <input type="text" class="form-control" id="contact_position" name="contact_position" disabled>
                             </div>
                             <div class="col-md-6">
-                                <label for="contact_phone" class="form-label">{{ _('电话') }}</label>
+                                <label for="contact_phone" class="form-label">{{ get_form_label('contact', 'contact_phone', '电话') }}</label>
                                 <input type="text" class="form-control" id="contact_phone" name="contact_phone" disabled>
                             </div>
                         </div>
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="contact_email" class="form-label">{{ _('邮箱') }}</label>
+                                <label for="contact_email" class="form-label">{{ get_form_label('contact', 'contact_email', '邮箱') }}</label>
                                 <input type="email" class="form-control" id="contact_email" name="contact_email" disabled>
                             </div>
                             <div class="col-md-6">
-                                <label for="contact_notes" class="form-label">{{ _('备注') }}</label>
+                                <label for="contact_notes" class="form-label">{{ get_form_label('contact', 'contact_notes', '备注') }}</label>
                                 <input type="text" class="form-control" id="contact_notes" name="contact_notes" disabled>
                             </div>
                         </div>

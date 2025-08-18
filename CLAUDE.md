@@ -251,6 +251,105 @@ FORCE_CLOUD_UPLOAD=true
 
 ---
 
+## 🔄 审批组件使用规范
+
+### **新版通用审批组件**
+- **使用组件**：`render_complete_approval_section` (来自 `macros/approval_flow.html`)
+- **组件来源**：从订单审批发展而来的统一标准审批组件
+- **替代组件**：完全替代旧版 `render_approval_section` (来自 `macros/approval_macros.html`)
+
+### **标准使用模式**
+
+#### **模板导入**
+```jinja2
+{% from 'macros/approval_flow.html' import render_complete_approval_section %}
+```
+
+#### **基本调用**
+```jinja2
+{{ render_complete_approval_section(
+    object_type='order',          # 对象类型：'order', 'project', 'expense' 等
+    object_id=order.id,           # 对象ID
+    object_status=order.status,   # 对象状态：'draft', 'pending', 'approved', 'rejected' 等
+    current_user_id=current_user.id,     # 当前用户ID
+    creator_id=order.created_by.id,      # 创建人ID
+    container_id='approvalFlowSection',  # 容器ID（可选）
+    options={                     # 选项配置（可选）
+        'operation_title': '审批操作',
+        'flow_title': '审批流程',
+        'description': '创建完成，可以提交审批流程。',
+        'warning': '提交后将进入审批流程，无法直接修改。'
+    }
+) }}
+```
+
+### **组件功能特性**
+
+#### **自动包含的功能**
+- ✅ **审批操作区域** - 提交、召回、重新提交等操作
+- ✅ **审批流程图** - 可视化流程展示和状态跟踪
+- ✅ **权限控制** - 基于用户角色和创建权限的操作控制
+- ✅ **状态管理** - 自动处理草稿、待审批、已批准、已拒绝等状态
+- ✅ **确认模态框** - 标准化的审批确认和召回确认对话框
+- ✅ **国际化支持** - 完整的中英文切换支持
+
+#### **必需的前端资源**
+```html
+<!-- CSS 文件 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_flow.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
+
+<!-- JavaScript 文件 -->
+<script src="{{ url_for('static', filename='js/approval_flow.js') }}"></script>
+<script src="{{ url_for('static', filename='js/approval_flow_utils.js') }}"></script>
+```
+
+### **当前使用的页面**
+- **项目详情页面** - `app/templates/project/detail.html`
+- **报销单详情页面** - `app/templates/expense/expense_detail.html`  
+- **订单详情页面** - `app/templates/inventory/order_detail.html`
+
+### **迁移指南**
+
+#### **从旧版审批组件迁移**
+```jinja2
+<!-- 旧版用法 ❌ -->
+{% from 'macros/approval_macros.html' import render_approval_section %}
+{{ render_approval_section('customer', company.id, approval_instance, current_user) }}
+
+<!-- 新版用法 ✅ -->
+{% from 'macros/approval_flow.html' import render_complete_approval_section %}
+{{ render_complete_approval_section('customer', company.id, company.status, current_user.id, company.owner_id) }}
+```
+
+#### **清理无用导入**
+```jinja2
+<!-- 需要移除 ❌ -->
+{% from 'macros/approval_macros.html' import render_approval_section %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
+
+<!-- 保留使用 ✅ -->
+{% from 'macros/approval_flow.html' import render_complete_approval_section %}
+```
+
+### **注意事项**
+
+#### **权限要求**
+- 只有**创建人**可以看到审批操作区域
+- 审批流程图对所有有查看权限的用户可见
+- 确保页面有正确的权限检查装饰器
+
+#### **状态一致性**
+- 对象状态必须与审批系统状态保持同步
+- 使用标准状态名称：`draft`, `pending`, `approved`, `rejected`, `recalled`
+
+#### **样式兼容性**
+- 组件使用 Bootstrap 5 样式系统
+- 自动适配移动端和桌面端显示
+- 支持现有的页面布局结构
+
+---
+
 ## 🎨 前端交互规则
 
 ### **动态元素控制**
@@ -391,6 +490,7 @@ def list_view():
 
 ## 📝 规则更新日志
 
+- **2025-08-18**: 添加新版通用审批组件使用规范，包含从订单审批发展而来的`render_complete_approval_section`标准用法、迁移指南和注意事项
 - **2025-08-15**: 添加本地开发云端存储规范，包括生产环境Supabase配置、启动脚本和测试一致性要求
 - **2025-08-15**: 修复云端PDF下载问题，将重定向下载改为代理下载确保强制下载行为
 - **2025-08-12**: 修复项目模块中商务助理权限控制问题，确保商务助理能查看部门内所有账户的项目数据
@@ -400,8 +500,8 @@ def list_view():
 - **2025-08-01**: 添加OVS数据库迁移升级规范，包含完整的工具链和实战验证案例
 - **2025-07-30**: 添加云端数据库备份工具规范
 - **2025-07-20**: 创建初始规则文档
-- **版本**: 2.2.0
-- **最后更新**: 2025-08-15
+- **版本**: 2.3.0
+- **最后更新**: 2025-08-18
 
 ---
 

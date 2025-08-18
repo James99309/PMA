@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, render_template_string, request, r
 from flask_login import current_user, login_required
 from flask_babel import gettext as _
 from app.extensions import csrf
+from app.utils.chinese_mapping_manager import mapping_manager
 from app.models.expense import Expense, ExpenseDetail, EXPENSE_CATEGORIES, EXPENSE_STATUS
 from app.models.customer import Company, Contact
 from app.models.project import Project
@@ -280,7 +281,7 @@ def expense_list():
         'filter_fields': [
             {
                 'name': 'customer_id',
-                'label': _('客户'),
+                'label': _(mapping_manager.get_field_display_name('expense', 'customer_id')),
                 'all_option_text': _('全部客户'),
                 'current_value': customer_id,
                 'col_width': 2,
@@ -288,7 +289,7 @@ def expense_list():
             },
             {
                 'name': 'owner_id',
-                'label': _('申请人'),
+                'label': _(mapping_manager.get_field_display_name('expense', 'owner_id')),
                 'all_option_text': _('全部申请人'),
                 'current_value': owner_id,
                 'col_width': 2,
@@ -297,7 +298,7 @@ def expense_list():
             # 移除报销科目筛选，因为现在在明细表中，可以考虑后续通过明细表联查实现
             {
                 'name': 'status',
-                'label': _('审批状态'),
+                'label': _(mapping_manager.get_field_display_name('expense', 'status')),
                 'all_option_text': _('全部状态'),
                 'current_value': status,
                 'col_width': 2,
@@ -364,62 +365,79 @@ def expense_list():
             'ajax_target': 'expenseTableBody',
             'title': _('报销列表'),
             'icon': 'fas fa-table',
+            'table_name': 'expense',        # 指定数据库表名用于动态映射
             'columns': [
                 {
                     'key': 'expense_number',
-                    'label': _('报销单编号'),
+                    'field': 'expense_number',
+                    'label': _(mapping_manager.get_field_display_name('expense', 'expense_number')),
                     'type': 'link',
                     'url_template': '/expense/{id}',
                     'render': 'render_expense_number',
-                    'width': '140px'
+                    'width': '140px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'owner',
-                    'label': _('申请人'),
+                    'field': 'owner_id',
+                    'label': _(mapping_manager.get_field_display_name('expense', 'owner_id')),
                     'type': 'text',
                     'align': 'start',
-                    'width': '100px'
+                    'width': '100px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'status',
-                    'label': _('状态'),
+                    'field': 'status',
+                    'label': _(mapping_manager.get_field_display_name('expense', 'status')),
                     'type': 'badge',
                     'render': 'render_expense_status_badge',
                     'align': 'start',
-                    'width': '100px'
+                    'width': '100px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'total_amount',
-                    'label': _('总金额'),
+                    'field': 'total_amount',
+                    'label': _(mapping_manager.get_field_display_name('expense', 'total_amount')),
                     'type': 'number',
                     'format': 'currency',
                     'align': 'end',
-                    'width': '100px'
+                    'width': '100px',
+                    'sort_type': 'currency'
                 },
                 {
                     'key': 'customer_name',
-                    'label': _('客户'),
+                    'field': 'customer_id',
+                    'label': _(mapping_manager.get_field_display_name('expense', 'customer_id')),
                     'type': 'text',
-                    'width': '150px'
+                    'width': '150px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'contact_name',
-                    'label': _('联系人'),
+                    'field': 'contact_id',
+                    'label': _(mapping_manager.get_field_display_name('expense', 'contact_id')),
                     'type': 'text',
-                    'width': '120px'
+                    'width': '120px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'project_name',
-                    'label': _('关联项目'),
+                    'field': 'project_id',
+                    'label': _(mapping_manager.get_field_display_name('expense', 'project_id')),
                     'type': 'text',
-                    'width': '150px'
+                    'width': '150px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'created_at',
-                    'label': _('创建时间'),
+                    'field': 'created_at',
+                    'label': _(mapping_manager.get_field_display_name('expense', 'created_at')),
                     'type': 'date',
                     'format': '%Y-%m-%d',
-                    'width': '120px'
+                    'width': '120px',
+                    'sort_type': 'date'
                 }
             ]
         }
@@ -451,6 +469,10 @@ def expense_list_ajax():
         # 分页参数
         offset = request.args.get('offset', 0, type=int)
         limit = request.args.get('limit', 20, type=int)
+        
+        # 排序参数
+        sort_field = request.args.get('sort_field', '')
+        sort_direction = request.args.get('sort_direction', 'asc')
         
         # 1. 使用权限控制函数获取可查看的报销单数据
         from app.utils.access_control import get_viewable_data
@@ -489,19 +511,33 @@ def expense_list_ajax():
                                             Company.company_name.ilike(f'%{search}%')
                                         )
                                     )
-            # 获取总数和分页数据
+            # 获取总数
             total_count = search_query.count()
-            expenses = search_query.order_by(desc(Expense.created_at))\
-                                   .offset(offset)\
-                                   .limit(limit)\
-                                   .all()
+            # 应用排序
+            query_for_sort = search_query
         else:
             # 无搜索条件时直接查询
             total_count = base_query.count()
-            expenses = base_query.order_by(desc(Expense.created_at))\
-                                 .offset(offset)\
-                                 .limit(limit)\
-                                 .all()
+            query_for_sort = base_query
+        
+        # 使用通用排序服务
+        from app.utils.sorting_service import SortingService, create_basic_field_mappings
+        
+        # 创建排序配置
+        sorting_config = {
+            'field_mappings': create_basic_field_mappings(Expense, [
+                'expense_number', 'title', 'total_amount', 'status', 'created_at', 'updated_at'
+            ]),
+            'relation_mappings': {},
+            'default_sort': {'field': 'created_at', 'direction': 'desc'}
+        }
+        
+        # 创建排序服务并应用排序
+        sorting_service = SortingService(Expense, sorting_config)
+        query_for_sort = sorting_service.apply_sort(query_for_sort, sort_field, sort_direction)
+            
+        # 分页查询
+        expenses = query_for_sort.offset(offset).limit(limit).all()
         
         # 4. 批量获取关联数据（避免N+1查询）
         if expenses:
@@ -583,12 +619,12 @@ def expense_list_ajax():
                         {'field': 'status', 'renderer': 'expense_status'}
                     ],
                     'details': [
-                        {'field': 'title', 'label': '报销标题'},
-                        {'field': 'customer_name', 'label': '归属客户'},
-                        {'field': 'owner', 'label': '申请人'},
-                        {'field': 'total_amount', 'label': '报销金额', 'format': 'currency'},
-                        {'field': 'detail_count', 'label': '明细数量', 'suffix': '项'},
-                        {'field': 'created_at', 'label': '创建时间', 'format': 'date'}
+                        {'field': 'title', 'label': mapping_manager.get_field_display_name('expense', 'title')},
+                        {'field': 'customer_name', 'label': mapping_manager.get_field_display_name('expense', 'customer_id')},
+                        {'field': 'owner', 'label': mapping_manager.get_field_display_name('expense', 'owner_id')},
+                        {'field': 'total_amount', 'label': mapping_manager.get_field_display_name('expense', 'total_amount'), 'format': 'currency'},
+                        {'field': 'detail_count', 'label': mapping_manager.get_field_display_name('expense', 'detail_count'), 'suffix': '项'},
+                        {'field': 'created_at', 'label': mapping_manager.get_field_display_name('expense', 'created_at'), 'format': 'date'}
                     ]
                 }
                 
@@ -2761,7 +2797,11 @@ def get_expense_approval_flow(expense_id):
         
         # 构建审批阶段数据
         stages_data = []
-        current_step_order = approval_instance.current_step  # 使用实例的当前步骤序号
+        # 🔥 修复：获取当前步骤的step_order（current_step存储的是step_id）
+        current_step_order = None
+        if approval_instance.current_step:
+            current_step_obj = ApprovalStep.query.filter_by(id=approval_instance.current_step).first()
+            current_step_order = current_step_obj.step_order if current_step_obj else None
         
         for i, step in enumerate(steps):
             # 确定审批人

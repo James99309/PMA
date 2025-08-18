@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', function() {
         auto_submit: true,
         ajax_mode: {{ 'true' if list_config.ajax_mode else 'false' }},
         ajax_endpoint: '{{ url_for("approval.center_ajax") }}',
-        ajax_target: '#{{ list_config.table.ajax_target }}',
+        ajax_target: '{{ list_config.table.ajax_target }}',
         ajax_columns: {{ list_config.table.columns | length }},
         // 自定义AJAX回调 - 确保包含tab参数
         ajax_callback: function() {

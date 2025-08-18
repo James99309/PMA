@@ -1,14 +1,11 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_quotation_number, render_currency, render_currency_with_symbol, render_project_stage, render_button, render_confirm_cancel, render_confirmation_badge, render_product_status_badge %}
 {% from 'macros/ui_modals.html' import render_change_owner_modal %}
-{% from 'macros/approval_macros.html' import render_start_approval_button, render_approval_section with context %}
 {% from 'macros/export_info_modal.html' import render_export_info_modal %}
 
 {% block title %}{{ _('报价单详情') }} - {{ quotation.quotation_number }} - {{ _('项目管理系统') }}{% endblock %}
 
 {% block head %}
-<!-- 引入审批时间线样式 -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
 <!-- 引入导出信息补充组件样式 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/keyword-selector.css') }}">
 <style>
@@ -302,11 +299,6 @@
         </div>
     </div>
     
-    <!-- 审批流程区域 -->
-    {% if not quotation.is_locked %}
-    {% set approval_instance = get_object_approval_instance('quotation', quotation.id) if get_object_approval_instance is defined %}
-    {{ render_approval_section('quotation', quotation.id, approval_instance, current_user) }}
-    {% endif %}
 </div>
 
 <!-- 导出信息补充模态框 -->

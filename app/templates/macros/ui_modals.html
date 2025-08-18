@@ -81,12 +81,22 @@
             {% else %}
               <select class="form-select" id="vendor_sales_manager_id" name="vendor_sales_manager_id">
                 <option value="">请选择厂商销售负责人</option>
+                {% set companies = {} %}
                 {% for user in all_users %}
-                  {% if user.is_vendor_user() %}
-                    <option value="{{ user.id }}">
-                      {{ user.real_name or user.username }}（{{ user.role }}）
-                    </option>
+                  {% set company_name = user.company_name or '未分配公司' %}
+                  {% if company_name not in companies %}
+                    {% set _ = companies.update({company_name: []}) %}
                   {% endif %}
+                  {% set _ = companies[company_name].append(user) %}
+                {% endfor %}
+                {% for company_name, users in companies.items() %}
+                  <optgroup label="{{ company_name }}">
+                    {% for user in users %}
+                      <option value="{{ user.id }}">
+                        {{ user.real_name or user.username }}
+                      </option>
+                    {% endfor %}
+                  </optgroup>
                 {% endfor %}
               </select>
             {% endif %}

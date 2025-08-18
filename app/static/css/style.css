@@ -5091,7 +5091,7 @@ a:focus .badge.badge-transparent.expense-number-badge {
 
 /* 内部滚动容器样式 */
 .data-list-table-responsive.fixed-height-scroll {
-    max-height: 600px;
+    max-height: 70vh; /* 使用视口高度，更具响应性 */
     overflow-y: auto;
     position: relative;
     border: 1px solid #dee2e6;
@@ -5103,9 +5103,10 @@ a:focus .badge.badge-transparent.expense-number-badge {
     position: sticky;
     top: 0;
     z-index: 10;
-    background-color: #f8f9fa !important;
+    background-color: var(--bs-light, #f8f9fa) !important; /* 与table-light保持一致 */
     border-bottom: 2px solid #dee2e6;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(2px); /* 添加轻微模糊效果 */
 }
 
 /* 无限滚动容器 */
@@ -5130,6 +5131,38 @@ a:focus .badge.badge-transparent.expense-number-badge {
 @keyframes fadeInOut {
     0%, 100% { opacity: 0.7; }
     50% { opacity: 1; }
+}
+
+/* 表格排序功能样式 */
+.data-list-table .sortable-column {
+    transition: background-color 0.15s ease-in-out;
+}
+
+.data-list-table .sortable-column:hover {
+    background-color: rgba(13, 110, 253, 0.08) !important;
+}
+
+.data-list-table .sortable-column.sort-active {
+    background-color: rgba(13, 110, 253, 0.12) !important;
+    font-weight: 600;
+}
+
+.data-list-table .sort-indicator {
+    min-width: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.data-list-table .sort-indicator .sort-icon-default,
+.data-list-table .sort-indicator .sort-icon-asc,
+.data-list-table .sort-indicator .sort-icon-desc {
+    font-size: 0.75rem;
+    transition: all 0.15s ease-in-out;
+}
+
+.data-list-table .sortable-column:hover .sort-icon-default {
+    color: var(--bs-primary) !important;
 }
 
 /* 滚动条样式优化 */

@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', function() {
         module_name: '{{ list_config.module_name }}',
         ajax_mode: {{ 'true' if list_config.ajax_mode else 'false' }},
         ajax_endpoint: '{{ url_for("inventory.stock_list_ajax") }}',
-        ajax_target: '#{{ list_config.table.ajax_target }}',
+        ajax_target: '{{ list_config.table.ajax_target }}',
         stats: {{ list_config.stats | tojson | safe }},
         filter: {{ list_config.filter | tojson | safe }},
         table: {{ list_config.table | tojson | safe }},

@@ -6174,3 +6174,9 @@ msgstr "Take Photo for Invoice"
 
 msgid "拍照"
 msgstr "Capture"
+
+msgid "厂商销售"
+msgstr "Vendor Sales"
+
+msgid "活跃度"
+msgstr "Activity Status"

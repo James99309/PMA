@@ -18,6 +18,10 @@ except (ImportError, AttributeError):
 # 分开导入其他组件
 from flask import Blueprint, request, render_template, flash, redirect, url_for
 from flask_babel import gettext as _
+import logging
+
+# 设置日志记录器
+logger = logging.getLogger(__name__)
 try:
     from flask.json.provider import JSONProvider  
 except ImportError:
@@ -302,7 +306,7 @@ def product_list():
         'auto_submit': True,                    # 启用自动筛选
         'ajax_mode': True,                      # 启用AJAX模式
         'ajax_endpoint': url_for('product_route.product_list_ajax'),
-        'ajax_target': '#productTableBody',
+        'ajax_target': 'productTableBody',
         'ajax_columns': 12,
         'dynamic_reset_button': True,           # 启用动态重置按钮
         'adaptive_width': True,
@@ -356,24 +360,13 @@ def product_list():
         'reset_button_text': _('重置')
     }
     
-    # 构建统一的 list_config 配置
+    # 标准通用组件配置
     list_config = {
         'module_name': 'product',
         'title': _('产品库管理'),
         'ajax_mode': True,
         
-        # 移动端模板配置（确保初始化和AJAX使用相同模板）
-        'mobile_template': 'product/product_cards.html',
-        
-        # 无限滚动配置（产品数量通常较少，暂时禁用）
-        'infinite_scroll': {
-            'enabled': False,
-            'page_size': 50,
-            'scroll_threshold': 100,
-            'container_selector': '.table-responsive'
-        },
-        
-        # 统计卡片配置
+        # 统计卡片
         'stats': {
             'cards': [
                 {
@@ -381,11 +374,10 @@ def product_list():
                     'title': _('总产品数'),
                     'icon': 'fas fa-cube',
                     'value': total_count,
-                    'amount': amount_data['value'],  # 使用标准化转换
+                    'amount': amount_data['value'],
                     'unit': _('个'),
-                    'amount_unit': amount_data['unit'],  # 语言感知的单位
+                    'amount_unit': amount_data['unit'],
                     'color': 'primary',
-                    'clickable': False,
                     'data_key': 'total'
                 },
                 {
@@ -432,23 +424,21 @@ def product_list():
             'ajax_target': 'productTableBody',
             'title': _('产品列表'),
             'icon': 'fas fa-table',
-            'fixed_height_scroll': True,   # 启用蓝色滚动条
-            'enhanced_striping': True,     # 启用增强斑马纹
             'use_custom_rows': True,
             'custom_rows_template': 'product/product_rows.html',
             'columns': [
-                {'key': 'id', 'label': 'ID', 'width': '60px'},
-                {'key': 'type', 'label': _('产品类型'), 'width': '100px', 'type': 'badge'},
-                {'key': 'category', 'label': _('产品类别'), 'width': '120px'},
-                {'key': 'product_mn', 'label': _('MN号'), 'width': '120px'},
-                {'key': 'product_name', 'label': _('产品名称'), 'width': '180px', 'type': 'link'},
-                {'key': 'model', 'label': _('型号'), 'width': '120px'},
-                {'key': 'specification', 'label': _('规格'), 'width': '150px'},
-                {'key': 'brand', 'label': _('品牌'), 'width': '100px'},
-                {'key': 'unit', 'label': _('单位'), 'width': '80px'},
-                {'key': 'retail_price', 'label': _('价格'), 'width': '100px', 'type': 'currency', 'align': 'right'},
-                {'key': 'status', 'label': _('状态'), 'width': '100px', 'type': 'badge'},
-                {'key': 'created_at', 'label': _('创建时间'), 'width': '150px', 'type': 'date'}
+                {'key': 'id', 'field': 'id', 'label': 'ID', 'width': '60px', 'sort_type': 'number'},
+                {'key': 'type', 'field': 'type', 'label': _('产品类型'), 'width': '100px', 'sort_type': 'string'},
+                {'key': 'category', 'field': 'category', 'label': _('产品类别'), 'width': '120px', 'sort_type': 'string'},
+                {'key': 'product_mn', 'field': 'product_mn', 'label': _('MN号'), 'width': '120px', 'sort_type': 'string'},
+                {'key': 'product_name', 'field': 'product_name', 'label': _('产品名称'), 'width': '180px', 'sort_type': 'string'},
+                {'key': 'model', 'field': 'model', 'label': _('型号'), 'width': '120px', 'sort_type': 'string'},
+                {'key': 'specification', 'field': 'specification', 'label': _('规格'), 'width': '150px', 'sort_type': 'string'},
+                {'key': 'brand', 'field': 'brand', 'label': _('品牌'), 'width': '100px', 'sort_type': 'string'},
+                {'key': 'unit', 'field': 'unit', 'label': _('单位'), 'width': '80px', 'sort_type': 'string'},
+                {'key': 'retail_price', 'field': 'retail_price', 'label': _('价格'), 'width': '100px', 'sort_type': 'number'},
+                {'key': 'status', 'field': 'status', 'label': _('状态'), 'width': '100px', 'sort_type': 'string'},
+                {'key': 'created_at', 'field': 'created_at', 'label': _('创建时间'), 'width': '150px', 'sort_type': 'date'}
             ]
         }
     }
@@ -488,9 +478,9 @@ def product_list_ajax():
         brand = request.args.get('brand', '').strip()
         status = request.args.get('status', '').strip()
         
-        # 分页参数（产品库通常不需要分页，加载全部数据）
-        offset = request.args.get('offset', 0, type=int)
-        limit = request.args.get('limit', 1000, type=int)  # 设置较大的限制
+        # 获取排序参数 (支持两种参数格式)
+        sort_field = request.args.get('sort_field') or request.args.get('sort', 'id')
+        sort_dir = request.args.get('sort_direction') or request.args.get('dir', 'asc')
         
         # 构建查询
         query = Product.query
@@ -520,10 +510,19 @@ def product_list_ajax():
         if status:
             query = query.filter(Product.status == status)
         
-        # 执行查询（加载全部数据，产品数量通常不大）
-        products = query.order_by(Product.id.asc()).all()
+        # 应用排序
+        if sort_field and hasattr(Product, sort_field):
+            field = getattr(Product, sort_field)
+            if sort_dir.lower() == 'desc':
+                query = query.order_by(field.desc())
+            else:
+                query = query.order_by(field.asc())
+        else:
+            query = query.order_by(Product.id.asc())
+        
+        # 执行查询
+        products = query.all()
         total_count = len(products)
-        has_more = False  # 产品库不使用无限滚动
         
         # 统计数据
         active_count = len([p for p in products if p.status == 'active'])
@@ -533,29 +532,18 @@ def product_list_ajax():
         # 计算总价值
         total_value = sum([(p.retail_price or 0) for p in products])
         
-        # 使用统一的移动端检测逻辑（与通用组件保持一致）
-        from app.utils.mobile_helpers import is_mobile_request
-        
-        # 构建产品HTML - 根据设备类型选择模板
-        if is_mobile_request():
-            # 移动端：渲染卡片内容（不包含容器，因为容器已存在）
-            products_html = render_template('product/product_cards.html', 
-                                          products=products,
-                                          can_edit_product=current_user.has_permission('product', 'edit'),
-                                          can_delete_product=current_user.has_permission('product', 'delete'))
-        else:
-            # 桌面端：渲染表格行
-            products_html = render_template('product/product_rows.html', 
-                                          products=products,
-                                          can_edit_product=current_user.has_permission('product', 'edit'),
-                                          can_delete_product=current_user.has_permission('product', 'delete'))
+        # 渲染产品HTML
+        products_html = render_template('product/product_rows.html', 
+                                      products=products,
+                                      can_edit_product=current_user.has_permission('product', 'edit'),
+                                      can_delete_product=current_user.has_permission('product', 'delete'))
         
         return jsonify({
             'success': True,
             'html': products_html,
-            'has_more': has_more,
+            'has_more': False,
             'total_count': total_count,
-            'loaded_count': total_count,  # 加载全部数据
+            'loaded_count': total_count,
             'statistics': {
                 'total_count': total_count,
                 'total_amount': float(total_value / 10000) if total_value > 0 else 0,
@@ -567,6 +555,8 @@ def product_list_ajax():
         
     except Exception as e:
         logger.error(f'获取产品列表AJAX失败: {str(e)}')
+        import traceback
+        logger.error(f'详细错误: {traceback.format_exc()}')
         return jsonify({
             'success': False,
             'message': f'获取产品列表失败: {str(e)}'

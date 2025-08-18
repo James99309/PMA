@@ -232,7 +232,7 @@ def stock_list():
             'auto_submit': True,                # 启用自动筛选
             'ajax_mode': True,                  # 启用AJAX模式
             'ajax_endpoint': url_for('inventory.stock_list_ajax'),
-            'ajax_target': '#stockTableBody',
+            'ajax_target': 'stockTableBody',
             'dynamic_reset_button': True,       # 启用动态重置按钮
             
             'search_field': {
@@ -353,60 +353,78 @@ def stock_list():
                 'columns': [
                     {
                         'key': 'product_name',
+                        'field': 'product_name',
                         'label': '产品名称',
                         'type': 'text',
-                        'width': '200px'
+                        'width': '200px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'model_spec',
+                        'field': 'model_spec',
                         'label': '型号/规格',
                         'type': 'text', 
-                        'width': '180px'
+                        'width': '180px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'product_mn',
+                        'field': 'product_mn',
                         'label': 'MN号',
                         'type': 'text',
-                        'width': '120px'
+                        'width': '120px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'total_quantity',
+                        'field': 'total_quantity',
                         'label': '当前库存',
                         'type': 'number',
                         'width': '100px',
-                        'align': 'end'
+                        'align': 'end',
+                        'sort_type': 'number'
                     },
                     {
                         'key': 'min_stock',
+                        'field': 'min_stock',
                         'label': '最低库存',
                         'type': 'number',
                         'width': '100px',
-                        'align': 'end'
+                        'align': 'end',
+                        'sort_type': 'number'
                     },
                     {
                         'key': 'stock_status',
+                        'field': 'stock_status',
                         'label': '状态',
                         'type': 'badge',
                         'width': '100px',
-                        'render': 'render_stock_status_badge'
+                        'render': 'render_stock_status_badge',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'brand',
+                        'field': 'brand',
                         'label': '品牌',
                         'type': 'text',
-                        'width': '100px'
+                        'width': '100px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'unit',
+                        'field': 'unit',
                         'label': '单位',
                         'type': 'text',
-                        'width': '80px'
+                        'width': '80px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'updated_at',
+                        'field': 'updated_at',
                         'label': '更新时间',
                         'type': 'date',
-                        'width': '150px'
+                        'width': '150px',
+                        'sort_type': 'date'
                     }
                 ]
             }
@@ -545,6 +563,10 @@ def stock_list_ajax():
         offset = request.args.get('offset', 0, type=int)
         limit = request.args.get('limit', 20, type=int)
         
+        # 排序参数
+        sort_field = request.args.get('sort_field', '')
+        sort_direction = request.args.get('sort_direction', 'asc')
+        
         # 限制每次加载数量的范围
         if limit not in [10, 20, 30, 50]:
             limit = 20
@@ -577,9 +599,33 @@ def stock_list_ajax():
             elif stock_status == 'zero':
                 query = query.filter(Inventory.quantity == 0)
             
+            # 应用排序（公司视图）
+            if sort_field and sort_direction:
+                field_mapping = {
+                    'product_name': Product.product_name,
+                    'model': Product.model,
+                    'product_mn': Product.product_mn,
+                    'brand': Product.brand,
+                    'total_quantity': Inventory.quantity,
+                    'updated_at': Inventory.updated_at
+                }
+                
+                if sort_field in field_mapping:
+                    sort_column = field_mapping[sort_field]
+                    if sort_direction.lower() == 'desc':
+                        query = query.order_by(sort_column.desc())
+                    else:
+                        query = query.order_by(sort_column.asc())
+                else:
+                    # 默认排序
+                    query = query.order_by(Product.product_name, Product.model)
+            else:
+                # 默认排序
+                query = query.order_by(Product.product_name, Product.model)
+            
             # 执行查询
             total_count = query.count()
-            inventories = query.order_by(Product.product_name, Product.model).offset(offset).limit(limit).all()
+            inventories = query.offset(offset).limit(limit).all()
             
             # 转换为产品记录格式
             product_records = []
@@ -635,7 +681,31 @@ def stock_list_ajax():
                 Product.product_mn,
                 Product.brand,
                 Product.unit
-            ).order_by(Product.product_name, Product.model)
+            )
+            
+            # 应用排序（聚合视图）
+            if sort_field and sort_direction:
+                field_mapping = {
+                    'product_name': Product.product_name,
+                    'model': Product.model,
+                    'product_mn': Product.product_mn,
+                    'brand': Product.brand,
+                    'total_quantity': func.sum(Inventory.quantity),
+                    'updated_at': func.max(Inventory.updated_at)
+                }
+                
+                if sort_field in field_mapping:
+                    sort_column = field_mapping[sort_field]
+                    if sort_direction.lower() == 'desc':
+                        query = query.order_by(sort_column.desc())
+                    else:
+                        query = query.order_by(sort_column.asc())
+                else:
+                    # 默认排序
+                    query = query.order_by(Product.product_name, Product.model)
+            else:
+                # 默认排序
+                query = query.order_by(Product.product_name, Product.model)
             
             # 执行查询
             total_query_count = query.count()
@@ -1156,7 +1226,7 @@ def settlement_list():
             'auto_submit': True,
             'ajax_mode': True,
             'ajax_endpoint': url_for('inventory.settlement_list_ajax'),
-            'ajax_target': '#settlementTableBody',
+            'ajax_target': 'settlementTableBody',
             'ajax_columns': 12,
             'dynamic_reset_button': True,
             'search_field_id': 'search',
@@ -1786,7 +1856,7 @@ def settlement_order_list():
             'auto_submit': True,                # 启用自动筛选（关键配置）
             'ajax_mode': True,                  # 启用AJAX模式
             'ajax_endpoint': url_for('inventory.settlement_order_list_ajax'),
-            'ajax_target': '#settlementTableBody',
+            'ajax_target': 'settlementTableBody',
             'ajax_columns': 7,
             'dynamic_reset_button': True,       # 启用动态重置按钮
             'search_field_id': 'search',        # 搜索字段ID（修复搜索功能）
@@ -1920,48 +1990,62 @@ def settlement_order_list():
                 'columns': [
                     {
                         'key': 'order_number',
+                        'field': 'order_number',
                         'label': '结算单编号',
                         'type': 'link',
-                        'width': '140px'
+                        'width': '140px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'project_name',
+                        'field': 'project_name',
                         'label': '关联项目',
                         'type': 'text',
-                        'width': '200px'
+                        'width': '200px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'dealer_name',
+                        'field': 'dealer_name',
                         'label': '结算公司',
                         'type': 'text',
-                        'width': '150px'
+                        'width': '150px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'product_count',
+                        'field': 'product_count',
                         'label': '产品数量',
                         'type': 'number',
                         'align': 'end',
-                        'width': '80px'
+                        'width': '80px',
+                        'sort_type': 'number'
                     },
                     {
                         'key': 'total_amount',
+                        'field': 'total_amount',
                         'label': '总金额',
                         'type': 'text',  # 已格式化的金额字符串
                         'align': 'end',
-                        'width': '120px'
+                        'width': '120px',
+                        'sort_type': 'number'
                     },
                     {
                         'key': 'settlement_status',
+                        'field': 'settlement_status',
                         'label': '结算情况',
                         'type': 'badge',
                         'render': 'render_settlement_situation_badge',
-                        'width': '100px'
+                        'width': '100px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'created_time',
+                        'field': 'created_time',
                         'label': '创建时间',
                         'type': 'text',
-                        'width': '120px'
+                        'width': '120px',
+                        'sort_type': 'date'
                     }
                 ]
             }
@@ -2521,7 +2605,7 @@ def order_list():
             'auto_submit': True,
             'ajax_mode': True,
             'ajax_endpoint': url_for('inventory.order_list_ajax'),
-            'ajax_target': '#orderTableBody',
+            'ajax_target': 'orderTableBody',
             'ajax_columns': 8,
             'dynamic_reset_button': True,
             'search_field_id': 'search',
@@ -2653,59 +2737,75 @@ def order_list():
                 'columns': [
                     {
                         'key': 'order_number',
+                        'field': 'order_number',
                         'label': '订单号',
                         'type': 'link',
                         'url_template': '/inventory/orders/{id}',
-                        'width': '140px'
+                        'width': '140px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'company.company_name',
+                        'field': 'company.company_name',
                         'label': '公司名称',
                         'type': 'text',
-                        'width': '200px'
+                        'width': '200px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'total_amount',
+                        'field': 'total_amount',
                         'label': '总金额',
                         'type': 'number',
                         'format': 'wan',
                         'align': 'end',
-                        'width': '120px'
+                        'width': '120px',
+                        'sort_type': 'number'
                     },
                     {
                         'key': 'status',
+                        'field': 'status',
                         'label': '审批状态',
                         'type': 'badge',
                         'render': 'render_order_status_badge',
-                        'width': '100px'
+                        'width': '100px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'inventory_status',
+                        'field': 'inventory_status',
                         'label': '入库状态',
                         'type': 'badge',
                         'render': 'render_inventory_status_badge',
-                        'width': '100px'
+                        'width': '100px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'expected_date',
+                        'field': 'expected_date',
                         'label': '预期日期',
                         'type': 'date',
                         'format': '%Y-%m-%d',
-                        'width': '120px'
+                        'width': '120px',
+                        'sort_type': 'date'
                     },
                     {
                         'key': 'created_at',
+                        'field': 'created_at',
                         'label': '创建时间',
                         'type': 'date',
                         'format': '%Y-%m-%d %H:%M',
-                        'width': '150px'
+                        'width': '150px',
+                        'sort_type': 'date'
                     },
                     {
                         'key': 'created_by',
+                        'field': 'created_by',
                         'label': '创建人',
                         'type': 'badge',
                         'render': 'render_owner',
-                        'width': '100px'
+                        'width': '100px',
+                        'sort_type': 'string'
                     }
                 ]
             }
@@ -2763,6 +2863,10 @@ def order_list_ajax():
     offset = request.args.get('offset', 0, type=int)
     limit = request.args.get('limit', 20, type=int)
     
+    # 排序参数
+    sort_field = request.args.get('sort_field', '')
+    sort_direction = request.args.get('sort_direction', 'asc')
+    
     # 限制每次加载数量的范围
     if limit not in [10, 20, 30, 50]:
         limit = 20
@@ -2790,10 +2894,26 @@ def order_list_ajax():
     if status:
         query = query.filter(PurchaseOrder.status == status)
     
+    # 应用排序
+    from app.utils.sorting_service import SortingService, create_basic_field_mappings
+    
+    # 创建排序配置
+    sorting_config = {
+        'field_mappings': create_basic_field_mappings(PurchaseOrder, [
+            'order_number', 'total_amount', 'status', 'created_at', 'updated_at'
+        ]),
+        'relation_mappings': {},
+        'default_sort': {'field': 'created_at', 'direction': 'desc'}
+    }
+    
+    # 创建排序服务并应用排序
+    sorting_service = SortingService(PurchaseOrder, sorting_config)
+    query = sorting_service.apply_sort(query, sort_field, sort_direction)
+    
     # 处理入库状态筛选
     if inventory_status:
         # 需要先获取所有订单再筛选
-        all_orders = query.order_by(PurchaseOrder.created_at.desc()).all()
+        all_orders = query.all()
         filtered_orders = [order for order in all_orders if order.inventory_status == inventory_status]
         
         # 手动分页
@@ -2803,7 +2923,7 @@ def order_list_ajax():
     else:
         # 普通查询可以使用数据库分页
         total_count = query.count()
-        orders = query.order_by(PurchaseOrder.created_at.desc()).offset(offset).limit(limit).all()
+        orders = query.offset(offset).limit(limit).all()
         has_more = (offset + limit) < total_count
     
     # 计算统计数据（用于更新统计卡片）
@@ -2948,6 +3068,10 @@ def settlement_order_list_ajax():
     offset = request.args.get('offset', 0, type=int)
     limit = request.args.get('limit', 20, type=int)
     
+    # 排序参数
+    sort_field = request.args.get('sort_field', '')
+    sort_direction = request.args.get('sort_direction', 'asc')
+    
     # 限制每次加载数量的范围
     if limit not in [10, 20, 30, 50]:
         limit = 20
@@ -2984,9 +3108,25 @@ def settlement_order_list_ajax():
     if settlement_status:
         query = query.filter(SettlementOrder.settlement_status == settlement_status)
     
-    # 执行查询（按创建时间倒序）
+    # 应用排序
+    from app.utils.sorting_service import SortingService, create_basic_field_mappings
+    
+    # 创建排序配置
+    sorting_config = {
+        'field_mappings': create_basic_field_mappings(SettlementOrder, [
+            'order_number', 'total_amount', 'settlement_status', 'created_at', 'updated_at'
+        ]),
+        'relation_mappings': {},
+        'default_sort': {'field': 'created_at', 'direction': 'desc'}
+    }
+    
+    # 创建排序服务并应用排序
+    sorting_service = SortingService(SettlementOrder, sorting_config)
+    query = sorting_service.apply_sort(query, sort_field, sort_direction)
+    
+    # 执行查询
     total_count = query.count()
-    settlement_orders = query.order_by(SettlementOrder.created_at.desc()).offset(offset).limit(limit).all()
+    settlement_orders = query.offset(offset).limit(limit).all()
     has_more = (offset + limit) < total_count
     
     # 计算统计数据（用于更新统计卡片）
@@ -4854,7 +4994,14 @@ def get_order_approval_flow_standard(object_id):
         # 构建响应数据
         stages_data = []
         
-        logger.info(f"Debug: 当前步骤号: {approval_instance.current_step}")
+        # 🔥 修复：获取当前步骤的step_order（current_step存储的是step_id）
+        current_step_order = None
+        if approval_instance.current_step:
+            from app.models.approval import ApprovalStep
+            current_step_obj = ApprovalStep.query.filter_by(id=approval_instance.current_step).first()
+            current_step_order = current_step_obj.step_order if current_step_obj else None
+        
+        logger.info(f"Debug: 当前步骤ID: {approval_instance.current_step}, 当前步骤顺序: {current_step_order}")
         logger.info(f"Debug: 找到 {len(records)} 个审批记录")
         
         # 处理步骤数据（可能是模型对象或字典快照）
@@ -4901,7 +5048,7 @@ def get_order_approval_flow_standard(object_id):
                 status = 'approved' if step_record.action == 'approve' else 'rejected'
                 processed_at = step_record.timestamp.isoformat() if step_record.timestamp else None
                 logger.info(f"Debug: 步骤 {step_order} 状态: {status} (有记录)")
-            elif step_order == approval_instance.current_step:
+            elif step_order == current_step_order:
                 # 当前待审批步骤
                 status = 'pending'
                 processed_at = None
@@ -4934,15 +5081,17 @@ def get_order_approval_flow_standard(object_id):
         current_step = approval_instance.current_step
         
         if current_step:
-            # 查找当前步骤
+            # 查找当前步骤 - 🔥 修复：current_step存储的是step_id
             current_step_info = None
             for step in steps:
                 if isinstance(step, dict):
-                    if step.get('step_order') == current_step:
+                    # 快照数据中使用step_id匹配
+                    if step.get('step_id') == current_step:
                         current_step_info = step
                         break
                 else:
-                    if step.step_order == current_step:
+                    # 模型对象中使用id匹配
+                    if step.id == current_step:
                         current_step_info = step
                         break
             

@@ -1,13 +1,10 @@
 {% extends "base.html" %}
 {% from "macros/approval_config_macros.html" import step_list with context %}
-{% from "macros/approval_macros.html" import render_approval_section with context %}
 {% from 'macros/ui_helpers.html' import render_enable_disable_badge with context %}
 
 {% block title %}审批流程模板详情{% endblock %}
 
 {% block head %}
-<!-- 引入审批时间线样式 -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
 {% endblock %}
 
 {% block content %}

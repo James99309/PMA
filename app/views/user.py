@@ -222,6 +222,7 @@ def list_users():
             'show_header': True,
             'enhanced_striping': True,  # 启用斑马线
             'fixed_height_scroll': False,  # 暂时禁用内部滚动
+            'table_name': 'user',        # 指定数据库表名用于动态映射
             'infinite_scroll': {  # 无限滚动配置
                 'enabled': True,
                 'page_size': 30,  # 增加初始加载数量，确保产生滚动条
@@ -233,70 +234,90 @@ def list_users():
             'columns': [
                 {
                     'key': 'id',
+                    'field': 'id',
                     'label': 'ID',
                     'type': 'text',
-                    'width': '80px'
+                    'width': '80px',
+                    'sort_type': 'number'
                 },
                 {
                     'key': 'username',
+                    'field': 'username',
                     'label': '用户名',
                     'type': 'link',
                     'url_template': '/user/detail/{id}',
-                    'width': '120px'
+                    'width': '120px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'real_name',
+                    'field': 'real_name',
                     'label': '真实姓名',
                     'type': 'text',
-                    'width': '120px'
+                    'width': '120px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'is_active',
+                    'field': '_is_active',
                     'label': '状态',
                     'type': 'badge',
                     'render': 'render_user_status_badge',
-                    'width': '100px'
+                    'width': '100px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'email',
+                    'field': 'email',
                     'label': '邮箱地址',
                     'type': 'text',
-                    'width': '200px'
+                    'width': '200px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'company_name',
+                    'field': 'company_name',
                     'label': '企业名称',
                     'type': 'text',
-                    'width': '180px'
+                    'width': '180px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'department',
+                    'field': 'department',
                     'label': '部门',
                     'type': 'text',
-                    'width': '140px'
+                    'width': '140px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'role',
+                    'field': 'role',
                     'label': '角色',
                     'type': 'badge',
                     'render': 'render_user_role_badge',
                     'width': '120px',
                     'align': 'start',
-                    'role_dict': role_dict
+                    'role_dict': role_dict,
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'updated_at',
+                    'field': 'updated_at',
                     'label': '更新时间',
                     'type': 'date',
                     'format': 'datetimeformat',
-                    'width': '160px'
+                    'width': '160px',
+                    'sort_type': 'date'
                 },
                 {
                     'key': 'created_at',
+                    'field': 'created_at',
                     'label': '创建时间',
                     'type': 'date',
                     'format': 'datetimeformat',
-                    'width': '160px'
+                    'width': '160px',
+                    'sort_type': 'date'
                 }
             ]
         }
@@ -321,6 +342,10 @@ def list_users_ajax():
         company = request.args.get('company', '')
         offset = request.args.get('offset', 0, type=int)
         limit = request.args.get('limit', 20, type=int)
+        
+        # 排序参数
+        sort_field = request.args.get('sort_field', '')
+        sort_direction = request.args.get('sort_direction', 'asc')
         
         # 构建查询
         query = get_viewable_data(User, current_user)
@@ -350,8 +375,32 @@ def list_users_ajax():
         elif status == 'inactive':
             query = query.filter(User._is_active == False)
         
-        # 排序
-        query = query.order_by(User.created_at.desc())
+        # 动态排序
+        if sort_field and sort_direction:
+            # 映射前端字段名到数据库字段
+            field_mapping = {
+                'username': User.username,
+                'real_name': User.real_name,
+                'email': User.email,
+                'company_name': User.company_name,
+                'role': User.role,
+                'is_active': User._is_active,
+                'created_at': User.created_at,
+                'updated_at': User.updated_at
+            }
+            
+            if sort_field in field_mapping:
+                sort_column = field_mapping[sort_field]
+                if sort_direction.lower() == 'desc':
+                    query = query.order_by(sort_column.desc())
+                else:
+                    query = query.order_by(sort_column.asc())
+            else:
+                # 默认排序
+                query = query.order_by(User.created_at.desc())
+        else:
+            # 默认排序
+            query = query.order_by(User.created_at.desc())
         
         # 执行查询
         total_count = query.count()

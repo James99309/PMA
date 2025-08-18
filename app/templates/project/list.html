@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_data_list, render_button %}
+{% from 'macros/ui_helpers.html' import render_data_list, render_auto_mapped_table, render_button %}
 
 {% block title %}{{ _('项目管理') }}{% endblock %}
 
@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', function() {
         module_name: '{{ list_config.module_name }}',
         ajax_mode: {{ 'true' if list_config.ajax_mode else 'false' }},
         ajax_endpoint: '{{ list_config.ajax_endpoint }}',
-        ajax_target: '#{{ list_config.table.ajax_target }}',
+        ajax_target: '{{ list_config.table.ajax_target }}',
         
         // 国际化配置
         i18n: i18nTexts,
@@ -155,6 +155,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化通用数据列表组件
     console.log('🚀 初始化通用数据列表组件:', projectListConfig);
     setupDataList(projectListConfig);
+    
+    // 手动初始化表格排序功能（修复排序点击不生效的问题）
+    setTimeout(function() {
+        console.log('🔧 手动初始化表格排序功能...');
+        if (window.initAllTableSort) {
+            window.initAllTableSort();
+        } else {
+            console.warn('⚠️ 表格排序初始化函数不存在');
+        }
+    }, 500);
     
     console.log('✅ 项目管理页面初始化完成');
 });

@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, render_template_string, request, jsonify, url_for
 from types import SimpleNamespace
 from flask_login import login_required, current_user
+from flask_babel import gettext as _
 from app.decorators import permission_required
 from app.permissions import has_permission
 from app.models.quotation import Quotation, QuotationDetail
@@ -9,6 +10,7 @@ from app.models.product import Product
 from app.models.user import User, Affiliation
 from app.utils.access_control import get_viewable_data
 from app.components.stage_analytics import StageAnalyticsComponent
+from app.utils.chinese_mapping_manager import mapping_manager
 from sqlalchemy import func, and_, or_, extract
 from datetime import datetime, timedelta
 from app import db
@@ -327,7 +329,7 @@ def analysis():
         'auto_submit': True,
         'ajax_mode': True,
         'ajax_endpoint': url_for('product_analysis.products_list_ajax'),
-        'ajax_target': '#productAnalysisTableBody',
+        'ajax_target': 'productAnalysisTableBody',
         'ajax_columns': 13,
         'dynamic_reset_button': True,
         'adaptive_width': True,
@@ -376,7 +378,7 @@ def analysis():
     # 构建统一的list_config配置
     list_config = {
         'module_name': 'product_analysis',
-        'title': '植入产品分析',
+        'title': _('植入产品分析'),
         'ajax_mode': True,
         
         # 统计卡片配置（产品分析模块：手动转换为万元以兼容通用模组）
@@ -384,46 +386,46 @@ def analysis():
             'cards': [
                 {
                     'id': 'total_amount',
-                    'title': '总金额',
+                    'title': _('总金额'),
                     'icon': 'fas fa-dollar-sign',
                     'value': 1,  # 数量固定为1，重点是金额
                     'amount': round(stats_data['total_amount'] / 10000, 2),  # 转换为万元
-                    'unit': '项',
-                    'amount_unit': '万元',  # 通用模组将自动处理语言感知切换
+                    'unit': _('项'),
+                    'amount_unit': _('万元'),  # 通用模组将自动处理语言感知切换
                     'color': 'primary',
                     'clickable': False,
                     'data_key': 'total_amount'
                 },
                 {
                     'id': 'total_quantity',
-                    'title': '产品数量',
+                    'title': _('产品数量'),
                     'icon': 'fas fa-boxes',
                     'value': stats_data['total_quantity'],
-                    'unit': '个',
+                    'unit': _('个'),
                     'color': 'success',
                     'clickable': False,
                     'data_key': 'total_quantity'
                 },
                 {
                     'id': 'monthly_increase',
-                    'title': '本月新增',
+                    'title': _('本月新增'),
                     'icon': 'fas fa-chart-line',
                     'value': stats_data['monthly_quantity'],  # 本月新增数量
                     'amount': round(stats_data['monthly_amount'] / 10000, 2),  # 转换为万元
-                    'unit': '个',
-                    'amount_unit': '万元',  # 通用模组将自动处理语言感知切换
+                    'unit': _('个'),
+                    'amount_unit': _('万元'),  # 通用模组将自动处理语言感知切换
                     'color': 'warning',
                     'clickable': False,
                     'data_key': 'monthly_increase'
                 },
                 {
                     'id': 'avg_unit_price',
-                    'title': '平均单价',
+                    'title': _('平均单价'),
                     'icon': 'fas fa-calculator',
                     'value': 1,  # 数量固定为1，重点是金额
                     'amount': round(stats_data['avg_unit_price'] / 10000, 4),  # 转换为万元，保留4位小数
-                    'unit': '项',
-                    'amount_unit': '万元',  # 通用模组将自动处理语言感知切换
+                    'unit': _('项'),
+                    'amount_unit': _('万元'),  # 通用模组将自动处理语言感知切换
                     'color': 'info',
                     'clickable': False,
                     'data_key': 'avg_unit_price'
@@ -437,26 +439,26 @@ def analysis():
         # 表格配置
         'table': {
             'ajax_target': 'productAnalysisTableBody',
-            'title': '产品明细列表',
+            'title': _('产品明细列表'),
             'icon': 'fas fa-table',
             'fixed_height_scroll': True,   # 启用蓝色滚动条
             'enhanced_striping': True,     # 启用增强斑马纹
             'use_custom_rows': True,
             'custom_rows_template': 'product_analysis/product_analysis_rows_simple.html',
             'columns': [
-                {'key': 'product_name', 'label': '产品名称', 'width': '150px'},
-                {'key': 'product_model', 'label': '型号/规格', 'width': '200px'},
-                {'key': 'quantity', 'label': '数量', 'width': '80px', 'align': 'center'},
-                {'key': 'discount', 'label': '折扣', 'width': '80px', 'align': 'center'},
-                {'key': 'unit_price', 'label': '单价', 'width': '100px', 'align': 'right'},
-                {'key': 'total_price', 'label': '合计', 'width': '100px', 'align': 'right'},
-                {'key': 'product_mn', 'label': 'MN号', 'width': '120px'},
-                {'key': 'owner_name', 'label': '拥有人', 'width': '100px'},
-                {'key': 'project_name', 'label': '项目名称', 'width': '150px'},
-                {'key': 'current_stage', 'label': '当前阶段', 'width': '100px', 'align': 'center'},
-                {'key': 'quotation_number', 'label': '报价单编号', 'width': '120px'},
-                {'key': 'updated_at', 'label': '更新时间', 'width': '140px'},
-                {'key': 'created_at', 'label': '创建时间', 'width': '140px'}
+                {'key': 'product_name', 'field': 'product_name', 'label': _(mapping_manager.get_field_display_name('product', 'product_name')), 'width': '150px', 'sort_type': 'string'},
+                {'key': 'product_model', 'field': 'product_model', 'label': _(mapping_manager.get_field_display_name('product', 'product_model')), 'width': '200px', 'sort_type': 'string'},
+                {'key': 'quantity', 'field': 'quantity', 'label': _(mapping_manager.get_field_display_name('common', 'quantity')), 'width': '80px', 'align': 'center', 'sort_type': 'number'},
+                {'key': 'discount', 'field': 'discount', 'label': _(mapping_manager.get_field_display_name('common', 'discount')), 'width': '80px', 'align': 'center', 'sort_type': 'number'},
+                {'key': 'unit_price', 'field': 'unit_price', 'label': _(mapping_manager.get_field_display_name('common', 'unit_price')), 'width': '100px', 'align': 'right', 'sort_type': 'number'},
+                {'key': 'total_price', 'field': 'total_price', 'label': _(mapping_manager.get_field_display_name('common', 'total_price')), 'width': '100px', 'align': 'right', 'sort_type': 'number'},
+                {'key': 'product_mn', 'field': 'product_mn', 'label': _('MN号'), 'width': '120px', 'sort_type': 'string'},
+                {'key': 'owner_name', 'field': 'owner_name', 'label': _(mapping_manager.get_field_display_name('common', 'owner_id')), 'width': '100px', 'sort_type': 'string'},
+                {'key': 'project_name', 'field': 'project_name', 'label': _(mapping_manager.get_field_display_name('project', 'project_name')), 'width': '150px', 'sort_type': 'string'},
+                {'key': 'current_stage', 'field': 'current_stage', 'label': _(mapping_manager.get_field_display_name('project', 'current_stage')), 'width': '100px', 'align': 'center', 'sort_type': 'string'},
+                {'key': 'quotation_number', 'field': 'quotation_number', 'label': _(mapping_manager.get_field_display_name('quotation', 'quotation_number')), 'width': '120px', 'sort_type': 'string'},
+                {'key': 'updated_at', 'field': 'updated_at', 'label': _(mapping_manager.get_field_display_name('common', 'updated_at')), 'width': '140px', 'sort_type': 'date'},
+                {'key': 'created_at', 'field': 'created_at', 'label': _(mapping_manager.get_field_display_name('common', 'created_at')), 'width': '140px', 'sort_type': 'date'}
             ]
         },
         
@@ -465,8 +467,8 @@ def analysis():
             'enabled': True,
             'page_size': 50,
             'scroll_threshold': 100,
-            'loading_text': '正在加载更多产品数据...',
-            'no_more_text': '已加载全部产品数据'
+            'loading_text': _('正在加载更多产品数据...'),
+            'no_more_text': _('已加载全部产品数据')
         },
         
         # 阶段统计组件配置
@@ -719,6 +721,10 @@ def products_list_ajax():
         offset = request.args.get('offset', 0, type=int)
         limit = request.args.get('limit', 50, type=int)
         
+        # 排序参数
+        sort_field = request.args.get('sort_field', '')
+        sort_direction = request.args.get('sort_direction', 'asc')
+        
         # 构建基础查询 - 避免因Product表重复记录导致的重复统计
         query = db.session.query(
             QuotationDetail.id,
@@ -789,12 +795,52 @@ def products_list_ajax():
         # 获取总数（用于分页）
         total_count = query.count()
         
-        # 执行分页查询 - 默认按更新时间降序排序
+        # 动态排序（产品分析复杂查询需要特殊处理）
+        if sort_field and sort_direction:
+            print(f"🔍 产品分析排序调试 - 字段: {sort_field}, 方向: {sort_direction}")
+            
+            # 字段映射（已经JOIN的表字段）
+            field_mapping = {
+                # QuotationDetail 表字段
+                'product_name': QuotationDetail.product_name,
+                'product_model': QuotationDetail.product_model,
+                'quantity': QuotationDetail.quantity,
+                'unit_price': QuotationDetail.unit_price,
+                'total_price': QuotationDetail.total_price,
+                'product_mn': QuotationDetail.product_mn,
+                'created_at': QuotationDetail.created_at,
+                'updated_at': QuotationDetail.updated_at,
+                'discount': QuotationDetail.discount,
+                # 关联表字段（已JOIN）
+                'owner_name': User.real_name,  # 负责人名称
+                'project_name': Project.project_name,  # 项目名称
+                'current_stage': Project.current_stage,  # 项目阶段
+                'quotation_number': Quotation.quotation_number  # 报价单编号
+            }
+            
+            if sort_field in field_mapping:
+                sort_column = field_mapping[sort_field]
+                if sort_direction.lower() == 'desc':
+                    query = query.order_by(sort_column.desc())
+                    print(f"✅ 应用降序排序: {sort_field}")
+                else:
+                    query = query.order_by(sort_column.asc())
+                    print(f"✅ 应用升序排序: {sort_field}")
+            else:
+                print(f"❌ 未知排序字段: {sort_field}")
+                # 默认排序
+                query = query.order_by(QuotationDetail.updated_at.desc())
+        else:
+            print("📊 使用默认排序: updated_at desc")
+            # 默认排序
+            query = query.order_by(QuotationDetail.updated_at.desc())
+        
+        # 执行分页查询
         try:
-            results = query.order_by(QuotationDetail.updated_at.desc()).offset(offset).limit(limit).all()
+            results = query.offset(offset).limit(limit).all()
             logger.info(f"植入产品分析查询成功: 总计 {total_count} 条，offset={offset}, limit={limit}, 返回 {len(results)} 条")
         except Exception as e:
-            logger.warning(f"使用updated_at排序失败: {str(e)}, 尝试使用id排序")
+            logger.warning(f"查询失败: {str(e)}, 尝试使用id排序")
             try:
                 # 回滚失败的事务
                 db.session.rollback()

@@ -460,48 +460,62 @@ def index():
                 'columns': [
                     {
                         'key': 'category',
+                        'field': 'category',
                         'label': _('产品分类'),
                         'type': 'text',
-                        'width': '120px'
+                        'width': '120px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'subcategory',
+                        'field': 'subcategory',
                         'label': _('子分类'),
                         'type': 'text',
-                        'width': '120px'
+                        'width': '120px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'model',
+                        'field': 'model',
                         'label': _('产品型号'),
                         'type': 'link',
                         'url_template': '/product-management/{id}',
-                        'width': '150px'
+                        'width': '150px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'mn_code',
+                        'field': 'mn_code',
                         'label': _('MN编码'),
                         'type': 'text',
-                        'width': '120px'
+                        'width': '120px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'status',
+                        'field': 'status',
                         'label': _('产品状态'),
                         'type': 'badge',
                         'render': 'render_dev_product_status_badge',
-                        'width': '100px'
+                        'width': '100px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'creator',
+                        'field': 'creator',
                         'label': _('创建者'),
                         'type': 'text',
-                        'width': '100px'
+                        'width': '100px',
+                        'sort_type': 'string'
                     },
                     {
                         'key': 'created_at',
+                        'field': 'created_at',
                         'label': _('创建时间'),
                         'type': 'date',
                         'format': '%Y-%m-%d',
-                        'width': '120px'
+                        'width': '120px',
+                        'sort_type': 'date'
                     }
                 ]
             }
@@ -582,6 +596,10 @@ def products_list_ajax():
         offset = request.args.get('offset', 0, type=int)
         limit = request.args.get('limit', 50, type=int)
         
+        # 排序参数
+        sort_field = request.args.get('sort_field', '')
+        sort_direction = request.args.get('sort_direction', 'asc')
+        
         # 限制每次加载数量范围
         limit = max(10, min(limit, 100))
         
@@ -637,9 +655,46 @@ def products_list_ajax():
         if creator_filter:
             query = query.filter(DevProduct.created_by == creator_filter)
         
-        # 获取总数和分页数据
+        # 获取总数
         total_count = query.count()
-        products = query.order_by(DevProduct.created_at.desc()).offset(offset).limit(limit).all()
+        
+        # 动态排序（研发产品库复杂查询需要特殊处理）
+        if sort_field and sort_direction:
+            print(f"🔍 研发产品库排序调试 - 字段: {sort_field}, 方向: {sort_direction}")
+            
+            # 字段映射（已经JOIN的表字段）
+            field_mapping = {
+                'model': DevProduct.model,
+                'mn_code': DevProduct.mn_code,
+                'description': DevProduct.description,
+                'status': DevProduct.status,
+                'created_at': DevProduct.created_at,
+                'updated_at': DevProduct.updated_at,
+                # 关联字段需要特殊处理（已经JOIN）
+                'category': ProductCategory.name,  # 产品分类
+                'subcategory': ProductSubcategory.name,  # 子分类
+                'creator': User.real_name  # 创建者
+            }
+            
+            if sort_field in field_mapping:
+                sort_column = field_mapping[sort_field]
+                if sort_direction.lower() == 'desc':
+                    query = query.order_by(sort_column.desc())
+                    print(f"✅ 应用降序排序: {sort_field}")
+                else:
+                    query = query.order_by(sort_column.asc())
+                    print(f"✅ 应用升序排序: {sort_field}")
+            else:
+                print(f"❌ 未知排序字段: {sort_field}")
+                # 默认排序
+                query = query.order_by(DevProduct.created_at.desc())
+        else:
+            print("📊 使用默认排序: created_at desc")
+            # 默认排序
+            query = query.order_by(DevProduct.created_at.desc())
+        
+        # 分页数据
+        products = query.offset(offset).limit(limit).all()
         
         # 为统计数据创建基础查询（不包含分页）
         base_query = DevProduct.query.options(

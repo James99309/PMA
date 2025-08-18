@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', function() {
         module_name: '{{ list_config.module_name }}',
         ajax_mode: {{ 'true' if list_config.ajax_mode else 'false' }},
         ajax_endpoint: '{{ url_for("product_route.product_list_ajax") }}',
-        ajax_target: '#{{ list_config.table.ajax_target }}',
+        ajax_target: '{{ list_config.table.ajax_target }}',
         stats: {{ list_config.stats | tojson | safe }},
         filter: {{ list_config.filter | tojson | safe }},
         table: {{ list_config.table | tojson | safe }},
@@ -95,10 +95,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
     
+    // 设置全局配置供排序功能使用
+    window.currentDataListConfig = productListConfig;
+    
     // 初始化数据列表
     setupDataList(productListConfig);
     
     console.log('✅ 产品列表页面初始化完成');
+    console.log('✅ 全局配置已设置:', window.currentDataListConfig);
 });
 </script>
 {% endblock %}

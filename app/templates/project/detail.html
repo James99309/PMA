@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_currency_with_symbol, render_quotation_number, render_project_stage, render_project_rating, render_rating_input, render_confirmation_badge, render_report_source_badge, render_product_situation_badge, render_industry_badge, render_button, render_status_badge, render_lock_status_badge, render_authorization_status_badge, render_sharing_section, render_tree_user_selector, render_confirm_dialog %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_currency_with_symbol, render_quotation_number, render_project_stage, render_project_rating, render_rating_input, render_confirmation_badge, render_report_source_badge, render_product_situation_badge, render_industry_badge, render_button, render_status_badge, render_lock_status_badge, render_authorization_status_badge, render_sharing_section, render_tree_user_selector, render_confirm_dialog, render_top_notification %}
 {% import 'macros/ui_helpers.html' as ui %}
 {% from 'macros/customer_search.html' import render_customer_search, init_customer_search_scripts %}
-{% from 'macros/approval_macros.html' import render_approval_timeline, render_approval_form, render_start_approval_button, render_approval_section %}
 {% from 'macros/ui_modals.html' import render_change_project_owner_modal %}
+{% from 'macros/approval_flow.html' import render_complete_approval_section %}
 
 {% block title %}{{ _('项目详情') }}{% endblock %}
 
@@ -11,6 +11,10 @@
 <!-- 引入项目阶段进度条样式 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/project_stages.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
+<!-- 审批流程标准化样式和脚本 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_flow.css') }}">
+<script src="{{ url_for('static', filename='js/approval_flow.js') }}"></script>
+<script src="{{ url_for('static', filename='js/approval_flow_utils.js') }}"></script>
 <style>
     /* 仅项目详情页主容器顶部留白，避免被fixed导航遮挡 */
     .container.project-detail-main {
@@ -74,10 +78,22 @@
                 </div>
                 <div class="d-flex flex-wrap align-items-center gap-2 flex-shrink-0">
                     {{ ui.render_button(_('返回列表'), href=url_for('project.list_projects'), color='secondary') }}
-                    {% if current_stage_key != 'signed' and current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) and (not project.is_locked or current_user.role == 'admin') %}
+                    
+                    <!-- 审批操作按钮 -->
+                    {% if current_user.id == project.owner_id %}
+                        {% if project.status == 'draft' %}
+                            {{ ui.render_button(_('提交审批'), type='button', color='success', attrs='onclick="submitProjectApproval(' ~ project.id ~ ')"', icon='fas fa-paper-plane') }}
+                        {% elif project.status == 'pending' %}
+                            {{ ui.render_button(_('召回审批'), type='button', color='warning', attrs='onclick="recallProjectApproval(' ~ project.id ~ ')"', icon='fas fa-undo') }}
+                        {% elif project.status in ['rejected', 'recalled'] %}
+                            {{ ui.render_button(_('重新提交'), type='button', color='info', attrs='onclick="resubmitProjectApproval(' ~ project.id ~ ')"', icon='fas fa-redo') }}
+                        {% endif %}
+                    {% endif %}
+                    
+                    {% if current_stage_key != 'signed' and current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) and project.status not in ['pending'] and (not project.is_locked or current_user.role == 'admin') %}
                         {{ ui.render_button(_('编辑项目'), href=url_for('project.edit_project', project_id=project.id), color='primary') }}
                     {% endif %}
-                    {% if current_stage_key != 'signed' and current_user.has_permission('project', 'delete') and (current_user.role == 'admin' or current_user.id == project.owner_id) and (not project.is_locked or current_user.role == 'admin') %}
+                    {% if current_stage_key != 'signed' and current_user.has_permission('project', 'delete') and (current_user.role == 'admin' or current_user.id == project.owner_id) and project.status not in ['pending'] and (not project.is_locked or current_user.role == 'admin') %}
                         {{ ui.render_button(_('删除项目'), type='button', color='danger', attrs='onclick="confirmDeleteProject(' ~ project.id ~ ')"') }}
                     {% endif %}
                 </div>
@@ -89,14 +105,6 @@
     <div class="row mb-3">
         <div class="col-md-12">
             <div class="card">
-                {% if project.authorization_code or project.authorization_status == 'pending' %}
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                    <div class="flex-grow-1">
-                        <!-- 项目授权状态徽章 -->
-                        {{ render_authorization_status_badge(project.authorization_code, project.authorization_status, project.project_type) }}
-                    </div>
-                </div>
-                {% endif %}
                 <div class="card-body">
                     <div id="projectStageProgress"></div>
                 </div>
@@ -117,27 +125,36 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('项目名称') }}：</strong></div>
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'project_name')) }}：</strong></div>
                                 <div class="col-md-8 text-break" style="word-wrap: break-word;">{{ project.project_name }}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('报备时间') }}：</strong></div>
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'authorization_code')) }}：</strong></div>
+                                <div class="col-md-8">
+                                    {{ render_authorization_status_badge(project.authorization_code, project.authorization_status, project.project_type, project.status) }}
+                                    {% if not project.authorization_code and not project.authorization_status %}
+                                        <span class="text-muted">{{ _('未申请') }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'report_time')) }}：</strong></div>
                                 <div class="col-md-8">{{ render_date(project.report_time) }}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('报备来源') }}</strong></div>
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'report_source')) }}：</strong></div>
                                 <div class="col-md-8">{% if project.report_source %}{{ render_report_source_badge(project.report_source, current_language) }}{% endif %}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('品牌情况') }}</strong></div>
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'product_situation')) }}：</strong></div>
                                 <div class="col-md-8">{% if project.product_situation %}{{ render_product_situation_badge(project.product_situation, current_language) }}{% endif %}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('项目行业') }}</strong></div>
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'industry')) }}：</strong></div>
                                 <div class="col-md-8">{% if project.industry %}{{ render_industry_badge(project.industry, current_language) }}{% endif %}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('当前阶段') }}</strong></div>
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'current_stage')) }}：</strong></div>
                                 <div class="col-md-8" id="currentStageText">
                                     {% if project.current_stage %}
                                         {{ render_project_stage(project.current_stage|project_stage_label(current_language)) }}
@@ -147,7 +164,7 @@
                                 </div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('报价总额') }}：</strong></div>
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'quotation_customer')) }}：</strong></div>
                                 <div class="col-md-8">
 {% if has_quotations %}
     {% set latest_quotation = project.quotations.order_by(Quotation.created_at.desc()).first() %}
@@ -214,11 +231,11 @@
                         </div>
                         <div class="col-md-6">
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('项目类型') }}</strong></div>
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'project_type')) }}：</strong></div>
                                 <div class="col-md-8">{% if project.project_type %}{{ render_project_type(project.project_type) }}{% endif %}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('拥有人') }}：</strong></div>
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'owner_id')) }}：</strong></div>
                                 <div class="col-md-8">
                                     {{ render_owner(project.owner) }}
                                     {% if current_stage_key != 'signed' and has_change_owner_permission and (not project.is_locked or current_user.role == 'admin') %}
@@ -227,7 +244,7 @@
                                 </div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('厂商销售负责人') }}：</strong></div>
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'vendor_sales_manager_id')) }}：</strong></div>
                                 <div class="col-md-8">
                                     {% if project.vendor_sales_manager %}
                                         {{ render_owner(project.vendor_sales_manager) }}
@@ -237,25 +254,25 @@
                                 </div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('预计交付时间') }}：</strong></div>
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'delivery_forecast')) }}：</strong></div>
                                 <div class="col-md-8">{{ render_date(project.delivery_forecast) }}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('创建时间') }}：</strong></div>
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('common', 'created_at')) }}：</strong></div>
                                 <div class="col-md-8">{{ render_datetime(project.created_at) }}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('最后更新') }}：</strong></div>
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('common', 'updated_at')) }}：</strong></div>
                                 <div class="col-md-8">{{ render_datetime(project.updated_at) }}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('活跃状态') }}：</strong></div>
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('common', 'is_active')) }}：</strong></div>
                                 <div class="col-md-8">
                                     {{ render_status_badge(project.is_active) }}
                                 </div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('锁定状态') }}：</strong></div>
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'is_locked')) }}：</strong></div>
                                 <div class="col-md-8">
                                     {{ render_lock_status_badge(project.is_locked) }}
                                     {# 如果项目已锁定且有锁定原因，显示原因 #}
@@ -390,9 +407,57 @@
         </div>
     </div>
 
-    <!-- 审批流程区域 -->
-    {% set approval_instance = get_object_approval_instance('project', project.id) if get_object_approval_instance is defined %}
-    {{ render_approval_section('project', project.id, approval_instance, current_user) }}
+    <!-- 项目授权审批区域 - 使用通用审批流程组件 -->
+    {% if get_object_approval_instance is defined %}
+        {% set approval_instance = get_object_approval_instance('project', project.id) %}
+        {% set has_authorization_code = project.authorization_code and project.authorization_code.strip() %}
+        
+        
+        <!-- 使用订单审批流程组件显示审批流程 -->
+        {{ render_complete_approval_section(
+            'project', 
+            project.id, 
+            project.status|default('draft'), 
+            current_user.id, 
+            project.owner_id, 
+            'projectApprovalFlowSection',
+            {
+                'operation_title': '项目审批操作',
+                'flow_title': '项目审批流程',
+                'description': '项目创建完成，可以提交审批流程。',
+                'warning': '提交后将进入审批流程，无法直接修改项目信息。'
+            }
+        ) }}
+
+        <!-- 授权编号生成区域：审批通过且无授权编号时显示 -->
+        {% if approval_instance and approval_instance.status == 'approved' and not has_authorization_code %}
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-success">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0">
+                            <i class="fas fa-key me-2"></i>项目授权操作
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <p class="mb-0 text-success">
+                                    <i class="fas fa-check-circle me-2"></i>项目审批已通过
+                                </p>
+                                <small class="text-muted">可以生成项目授权编号</small>
+                            </div>
+                            <div>
+                                {{ render_button('提交授权', type='button', color='success', icon='fas fa-key', attrs='id="generateAuthCodeBtn" onclick="generateAuthorizationCode()"') }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    {% endif %}
+
 </div>
 
 
@@ -485,6 +550,12 @@
 
 <!-- 标准确认对话框 -->
 {{ render_confirm_dialog('customerManagementDialog') }}
+
+<!-- 审批操作确认对话框 -->
+{{ render_confirm_dialog('approvalActionDialog') }}
+
+<!-- 顶部通知容器 -->
+{{ render_top_notification('approvalNotification') }}
 
 {% endblock %}
 
@@ -874,6 +945,209 @@
             alert(window.stageI18nTexts.createPricingOrderErrorOccurred + error.message);
         });
     }
+
+    // 项目审批相关函数
+    function submitProjectApproval(projectId) {
+        showConfirmDialog({
+            title: '提交审批确认',
+            message: '确定要提交项目授权审批吗？提交后项目将进入审批流程。',
+            type: 'info',
+            confirmText: '提交审批',
+            cancelText: '取消',
+            dialogId: 'approvalActionDialog',
+            onConfirm: () => {
+                fetch(`/project/api/approval/${projectId}/submit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showTopNotification('项目审批已提交，正在刷新页面...', 'success', 1500, 'approvalNotification');
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1500);
+                    } else {
+                        showTopNotification('提交审批失败：' + (data.message || '未知错误'), 'error', 5000, 'approvalNotification');
+                    }
+                })
+                .catch(error => {
+                    console.error('提交审批错误:', error);
+                    showTopNotification('提交审批时发生错误：' + error.message, 'error', 5000, 'approvalNotification');
+                });
+            }
+        });
+    }
+
+    function recallProjectApproval(projectId) {
+        showConfirmDialog({
+            title: '召回审批确认',
+            message: '确定要召回项目审批吗？召回后可以重新提交审批。',
+            type: 'warning',
+            confirmText: '召回审批',
+            cancelText: '取消',
+            dialogId: 'approvalActionDialog',
+            onConfirm: () => {
+                fetch(`/project/api/approval/${projectId}/recall`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showTopNotification('项目审批已召回，正在刷新页面...', 'success', 1500, 'approvalNotification');
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1500);
+                    } else {
+                        showTopNotification('召回审批失败：' + (data.message || '未知错误'), 'error', 5000, 'approvalNotification');
+                    }
+                })
+                .catch(error => {
+                    console.error('召回审批错误:', error);
+                    showTopNotification('召回审批时发生错误：' + error.message, 'error', 5000, 'approvalNotification');
+                });
+            }
+        });
+    }
+
+    function resubmitProjectApproval(projectId) {
+        showConfirmDialog({
+            title: '重新提交审批确认',
+            message: '确定要重新提交项目审批吗？',
+            type: 'info',
+            confirmText: '重新提交',
+            cancelText: '取消',
+            dialogId: 'approvalActionDialog',
+            onConfirm: () => {
+                submitProjectApproval(projectId);
+            }
+        });
+    }
+
+    // 显示更新通知
+    function showUpdateNotification(message) {
+        const notification = document.createElement('div');
+        notification.className = 'alert alert-success alert-dismissible fade show';
+        notification.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 1050; max-width: 300px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);';
+        notification.innerHTML = `
+            <i class="fas fa-check-circle me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 3000);
+    }
+
+    // 监听审批事件
+    document.addEventListener('approval_approved', function(event) {
+        console.log('审批通过事件:', event.detail);
+        showUpdateNotification('审批已通过，正在刷新页面...');
+        setTimeout(() => {
+            location.reload();
+        }, 1500);
+    });
+
+    document.addEventListener('approval_rejected', function(event) {
+        console.log('审批拒绝事件:', event.detail);
+        showUpdateNotification('审批已拒绝，正在刷新页面...');
+        setTimeout(() => {
+            location.reload();
+        }, 1500);
+    });
+
+    document.addEventListener('approval_recalled', function(event) {
+        console.log('审批召回事件:', event.detail);
+        showUpdateNotification('审批已召回，正在刷新页面...');
+        setTimeout(() => {
+            location.reload();
+        }, 1500);
+    });
+
+    document.addEventListener('approval_resubmitted', function(event) {
+        console.log('审批重新提交事件:', event.detail);
+        showUpdateNotification('审批已重新提交，正在刷新页面...');
+        setTimeout(() => {
+            location.reload();
+        }, 1500);
+    });
+
+    // 订单审批系统配置
+    // 审批流程国际化文本
+    window.approvalFlowI18n = {
+        supervisor: '上级审批',
+        financial: '财务审批',
+        generalManager: '总经理审核',
+        processed: '处理：',
+        duration: '耗时：',
+        pending: '待审批',
+        approved: '已通过',
+        rejected: '已拒绝',
+        recalled: '已召回'
+    };
+
+    // 生成授权编号函数
+    function generateAuthorizationCode() {
+        if (!confirm('确定要生成项目授权编号吗？生成后将无法修改。')) {
+            return;
+        }
+        
+        const projectId = {{ project.id }};
+        
+        fetch(`/project/${projectId}/generate_authorization`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showUpdateNotification('授权编号生成成功，正在刷新页面...');
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                alert('生成授权编号失败：' + (data.message || '未知错误'));
+            }
+        })
+        .catch(error => {
+            console.error('生成授权编号错误:', error);
+            alert('生成授权编号时发生错误：' + error.message);
+        });
+    }
+
+    // 初始化项目审批流程
+    document.addEventListener('DOMContentLoaded', function() {
+        // 初始化项目审批流程组件
+        const projectApprovalFlow = new ApprovalFlow('project', {{ project.id }}, {
+            containerId: 'projectApprovalFlowSection',
+            containerSelector: '#projectApprovalFlowSectionContainer',
+            apiBasePath: '/project/api/approval',  // 使用项目专用的API路径
+            autoLoad: true,
+            enableInteraction: true
+        });
+
+        // 设置全局实例以便其他地方调用
+        window.projectApprovalFlowInstance = projectApprovalFlow;
+        
+        // 初始化审批流程
+        projectApprovalFlow.init();
+    });
 </script>
 
 <script>

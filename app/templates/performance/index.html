@@ -304,7 +304,7 @@ document.addEventListener('DOMContentLoaded', function() {
         auto_submit: true,
         ajax_mode: {{ 'true' if list_config.ajax_mode else 'false' }},
         ajax_endpoint: '{{ url_for("performance.list_ajax") }}',
-        ajax_target: '#{{ list_config.table.ajax_target }}',
+        ajax_target: '{{ list_config.table.ajax_target }}',
         ajax_columns: 9,
         dynamic_reset_button: true,
         adaptive_width: true,

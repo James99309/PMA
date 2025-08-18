@@ -1025,4 +1025,83 @@ def create_app(config_class=Config):
             logger.error(f"服务本地存储文件失败: {str(e)}")
             abort(500)
 
+    # 注册统一中文映射功能到Jinja2模板环境
+    try:
+        from app.utils.chinese_mapping_manager import mapping_manager
+        
+        def get_field_display_name(table_name, field_name, default=None):
+            """
+            Jinja2模板函数：获取字段的中文显示名称
+            优先级: 配置表 → 全局映射 → 字典映射 → 友好名称生成
+            """
+            try:
+                result = mapping_manager.get_field_display_name(table_name, field_name)
+                return result if result != field_name else (default or field_name)
+            except Exception as e:
+                logger.warning(f"获取字段显示名称失败: {table_name}.{field_name}, 错误: {e}")
+                return default or field_name
+        
+        def get_table_display_name(table_name, default=None):
+            """
+            Jinja2模板函数：获取表的中文显示名称
+            """
+            try:
+                result = mapping_manager.get_table_display_name(table_name)
+                return result if result != table_name else (default or table_name)
+            except Exception as e:
+                logger.warning(f"获取表显示名称失败: {table_name}, 错误: {e}")
+                return default or table_name
+        
+        # 创建支持翻译的字段显示名称函数
+        def get_field_display_name_i18n(table_name, field_name, default=None):
+            """
+            Jinja2全局函数：获取字段显示名称并支持翻译
+            优先级: 配置表 → 全局映射 → 字典映射 → 友好名称
+            最终结果会通过翻译系统进行本地化处理
+            """
+            try:
+                # 获取映射结果
+                mapped_name = mapping_manager.get_field_display_name(table_name, field_name)
+                if mapped_name != field_name:
+                    # 对映射结果进行翻译
+                    from flask_babel import gettext
+                    return gettext(mapped_name)
+                # 映射失败时使用默认值并翻译
+                elif default:
+                    from flask_babel import gettext
+                    return gettext(default)
+                else:
+                    from flask_babel import gettext
+                    return gettext(field_name)
+            except Exception as e:
+                logger.warning(f"获取字段显示名称失败: {table_name}.{field_name}, 错误: {e}")
+                from flask_babel import gettext
+                return gettext(default) if default else gettext(field_name)
+        
+        # 创建get_column_title函数（保持兼容）
+        def get_column_title(table_name, field_name, fallback_label=None):
+            """
+            Jinja2全局函数：获取列标题的统一映射（兼容版本）
+            """
+            try:
+                # 优先使用支持翻译的版本
+                return get_field_display_name_i18n(table_name, field_name, fallback_label)
+            except Exception as e:
+                logger.warning(f"获取列标题失败: {table_name}.{field_name}, 错误: {e}")
+                from flask_babel import gettext
+                return gettext(fallback_label) if fallback_label else gettext(field_name)
+        
+        # 注册到Jinja2全局环境
+        app.jinja_env.globals['get_field_display_name'] = get_field_display_name
+        app.jinja_env.globals['get_field_display_name_i18n'] = get_field_display_name_i18n
+        app.jinja_env.globals['get_table_display_name'] = get_table_display_name
+        app.jinja_env.globals['get_column_title'] = get_column_title
+        
+        logger.info("✅ 统一中文映射功能已注册到Jinja2模板环境")
+        
+    except ImportError as e:
+        logger.warning(f"⚠️ 统一中文映射模块导入失败: {e}")
+    except Exception as e:
+        logger.error(f"❌ 注册统一中文映射功能失败: {e}")
+
     return app 

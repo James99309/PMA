@@ -52,6 +52,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化数据列表（AJAX模式）
     setupDataList(userListConfig);
     
+    // 手动初始化表格排序功能（修复排序点击不生效的问题）
+    setTimeout(function() {
+        console.log('🔧 手动初始化表格排序功能...');
+        if (window.initAllTableSort) {
+            window.initAllTableSort();
+        } else {
+            console.warn('⚠️ 表格排序初始化函数不存在');
+        }
+    }, 500);
+    
     console.log('✅ 用户管理页面初始化完成');
 });
 </script>

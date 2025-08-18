@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_authorization_code %}
+{% from 'macros/ui_helpers.html' import get_form_label, render_form_label %}
 {% import 'macros/ui_helpers.html' as ui %}
 
 {% block head %}
@@ -207,7 +208,7 @@
             <div class="card-body">
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label for="project_name" class="form-label mb-2">{{ _('项目名称') }}</label>
+                        <label for="project_name" class="form-label mb-2">{{ get_form_label('project', 'project_name', '项目名称') }}</label>
                         <div class="project-name-wrapper position-relative">
                             <input type="text" class="form-control" id="project_name" name="project_name" 
                                    placeholder="{{ _('输入项目名称...') }}" autocomplete="off" required>
@@ -259,7 +260,7 @@
                 <div class="row mb-4">
                     <!-- 报价在创建时不显示，通过报价单管理 -->
                     <div class="col-md-6">
-                        <label for="delivery_forecast" class="form-label mb-2">{{ _('出货预测日期') }}</label>
+                        <label for="delivery_forecast" class="form-label mb-2">{{ get_form_label('project', 'delivery_forecast', '交付预测') }}</label>
                         <input type="date" class="form-control" id="delivery_forecast" name="delivery_forecast" value="">
                     </div>
                 </div>
@@ -267,9 +268,9 @@
                 <!-- 销售负责人字段 -->
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label for="vendor_sales_manager_id" class="form-label mb-2">{{ _('厂商销售负责人') }}</label>
+                        <label for="vendor_sales_manager_id" class="form-label mb-2">{{ get_form_label('project', 'vendor_sales_manager_id', '厂商销售') }}</label>
                         <select class="form-select" id="vendor_sales_manager_id" name="vendor_sales_manager_id">
-                            <option value="">{{ _('请选择厂商销售负责人') }}</option>
+                            <option value="">{{ _('请选择厂商销售') }}</option>
                             <!-- 这里将通过JavaScript动态加载厂商用户 -->
                         </select>
                     </div>
@@ -899,26 +900,26 @@ async function loadSalesManagers() {
         
         const vendorSelect = document.getElementById('vendor_sales_manager_id');
         
-        vendorSelect.innerHTML = '<option value="">请选择厂商销售负责人</option>';
+        vendorSelect.innerHTML = '<option value="">请选择厂商销售</option>';
         
         if (data.success && data.data) {
-            // 按企业分组用户，根据企业的厂商标识过滤
+            // 显示所有企业和部门的用户，不进行厂商过滤
             data.data.forEach(company => {
-                // 使用is_vendor字段判断是否为厂商企业
-                const isVendorCompany = company.is_vendor === true;
-                
                 if (company.users && company.users.length > 0) {
-                    if (isVendorCompany) {
-                        // 厂商下拉菜单：只显示真实姓名，不显示角色信息
-                        company.users.forEach(user => {
-                            const option = document.createElement('option');
-                            option.value = user.id;
-                            // 只显示真实姓名，不显示角色信息
-                            const displayName = user.real_name || user.name;
-                            option.textContent = displayName;
-                            vendorSelect.appendChild(option);
-                        });
-                    }
+                    // 添加企业分组标识
+                    const companyGroup = document.createElement('optgroup');
+                    companyGroup.label = company.name;
+                    
+                    company.users.forEach(user => {
+                        const option = document.createElement('option');
+                        option.value = user.id;
+                        // 显示姓名和公司信息
+                        const displayName = user.real_name || user.name;
+                        option.textContent = `${displayName} (${company.name})`;
+                        companyGroup.appendChild(option);
+                    });
+                    
+                    vendorSelect.appendChild(companyGroup);
                 }
             });
         }

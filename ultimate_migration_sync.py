@@ -19,7 +19,7 @@ logger = logging.getLogger('UltimateMigrationSync')
 class UltimateMigrationSync:
     def __init__(self):
         self.timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        self.sp8d_url = "postgresql://pma_db_sp8d_user:LXNGJmR6bFrNecoaWbdbdzPpltIAd40w@dpg-d0b1gl1r0fns73d1jc1g-a.singapore-postgres.render.com/pma_db_sp8d"
+        self.sp8d_url = "postgresql://postgres.iqcyimnjtnmomvfuwjzw:towsys-coGdoq-6gofdi@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
         
     def get_current_versions(self):
         """获取当前迁移版本"""

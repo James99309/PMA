@@ -158,6 +158,12 @@
                 <div class="comment-hint">最多500字符</div>
             </div>
             
+            <!-- 授权预览信息（仅项目审批时显示） -->
+            <div id="authorizationPreviewSection" class="authorization-preview" style="display: none;">
+                <i class="fas fa-key notice-icon"></i>
+                <div id="authorizationPreviewText">通过审批后将生成授权编码</div>
+            </div>
+
             <!-- 确认提示 -->
             <div class="approval-notice">
                 <i class="fas fa-info-circle notice-icon"></i>
@@ -312,6 +318,20 @@
     font-size: 12px;
     color: #6c757d;
     margin-top: 4px;
+}
+
+/* 授权预览区域 */
+.authorization-preview {
+    margin: 0 24px 16px 24px;
+    padding: 12px 16px;
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #155724;
+    display: flex;
+    align-items: flex-start;
+    font-weight: 500;
 }
 
 /* 确认提示 */

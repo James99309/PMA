@@ -447,17 +447,31 @@ def approve(instance_id):
         return redirect(url_for('approval.center'))
     
     current_step = get_current_step_info(instance)
+    # 检查是否是授权步骤或分支决策步骤（分支决策步骤可能包含授权动作）
     is_authorization_step = (
         current_step and 
         hasattr(current_step, 'action_type') and 
         current_step.action_type == 'authorization'
     )
+    is_branch_decision_step = (
+        current_step and 
+        hasattr(current_step, 'action_type') and 
+        current_step.action_type == 'branch_decision'
+    )
     
     try:
-        # 执行审批操作，如果是授权步骤并且提供了项目类型，则传递项目类型
+        # 执行审批操作，如果是授权步骤或分支决策步骤并且提供了项目类型，则传递项目类型
         from app.helpers.approval_helpers import process_approval as helper_process_approval
         
-        if is_authorization_step and project_type and instance.object_type == 'project':
+        # 对于项目审批，如果是授权步骤或分支决策步骤，传递项目类型参数
+        if (is_authorization_step or is_branch_decision_step) and instance.object_type == 'project':
+            # 如果前端没有提供project_type，从项目对象中获取
+            if not project_type:
+                from app.models.project import Project
+                project_obj = Project.query.get(instance.object_id)
+                if project_obj:
+                    project_type = project_obj.project_type
+            
             success = helper_process_approval(instance_id, action, comment, project_type=project_type)
         else:
             success = helper_process_approval(instance_id, action, comment)
@@ -467,12 +481,11 @@ def approve(instance_id):
                 success_message = '已同意此审批'
                 # 记录日志
                 current_app.logger.info(f"用户 {current_user.username} 同意了审批 {instance_id}")
-                # 如果是最后一步和授权步骤，显示授权成功信息
-                if instance.object_type == 'project' and is_authorization_step:
+                # 记录授权信息到日志，但不在消息中显示具体编号
+                if instance.object_type == 'project' and (is_authorization_step or is_branch_decision_step):
                     from app.models.project import Project
                     project = Project.query.get(instance.object_id)
                     if project and project.authorization_code:
-                        success_message += f'，已成功生成授权编号: {project.authorization_code}'
                         current_app.logger.info(f"为项目 {project.id} 生成授权编号: {project.authorization_code}")
             else:
                 success_message = '已拒绝此审批'

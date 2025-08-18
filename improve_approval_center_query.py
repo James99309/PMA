@@ -107,7 +107,7 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
         ApprovalStep, 
         and_(
             ApprovalStep.process_id == ApprovalInstance.process_id,
-            ApprovalStep.step_order == ApprovalInstance.current_step
+            ApprovalStep.id == ApprovalInstance.current_step  # 🔥 修复：current_step存储的是step_id
         )
     ).filter(
         ApprovalStep.approver_user_id == user_id,

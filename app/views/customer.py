@@ -14,6 +14,7 @@ import json
 import re
 import logging
 from app.utils.dictionary_helpers import get_company_type_options, get_industry_options, get_status_options, get_country_options, COMPANY_TYPE_LABELS, INDUSTRY_LABELS, STATUS_LABELS, COUNTRY_LABELS
+from app.utils.chinese_mapping_manager import mapping_manager
 
 # 设置日志记录器
 logger = logging.getLogger(__name__)
@@ -349,7 +350,7 @@ def list_companies():
         
         'search_field': {
             'name': 'search',
-            'label': _('搜索'),
+            'label': _(mapping_manager.get_field_display_name('common', 'search')),
             'placeholder': _('企业名称或客户信息'),
             'value': search,
             'col_width': 4
@@ -358,7 +359,7 @@ def list_companies():
         'filter_fields': [
             {
                 'name': 'owner_filter',
-                'label': _('客户负责人'), 
+                'label': _(mapping_manager.get_field_display_name('company', 'owner_id')), 
                 'all_option_text': _('全部负责人'),
                 'current_value': owner_filter,
                 'col_width': 2,
@@ -373,7 +374,7 @@ def list_companies():
             },
             {
                 'name': 'company_type',
-                'label': _('企业类型'),
+                'label': _(mapping_manager.get_field_display_name('company', 'company_type')),
                 'all_option_text': _('全部类型'),
                 'current_value': company_type_filter,
                 'col_width': 2,
@@ -388,7 +389,7 @@ def list_companies():
             },
             {
                 'name': 'industry',
-                'label': _('行业'),
+                'label': _(mapping_manager.get_field_display_name('company', 'industry')),
                 'all_option_text': _('全部行业'),
                 'current_value': industry_filter,
                 'col_width': 2,
@@ -403,7 +404,7 @@ def list_companies():
             },
             {
                 'name': 'country',
-                'label': _('国家'),
+                'label': _(mapping_manager.get_field_display_name('company', 'country')),
                 'all_option_text': _('全部国家'),
                 'current_value': country_filter,
                 'col_width': 2,
@@ -418,7 +419,7 @@ def list_companies():
             },
             {
                 'name': 'status_filter',
-                'label': _('状态'),
+                'label': _(mapping_manager.get_field_display_name('company', 'status')),
                 'all_option_text': _('全部状态'),
                 'current_value': status_filter,
                 'col_width': 2,
@@ -438,6 +439,7 @@ def list_companies():
         
         # 筛选行为配置
         'auto_submit': True,                    # 启用自动筛选
+        'ajax_mode': True,                      # 启用AJAX模式
         'dynamic_reset_button': True,           # 启用动态重置按钮
         'adaptive_width': True,                 # 启用自适应宽度
         'adaptive_button_layout': True,         # 启用自适应按钮布局
@@ -514,61 +516,78 @@ def list_companies():
             'icon': 'fas fa-table',
             'enhanced_striping': True,      # 启用增强斑马线效果
             'fixed_height_scroll': True,    # 启用固定高度滚动
+            'table_name': 'company',        # 指定数据库表名用于动态映射
             'columns': [
                 {
                     'key': 'owner',
-                    'label': _('客户负责人'),
+                    'field': 'owner_id',
+                    'label': _(mapping_manager.get_field_display_name('company', 'owner_id')),
                     'type': 'badge',
                     'render': 'render_owner',
-                    'width': '120px'
+                    'width': '120px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'company_name',
-                    'label': _('企业名称'),
+                    'field': 'company_name',
+                    'label': _(mapping_manager.get_field_display_name('company', 'company_name')),
                     'type': 'link',
                     'url_template': '/customer/{id}/view',
-                    'width': '200px'
+                    'width': '200px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'company_type',
-                    'label': _('企业类型'),
+                    'field': 'company_type',
+                    'label': _(mapping_manager.get_field_display_name('company', 'company_type')),
                     'type': 'badge',
                     'render': 'render_company_type_badge',
-                    'width': '120px'
+                    'width': '120px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'industry',
-                    'label': _('行业'),
+                    'field': 'industry',
+                    'label': _(mapping_manager.get_field_display_name('company', 'industry')),
                     'type': 'badge',
                     'render': 'render_industry_badge',
-                    'width': '120px'
+                    'width': '120px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'status',
-                    'label': _('状态'),
+                    'field': 'status',
+                    'label': _(mapping_manager.get_field_display_name('company', 'status')),
                     'type': 'badge',
                     'render': 'render_status_badge',
-                    'width': '100px'
+                    'width': '100px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'country_region',
-                    'label': _('国家/地区'),
+                    'field': 'country',
+                    'label': _(mapping_manager.get_field_display_name('company', 'country')),
                     'type': 'text',
-                    'width': '150px'
+                    'width': '150px',
+                    'sort_type': 'string'
                 },
                 {
                     'key': 'updated_at',
-                    'label': _('更新时间'),
+                    'field': 'updated_at',
+                    'label': _(mapping_manager.get_field_display_name('common', 'updated_at')),
                     'type': 'date',
                     'format': '%Y-%m-%d',
-                    'width': '120px'
+                    'width': '120px',
+                    'sort_type': 'date'
                 },
                 {
                     'key': 'created_at',
-                    'label': _('创建时间'),
+                    'field': 'created_at',
+                    'label': _(mapping_manager.get_field_display_name('common', 'created_at')),
                     'type': 'date',
                     'format': '%Y-%m-%d',
-                    'width': '120px'
+                    'width': '120px',
+                    'sort_type': 'date'
                 }
             ]
         },
@@ -667,6 +686,10 @@ def companies_list_ajax():
         offset = request.args.get('offset', 0, type=int)
         limit = request.args.get('limit', 20, type=int)
         
+        # 排序参数
+        sort_field = request.args.get('sort_field', '')
+        sort_direction = request.args.get('sort_direction', 'asc')
+        
         # 基础查询
         query = get_viewable_data(Company, current_user)
         
@@ -686,8 +709,23 @@ def companies_list_ajax():
         if status_filter:
             query = query.filter(Company.status == status_filter)
         
-        # 排序
-        query = query.order_by(Company.updated_at.desc())
+        # 使用通用排序服务
+        from app.utils.sorting_service import SortingService, create_user_relation_config, create_basic_field_mappings
+        
+        # 创建排序配置
+        sorting_config = {
+            'field_mappings': create_basic_field_mappings(Company, [
+                'company_name', 'company_type', 'industry', 'country', 'status', 'created_at', 'updated_at'
+            ]),
+            'relation_mappings': {
+                'owner_id': create_user_relation_config(Company.owner_id)
+            },
+            'default_sort': {'field': 'updated_at', 'direction': 'desc'}
+        }
+        
+        # 创建排序服务并应用排序
+        sorting_service = SortingService(Company, sorting_config)
+        query = sorting_service.apply_sort(query, sort_field, sort_direction)
         
         # 获取总数
         total_count = query.count()
