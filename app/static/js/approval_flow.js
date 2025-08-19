@@ -586,7 +586,14 @@ class ApprovalFlow {
             console.log('🔍 绑定通过按钮点击事件');
             approveBtn.onclick = () => {
                 console.log('🔍 通过按钮被点击');
-                this.handleApprovalAction('approve');
+                
+                // 如果已经显示过警告，则直接确认继续
+                if (approveBtn.dataset.warningShown === 'true') {
+                    console.log('🔍 用户确认继续审批（忽略权限违规）');
+                    this.proceedWithApproval('approve');
+                } else {
+                    this.handleApprovalAction('approve');
+                }
             };
         } else {
             console.log('🔍 未找到通过按钮 (.dialog-approve-btn)');
@@ -602,6 +609,115 @@ class ApprovalFlow {
     // 处理审批操作
     async handleApprovalAction(action) {
         console.log('🔍 handleApprovalAction 被调用');
+        console.log('🔍 action 参数:', action);
+        
+        const comment = document.getElementById('approvalComment').value.trim();
+        
+        try {
+            // 如果是通过操作且为批价单/结算单类型，先进行权限检查
+            if (action === 'approve' && this.needsPricingApprovalCheck()) {
+                const checkResult = await this.checkPricingApprovalLimits();
+                if (checkResult && checkResult.has_violations) {
+                    // 显示权限违规警告
+                    this.showPricingViolationWarning(checkResult.violations);
+                    return; // 不关闭对话框，等待用户确认
+                }
+            }
+            
+            // 隐藏对话框
+            this.hideApprovalConfirmDialog();
+            
+            // 调用审批处理
+            await this.processApproval(this.currentStage.id, action, comment);
+            
+        } catch (error) {
+            console.error('审批操作失败:', error);
+            // 可以显示错误提示
+        }
+    }
+    
+    // 检查是否需要批价审批权限检查
+    needsPricingApprovalCheck() {
+        // 检查对象类型是否为批价单或结算单
+        return this.objectType === 'pricing_order' || this.objectType === 'settlement_order';
+    }
+    
+    // 检查批价审批权限下限
+    async checkPricingApprovalLimits() {
+        try {
+            console.log('🔍 开始权限下限检查');
+            
+            const response = await fetch('/approval/api/check-pricing-approval-limits', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.getCSRFToken()
+                },
+                body: JSON.stringify({
+                    object_type: this.objectType,
+                    object_id: this.objectId
+                })
+            });
+            
+            if (!response.ok) {
+                console.error('权限检查请求失败:', response.status);
+                return null;
+            }
+            
+            const result = await response.json();
+            console.log('🔍 权限检查结果:', result);
+            
+            return result.success ? result : null;
+            
+        } catch (error) {
+            console.error('权限检查失败:', error);
+            return null;
+        }
+    }
+    
+    // 显示权限违规警告
+    showPricingViolationWarning(violations) {
+        console.log('🔍 显示权限违规警告:', violations);
+        
+        const violationSection = document.getElementById('pricingViolationSection');
+        const violationList = document.getElementById('pricingViolationList');
+        
+        if (!violationSection || !violationList) {
+            console.error('找不到权限违规警告区域');
+            return;
+        }
+        
+        // 构建违规列表HTML
+        let listHtml = '';
+        violations.forEach(violation => {
+            listHtml += `
+                <div class="violation-item">
+                    <i class="fas fa-exclamation-circle violation-icon"></i>
+                    ${violation.message}
+                </div>
+            `;
+        });
+        
+        violationList.innerHTML = listHtml;
+        
+        // 显示警告区域
+        violationSection.style.display = 'block';
+        
+        // 更新按钮文本和样式，提示用户确认继续
+        const approveBtn = document.querySelector('.dialog-approve-btn');
+        if (approveBtn) {
+            approveBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>确认通过';
+            approveBtn.classList.add('btn-warning');
+            approveBtn.classList.remove('btn-success');
+            
+            // 标记已经显示过警告
+            approveBtn.dataset.warningShown = 'true';
+        }
+    }
+    
+    // 直接继续审批流程（跳过权限检查）
+    async proceedWithApproval(action) {
+        console.log('🔍 proceedWithApproval 被调用');
         console.log('🔍 action 参数:', action);
         
         const comment = document.getElementById('approvalComment').value.trim();

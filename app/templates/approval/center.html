@@ -96,6 +96,15 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     {% if list_config %}
+    // 🔥 设置全局数据列表配置，供排序功能使用
+    window.currentDataListConfig = {
+        ajax_mode: {{ list_config.ajax_mode|default(false)|tojson }},
+        ajax_endpoint: '{{ url_for("approval.center_ajax") }}',
+        module_name: '{{ list_config.module_name }}',
+        title: '{{ list_config.title }}'
+    };
+    console.log('📋 设置全局数据列表配置:', window.currentDataListConfig);
+    
     // 配置筛选搜索组件
     {% if list_config.filter %}
     const approvalFilterConfig = {
@@ -275,10 +284,17 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    // 🔍 调试：检查返回的HTML内容
+                    console.log('🔍 AJAX返回的HTML长度:', data.html ? data.html.length : 0);
+                    console.log('🔍 AJAX返回的HTML前500字符:', data.html ? data.html.substring(0, 500) : 'null');
+                    
                     // 更新表格内容
                     const targetElement = document.querySelector('#{{ list_config.table.ajax_target }}');
                     if (targetElement) {
+                        console.log('🔍 更新前tbody内容:', targetElement.innerHTML.substring(0, 200));
                         targetElement.innerHTML = data.html || '<tr><td colspan="{{ list_config.table.columns | length }}" class="text-center py-4">{{ _('暂无数据') }}</td></tr>';
+                        console.log('🔍 更新后tbody内容:', targetElement.innerHTML.substring(0, 200));
+                        console.log('🔍 更新后行数:', targetElement.querySelectorAll('tr').length);
                     }
                     
                     // 更新统计卡片
@@ -292,6 +308,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (typeof updateListItemCount === 'function') {
                         updateListItemCount(data.total_count || 0, data.loaded_count || 0, false);
                     }
+                    
+                    // 重要：AJAX加载完成后重新初始化表格排序功能
+                    setTimeout(() => {
+                        if (typeof window.initAllTableSort === 'function') {
+                            window.initAllTableSort();
+                            console.log('🔧 AJAX加载后已重新初始化表格排序功能');
+                        } else {
+                            console.warn('⚠️ 表格排序初始化函数未找到');
+                        }
+                    }, 100);
                     
                     console.log(`✅ 数据加载完成，共 ${data.loaded_count || 0} 条记录`);
                 } else {

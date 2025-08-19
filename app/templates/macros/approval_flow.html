@@ -164,6 +164,18 @@
                 <div id="authorizationPreviewText">通过审批后将生成授权编码</div>
             </div>
 
+            <!-- 权限违规警告区域（仅批价单审批时显示） -->
+            <div id="pricingViolationSection" class="pricing-violation-warning" style="display: none;">
+                <i class="fas fa-exclamation-triangle notice-icon"></i>
+                <div id="pricingViolationContent">
+                    <div class="violation-title">权限下限违规提醒</div>
+                    <div id="pricingViolationList" class="violation-list"></div>
+                    <div class="violation-confirm">
+                        <small class="text-muted">继续审批将在审批记录中标记此违规信息</small>
+                    </div>
+                </div>
+            </div>
+
             <!-- 确认提示 -->
             <div class="approval-notice">
                 <i class="fas fa-info-circle notice-icon"></i>
@@ -332,6 +344,60 @@
     display: flex;
     align-items: flex-start;
     font-weight: 500;
+}
+
+/* 权限违规警告区域 */
+.pricing-violation-warning {
+    margin: 0 24px 16px 24px;
+    padding: 12px 16px;
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #856404;
+    display: flex;
+    align-items: flex-start;
+}
+
+.pricing-violation-warning .notice-icon {
+    color: #f39c12;
+    margin-right: 8px;
+    margin-top: 1px;
+    flex-shrink: 0;
+}
+
+.violation-title {
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #856404;
+}
+
+.violation-list {
+    margin-bottom: 8px;
+}
+
+.violation-item {
+    padding: 4px 0;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+}
+
+.violation-item .violation-icon {
+    color: #e74c3c;
+    margin-right: 6px;
+    font-size: 12px;
+}
+
+.violation-confirm {
+    border-top: 1px solid #ffeaa7;
+    padding-top: 8px;
+    margin-top: 8px;
+}
+
+.violation-confirm .text-muted {
+    color: #6c757d !important;
+    font-size: 12px;
 }
 
 /* 确认提示 */

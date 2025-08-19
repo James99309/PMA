@@ -346,6 +346,23 @@ def create_template():
         if template:
             flash('审批流程模板创建成功', 'success')
             return redirect(url_for('approval_config.template_detail', template_id=template.id))
+        else:
+            flash('创建审批流程模板失败，请重试', 'danger')
+            return redirect(url_for('approval_config.create_template'))
+    
+    # GET请求 - 显示创建模板的表单页面
+    try:
+        # 获取业务对象类型列表
+        object_types = get_object_types()
+        
+        # 渲染创建模板的表单页面
+        return render_template('approval_config/template_form.html',
+                             title='创建审批流程模板',
+                             object_types=object_types)
+    except Exception as e:
+        current_app.logger.error(f"显示创建模板页面时出错: {e}")
+        flash('加载创建模板页面失败，请重试', 'danger')
+        return redirect(url_for('approval_config.list_templates'))
 
 
 @approval_config_bp.route('/api/get-field-values')

@@ -753,6 +753,124 @@ def preview_authorization_code():
     })
 
 
+@approval_bp.route('/api/check-pricing-approval-limits', methods=['POST'])
+@login_required
+def check_pricing_approval_limits():
+    """API端点：检查批价单审批权限下限
+    
+    在审批前检查当前用户的权限下限是否符合批价单/结算单折扣率
+    返回权限违规警告信息
+    """
+    try:
+        data = request.json
+        object_type = data.get('object_type')  # 'pricing_order' 或 'settlement_order'
+        object_id = data.get('object_id')
+        approver_id = data.get('approver_id', current_user.id)
+        
+        if not all([object_type, object_id]):
+            return jsonify({
+                'success': False, 
+                'message': '缺少必要参数'
+            }), 400
+        
+        # 获取审批人信息
+        from app.models.user import User
+        approver = User.query.get(approver_id)
+        if not approver:
+            return jsonify({
+                'success': False, 
+                'message': '找不到审批人信息'
+            }), 404
+        
+        # 获取审批人角色权限配置
+        from app.permissions import get_role_permission
+        role_permission = get_role_permission(approver.role, object_type)
+        if not role_permission:
+            return jsonify({
+                'success': False, 
+                'message': f'找不到角色权限配置: {approver.role}'
+            }), 404
+        
+        pricing_limit = role_permission.pricing_discount_limit or 0
+        settlement_limit = role_permission.settlement_discount_limit or 0
+        
+        violations = []
+        warnings = []
+        
+        # 根据对象类型检查权限下限
+        if object_type == 'pricing_order':
+            from app.models.pricing_order import PricingOrder
+            pricing_order = PricingOrder.query.get(object_id)
+            if not pricing_order:
+                return jsonify({
+                    'success': False, 
+                    'message': '找不到批价单'
+                }), 404
+            
+            current_pricing_rate = (pricing_order.pricing_total_discount_rate or 1.0) * 100
+            current_settlement_rate = (pricing_order.settlement_total_discount_rate or 1.0) * 100
+            
+            if current_pricing_rate < pricing_limit:
+                violations.append({
+                    'type': 'pricing',
+                    'current': round(current_pricing_rate, 1),
+                    'limit': pricing_limit,
+                    'message': f'批价单折扣率{current_pricing_rate:.1f}%低于权限下限{pricing_limit}%'
+                })
+            
+            if settlement_limit > 0 and current_settlement_rate < settlement_limit:
+                violations.append({
+                    'type': 'settlement',
+                    'current': round(current_settlement_rate, 1),
+                    'limit': settlement_limit,
+                    'message': f'结算单折扣率{current_settlement_rate:.1f}%低于权限下限{settlement_limit}%'
+                })
+                
+        elif object_type == 'settlement_order':
+            from app.models.pricing_order import SettlementOrder
+            settlement_order = SettlementOrder.query.get(object_id)
+            if not settlement_order:
+                return jsonify({
+                    'success': False, 
+                    'message': '找不到结算单'
+                }), 404
+            
+            current_settlement_rate = (settlement_order.total_discount_rate or 1.0) * 100
+            
+            if settlement_limit > 0 and current_settlement_rate < settlement_limit:
+                violations.append({
+                    'type': 'settlement',
+                    'current': round(current_settlement_rate, 1),
+                    'limit': settlement_limit,
+                    'message': f'结算单折扣率{current_settlement_rate:.1f}%低于权限下限{settlement_limit}%'
+                })
+        
+        # 构建返回结果
+        result = {
+            'success': True,
+            'has_violations': len(violations) > 0,
+            'violations': violations,
+            'warnings': warnings,
+            'approver': {
+                'name': approver.real_name or approver.username,
+                'role': approver.role,
+                'limits': {
+                    'pricing_limit': pricing_limit,
+                    'settlement_limit': settlement_limit
+                }
+            }
+        }
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        current_app.logger.error(f"检查批价审批权限下限失败: {str(e)}")
+        return jsonify({
+            'success': False, 
+            'message': f'权限检查失败: {str(e)}'
+        }), 500
+
+
 @approval_bp.route('/authorize/<int:instance_id>', methods=['GET'])
 @login_required
 def authorize(instance_id):
@@ -1473,60 +1591,84 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
         'columns': [
             {
                 'key': 'approval_number',
+                'field': 'id',  # 用于排序的字段名
                 'label': _('审批编号'),
                 'type': 'link',
                 'url_template': '/approval/detail/{id}',
                 'width': '180px',
-                'render': 'render_approval_code'
+                'render': 'render_approval_code',
+                'sortable': True,
+                'sort_type': 'number'
             },
             {
                 'key': 'related_project',
+                'field': 'project_name',  # 用于排序的字段名
                 'label': _('关联项目'),
                 'type': 'link',
                 'url_template': '/project/view/{project_id}',
                 'width': '200px',
-                'render': 'render_project_link'
+                'render': 'render_project_link',
+                'sortable': True,
+                'sort_type': 'string'
             },
             {
                 'key': 'process_name',
+                'field': 'process_name',  # 用于排序的字段名
                 'label': _('流程名称'),
                 'type': 'text',
-                'width': '180px'
+                'width': '180px',
+                'sortable': True,
+                'sort_type': 'string'
             },
             {
                 'key': 'business_info',
+                'field': 'object_type',  # 用于排序的字段名
                 'label': _('关联业务'),
                 'type': 'badge',
                 'render': 'render_business_object_badge',
-                'width': '180px'
+                'width': '180px',
+                'sortable': True,
+                'sort_type': 'string'
             },
             {
                 'key': 'creator',
+                'field': 'creator_name',  # 用于排序的字段名
                 'label': _('提交人'),
                 'type': 'badge',
                 'render': 'render_owner',
-                'width': '150px'
+                'width': '150px',
+                'sortable': True,
+                'sort_type': 'string'
             },
             {
                 'key': 'current_approver',
+                'field': 'current_approver_name',  # 用于排序的字段名
                 'label': _('当前审批人'),
                 'type': 'badge',
                 'render': 'render_owner',
-                'width': '150px'
+                'width': '150px',
+                'sortable': True,
+                'sort_type': 'string'
             },
             {
                 'key': 'status',
+                'field': 'status',  # 用于排序的字段名
                 'label': _('状态'),
                 'type': 'badge',
                 'render': 'render_approval_status_badge',
-                'width': '120px'
+                'width': '120px',
+                'sortable': True,
+                'sort_type': 'string'
             },
             {
                 'key': 'started_at',
+                'field': 'started_at',  # 用于排序的字段名
                 'label': _('发起时间'),
                 'type': 'date',
                 'format': '%Y-%m-%d %H:%M',
-                'width': '180px'
+                'width': '180px',
+                'sortable': True,
+                'sort_type': 'date'
             }
         ]
     }
@@ -1535,50 +1677,68 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
     if tab == 'pricing_order':
         table_config['columns'][0] = {
             'key': 'pricing_order_number',
+            'field': 'order_number',  # 用于排序的字段名
             'label': _('批价单编号'),
             'type': 'link',
             'url_template': '/pricing_order/detail/{id}',
             'width': '180px',
-            'render': 'render_pricing_order_number'
+            'render': 'render_pricing_order_number',
+            'sortable': True,
+            'sort_type': 'string'
         }
         # 项目列保持不变，批价单有项目关联
     elif tab == 'order':
         table_config['columns'][0] = {
             'key': 'order_number',
+            'field': 'order_number',  # 用于排序的字段名
             'label': _('订单编号'),
             'type': 'link',
             'url_template': '/inventory/order/{id}',
-            'width': '180px'
+            'width': '180px',
+            'sortable': True,
+            'sort_type': 'string'
         }
         # 项目列保持不变
         # 将公司信息移到第3列（业务信息列）
         table_config['columns'][3] = {
             'key': 'company_name',
+            'field': 'company_name',  # 用于排序的字段名
             'label': _('供应商/客户'),
             'type': 'text',
-            'width': '180px'
+            'width': '180px',
+            'sortable': True,
+            'sort_type': 'string'
         }
     elif tab == 'expense':
         table_config['columns'][0] = {
             'key': 'expense_number',
+            'field': 'expense_number',  # 用于排序的字段名
             'label': _('报销单编号'),
             'type': 'link',
             'url_template': '/expense/expense_detail/{id}',
-            'width': '180px'
+            'width': '180px',
+            'sortable': True,
+            'sort_type': 'string'
         }
         # 修改第二列为报销主题
         table_config['columns'][1] = {
             'key': 'title',
+            'field': 'title',  # 用于排序的字段名
             'label': _('报销主题'),
             'type': 'text',
-            'width': '200px'
+            'width': '200px',
+            'sortable': True,
+            'sort_type': 'string'
         }
         # 将报销金额信息移到第3列（业务信息列）
         table_config['columns'][3] = {
             'key': 'total_amount',
+            'field': 'total_amount',  # 用于排序的字段名
             'label': _('报销金额'),
             'type': 'currency',
-            'width': '120px'
+            'width': '120px',
+            'sortable': True,
+            'sort_type': 'number'
         }
     
     return {
@@ -1626,6 +1786,11 @@ def center_ajax():
         status = request.args.get('status')
         search = request.args.get('search', '').strip()
         tab = request.args.get('tab', 'created')
+        
+        # 🔥 新增：获取排序参数
+        sort_field = request.args.get('sort_field')
+        sort_direction = request.args.get('sort_direction', 'asc')
+        current_app.logger.info(f"收到排序参数: field={sort_field}, direction={sort_direction}, tab={tab}")
         
         # 计算分页参数
         if offset > 0:
@@ -1751,21 +1916,37 @@ def center_ajax():
         
         # 渲染行模板（需要创建）
         html_rows = []
-        for item in items:
-            # 根据标签页渲染不同的行内容
-            if tab == 'pricing_order':
-                # 批价单行渲染
-                html_row = render_pricing_order_row(item)
-            elif tab == 'order':
-                # 订单行渲染
-                html_row = render_order_row(item)
-            elif tab == 'expense':
-                # 报销单行渲染
-                html_row = render_expense_row(item)
-            else:
-                # 通用审批行渲染
-                html_row = render_approval_row(item, tab)
-            html_rows.append(html_row)
+        current_app.logger.info(f"开始渲染 {len(items)} 行数据，标签页: {tab}")
+        
+        for i, item in enumerate(items):
+            try:
+                # 根据标签页渲染不同的行内容
+                if tab == 'pricing_order':
+                    # 批价单行渲染
+                    html_row = render_pricing_order_row(item)
+                elif tab == 'order':
+                    # 订单行渲染
+                    html_row = render_order_row(item)
+                elif tab == 'expense':
+                    # 报销单行渲染
+                    html_row = render_expense_row(item)
+                else:
+                    # 通用审批行渲染
+                    html_row = render_approval_row(item, tab)
+                
+                if html_row:
+                    html_rows.append(html_row)
+                    current_app.logger.debug(f"成功渲染第 {i+1} 行数据")
+                else:
+                    current_app.logger.warning(f"第 {i+1} 行数据渲染结果为空")
+                    
+            except Exception as e:
+                current_app.logger.error(f"渲染第 {i+1} 行数据失败: {str(e)}")
+                # 添加一个错误行，避免破坏表格结构
+                error_row = f'<tr><td colspan="8" class="text-center text-danger">第{i+1}行渲染失败: {str(e)}</td></tr>'
+                html_rows.append(error_row)
+        
+        current_app.logger.info(f"完成渲染，生成了 {len(html_rows)} 行HTML")
         
         # 计算统计数据
         from app.helpers.approval_helpers import get_pending_approval_count, get_pending_created_count, get_pricing_order_pending_count, get_order_pending_count
@@ -1788,9 +1969,20 @@ def center_ajax():
             'expense': expense_count
         }
         
+        # 确保HTML输出干净
+        html_output = ''.join(html_rows) if html_rows else '<tr><td colspan="8" class="text-center py-4">暂无数据</td></tr>'
+        
+        # 🔍 调试：记录HTML输出信息
+        current_app.logger.info(f"最终HTML输出长度: {len(html_output)}")
+        current_app.logger.info(f"HTML行数统计: 生成{len(html_rows)}行，总长度{len(html_output)}字符")
+        if html_rows:
+            current_app.logger.info(f"第一行HTML: {html_rows[0][:200]}...")
+            if len(html_rows) > 1:
+                current_app.logger.info(f"第二行HTML: {html_rows[1][:200]}...")
+        
         return jsonify({
             'success': True,
-            'html': '\n'.join(html_rows),
+            'html': html_output,
             'total_count': approvals.total if hasattr(approvals, 'total') else len(items),
             'loaded_count': len(items),
             'has_more': approvals.has_next if hasattr(approvals, 'has_next') else False,
@@ -1821,14 +2013,28 @@ def render_approval_row(item, tab='created'):
         try:
             # 使用实例的get_current_step_info方法获取当前步骤
             current_step = item.get_current_step_info()
-        except Exception as e:
-            current_app.logger.warning(f"获取当前步骤信息失败: {e}")
+        except:
+            current_step = None
         
         try:
-            if hasattr(item.status, 'name') and item.status.name in ['APPROVED', 'REJECTED']:
+            # 🔥 修复：兼容多种状态表示方式（数据库枚举值vs Python枚举对象）
+            def is_completed_status(status):
+                """检查审批是否已完成（兼容字符串和枚举对象）"""
+                if isinstance(status, str):
+                    # 数据库直接返回的字符串（通常是大写）
+                    return status.upper() in ['APPROVED', 'REJECTED']
+                elif hasattr(status, 'name'):
+                    # SQLAlchemy枚举对象的name属性
+                    return status.name in ['APPROVED', 'REJECTED']  
+                elif hasattr(status, 'value'):
+                    # SQLAlchemy枚举对象的value属性（小写）
+                    return status.value in ['approved', 'rejected']
+                return False
+            
+            if is_completed_status(item.status):
                 last_approver = get_last_approver(item)
-        except Exception as e:
-            current_app.logger.warning(f"获取最后审批人失败: {e}")
+        except:
+            last_approver = None
         
         # 🔥 修复：使用get_step_actual_approver来确定实际审批人
         if last_approver:
@@ -1837,13 +2043,12 @@ def render_approval_row(item, tab='created'):
             from app.helpers.approval_helpers import get_step_actual_approver
             try:
                 current_approver = get_step_actual_approver(current_step, item)
-            except Exception as e:
-                current_app.logger.warning(f"获取实际审批人失败: {e}")
+            except:
                 current_approver = None
     except Exception as e:
-        current_app.logger.error(f"render_approval_row 初始化失败: {e}")
-        # 返回基本的错误行
-        return f'<tr><td colspan="8" class="text-center text-danger">渲染错误: {str(e)}</td></tr>'
+        current_app.logger.error(f"render_approval_row 严重错误: {e}")
+        # 返回基本的错误行但不破坏表格结构
+        return f'<tr><td colspan="8" class="text-center text-muted">数据渲染出错</td></tr>'
     
     # 状态徽章 - 使用映射的多语言显示
     from app.utils.dictionary_helpers import approval_status_label
@@ -1929,18 +2134,60 @@ def render_approval_row(item, tab='created'):
         current_app.logger.warning(f"获取业务对象URL失败: {e}")
         object_url = f"/approval/detail/{item.id}"  # 降级处理
     
-    return f'''
-    <tr>
-        <td><a href="{object_url}" class="text-decoration-none">{approval_code}</a></td>
-        <td>{related_project}</td>
-        <td>{item.process.name if item.process else '未知流程'}</td>
-        <td>{business_info}</td>
-        <td>{creator_badge}</td>
-        <td>{approver_badge}</td>
-        <td>{status_badge}</td>
-        <td>{started_time}</td>
-    </tr>
-    '''
+    # 准备排序用的数据值，确保HTML安全
+    from html import escape
+    sort_values = {
+        'id': item.id or 0,
+        'project_name': '',
+        'process_name': escape(item.process.name if item.process else ''),
+        'object_type': escape(item.object_type or ''),
+        'creator_name': escape(item.creator.real_name if item.creator and hasattr(item.creator, 'real_name') and item.creator.real_name else (item.creator.username if item.creator else '')),
+        'current_approver_name': escape(current_approver.real_name if current_approver and hasattr(current_approver, 'real_name') and current_approver.real_name else (current_approver.username if current_approver else '')),
+        'status': escape(status_key),
+        'started_at': escape(item.started_at.isoformat() if item.started_at else '')
+    }
+    
+    # 获取项目名称用于排序
+    try:
+        if item.object_type == 'project' and item.object_id:
+            from app.helpers.approval_helpers import get_project_by_id
+            project = get_project_by_id(item.object_id)
+            sort_values['project_name'] = escape(project.project_name if project and hasattr(project, 'project_name') else '')
+        elif item.object_type == 'quotation' and item.object_id:
+            from app.helpers.approval_helpers import get_quotation_by_id
+            quotation = get_quotation_by_id(item.object_id)
+            sort_values['project_name'] = escape(quotation.project.project_name if quotation and quotation.project and hasattr(quotation.project, 'project_name') else '')
+        elif item.object_type == 'pricing_order' and item.object_id:
+            from app.models.pricing_order import PricingOrder
+            pricing_order = PricingOrder.query.get(item.object_id)
+            sort_values['project_name'] = escape(pricing_order.project.project_name if pricing_order and pricing_order.project and hasattr(pricing_order.project, 'project_name') else '')
+    except Exception as e:
+        current_app.logger.warning(f"获取项目名称用于排序失败: {e}")
+
+    # 恢复正常的HTML渲染，包含徽章和链接
+    try:
+        # 安全的ID格式化
+        item_id_int = int(item.id) if item.id else 0
+        approval_code = f"APV-{item_id_int:04d}"
+    except (ValueError, TypeError):
+        approval_code = f"APV-{str(item.id)}"
+    
+    html_row = (
+        f'<tr>'
+        f'<td data-sort-value="{sort_values["id"]}"><a href="{object_url}" class="text-decoration-none">{approval_code}</a></td>'
+        f'<td data-sort-value="{sort_values["project_name"]}">{related_project}</td>'
+        f'<td data-sort-value="{sort_values["process_name"]}">{escape(item.process.name if item.process else "未知流程")}</td>'
+        f'<td data-sort-value="{sort_values["object_type"]}">{business_info}</td>'
+        f'<td data-sort-value="{sort_values["creator_name"]}">{creator_badge}</td>'
+        f'<td data-sort-value="{sort_values["current_approver_name"]}">{approver_badge}</td>'
+        f'<td data-sort-value="{sort_values["status"]}">{status_badge}</td>'
+        f'<td data-sort-value="{sort_values["started_at"]}">{started_time}</td>'
+        f'</tr>'
+    )
+    
+    # 🔍 调试：检查单行HTML长度
+    current_app.logger.debug(f"生成单行HTML长度: {len(html_row)}")
+    return html_row
 
 
 def render_pricing_order_row(item):

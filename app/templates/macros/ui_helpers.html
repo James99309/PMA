@@ -2030,7 +2030,7 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
   - ajax_mode: 是否为AJAX模式（默认false）
 #}
 {% macro render_data_table(table_config, items=[], ajax_mode=false) %}
-<div class="card">
+<div class="card"{% if ajax_mode %} data-ajax-mode="true"{% endif %}>
     {% if table_config.title %}
     <div class="card-header data-list-table-header">
         <div class="list-title-container">
@@ -2359,7 +2359,27 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
         // 为特定容器初始化排序功能
         function initTableSortForContainer(tableContainer) {
             const table = tableContainer.querySelector('.data-list-table');
-            const tbody = table ? table.querySelector('tbody') : null;
+            
+            // 🔥 修复：优先使用AJAX目标ID选择tbody，确保选择正确的数据tbody
+            let tbody = null;
+            if (table) {
+                // 先尝试通过AJAX目标ID查找
+                const ajaxTargets = ['approvalTableBody', 'dataTableBody', 'listTableBody']; // 常用的AJAX目标ID
+                for (const targetId of ajaxTargets) {
+                    tbody = document.getElementById(targetId);
+                    if (tbody && table.contains(tbody)) {
+                        console.log(`🔍 找到AJAX目标tbody: ${targetId}`);
+                        break;
+                    }
+                }
+                
+                // 如果没找到，使用传统方式，但选择最后一个tbody（通常是数据tbody）
+                if (!tbody) {
+                    const allTbodies = table.querySelectorAll('tbody');
+                    tbody = allTbodies.length > 0 ? allTbodies[allTbodies.length - 1] : null;
+                    console.log(`🔍 使用传统方式找到tbody，共${allTbodies.length}个tbody`);
+                }
+            }
             
             if (!table || !tbody || table.hasAttribute('data-sort-initialized')) return;
             
@@ -2401,18 +2421,24 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
                     // 执行排序
                     console.log('🔍 准备执行排序...');
                     try {
-                        // 检查是否为AJAX模式，如果是则使用服务器端排序
+                        // 检查是否为AJAX模式
                         const tableConfig = table.closest('.card').getAttribute('data-table-config');
                         const isAjaxMode = table.closest('[data-ajax-mode="true"]') || 
                                          (window.currentDataListConfig && window.currentDataListConfig.ajax_mode);
                         
-                        if (isAjaxMode && window.currentDataListConfig && window.currentDataListConfig.ajax_endpoint) {
-                            console.log('🔍 AJAX模式，使用服务器端排序');
-                            executeServerSideSort(field, currentSortDirection, sortType);
-                        } else {
-                            console.log('🔍 非AJAX模式，使用客户端排序');
-                            sortTable(tbody, field, currentSortDirection, sortType);
-                        }
+                        // 🔥 临时修复：所有表格都使用客户端排序，确保排序功能正常工作
+                        // TODO: 后续实现完整的服务器端排序支持
+                        console.log('🔍 使用客户端排序（包括AJAX表格）');
+                        sortTable(tbody, field, currentSortDirection, sortType);
+                        
+                        // 注释掉的服务器端排序代码，待后续完善
+                        // if (isAjaxMode && window.currentDataListConfig && window.currentDataListConfig.ajax_endpoint) {
+                        //     console.log('🔍 AJAX模式，使用服务器端排序');
+                        //     executeServerSideSort(field, currentSortDirection, sortType);
+                        // } else {
+                        //     console.log('🔍 非AJAX模式，使用客户端排序');
+                        //     sortTable(tbody, field, currentSortDirection, sortType);
+                        // }
                         console.log('🔍 排序执行完成');
                     } catch (error) {
                         console.error('❌ 排序执行失败:', error);

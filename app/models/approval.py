@@ -46,6 +46,9 @@ class ApprovalActionType:
     # 新增：分支动作
     BRANCH_DECISION = "branch_decision"  # 分支决策
     
+    # 新增：批价审批动作
+    PRICING_APPROVAL = "pricing_approval"  # 批价单审批（包含批价单和结算单权限检查）
+    
     # 动作类型标签
     ACTION_TYPE_LABELS = {
         'authorization': {'zh': '授权审批', 'en': 'Authorization'},
@@ -55,7 +58,8 @@ class ApprovalActionType:
         'project_authorization': {'zh': '项目授权', 'en': 'Project Authorization'},
         'channel_authorization': {'zh': '渠道授权', 'en': 'Channel Authorization'},
         'business_authorization': {'zh': '业务授权', 'en': 'Business Authorization'},
-        'branch_decision': {'zh': '分支决策', 'en': 'Branch Decision'}
+        'branch_decision': {'zh': '分支决策', 'en': 'Branch Decision'},
+        'pricing_approval': {'zh': '批价审批', 'en': 'Pricing Approval'}
     }
     
     @classmethod
@@ -167,6 +171,8 @@ class ApprovalStep(db.Model):
             return self._execute_business_authorization(approval_record, target_object)
         elif self.action_type == ApprovalActionType.BRANCH_DECISION:
             return self._execute_branch_decision(approval_record, target_object)
+        elif self.action_type == ApprovalActionType.PRICING_APPROVAL:
+            return self._execute_pricing_approval(approval_record, target_object)
         return True
 
     def evaluate_branch_condition(self, target_object):
@@ -693,6 +699,107 @@ class ApprovalStep(db.Model):
                 
         except Exception as e:
             print(f"记录分支决策失败: {str(e)}")
+    
+    def _execute_pricing_approval(self, approval_record, pricing_order):
+        """执行批价单审批权限检查动作"""
+        try:
+            from app.models.user import User
+            from app.permissions import get_role_permission
+            
+            approver = User.query.get(approval_record.approver_id)
+            if not approver:
+                print(f"批价审批失败：找不到审批人 {approval_record.approver_id}")
+                return False
+            
+            # 获取审批人角色的权限下限配置
+            role_permission = get_role_permission(approver.role, 'pricing_order')
+            if not role_permission:
+                print(f"批价审批失败：找不到角色权限配置 {approver.role}")
+                return False
+            
+            pricing_limit = role_permission.pricing_discount_limit or 0
+            settlement_limit = role_permission.settlement_discount_limit or 0
+            
+            # 检查批价单和结算单折扣率
+            violations = []
+            current_pricing_rate = (pricing_order.pricing_total_discount_rate or 1.0) * 100
+            current_settlement_rate = (pricing_order.settlement_total_discount_rate or 1.0) * 100
+            
+            if current_pricing_rate < pricing_limit:
+                violations.append(f"批价单折扣率{current_pricing_rate:.1f}%低于权限下限{pricing_limit}%")
+            
+            if settlement_limit > 0 and current_settlement_rate < settlement_limit:
+                violations.append(f"结算单折扣率{current_settlement_rate:.1f}%低于权限下限{settlement_limit}%")
+            
+            # 如果有违规，在审批记录中标记
+            if violations:
+                violation_text = "; ".join(violations)
+                warning_msg = f"[权限下限违规提醒] {violation_text}"
+                
+                if approval_record.comment:
+                    approval_record.comment = f"{approval_record.comment}\n\n{warning_msg}"
+                else:
+                    approval_record.comment = warning_msg
+                
+                print(f"批价审批权限违规: {violation_text}")
+            else:
+                print("批价审批权限检查通过")
+            
+            return True
+            
+        except Exception as e:
+            print(f"执行批价审批动作失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _execute_settlement_approval(self, approval_record, settlement_order):
+        """执行结算单审批权限检查动作"""
+        try:
+            from app.models.user import User
+            from app.permissions import get_role_permission
+            
+            approver = User.query.get(approval_record.approver_id)
+            if not approver:
+                print(f"结算审批失败：找不到审批人 {approval_record.approver_id}")
+                return False
+            
+            # 获取审批人角色的权限下限配置
+            role_permission = get_role_permission(approver.role, 'settlement_order')
+            if not role_permission:
+                print(f"结算审批失败：找不到角色权限配置 {approver.role}")
+                return False
+            
+            settlement_limit = role_permission.settlement_discount_limit or 0
+            
+            # 检查结算单折扣率
+            violations = []
+            current_settlement_rate = (settlement_order.total_discount_rate or 1.0) * 100
+            
+            if settlement_limit > 0 and current_settlement_rate < settlement_limit:
+                violations.append(f"结算单折扣率{current_settlement_rate:.1f}%低于权限下限{settlement_limit}%")
+            
+            # 如果有违规，在审批记录中标记
+            if violations:
+                violation_text = "; ".join(violations)
+                warning_msg = f"[权限下限违规提醒] {violation_text}"
+                
+                if approval_record.comment:
+                    approval_record.comment = f"{approval_record.comment}\n\n{warning_msg}"
+                else:
+                    approval_record.comment = warning_msg
+                
+                print(f"结算审批权限违规: {violation_text}")
+            else:
+                print("结算审批权限检查通过")
+            
+            return True
+            
+        except Exception as e:
+            print(f"执行结算审批动作失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
     
     # 注意：原来的子步骤查找方法已移除，现在使用分支链模式
 
