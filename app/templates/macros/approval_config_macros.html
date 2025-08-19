@@ -133,9 +133,11 @@
               <option value="project_authorization">项目授权</option>
               <option value="channel_authorization">渠道授权</option>
               <option value="business_authorization">业务授权</option>
+              <option value="customer_service_authorization">客服授权</option>
               <option value="quotation_approval">报价审核</option>
               <option value="email_cc">邮件抄送</option>
               <option value="payment_processing">支付处理</option>
+              <option value="pricing_settlement_approval">批结算审批</option>
             </select>
             <small class="form-text text-muted">选择此分支要执行的具体动作</small>
           </div>
@@ -954,9 +956,15 @@
                         <label for="true_branch_action">执行动作</label>
                         <select class="form-control" id="true_branch_action" name="true_branch_action">
                           <option value="">普通审批</option>
+                          <option value="authorization">授权审批</option>
                           <option value="project_authorization">项目授权</option>
                           <option value="channel_authorization">渠道授权</option>
                           <option value="business_authorization">业务授权</option>
+                          <option value="customer_service_authorization">客服授权</option>
+                          <option value="quotation_approval">报价审核</option>
+                          <option value="email_cc">邮件抄送</option>
+                          <option value="payment_processing">支付处理</option>
+                          <option value="pricing_settlement_approval">批结算审批</option>
                         </select>
                       </div>
                     </div>
@@ -1074,9 +1082,9 @@
                 <option value="project_authorization">项目授权</option>
                 <option value="channel_authorization">渠道授权</option>
                 <option value="business_authorization">业务授权</option>
+                <option value="customer_service_authorization">客服授权</option>
                 <option value="branch_decision">分支决策</option>
-                <option value="pricing_approval">批价审批</option>
-                <option value="settlement_approval">结算审批</option>
+                <option value="pricing_settlement_approval">批结算审批</option>
               </select>
               <small class="form-text text-muted">选择此步骤执行的特殊动作：授权类型用于不同的项目编号生成，分支决策用于条件判断</small>
             </div>
@@ -1233,6 +1241,7 @@
                 <option value="project_authorization">项目授权</option>
                 <option value="channel_authorization">渠道授权</option>
                 <option value="business_authorization">业务授权</option>
+                <option value="customer_service_authorization">客服授权</option>
                 <option value="branch_decision">分支决策</option>
               </select>
               <small class="form-text text-muted">选择此步骤执行的特殊动作：授权类型用于不同的项目编号生成，分支决策用于条件判断</small>
@@ -1632,7 +1641,8 @@
         const actionMap = {
           'project_authorization': '项目授权',
           'channel_authorization': '渠道授权',
-          'business_authorization': '业务授权'
+          'business_authorization': '业务授权',
+          'customer_service_authorization': '客服授权'
         };
         result += ` (${actionMap[action] || action})`;
       }
