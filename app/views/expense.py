@@ -1776,9 +1776,9 @@ def delete_expense(id):
     if not can_edit_data(expense_obj, current_user):
         return jsonify({'success': False, 'message': '您没有权限删除此报销单'})
     
-    # 已审批的报销单不能删除
-    if expense_obj.status not in ['draft', 'pending']:
-        return jsonify({'success': False, 'message': '已审批的报销单不能删除'})
+    # 只允许删除草稿、已拒绝、已召回状态的报销单
+    if expense_obj.status not in ['draft', 'rejected', 'recalled']:
+        return jsonify({'success': False, 'message': '只能删除草稿、已拒绝或已召回状态的报销单'})
     
     try:
         # 🔥 删除关联的云端图片文件（在软删除之前）

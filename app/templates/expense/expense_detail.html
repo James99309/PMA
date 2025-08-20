@@ -172,11 +172,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         {% endif %}
                         
                         <!-- 编辑和删除按钮 -->
-                        {% if expense.owner_id == current_user.id %}
+                        {% if can_edit_data(expense, current_user) %}
                             {% if expense.status in ['draft', 'rejected', 'recalled'] and not expense.is_locked %}
                                 {{ render_button(_('编辑报销单'), url_for('expense.edit_expense', id=expense.id), color='primary', icon='fas fa-edit') }}
-                            {% endif %}
-                            {% if expense.status == 'draft' %}
                                 {{ render_button(_('删除'), None, color='danger', icon='fas fa-trash', type='button', attrs='onclick="deleteExpense(' ~ (expense.id|default('null')) ~ ')"') }}
                             {% endif %}
                         {% endif %}
