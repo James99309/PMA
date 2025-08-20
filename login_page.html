@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="IjQ0Y2I1OTNkZDYwNzc2ZTRkMTc1YzE4YWEzY2RmNzFiYmRlNTlhNGIi.aKSomQ.9jj6LSzT5_AnZ8fIy_cTtbxnwkg">
+    <title>项目管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --pa-blue: #16a0bf;
+            --pa-dark-blue: #0e7c8f;
+            --pa-light-blue: #1db0d3;
+            --pa-bg-light: #f8f9fa;
+        }
+        body {
+            background-color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .top-nav {
+            background-color: #17a2b8;
+            color: white;
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+        .top-nav a {
+            color: white;
+            text-decoration: none;
+            margin-left: 15px;
+        }
+        .top-nav .user-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .top-nav .user-dropdown-toggle {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            min-width: 150px;
+            text-align: right;
+        }
+        .top-nav .user-dropdown-toggle:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .top-nav .user-dropdown-menu {
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+            z-index: 1000;
+            min-width: 160px;
+        }
+        .top-nav .user-dropdown-menu.show {
+            display: block;
+        }
+        .top-nav .user-dropdown-item {
+            display: block;
+            padding: 8px 15px;
+            color: #333;
+            text-decoration: none;
+        }
+        .top-nav .user-dropdown-item:hover {
+            background-color: #f5f5f5;
+        }
+        .top-nav .user-dropdown-item i {
+            margin-right: 8px;
+            width: 16px;
+            text-align: center;
+        }
+        .top-nav .user-info {
+            display: flex;
+            align-items: center;
+        }
+        .top-nav .user-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: #0b5ed7;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 8px;
+            font-size: 12px;
+        }
+        .top-nav .badge {
+            font-size: 0.7rem;
+            font-weight: normal;
+            padding: 0.2em 0.6em;
+            margin-left: 5px;
+        }
+        .top-nav .user-info span {
+            display: flex;
+            align-items: center;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            font-size: 1.4rem;
+            margin: 10px 0;
+        }
+        .logo img {
+            height: 40px;
+            margin-right: 10px;
+        }
+        .logo span {
+            color: var(--pa-blue);
+            font-weight: 300;
+        }
+        .logo strong {
+            color: #333;
+        }
+        /* 主导航样式已移至style.css中统一管理 */
+        .btn-primary {
+            background-color: var(--pa-blue);
+            border-color: var(--pa-blue);
+        }
+        .btn-primary:hover {
+            background-color: var(--pa-dark-blue);
+            border-color: var(--pa-dark-blue);
+        }
+        .btn-outline-primary {
+            color: var(--pa-blue);
+            border-color: var(--pa-blue);
+        }
+        .btn-outline-primary:hover {
+            background-color: var(--pa-blue);
+            border-color: var(--pa-blue);
+        }
+        .card {
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border: 1px solid #e7e7e7;
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #fff;
+            border-bottom: 1px solid #e7e7e7;
+            font-weight: 500;
+        }
+        .dashboard-card {
+            border-radius: 4px;
+            border: 1px solid #e7e7e7;
+            padding: 15px;
+            height: 100%;
+        }
+        .dashboard-title {
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        /* 多级下拉菜单样式 */
+        .dropdown-submenu {
+            position: relative;
+        }
+        
+        .dropdown-submenu .dropdown-menu {
+            position: absolute;
+            left: 100%;
+            top: 0;
+            margin-top: 0;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        
+        .dropdown-item.dropdown-toggle {
+            position: relative;
+        }
+        
+        .dropdown-item.dropdown-toggle::after {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%) rotate(-90deg);
+            content: "▼";
+            font-size: 0.8em;
+        }
+        
+        .dropdown-submenu:hover .dropdown-menu {
+            display: block;
+        }
+        
+        .dropdown-item.dropdown-toggle:hover,
+        .dropdown-item.dropdown-toggle:focus {
+            color: #fff;
+            background-color: var(--pa-blue);
+        }
+    </style>
+    <link href="/static/css/style.css" rel="stylesheet">
+    
+    
+</head>
+<body>
+    <!-- 双层导航栏：上排为logo和系统名称，下排为菜单 -->
+    <div class="header-wrapper navbar-glass-morphism" style="z-index: 1040; position: fixed; top: 0; width: 100%;">
+        <!-- 上排：Logo + 系统名称 + 语言切换 + 账户头像 -->
+        <div class="top-header" style="background: transparent; padding: 8px 0;">
+            <div class="container d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center">
+                    <img src="/static/img/logo.png" alt="Logo" class="main-logo" style="max-height: 32px; width: auto; margin-right: 12px; object-fit: contain;">
+                    <span class="system-title" style="font-size: 1.3rem; font-weight: 500; color: #fff;">PMA 业务机会管理系统</span>
+                </div>
+                
+                
+            </div>
+        </div>
+        
+        <!-- 下排：菜单导航 -->
+        <nav class="main-nav navbar navbar-expand-lg navbar-dark" style="background: transparent; padding: 0;">
+            <div class="container">
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="切换导航" style="border: none; box-shadow: none;">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+            <div class="collapse navbar-collapse" id="mainNavbar">
+                <ul class="navbar-nav main-menu-list" style="width: 220px; max-width: 90vw;">
+                    
+                    
+                    <!-- 移动端语言选择器 - 在菜单最后，双线上方 -->
+                    <li class="nav-item d-lg-none border-top border-light-subtle pt-2 mt-2">
+                        <details>
+                            <summary class="nav-link text-sm py-2 mb-0" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+                                <span>语言设置</span>
+                                <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            </summary>
+                            <ul class="list-unstyled ps-3 mb-0">
+                                <li>
+                                    <a class="nav-link text-sm py-2 mobile-sidebar-language-option" href="#" data-lang="zh">
+                                        <i class="fas fa-check me-2" style="visibility: hidden;" id="mobile-sidebar-check-zh"></i>
+                                        简体中文
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="nav-link text-sm py-2 mobile-sidebar-language-option" href="#" data-lang="en">
+                                        <i class="fas fa-check me-2" style="visibility: hidden;" id="mobile-sidebar-check-en"></i>
+                                        English
+                                    </a>
+                                </li>
+                            </ul>
+                        </details>
+                    </li>
+                </ul>
+                
+                <!-- 移动端用户账户和语言切换 - 移到菜单最后 -->
+                
+            </div>
+        </nav>
+    </div>
+    <style>
+    .navbar-dark .navbar-toggler {
+        border-color: transparent;
+        box-shadow: none;
+    }
+    .navbar-dark .navbar-toggler-icon {
+        background-image: url("data:image/svg+xml;charset=utf8,%3Csvg viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath stroke='rgba%28255,255,255,1%29' stroke-width='2' stroke-linecap='round' stroke-miterlimit='10' d='M4 7h22M4 15h22M4 23h22'/%3E%3C/svg%3E");
+    }
+    /* 激活状态（选中的菜单项） */
+    .navbar-nav .nav-link.active {
+        color: #167ac6 !important;
+        font-weight: bold !important;
+        border-left: 0;
+        border-bottom: 3px solid #167ac6;
+        background: none !important;
+    }
+    
+    /* 焦点状态（点击时不显示特殊样式） */
+    .navbar-nav .nav-link:focus {
+        outline: none !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+    .navbar-nav .nav-link {
+        font-family: 'Microsoft YaHei', Arial, sans-serif;
+        font-weight: 400;
+        color: #fff !important;
+        border-left: 0;
+        border-bottom: 3px solid transparent;
+        background: none !important;
+    }
+    /* 响应式菜单选中样式：移动端为左侧竖线，PC端为底部横线 */
+    @media (max-width: 991.98px) {
+        /* 移动端激活状态（选中的菜单项） */
+        .main-menu-list .nav-link.active {
+            border-left: 4px solid #167ac6 !important;
+            border-bottom: none !important;
+            color: #167ac6 !important;
+            font-weight: bold !important;
+            background: none !important;
+        }
+        
+        /* 移动端焦点状态（点击时不显示特殊样式） */
+        .main-menu-list .nav-link:focus {
+            outline: none !important;
+            box-shadow: none !important;
+            border: none !important;
+        }
+    }
+    @media (min-width: 992px) {
+        /* 桌面端激活状态（选中的菜单项） */
+        .main-menu-list .nav-link.active {
+            border-left: none !important;
+            border-bottom: 3px solid #167ac6 !important;
+            color: #167ac6 !important;
+            font-weight: bold !important;
+            background: none !important;
+        }
+        
+        /* 桌面端焦点状态（点击时不显示特殊样式） */
+        .main-menu-list .nav-link:focus {
+            outline: none !important;
+            box-shadow: none !important;
+            border: none !important;
+        }
+    }
+    /* 主内容区顶部padding，避免菜单遮挡 - 双层导航栏需要更多空间 */
+    body { padding-top: 110px !important; }
+    @media (max-width: 991.98px) { body { padding-top: 140px !important; } }
+    .main-nav.fixed-top { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    
+    /* 系统标题响应式样式 */
+    .logo-title-wrap {
+        flex: 1;
+        min-width: 0;
+        max-width: calc(100vw - 120px);
+    }
+    
+    .logo-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
+    }
+    
+    @media (max-width: 768px) {
+        .logo-title {
+            font-size: 1.1rem !important;
+            max-width: calc(100vw - 160px);
+        }
+    }
+    
+    @media (max-width: 576px) {
+        .logo-title {
+            font-size: 1rem !important;
+            max-width: calc(100vw - 140px);
+        }
+    }
+    
+    /* 胶囊型用户头像样式 */
+    .user-avatar-capsule {
+        background: #b13a5b;
+        border-radius: 20px;
+        padding: 6px 12px 6px 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        min-height: 32px;
+    }
+    
+    .user-avatar-capsule:hover {
+        background: #9d2f4a;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(177, 58, 91, 0.3);
+    }
+    
+    .user-avatar-capsule .avatar-initial {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #fff;
+        margin-right: 8px;
+    }
+    
+    .user-avatar-capsule .user-name {
+        color: #fff;
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin-right: 6px;
+    }
+    
+    .user-avatar-capsule .dropdown-arrow {
+        color: #fff;
+        font-size: 0.7rem;
+    }
+    
+    /* 通知徽章 */
+    .notification-badge {
+        position: absolute;
+        top: -2px;
+        right: -2px;
+        background: #dc3545;
+        color: white;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        font-size: 0.65rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        border: 2px solid #000;
+    }
+    
+    /* 移动端胶囊型头像样式 */
+    .user-avatar-capsule-mobile {
+        background: #b13a5b;
+        border-radius: 16px;
+        padding: 4px 10px 4px 4px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .user-avatar-capsule-mobile .avatar-initial-mobile {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #fff;
+    }
+    
+            .user-avatar-capsule-mobile .user-name-mobile {
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        
+        /* 语言切换子菜单样式 */
+        .dropdown-submenu {
+            position: relative;
+        }
+        
+        .dropdown-submenu .dropdown-menu {
+            position: absolute;
+            top: 0;
+            left: 100%;
+            margin-top: -1px;
+            display: none;
+        }
+        
+        .dropdown-submenu:hover .dropdown-menu {
+            display: block;
+        }
+        
+        .dropdown-submenu .dropdown-toggle::after {
+            transform: rotate(-90deg);
+            float: right;
+            margin-top: 8px;
+        }
+    </style>
+
+    
+        
+    
+
+    <main class="container mb-5">
+        
+<style>
+/* 登录页面语言下拉菜单样式修复 - 使用更高权重的选择器 */
+#languageDropdown + .dropdown-menu {
+    background-color: #ffffff !important;
+    border: 1px solid #dee2e6 !important;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    border-radius: 0.375rem !important;
+    z-index: 1050 !important;
+}
+
+#languageDropdown + .dropdown-menu .dropdown-item {
+    color: #212529 !important;
+    text-decoration: none !important;
+    background-color: transparent !important;
+    border: 0 !important;
+    padding: 0.5rem 1rem !important;
+    font-size: 0.875rem !important;
+    line-height: 1.25rem !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+#languageDropdown + .dropdown-menu .dropdown-item:hover,
+#languageDropdown + .dropdown-menu .dropdown-item:focus {
+    color: #1e2125 !important;
+    background-color: #f8f9fa !important;
+}
+
+#languageDropdown + .dropdown-menu .dropdown-item:active {
+    color: #ffffff !important;
+    background-color: #0d6efd !important;
+}
+
+#languageDropdown + .dropdown-menu .dropdown-item i {
+    color: #198754 !important; /* 绿色对勾 */
+    width: 1rem !important;
+    text-align: center !important;
+    margin-right: 0.5rem !important;
+}
+
+/* 语言切换按钮样式 */
+#languageDropdown {
+    color: #6c757d !important;
+    border: none !important;
+    background: none !important;
+    padding: 0.25rem 0.5rem !important;
+    font-size: 0.875rem !important;
+}
+
+#languageDropdown:hover {
+    color: #495057 !important;
+}
+
+#languageDropdown i.fas.fa-globe {
+    color: #6c757d !important;
+}
+
+#currentLanguageText {
+    color: #6c757d !important;
+}
+
+/* 确保所有下拉菜单项文字都是深色 */
+.dropdown-menu[aria-labelledby="languageDropdown"] .dropdown-item {
+    color: #212529 !important;
+}
+
+.dropdown-menu[aria-labelledby="languageDropdown"] .dropdown-item:hover {
+    color: #1e2125 !important;
+    background-color: #f8f9fa !important;
+}
+
+/* 强制覆盖任何可能的白色文字样式 */
+.card .dropdown-menu .dropdown-item {
+    color: #212529 !important;
+}
+
+.card .dropdown-menu .dropdown-item:not(:hover):not(:focus):not(:active) {
+    color: #212529 !important;
+}
+</style>
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <!-- 语言切换器 -->
+                    <div class="d-flex justify-content-end mb-3">
+                        <div class="dropdown">
+                            <button class="btn btn-link btn-sm dropdown-toggle text-decoration-none" type="button" id="languageDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-globe me-1"></i>
+                                <span id="currentLanguageText">简体中文</span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="languageDropdown" style="background-color: #ffffff; border: 1px solid #dee2e6; box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);">
+                                <li>
+                                    <a class="dropdown-item language-option" href="#" data-lang="zh" style="color: #212529 !important; text-decoration: none; padding: 0.5rem 1rem; display: flex; align-items: center;">
+                                        <i class="fas fa-check me-2" style="visibility: hidden; color: #198754 !important; width: 1rem; text-align: center; margin-right: 0.5rem;" id="check-zh"></i>
+                                        <span style="color: #212529 !important;">简体中文</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item language-option" href="#" data-lang="en" style="color: #212529 !important; text-decoration: none; padding: 0.5rem 1rem; display: flex; align-items: center;">
+                                        <i class="fas fa-check me-2" style="visibility: hidden; color: #198754 !important; width: 1rem; text-align: center; margin-right: 0.5rem;" id="check-en"></i>
+                                        <span style="color: #212529 !important;">English</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mb-4">
+                        <h4 class="mb-1">欢迎登录销售项目管理系统</h4>
+                        <p class="text-muted small">Original evertacsolutions</p>
+                    </div>
+
+                    
+                        
+                    
+
+                    <form method="POST" class="needs-validation" novalidate>
+                        <input type="hidden" name="csrf_token" value="IjQ0Y2I1OTNkZDYwNzc2ZTRkMTc1YzE4YWEzY2RmNzFiYmRlNTlhNGIi.aKSomQ.9jj6LSzT5_AnZ8fIy_cTtbxnwkg">
+                        <div class="mb-3">
+                            <label for="username" class="form-label">用户名或邮箱</label>
+                            <input type="text" class="form-control" id="username" name="username"
+                                   placeholder="请输入用户名或邮箱" required autofocus>
+                            <div class="invalid-feedback">
+                                请输入用户名或邮箱
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">密码</label>
+                            <div class="input-group has-validation">
+                                <input type="password" class="form-control" id="password" name="password"
+                                       placeholder="请输入密码" required>
+                                <button class="btn btn-outline-secondary" type="button" id="togglePassword" tabindex="-1">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <div class="invalid-feedback">
+                                    请输入密码
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                            <label class="form-check-label" for="remember">记住我</label>
+                        </div>
+                        <div class="d-grid gap-2 mb-3">
+                            <button type="submit" class="btn btn-primary">登录</button>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <a href="/auth/forgot-password" class="text-decoration-none small">忘记密码?</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 密码显示/隐藏切换
+    document.getElementById('togglePassword').addEventListener('click', function() {
+        const passwordInput = document.getElementById('password');
+        const icon = this.querySelector('i');
+
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            icon.classList.remove('bi-eye');
+            icon.classList.add('bi-eye-slash');
+        } else {
+            passwordInput.type = 'password';
+            icon.classList.remove('bi-eye-slash');
+            icon.classList.add('bi-eye');
+        }
+    });
+
+    // 表单验证
+    (function() {
+        'use strict'
+        var forms = document.querySelectorAll('.needs-validation');
+
+        Array.prototype.slice.call(forms).forEach(function(form) {
+            form.addEventListener('submit', function(event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+
+                form.classList.add('was-validated');
+            }, false);
+        });
+    })();
+
+    // 语言切换功能
+    document.addEventListener('DOMContentLoaded', function() {
+        // 每次页面加载时刷新语言状态
+        updateLanguageDisplay();
+        
+        // 监听页面可见性变化，当用户从系统内返回登录页面时刷新语言状态
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                updateLanguageDisplay();
+            }
+        });
+        
+        // 监听存储变化，当其他页面更改语言时同步
+        window.addEventListener('storage', function(e) {
+            if (e.key === 'language_changed') {
+                updateLanguageDisplay();
+            }
+        });
+    });
+    
+    // 注意：updateLanguageDisplay 函数现在在 base.html 中定义
+
+    // 语言切换事件处理
+    function initLanguageSwitcher() {
+        document.querySelectorAll('.language-option').forEach(function(option) {
+            option.addEventListener('click', function(e) {
+                e.preventDefault();
+                const selectedLang = this.getAttribute('data-lang');
+                
+                // 获取CSRF令牌
+                const csrfToken = document.querySelector('input[name="csrf_token"]')?.value;
+                
+                if (!csrfToken) {
+                    console.error('未找到CSRF令牌');
+                    alert('语言切换失败：安全令牌未找到');
+                    return;
+                }
+                
+                // 发送语言切换请求
+                fetch('/language/switch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({ language: selectedLang })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 通知其他页面语言已变更
+                        if (typeof(Storage) !== "undefined") {
+                            localStorage.setItem('language_changed', Date.now());
+                        }
+                        // 刷新页面以应用新语言
+                        window.location.reload();
+                    } else {
+                        console.error('Language switch failed:', data.message);
+                        alert(data.message || '语言切换失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error switching language:', error);
+                    alert('语言切换失败，请稍后重试');
+                });
+            });
+        });
+    }
+    
+    // 初始化语言切换器
+    document.addEventListener('DOMContentLoaded', function() {
+        initLanguageSwitcher();
+        initDropdownHoverEffects();
+    });
+    
+    // 初始化下拉菜单悬停效果
+    function initDropdownHoverEffects() {
+        const dropdownItems = document.querySelectorAll('.language-option');
+        
+        dropdownItems.forEach(function(item) {
+            // 鼠标悬停时
+            item.addEventListener('mouseenter', function() {
+                this.style.backgroundColor = '#f8f9fa';
+                const span = this.querySelector('span');
+                if (span) span.style.color = '#1e2125';
+            });
+            
+            // 鼠标离开时
+            item.addEventListener('mouseleave', function() {
+                this.style.backgroundColor = 'transparent';
+                const span = this.querySelector('span');
+                if (span) span.style.color = '#212529';
+            });
+        });
+    }
+</script>
+
+    </main>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 响应式管理器 - 必须在其他JS之前加载 -->
+    <script src="/static/js/responsive-manager.js"></script>
+    <script>
+        // 用户下拉菜单交互
+        document.addEventListener('DOMContentLoaded', function() {
+            const userDropdown = document.getElementById('userDropdown');
+            const userDropdownMenu = document.getElementById('userDropdownMenu');
+
+            if(userDropdown && userDropdownMenu) {
+                userDropdown.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    userDropdownMenu.classList.toggle('show');
+                });
+
+                // 点击其他区域关闭下拉菜单
+                document.addEventListener('click', function() {
+                    userDropdownMenu.classList.remove('show');
+                });
+
+                // 防止点击菜单内部时关闭菜单
+                userDropdownMenu.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                });
+            }
+            
+            // 处理多级下拉菜单
+            const dropdownItems = document.querySelectorAll('.dropdown-item.dropdown-toggle');
+            dropdownItems.forEach(item => {
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // 找到下一级菜单
+                    const submenu = this.nextElementSibling;
+                    if (submenu && submenu.classList.contains('dropdown-menu')) {
+                        submenu.classList.toggle('show');
+                    }
+                });
+            });
+            
+            // 点击其他区域关闭所有子菜单
+            document.addEventListener('click', function() {
+                const submenus = document.querySelectorAll('.dropdown-submenu.show');
+                submenus.forEach(menu => menu.classList.remove('show'));
+            });
+
+            // 设置AJAX请求的CSRF令牌
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+            // 为所有AJAX请求添加CSRF令牌
+            $(document).ajaxSend(function(e, xhr, options) {
+                xhr.setRequestHeader("X-CSRFToken", csrfToken);
+            });
+
+            // 为fetch请求准备CSRF头
+            window.fetchWithCsrf = function(url, options = {}) {
+                options.headers = options.headers || {};
+                options.headers['X-CSRFToken'] = csrfToken;
+                return fetch(url, options);
+            };
+            
+            // 语言切换功能
+            initLanguageSwitcher();
+            
+            // 移动端菜单自动收缩功能
+            initMobileMenuCollapse();
+            
+            // 初始化语言显示状态
+            updateLanguageDisplay();
+        });
+
+        // 表头下拉筛选交互脚本
+        function toggleAll(allCheckbox, field) {
+            const options = document.querySelectorAll(`#${field}_options input[type="checkbox"]`);
+            options.forEach(cb => cb.checked = allCheckbox.checked);
+        }
+
+        function filterOptions(input) {
+            const value = input.value.toLowerCase();
+            const container = input.closest('.dropdown-menu').querySelector('.filter-options');
+            const items = container.querySelectorAll('.form-check');
+            items.forEach(item => {
+                const label = item.querySelector('label');
+                const text = label.textContent.toLowerCase();
+                item.style.display = text.includes(value) ? '' : 'none';
+            });
+        }
+        
+        // 🌍 更新语言显示状态的通用函数
+        function updateLanguageDisplay() {
+            // 添加缓存破坏参数确保每次都获取最新状态
+            fetch('/language/current?' + new Date().getTime())
+                .then(response => response.json())
+                .then(data => {
+                    const currentLang = data.language;
+                    
+                    // 更新桌面端语言切换器显示
+                    const mainCurrentLanguage = document.getElementById('mainCurrentLanguage');
+                    if (mainCurrentLanguage) {
+                        if (currentLang === 'en') {
+                            mainCurrentLanguage.textContent = 'English';
+                        } else {
+                            mainCurrentLanguage.textContent = '简体中文';
+                        }
+                    }
+                    
+                    // 更新移动端语言切换器显示（如果存在）
+                    const mobileCurrentLanguageTop = document.getElementById('mobileCurrentLanguageTop');
+                    if (mobileCurrentLanguageTop) {
+                        if (currentLang === 'en') {
+                            mobileCurrentLanguageTop.textContent = 'English';
+                        } else {
+                            mobileCurrentLanguageTop.textContent = '简体中文';
+                        }
+                    }
+                    
+                    // 更新登录页面的语言显示（如果存在）
+                    const currentLangText = document.getElementById('currentLanguageText');
+                    if (currentLangText) {
+                        if (currentLang === 'en') {
+                            currentLangText.textContent = 'English';
+                        } else {
+                            currentLangText.textContent = '简体中文';
+                        }
+                    }
+                    
+                    // 更新桌面端选中状态图标
+                    document.querySelectorAll('.main-language-option i').forEach(icon => {
+                        icon.style.visibility = 'hidden';
+                    });
+                    const mainCheckIcon = document.getElementById(`main-check-${currentLang}`);
+                    if (mainCheckIcon) {
+                        mainCheckIcon.style.visibility = 'visible';
+                    }
+                    
+                    // 更新移动端侧边栏语言选中状态图标
+                    document.querySelectorAll('.mobile-sidebar-language-option i').forEach(icon => {
+                        icon.style.visibility = 'hidden';
+                    });
+                    const mobileSidebarCheckIcon = document.getElementById(`mobile-sidebar-check-${currentLang}`);
+                    if (mobileSidebarCheckIcon) {
+                        mobileSidebarCheckIcon.style.visibility = 'visible';
+                    }
+                    
+                    // 更新登录页面的选中状态图标（如果存在）
+                    document.querySelectorAll('.language-option i').forEach(icon => {
+                        icon.style.visibility = 'hidden';
+                    });
+                    const checkIcon = document.getElementById(`check-${currentLang}`);
+                    if (checkIcon) {
+                        checkIcon.style.visibility = 'visible';
+                    }
+                })
+                .catch(error => console.error('获取当前语言失败:', error));
+        }
+        
+        // 语言切换功能初始化
+        function initLanguageSwitcher() {
+            // 初始化语言显示状态
+            updateLanguageDisplay();
+            
+            // 绑定桌面端语言切换事件
+            document.querySelectorAll('.main-language-option').forEach(option => {
+                option.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const selectedLang = this.getAttribute('data-lang');
+                    switchLanguage(selectedLang);
+                });
+            });
+            
+            // 绑定移动端侧边栏语言切换事件  
+            document.querySelectorAll('.mobile-sidebar-language-option').forEach(option => {
+                option.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const selectedLang = this.getAttribute('data-lang');
+                    switchLanguage(selectedLang);
+                });
+            });
+            
+            // 绑定用户菜单语言切换事件（如果存在）
+            document.querySelectorAll('.language-option').forEach(option => {
+                option.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const selectedLang = this.getAttribute('data-lang');
+                    switchLanguage(selectedLang);
+                });
+            });
+        }
+        
+        // 移动端菜单自动收缩功能
+        function initMobileMenuCollapse() {
+            // 获取所有移动端的details元素（下拉菜单）
+            const mobileMenus = document.querySelectorAll('.d-lg-none details');
+            
+            mobileMenus.forEach(menu => {
+                menu.addEventListener('toggle', function() {
+                    if (this.open) {
+                        // 如果当前菜单被打开，关闭其他所有菜单
+                        mobileMenus.forEach(otherMenu => {
+                            if (otherMenu !== this && otherMenu.open) {
+                                otherMenu.open = false;
+                            }
+                        });
+                    }
+                });
+            });
+            
+            // 点击菜单项后自动关闭移动端菜单
+            const mobileNavLinks = document.querySelectorAll('.d-lg-none .nav-link:not(summary)');
+            const navbarToggler = document.querySelector('.navbar-toggler');
+            const mainNavbar = document.getElementById('mainNavbar');
+            
+            mobileNavLinks.forEach(link => {
+                // 排除有下拉菜单的链接
+                if (!link.closest('details') || link.tagName.toLowerCase() !== 'summary') {
+                    link.addEventListener('click', function(e) {
+                        // 如果是普通链接（不是JavaScript链接），关闭移动端菜单
+                        if (this.href && !this.href.includes('javascript:') && !this.href.includes('#')) {
+                            setTimeout(() => {
+                                if (mainNavbar && mainNavbar.classList.contains('show')) {
+                                    // 触发collapse关闭
+                                    const bsCollapse = bootstrap.Collapse.getInstance(mainNavbar);
+                                    if (bsCollapse) {
+                                        bsCollapse.hide();
+                                    } else {
+                                        mainNavbar.classList.remove('show');
+                                    }
+                                }
+                            }, 100);
+                        }
+                    });
+                }
+            });
+        }
+        
+        // 统一的语言切换函数
+        function switchLanguage(selectedLang) {
+            // 获取CSRF令牌
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
+                              document.querySelector('input[name="csrf_token"]')?.value;
+            
+            if (!csrfToken) {
+                console.error('未找到CSRF令牌');
+                alert('语言切换失败：安全令牌未找到');
+                return;
+            }
+            
+            // 发送语言切换请求
+            fetch('/language/switch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ language: selectedLang })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 通知其他页面语言已变更
+                    if (typeof(Storage) !== "undefined") {
+                        localStorage.setItem('language_changed', Date.now());
+                    }
+                    // 刷新页面以应用新语言
+                    window.location.reload();
+                } else {
+                    alert(data.message || '语言切换失败');
+                }
+            })
+            .catch(error => {
+                console.error('语言切换失败:', error);
+                alert('语言切换失败，请稍后重试');
+            });
+        }
+    </script>
+    
+    <!-- 导航栏毛玻璃滚动效果 -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const navbar = document.querySelector('.navbar-glass-morphism');
+        if (!navbar) return;
+        
+        let lastScrollTop = 0;
+        const scrollThreshold = 50;
+        
+        function updateNavbarOnScroll() {
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            
+            // 添加滚动类来增强毛玻璃效果
+            if (scrollTop > scrollThreshold) {
+                navbar.classList.add('navbar-scrolled');
+            } else {
+                navbar.classList.remove('navbar-scrolled');
+            }
+            
+            lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
+        }
+        
+        // 使用 requestAnimationFrame 优化性能
+        let ticking = false;
+        function requestTick() {
+            if (!ticking) {
+                requestAnimationFrame(updateNavbarOnScroll);
+                ticking = true;
+                setTimeout(() => { ticking = false; }, 10);
+            }
+        }
+        
+        // 监听滚动事件
+        window.addEventListener('scroll', requestTick, { passive: true });
+        
+        // 初始检查
+        updateNavbarOnScroll();
+    });
+    </script>
+    
+    
+</body>
+</html>

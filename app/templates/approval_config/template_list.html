@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros/approval_config_macros.html" import template_list_table with context %}
+{% from "approval_config/components/template_list_table.html" import template_list_table with context %}
 {% from 'macros/ui_helpers.html' import render_button %}
 
 {% block title %}审批流程模板管理{% endblock %}
@@ -60,4 +60,85 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block head %}
+  <!-- 审批配置样式 -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/approval-config.css') }}">
+{% endblock %}
+
+{% block scripts %}
+  <!-- 审批配置重构模块 -->
+  <script src="{{ url_for('static', filename='js/approval_config/approval-config.js') }}"></script>
+  
+  <!-- 模板专用功能 -->
+  <script>
+    // 删除模板确认函数
+    function showDeleteConfirm(templateId, templateName) {
+      if (typeof window.showConfirmDialog === 'function') {
+        window.showConfirmDialog({
+          title: '确认删除模板',
+          message: `确定要删除模板 "${templateName}" 吗？\n\n删除后无法恢复，请谨慎操作。`,
+          type: 'danger',
+          confirmText: '确认删除',
+          cancelText: '取消',
+          dialogId: 'templateDeleteDialog',
+          onConfirm: function() {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `/admin/approval/process/${templateId}/delete`;
+            
+            const csrfToken = document.createElement('input');
+            csrfToken.type = 'hidden';
+            csrfToken.name = 'csrf_token';
+            csrfToken.value = {{ csrf_token()|tojson }};
+            form.appendChild(csrfToken);
+            
+            document.body.appendChild(form);
+            form.submit();
+          }
+        });
+      } else {
+        if (confirm(`确定要删除模板 "${templateName}" 吗？`)) {
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = `/admin/approval/process/${templateId}/delete`;
+          
+          const csrfToken = document.createElement('input');
+          csrfToken.type = 'hidden';
+          csrfToken.name = 'csrf_token';
+          csrfToken.value = {{ csrf_token()|tojson }};
+          form.appendChild(csrfToken);
+          
+          document.body.appendChild(form);
+          form.submit();
+        }
+      }
+    }
+    
+    // 启用/禁用模板确认函数
+    function confirmToggleTemplate(templateId, templateName, isActive) {
+      const action = isActive ? '禁用' : '启用';
+      if (confirm(`确定要${action}模板 "${templateName}" 吗？`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/admin/approval/process/${templateId}/toggle`;
+        
+        const csrfToken = document.createElement('input');
+        csrfToken.type = 'hidden';
+        csrfToken.name = 'csrf_token';
+        csrfToken.value = {{ csrf_token()|tojson }};
+        form.appendChild(csrfToken);
+        
+        const isActiveInput = document.createElement('input');
+        isActiveInput.type = 'hidden';
+        isActiveInput.name = 'is_active';
+        isActiveInput.value = !isActive;
+        form.appendChild(isActiveInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+      }
+    }
+  </script>
 {% endblock %} 

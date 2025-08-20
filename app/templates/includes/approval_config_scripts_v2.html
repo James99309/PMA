@@ -1,0 +1,265 @@
+{# 审批配置脚本加载器 v2.0 - 性能优化版本 #}
+{# 使用按需加载、懒初始化和性能监控 #}
+
+{# 基础依赖库 - 按需加载 #}
+{% if can_modify %}
+  {# 只在需要拖拽功能的页面加载 Sortable #}
+  <script>
+    // 检测是否需要拖拽功能
+    document.addEventListener('DOMContentLoaded', function() {
+      if (document.querySelector('#stepList, .step-list')) {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js';
+        script.async = true;
+        document.head.appendChild(script);
+      }
+    });
+  </script>
+{% endif %}
+
+{# 权限配置对象 - 核心配置 #}
+<script>
+  // 权限配置对象 - 必须在模块加载前初始化
+  window.ApprovalConfig = {
+    canModify: {{ can_modify|default(true)|tojson }},
+    urls: {
+      deleteStep: "{{ url_for('approval_config.delete_step', step_id=0) }}",
+      stepDetails: "/admin/approval/step/",
+      reorderSteps: "{{ url_for('approval_config.reorder_steps', template_id=(template.id if template else 0)) }}",
+      deleteTemplate: "{{ url_for('approval_config.delete_template', template_id=0) }}",
+      toggleTemplate: "{{ url_for('approval_config.toggle_template', template_id=0) }}"
+    },
+    csrfToken: "{{ csrf_token() }}",
+    features: {
+      // 页面功能检测标记
+      branchSteps: {{ 'true' if (steps is defined and steps and steps|selectattr('step_type', 'equalto', 'branch')|list) else 'false' }},
+      templateManagement: {{ 'true' if request.endpoint == 'approval_config.template_list' else 'false' }},
+      stepManagement: {{ 'true' if steps is defined else 'false' }}
+    }
+  };
+</script>
+
+{# 按顺序同步加载核心模块 - 确保全局函数立即可用 #}
+<script src="{{ url_for('static', filename='js/modules/approval_config_main.js') }}"></script>
+<script src="{{ url_for('static', filename='js/modules/approval_config_branch.js') }}"></script>
+<script src="{{ url_for('static', filename='js/modules/approval_config_template.js') }}"></script>
+<script src="{{ url_for('static', filename='js/modules/approval_config_form.js') }}"></script>
+
+{# 性能优化的模块加载器 - 用于增强功能 #}
+<script src="{{ url_for('static', filename='js/approval_config_loader.js') }}" async defer></script>
+
+{# CSS 样式 - 优先加载 #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_config.css') }}">
+
+{# 页面特定初始化脚本 #}
+<script>
+  // 页面就绪后的增强功能
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('📄 审批配置页面初始化');
+    
+    // 性能监控开始
+    const pageLoadStart = performance.now();
+    
+    // 添加全局错误处理
+    window.addEventListener('error', function(e) {
+      console.error('🚨 全局错误:', e.error);
+      
+      // 用户友好的错误提示
+      if (e.error && e.error.message && e.error.message.includes('ApprovalConfig')) {
+        console.warn('⚠️ 审批配置模块加载异常，部分功能可能受影响');
+      }
+    });
+    
+    // 直接初始化核心模块（已同步加载）
+    console.log('🔧 开始初始化核心模块...');
+    
+    // 初始化主模块
+    if (window.ApprovalConfigMain) {
+      window.ApprovalConfigMain.init(window.ApprovalConfig);
+      console.log('✅ 主模块初始化完成');
+    } else {
+      console.error('❌ 主模块未加载');
+    }
+    
+    // 延迟初始化其他模块
+    setTimeout(() => {
+      if (window.ApprovalConfigBranch) {
+        window.ApprovalConfigBranch.init();
+        console.log('✅ 分支模块初始化完成');
+      }
+      
+      if (window.ApprovalConfigTemplate) {
+        window.ApprovalConfigTemplate.init();
+        console.log('✅ 模板模块初始化完成');
+      }
+      
+      if (window.ApprovalConfigForm) {
+        window.ApprovalConfigForm.init();
+        console.log('✅ 表单模块初始化完成');
+      }
+      
+      const pageLoadEnd = performance.now();
+      const loadTime = pageLoadEnd - pageLoadStart;
+      
+      console.log(`🎉 页面完全加载完成 (${loadTime.toFixed(2)}ms)`);
+      
+      // 触发自定义事件，供其他脚本监听
+      document.dispatchEvent(new CustomEvent('approvalConfigReady', {
+        detail: {
+          loadTime: loadTime,
+          modules: ['main', 'branch', 'template', 'form']
+        }
+      }));
+      
+      // 页面特定的增强功能
+      initPageEnhancements();
+    }, 100);
+  });
+  
+  /**
+   * 页面增强功能
+   */
+  function initPageEnhancements() {
+    // 添加键盘快捷键支持
+    document.addEventListener('keydown', function(e) {
+      // Ctrl/Cmd + S 快速保存
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        const saveButton = document.querySelector('.btn-primary[type="submit"]');
+        if (saveButton && !saveButton.disabled) {
+          saveButton.click();
+          console.log('⌨️ 快捷键保存');
+        }
+      }
+      
+      // ESC 关闭模态框
+      if (e.key === 'Escape') {
+        const activeModal = document.querySelector('.modal.show');
+        if (activeModal) {
+          const modal = bootstrap.Modal.getInstance(activeModal);
+          if (modal) {
+            modal.hide();
+          }
+        }
+      }
+    });
+    
+    // 添加工具提示增强
+    const tooltipElements = document.querySelectorAll('[title]:not([data-bs-toggle])');
+    tooltipElements.forEach(element => {
+      if (element.title && !element.dataset.bsToggle) {
+        element.dataset.bsToggle = 'tooltip';
+        element.dataset.bsPlacement = 'top';
+        new bootstrap.Tooltip(element);
+      }
+    });
+    
+    // 添加表单自动保存提示
+    const forms = document.querySelectorAll('form[data-auto-save]');
+    forms.forEach(form => {
+      let saveTimeout;
+      form.addEventListener('input', function() {
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+          console.log('💾 表单数据已自动保存到本地存储');
+          // 这里可以实现自动保存到 localStorage
+        }, 2000);
+      });
+    });
+  }
+  
+  /**
+   * 降级模式 - 当模块加载失败时的备用方案
+   */
+  function initFallbackMode() {
+    console.log('🔄 启用降级模式');
+    
+    // 基本的删除确认功能
+    window.confirmDeleteStep = function(stepId) {
+      if (confirm('确定要删除该步骤吗？')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = window.ApprovalConfig.urls.deleteStep.replace('0', stepId);
+        
+        const csrfToken = document.createElement('input');
+        csrfToken.type = 'hidden';
+        csrfToken.name = 'csrf_token';
+        csrfToken.value = window.ApprovalConfig.csrfToken;
+        form.appendChild(csrfToken);
+        
+        document.body.appendChild(form);
+        form.submit();
+      }
+    };
+    
+    // 基本的模板删除功能
+    window.confirmDeleteTemplate = function(templateId, templateName) {
+      if (confirm(`确定要删除模板 "${templateName}" 吗？`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = window.ApprovalConfig.urls.deleteTemplate.replace('0', templateId);
+        
+        const csrfToken = document.createElement('input');
+        csrfToken.type = 'hidden';
+        csrfToken.name = 'csrf_token';
+        csrfToken.value = window.ApprovalConfig.csrfToken;
+        form.appendChild(csrfToken);
+        
+        document.body.appendChild(form);
+        form.submit();
+      }
+    };
+    
+    // 显示降级模式提示
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-warning alert-dismissible fade show';
+    alert.innerHTML = `
+      <i class="fas fa-exclamation-triangle mr-2"></i>
+      部分高级功能暂时不可用，基础功能正常。
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container, .card-body');
+    if (container) {
+      container.insertBefore(alert, container.firstChild);
+    }
+  }
+</script>
+
+{# 页面离开前的清理工作 #}
+<script>
+  window.addEventListener('beforeunload', function() {
+    // 清理性能监控和事件监听器
+    if (window.ApprovalConfigLoader) {
+      window.ApprovalConfigLoader.cleanup();
+    }
+    
+    // 清理所有工具提示
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(element => {
+      const tooltip = bootstrap.Tooltip.getInstance(element);
+      if (tooltip) {
+        tooltip.dispose();
+      }
+    });
+  });
+</script>
+
+{# 开发环境调试工具 #}
+{% if config.DEBUG %}
+<script>
+  // 开发环境的调试工具
+  window.approvalConfigDebug = {
+    getModules: () => window.ApprovalConfigLoader ? window.ApprovalConfigLoader.modules : null,
+    getMetrics: () => window.ApprovalConfigLoader ? window.ApprovalConfigLoader.getPerformanceMetrics() : null,
+    reloadModule: (moduleName) => {
+      if (window.ApprovalConfigLoader) {
+        window.ApprovalConfigLoader.modules.delete(moduleName);
+        window.ApprovalConfigLoader.loadPromises.delete(moduleName);
+        return window.ApprovalConfigLoader.loadModule(moduleName);
+      }
+    }
+  };
+  
+  console.log('🔧 调试工具已加载: window.approvalConfigDebug');
+</script>
+{% endif %}

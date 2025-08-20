@@ -313,7 +313,8 @@ def template_list():
         'approval_config/template_list.html',
         templates=templates,
         object_types=object_types,
-        current_object_type=object_type
+        current_object_type=object_type,
+        can_modify=True  # 管理员权限页面默认可修改
     )
 
 
@@ -363,6 +364,58 @@ def create_template():
         current_app.logger.error(f"显示创建模板页面时出错: {e}")
         flash('加载创建模板页面失败，请重试', 'danger')
         return redirect(url_for('approval_config.list_templates'))
+
+
+@approval_config_bp.route('/api/get-value-mapping')
+@login_required
+@admin_required
+def get_value_mapping():
+    """获取字段值的中文映射API"""
+    field_name = request.args.get('field')
+    field_value = request.args.get('value')
+    
+    if not field_name or not field_value:
+        return jsonify({
+            'success': False,
+            'message': '缺少必要参数 field 或 value'
+        }), 400
+    
+    try:
+        from app.utils.field_value_helper import get_project_type_mapping, get_project_stage_mapping, get_report_source_mapping
+        from app.utils.dictionary_helpers import PROJECT_TYPE_LABELS, PROJECT_STAGE_LABELS, REPORT_SOURCE_LABELS
+        
+        # 根据字段名选择对应的映射函数
+        mapping_functions = {
+            'project_type': get_project_type_mapping,
+            'current_stage': get_project_stage_mapping, 
+            'report_source': get_report_source_mapping
+        }
+        
+        mapped_value = field_value  # 默认使用原值
+        
+        if field_name in mapping_functions:
+            mapping_dict = mapping_functions[field_name]()
+            if field_value in mapping_dict:
+                mapped_value = mapping_dict[field_value]
+                current_app.logger.info(f"字段值映射成功: {field_name}.{field_value} → {mapped_value}")
+            else:
+                current_app.logger.info(f"未找到映射: {field_name}.{field_value}")
+        else:
+            current_app.logger.info(f"不支持的字段映射: {field_name}")
+        
+        return jsonify({
+            'success': True,
+            'field': field_name,
+            'original_value': field_value,
+            'mapped_value': mapped_value
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"获取字段值映射失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'获取字段值映射失败: {str(e)}'
+        }), 500
 
 
 @approval_config_bp.route('/api/get-field-values')
@@ -419,8 +472,13 @@ def template_detail(template_id):
     pending_instances = [i for i in all_instances if i.status == ApprovalStatus.PENDING]
     completed_instances = [i for i in all_instances if i.status != ApprovalStatus.PENDING]
     
-    # 检查是否可以修改（只有进行中的实例才禁止修改）
-    can_modify = len(pending_instances) == 0
+    # 修正权限逻辑：区分结构性修改和内容编辑
+    # 结构性修改（删除步骤、重新排序）：进行中实例时禁止
+    can_modify_structure = len(pending_instances) == 0
+    # 内容编辑（修改步骤属性）：总是允许，因为使用快照机制
+    can_edit_content = True
+    # 为了向后兼容，保持can_modify变量，但改为允许内容编辑
+    can_modify = can_edit_content
     
     # 保持向后兼容的 in_use 变量（严格模式）
     in_use = check_template_in_use(template_id, strict_mode=True)
@@ -439,7 +497,9 @@ def template_detail(template_id):
         steps=steps,
         users=users,
         in_use=in_use,  # 保持向后兼容
-        can_modify=can_modify,  # 新增：是否可以修改
+        can_modify=can_modify,  # 修正：内容编辑权限（总是True）
+        can_modify_structure=can_modify_structure,  # 新增：结构性修改权限
+        can_edit_content=can_edit_content,  # 新增：内容编辑权限
         pending_instances_count=len(pending_instances),  # 新增：进行中实例数量
         completed_instances_count=len(completed_instances),  # 新增：已完成实例数量
         approval_instances=approval_instances,
@@ -1017,9 +1077,205 @@ def get_field_options(object_type):
         return response, 500
 
 
+@approval_config_bp.route('/field-values', methods=['GET'])
+@login_required
+@admin_required
+def get_field_distinct_values_api():
+    """获取字段的所有可能值（去重后）"""
+    try:
+        template_id = request.args.get('template_id')
+        field_name = request.args.get('field_name')
+        
+        current_app.logger.info(f"获取字段值 - 模板ID: {template_id}, 字段名: {field_name}")
+        
+        if not template_id or not field_name:
+            response = jsonify({
+                'success': False,
+                'message': '缺少必要参数'
+            })
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
+        
+        # 获取模板信息
+        template = ApprovalProcessTemplate.query.get(template_id)
+        if not template:
+            response = jsonify({
+                'success': False,
+                'message': '模板不存在'
+            })
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 404
+        
+        # 根据对象类型和字段名获取字段值
+        values = get_field_distinct_values(template.object_type, field_name)
+        
+        current_app.logger.info(f"字段值获取成功 - 对象类型: {template.object_type}, 字段: {field_name}, 值数量: {len(values)}")
+        current_app.logger.debug(f"字段值内容: {values[:10]}...")  # 只记录前10个值
+        
+        response = jsonify({
+            'success': True,
+            'object_type': template.object_type,
+            'field_name': field_name,
+            'values': values
+        })
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+        
+    except Exception as e:
+        current_app.logger.error(f"获取字段值失败: {str(e)}")
+        
+        response = jsonify({
+            'success': False,
+            'message': f'获取字段值失败: {str(e)}'
+        })
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
+
+
+def get_field_distinct_values(object_type, field_name):
+    """获取指定对象类型和字段的去重值列表"""
+    try:
+        values = []
+        
+        # 对于特定的枚举字段，优先使用标准映射
+        if field_name == 'project_type':
+            from app.utils.dictionary_helpers import PROJECT_TYPE_LABELS
+            from app.utils.i18n import get_current_language
+            try:
+                lang = get_current_language()
+            except:
+                lang = 'zh'
+            values = [v[lang] for v in PROJECT_TYPE_LABELS.values()]
+        elif field_name == 'project_stage':
+            from app.utils.dictionary_helpers import PROJECT_STAGE_LABELS
+            from app.utils.i18n import get_current_language
+            try:
+                lang = get_current_language()
+            except:
+                lang = 'zh'
+            values = [v[lang] for v in PROJECT_STAGE_LABELS.values()]
+        elif field_name == 'currency':
+            from app.utils.dictionary_helpers import CURRENCY_TYPE_LABELS
+            from app.utils.i18n import get_current_language
+            try:
+                lang = get_current_language()
+            except:
+                lang = 'zh'
+            values = [v[lang] for v in CURRENCY_TYPE_LABELS.values()]
+        elif field_name in ['status', 'approval_status']:
+            from app.utils.dictionary_helpers import APPROVAL_STATUS_LABELS
+            from app.utils.i18n import get_current_language
+            try:
+                lang = get_current_language()
+            except:
+                lang = 'zh'
+            values = [v[lang] for v in APPROVAL_STATUS_LABELS.values()]
+        else:
+            # 根据对象类型查询对应的数据表
+            if object_type == 'quotation':
+                from app.models.quotation import Quotation, QuotationItem
+                if hasattr(Quotation, field_name):
+                    # 主表字段
+                    query_values = db.session.query(getattr(Quotation, field_name)).distinct().filter(
+                        getattr(Quotation, field_name).isnot(None),
+                        getattr(Quotation, field_name) != ''
+                    ).limit(50).all()  # 限制结果数量
+                    values = [str(v[0]) for v in query_values if v[0] is not None]
+                elif hasattr(QuotationItem, field_name):
+                    # 明细表字段
+                    query_values = db.session.query(getattr(QuotationItem, field_name)).distinct().filter(
+                        getattr(QuotationItem, field_name).isnot(None),
+                        getattr(QuotationItem, field_name) != ''
+                    ).limit(50).all()
+                    values = [str(v[0]) for v in query_values if v[0] is not None]
+                    
+            elif object_type == 'pricing_order':
+                from app.models.pricing_order import PricingOrder, PricingOrderItem
+                if hasattr(PricingOrder, field_name):
+                    # 主表字段
+                    query_values = db.session.query(getattr(PricingOrder, field_name)).distinct().filter(
+                        getattr(PricingOrder, field_name).isnot(None),
+                        getattr(PricingOrder, field_name) != ''
+                    ).limit(50).all()
+                    values = [str(v[0]) for v in query_values if v[0] is not None]
+                elif hasattr(PricingOrderItem, field_name):
+                    # 明细表字段
+                    query_values = db.session.query(getattr(PricingOrderItem, field_name)).distinct().filter(
+                        getattr(PricingOrderItem, field_name).isnot(None),
+                        getattr(PricingOrderItem, field_name) != ''
+                    ).limit(50).all()
+                    values = [str(v[0]) for v in query_values if v[0] is not None]
+                    
+            elif object_type == 'expense':
+                from app.models.expense import Expense, ExpenseItem
+                if hasattr(Expense, field_name):
+                    # 主表字段
+                    query_values = db.session.query(getattr(Expense, field_name)).distinct().filter(
+                        getattr(Expense, field_name).isnot(None),
+                        getattr(Expense, field_name) != ''
+                    ).limit(50).all()
+                    values = [str(v[0]) for v in query_values if v[0] is not None]
+                elif hasattr(ExpenseItem, field_name):
+                    # 明细表字段
+                    query_values = db.session.query(getattr(ExpenseItem, field_name)).distinct().filter(
+                        getattr(ExpenseItem, field_name).isnot(None),
+                        getattr(ExpenseItem, field_name) != ''
+                    ).limit(50).all()
+                    values = [str(v[0]) for v in query_values if v[0] is not None]
+        
+        # 去重并排序
+        values = sorted(list(set(values))) if values else []
+        
+        return values[:50]  # 最多返回50个值
+        
+    except Exception as e:
+        current_app.logger.error(f"获取字段值时出错: {str(e)}")
+        return []
+
+
+@approval_config_bp.route('/api/get-field-options', methods=['GET'])
+@login_required
+@admin_required
+def get_field_options_api():
+    """获取对象的字段选项API"""
+    object_type = request.args.get('object_type')
+    template_id = request.args.get('template_id')
+    
+    if not object_type:
+        return jsonify({'success': False, 'message': '缺少对象类型参数'}), 400
+    
+    try:
+        # 获取字段选项
+        field_options = get_object_field_options(object_type)
+        
+        # 转换为前端需要的格式
+        if isinstance(field_options, dict) and 'master' in field_options:
+            # 分组格式 (master/detail)
+            fields = {
+                'master': dict(field_options['master']) if field_options.get('master') else {},
+                'detail': dict(field_options['detail']) if field_options.get('detail') else {}
+            }
+        else:
+            # 简单格式
+            fields = dict(field_options) if field_options else {}
+        
+        current_app.logger.info(f"字段选项获取成功 - 对象类型: {object_type}, 模板ID: {template_id}")
+        
+        return jsonify({
+            'success': True,
+            'object_type': object_type,
+            'template_id': template_id,
+            'fields': fields
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"获取字段选项时出错: {str(e)}")
+        return jsonify({'success': False, 'message': f'获取字段选项失败: {str(e)}'}), 500
+
+
 @approval_config_bp.route('/api/dynamic-fields/<string:object_type>', methods=['GET'])
 @login_required
-@permission_required('approval', 'edit')
+@admin_required
 def get_dynamic_fields(object_type):
     """API端点：获取对象的动态字段列表
     
@@ -1086,7 +1342,8 @@ def get_step_details(step_id):
             'approver_type': step.approver_type,
             'approver_user_id': step.approver_user_id,
             'action_type': step.action_type,
-            'branch_condition': step.branch_condition
+            'branch_condition': step.branch_condition,
+            'editable_fields': step.editable_fields or []
         }
         
         return jsonify({

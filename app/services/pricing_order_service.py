@@ -24,15 +24,9 @@ class PricingOrderService:
     
     @staticmethod
     def should_use_v2_flow(pricing_order=None):
-        """判断是否应该使用V2流程"""
-        if pricing_order:
-            if pricing_order.created_at and pricing_order.created_at < PricingOrderService.V2_CUTOFF_DATE:
-                return False  # 使用旧逻辑
-            else:
-                return True  # 使用新逻辑
-        else:
-            # 新创建的批价单默认使用V2
-            return True
+        """判断是否应该使用V2流程 - 强制使用V2系统"""
+        # 🔥 V1系统已废弃，所有批价单强制使用V2统一审批系统
+        return True
     
     # 快速通过折扣率规则 - 已取消快速审批功能
     # FAST_APPROVAL_RULES = {
@@ -777,88 +771,18 @@ class PricingOrderService:
             if not current_user:
                 return False, "当前用户不存在"
 
-            # 判断使用哪个版本的流程
-            use_v2 = PricingOrderService.should_use_v2_flow(pricing_order)
-            
-            if use_v2:
-                return PricingOrderService._submit_for_approval_v2(pricing_order, current_user)
-            else:
-                return PricingOrderService._submit_for_approval_v1(pricing_order, current_user_id)
+            # V1系统已废弃，所有批价单使用V2统一审批系统
+            return PricingOrderService._submit_for_approval_v2(pricing_order, current_user)
                 
         except Exception as e:
             db.session.rollback()
             logger.error(f"提交审批失败: {str(e)}")
             return False, f"提交失败: {str(e)}"
     
-    @staticmethod
-    def _submit_for_approval_v1(pricing_order, current_user_id):
-        """提交审批 - V1版本（旧逻辑）"""
-        try:
-            # 🔥 关键修复：清理旧的审批记录（召回后重新提交时）
-            old_records = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order.id
-            ).all()
-            for record in old_records:
-                db.session.delete(record)
-                
-            # 🔥 关键修复：生成新的审批流程
-            project = pricing_order.project
-            flow_type = PricingOrderService.determine_approval_flow_type(project)
-            
-            # 更新审批流程类型
-            pricing_order.approval_flow_type = flow_type
-            
-            # 生成审批步骤
-            approval_steps = PricingOrderService.generate_approval_steps(
-                flow_type, 
-                project, 
-                has_dealer=(pricing_order.dealer_id is not None)
-            )
-            
-            if not approval_steps:
-                return False, "无法生成审批流程，请检查项目信息和用户角色配置"
-            
-            # 创建审批记录
-            for step_data in approval_steps:
-                approval_record = PricingOrderApprovalRecord(
-                    pricing_order_id=pricing_order.id,
-                    step_order=step_data['step_order'],
-                    step_name=step_data['step_name'],
-                    approver_role=step_data['approver_role'],
-                    approver_id=step_data['approver_id']
-                )
-                db.session.add(approval_record)
-            
-            # 更新状态为审批中
-            pricing_order.status = 'pending'
-            pricing_order.current_approval_step = 1
-            
-            # 锁定项目和报价单
-            if project:
-                project.is_locked = True
-                project.locked_reason = "批价审批流程进行中"
-                project.locked_by = current_user_id
-                project.locked_at = datetime.now()
-            
-            quotation = pricing_order.quotation
-            if quotation:
-                quotation.is_locked = True
-                quotation.lock_reason = "批价审批流程进行中"
-                quotation.locked_by = current_user_id
-                quotation.locked_at = datetime.now()
-            
-            db.session.commit()
-            logger.info(f"批价单 {pricing_order.order_number} 使用V1流程提交审批成功")
-            return True, None
-            
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"V1提交审批失败: {str(e)}")
-            return False, f"提交失败: {str(e)}"
     
     @staticmethod
     def _submit_for_approval_v2(pricing_order, current_user):
-        """提交审批 - V2版本（新逻辑）"""
+        """提交审批 - V2版本（使用统一审批流程系统）"""
         try:
             # 规范化厂商直签状态
             normalized, message = PricingOrderService.normalize_direct_contract_status(pricing_order, current_user)
@@ -875,33 +799,37 @@ class PricingOrderService:
             if not can_submit:
                 return False, "; ".join(errors)
             
-            # 清理旧的审批记录
+            # V2版本：使用统一审批流程系统
+            from app.helpers.approval_helpers import start_approval_process, get_available_templates
+            
+            # 获取批价单审批模板
+            templates = get_available_templates('pricing_order')
+            if not templates:
+                return False, "未找到批价单审批模板"
+            
+            # 使用第一个可用模板（应该只有一个）
+            template = templates[0]
+            
+            # 启动审批流程
+            approval_instance = start_approval_process(
+                object_type='pricing_order',
+                object_id=pricing_order.id,
+                template_id=template.id,
+                user_id=current_user.id
+            )
+            
+            if not approval_instance:
+                return False, "创建审批流程失败"
+            
+            # 清理旧的审批记录（V1系统的记录）
             old_records = PricingOrderApprovalRecord.query.filter_by(
                 pricing_order_id=pricing_order.id
             ).all()
             for record in old_records:
                 db.session.delete(record)
             
-            # 动态生成审批步骤
-            approval_steps = PricingOrderService.generate_approval_steps_v2(pricing_order, current_user.id)
-            
-            if not approval_steps:
-                return False, "无法生成审批流程，请检查项目信息和用户角色配置"
-            
-            # 创建审批记录
-            for step_data in approval_steps:
-                approval_record = PricingOrderApprovalRecord(
-                    pricing_order_id=pricing_order.id,
-                    step_order=step_data['step_order'],
-                    step_name=step_data['step_name'],
-                    approver_role=step_data['approver_role'],
-                    approver_id=step_data['approver_id']
-                )
-                db.session.add(approval_record)
-            
-            # 更新状态为审批中
+            # 更新状态为审批中（统一审批系统会自动处理步骤）
             pricing_order.status = 'pending'
-            pricing_order.current_approval_step = 1
             
             # 锁定项目和报价单
             project = pricing_order.project
@@ -921,11 +849,11 @@ class PricingOrderService:
             db.session.commit()
             
             # 构建返回消息
-            success_message = f"批价单提交审批成功，生成 {len(approval_steps)} 个审批步骤"
+            success_message = f"批价单提交审批成功，使用统一审批流程系统"
             if warnings:
                 success_message += f"。注意：{'; '.join(warnings)}"
             
-            logger.info(f"批价单 {pricing_order.order_number} 使用V2流程提交审批成功")
+            logger.info(f"批价单 {pricing_order.order_number} 使用V2流程（统一审批系统）提交审批成功，审批实例ID: {approval_instance.id}")
             return True, success_message
             
         except Exception as e:
@@ -1194,22 +1122,39 @@ class PricingOrderService:
         except Exception as e:
             from app import app
             app.logger.error(f"发送审批完成通知失败: {str(e)}")
+            return False    @staticmethod
+    def _is_current_approver_v2(pricing_order, current_user):
+        """检查用户是否为V2统一审批系统中的当前审批人"""
+        try:
+            from app.helpers.approval_helpers import get_object_approval_instance
+            from app.models.approval import ApprovalStatus, ApprovalStep
+            
+            # 获取当前审批实例
+            approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
+            if not approval_instance or approval_instance.status != ApprovalStatus.PENDING:
+                return False
+                
+            # 检查当前步骤的审批人
+            current_step = ApprovalStep.query.get(approval_instance.current_step)
+            if current_step and current_step.approver_user_id == current_user.id:
+                return True
+                
             return False
+        except Exception:
+            return False
+
+
     
     @staticmethod
     def can_edit_pricing_details(pricing_order, current_user, is_approval_context=False):
-        """检查是否可以编辑批价单明细
+        """检查是否可以编辑批价单明细 - V2统一审批系统
         
         Args:
             pricing_order: 批价单对象
             current_user: 当前用户
-            is_approval_context: 是否在审批上下文中（审批时允许更宽松的权限检查）
+            is_approval_context: 是否在审批上下文中
         """
-        # 检查管理员权限
-        from app.permissions import is_admin_or_ceo
-        is_admin = is_admin_or_ceo()
-        
-        # 审批通过后不能编辑，包括管理员也不能编辑已审批通过的批价单
+        # 审批通过后不能编辑
         if pricing_order.status == 'approved':
             return False
             
@@ -1217,40 +1162,24 @@ class PricingOrderService:
             # 草稿状态或被拒绝状态：创建人可编辑
             return pricing_order.created_by == current_user.id
         elif pricing_order.status == 'pending':
-            # 审批中：只有当前审批人可以编辑（包括管理员也必须是当前审批人）
-            # 检查是否为当前审批步骤的审批人
-            target_step = pricing_order.current_approval_step
-            if is_approval_context and hasattr(pricing_order, '_original_approval_step'):
-                target_step = pricing_order._original_approval_step
-                
-            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order.id,
-                step_order=target_step,
-                approver_id=current_user.id
-            ).first()
-            if current_approval_record:
-                return True
-            
-            # 审批状态下，除当前审批人外，其他人都不能编辑（包括管理员）
-            return False
+            # 审批中：只有当前审批人可以编辑
+            return PricingOrderService._is_current_approver_v2(pricing_order, current_user)
                 
         return False
-    
     @staticmethod
     def can_edit_settlement_details(pricing_order, current_user, is_approval_context=False):
-        """检查是否可以编辑结算单明细
+        """检查是否可以编辑结算单明细 - V2统一审批系统
         
         Args:
             pricing_order: 批价单对象
             current_user: 当前用户
-            is_approval_context: 是否在审批上下文中（审批时允许更宽松的权限检查）
+            is_approval_context: 是否在审批上下文中
         """
-        # 只有审批中或被拒绝状态才能编辑，审批通过后不能编辑（包括管理员）
+        # 只有审批中或被拒绝状态才能编辑，审批通过后不能编辑
         if pricing_order.status not in ['pending', 'rejected', 'draft']:
             return False
         
-        # 使用统一的管理员权限检查（状态检查已在前面完成）
-        from app.permissions import is_admin_or_ceo
+        from app.permissions import is_admin_or_ceo, check_permission
         is_admin = is_admin_or_ceo()
         
         # 草稿和被拒绝状态下的权限检查
@@ -1259,8 +1188,7 @@ class PricingOrderService:
             if is_admin:
                 return True
             
-            # 使用权限管理系统检查结算单权限（修正权限标识符）
-            from app.permissions import check_permission
+            # 使用权限管理系统检查结算单权限
             if check_permission('settlement_edit'):
                 return True
                 
@@ -1272,37 +1200,24 @@ class PricingOrderService:
             return False
         
         elif pricing_order.status == 'pending':
-            # 审批中：只有当前审批人可以编辑（需要有相应角色权限）
-            # 检查是否为当前审批步骤的审批人（有权限的角色）
-            target_step = pricing_order.current_approval_step
-            if is_approval_context and hasattr(pricing_order, '_original_approval_step'):
-                target_step = pricing_order._original_approval_step
-                
-            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order.id,
-                step_order=target_step,
-                approver_id=current_user.id
-            ).first()
-            if current_approval_record:
-                # 检查是否是管理员或CEO（最高权限）
-                if is_admin:
+            # 审批中：V2系统下，只有当前审批人可以编辑
+            if PricingOrderService._is_current_approver_v2(pricing_order, current_user):
+                # 管理员或在审批上下文中自动获得权限
+                if is_admin or is_approval_context:
                     return True
                     
-                # 在审批上下文中，当前审批人自动获得编辑权限
-                # 特殊角色权限：渠道经理、营销总监、服务经理在审批时可以编辑结算单
+                # 检查角色权限
+                if check_permission('settlement_edit'):
+                    return True
+                    
+                # 特殊角色权限
                 user_role = current_user.role.strip() if current_user.role else ''
                 if user_role in ['channel_manager', 'sales_director', 'service_manager', 'business_admin', 'finance_director']:
                     return True
-                    
-                # 使用权限管理系统检查结算单权限
-                from app.permissions import check_permission
-                return check_permission('settlement_edit')
             
-            # 审批状态下，除当前审批人外，其他人都不能编辑（包括管理员）
             return False
         
         return False
-    
     @staticmethod
     def reset_settlement_approval_status(pricing_order_id):
         """重置结算单审批状态（而不是删除数据）"""
@@ -1346,6 +1261,49 @@ class PricingOrderService:
             if pricing_order.status != 'pending':
                 return False, "只有审批中的批价单可以召回"
             
+            # 检查是否使用V2流程系统
+            use_v2 = PricingOrderService.should_use_v2_flow(pricing_order)
+            
+            if use_v2:
+                # V2流程：处理统一审批系统
+                from app.helpers.approval_helpers import get_object_approval_instance
+                from app.models.approval import ApprovalStatus
+                
+                approval_instance = get_object_approval_instance('pricing_order', pricing_order_id)
+                if approval_instance:
+                    # 更新审批实例状态为召回
+                    approval_instance.status = ApprovalStatus.RECALLED
+                    approval_instance.ended_at = datetime.now()
+                    
+                    # 添加召回记录到统一系统
+                    from app.models.approval import ApprovalRecord
+                    recall_record = ApprovalRecord(
+                        instance_id=approval_instance.id,
+                        step_id=approval_instance.current_step,
+                        approver_id=current_user_id,
+                        action='recall',
+                        comment=f"发起人召回批价单。原因：{reason}" if reason else "发起人召回批价单",
+                        timestamp=datetime.now()
+                    )
+                    db.session.add(recall_record)
+                    logger.info(f"V2流程：批价单 {pricing_order_id} 审批实例 {approval_instance.id} 已召回")
+                else:
+                    logger.warning(f"V2流程的批价单 {pricing_order_id} 没有找到审批实例")
+            else:
+                # V1流程：添加召回记录
+                recall_record = PricingOrderApprovalRecord(
+                    pricing_order_id=pricing_order_id,
+                    step_order=pricing_order.current_approval_step,
+                    step_name="召回操作",
+                    approver_role="发起人",
+                    approver_id=current_user_id,
+                    action='recall',
+                    comment=f"发起人召回批价单。原因：{reason}" if reason else "发起人召回批价单",
+                    approved_at=datetime.now()
+                )
+                db.session.add(recall_record)
+                logger.info(f"V1流程：批价单 {pricing_order_id} 已召回")
+            
             # 更新批价单状态为草稿
             pricing_order.status = 'draft'
             pricing_order.current_approval_step = 0
@@ -1355,19 +1313,6 @@ class PricingOrderService:
             
             # 解锁相关对象
             PricingOrderService.unlock_related_objects(pricing_order)
-            
-            # 添加召回记录
-            recall_record = PricingOrderApprovalRecord(
-                pricing_order_id=pricing_order_id,
-                step_order=pricing_order.current_approval_step,
-                step_name="召回操作",
-                approver_role="发起人",
-                approver_id=current_user_id,
-                action='recall',
-                comment=f"发起人召回批价单。原因：{reason}" if reason else "发起人召回批价单",
-                approved_at=datetime.now()
-            )
-            db.session.add(recall_record)
             
             db.session.commit()
             return True, None
@@ -1448,6 +1393,11 @@ class PricingOrderService:
             
         # 当前审批人可以查看
         if pricing_order.status == 'pending':
+            # V2统一审批系统：检查是否为当前审批人
+            if PricingOrderService._is_current_approver_v2(pricing_order, current_user):
+                return True
+            
+            # 兼容V1系统（如果还有遗留数据）
             from app.models.pricing_order import PricingOrderApprovalRecord
             current_approval_record = PricingOrderApprovalRecord.query.filter_by(
                 pricing_order_id=pricing_order.id,
@@ -1700,7 +1650,7 @@ class PricingOrderService:
     
     @staticmethod
     def can_edit_discount_and_price(pricing_order, current_user, is_approval_context=False):
-        """检查是否可以编辑折扣率和单价字段
+        """检查是否可以编辑折扣率和单价字段 - V2统一审批系统
         
         审批状态下，只有当前审批人可以编辑折扣率和单价
         """
@@ -1712,28 +1662,13 @@ class PricingOrderService:
             # 草稿状态或被拒绝状态：创建人可编辑
             return pricing_order.created_by == current_user.id
         elif pricing_order.status == 'pending':
-            # 审批中：只有当前审批人可以编辑折扣率和单价
-            # 检查是否为当前审批步骤的审批人
-            target_step = pricing_order.current_approval_step
-            if is_approval_context and hasattr(pricing_order, '_original_approval_step'):
-                target_step = pricing_order._original_approval_step
-                
-            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order.id,
-                step_order=target_step,
-                approver_id=current_user.id
-            ).first()
-            if current_approval_record:
-                return True
-            
-            # 审批状态下，除当前审批人外，其他人都不能编辑
-            return False
+            # 审批中：V2系统下，只有当前审批人可以编辑折扣率和单价
+            return PricingOrderService._is_current_approver_v2(pricing_order, current_user)
                 
         return False
-    
     @staticmethod
     def can_edit_basic_info(pricing_order, current_user, is_approval_context=False):
-        """检查是否可以编辑基本信息（分销商、经销商等）
+        """检查是否可以编辑基本信息（分销商、经销商等） - V2统一审批系统
         
         审批状态下，只有当前审批人可以编辑基本信息
         """
@@ -1745,25 +1680,10 @@ class PricingOrderService:
             # 草稿状态或被拒绝状态：创建人可编辑
             return pricing_order.created_by == current_user.id
         elif pricing_order.status == 'pending':
-            # 审批中：只有当前审批人可以编辑基本信息
-            # 检查是否为当前审批步骤的审批人
-            target_step = pricing_order.current_approval_step
-            if is_approval_context and hasattr(pricing_order, '_original_approval_step'):
-                target_step = pricing_order._original_approval_step
-                
-            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order.id,
-                step_order=target_step,
-                approver_id=current_user.id
-            ).first()
-            if current_approval_record:
-                return True
-            
-            # 审批状态下，除当前审批人外，其他人都不能编辑
-            return False
+            # 审批中：V2系统下，只有当前审批人可以编辑基本信息
+            return PricingOrderService._is_current_approver_v2(pricing_order, current_user)
                 
         return False
-    
     @staticmethod
     def admin_rollback_pricing_order(pricing_order_id, admin_user_id, reason=None):
         """管理员将已通过的批价单退回到草稿状态（清除所有审批痕迹）"""
@@ -2032,7 +1952,7 @@ class PricingOrderService:
     
     @staticmethod
     def can_edit_discount_and_price(pricing_order, current_user, is_approval_context=False):
-        """检查是否可以编辑折扣率和单价字段
+        """检查是否可以编辑折扣率和单价字段 - V2统一审批系统
         
         审批状态下，只有当前审批人可以编辑折扣率和单价
         """
@@ -2044,28 +1964,13 @@ class PricingOrderService:
             # 草稿状态或被拒绝状态：创建人可编辑
             return pricing_order.created_by == current_user.id
         elif pricing_order.status == 'pending':
-            # 审批中：只有当前审批人可以编辑折扣率和单价
-            # 检查是否为当前审批步骤的审批人
-            target_step = pricing_order.current_approval_step
-            if is_approval_context and hasattr(pricing_order, '_original_approval_step'):
-                target_step = pricing_order._original_approval_step
-                
-            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order.id,
-                step_order=target_step,
-                approver_id=current_user.id
-            ).first()
-            if current_approval_record:
-                return True
-            
-            # 审批状态下，除当前审批人外，其他人都不能编辑
-            return False
+            # 审批中：V2系统下，只有当前审批人可以编辑折扣率和单价
+            return PricingOrderService._is_current_approver_v2(pricing_order, current_user)
                 
         return False
-    
     @staticmethod
     def can_edit_basic_info(pricing_order, current_user, is_approval_context=False):
-        """检查是否可以编辑基本信息（分销商、经销商等）
+        """检查是否可以编辑基本信息（分销商、经销商等） - V2统一审批系统
         
         审批状态下，只有当前审批人可以编辑基本信息
         """
@@ -2077,25 +1982,10 @@ class PricingOrderService:
             # 草稿状态或被拒绝状态：创建人可编辑
             return pricing_order.created_by == current_user.id
         elif pricing_order.status == 'pending':
-            # 审批中：只有当前审批人可以编辑基本信息
-            # 检查是否为当前审批步骤的审批人
-            target_step = pricing_order.current_approval_step
-            if is_approval_context and hasattr(pricing_order, '_original_approval_step'):
-                target_step = pricing_order._original_approval_step
-                
-            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order.id,
-                step_order=target_step,
-                approver_id=current_user.id
-            ).first()
-            if current_approval_record:
-                return True
-            
-            # 审批状态下，除当前审批人外，其他人都不能编辑
-            return False
+            # 审批中：V2系统下，只有当前审批人可以编辑基本信息
+            return PricingOrderService._is_current_approver_v2(pricing_order, current_user)
                 
         return False
-    
     @staticmethod
     def admin_rollback_pricing_order(pricing_order_id, admin_user_id, reason=None):
         """管理员将已通过的批价单退回到草稿状态（清除所有审批痕迹）"""

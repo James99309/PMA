@@ -1,10 +1,14 @@
 {% extends "base.html" %}
-{% from "macros/approval_config_macros.html" import step_list with context %}
+{% from "approval_config/components/step_list.html" import step_list with context %}
 {% from 'macros/ui_helpers.html' import render_enable_disable_badge with context %}
+{% from 'macros/approval_flow.html' import render_complete_approval_section %}
 
 {% block title %}审批流程模板详情{% endblock %}
 
 {% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_flow.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval-config.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -145,7 +149,14 @@
             {% for instance in approval_instances %}
               <div class="mb-4">
                 <h6 class="text-muted">实例 #{{ instance.id }} - {{ instance.object_type|title }} ID: {{ instance.object_id }}</h6>
-                {{ render_approval_section(instance.object_type, instance.object_id, instance, current_user) }}
+                {{ render_complete_approval_section(
+                    object_type=instance.object_type,
+                    object_id=instance.object_id,
+                    object_status=instance.status,
+                    current_user_id=current_user.id,
+                    creator_id=instance.created_by,
+                    container_id='approvalFlowSection' + loop.index|string
+                ) }}
               </div>
               {% if not loop.last %}<hr class="my-4">{% endif %}
             {% endfor %}
@@ -156,4 +167,26 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/approval_flow.js') }}"></script>
+<script src="{{ url_for('static', filename='js/approval_flow_utils.js') }}"></script>
+
+<!-- 审批配置重构模块 -->
+<script src="{{ url_for('static', filename='js/approval_config/approval-config.js') }}"></script>
+
+<script>
+console.log('📋 模板详情页面脚本加载完成');
+
+// 确保showConfirmDialog函数可用
+window.showConfirmDialog = window.showConfirmDialog || function(options) {
+    const { title, message, onConfirm, onCancel } = options;
+    if (confirm(`${title}\n\n${message}`)) {
+        if (onConfirm) onConfirm();
+    } else {
+        if (onCancel) onCancel();
+    }
+};
+</script>
 {% endblock %} 

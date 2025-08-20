@@ -198,6 +198,15 @@ def get_viewable_data(model_class, user, special_filters=None):
         elif permission_level == 'company' and user.company_name:
             # 企业级权限：可以查看企业下所有项目
             company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
+            
+            # 添加归属关系授权的用户（数据归属权限）
+            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+            for affiliation in affiliations:
+                company_user_ids.append(affiliation.owner_id)
+            
+            # 去重
+            company_user_ids = list(set(company_user_ids))
+            
             return model_class.query.filter(
                 db.or_(
                     model_class.owner_id.in_(company_user_ids),
@@ -437,6 +446,15 @@ def get_viewable_data(model_class, user, special_filters=None):
         elif permission_level == 'company' and user.company_name:
             # 企业级权限：可以查看企业下所有客户数据
             company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
+            
+            # 添加归属关系授权的用户（数据归属权限）
+            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+            for affiliation in affiliations:
+                company_user_ids.append(affiliation.owner_id)
+            
+            # 去重
+            company_user_ids = list(set(company_user_ids))
+            
             all_filters = base_filters + [model_class.owner_id.in_(company_user_ids)] + (special_filters if special_filters else [])
             return model_class.query.filter(*all_filters)
         elif permission_level == 'department' and user.department and user.company_name:
@@ -445,6 +463,15 @@ def get_viewable_data(model_class, user, special_filters=None):
                 User.department == user.department,
                 User.company_name == user.company_name
             ).all()]
+            
+            # 添加归属关系授权的用户（数据归属权限）
+            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+            for affiliation in affiliations:
+                dept_user_ids.append(affiliation.owner_id)
+            
+            # 去重
+            dept_user_ids = list(set(dept_user_ids))
+            
             all_filters = base_filters + [model_class.owner_id.in_(dept_user_ids)] + (special_filters if special_filters else [])
             return model_class.query.filter(*all_filters)
         

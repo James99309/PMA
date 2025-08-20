@@ -1,0 +1,272 @@
+{# 通用审批步骤表单模态框组件 #}
+
+{# 通用步骤表单模态框 - 支持创建和编辑两种模式 #}
+{% macro render_step_form_modal(modal_id, mode, template, users, get_object_field_options=None) %}
+{# mode: 'add' 或 'edit' #}
+{% set is_edit = mode == 'edit' %}
+{% set title = '编辑审批步骤' if is_edit else '添加审批步骤' %}
+{% set form_id = 'editStepForm' if is_edit else 'addStepForm' %}
+{% set action_url = '#' if is_edit else url_for('approval_config.add_step') %}
+
+<div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-labelledby="{{ modal_id }}Label" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="{{ modal_id }}Label">{{ title }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="{{ form_id }}" method="POST" action="{{ action_url }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if not is_edit %}
+        <input type="hidden" name="template_id" value="{{ template.id }}">
+        <input type="hidden" name="object_type" value="{{ template.object_type }}">
+        {% else %}
+        <input type="hidden" name="object_type" value="{{ template.object_type if template else '' }}">
+        <input type="hidden" name="template_id" value="{{ template.id if template else '' }}">
+        {% endif %}
+        <div class="modal-body">
+          {# 步骤名称 #}
+          <div class="form-group mb-3">
+            <label for="{{ 'edit_' if is_edit else '' }}step_name">步骤名称 <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="{{ 'edit_' if is_edit else '' }}step_name" 
+                   name="step_name" required placeholder="请输入步骤名称">
+          </div>
+          
+          {# 步骤类型选择 #}
+          <div class="form-group mb-3">
+            <label for="{{ 'edit_' if is_edit else '' }}step_type">步骤类型</label>
+            <select class="form-control" id="{{ 'edit_' if is_edit else '' }}step_type" 
+                    name="step_type" onchange="handleStepTypeChange()">
+              <option value="normal">常规审批步骤</option>
+              <option value="branch">分支决策步骤</option>
+            </select>
+            <small class="form-text text-muted">常规步骤为单一审批人，分支步骤可根据条件选择不同审批路径</small>
+          </div>
+          
+          {# 分支条件配置区域 #}
+          <div id="{{ 'edit_' if is_edit else '' }}branchConfigSection" style="display: none;">
+            <div class="card border-info mb-3">
+              <div class="card-header bg-info text-white">
+                <h6 class="mb-0"><i class="fas fa-code-branch mr-2"></i>分支条件配置</h6>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-4">
+                    <label for="{{ 'edit_' if is_edit else '' }}branch_field">条件字段 <span class="text-danger">*</span></label>
+                    <select class="form-control" id="{{ 'edit_' if is_edit else '' }}branch_field" 
+                            name="branch_field" onchange="handleBranchFieldChange()">
+                      <option value="">请选择字段</option>
+                      {% if template and get_object_field_options %}
+                        {% set field_options = get_object_field_options(template.object_type) %}
+                        {% if field_options %}
+                          {% if field_options is mapping and 'master' in field_options %}
+                            <optgroup label="主记录字段">
+                              {% for field_code, field_name in field_options.master %}
+                                <option value="{{ field_code }}">{{ field_name }}</option>
+                              {% endfor %}
+                            </optgroup>
+                            {% if field_options.detail %}
+                            <optgroup label="明细字段">
+                              {% for field_code, field_name in field_options.detail %}
+                                <option value="{{ field_code }}">{{ field_name }}</option>
+                              {% endfor %}
+                            </optgroup>
+                            {% endif %}
+                          {% else %}
+                            {% for field_code, field_name in field_options %}
+                              <option value="{{ field_code }}">{{ field_name }}</option>
+                            {% endfor %}
+                          {% endif %}
+                        {% endif %}
+                      {% endif %}
+                    </select>
+                  </div>
+                  <div class="col-md-4">
+                    <label for="{{ 'edit_' if is_edit else '' }}branch_operator">条件操作符 <span class="text-danger">*</span></label>
+                    <select class="form-control" id="{{ 'edit_' if is_edit else '' }}branch_operator" 
+                            name="branch_operator" onchange="handleBranchOperatorChange()">
+                      <optgroup label="基本比较">
+                        <option value="equals">等于</option>
+                        <option value="not_equals">不等于</option>
+                      </optgroup>
+                      <optgroup label="数值比较">
+                        <option value="greater_than">大于</option>
+                        <option value="less_than">小于</option>
+                        <option value="greater_equal">大于等于</option>
+                        <option value="less_equal">小于等于</option>
+                      </optgroup>
+                      <optgroup label="文本匹配">
+                        <option value="contains">包含</option>
+                        <option value="not_contains">不包含</option>
+                        <option value="starts_with">以...开头</option>
+                        <option value="ends_with">以...结尾</option>
+                      </optgroup>
+                      <optgroup label="列表匹配">
+                        <option value="in_list">属于</option>
+                        <option value="not_in_list">不属于</option>
+                        <option value="from_field_list">从字段列表选择</option>
+                      </optgroup>
+                    </select>
+                  </div>
+                  <div class="col-md-4">
+                    <label for="{{ 'edit_' if is_edit else '' }}branch_value">比较值 <span class="text-danger">*</span></label>
+                    <div id="{{ 'edit_' if is_edit else '' }}branchValueContainer">
+                      <input type="text" class="form-control" id="{{ 'edit_' if is_edit else '' }}branch_value" 
+                             name="branch_value" placeholder="请输入比较值">
+                    </div>
+                  </div>
+                </div>
+                <div class="alert alert-info mt-3">
+                  <i class="fas fa-info-circle"></i>
+                  <small>
+                    <strong>分支条件说明：</strong>当业务对象的指定字段满足条件时，将按照对应的分支路径进行审批。
+                    不同条件可以设置不同的审批人和执行动作。
+                  </small>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {# 审批人选择 #}
+          <div class="form-group mb-3">
+            <label for="{{ 'edit_' if is_edit else '' }}approver_selection">审批人 <span class="text-danger">*</span></label>
+            <select class="form-control" id="{{ 'edit_' if is_edit else '' }}approver_selection" 
+                    name="approver_selection" onchange="handleApproverSelection()" required>
+              <option value="">请选择审批人</option>
+              <option value="next_level">上一级领导（自动选择）</option>
+              <optgroup label="指定用户">
+                {% for user in users %}
+                  <option value="user_{{ user.id }}">{{ user.real_name or user.username }}</option>
+                {% endfor %}
+              </optgroup>
+            </select>
+            
+            {# 上级领导说明区域 #}
+            <div id="{{ 'edit_' if is_edit else '' }}next_level_info_section" style="display: none;" class="mt-2">
+              <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                <small>
+                  <strong>上级领导选择说明：</strong><br>
+                  • 系统将根据提交人的部门层级关系自动选择直接上级<br>
+                  • 如果找不到上级，将选择部门负责人<br>
+                  • 确保组织架构中已正确设置上下级关系
+                </small>
+              </div>
+            </div>
+          </div>
+          
+          {# 隐藏字段 #}
+          <input type="hidden" id="{{ 'edit_' if is_edit else '' }}approver_type" name="approver_type" value="user">
+          <input type="hidden" id="{{ 'edit_' if is_edit else '' }}approver_id" name="approver_id" value="">
+          
+          {# 执行动作 #}
+          <div class="form-group mb-3">
+            <label for="{{ 'edit_' if is_edit else '' }}action_type">执行动作</label>
+            <select class="form-control" id="{{ 'edit_' if is_edit else '' }}action_type" name="action_type">
+              <option value="">请选择执行动作（可选）</option>
+              <option value="authorization">授权编号</option>
+              <option value="quotation_approval">报价审核</option>
+              <option value="payment_processing">支付处理</option>
+              <option value="project_authorization">项目授权</option>
+              <option value="channel_authorization">渠道授权</option>
+              <option value="business_authorization">业务授权</option>
+              <option value="customer_service_authorization">客服授权</option>
+              <option value="branch_decision">分支决策</option>
+              <option value="pricing_settlement_approval">批结算审批</option>
+            </select>
+            <small class="form-text text-muted">执行动作决定审批通过后系统的后续处理</small>
+          </div>
+          
+          {# 可编辑字段配置 #}
+          <div class="form-group mb-3">
+            <label for="{{ 'edit_' if is_edit else '' }}editable_fields_select">可编辑字段</label>
+            <select class="form-control" id="{{ 'edit_' if is_edit else '' }}editable_fields_select">
+              <option value="">点击选择可编辑字段</option>
+              {% if template and get_object_field_options %}
+                {% set field_options = get_object_field_options(template.object_type) %}
+                {% if field_options %}
+                  {% if field_options is mapping and 'master' in field_options %}
+                    <optgroup label="主记录字段">
+                      {% for field_code, field_name in field_options.master %}
+                        <option value="{{ field_code }}">{{ field_name }}</option>
+                      {% endfor %}
+                    </optgroup>
+                    {% if field_options.detail %}
+                    <optgroup label="明细字段">
+                      {% for field_code, field_name in field_options.detail %}
+                        <option value="{{ field_code }}">{{ field_name }}</option>
+                      {% endfor %}
+                    </optgroup>
+                    {% endif %}
+                  {% else %}
+                    {% for field_code, field_name in field_options %}
+                      <option value="{{ field_code }}">{{ field_name }}</option>
+                    {% endfor %}
+                  {% endif %}
+                {% endif %}
+              {% endif %}
+            </select>
+            <div id="{{ 'edit_' if is_edit else '' }}selected_fields" class="mt-2">
+              {# 已选择的字段徽章将显示在这里 #}
+            </div>
+            <small class="form-text text-muted">审批人可以在审批时修改这些字段的值</small>
+          </div>
+          
+          {# 邮件通知设置 #}
+          <div class="form-group mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="{{ 'edit_' if is_edit else '' }}send_email" 
+                     name="send_email" value="true" checked>
+              <label class="form-check-label" for="{{ 'edit_' if is_edit else '' }}send_email">
+                发送邮件通知
+              </label>
+            </div>
+            <small class="form-text text-muted">审批人将收到邮件通知</small>
+          </div>
+          
+          {# 抄送设置 #}
+          <div class="form-group mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="{{ 'edit_' if is_edit else '' }}cc_enabled" 
+                     name="cc_enabled" value="true" onchange="handleCcToggle()">
+              <label class="form-check-label" for="{{ 'edit_' if is_edit else '' }}cc_enabled">
+                启用邮件抄送
+              </label>
+            </div>
+          </div>
+          
+          {# 抄送用户选择区域 #}
+          <div id="{{ 'edit_' if is_edit else '' }}ccUsersSection" style="display: none;">
+            <div class="form-group mb-3">
+              <label for="{{ 'edit_' if is_edit else '' }}cc_users">抄送用户</label>
+              <select class="form-control" id="{{ 'edit_' if is_edit else '' }}cc_users" 
+                      name="cc_users" multiple size="5">
+                {% for user in users %}
+                  <option value="{{ user.id }}">{{ user.real_name or user.username }} ({{ user.email or '无邮箱' }})</option>
+                {% endfor %}
+              </select>
+              <small class="form-text text-muted">按住Ctrl键可多选用户</small>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save"></i> {{ '更新步骤' if is_edit else '添加步骤' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{# 快捷宏：添加步骤模态框 #}
+{% macro render_add_step_modal(template, users, get_object_field_options=None) %}
+  {{ render_step_form_modal('addStepModal', 'add', template, users, get_object_field_options) }}
+{% endmacro %}
+
+{# 快捷宏：编辑步骤模态框 #}
+{% macro render_edit_step_modal(users, get_object_field_options=None, template=None) %}
+  {{ render_step_form_modal('editStepModal', 'edit', template, users, get_object_field_options) }}
+{% endmacro %}

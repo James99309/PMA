@@ -1,0 +1,254 @@
+{# 审批步骤列表组件 - 重构版本 #}
+{% from 'macros/ui_helpers.html' import render_button with context %}
+{% from 'approval_config/components/step_form_modal.html' import render_add_step_modal, render_edit_step_modal with context %}
+
+{# 审批流程步骤列表 #}
+{% macro step_list(steps, users, in_use=False, template=None, get_object_field_options=None) %}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0">审批步骤</h5>
+    </div>
+    <div class="card-body p-0">
+      {% if steps %}
+        <ul class="list-group step-list" id="stepList">
+          {% for step in steps %}
+            <li class="list-group-item" data-step-id="{{ step.id }}" 
+                {% if step.step_type == 'branch' %}style="border-left: 4px solid #007bff; background-color: #f8f9ff;"{% endif %}>
+              
+              {# 步骤头部：序号、名称和类型 #}
+              <div class="d-flex justify-content-between align-items-start mb-3">
+                <div class="d-flex align-items-center">
+                  {% if not in_use %}
+                    <span class="handle mr-3" title="拖动调整顺序">
+                      <i class="fas fa-grip-vertical text-muted"></i>
+                    </span>
+                  {% endif %}
+                  <h6 class="mb-0 font-weight-bold">{{ step.step_order }}. {{ step.step_name }}</h6>
+                </div>
+                <div class="text-right">
+                  {% if step.step_type == 'branch' %}
+                    <span class="badge badge-primary">分支决策</span>
+                  {% elif step.is_parallel %}
+                    <span class="badge badge-warning">并行分支</span>
+                  {% elif step.branch_level > 0 %}
+                    <span class="badge badge-info">分支路径</span>
+                  {% else %}
+                    <span class="badge badge-success">常规审批</span>
+                  {% endif %}
+                </div>
+              </div>
+              
+              {# 分支步骤显示 #}
+              {% if step.step_type == 'branch' and step.branch_condition %}
+                {# 分支条件显示 #}
+                <div class="mb-3">
+                  {% if step.branch_condition.conditions and step.branch_condition.conditions|length > 0 %}
+                    {# 显示所有配置的分支条件 #}
+                    <div class="branch-conditions-container">
+                      <div class="row">
+                        {% for condition in step.branch_condition.conditions %}
+                        <div class="col-md-6 col-lg-4 mb-3">
+                          <div class="branch-step-button h-100" 
+                               data-step-id="{{ step.id }}" 
+                               data-condition-index="{{ loop.index0 }}"
+                               title="点击编辑分支条件 {{ loop.index }}">
+                            {# 顶部居中的条件编号徽章 #}
+                            <div class="text-center mb-3">
+                              <span class="badge bg-primary text-white rounded-pill">条件{{ loop.index }}</span>
+                            </div>
+                            
+                            {# 删除按钮，放在右上角 #}
+                            {% if step.branch_condition.conditions|length > 1 %}
+                            <div class="position-absolute" style="top: 8px; right: 8px;">
+                              <button type="button" class="btn btn-sm btn-outline-danger delete-condition-btn" 
+                                      data-step-id="{{ step.id }}" 
+                                      data-condition-index="{{ loop.index0 }}"
+                                      title="删除此分支条件">
+                                <i class="fas fa-times"></i>
+                              </button>
+                            </div>
+                            {% endif %}
+                            
+                            {# 条件描述 #}
+                            <div class="mb-3">
+                              <span class="font-weight-bold small">
+                                {% set field_name = step.branch_condition.field %}
+                                {% if field_name == 'project_type' %}项目类型{% else %}{{ field_name }}{% endif %}
+                                
+                                {% set operator = condition.operator %}
+                                {% if operator == 'equals' %}等于
+                                {% elif operator == 'not_equals' %}不等于
+                                {% elif operator == 'contains' %}包含
+                                {% elif operator == 'not_contains' %}不包含
+                                {% elif operator == 'greater_than' %}大于
+                                {% elif operator == 'less_than' %}小于
+                                {% elif operator == 'in_list' or operator == 'in' %}属于
+                                {% elif operator == 'not_in_list' or operator == 'not_in' %}不属于
+                                {% elif operator == 'starts_with' %}以...开头
+                                {% elif operator == 'ends_with' %}以...结尾
+                                {% elif operator == 'equals_from_list' %}等于
+                                {% elif operator == 'in_from_list' %}包含
+                                {% else %}{{ operator }}{% endif %}
+                                
+                                {% set field_value = condition.value %}
+                                {% if field_name == 'project_type' %}
+                                  {% if ',' in field_value %}
+                                    {% set value_parts = field_value.split(',') %}
+                                    {% for part in value_parts %}
+                                      {% set trimmed_part = part.strip() %}
+                                      {{ trimmed_part|project_type_label }}{% if not loop.last %}, {% endif %}
+                                    {% endfor %}
+                                  {% else %}
+                                    {{ field_value|project_type_label }}
+                                  {% endif %}
+                                {% else %}
+                                  {{ field_value }}
+                                {% endif %}
+                              </span>
+                            </div>
+                            
+                            {# 审批人信息 #}
+                            <div class="mb-2">
+                              <small class="text-muted">审批人：</small>
+                              <span class="small font-weight-bold">
+                                {% if condition.approver_user_id %}
+                                  {% set approver = users|selectattr('id', 'equalto', condition.approver_user_id)|first %}
+                                  {{ approver.real_name or approver.username if approver else '未知用户' }}
+                                {% elif condition.approver_type == 'next_level' %}
+                                  上一级领导
+                                {% else %}
+                                  自动选择
+                                {% endif %}
+                              </span>
+                            </div>
+                            
+                            {# 执行动作 #}
+                            {% if condition.action_type %}
+                            <div class="mb-2">
+                              <small class="text-muted">执行动作：</small>
+                              <span class="small">
+                                {% if condition.action_type == 'authorization' %}授权编号
+                                {% elif condition.action_type == 'quotation_approval' %}报价审核
+                                {% elif condition.action_type == 'payment_processing' %}支付处理
+                                {% elif condition.action_type == 'project_authorization' %}项目授权
+                                {% elif condition.action_type == 'channel_authorization' %}渠道授权
+                                {% elif condition.action_type == 'business_authorization' %}业务授权
+                                {% elif condition.action_type == 'customer_service_authorization' %}客服授权
+                                {% elif condition.action_type == 'branch_decision' %}分支决策
+                                {% elif condition.action_type == 'pricing_settlement_approval' %}批结算审批
+                                {% else %}{{ condition.action_type }}{% endif %}
+                              </span>
+                            </div>
+                            {% endif %}
+                          </div>
+                        </div>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  {% endif %}
+                </div>
+              {% else %}
+                {# 常规步骤：显示审批人 #}
+                <div class="mb-2">
+                  <strong>审批人：</strong>
+                  {% if step.approver_user_id %}
+                    {{ step.approver.real_name or step.approver.username }}
+                  {% elif step.approver_type == 'next_level' %}
+                    上一级领导
+                  {% else %}
+                    自动选择
+                  {% endif %}
+                </div>
+                
+                {# 执行动作 #}
+                {% if step.action_type %}
+                <div class="mb-2">
+                  <strong>执行动作：</strong>
+                  {% if step.action_type == 'authorization' %}授权编号
+                  {% elif step.action_type == 'quotation_approval' %}报价审核
+                  {% elif step.action_type == 'payment_processing' %}支付处理
+                  {% elif step.action_type == 'project_authorization' %}项目授权
+                  {% elif step.action_type == 'channel_authorization' %}渠道授权
+                  {% elif step.action_type == 'business_authorization' %}业务授权
+                  {% elif step.action_type == 'customer_service_authorization' %}客服授权
+                  {% elif step.action_type == 'branch_decision' %}分支决策
+                  {% elif step.action_type == 'pricing_settlement_approval' %}批结算审批
+                  {% else %}{{ step.action_type }}{% endif %}
+                </div>
+                {% endif %}
+                
+                {# 可编辑字段 #}
+                {% if step.editable_fields and step.editable_fields|length > 0 %}
+                <div class="mb-2">
+                  <strong>可编辑字段：</strong>
+                  {% for field_code in step.editable_fields %}
+                    {% set field_options = get_object_field_options(template.object_type) if template else [] %}
+                    {% set field_display_name = get_field_display_name(template.object_type, field_code) %}
+                    <span class="badge bg-info text-white me-1">{{ field_display_name or field_code }}</span>
+                  {% endfor %}
+                </div>
+                {% endif %}
+              {% endif %}
+              
+              {# 编辑和删除按钮 #}
+              <div class="d-flex justify-content-end">
+                {# 预处理JSON数据避免双重编码 #}
+                {% set editable_fields_json = (step.editable_fields or [])|tojson|safe %}
+                {% set cc_users_json = (step.cc_users or [])|tojson|safe %}
+                
+                <button type="button" class="btn btn-info btn-sm edit-step-btn"
+                        data-bs-toggle="modal" 
+                        data-bs-target="#editStepModal"
+                        data-step-id="{{ step.id }}"
+                        data-step-name="{{ step.step_name }}"
+                        data-approver-id="{{ step.approver_user_id }}"
+                        data-approver-type="{{ step.approver_type or 'user' }}"
+                        data-send-email="{{ step.send_email }}"
+                        data-action-type="{{ step.action_type or '' }}"
+                        data-editable-fields="{{ editable_fields_json }}"
+                        data-cc-users="{{ cc_users_json }}"
+                        data-cc-enabled="{{ step.cc_enabled }}">
+                  <i class="fas fa-edit"></i> 编辑
+                </button>
+                
+                {{ render_button(
+                  text='删除',
+                  color='danger',
+                  size='sm',
+                  icon='fas fa-trash',
+                  attrs={
+                    'data-step-id': step.id,
+                    'data-step-name': step.step_name,
+                    'disabled': 'disabled' if not can_modify else None,
+                    'title': '有进行中的审批流程，无法删除步骤' if not can_modify else '删除步骤'
+                  },
+                  extra_class='delete-step-btn ml-2',
+                  type='button'
+                ) }}
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="text-center p-4">
+          <p class="text-muted">该审批流程模板暂无步骤</p>
+        </div>
+      {% endif %}
+      
+      {# 添加步骤按钮 - 始终显示在底部 #}
+      <div class="text-center p-3 border-top">
+        {{ render_button(
+          text='添加步骤',
+          color='primary',
+          icon='fas fa-plus',
+          attrs={'data-bs-toggle': 'modal', 'data-bs-target': '#addStepModal'},
+          type='button'
+        ) }}
+      </div>
+    </div>
+  </div>
+  
+  {# 包含模态框 #}
+  {{ render_add_step_modal(template, users, get_object_field_options) }}
+  {{ render_edit_step_modal(users, get_object_field_options, template) }}
+{% endmacro %}

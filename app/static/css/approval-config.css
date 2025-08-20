@@ -1,0 +1,201 @@
+/* 审批配置样式 - 重构版本 */
+
+/* 分支可视化样式 */
+.branch-step {
+    border-left: 4px solid #007bff;
+    background-color: #f8f9ff;
+}
+
+/* 自定义徽章颜色 */
+.bg-purple {
+    background-color: #6f42c1 !important;
+}
+
+.text-purple {
+    color: #6f42c1 !important;
+}
+
+.parallel-step {
+    border-left: 4px solid #ffc107;
+    background-color: #fffdf5;
+}
+
+.branch-child-step {
+    margin-left: 20px;
+    border-left: 2px dashed #6c757d;
+    background-color: #f8f9fa;
+}
+
+.branch-condition-display {
+    border-radius: 8px;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+    border: 1px solid #e1f5fe;
+}
+
+.branch-path-indicator {
+    display: inline-block;
+    width: 20px;
+    height: 2px;
+    background-color: #007bff;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+.step-type-icon {
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.step-type-icon.branch {
+    background-color: #007bff;
+    color: white;
+}
+
+.step-type-icon.parallel {
+    background-color: #ffc107;
+    color: white;
+}
+
+.step-type-icon.normal {
+    background-color: #28a745;
+    color: white;
+}
+
+/* 分支步骤按钮样式 */
+.branch-step-button {
+    position: relative;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 15px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: white;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.branch-step-button:hover {
+    border-color: #007bff;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15);
+    transform: translateY(-2px);
+}
+
+.branch-step-button.active {
+    border-color: #007bff;
+    background: linear-gradient(135deg, #f8f9ff 0%, #e9f2ff 100%);
+}
+
+/* 分支条件容器 */
+.branch-conditions-container {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 10px;
+}
+
+/* 拖拽手柄 */
+.handle {
+    cursor: move;
+    user-select: none;
+}
+
+.handle:hover {
+    color: #007bff !important;
+}
+
+/* 步骤列表样式 */
+.step-list .list-group-item {
+    border-left: 3px solid transparent;
+    transition: border-color 0.2s ease;
+}
+
+.step-list .list-group-item:hover {
+    border-left-color: #007bff;
+}
+
+/* 排序拖拽时的样式 */
+.sortable-ghost {
+    opacity: 0.5;
+    background: #f8f9fa !important;
+}
+
+.sortable-chosen {
+    border-left-color: #007bff !important;
+}
+
+/* 徽章样式优化 */
+.badge {
+    font-size: 0.75em;
+    font-weight: 500;
+}
+
+/* 按钮间距 */
+.btn + .btn {
+    margin-left: 0.5rem;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .branch-step-button {
+        min-height: 100px;
+        padding: 12px;
+    }
+    
+    .branch-conditions-container {
+        padding: 10px;
+    }
+    
+    .btn + .btn {
+        margin-left: 0.25rem;
+        margin-top: 0.25rem;
+    }
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* 加载状态 */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #007bff;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

@@ -1,0 +1,67 @@
+{# 审批配置相关 JavaScript 脚本加载器 #}
+{# 用法：在需要审批配置功能的页面中包含此文件 #}
+{# 示例：{% include 'includes/approval_config_scripts.html' %} #}
+
+{# 基础依赖库 #}
+{% if can_modify %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+{% endif %}
+
+{# 权限配置对象 - 必须在模块加载前初始化 #}
+<script>
+  // 权限配置对象 - 由服务器端传递给前端模块
+  window.ApprovalConfig = {
+    canModify: {{ can_modify|tojson }},
+    urls: {
+      deleteStep: "{{ url_for('approval_config.delete_step', step_id=0) }}",
+      stepDetails: "/admin/approval/step/"
+    },
+    csrfToken: "{{ csrf_token() }}"
+  };
+</script>
+
+{# 模块化 JavaScript 文件 - 按依赖顺序加载 #}
+<script src="{{ url_for('static', filename='js/modules/approval_config_main.js') }}"></script>
+<script src="{{ url_for('static', filename='js/modules/approval_config_branch.js') }}"></script>
+<script src="{{ url_for('static', filename='js/modules/approval_config_template.js') }}"></script>
+<script src="{{ url_for('static', filename='js/modules/approval_config_form.js') }}"></script>
+
+{# 初始化脚本 - 确保所有模块正确初始化 #}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 审批配置模块开始初始化');
+    
+    // 按依赖顺序初始化模块
+    setTimeout(() => {
+      if (window.ApprovalConfigMain) {
+        window.ApprovalConfigMain.init(window.ApprovalConfig);
+        console.log('✅ 主模块初始化完成');
+      }
+    }, 50);
+    
+    setTimeout(() => {
+      if (window.ApprovalConfigBranch) {
+        window.ApprovalConfigBranch.init();
+        console.log('✅ 分支模块初始化完成');
+      }
+    }, 100);
+    
+    setTimeout(() => {
+      if (window.ApprovalConfigTemplate) {
+        window.ApprovalConfigTemplate.init();
+        console.log('✅ 模板模块初始化完成');
+      }
+    }, 150);
+    
+    setTimeout(() => {
+      if (window.ApprovalConfigForm) {
+        window.ApprovalConfigForm.init();
+        console.log('✅ 表单模块初始化完成');
+      }
+    }, 200);
+    
+    setTimeout(() => {
+      console.log('🎉 所有审批配置模块初始化完成');
+    }, 250);
+  });
+</script>

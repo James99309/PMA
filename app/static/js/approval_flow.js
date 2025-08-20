@@ -82,6 +82,14 @@ class ApprovalFlow {
             if (data.success && data.approval_flow) {
                 this.approvalData = data.approval_flow;
                 console.log('获取到审批实例ID:', this.approvalData.instance_id);
+                
+                // 🔍 调试：检查审批步骤数据
+                if (this.approvalData.stages && this.approvalData.stages.length > 0) {
+                    const firstStage = this.approvalData.stages[0];
+                    console.log('🔍 第一步审批数据:', firstStage);
+                    console.log('🔍 第一步审批人ID:', firstStage.approver_id);
+                    console.log('🔍 第一步审批人姓名:', firstStage.approver_name);
+                }
                 this.renderFlow();
                 this.showContainer();
                 console.log('审批流程图已显示');

@@ -730,6 +730,7 @@ class ApprovalStep(db.Model):
         try:
             from app.models.user import User
             from app.permissions import get_role_permission
+            from datetime import datetime
             
             approver = User.query.get(approval_record.approver_id)
             if not approver:
@@ -745,19 +746,15 @@ class ApprovalStep(db.Model):
             pricing_limit = role_permission.pricing_discount_limit or 0
             settlement_limit = role_permission.settlement_discount_limit or 0
             
-            # 检查批价单和结算单折扣率
-            violations = []
-            current_pricing_rate = (pricing_order.pricing_total_discount_rate or 1.0) * 100
-            current_settlement_rate = (pricing_order.settlement_total_discount_rate or 1.0) * 100
+            # 1. 业务规则验证
+            violations = self._validate_pricing_business_rules(pricing_order, approval_record, pricing_limit, settlement_limit)
             
-            # 同时检查批价和结算权限下限
-            if pricing_limit > 0 and current_pricing_rate < pricing_limit:
-                violations.append(f"批价单折扣率{current_pricing_rate:.1f}%低于权限下限{pricing_limit}%")
+            # 2. 数据更新和状态管理
+            if approval_record.action == 'approve' and not violations:
+                self._update_pricing_order_status(pricing_order, approval_record)
+                self._sync_related_objects(pricing_order)
             
-            if settlement_limit > 0 and current_settlement_rate < settlement_limit:
-                violations.append(f"结算单折扣率{current_settlement_rate:.1f}%低于权限下限{settlement_limit}%")
-            
-            # 如果有违规，在审批记录中标记
+            # 3. 记录所有违规信息
             if violations:
                 violation_text = "; ".join(violations)
                 warning_msg = f"[批结算权限下限违规提醒] {violation_text}"
@@ -778,6 +775,70 @@ class ApprovalStep(db.Model):
             import traceback
             traceback.print_exc()
             return False
+    
+    def _validate_pricing_business_rules(self, pricing_order, approval_record, pricing_limit, settlement_limit):
+        """验证批价单业务规则"""
+        violations = []
+        
+        # 检查批价单和结算单折扣率
+        current_pricing_rate = (pricing_order.pricing_total_discount_rate or 1.0) * 100
+        current_settlement_rate = (pricing_order.settlement_total_discount_rate or 1.0) * 100
+        
+        # 同时检查批价和结算权限下限
+        if pricing_limit > 0 and current_pricing_rate < pricing_limit:
+            violations.append(f"批价单折扣率{current_pricing_rate:.1f}%低于权限下限{pricing_limit}%")
+        
+        if settlement_limit > 0 and current_settlement_rate < settlement_limit:
+            violations.append(f"结算单折扣率{current_settlement_rate:.1f}%低于权限下限{settlement_limit}%")
+        
+        # 金额一致性验证
+        if pricing_order.settlement_total_amount and pricing_order.pricing_total_amount:
+            if pricing_order.settlement_total_amount > pricing_order.pricing_total_amount:
+                violations.append("结算单总额不能大于批价单总额")
+        
+        # 最小利润率验证（如果需要）
+        if pricing_order.pricing_total_amount and pricing_order.settlement_total_amount:
+            profit_margin = self._calculate_profit_margin(pricing_order)
+            min_margin = 5.0  # 最小利润率5%，可以配置
+            if profit_margin < min_margin:
+                violations.append(f"利润率{profit_margin:.1f}%低于要求的{min_margin}%")
+        
+        return violations
+    
+    def _calculate_profit_margin(self, pricing_order):
+        """计算利润率"""
+        if not pricing_order.pricing_total_amount or pricing_order.pricing_total_amount == 0:
+            return 0.0
+        
+        profit = pricing_order.pricing_total_amount - (pricing_order.settlement_total_amount or 0)
+        return (profit / pricing_order.pricing_total_amount) * 100
+    
+    def _update_pricing_order_status(self, pricing_order, approval_record):
+        """更新批价单状态"""
+        from datetime import datetime
+        
+        pricing_order.status = 'approved'
+        pricing_order.approved_at = datetime.now()
+        pricing_order.approved_by = approval_record.approver_id
+        
+        print(f"批价单状态已更新: status=approved, approved_by={approval_record.approver_id}")
+    
+    def _sync_related_objects(self, pricing_order):
+        """同步相关对象状态"""
+        try:
+            # 更新关联项目状态
+            if pricing_order.project:
+                pricing_order.project.pricing_status = 'approved'
+                print(f"项目批价状态已更新: project_id={pricing_order.project.id}, pricing_status=approved")
+            
+            # 更新关联报价单状态（如果有）
+            if hasattr(pricing_order, 'quotation') and pricing_order.quotation:
+                pricing_order.quotation.pricing_approved = True
+                print(f"报价单批价状态已更新: quotation_id={pricing_order.quotation.id}")
+            
+        except Exception as e:
+            print(f"同步相关对象状态失败: {str(e)}")
+            # 不抛出异常，避免影响主流程
     
     # 注意：原来的子步骤查找方法已移除，现在使用分支链模式
 

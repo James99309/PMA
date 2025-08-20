@@ -540,23 +540,73 @@ function updateOperationSectionVisibility() {
     }
     
     const flow = window.approvalFlowInstance;
-    if (!flow || !flow.approvalData) {
-        console.log('没有审批流程数据，隐藏操作区域');
-        operationSection.style.display = 'none';
-        return;
+    
+    // 获取对象状态（从页面中或流程数据中）
+    let objectStatus = 'unknown';
+    if (flow && flow.approvalData && flow.approvalData.status) {
+        objectStatus = flow.approvalData.status;
     }
     
-    const data = flow.approvalData;
-    const hasAnyPermission = data.can_submit || data.can_recall || data.can_resubmit;
-    const isCreator = data.is_creator;
+    // 如果没有审批流程数据，检查页面中的状态信息
+    if (!flow || !flow.approvalData || objectStatus === 'unknown') {
+        // 尝试从页面元素获取状态信息
+        const statusElements = document.querySelectorAll('[class*="badge"]');
+        for (const element of statusElements) {
+            const text = element.textContent.trim();
+            if (text === '草稿') {
+                objectStatus = 'draft';
+                break;
+            } else if (text === '审批中') {
+                objectStatus = 'pending';
+                break;
+            } else if (text === '已通过') {
+                objectStatus = 'approved';
+                break;
+            } else if (text === '已拒绝') {
+                objectStatus = 'rejected';
+                break;
+            } else if (text === '已召回') {
+                objectStatus = 'recalled';
+                break;
+            }
+        }
+        console.log('从页面元素获取状态:', objectStatus);
+    }
     
-    // 只有是创建人且有任何权限时才显示操作区域
-    if (isCreator && hasAnyPermission) {
+    // 检查用户是否为创建人（从模板中获取的信息）
+    const creatorCheckElements = document.querySelectorAll('[data-is-creator]');
+    let isCreatorFromTemplate = false;
+    if (creatorCheckElements.length > 0) {
+        isCreatorFromTemplate = creatorCheckElements[0].getAttribute('data-is-creator') === 'true';
+    }
+    
+    // 权限判断逻辑
+    let shouldShow = false;
+    
+    if (flow && flow.approvalData) {
+        // 有审批数据时，使用API返回的权限信息
+        const data = flow.approvalData;
+        const hasAnyPermission = data.can_submit || data.can_recall || data.can_resubmit;
+        const isCreator = data.is_creator;
+        shouldShow = isCreator && hasAnyPermission;
+        console.log('使用API权限数据:', { isCreator, hasAnyPermission, shouldShow });
+    } else {
+        // 没有审批数据时，对于草稿状态默认显示给创建人
+        if (objectStatus === 'draft') {
+            shouldShow = isCreatorFromTemplate;
+            console.log('草稿状态，使用模板权限信息:', { isCreatorFromTemplate, shouldShow });
+        } else {
+            shouldShow = false;
+            console.log('非草稿状态且无API数据，隐藏操作区域');
+        }
+    }
+    
+    if (shouldShow) {
         operationSection.style.display = 'block';
-        console.log('显示操作区域，用户有权限');
+        console.log('显示操作区域');
     } else {
         operationSection.style.display = 'none';
-        console.log('隐藏操作区域，用户无权限或非创建人');
+        console.log('隐藏操作区域');
     }
 }
 

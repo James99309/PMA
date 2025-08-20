@@ -1,12 +1,16 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button, render_pricing_order_number, render_project_type %}
+{% from 'macros/ui_helpers.html' import render_button, render_pricing_order_number, render_project_type, render_confirm_dialog %}
+{% from 'macros/approval_flow.html' import render_complete_approval_section %}
 
 {% block title %}批价单编辑 - {{ pricing_order.order_number }}{% endblock %}
 
 {% block head %}
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<!-- 引入审批时间线样式 -->
+<!-- 标准审批流程样式和脚本 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_flow.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
+<script src="{{ url_for('static', filename='js/approval_flow.js') }}"></script>
+<script src="{{ url_for('static', filename='js/approval_flow_utils.js') }}"></script>
 
 <!-- 折扣权限检查样式 -->
 <style>
@@ -154,7 +158,12 @@
                 <!-- 操作按钮组 -->
                 <div class="btn-toolbar justify-content-end" role="toolbar">
                     {% if pricing_order.created_by == current_user.id and pricing_order.status == 'draft' %}
-                        {{ render_button('删除批价单', color='danger', icon='fas fa-trash', type='button', attrs='data-bs-toggle="modal" data-bs-target="#deletePricingOrderModal"') }}
+                        {{ render_button('提交审批', color='success', icon='fas fa-paper-plane', type='button', onclick='confirmSubmitPricingOrder()', extra_class='me-2') }}
+                        {{ render_button('删除批价单', color='danger', icon='fas fa-trash', type='button', onclick='confirmDeletePricingOrder()') }}
+                    {% elif pricing_order.created_by == current_user.id and pricing_order.status == 'pending' %}
+                        {{ render_button('召回流程', color='warning', icon='fas fa-undo', type='button', onclick='confirmRecallPricingOrder()', extra_class='me-2') }}
+                    {% elif pricing_order.created_by == current_user.id and pricing_order.status in ['rejected', 'recalled'] %}
+                        {{ render_button('重新提交', color='success', icon='fas fa-redo', type='button', onclick='confirmResubmitPricingOrder()', extra_class='me-2') }}
                     {% endif %}
                     
                     <!-- PDF导出按钮 - 仅在审批通过后且有权限时显示 -->
@@ -1090,210 +1099,21 @@
         </div>
     </div>
 
-    <!-- 审批流程模块 -->
-    <div class="card">
-        <div class="card-header bg-dark text-white">
-            <h6 class="mb-0"><i class="fas fa-sitemap me-2"></i>审批流程图</h6>
-        </div>
-        <div class="card-body">
-            <!-- 只有非草稿状态且有审批记录时才显示审批流程图 -->
-            {% if pricing_order.status not in ['draft'] and pricing_order.approval_records|length > 0 %}
-            <div class="approval-workflow">
-                <div class="timeline">
-                    {% set visible_records = pricing_order.approval_records|selectattr('action', '!=', 'recall')|list|sort(attribute='step_order') %}
-                    
-                    <!-- 流程发起节点（第0步） -->
-                    <div class="timeline-item">
-                        <div class="timeline-marker bg-info"></div>
-                        <div class="timeline-content">
-                            <div class="d-flex justify-content-between">
-                                <h6 class="timeline-title">
-                                    流程发起
-                                    {% if step_discount_statuses.get(0, {}).get('has_violation', False) %}
-                                        <span class="badge bg-danger ms-2" title="发起人权限不足，存在折扣超出">
-                                            <i class="fas fa-exclamation-triangle"></i> 权限超出
-                                        </span>
-                                    {% endif %}
-                                </h6>
-                                <span class="badge bg-info">已发起</span>
-                            </div>
-                            <p class="standard-font mb-1">
-                                发起人: <strong>{{ pricing_order.creator.real_name or pricing_order.creator.username }}</strong>
-                            </p>
-                            <p class="text-muted standard-font">
-                                发起时间: {{ format_datetime(pricing_order.created_at) }}
-                            </p>
-                            {% if step_discount_statuses.get(0, {}).get('has_violation', False) %}
-                                <div class="mt-2 p-2 bg-danger-light rounded">
-                                    <small class="text-danger">
-                                        <i class="fas fa-exclamation-triangle me-1"></i>
-                                        发起人设置的折扣率低于其权限下限，需要审批人关注
-                                    </small>
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    
-                    {% for record in visible_records %}
-                        <div class="timeline-item">
-                            <div class="timeline-marker{% if record.action == 'approve' %} bg-success{% elif record.action == 'reject' %} bg-danger{% elif record.step_order == pricing_order.current_approval_step and pricing_order.status == 'pending' %} bg-warning{% else %} bg-secondary{% endif %}"></div>
-                            <div class="timeline-content">
-                                <div class="d-flex justify-content-between">
-                                    <h6 class="timeline-title">
-                                        步骤 {{ record.step_order }}: {{ record.step_name }}
-                                        {% if step_discount_statuses.get(record.step_order, {}).get('has_violation', False) %}
-                                            <span class="badge bg-danger ms-2" title="审批人权限不足，存在折扣超出">
-                                                <i class="fas fa-exclamation-triangle"></i> 权限超出
-                                            </span>
-                                        {% endif %}
-                                    </h6>
-                                    {% if record.step_order == pricing_order.current_approval_step and pricing_order.status == 'pending' %}
-                                        <span class="badge bg-warning">当前步骤</span>
-                                    {% elif record.action == 'approve' %}
-                                        <span class="badge bg-success">已通过</span>
-                                    {% elif record.action == 'reject' %}
-                                        <span class="badge bg-danger">已拒绝</span>
-                                    {% elif pricing_order.status == 'approved' and not record.action %}
-                                        <span class="badge bg-info">自动审批</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">待审批</span>
-                                    {% endif %}
-                                </div>
-                                
-                                <p class="standard-font mb-1">审批人: {{ record.approver.real_name or record.approver.username if record.approver else '未指定' }}</p>
-                                
-                                {% if record.approved_at %}
-                                    <p class="text-muted standard-font mb-1">审批时间: {{ record.formatted_approved_at }}</p>
-                                    
-                                    {% if record.is_fast_approval %}
-                                        <div class="mt-2 p-2 bg-success border border-success rounded">
-                                            <i class="fas fa-bolt text-white me-2"></i>
-                                            <span class="standard-font text-white">{{ record.fast_approval_reason }}</span>
-                                        </div>
-                                    {% endif %}
-                                    
-                                    {% if record.comment %}
-                                        <div class="mt-2 p-2 bg-light rounded">
-                                            <i class="fas fa-comment text-muted me-2"></i><span class="standard-font">{{ record.comment }}</span>
-                                        </div>
-                                    {% endif %}
-                                {% endif %}
-                            </div>
-                        </div>
-                    {% endfor %}
-                    
-                    <!-- 最终结果 - 只有在流程真正结束时才显示 -->
-                    {% if pricing_order.status in ['approved', 'rejected'] %}
-                    <div class="timeline-item">
-                        <div class="timeline-marker 
-                            {% if pricing_order.status == 'approved' %}
-                                bg-success
-                            {% elif pricing_order.status == 'rejected' %}
-                                bg-danger
-                            {% endif %}
-                        "></div>
-                        <div class="timeline-content">
-                            <h6 class="timeline-title">流程结束</h6>
-                            <p class="standard-font">
-                                {% if pricing_order.status == 'approved' %}
-                                    <span class="text-success"><i class="fas fa-check-circle me-1"></i>审批已通过</span>
-                                {% elif pricing_order.status == 'rejected' %}
-                                    <span class="text-danger"><i class="fas fa-times-circle me-1"></i>审批已拒绝</span>
-                                {% endif %}
-                            </p>
-                            {% if pricing_order.approved_at %}
-                                <p class="text-muted standard-font">完成时间: {{ pricing_order.approved_at.strftime('%Y-%m-%d %H:%M') }}</p>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-            {% endif %}
-            
-            <!-- 当前审批人操作区 -->
-            {% if current_approval_record and pricing_order.status == 'pending' %}
-            <div class="mt-4 p-3 border rounded bg-light">
-                <div class="alert alert-primary mb-3">
-                    <h6><i class="fas fa-bell me-2"></i>您有待审批的批价单</h6>
-                    <p class="mb-0">当前步骤：{{ current_approval_record.step_name }}</p>
-                    {% if can_edit_pricing or can_edit_settlement %}
-                    <p class="mb-0 text-info"><i class="fas fa-edit me-1"></i>您可以在审批过程中编辑产品明细和折扣率</p>
-                    {% endif %}
-                </div>
-                
-                <form id="approvalForm">
-                    <div class="mb-3">
-                        <label for="approvalComment" class="form-label">审批意见</label>
-                        <textarea class="form-control" id="approvalComment" rows="3" 
-                                  placeholder="请输入审批意见..."></textarea>
-                    </div>
-                    <div class="d-flex gap-2">
-                        {{ render_button('通过', type='button', color='success', icon='fas fa-check', attrs='onclick="openApprovalModal(\'approve\')"') }}
-                        {{ render_button('拒绝', type='button', color='danger', icon='fas fa-times', attrs='onclick="openApprovalModal(\'reject\')"') }}
-                    </div>
-                </form>
-            </div>
-            {% endif %}
-
-            <!-- 操作按钮区域 -->
-            {% if pricing_order.created_by == current_user.id %}
-                {% if pricing_order.status == 'draft' %}
-                <!-- 草稿状态：显示保存和提交按钮 -->
-                <div class="submit-approval-section">
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i>
-                        批价单编辑完成后，请点击"保存批价单"保存修改，或直接"提交审批"进入审批流程。
-                    </div>
-                    <div class="action-buttons">
-                        {{ render_button('保存批价单', type='button', color='primary', icon='fas fa-save', attrs='id="savePricingOrderBtn"') }}
-                        {{ render_button('提交审批', type='button', color='info', icon='fas fa-paper-plane', attrs='id="submitApprovalBtn"') }}
-                    </div>
-                </div>
-                {% elif pricing_order.status == 'pending' %}
-                <!-- 审批中状态：显示召回按钮 -->
-                <div class="submit-approval-section">
-                    <div class="alert alert-warning">
-                        <i class="fas fa-clock"></i>
-                        批价单正在审批中，您可以召回进行修改。
-                    </div>
-                    <div class="action-buttons">
-                        {{ render_button('召回批价单', type='button', color='warning', icon='fas fa-undo', attrs='id="recallPricingOrderBtn" data-bs-toggle="modal" data-bs-target="#recallPricingOrderModal"') }}
-                    </div>
-                </div>
-                {% elif pricing_order.status == 'rejected' %}
-                <!-- 被拒绝状态：显示重新发起审批按钮 -->
-                <div class="submit-approval-section">
-                    <div class="alert alert-danger">
-                        <i class="fas fa-times-circle"></i>
-                        批价单审批已被拒绝，您可以修改后重新发起审批。
-                    </div>
-                    <div class="action-buttons">
-                        {{ render_button('保存批价单', type='button', color='primary', icon='fas fa-save', attrs='id="savePricingOrderBtn"') }}
-                        {{ render_button('重新发起审批', type='button', color='info', icon='fas fa-redo', attrs='id="resubmitApprovalBtn"') }}
-                    </div>
-                </div>
-                {% endif %}
-            {% endif %}
-            
-
-            
-            <!-- 管理员退回按钮 - 只有管理员或CEO可以看到，且仅限于已通过的批价单 -->
-            {% if is_admin_or_ceo and pricing_order.status == 'approved' %}
-            <div class="submit-approval-section">
-                <div class="alert alert-secondary">
-                    <i class="fas fa-shield-alt me-2"></i>
-                    <strong>管理员操作区域</strong>
-                    <br>当前批价单已通过审批，您可以将其退回到草稿状态重新审批。
-                </div>
-                <div class="action-buttons">
-                    {{ render_button('退回审批', type='button', color='warning', icon='fas fa-undo', attrs='onclick="showAdminRollbackModal()"') }}
-                    <small class="text-muted ms-2">管理员权限：将已通过的批价单退回到草稿状态（清除所有审批记录）</small>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-    </div>
+    <!-- 创建人权限标记（用于JavaScript权限检查） -->
+    <div data-is-creator="{{ 'true' if current_user.id == pricing_order.created_by else 'false' }}" style="display: none;"></div>
+    
+    <!-- 审批流程图（仅显示流程图，操作按钮已移至页面顶部） -->
+    {% from 'macros/approval_flow.html' import render_approval_flow_container, render_approval_confirm_modal, render_recall_confirm_modal %}
+    {{ render_approval_flow_container('pricing_order', pricing_order.id, 'pricingOrderApprovalSection', '批价单审批流程') }}
+    
+    <!-- 审批确认模态框 -->
+    {{ render_approval_confirm_modal('pricing_order', pricing_order.id) }}
+    
+    <!-- 召回确认模态框 -->
+    {{ render_recall_confirm_modal() }}
+    
+    <!-- 通用确认对话框 -->
+    {{ render_confirm_dialog('pricingOrderActionDialog') }}
 </div>
 
 
@@ -1324,34 +1144,7 @@
     </div>
 </div>
 
-<!-- 删除确认模态框 -->
-<div class="modal fade" id="deletePricingOrderModal" tabindex="-1" aria-labelledby="deletePricingOrderModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deletePricingOrderModalLabel">确认删除批价单</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-danger">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    您确定要删除此批价单吗？删除后将无法恢复，请谨慎操作。
-                </p>
-                <div class="alert alert-warning">
-                    <strong>注意：</strong>只有草稿状态且未发起审批的批价单才能删除。
-                </div>
-                <div class="mb-3">
-                    <label for="deleteReason" class="form-label">删除原因（可选）</label>
-                    <textarea class="form-control" id="deleteReason" rows="3" placeholder="请输入删除原因..."></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                {{ render_button('取消', type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
-                {{ render_button('确认删除', type='button', color='danger', icon='fas fa-trash', attrs='onclick="confirmDeletePricingOrder()"') }}
-            </div>
-        </div>
-    </div>
-</div>
+<!-- 删除确认模态框已替换为通用确认组件 -->
 
 <!-- 管理员退回确认模态框 -->
 {% if is_admin_or_ceo and pricing_order.status == 'approved' %}
@@ -1396,30 +1189,6 @@
 </div>
 {% endif %}
 
-<!-- 审批确认模态框 -->
-<div class="modal fade" id="approvalModal" tabindex="-1" aria-labelledby="approvalModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="approvalModalLabel">审批确认</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="approvalActionDisplay" class="alert mb-3">
-                    <!-- 动态内容 -->
-                </div>
-                <div class="mb-3">
-                    <label for="modalApprovalComment" class="form-label">审批意见</label>
-                    <textarea class="form-control" id="modalApprovalComment" rows="3" placeholder="请输入您的审批意见..."></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                {{ render_button('取消', type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
-                {{ render_button('确认', type='button', color='primary', attrs='id="confirmApprovalBtn" onclick="confirmApproval()"') }}
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- 样式 -->
 <style>
@@ -3289,9 +3058,67 @@ $(document).ready(function() {
         const tabType = currentTab === 'pricing-tab' ? 'pricing' : 'settlement';
         calculateAndUpdateTotalDiscountRate(tabType);
     });
+    
+    // 初始化标准审批流程
+    if (typeof initStandardApprovalFlow === 'function') {
+        // 配置批价单特有的预验证函数
+        window.pricingOrderPreValidation = function(action) {
+            if (action === 'approve') {
+                // 执行金额校验
+                return validateAmountBeforeApproval();
+            }
+            return true;
+        };
+        
+        // 配置批价单特有的数据收集函数
+        window.pricingOrderDataCollection = function() {
+            return {
+                basic_info: window.pricingOrderCache || {},
+                pricing_details: collectPricingDetails(),
+                settlement_details: collectSettlementDetails()
+            };
+        };
+        
+        // 初始化审批流程（使用统一审批流程系统）
+        initStandardApprovalFlow('pricing_order', {{ pricing_order.id }}, 'pricingOrderApprovalSection', {
+            preValidation: window.pricingOrderPreValidation,
+            dataCollection: window.pricingOrderDataCollection,
+            apiBasePath: '/pricing_order/api/approval'
+        });
+        
+        // 根据批价单状态显示审批流程图
+        console.log('批价单状态: {{ pricing_order.status }}');
+        
+        // 检查是否应该显示流程图
+        var shouldShowApprovalFlow = false;
+        
+        if (['pending', 'approved', 'rejected', 'recalled'].includes('{{ pricing_order.status }}')) {
+            // 非草稿状态：显示审批流程图
+            shouldShowApprovalFlow = true;
+        } else if ('{{ pricing_order.status }}' === 'draft') {
+            // 草稿状态：使用后端提供的审批历史标识
+            {% if has_approval_history %}
+            // 存在审批历史（包括召回），显示流程图
+            shouldShowApprovalFlow = true;
+            console.log('发现审批历史，显示流程图');
+            {% else %}
+            console.log('无审批历史，不显示流程图');
+            {% endif %}
+        }
+        
+        if (shouldShowApprovalFlow) {
+            // 直接显示审批流程图
+            if (typeof autoShowApprovalUI === 'function') {
+                autoShowApprovalUI('pricing_order', {{ pricing_order.id }}, '{{ pricing_order.status }}');
+                console.log('显示审批流程图');
+            }
+        }
+        
+        console.log('标准审批流程初始化完成');
+    } else {
+        console.warn('标准审批流程脚本未加载');
+    }
 });
-
-
 
 // 初始化产品自动完成功能
 function initializeProductAutocomplete() {
@@ -4032,125 +3859,6 @@ function calculateMobileRowValues($element, triggerType) {
     console.log(`移动端计算完成 - 类型: ${triggerType}, 数量: ${quantity}, 单价: ${unitPrice.toFixed(2)}, 小计: ${subtotal.toFixed(2)}`);
 }
 
-
-
-// 审批相关变量
-let currentApprovalAction = '';
-
-// 打开审批模态框
-function openApprovalModal(action) {
-    console.log('=== 打开审批模态框 ===');
-    console.log('审批动作:', action);
-    
-    currentApprovalAction = action;
-    
-    // 如果是审批通过，先进行金额校验
-    if (action === 'approve') {
-        console.log('审批通过操作，开始金额校验...');
-        // 先进行金额校验，校验失败则不打开模态框
-        if (!validateAmountBeforeApproval()) {
-            console.log('❌ 金额校验失败，阻止打开审批模态框');
-            return; // 校验失败，不打开模态框
-        }
-        console.log('✅ 金额校验通过，继续打开审批模态框');
-    }
-    
-    const actionDisplay = document.getElementById('approvalActionDisplay');
-    const confirmBtn = document.getElementById('confirmApprovalBtn');
-    const modalComment = document.getElementById('modalApprovalComment');
-    
-    // 同步当前的审批意见到模态框
-    const currentComment = document.getElementById('approvalComment').value;
-    modalComment.value = currentComment;
-    
-    if (action === 'approve') {
-        actionDisplay.className = 'alert alert-success mb-3';
-        actionDisplay.innerHTML = '<i class="fas fa-check me-2"></i>您确定要通过此批价单吗？';
-        // 使用标准按钮样式类，确保与系统一致
-        confirmBtn.className = 'btn btn-success';
-        confirmBtn.innerHTML = '<i class="fas fa-check me-1"></i>确认通过';
-    } else {
-        actionDisplay.className = 'alert alert-danger mb-3';
-        actionDisplay.innerHTML = '<i class="fas fa-times me-2"></i>您确定要拒绝此批价单吗？';
-        // 使用标准按钮样式类，确保与系统一致
-        confirmBtn.className = 'btn btn-danger';
-        confirmBtn.innerHTML = '<i class="fas fa-times me-1"></i>确认拒绝';
-    }
-    
-    const modal = new bootstrap.Modal(document.getElementById('approvalModal'));
-    modal.show();
-}
-
-// 确认审批操作
-function confirmApproval() {
-    const comment = document.getElementById('modalApprovalComment').value;
-    
-    // 同步审批意见回主表单
-    document.getElementById('approvalComment').value = comment;
-    
-    // 🔥 关键修复：如果是通过审批，需要传递当前的结算单数据确保用户修改的折扣率被保存
-    const data = {
-        action: currentApprovalAction,
-        comment: comment
-    };
-    
-    // 如果是通过审批，收集当前的数据（特别是结算单数据）
-    if (currentApprovalAction === 'approve') {
-        console.log('审批通过，收集当前结算单数据...');
-        data.basic_info = window.pricingOrderCache || {};
-        data.pricing_details = collectPricingDetails();
-        data.settlement_details = collectSettlementDetails();
-        console.log('审批时传递的数据:', data);
-    }
-    
-    // 显示处理中状态
-    const confirmBtn = document.getElementById('confirmApprovalBtn');
-    const originalText = confirmBtn.innerHTML;
-    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>处理中...';
-    confirmBtn.disabled = true;
-    
-    fetch(`/pricing_order/${PRICING_ORDER_ID}/approve`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // 关闭模态框
-            const modal = bootstrap.Modal.getInstance(document.getElementById('approvalModal'));
-            modal.hide();
-            
-            // 显示成功消息
-            const actionText = currentApprovalAction === 'approve' ? '通过' : '拒绝';
-            showStandardAlert('success', `批价单审批${actionText}成功！`, [], '.card:has(#dealerSelect)', 2000);
-            
-            // 延迟刷新页面
-            setTimeout(() => {
-                location.reload();
-            }, 2000);
-        } else {
-            showStandardAlert('error', data.message || '审批失败', [], '.card:has(#dealerSelect)');
-            // 恢复按钮状态
-            confirmBtn.innerHTML = originalText;
-            confirmBtn.disabled = false;
-        }
-    })
-    .catch(error => {
-        showStandardAlert('error', '审批失败: ' + error.message, [], '.card:has(#dealerSelect)');
-        // 恢复按钮状态
-        confirmBtn.innerHTML = originalText;
-        confirmBtn.disabled = false;
-    });
-}
-
-// 保持原有的submitApproval函数以兼容性（已弃用）
-function submitApproval(action) {
-    openApprovalModal(action);
-}
-
 // 使用标准提示函数替换原有的showAlert
 function showAlert(type, message, conditions = []) {
     showStandardAlert(type, message, conditions, '.card:has(#dealerSelect)');
@@ -4315,7 +4023,7 @@ function collectSettlementDetails() {
 }
 
 // 提交审批函数
-function submitForApproval() {
+async function submitForApproval() {
     // 验证渠道信息
     const validationResult = validateChannelInfo();
     if (!validationResult.valid) {
@@ -4323,8 +4031,22 @@ function submitForApproval() {
         return;
     }
     
-    if (!confirm('确定要提交批价单审批吗？提交后将无法修改。')) {
-        return;
+    // 使用通用确认组件
+    if (!window.showConfirmDialog) {
+        console.warn('通用确认组件未加载，使用原生确认');
+        if (!confirm('确定要提交批价单审批吗？提交后将无法修改。')) {
+            return;
+        }
+    } else {
+        const confirmed = await window.showConfirmDialog(
+            '确认提交审批',
+            '确定要提交批价单审批吗？提交后将无法修改。',
+            '确认提交',
+            '取消'
+        );
+        if (!confirmed) {
+            return;
+        }
     }
     
     console.log('开始提交审批...');
@@ -4380,7 +4102,7 @@ function submitForApproval() {
 }
 
 // 重新发起审批函数
-function resubmitForApproval() {
+async function resubmitForApproval() {
     // 验证渠道信息
     const validationResult = validateChannelInfo();
     if (!validationResult.valid) {
@@ -4388,8 +4110,22 @@ function resubmitForApproval() {
         return;
     }
     
-    if (!confirm('确定要重新发起审批吗？这将清除之前的审批记录并开始新的审批流程。')) {
-        return;
+    // 使用通用确认组件
+    if (!window.showConfirmDialog) {
+        console.warn('通用确认组件未加载，使用原生确认');
+        if (!confirm('确定要重新发起审批吗？这将清除之前的审批记录并开始新的审批流程。')) {
+            return;
+        }
+    } else {
+        const confirmed = await window.showConfirmDialog(
+            '确认重新发起审批',
+            '确定要重新发起审批吗？这将清除之前的审批记录并开始新的审批流程。',
+            '确认发起',
+            '取消'
+        );
+        if (!confirmed) {
+            return;
+        }
     }
     
     console.log('开始重新发起审批...');
@@ -4482,16 +4218,89 @@ function confirmRecallPricingOrder() {
     });
 }
 
-// 删除批价单函数
+// 确认提交批价单审批 - 使用通用确认组件
+function confirmSubmitPricingOrder() {
+    if (typeof showConfirmDialog === 'function') {
+        showConfirmDialog({
+            title: '提交审批确认',
+            message: '确定要提交此批价单进行审批吗？提交后将进入审批流程，无法直接修改。',
+            confirmText: '提交审批',
+            cancelText: '取消',
+            type: 'success',
+            onConfirm: function() {
+                executeSubmitPricingOrder();
+            }
+        });
+    } else {
+        // 回退到原生确认
+        if (confirm('确定要提交此批价单进行审批吗？提交后将进入审批流程，无法直接修改。')) {
+            executeSubmitPricingOrder();
+        }
+    }
+}
+
+// 执行提交批价单审批
+function executeSubmitPricingOrder() {
+    if (typeof showStandardAlert === 'function') {
+        showStandardAlert('info', '正在提交审批...', false);
+    }
+    
+    fetch(`/pricing_order/${PRICING_ORDER_ID}/submit`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (typeof showStandardAlert === 'function') {
+                showStandardAlert('success', '提交审批成功');
+            }
+            // 刷新页面以显示新状态
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            if (typeof showStandardAlert === 'function') {
+                showStandardAlert('error', '提交审批失败: ' + (data.message || '未知错误'));
+            }
+        }
+    })
+    .catch(error => {
+        console.error('提交审批失败:', error);
+        if (typeof showStandardAlert === 'function') {
+            showStandardAlert('error', '提交审批失败，请稍后重试');
+        }
+    });
+}
+
+// 确认删除批价单 - 使用通用确认组件
 function confirmDeletePricingOrder() {
-    const reason = document.getElementById('deleteReason').value;
-    
-    // 关闭模态框
-    const modal = bootstrap.Modal.getInstance(document.getElementById('deletePricingOrderModal'));
-    modal.hide();
-    
-    // 显示加载状态
-    showAlert('info', '正在删除批价单...');
+    if (typeof showConfirmDialog === 'function') {
+        showConfirmDialog({
+            title: '删除批价单确认',
+            message: '确定要删除此批价单吗？删除后将无法恢复，请谨慎操作。',
+            confirmText: '确认删除',
+            cancelText: '取消',
+            type: 'danger',
+            onConfirm: function() {
+                executeDeletePricingOrder();
+            }
+        });
+    } else {
+        // 回退到原生确认
+        if (confirm('确定要删除此批价单吗？删除后将无法恢复，请谨慎操作。')) {
+            executeDeletePricingOrder();
+        }
+    }
+}
+
+// 执行删除批价单
+function executeDeletePricingOrder() {
+    if (typeof showStandardAlert === 'function') {
+        showStandardAlert('info', '正在删除批价单...', false);
+    }
     
     fetch(`/pricing_order/${PRICING_ORDER_ID}/delete`, {
         method: 'DELETE',
@@ -4499,28 +4308,152 @@ function confirmDeletePricingOrder() {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            reason: reason
+            reason: '用户主动删除'
         })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showAlert('success', '批价单已成功删除！');
-            // 延迟跳转到项目详情页面
+            if (typeof showStandardAlert === 'function') {
+                showStandardAlert('success', '批价单已成功删除！');
+            }
+            // 跳转到项目详情页面
             setTimeout(() => {
                 if (data.project_id) {
-                    window.location.href = `/project/view/${data.project_id}`;
+                    window.location.href = `/project/${data.project_id}`;
                 } else {
+                    // 如果没有项目ID，则跳转到批价单列表
                     window.location.href = '/pricing_order/list';
                 }
             }, 1500);
         } else {
-            showAlert('error', '删除失败: ' + (data.message || '未知错误'));
+            if (typeof showStandardAlert === 'function') {
+                showStandardAlert('error', '删除失败: ' + (data.message || '未知错误'));
+            }
         }
     })
     .catch(error => {
         console.error('删除失败:', error);
-        showAlert('error', '删除失败，请稍后重试');
+        if (typeof showStandardAlert === 'function') {
+            showStandardAlert('error', '删除失败，请稍后重试');
+        }
+    });
+}
+
+// 确认召回批价单 - 使用通用确认组件
+function confirmRecallPricingOrder() {
+    if (typeof showConfirmDialog === 'function') {
+        showConfirmDialog({
+            title: '召回审批确认',
+            message: '确定要召回此批价单的审批流程吗？召回后流程将停止，状态将回到草稿状态。',
+            confirmText: '确认召回',
+            cancelText: '取消',
+            type: 'warning',
+            onConfirm: function() {
+                executeRecallPricingOrder();
+            }
+        });
+    } else {
+        // 回退到原生确认
+        if (confirm('确定要召回此批价单的审批流程吗？召回后流程将停止，状态将回到草稿状态。')) {
+            executeRecallPricingOrder();
+        }
+    }
+}
+
+// 执行召回批价单
+function executeRecallPricingOrder() {
+    if (typeof showStandardAlert === 'function') {
+        showStandardAlert('info', '正在召回审批...', false);
+    }
+    
+    fetch(`/pricing_order/${PRICING_ORDER_ID}/recall`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            reason: '用户主动召回'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (typeof showStandardAlert === 'function') {
+                showStandardAlert('success', '召回成功');
+            }
+            // 刷新页面以显示新状态
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            if (typeof showStandardAlert === 'function') {
+                showStandardAlert('error', '召回失败: ' + (data.message || '未知错误'));
+            }
+        }
+    })
+    .catch(error => {
+        console.error('召回失败:', error);
+        if (typeof showStandardAlert === 'function') {
+            showStandardAlert('error', '召回失败，请稍后重试');
+        }
+    });
+}
+
+// 确认重新提交批价单 - 使用通用确认组件
+function confirmResubmitPricingOrder() {
+    if (typeof showConfirmDialog === 'function') {
+        showConfirmDialog({
+            title: '重新提交确认',
+            message: '确定要重新提交此批价单进行审批吗？重新提交将重置审批历史，重新开始审批流程。',
+            confirmText: '重新提交',
+            cancelText: '取消',
+            type: 'success',
+            onConfirm: function() {
+                executeResubmitPricingOrder();
+            }
+        });
+    } else {
+        // 回退到原生确认
+        if (confirm('确定要重新提交此批价单进行审批吗？重新提交将重置审批历史，重新开始审批流程。')) {
+            executeResubmitPricingOrder();
+        }
+    }
+}
+
+// 执行重新提交批价单
+function executeResubmitPricingOrder() {
+    if (typeof showStandardAlert === 'function') {
+        showStandardAlert('info', '正在重新提交审批...', false);
+    }
+    
+    fetch(`/pricing_order/${PRICING_ORDER_ID}/submit`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (typeof showStandardAlert === 'function') {
+                showStandardAlert('success', '重新提交成功');
+            }
+            // 刷新页面以显示新状态
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            if (typeof showStandardAlert === 'function') {
+                showStandardAlert('error', '重新提交失败: ' + (data.message || '未知错误'));
+            }
+        }
+    })
+    .catch(error => {
+        console.error('重新提交失败:', error);
+        if (typeof showStandardAlert === 'function') {
+            showStandardAlert('error', '重新提交失败，请稍后重试');
+        }
     });
 }
 

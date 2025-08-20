@@ -218,6 +218,13 @@ def edit_pricing_order(order_id):
          can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
         can_view_settlement = PricingOrderService.can_view_settlement_tab(current_user)
         
+        # 检查是否有审批历史（用于决定是否显示流程图）
+        has_approval_history = False
+        from app.helpers.approval_helpers import get_object_approval_instance
+        approval_instance = get_object_approval_instance('pricing_order', order_id)
+        if approval_instance:
+            has_approval_history = True
+        
         # 获取客户数据（分销商和经销商）- 应用数据所有权过滤
         from app.utils.access_control import get_viewable_data
         
@@ -244,7 +251,25 @@ def edit_pricing_order(order_id):
                 if dealer not in project_dealers:
                     project_dealers.append(dealer)
         
-        # 获取当前用户的审批记录
+        # 获取当前审批步骤信息（V2统一审批系统）
+        current_approval_step = None
+        editable_fields = []
+        if pricing_order.status == 'pending':
+            from app.helpers.approval_helpers import get_object_approval_instance
+            from app.models.approval import ApprovalStep, ApprovalStatus
+            
+            # 优先使用V2系统
+            approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
+            if approval_instance and approval_instance.status == ApprovalStatus.PENDING:
+                current_approval_step = ApprovalStep.query.get(approval_instance.current_step)
+                if current_approval_step and current_approval_step.editable_fields:
+                    import json
+                    try:
+                        editable_fields = json.loads(current_approval_step.editable_fields)
+                    except:
+                        editable_fields = []
+        
+        # 兼容V1系统的审批记录查询（如果还有遗留数据）
         current_approval_record = None
         if pricing_order.status == 'pending':
             current_approval_record = PricingOrderApprovalRecord.query.filter_by(
@@ -272,8 +297,11 @@ def edit_pricing_order(order_id):
                              dealers=dealers,
                              project_dealers=project_dealers,
                              current_approval_record=current_approval_record,
+                             current_approval_step=current_approval_step,
+                             editable_fields=editable_fields,
                              discount_limits=discount_limits,
-                             step_discount_statuses=step_discount_statuses)
+                             step_discount_statuses=step_discount_statuses,
+                             has_approval_history=has_approval_history)
         
     except Exception as e:
         logger.error(f"访问批价单编辑页面失败: {str(e)}")
@@ -691,10 +719,223 @@ def approve_pricing_order(order_id):
         })
 
 
+@pricing_order_bp.route('/api/approval/<int:order_id>/flow')
+@login_required
+def get_pricing_order_approval_flow(order_id):
+    """获取批价单审批流程信息 - 统一API"""
+    try:
+        # 获取批价单
+        pricing_order = PricingOrder.query.get_or_404(order_id)
+        
+        # 权限检查
+        if not PricingOrderService.can_view_pricing_order(pricing_order, current_user):
+            return jsonify({
+                'success': False,
+                'message': '您没有权限查看该批价单'
+            }), 403
+        
+        # 获取统一审批流程数据
+        from app.helpers.approval_helpers import get_object_approval_instance
+        
+        # 查找审批实例（包括已召回的实例）
+        approval_instance = get_object_approval_instance('pricing_order', order_id)
+        
+        # 🔍 调试：打印找到的审批实例信息
+        if approval_instance:
+            logger.info(f"🔍 找到审批实例: id={approval_instance.id}, status={approval_instance.status}, process_id={approval_instance.process_id}, current_step={approval_instance.current_step}")
+        else:
+            logger.info(f"🔍 未找到审批实例，order_id={order_id}")
+        
+        if not approval_instance:
+            # 如果使用新系统但未找到实例，尝试检查旧系统
+            if pricing_order.status in ['pending', 'approved', 'rejected']:
+                # 有可能是V1系统的数据，尝试调用旧API获取数据
+                return get_approval_flow(order_id)
+            
+            # 返回控制信息，即使没有审批实例
+            control_info = {
+                'status': pricing_order.status,
+                'can_submit': pricing_order.status == 'draft' and pricing_order.created_by == current_user.id,
+                'can_recall': False,
+                'can_resubmit': False,
+                'is_creator': pricing_order.created_by == current_user.id
+            }
+            
+            return jsonify({
+                'success': False,
+                'message': '未找到审批流程实例',
+                'control_info': control_info,
+                'data': {
+                    'order_number': pricing_order.order_number,
+                    'status': pricing_order.status,
+                    'flow_data': []
+                }
+            })
+        
+        # 获取审批步骤和记录
+        from app.models.approval import ApprovalRecord, ApprovalStep, ApprovalStatus
+        
+        # 构建流程数据
+        flow_data = []
+        
+        # 获取模板步骤（从实例的快照或模板中获取）
+        template_steps = []
+        if approval_instance.template_snapshot and 'steps' in approval_instance.template_snapshot:
+            # 从快照中获取步骤，转换为统一格式
+            snapshot_steps = approval_instance.template_snapshot.get('steps', [])
+            template_steps = []
+            logger.info(f"🔍 使用快照数据，共{len(snapshot_steps)}个步骤")
+            for i, step in enumerate(snapshot_steps):
+                step_data = {
+                    'id': step.get('step_id'),
+                    'step_order': step.get('step_order'),
+                    'step_name': step.get('step_name'),
+                    'approver_user_id': step.get('approver_user_id'),
+                    'action_type': step.get('action_type')
+                }
+                template_steps.append(step_data)
+                # 🔍 调试：特别关注第一步
+                if i == 0:
+                    logger.info(f"🔍 快照第一步: step_name={step.get('step_name')}, approver_user_id={step.get('approver_user_id')}, approver_username={step.get('approver_username')}")
+                    logger.info(f"🔍 快照第一步原始数据: {step}")
+        else:
+            # 回退到实际模板
+            from app.models.approval import ApprovalProcessTemplate
+            template = ApprovalProcessTemplate.query.get(approval_instance.process_id)
+            if template:
+                steps = ApprovalStep.query.filter_by(process_id=template.id).order_by(ApprovalStep.step_order).all()
+                template_steps = [{'id': s.id, 'step_order': s.step_order, 'step_name': s.step_name, 
+                                 'approver_user_id': s.approver_user_id, 'action_type': s.action_type} for s in steps]
+        
+        # 获取审批记录
+        approval_records = ApprovalRecord.query.filter_by(
+            instance_id=approval_instance.id
+        ).order_by(ApprovalRecord.timestamp).all()
+        
+        # 构建流程数据
+        for step in template_steps:
+            step_data = {
+                # 前端期望的字段名
+                'id': step['id'],
+                'stage_order': step['step_order'],
+                'stage_name': step['step_name'],
+                'action_type': step.get('action_type', ''),
+                'status': 'pending',
+                'approver_name': '',
+                'approver_id': step.get('approver_user_id'),
+                'completed_at': None,
+                'comment': '',
+                'is_current': False,
+                # 兼容字段名
+                'step_order': step['step_order'],
+                'step_name': step['step_name']
+            }
+            
+            # 🔍 调试：打印步骤信息
+            logger.info(f"🔍 构建审批步骤: step_order={step['step_order']}, step_name={step['step_name']}, approver_user_id={step.get('approver_user_id')}")
+            
+            # 查找对应的审批记录
+            step_record = next((r for r in approval_records if r.step_id == step['id']), None)
+            if step_record:
+                # 🔍 调试：检查审批记录
+                logger.info(f"🔍 找到审批记录: step_id={step_record.step_id}, action={step_record.action}, approver_id={step_record.approver_id}")
+                
+                step_data.update({
+                    'status': 'approved' if step_record.action == 'approve' else 'rejected' if step_record.action == 'reject' else 'pending',
+                    'completed_at': step_record.timestamp.isoformat() if step_record.timestamp else None,
+                    'comment': step_record.comment or ''
+                })
+                
+                # 🔥 修复：只有在非召回操作时才使用记录中的审批人姓名
+                # 召回操作的记录中approver_id是召回发起人，不是步骤的真正审批人
+                if step_record.action != 'recall':
+                    step_data['approver_name'] = step_record.approver.real_name if step_record.approver else ''
+            
+            # 判断是否当前步骤
+            if approval_instance.current_step == step['id']:
+                step_data['is_current'] = True
+                # 🔍 前端JavaScript期望current状态标记在status字段中
+                if approval_instance.status == ApprovalStatus.PENDING:
+                    step_data['status'] = 'current'
+            
+            # 获取审批人姓名
+            if step_data['approver_id']:
+                from app.models.user import User
+                approver = User.query.get(step_data['approver_id'])
+                if approver and not step_data['approver_name']:
+                    step_data['approver_name'] = approver.real_name or approver.username
+                    # 🔍 调试：打印审批人信息
+                    logger.info(f"🔍 设置审批人: approver_id={step_data['approver_id']}, username={approver.username}, real_name={approver.real_name}, final_name={step_data['approver_name']}")
+            else:
+                # 对于分支决策等特殊步骤，可能没有固定审批人
+                if step.get('action_type') == 'branch_decision':
+                    step_data['approver_name'] = '分支决策'
+            
+            flow_data.append(step_data)
+        
+        # 检查当前用户是否可以审批
+        can_approve = False
+        current_stage = None
+        
+        # 查找当前步骤和用户权限
+        for i, step in enumerate(flow_data):
+            if step['is_current']:
+                current_stage = step['stage_order']
+                # 检查当前用户是否是当前步骤的审批人
+                if step['approver_id'] == current_user.id:
+                    can_approve = True
+                break
+        
+        # 确定流程状态（用于前端显示）
+        flow_status = pricing_order.status
+        
+        # 🔍 调试：打印状态比较信息
+        logger.info(f"🔍 状态比较: approval_instance.status={approval_instance.status}, str()={str(approval_instance.status)}, type={type(approval_instance.status)}")
+        
+        # 使用枚举值比较而不是字符串比较
+        from app.models.approval import ApprovalStatus
+        if approval_instance.status == ApprovalStatus.RECALLED:
+            flow_status = 'recalled'
+            logger.info(f"🔍 检测到召回状态，设置flow_status=recalled")
+        elif approval_instance.status == ApprovalStatus.APPROVED:
+            flow_status = 'approved'
+        elif approval_instance.status == ApprovalStatus.REJECTED:
+            flow_status = 'rejected'
+        elif approval_instance.status == ApprovalStatus.PENDING:
+            flow_status = 'pending'
+        
+        logger.info(f"🔍 最终flow_status={flow_status}")
+        
+        return jsonify({
+            'success': True,
+            'approval_flow': {
+                'order_number': pricing_order.order_number,
+                'status': flow_status,  # 使用流程状态
+                'pricing_order_status': pricing_order.status,  # 批价单状态
+                'instance_id': approval_instance.id,
+                'instance_status': str(approval_instance.status),
+                'current_step': approval_instance.current_step,
+                'current_stage': current_stage,
+                'can_approve': can_approve,
+                'stages': flow_data,  # 重命名为stages以匹配前端期望
+                'flow_data': flow_data  # 保留原字段名作为兼容
+            }
+        })
+        
+    except Exception as e:
+        import traceback
+        logger.error(f"获取批价单审批流程失败: {str(e)}")
+        logger.error(f"错误详情: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'message': f'获取失败: {str(e)}'
+        }), 500
+
+
 @pricing_order_bp.route('/<int:order_id>/approval_flow')
 @login_required
 def get_approval_flow(order_id):
-    """获取审批流程信息"""
+    """获取审批流程信息 - 旧版兼容API"""
     try:
         pricing_order = PricingOrder.query.get_or_404(order_id)
         
@@ -1649,6 +1890,27 @@ def delete_pricing_order(order_id):
         ).all()
         for record in approval_records:
             db.session.delete(record)
+        
+        # 删除V2审批系统相关记录
+        from app.models.approval import ApprovalInstance, ApprovalRecord
+        
+        # 查找并删除V2审批实例
+        v2_approval_instances = ApprovalInstance.query.filter_by(
+            object_type='pricing_order',
+            object_id=order_id
+        ).all()
+        
+        for instance in v2_approval_instances:
+            # 先删除审批记录
+            instance_records = ApprovalRecord.query.filter_by(
+                instance_id=instance.id
+            ).all()
+            for record in instance_records:
+                db.session.delete(record)
+            
+            # 删除审批实例
+            db.session.delete(instance)
+            logger.info(f"删除批价单关联的V2审批实例: instance_id={instance.id}")
         
         # 删除批价单
         db.session.delete(pricing_order)

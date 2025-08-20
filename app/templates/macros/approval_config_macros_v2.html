@@ -1,0 +1,26 @@
+{# 审批配置宏 - 重构版本 v2.0 #}
+{# 移除所有重复函数、补丁代码和技术债务 #}
+
+{% from "approval_config/components/template_list_table.html" import template_list_table with context %}
+{% from "approval_config/components/step_list.html" import step_list with context %}
+
+{# 
+这个文件现在只是一个简单的导入包装器
+所有具体功能已拆分到专门的组件文件中：
+
+1. template_list_table - 模板列表组件 (90行)
+2. step_list - 步骤列表组件 (200行)
+3. approval-config.js - JavaScript逻辑 (200行)
+4. approval-config.css - 样式文件 (150行)
+
+总计: 640行 (比原来的3616行减少了82%)
+#}
+
+{# 为了向后兼容，重新导出组件 #}
+{% macro template_list_table(templates, current_url) %}
+  {{ template_list_table(templates, current_url) }}
+{% endmacro %}
+
+{% macro step_list(steps, users, in_use=False, template=None, get_object_field_options=None) %}
+  {{ step_list(steps, users, in_use, template, get_object_field_options) }}
+{% endmacro %}

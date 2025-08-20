@@ -340,6 +340,10 @@ def get_branch_approver(step, approval_instance):
                 current_app.logger.info(f"默认分支指向下一个分支步骤")
                 return None  # 让系统继续到下一个步骤
     
+    # 如果不是项目类型或其他原因导致无法确定审批人
+    field_name = branch_condition.get('field', '未知字段') if branch_condition else '未配置'
+    field_value = '未知值'
+    conditions = branch_condition.get('conditions', []) if branch_condition else []
     current_app.logger.warning(f"无法确定分支审批人 - 字段: {field_name}, 值: {field_value}, 条件数量: {len(conditions)}")
     return None
 
@@ -1685,13 +1689,20 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
             ApprovalInstance.object_type == 'expense'
         ).join(Expense, ApprovalInstance.object_id == Expense.id)
         
+        # 添加批价单子查询 - 修复批价单不显示在待我审批页面的问题
+        from app.models.pricing_order import PricingOrder
+        pricing_order_subquery = db.session.query(ApprovalInstance.id).filter(
+            ApprovalInstance.object_type == 'pricing_order'
+        ).join(PricingOrder, ApprovalInstance.object_id == PricingOrder.id)
+        
         # 只查询存在于任一子查询中的审批实例
         query = query.filter(
             or_(
                 ApprovalInstance.id.in_(project_subquery),
                 ApprovalInstance.id.in_(quotation_subquery),
                 ApprovalInstance.id.in_(customer_subquery),
-                ApprovalInstance.id.in_(expense_subquery)
+                ApprovalInstance.id.in_(expense_subquery),
+                ApprovalInstance.id.in_(pricing_order_subquery)
             )
         )
         
@@ -3960,8 +3971,18 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
                 elif instance.object_type == 'expense':
                     unlock_expense(instance.object_id, user_id)
     
+    # 🚨 新增：提交前最终验证
     try:
+        # 验证实例状态的一致性
+        if instance.current_step:
+            final_step_obj = ApprovalStep.query.filter_by(id=instance.current_step).first()
+            if final_step_obj and final_step_obj.process_id != instance.process_id:
+                current_app.logger.error(f"提交前发现跨进程引用错误，回滚操作")
+                db.session.rollback()
+                return False
+        
         db.session.commit()
+        current_app.logger.info(f"审批操作成功提交: 实例{instance_id}, 当前步骤{instance.current_step}")
         
         # 如果设置了发送邮件，则发送邮件通知
         if current_step.get('send_email', True):
@@ -3975,6 +3996,8 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"处理审批失败: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
         return False
 
 
@@ -4090,6 +4113,12 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
     
     if user_id is None:
         user_id = current_user.id
+    
+    # 🔧 简化：预检查当前步骤的有效性
+    current_step_obj = ApprovalStep.query.filter_by(id=instance.current_step).first()
+    if current_step_obj and current_step_obj.process_id != instance.process_id:
+        current_app.logger.error(f"步骤{instance.current_step}不属于流程{instance.process_id}，审批失败")
+        return False
     
     # 获取当前步骤 - 修复：使用模板快照
     current_step = instance.get_current_step_info()
@@ -4262,6 +4291,8 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
             current_app.logger.error(f"发送审批邮件失败: {str(e)}")
     
     return True
+
+
 
 
 def _send_approval_notification(instance, step, action, comment):

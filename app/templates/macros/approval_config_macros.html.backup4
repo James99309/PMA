@@ -1,4 +1,4 @@
-{% from "macros/ui_helpers.html" import render_pagination, render_enable_disable_badge, render_confirm_dialog, render_button with context %}
+{% from "macros/ui_helpers.html" import render_pagination, render_enable_disable_badge with context %}
 
 {# 审批流程模板列表 #}
 {% macro template_list_table(templates, current_url) %}
@@ -46,7 +46,7 @@
                 {% else %}
                   {# 未使用的模板，显示删除按钮 #}
                   <button type="button" class="btn btn-sm btn-danger" 
-                          onclick="showDeleteConfirm('{{ template.id }}', '{{ template.name|e }}')">
+                          onclick="confirmDeleteTemplate('{{ template.id }}', '{{ template.name }}')">
                     <i class="fas fa-trash"></i> 删除
                   </button>
                 {% endif %}
@@ -69,8 +69,28 @@
     </div>
   {% endif %}
   
-  {# 使用通用确认对话框组件 #}
-  {{ render_confirm_dialog('templateDeleteDialog') }}
+  {# 删除确认模态框 #}
+  <div class="modal fade" id="deleteTemplateModal" tabindex="-1" role="dialog" aria-labelledby="deleteTemplateModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="deleteTemplateModalLabel">确认删除</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          确定要删除模板 "<span id="templateNameToDelete"></span>" 吗？
+          <p class="text-danger mt-2">注意：删除后无法恢复。</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <form id="deleteTemplateForm" method="POST" action="">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger">确认删除</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
   
   {# 注意：原来的分支预览编辑模态框已移除，现在使用步骤级别的分支编辑 #}
   
@@ -164,87 +184,40 @@
     </div>
   </div>
   
-  {# JavaScript 功能已外置到 approval_config_template.js 文件 #}
+  <script>
+    function confirmDeleteTemplate(templateId, templateName) {
+      document.getElementById('templateNameToDelete').textContent = templateName;
+      document.getElementById('deleteTemplateForm').action = "{{ url_for('approval_config.delete_template', template_id=0) }}".replace('0', templateId);
+      var deleteModal = new bootstrap.Modal(document.getElementById('deleteTemplateModal'));
+      deleteModal.show();
+    }
+    
+    function confirmToggleTemplate(templateId, templateName, isActive) {
+      document.getElementById('templateNameToToggle').textContent = templateName;
+      
+      if (isActive) {
+        document.getElementById('toggleActionText').textContent = '禁用';
+        document.getElementById('toggleWarningText').textContent = '禁用后该模板将不能用于新的审批实例，但不会影响现有的审批流程。';
+        document.getElementById('toggleIsActive').value = 'false';
+        document.getElementById('toggleConfirmBtn').className = 'btn btn-warning';
+      } else {
+        document.getElementById('toggleActionText').textContent = '启用';
+        document.getElementById('toggleWarningText').textContent = '启用后该模板将可以用于创建新的审批实例。';
+        document.getElementById('toggleIsActive').value = 'true';
+        document.getElementById('toggleConfirmBtn').className = 'btn btn-success';
+      }
+      
+      document.getElementById('toggleTemplateForm').action = "{{ url_for('approval_config.toggle_template', template_id=0) }}".replace('0', templateId);
+      var toggleModal = new bootstrap.Modal(document.getElementById('toggleTemplateModal'));
+      toggleModal.show();
+    }
+  </script>
 {% endmacro %}
 
 {# 审批流程步骤列表 #}
 {% from 'macros/ui_helpers.html' import render_button with context %}
 
 {% macro step_list(steps, users, in_use=False, template=None, get_object_field_options=None) %}
-  
-  {# 紧急修复：确保全局函数立即可用 #}
-  <script>
-    console.log('🔧 step_list宏中的紧急修复脚本');
-    
-    // 全局函数立即定义（覆盖任何未定义的函数）
-    window.editBranchCondition = window.editBranchCondition || function(stepId, conditionIndex) {
-      console.log(`🔧 宏中的 editBranchCondition: ${stepId}, ${conditionIndex}`);
-      alert(`编辑分支条件功能\n步骤ID: ${stepId}\n条件索引: ${conditionIndex}\n\n功能正在完善中，请稍后再试。`);
-    };
-    
-    // 使用标准通用确认对话框的删除步骤函数
-    window.confirmDeleteStep = window.confirmDeleteStep || function(stepId, stepName) {
-      console.log(`🗑️ 确认删除审批步骤: ${stepId}, ${stepName || '该步骤'}`);
-      
-      // 检查是否有showConfirmDialog函数
-      if (typeof window.showConfirmDialog === 'function') {
-        // 使用标准的showConfirmDialog函数
-        showConfirmDialog({
-          title: '确认删除审批步骤',
-          message: `确定要删除步骤 "${stepName || '该步骤'}" 吗？\n\n删除后无法恢复，请谨慎操作。`,
-          type: 'danger',
-          confirmText: '确认删除',
-          cancelText: '取消',
-          dialogId: 'stepDeleteDialog',
-          onConfirm: function() {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = "{{ url_for('approval_config.delete_step', step_id=0) }}".replace('0', stepId);
-            
-            const csrfToken = document.createElement('input');
-            csrfToken.type = 'hidden';
-            csrfToken.name = 'csrf_token';
-            csrfToken.value = "{{ csrf_token() }}";
-            form.appendChild(csrfToken);
-            
-            document.body.appendChild(form);
-            form.submit();
-          }
-        });
-      } else {
-        // 降级处理：使用原生confirm
-        console.log('🔧 showConfirmDialog不可用，使用原生confirm');
-        if (confirm(`确定要删除步骤 "${stepName || '该步骤'}" 吗？\n\n删除后无法恢复，请谨慎操作。`)) {
-          const form = document.createElement('form');
-          form.method = 'POST';
-          form.action = "{{ url_for('approval_config.delete_step', step_id=0) }}".replace('0', stepId);
-          
-          const csrfToken = document.createElement('input');
-          csrfToken.type = 'hidden';
-          csrfToken.name = 'csrf_token';
-          csrfToken.value = "{{ csrf_token() }}";
-          form.appendChild(csrfToken);
-          
-          document.body.appendChild(form);
-          form.submit();
-        }
-      }
-    };
-    
-    window.addNewBranch = window.addNewBranch || function(stepId, branchType) {
-      console.log(`🔀 宏中的 addNewBranch: ${stepId}, ${branchType}`);
-      alert(`添加分支条件功能\n步骤ID: ${stepId}\n分支类型: ${branchType}\n\n功能正在完善中，请稍后再试。`);
-    };
-    
-    window.deleteBranchCondition = window.deleteBranchCondition || function(stepId, conditionIndex) {
-      console.log(`🗑️ 宏中的 deleteBranchCondition: ${stepId}, ${conditionIndex}`);
-      if (confirm('确定要删除此分支条件吗？')) {
-        alert('删除分支条件功能正在完善中，请稍后再试。');
-      }
-    };
-    
-    console.log('✅ step_list宏中的全局函数已定义');
-  </script>
   <div class="card mb-4">
     <div class="card-header">
       <h5 class="mb-0">审批步骤</h5>
@@ -331,15 +304,7 @@
                                 
                                 {% set field_value = condition.value %}
                                 {% if field_name == 'project_type' %}
-                                  {% if ',' in field_value %}
-                                    {% set value_parts = field_value.split(',') %}
-                                    {% for part in value_parts %}
-                                      {% set trimmed_part = part.strip() %}
-                                      {{ trimmed_part|project_type_label }}{% if not loop.last %}, {% endif %}
-                                    {% endfor %}
-                                  {% else %}
-                                    {{ field_value|project_type_label }}
-                                  {% endif %}
+                                  {{ field_value|project_type_label }}
                                 {% else %}
                                   {{ field_value }}
                                 {% endif %}
@@ -361,7 +326,7 @@
                             
                             {# 执行动作（无徽章样式） #}
                             {% if condition.action %}
-                            <div class="mb-2">
+                            <div>
                               <small class="text-muted">执行动作：</small>
                               {% set action_type = condition.action %}
                               {% if action_type == 'authorization' %}
@@ -380,33 +345,9 @@
                                 <span class="text-secondary">邮件抄送</span>
                               {% elif action_type == 'branch_decision' %}
                                 <span class="text-purple">分支决策</span>
-                              {% elif action_type == 'pricing_settlement_approval' %}
-                                <span class="text-success">批结算审批</span>
-                              {% elif action_type == 'customer_service_authorization' %}
-                                <span class="text-info">客服授权</span>
                               {% else %}
                                 <span class="text-muted">{{ action_type }}</span>
                               {% endif %}
-                            </div>
-                            {% endif %}
-                            
-                            {# 可编辑字段徽章 #}
-                            {% if step.editable_fields and step.editable_fields|length > 0 %}
-                            <div>
-                              <small class="text-muted d-block mb-1">可编辑字段：</small>
-                              <div>
-                                {% set parsed_fields = step.editable_fields %}
-                                {% if parsed_fields is string %}
-                                  {% set parsed_fields = step.editable_fields|fromjson %}
-                                {% endif %}
-                                {% for field_code in parsed_fields %}
-                                  {# 使用统一中文映射管理器获取字段显示名称 #}
-                                  {% set field_display_name = get_field_display_name(template.object_type, field_code) %}
-                                  <span class="badge bg-success text-white me-1 mb-1" style="font-size: 0.65em;">
-                                    {{ field_display_name }}
-                                  </span>
-                                {% endfor %}
-                              </div>
                             </div>
                             {% endif %}
                           </div>
@@ -489,7 +430,7 @@
                   type='button'
                 ) }}
                 
-                {% set delete_attrs = {'onclick': "confirmDeleteStep(" + step.id|string + ", " + step.step_name|tojson + ")"} %}
+                {% set delete_attrs = {'onclick': "confirmDeleteStep('" + step.id|string + "')"} %}
                 {% if not can_modify %}
                   {% set delete_attrs = delete_attrs.update({'disabled': 'disabled', 'title': '有进行中的审批流程，无法删除步骤'}) %}
                 {% endif %}
@@ -810,24 +751,131 @@
   </style>
 
   {% if can_modify %}
-    {# SortableJS 库将由外部 JavaScript 按需加载 #}
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
-    {# 排序功能已外置到 approval_config_template.js 文件 #}
+    <script>
+      // 统一的页面初始化函数
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 审批配置页面统一初始化开始');
+        
+        // 防止重复初始化
+        if (window.approvalConfigInitialized) {
+          console.log('⚠️ 页面已初始化，跳过重复初始化');
+          return;
+        }
+        window.approvalConfigInitialized = true;
+        
+        // 初始化拖拽排序
+        initializeSortable();
+        
+        // 初始化邮件抄送逻辑  
+        initializeEmailCC();
+        
+        // 初始化步骤动作类型处理
+        initializeActionTypeHandling();
+        
+        // 加载动态字段选项
+        setTimeout(() => {
+          loadDynamicFields('{{ template.object_type if template else "project" }}');
+        }, 100);
+        
+        console.log('✅ 审批配置页面初始化完成');
+      });
+      
+      // 拖拽排序初始化
+      function initializeSortable() {
+        var stepList = document.getElementById('stepList');
+        if (stepList) {
+          new Sortable(stepList, {
+            handle: '.handle',
+            animation: 150,
+            onEnd: function(evt) {
+              const stepIds = Array.from(stepList.querySelectorAll('li')).map(li => li.getAttribute('data-step-id'));
+              
+              fetch("{{ url_for('approval_config.reorder_steps', template_id=template.id) }}", {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({ steps: stepIds })
+              })
+              .then(response => response.json())
+              .then(data => {
+                if (data.success) {
+                  window.location.reload();
+                } else {
+                  alert(data.message || '重新排序失败');
+                }
+              })
+              .catch(error => {
+                console.error('Error:', error);
+                alert('操作失败，请重试');
+              });
+            }
+          });
+          console.log('✅ 拖拽排序初始化完成');
+        }
+      }
+      
+      // 邮件抄送显示/隐藏逻辑初始化
+      function initializeEmailCC() {
+        const ccEnabledCheckbox = document.getElementById('cc_enabled');
+        const ccUsersSection = document.getElementById('cc_users_section');
+        const editCcEnabledCheckbox = document.getElementById('edit_cc_enabled');
+        const editCcUsersSection = document.getElementById('edit_cc_users_section');
+        
+        if (ccEnabledCheckbox && ccUsersSection) {
+          ccEnabledCheckbox.addEventListener('change', function() {
+            ccUsersSection.style.display = this.checked ? 'block' : 'none';
+          });
+        }
+        
+        if (editCcEnabledCheckbox && editCcUsersSection) {
+          editCcEnabledCheckbox.addEventListener('change', function() {
+            editCcUsersSection.style.display = this.checked ? 'block' : 'none';
+          });
+        }
+        console.log('✅ 邮件抄送逻辑初始化完成');
+      }
+      
+      // 步骤动作类型处理初始化
+      function initializeActionTypeHandling() {
+        const actionTypeSelect = document.getElementById('action_type');
+        const approverSelectionSelect = document.getElementById('approver_selection');
+        
+        if (actionTypeSelect && approverSelectionSelect) {
+          actionTypeSelect.addEventListener('change', function() {
+            if (this.value === 'authorization') {
+              approverSelectionSelect.value = 'next_level';
+              approverSelectionSelect.disabled = true;
+            } else {
+              approverSelectionSelect.disabled = false;
+            }
+          });
+        }
+        console.log('✅ 动作类型处理初始化完成');
+      }
+      
+      function confirmDeleteStep(stepId) {
+        if (confirm('确定要删除该步骤吗？')) {
+          // 创建并提交表单
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = "{{ url_for('approval_config.delete_step', step_id=0) }}".replace('0', stepId);
+          
+          // 添加CSRF令牌
+          const csrfToken = document.createElement('input');
+          csrfToken.type = 'hidden';
+          csrfToken.name = 'csrf_token';
+          csrfToken.value = '{{ csrf_token() }}';
+          form.appendChild(csrfToken);
+          
+          document.body.appendChild(form);
+          form.submit();
+        }
+      }
+    </script>
   {% endif %}
-  
-  {# 全局JavaScript配置 - 供外部模块使用 #}
-  <script>
-    // 权限配置对象 - 由服务器端传递给前端模块
-    window.ApprovalConfig = {
-      canModify: {{ can_modify|tojson }},
-      urls: {
-        deleteStep: "{{ url_for('approval_config.delete_step', step_id=0) }}",
-        stepDetails: "/admin/approval/step/"
-      },
-      csrfToken: {{ csrf_token()|tojson }}
-    };
-  </script>
-  {# 主要功能函数已外置到模块化 JavaScript 文件中 #}
   
   {# 添加步骤模态框 #}
   <div class="modal fade" id="addStepModal" tabindex="-1" aria-labelledby="addStepModalLabel" aria-hidden="true">
@@ -1359,39 +1407,8 @@
     </div>
   </div>
   
-  {# JavaScript功能已模块化，降级处理已在宏开头定义 #}
-  <script type="text/plain" style="display:none;">{# 注释掉避免重复定义 #}
-    // 降级处理：当模块化脚本未加载时提供基本功能
-    
-    // 全局函数：确保向后兼容
-    if (typeof window.editBranchCondition === 'undefined') {
-      window.editBranchCondition = function(stepId, conditionIndex) {
-        console.log(`🔧 降级处理: editBranchCondition(${stepId}, ${conditionIndex})`);
-        alert('分支条件编辑功能正在加载中，请稍后再试。如果问题持续，请刷新页面。');
-      };
-    }
-    
-    // confirmDeleteStep function is now defined earlier in the macro file, no fallback needed
-    
-    if (typeof window.addNewBranch === 'undefined') {
-      window.addNewBranch = function(stepId, branchType) {
-        console.log(`🔀 降级处理: addNewBranch(${stepId}, ${branchType})`);
-        alert('添加分支功能正在加载中，请稍后再试。如果问题持续，请刷新页面。');
-      };
-    }
-    
-    if (typeof window.deleteBranchCondition === 'undefined') {
-      window.deleteBranchCondition = function(stepId, conditionIndex) {
-        console.log(`🗑️ 降级处理: deleteBranchCondition(${stepId}, ${conditionIndex})`);
-        if (confirm('确定要删除此分支条件吗？')) {
-          alert('删除分支功能正在开发中，请联系管理员。');
-        }
-      };
-    }
-    
-    console.log('✅ 审批配置降级函数已定义');
-    
-    // 原有的全局变量（降级处理）
+  <script>
+    // 全局变量存储选中的字段
     let selectedFields = [];
     let editSelectedFields = [];
     
@@ -1928,175 +1945,6 @@
           'execution': '执行阶段',
           'testing': '测试阶段',
           'deployment': '部署阶段',
-          'maintenance': '维护阶段'
-        },
-        'report_source': {
-          'internal': '内部报告',
-          'external': '外部报告',
-          'customer': '客户反馈',
-          'system': '系统报告'
-        }
-      };
-      
-      const mapping = fieldMappings[fieldName];
-      if (mapping && mapping[fieldValue]) {
-        return mapping[fieldValue];
-      }
-      
-      // 如果没有映射，返回原值
-      return fieldValue;
-    }
-    
-    // 将中文显示值转换回原值
-    function getFieldValueFromDisplay(fieldName, displayValue) {
-      const fieldMappings = {
-        'project_type': {
-          '研发项目': 'research_development',
-          '市场推广': 'marketing',
-          '运营项目': 'operations',
-          '渠道跟进': 'channel_follow',
-          '其他': 'other'
-        },
-        'project_stage': {
-          '规划阶段': 'planning',
-          '执行阶段': 'execution',
-          '测试阶段': 'testing',
-          '部署阶段': 'deployment',
-          '维护阶段': 'maintenance'
-        },
-        'report_source': {
-          '内部报告': 'internal',
-          '外部报告': 'external',
-          '客户反馈': 'customer',
-          '系统报告': 'system'
-        }
-      };
-      
-      const mapping = fieldMappings[fieldName];
-      if (mapping && mapping[displayValue]) {
-        return mapping[displayValue];
-      }
-      
-      // 如果没有映射，返回原值
-      return displayValue;
-    }
-    
-    // 处理审批人选择变化
-    function handleApproverSelection() {
-      const selection = document.getElementById('approver_selection').value;
-      const nextLevelSection = document.getElementById('next_level_info_section');
-      const approverTypeField = document.getElementById('approver_type');
-      const approverIdField = document.getElementById('approver_id');
-      
-      if (selection === 'next_level') {
-        // 选择上一级领导
-        if (nextLevelSection) nextLevelSection.style.display = 'block';
-        if (approverTypeField) approverTypeField.value = 'next_level';
-        if (approverIdField) approverIdField.value = '';
-      } else if (selection.startsWith('user_')) {
-        // 选择具体用户
-        if (nextLevelSection) nextLevelSection.style.display = 'none';
-        if (approverTypeField) approverTypeField.value = 'user';
-        if (approverIdField) approverIdField.value = selection.replace('user_', '');
-      } else {
-        // 未选择
-        if (nextLevelSection) nextLevelSection.style.display = 'none';
-        if (approverTypeField) approverTypeField.value = 'user';
-        if (approverIdField) approverIdField.value = '';
-      }
-    }
-    
-    // 处理编辑审批人选择变化
-    function handleEditApproverSelection() {
-      const selection = document.getElementById('edit_approver_selection').value;
-      const nextLevelSection = document.getElementById('edit_next_level_info_section');
-      const approverTypeField = document.getElementById('edit_approver_type');
-      const approverIdField = document.getElementById('edit_approver_id');
-      
-      if (selection === 'next_level') {
-        // 选择上一级领导
-        nextLevelSection.style.display = 'block';
-        approverTypeField.value = 'next_level';
-        approverIdField.value = '';
-      } else if (selection.startsWith('user_')) {
-        // 选择具体用户
-        nextLevelSection.style.display = 'none';
-        approverTypeField.value = 'user';
-        approverIdField.value = selection.replace('user_', '');
-      } else {
-        // 未选择
-        nextLevelSection.style.display = 'none';
-        approverTypeField.value = 'user';
-        approverIdField.value = '';
-      }
-    }
-    document.addEventListener('DOMContentLoaded', function() {
-      console.log('🚀 审批配置页面JavaScript开始加载');
-      
-      // 检查页面基本状态
-      console.log('页面title:', document.title);
-      console.log('步骤列表元素存在:', !!document.getElementById('stepList'));
-      console.log('编辑模态框存在:', !!document.getElementById('editStepModal'));
-      
-      // 邮件抄送显示/隐藏逻辑
-      const ccEnabledCheckbox = document.getElementById('cc_enabled');
-      const ccUsersSection = document.getElementById('cc_users_section');
-      const editCcEnabledCheckbox = document.getElementById('edit_cc_enabled');
-      const editCcUsersSection = document.getElementById('edit_cc_users_section');
-      
-      if (ccEnabledCheckbox && ccUsersSection) {
-        ccEnabledCheckbox.addEventListener('change', function() {
-          ccUsersSection.style.display = this.checked ? 'block' : 'none';
-        });
-      }
-      
-      if (editCcEnabledCheckbox && editCcUsersSection) {
-        editCcEnabledCheckbox.addEventListener('change', function() {
-          editCcUsersSection.style.display = this.checked ? 'block' : 'none';
-        });
-      }
-
-      // 添加步骤动作类型变化事件处理
-      const actionTypeSelect = document.getElementById('action_type');
-      const approverSelectionSelect = document.getElementById('approver_selection');
-      const approverTypeField = document.getElementById('approver_type');
-      const approverIdField = document.getElementById('approver_id');
-      
-      if (actionTypeSelect && approverSelectionSelect) {
-        actionTypeSelect.addEventListener('change', function() {
-          if (this.value === 'authorization') {
-            // 选择授权编号动作时，重置选择并禁用
-            approverSelectionSelect.value = '';
-            approverSelectionSelect.disabled = true;
-            approverTypeField.value = 'auto';
-            approverIdField.value = '';
-            document.getElementById('next_level_info_section').style.display = 'none';
-          } else {
-            // 选择其他动作时，恢复用户选择
-            approverSelectionSelect.disabled = false;
-            if (approverTypeField.value === 'auto') {
-              approverTypeField.value = 'user';
-              approverIdField.value = '';
-            }
-          }
-        });
-      }
-
-      // 编辑步骤动作类型变化事件处理
-      const editActionTypeSelect = document.getElementById('edit_action_type');
-      const editApproverSelectionSelect = document.getElementById('edit_approver_selection');
-      const editApproverTypeField = document.getElementById('edit_approver_type');
-      const editApproverIdField = document.getElementById('edit_approver_id');
-      
-      if (editActionTypeSelect && editApproverSelectionSelect) {
-        editActionTypeSelect.addEventListener('change', function() {
-          if (this.value === 'authorization') {
-            // 选择授权编号动作时，重置选择并禁用
-            editApproverSelectionSelect.value = '';
-            editApproverSelectionSelect.disabled = true;
-            editApproverTypeField.value = 'auto';
-            editApproverIdField.value = '';
-            document.getElementById('edit_next_level_info_section').style.display = 'none';
           } else {
             // 选择其他动作时，恢复用户选择
             editApproverSelectionSelect.disabled = false;
@@ -2200,102 +2048,6 @@
         initEditButtons();
         initDeleteButtons();
       });
-          
-          // 设置隐藏字段
-          modal.querySelector('#edit_approver_type').value = approverType || 'user';
-          modal.querySelector('#edit_approver_id').value = approverId || '';
-          
-          // 根据审批人类型设置选择框
-          const editApproverSelection = modal.querySelector('#edit_approver_selection');
-          if (approverType === 'next_level') {
-            editApproverSelection.value = 'next_level';
-            document.getElementById('edit_next_level_info_section').style.display = 'block';
-          } else if (approverId) {
-            editApproverSelection.value = 'user_' + approverId;
-            document.getElementById('edit_next_level_info_section').style.display = 'none';
-          } else {
-            editApproverSelection.value = '';
-            document.getElementById('edit_next_level_info_section').style.display = 'none';
-          }
-          
-          // 如果是授权动作，禁用选择框
-          if (actionType === 'authorization') {
-            editApproverSelection.disabled = true;
-          } else {
-            editApproverSelection.disabled = false;
-          }
-
-          
-          // 处理可编辑字段
-          let editableFieldsArray = [];
-          try {
-            if (editableFields && editableFields !== 'null' && editableFields !== '' && editableFields !== '[]') {
-              editableFieldsArray = JSON.parse(editableFields);
-            }
-          } catch (e) {
-            console.error('解析可编辑字段数据失败:', e, editableFields);
-            editableFieldsArray = [];
-          }
-          
-          // 确保是数组格式
-          if (!Array.isArray(editableFieldsArray)) {
-            console.warn('可编辑字段数据不是数组格式:', editableFieldsArray);
-            editableFieldsArray = [];
-          }
-          
-          console.log('解析后的可编辑字段数组:', editableFieldsArray);
-          
-          // 检查是否有新格式的字段选择器
-          const editFieldSelector = modal.querySelector('#edit_field_selector');
-          const editSelectedFieldsContainer = modal.querySelector('#edit_selected_fields_container');
-          const editEditableFieldsInput = modal.querySelector('#edit_editable_fields_input');
-          
-          if (editFieldSelector && editSelectedFieldsContainer && editEditableFieldsInput) {
-            // 新格式：徽章界面
-            editSelectedFields = editableFieldsArray.slice(); // 复制数组
-            editSelectedFieldsContainer.innerHTML = '';
-            
-            if (editSelectedFields.length === 0) {
-              editSelectedFieldsContainer.innerHTML = '<small class="text-muted">使用下拉框选择字段后会在此显示</small>';
-            } else {
-              // 为每个已选字段创建徽章
-              editSelectedFields.forEach(function(fieldCode) {
-                // 从选择器中查找对应的选项来获取显示名称和分组
-                const option = editFieldSelector.querySelector(`option[value="${fieldCode}"]`);
-                if (option) {
-                  const fieldName = option.textContent;
-                  const group = option.getAttribute('data-group') || 'master';
-                  editSelectedFieldsContainer.innerHTML += createEditFieldBadge(fieldCode, fieldName, group);
-                }
-              });
-            }
-            
-            // 更新隐藏字段
-            editEditableFieldsInput.value = JSON.stringify(editSelectedFields);
-          } else {
-            // 传统格式：复选框界面
-            // 先清除所有复选框的选中状态
-            modal.querySelectorAll('input[name="editable_fields"]').forEach(function(checkbox) {
-              checkbox.checked = false;
-            });
-            
-            // 然后设置应该选中的复选框
-            if (Array.isArray(editableFieldsArray)) {
-              modal.querySelectorAll('input[name="editable_fields"]').forEach(function(checkbox) {
-                if (editableFieldsArray.includes(checkbox.value)) {
-                  checkbox.checked = true;
-                  console.log('设置字段选中:', checkbox.value);
-                }
-              });
-            }
-          }
-    
-    // 加载动态字段选项
-    function loadDynamicFields(objectType = 'project') {
-      const fieldSelect = document.getElementById('branch_field');
-      if (!fieldSelect) return;
-      
-      // 显示加载状态
       fieldSelect.innerHTML = '<option value="">加载字段中...</option>';
       
       // 调用API获取动态字段
@@ -3303,62 +3055,6 @@
         trueBranchAction.value = condition.action || '';
       }
       
-      // 填充可编辑字段（新增）- 从步骤数据中获取，不是从单个条件中获取
-      const editableFieldsData = stepData.editable_fields || condition.editable_fields;
-      if (editableFieldsData && Array.isArray(editableFieldsData) && editableFieldsData.length > 0) {
-        console.log('📋 填充可编辑字段:', editableFieldsData);
-        
-        // 检查是否有新格式的字段选择器（徽章界面）
-        const editFieldSelector = modal.querySelector('#edit_field_selector');
-        const editSelectedFieldsContainer = modal.querySelector('#edit_selected_fields_container');
-        const editEditableFieldsInput = modal.querySelector('#edit_editable_fields_input');
-        
-        if (editFieldSelector && editSelectedFieldsContainer && editEditableFieldsInput) {
-          // 新格式：徽章界面
-          editSelectedFields = editableFieldsData.slice(); // 复制数组
-          editSelectedFieldsContainer.innerHTML = '';
-          
-          if (editSelectedFields.length === 0) {
-            editSelectedFieldsContainer.innerHTML = '<small class="text-muted">使用下拉框选择字段后会在此显示</small>';
-          } else {
-            // 为每个已选字段创建徽章
-            editSelectedFields.forEach(function(fieldCode) {
-              // 从选择器中查找对应的选项来获取显示名称和分组
-              const option = editFieldSelector.querySelector(`option[value="${fieldCode}"]`);
-              let fieldName = fieldCode; // 默认使用字段代码
-              let group = '';
-              
-              if (option) {
-                fieldName = option.textContent;
-                group = option.getAttribute('data-group') || '';
-              }
-              
-              const badge = document.createElement('span');
-              badge.className = 'badge bg-primary me-2 mb-2';
-              badge.setAttribute('data-field', fieldCode);
-              badge.innerHTML = `${fieldName} <button type="button" class="btn-close btn-close-white ms-1" onclick="removeEditFieldBadge('${fieldCode}')" style="font-size: 0.7em;"></button>`;
-              
-              editSelectedFieldsContainer.appendChild(badge);
-            });
-          }
-          
-          // 更新隐藏输入字段
-          editEditableFieldsInput.value = JSON.stringify(editSelectedFields);
-          console.log('✅ 新格式可编辑字段徽章已填充:', editSelectedFields);
-        } else {
-          // 传统格式：复选框界面
-          editableFieldsData.forEach(function(fieldCode) {
-            const checkbox = modal.querySelector(`input[name="editable_fields"][value="${fieldCode}"]`);
-            if (checkbox) {
-              checkbox.checked = true;
-            }
-          });
-          console.log('✅ 传统格式可编辑字段复选框已填充');
-        }
-      } else {
-        console.log('ℹ️ 没有找到可编辑字段数据');
-      }
-      
       console.log('✅ 分支条件编辑数据填充完成');
     }
     
@@ -3556,6 +3252,7 @@
         return null;
       }
     }
+    });
     
   </script>
   
@@ -3611,7 +3308,4 @@
       font-weight: normal;
     }
   </style>
-  
-  {# 添加审批步骤删除确认对话框 #}
-  {{ render_confirm_dialog('stepDeleteDialog') }}
 {% endmacro %} 

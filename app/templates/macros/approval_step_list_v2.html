@@ -1,0 +1,215 @@
+{# 审批步骤列表宏 - 重构版本 #}
+{# 使用组件化架构，替换原有的monolithic step_list宏 #}
+
+{% from 'macros/approval_step_components.html' import 
+  render_step_header,
+  render_step_content, 
+  render_branch_conditions,
+  render_step_actions,
+  render_empty_steps,
+  render_add_step_button
+  with context %}
+
+{# 主要步骤列表宏 - 重构版本 #}
+{% macro step_list_v2(steps, users=[], in_use=False, template=None, get_object_field_options=None, can_modify=True) %}
+<div class="card mb-4">
+  <div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">
+        <i class="fas fa-list-ol mr-2"></i>审批步骤
+      </h5>
+      {% if steps %}
+        <small class="text-muted">共 {{ steps|length }} 个步骤</small>
+      {% endif %}
+    </div>
+  </div>
+  
+  <div class="card-body p-0">
+    {% if steps %}
+      <ul class="list-group step-list" id="stepList">
+        {% for step in steps %}
+          {{ render_step_item(step, in_use, can_modify) }}
+        {% endfor %}
+      </ul>
+    {% else %}
+      {{ render_empty_steps() }}
+    {% endif %}
+    
+    {# 添加步骤按钮 #}
+    {{ render_add_step_button() }}
+  </div>
+</div>
+{% endmacro %}
+
+{# 单个步骤项渲染组件 #}
+{% macro render_step_item(step, in_use=False, can_modify=True) %}
+<li class="list-group-item step-item {{ get_step_css_class(step) }}" 
+    data-step-id="{{ step.id }}"
+    data-step-type="{{ step.step_type or 'normal' }}">
+  
+  {# 步骤头部 #}
+  {{ render_step_header(step, in_use) }}
+  
+  {# 步骤内容 #}
+  <div class="step-body">
+    {# 常规步骤内容 #}
+    {{ render_step_content(step) }}
+    
+    {# 分支条件内容 #}
+    {{ render_branch_conditions(step) }}
+    
+    {# 步骤操作按钮 #}
+    {% if can_modify %}
+      <div class="step-actions mt-3 text-right">
+        {{ render_step_actions(step, can_modify) }}
+      </div>
+    {% endif %}
+  </div>
+</li>
+{% endmacro %}
+
+{# 步骤CSS类辅助函数 #}
+{% macro get_step_css_class(step) %}
+{%- if step.step_type == 'branch' -%}
+step-branch
+{%- elif step.is_parallel -%}
+step-parallel
+{%- elif step.branch_level > 0 -%}
+step-branch-child
+{%- else -%}
+step-normal
+{%- endif -%}
+{% endmacro %}
+
+{# 简化版步骤列表 - 用于预览或只读模式 #}
+{% macro step_list_readonly(steps, show_details=False) %}
+<div class="card">
+  <div class="card-header">
+    <h6 class="mb-0">
+      <i class="fas fa-eye mr-2"></i>审批流程预览
+    </h6>
+  </div>
+  <div class="card-body">
+    {% if steps %}
+      <div class="step-flow">
+        {% for step in steps %}
+          <div class="step-preview-item mb-3">
+            <div class="d-flex align-items-start">
+              <div class="step-number">{{ step.step_order }}</div>
+              <div class="flex-grow-1 ml-3">
+                <h6 class="mb-1">{{ step.step_name }}</h6>
+                {% if show_details %}
+                  <small class="text-muted">
+                    {% if step.step_type == 'branch' %}分支决策步骤
+                    {% elif step.approver %}审批人: {{ step.approver.real_name or step.approver.username }}
+                    {% else %}{{ step.approver_type }}
+                    {% endif %}
+                  </small>
+                {% endif %}
+              </div>
+            </div>
+            {# 连接线 #}
+            {% if not loop.last %}
+              <div class="step-connector"></div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="text-center text-muted py-4">
+        <i class="fas fa-clipboard-list mb-2" style="font-size: 2rem;"></i>
+        <p class="mb-0">暂无审批步骤</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{# 预览模式专用样式 #}
+<style>
+.step-flow .step-preview-item {
+  position: relative;
+}
+
+.step-number {
+  width: 32px;
+  height: 32px;
+  background: #007bff;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.step-connector {
+  width: 2px;
+  height: 20px;
+  background: #dee2e6;
+  margin: 8px 0 0 15px;
+}
+</style>
+{% endmacro %}
+
+{# 步骤统计信息组件 #}
+{% macro render_step_statistics(steps) %}
+{% if steps %}
+  {% set branch_steps = steps | selectattr('step_type', 'equalto', 'branch') | list %}
+  {% set normal_steps = steps | rejectattr('step_type', 'equalto', 'branch') | list %}
+  {% set parallel_steps = steps | selectattr('is_parallel', 'equalto', true) | list %}
+  
+  <div class="row text-center mb-3">
+    <div class="col">
+      <div class="step-stat">
+        <div class="h4 mb-1 text-primary">{{ steps|length }}</div>
+        <small class="text-muted">总步骤</small>
+      </div>
+    </div>
+    <div class="col">
+      <div class="step-stat">
+        <div class="h4 mb-1 text-success">{{ normal_steps|length }}</div>
+        <small class="text-muted">常规审批</small>
+      </div>
+    </div>
+    <div class="col">
+      <div class="step-stat">
+        <div class="h4 mb-1 text-info">{{ branch_steps|length }}</div>
+        <small class="text-muted">分支决策</small>
+      </div>
+    </div>
+    {% if parallel_steps|length > 0 %}
+    <div class="col">
+      <div class="step-stat">
+        <div class="h4 mb-1 text-warning">{{ parallel_steps|length }}</div>
+        <small class="text-muted">并行处理</small>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+{% endif %}
+{% endmacro %}
+
+{# 步骤验证结果组件 #}
+{% macro render_step_validation(steps) %}
+{% set validation_issues = [] %}
+{% for step in steps %}
+  {% if not step.approver and not step.approver_type %}
+    {% set _ = validation_issues.append({'step': step, 'issue': '未设置审批人'}) %}
+  {% endif %}
+  {% if step.step_type == 'branch' and (not step.branch_condition or not step.branch_condition.conditions) %}
+    {% set _ = validation_issues.append({'step': step, 'issue': '分支步骤未配置条件'}) %}
+  {% endif %}
+{% endfor %}
+
+{% if validation_issues %}
+  <div class="alert alert-warning">
+    <h6><i class="fas fa-exclamation-triangle mr-2"></i>配置检查</h6>
+    <ul class="mb-0">
+      {% for issue in validation_issues %}
+        <li>步骤{{ issue.step.step_order }} "{{ issue.step.step_name }}": {{ issue.issue }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+{% endmacro %}
