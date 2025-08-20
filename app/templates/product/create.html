@@ -148,8 +148,8 @@
         color: #dc3545;
     }
 
-    /* 产品图片上传区域样式 */
-    .product-image-upload {
+    /* 产品图片显示区域样式 */
+    .product-image-display {
         width: 100%;
         max-width: 300px;
         margin-bottom: 20px;
@@ -163,13 +163,7 @@
         background-color: #f8f9fa;
         border-radius: 8px;
         margin-bottom: 1rem;
-        border: 2px dashed #ced4da;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-
-    .image-preview-container:hover {
-        border-color: #adb5bd;
+        border: 1px solid #dee2e6;
     }
 
     .image-preview {
@@ -179,10 +173,9 @@
         width: 100%;
         height: 100%;
         object-fit: contain;
-        display: none;
     }
 
-    .image-placeholder {
+    .no-image-placeholder {
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -192,52 +185,17 @@
         left: 0;
         width: 100%;
         height: 100%;
-        color: #adb5bd;
+        color: #6c757d;
     }
 
-    .image-placeholder i {
+    .no-image-placeholder i {
         font-size: 3rem;
         margin-bottom: 0.5rem;
     }
 
-    .image-placeholder span {
+    .no-image-placeholder span {
         font-size: 0.9rem;
         text-align: center;
-    }
-
-    .image-file-input {
-        display: none;
-    }
-
-    .image-actions {
-        display: flex;
-        justify-content: space-between;
-    }
-
-    /* PDF文件上传容器样式 */
-    .pdf-upload-container {
-        position: relative;
-    }
-
-    /* 当前PDF文件显示样式 */
-    .current-pdf {
-        margin-top: 10px;
-        padding: 10px;
-        background-color: #f8f9fa;
-        border: 1px solid #ced4da;
-        border-radius: 0.25rem;
-    }
-
-    .current-pdf .d-flex {
-        align-items: center;
-    }
-
-    .current-pdf .text-danger {
-        margin-right: 10px;
-    }
-
-    .current-pdf .btn {
-        margin-left: auto;
     }
 </style>
 {% endblock %}
@@ -260,70 +218,35 @@
                         <h6 class="border-bottom pb-2">基本信息</h6>
                     </div>
 
-                    <!-- 产品图片上传区域 -->
+                    <!-- 产品图片显示区域（仅显示，不可上传） -->
                     <div class="col-md-6 mb-3">
                         <label class="form-label">产品图片</label>
-                        <div class="product-image-upload">
-                            <div class="image-preview-container" id="image-preview-container">
+                        <div class="product-image-display">
+                            <div class="image-preview-container">
                                 {% if product and product.image_path %}
                                     {% if product.image_path.startswith('http') %}
                                         <!-- Supabase云端图片 -->
                                         <img src="{{ product.image_path }}"
                                              alt="产品图片"
-                                             class="image-preview"
-                                             id="image-preview"
-                                             style="display: block;">
+                                             class="image-preview">
+                                    {% elif product.image_path.startswith('/storage/') %}
+                                        <!-- 本地存储图片 -->
+                                        <img src="{{ product.image_path }}"
+                                             alt="产品图片"
+                                             class="image-preview">
                                     {% else %}
-                                        <!-- 本地图片 -->
+                                        <!-- 旧版本本地图片 -->
                                         <img src="{{ url_for('static', filename='uploads/products/' + product.image_path) }}"
                                              alt="产品图片"
-                                             class="image-preview"
-                                             id="image-preview"
-                                             style="display: block;">
+                                             class="image-preview">
                                     {% endif %}
-                                <div class="image-placeholder" style="display: none;">
-                                    <i class="fas fa-cloud-upload-alt"></i>
-                                    <span>点击上传图片<br>或拖放图片到此处</span>
-                                </div>
                                 {% else %}
-                                <img src="" alt="产品图片" class="image-preview" id="image-preview">
-                                <div class="image-placeholder">
-                                    <i class="fas fa-cloud-upload-alt"></i>
-                                    <span>点击上传图片<br>或拖放图片到此处</span>
+                                <div class="no-image-placeholder">
+                                    <i class="fas fa-image"></i>
+                                    <span>暂无产品图片</span>
                                 </div>
                                 {% endif %}
-                                <input type="file" id="product-image" name="product_image" class="image-file-input" accept="image/*">
                             </div>
-                            <div class="image-actions">
-                                <button type="button" id="upload-image-btn" class="btn btn-sm btn-outline-primary">选择图片</button>
-                                <button type="button" id="remove-image-btn" class="btn btn-sm btn-outline-danger" {% if not product or not product.image_path %}style="display: none;"{% endif %}>移除图片</button>
-                            </div>
-                            <small class="text-muted">支持JPG、PNG格式，图片大小不超过5MB，支持中文文件名 (v2.1)</small>
-                        </div>
-                    </div>
-
-                    <!-- PDF文件上传 -->
-                    <div class="col-md-6 mb-3">
-                        <label for="product-pdf" class="form-label">产品文档</label>
-                        <div class="pdf-upload-container">
-                            <input type="file" class="form-control" id="product-pdf" name="product_pdf" accept=".pdf">
-                            <div class="form-text">支持PDF格式，文件大小不超过12MB，支持中文文件名 (v2.1)</div>
-                            {% if product and product.pdf_path %}
-                            <div class="current-pdf mt-2">
-                                <div class="d-flex align-items-center">
-                                    <i class="fas fa-file-pdf text-danger me-2"></i>
-                                    <span class="me-2">当前PDF文件</span>
-                                    <a href="{{ url_for('product_route.download_pdf', id=product.id) }}" 
-                                       class="btn btn-sm btn-outline-primary me-2" target="_blank">
-                                        <i class="fas fa-download"></i> 下载
-                                    </a>
-                                    <button type="button" class="btn btn-sm btn-outline-danger" id="remove-pdf-btn">
-                                        <i class="fas fa-trash"></i> 删除
-                                    </button>
-                                </div>
-                            </div>
-                            <input type="hidden" name="remove_pdf" id="remove-pdf-flag" value="false">
-                            {% endif %}
                         </div>
                     </div>
 
@@ -625,13 +548,8 @@
             console.log('表单提交开始');
             console.log('生产状态:', $('#status').val());
 
-            // 检查是否有图片上传
-            const imageFile = $('#product-image')[0].files[0];
-            if (imageFile) {
-                console.log('检测到图片上传：', imageFile.name, imageFile.size, 'bytes');
-            } else {
-                console.log('没有新图片上传');
-            }
+            // 图片上传功能已移除
+            console.log('图片上传功能已移除');
 
             // 如果是编辑模式，设置更新API的URL
             let url = '/api/products/create';
@@ -721,14 +639,7 @@
             }
         });
 
-        // 初始化图片上传
-        initImageUpload();
-
-        // 初始化PDF删除功能
-        initPdfRemove();
-
-        // 初始化PDF文件上传验证
-        initPdfUpload();
+        // 图片和PDF上传功能已移除，仅保留图片显示
     });
 
     // 加载产品类别
@@ -1203,167 +1114,7 @@
         return fieldNames[field] || field;
     }
 
-    // 初始化图片上传组件
-    function initImageUpload() {
-        const previewContainer = document.getElementById('image-preview-container');
-        const imagePreview = document.getElementById('image-preview');
-        const imagePlaceholder = document.querySelector('.image-placeholder');
-        const fileInput = document.getElementById('product-image');
-        const uploadBtn = document.getElementById('upload-image-btn');
-        const removeBtn = document.getElementById('remove-image-btn');
-
-        // 点击预览区域触发文件选择
-        previewContainer.addEventListener('click', function() {
-            fileInput.click();
-        });
-
-        // 点击上传按钮触发文件选择
-        uploadBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            fileInput.click();
-        });
-
-        // 文件拖放功能
-        previewContainer.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            previewContainer.style.borderColor = '#007bff';
-        });
-
-        previewContainer.addEventListener('dragleave', function() {
-            previewContainer.style.borderColor = '#ced4da';
-        });
-
-        previewContainer.addEventListener('drop', function(e) {
-            e.preventDefault();
-            previewContainer.style.borderColor = '#ced4da';
-
-            if (e.dataTransfer.files.length) {
-                fileInput.files = e.dataTransfer.files;
-                handleFileSelect();
-            }
-        });
-
-        // 文件选择处理
-        fileInput.addEventListener('change', handleFileSelect);
-
-        function handleFileSelect() {
-            if (fileInput.files && fileInput.files[0]) {
-                const file = fileInput.files[0];
-
-                // 检查文件类型
-                if (!file.type.match('image.*')) {
-                    alert('请选择图片文件（JPG、PNG）');
-                    return;
-                }
-
-                // 检查文件大小（最大5MB）
-                if (file.size > 5 * 1024 * 1024) {
-                    alert('图片大小不能超过5MB');
-                    return;
-                }
-
-                const reader = new FileReader();
-
-                reader.onload = function(e) {
-                    // 显示预览图
-                    imagePreview.src = e.target.result;
-                    imagePreview.style.display = 'block';
-                    imagePlaceholder.style.display = 'none';
-                    removeBtn.style.display = 'block';
-                };
-
-                reader.readAsDataURL(file);
-            }
-        }
-
-        // 移除图片
-        removeBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation(); // 防止触发容器的点击事件
-
-            // 清除文件输入
-            fileInput.value = '';
-
-            // 隐藏预览，显示占位符
-            imagePreview.src = '';
-            imagePreview.style.display = 'none';
-            imagePlaceholder.style.display = 'flex';
-            removeBtn.style.display = 'none';
-
-            // 如果是编辑模式，添加标记以便服务器知道要删除图片
-            if (document.getElementById('product-id')) {
-                const removeImageFlag = document.createElement('input');
-                removeImageFlag.type = 'hidden';
-                removeImageFlag.name = 'remove_image';
-                removeImageFlag.value = 'true';
-
-                // 移除已存在的标记（如果有）
-                const existingFlag = document.querySelector('input[name="remove_image"]');
-                if (existingFlag) {
-                    existingFlag.parentNode.removeChild(existingFlag);
-                }
-
-                document.getElementById('product-form').appendChild(removeImageFlag);
-            }
-        });
-    }
-
-    // 初始化PDF删除功能
-    function initPdfRemove() {
-        const removePdfBtn = document.getElementById('remove-pdf-btn');
-        if (removePdfBtn) {
-            removePdfBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                
-                if (confirm('确定要删除当前的PDF文件吗？')) {
-                    // 设置删除标记
-                    document.getElementById('remove-pdf-flag').value = 'true';
-                    
-                    // 隐藏当前PDF显示区域
-                    const currentPdfDiv = document.querySelector('.current-pdf');
-                    if (currentPdfDiv) {
-                        currentPdfDiv.style.display = 'none';
-                    }
-                    
-                    // 显示提示信息
-                    const pdfContainer = document.querySelector('.pdf-upload-container');
-                    if (pdfContainer) {
-                        const notice = document.createElement('div');
-                        notice.className = 'alert alert-warning mt-2';
-                        notice.innerHTML = '<i class="fas fa-exclamation-triangle"></i> PDF文件将在保存时删除';
-                        pdfContainer.appendChild(notice);
-                    }
-                }
-            });
-        }
-    }
-
-    // 初始化PDF文件上传验证
-    function initPdfUpload() {
-        const pdfInput = document.getElementById('product-pdf');
-        if (pdfInput) {
-            pdfInput.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (file) {
-                    // 检查文件类型
-                    if (!file.type.match('application/pdf')) {
-                        alert('请选择PDF文件');
-                        e.target.value = '';
-                        return;
-                    }
-                    
-                    // 检查文件大小（最大12MB）
-                    if (file.size > 12 * 1024 * 1024) {
-                        alert('PDF文件大小不能超过12MB，请选择更小的文件');
-                        e.target.value = '';
-                        return;
-                    }
-                    
-                    console.log('PDF文件检查通过:', file.name, '大小:', Math.round(file.size / 1024) + 'KB');
-                }
-            });
-        }
-    }
+    // 图片和PDF上传功能已移除，仅保留图片显示功能
 
     // 添加UI辅助函数
     function showLoading() {
@@ -1411,17 +1162,6 @@
         }, 3000);
     }
 
-    function resetForm() {
-        // 重置表单
-        $('#product-form')[0].reset();
-
-        // 清除图片预览
-        $('#image-preview').attr('src', '').hide();
-        $('.image-placeholder').show();
-        $('#remove-image-btn').hide();
-
-        // 将焦点设置到第一个输入框
-        $('#product-name').focus();
-    }
+    // resetForm 功能已移除，因为不再需要清空表单和图片预览
 </script>
 {% endblock %}

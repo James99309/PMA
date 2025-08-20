@@ -43,16 +43,177 @@ from PIL import Image
 from werkzeug.utils import secure_filename
 from flask import current_app
 from app.utils.supabase_client import get_supabase_client
-from app.services.product_file_service import get_product_file_service
 
 logger = logging.getLogger(__name__)
 # 创建蓝图
 bp = Blueprint('product_route', __name__)
 
-# 文件验证和处理功能已移至 ProductFileService
+# 在路由代码的合适位置添加以下常量
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+ALLOWED_PDF_EXTENSIONS = {'pdf'}
+UPLOAD_FOLDER = 'app/static/uploads/products'
 
-# 本地PDF处理函数已移除，使用 ProductFileService
+# 检查允许的文件类型
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+# 检查PDF文件扩展名是否允许
+def allowed_pdf_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_PDF_EXTENSIONS
+
+# 注释：文件名验证函数已移除，现在支持中英文文件名
+
+# 检查文件大小是否在限制内（12MB）
+def check_file_size(file):
+    """检查文件大小是否在12MB以内"""
+    file.seek(0, 2)  # 移动到文件末尾
+    file_size = file.tell()  # 获取文件大小
+    file.seek(0)  # 重置文件指针
+    return file_size <= 12 * 1024 * 1024  # 12MB
+
+# 保存上传的PDF文件
+def save_product_pdf(file):
+    """
+    保存上传的PDF文件
+    
+    参数:
+    - file: 上传的文件对象
+    
+    返回:
+    - 成功时返回保存的文件路径，失败时返回None和错误信息
+    """
+    if file and allowed_pdf_file(file.filename):
+        # 检查文件大小
+        if not check_file_size(file):
+            return None, _("PDF文件大小不能超过12MB")
+        
+        # 重置文件指针到开始位置（修复第一次上传失败的问题）
+        file.seek(0)
+        
+        # 处理文件名，保留中文字符
+        original_filename = file.filename
+        # 获取文件扩展名
+        if '.' in original_filename:
+            name_part, extension = original_filename.rsplit('.', 1)
+            extension = extension.lower()
+        else:
+            name_part = original_filename
+            extension = 'pdf'
+        
+        # 生成唯一文件名，保留原始文件名（包括中文）
+        import re
+        # 移除文件名中的特殊字符，但保留中文、英文、数字、下划线、连字符
+        safe_name = re.sub(r'[^\w\u4e00-\u9fff\-_.]', '_', name_part)
+        unique_filename = f"{uuid.uuid4().hex}_{safe_name}.{extension}"
+        
+        # 创建上传目录
+        upload_folder = os.path.join(current_app.static_folder, 'uploads', 'products', 'pdfs')
+        os.makedirs(upload_folder, exist_ok=True)
+        
+        # 保存文件
+        filepath = os.path.join(upload_folder, unique_filename)
+        file.save(filepath)
+        
+        # 返回相对路径
+        return os.path.join('uploads', 'products', 'pdfs', unique_filename), None
+    
+    return None, None
+
+# 处理图片上传、调整大小并保存
+def process_product_image(file):
+    if file and allowed_file(file.filename):
+        try:
+            # 检查文件大小（最大5MB）
+            file.seek(0, 2)  # 移动到文件末尾
+            file_size = file.tell()  # 获取文件大小
+            file.seek(0)  # 重置文件指针
+            if file_size > 5 * 1024 * 1024:  # 5MB
+                logger.warning(f"图片文件过大: {file_size} bytes (最大5MB)")
+                return None
+            
+            # 处理文件名，支持中文字符
+            original_filename = file.filename
+            # 获取文件扩展名
+            if '.' in original_filename:
+                name_part, extension = original_filename.rsplit('.', 1)
+                extension = extension.lower()
+            else:
+                name_part = original_filename
+                extension = 'jpg'  # 默认扩展名
+            
+            # 生成唯一文件名，保留原始文件名（包括中文）
+            import re
+            # 移除文件名中的特殊字符，但保留中文、英文、数字、下划线、连字符
+            safe_name = re.sub(r'[^\w\u4e00-\u9fff\-_.]', '_', name_part)
+            unique_filename = f"{uuid.uuid4().hex}_{safe_name}.{extension}"
+            
+            logger.debug(f"处理图片: {original_filename} -> {unique_filename}, 大小: {file_size} bytes")
+            
+            # 确保上传目录存在
+            if not os.path.exists(UPLOAD_FOLDER):
+                logger.debug(f"创建上传目录: {UPLOAD_FOLDER}")
+                os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+            
+            # 保存临时文件
+            temp_path = os.path.join(UPLOAD_FOLDER, f"temp_{unique_filename}")
+            file.save(temp_path)
+            logger.debug(f"临时文件已保存: {temp_path}")
+            
+            # 打开图片并等比例缩放（保持完整图片内容）
+            with Image.open(temp_path) as img:
+                # 获取原始尺寸
+                width, height = img.size
+                logger.debug(f"原始图片尺寸: {width}x{height}")
+                
+                # 设置最大尺寸限制
+                max_size = 800  # 增加到800像素以获得更好的显示效果
+                
+                # 计算等比例缩放尺寸（保持宽高比，不裁剪）
+                if width > max_size or height > max_size:
+                    # 计算缩放比例
+                    width_ratio = max_size / width
+                    height_ratio = max_size / height
+                    scale_ratio = min(width_ratio, height_ratio)  # 使用较小的比例确保完整显示
+                    
+                    new_width = int(width * scale_ratio)
+                    new_height = int(height * scale_ratio)
+                    
+                    # 等比例缩放（保持完整图片，不裁剪）
+                    img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    logger.debug(f"图片已等比例缩放至: {new_width}x{new_height}")
+                else:
+                    logger.debug("图片尺寸在限制范围内，无需缩放")
+                
+                # 保存处理后的图片，使用更高的压缩率以减小文件大小
+                final_path = os.path.join(UPLOAD_FOLDER, unique_filename)
+                img.save(final_path, optimize=True, quality=75)  # 降低质量从85到75
+                logger.debug(f"处理后的图片已保存: {final_path}")
+                
+                # 删除临时文件
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                    logger.debug(f"临时文件已删除: {temp_path}")
+                
+                return unique_filename
+                
+        except Exception as e:
+            logger.error(f"处理图片时出错: {str(e)}", exc_info=True)
+            # 删除临时文件
+            temp_path = os.path.join(UPLOAD_FOLDER, f"temp_{unique_filename}")
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                    logger.debug(f"出错后清理临时文件: {temp_path}")
+                except Exception as cleanup_error:
+                    logger.error(f"清理临时文件时出错: {str(cleanup_error)}")
+    else:
+        if file:
+            logger.warning(f"不支持的文件类型: {file.filename}")
+        else:
+            logger.warning("没有提供文件")
+                
+    return None
 
 @bp.route('/products', methods=['GET'])
 @login_required
@@ -740,69 +901,164 @@ def get_product_models():
             'message': str(e)
         }), 500
 
-@bp.route('/api/products/<int:product_id>/upload-image', methods=['POST'])
-@login_required
-@permission_required('product', 'edit')
-def upload_product_image(product_id):
-    """上传产品图片"""
-    file_service = get_product_file_service()
-    image_file = request.files.get('image')
-    
-    if not image_file or not image_file.filename:
-        return jsonify({'success': False, 'error': '请选择要上传的图片文件'}), 400
-    
-    result = file_service.upload_image(product_id, image_file)
-    status_code = 200 if result['success'] else 400
-    return jsonify(result), status_code
-
-@bp.route('/api/products/<int:product_id>/upload-pdf', methods=['POST'])
-@login_required
-@permission_required('product', 'edit')
-def upload_product_pdf(product_id):
-    """上传产品PDF文档"""
-    file_service = get_product_file_service()
-    pdf_file = request.files.get('pdf')
-    
-    if not pdf_file or not pdf_file.filename:
-        return jsonify({'success': False, 'error': '请选择要上传的PDF文件'}), 400
-    
-    result = file_service.upload_pdf(product_id, pdf_file)
-    status_code = 200 if result['success'] else 400
-    return jsonify(result), status_code
-
 @bp.route('/api/products/<int:product_id>/upload-files', methods=['POST'])
 @login_required
 @permission_required('product', 'edit')
 def upload_product_files(product_id):
-    """批量上传产品文件（保持向后兼容）"""
-    file_service = get_product_file_service()
-    image_file = request.files.get('image')
-    pdf_file = request.files.get('pdf')
-    
-    if not image_file and not pdf_file:
-        return jsonify({'success': False, 'error': '请至少选择一个文件上传'}), 400
-    
-    result = {'success': True, 'image_url': None, 'pdf_url': None, 'errors': []}
-    
-    # 上传图片
-    if image_file and image_file.filename:
-        image_result = file_service.upload_image(product_id, image_file)
-        if image_result['success']:
-            result['image_url'] = image_result['image_url']
+    """上传产品文件到Supabase云存储"""
+    try:
+        # 记录上传请求开始
+        logger.info(f"🚀 开始上传产品文件: 产品ID={product_id}, 用户={current_user.username}")
+        
+        # 检查产品是否存在
+        product = Product.query.get_or_404(product_id)
+        logger.info(f"📦 产品信息: ID={product.id}, 名称={product.product_name}")
+        
+        # 获取上传的文件
+        image_file = request.files.get('image')
+        pdf_file = request.files.get('pdf')
+        
+        # 记录接收到的文件信息
+        file_info = []
+        if image_file and image_file.filename:
+            file_size_kb = len(image_file.read()) / 1024
+            image_file.seek(0)  # 重置文件指针
+            file_info.append(f"图片: {image_file.filename} ({file_size_kb:.1f}KB)")
+        if pdf_file and pdf_file.filename:
+            file_size_kb = len(pdf_file.read()) / 1024
+            pdf_file.seek(0)  # 重置文件指针
+            file_info.append(f"PDF: {pdf_file.filename} ({file_size_kb:.1f}KB)")
+        
+        if file_info:
+            logger.info(f"📁 接收到文件: {', '.join(file_info)}")
+        
+        if not image_file and not pdf_file:
+            logger.warning(f"❌ 产品 {product_id} 上传失败: 没有选择文件")
+            return jsonify({
+                'success': False,
+                'error': '请至少选择一个文件上传'
+            }), 400
+        
+        # 获取Supabase客户端
+        supabase_client = get_supabase_client()
+        logger.info(f"☁️ Supabase客户端已获取: 使用{'云端' if not supabase_client.use_local_storage else '本地'}存储")
+        
+        # 存储结果
+        result = {
+            'success': True,
+            'image_url': None,
+            'pdf_url': None,
+            'errors': []
+        }
+        
+        # 上传图片文件
+        if image_file and image_file.filename:
+            try:
+                # 先删除旧的图片文件（如果存在）
+                if product.image_path:
+                    from app.utils.file_manager import get_file_manager
+                    file_manager = get_file_manager(supabase_client)
+                    file_manager.delete_product_old_file(
+                        file_path=product.image_path,
+                        file_type='图片',
+                        bucket_type='product'
+                    )
+                
+                logger.info(f"🖼️ 开始上传图片: {image_file.filename} -> product存储桶")
+                image_url = supabase_client.upload_product_file(
+                    product_id=product_id,
+                    file=image_file,
+                    file_type='image',
+                    bucket_type='product'
+                )
+                
+                if image_url:
+                    # 更新数据库中的image_path字段
+                    logger.info(f"💾 更新数据库: product.image_path = {image_url}")
+                    product.image_path = image_url
+                    result['image_url'] = image_url
+                    logger.info(f"✅ 产品 {product_id} 图片上传成功: {image_url}")
+                else:
+                    result['errors'].append('图片上传失败')
+                    logger.error(f"❌ 产品 {product_id} 图片上传失败: upload_product_file返回None")
+                    
+            except Exception as e:
+                error_msg = f'图片上传错误: {str(e)}'
+                result['errors'].append(error_msg)
+                logger.error(f"💥 产品 {product_id} 图片上传异常: {str(e)}", exc_info=True)
+        
+        # 上传PDF文件
+        if pdf_file and pdf_file.filename:
+            try:
+                # 先删除旧的PDF文件（如果存在）
+                if product.pdf_path:
+                    from app.utils.file_manager import get_file_manager
+                    file_manager = get_file_manager(supabase_client)
+                    file_manager.delete_product_old_file(
+                        file_path=product.pdf_path,
+                        file_type='PDF',
+                        bucket_type='product'
+                    )
+                
+                logger.info(f"📄 开始上传PDF: {pdf_file.filename} -> product存储桶")
+                pdf_url = supabase_client.upload_product_file(
+                    product_id=product_id,
+                    file=pdf_file,
+                    file_type='pdf',
+                    bucket_type='product'
+                )
+                
+                if pdf_url:
+                    # 更新数据库中的pdf_path字段
+                    logger.info(f"💾 更新数据库: product.pdf_path = {pdf_url}")
+                    product.pdf_path = pdf_url
+                    result['pdf_url'] = pdf_url
+                    logger.info(f"✅ 产品 {product_id} PDF上传成功: {pdf_url}")
+                else:
+                    result['errors'].append('PDF上传失败')
+                    logger.error(f"❌ 产品 {product_id} PDF上传失败: upload_product_file返回None")
+                    
+            except Exception as e:
+                error_msg = f'PDF上传错误: {str(e)}'
+                result['errors'].append(error_msg)
+                logger.error(f"💥 产品 {product_id} PDF上传异常: {str(e)}", exc_info=True)
+        
+        # 保存数据库更改
+        if result['image_url'] or result['pdf_url']:
+            try:
+                logger.info(f"💾 开始提交数据库更改...")
+                db.session.commit()
+                logger.info(f"✅ 产品 {product_id} 文件路径已更新到数据库")
+            except Exception as e:
+                logger.error(f"💥 数据库提交失败，执行回滚...")
+                db.session.rollback()
+                error_msg = f'数据库更新失败: {str(e)}'
+                result['errors'].append(error_msg)
+                result['success'] = False
+                logger.error(f"❌ 产品 {product_id} 数据库更新失败: {str(e)}", exc_info=True)
+        
+        # 判断整体是否成功
+        result['success'] = len(result['errors']) == 0
+        
+        # 记录最终结果
+        upload_count = sum([1 for url in [result['image_url'], result['pdf_url']] if url])
+        if result['success']:
+            logger.info(f"🎉 产品 {product_id} 文件上传完成: 成功上传{upload_count}个文件")
         else:
-            result['errors'].append(image_result['error'])
-    
-    # 上传PDF
-    if pdf_file and pdf_file.filename:
-        pdf_result = file_service.upload_pdf(product_id, pdf_file)
-        if pdf_result['success']:
-            result['pdf_url'] = pdf_result['pdf_url']
-        else:
-            result['errors'].append(pdf_result['error'])
-    
-    result['success'] = len(result['errors']) == 0
-    status_code = 200 if result['success'] else 400
-    return jsonify(result), status_code
+            logger.error(f"❌ 产品 {product_id} 文件上传失败: {len(result['errors'])}个错误")
+        
+        # 记录返回结果
+        logger.info(f"📤 返回结果: success={result['success']}, image_url={'有' if result['image_url'] else '无'}, pdf_url={'有' if result['pdf_url'] else '无'}, errors={len(result['errors'])}")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f'💥 产品文件上传时出现未捕获异常: {str(e)}', exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': '文件上传失败',
+            'message': str(e)
+        }), 500
 
 @bp.route('/products/<int:product_id>/upload', methods=['GET'])
 @login_required
@@ -1839,8 +2095,74 @@ def update_product_status(id):
 @permission_required('product', 'view')
 def download_pdf(id):
     """下载产品PDF文件"""
-    file_service = get_product_file_service()
-    return file_service.download_pdf(id)
+    from flask import send_file, abort
+    
+    product = Product.query.get_or_404(id)
+    
+    # 检查是否有PDF文件
+    if not product.pdf_path:
+        flash(_('该产品没有PDF文件'), 'warning')
+        return redirect(url_for('product_route.view_product_detail', id=id))
+    
+    # 如果是Supabase URL，通过代理方式强制下载
+    if product.pdf_path.startswith('http'):
+        import requests
+        from flask import Response
+        
+        try:
+            # 获取云端文件内容
+            response = requests.get(product.pdf_path, timeout=30)
+            response.raise_for_status()
+            
+            # 获取合适的文件名，处理中文字符
+            import urllib.parse
+            original_filename = f"{product.product_name}.pdf"
+            # URL编码文件名以处理中文字符
+            encoded_filename = urllib.parse.quote(original_filename)
+            
+            # 创建强制下载的响应
+            return Response(
+                response.content,
+                mimetype='application/pdf',
+                headers={
+                    'Content-Disposition': f'attachment; filename*=UTF-8\'\'{encoded_filename}',
+                    'Content-Length': str(len(response.content))
+                }
+            )
+        except Exception as e:
+            logger.error(f"下载云端PDF失败: {str(e)}")
+            flash(_('下载PDF文件失败'), 'danger')
+            return redirect(url_for('product_route.view_product_detail', id=id))
+    
+    # 构建文件完整路径（本地文件）
+    pdf_file_path = os.path.join(current_app.static_folder, product.pdf_path)
+    
+    # 检查文件是否存在
+    if not os.path.exists(pdf_file_path):
+        flash(_('PDF文件不存在'), 'danger')
+        return redirect(url_for('product_route.view_product_detail', id=id))
+    
+    try:
+        # 获取原始文件名（去掉UUID前缀）
+        original_filename = os.path.basename(product.pdf_path)
+        if '_' in original_filename:
+            # 去掉UUID前缀，保留原始文件名
+            original_filename = '_'.join(original_filename.split('_')[1:])
+        
+        # 如果没有原始文件名，使用产品型号作为文件名
+        if not original_filename or original_filename == '':
+            original_filename = f"{product.model}.pdf"
+        
+        return send_file(
+            pdf_file_path,
+            as_attachment=True,
+            download_name=original_filename,
+            mimetype='application/pdf'
+        )
+    except Exception as e:
+        logger.error(f"下载PDF文件失败: {str(e)}")
+        flash(_('下载PDF文件失败'), 'danger')
+        return redirect(url_for('product_route.view_product_detail', id=id))
 
 
 
@@ -1850,5 +2172,50 @@ def download_pdf(id):
 @permission_required('product', 'view')
 def get_pdf_preview(id):
     """获取PDF文件用于预览缩略图（不强制下载，支持PDF.js加载）"""
-    file_service = get_product_file_service()
-    return file_service.preview_pdf(id) 
+    from flask import Response
+    import requests
+    
+    product = Product.query.get_or_404(id)
+    
+    # 检查是否有PDF文件
+    if not product.pdf_path:
+        return jsonify({'error': 'PDF文件不存在'}), 404
+    
+    try:
+        # 处理云端文件
+        if product.pdf_path.startswith('http'):
+            # 代理方式获取文件内容，确保PDF.js能正常加载
+            response = requests.get(product.pdf_path, timeout=30)
+            response.raise_for_status()
+            
+            # 返回PDF内容，设置正确的CORS头
+            return Response(
+                response.content,
+                mimetype='application/pdf',
+                headers={
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET',
+                    'Access-Control-Allow-Headers': 'Content-Type',
+                    'Content-Length': str(len(response.content)),
+                    'Cache-Control': 'public, max-age=3600'  # 缓存1小时
+                }
+            )
+        
+        # 处理本地文件
+        else:
+            pdf_file_path = os.path.join(current_app.static_folder, product.pdf_path)
+            
+            if not os.path.exists(pdf_file_path):
+                return jsonify({'error': 'PDF文件不存在'}), 404
+            
+            return send_file(
+                pdf_file_path,
+                mimetype='application/pdf',
+                as_attachment=False,  # 不强制下载
+                add_etags=True,      # 启用缓存
+                max_age=3600         # 缓存1小时
+            )
+            
+    except Exception as e:
+        logger.error(f"获取PDF预览内容失败: {str(e)}")
+        return jsonify({'error': '获取PDF预览内容失败'}), 500 

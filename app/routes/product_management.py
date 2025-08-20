@@ -2792,3 +2792,68 @@ def check_mn_code_duplicate_api():
     except Exception as e:
         current_app.logger.error(f"检查MN编码重复失败: {str(e)}")
         return jsonify({'exists': False, 'error': str(e)})
+
+# 上传研发产品图片
+@product_management_bp.route('/api/rd-products/<int:product_id>/upload-image', methods=['POST'])
+@login_required
+@permission_required('product_code', 'edit')
+def upload_rd_product_image(product_id):
+    """上传研发产品图片"""
+    try:
+        # 获取产品
+        dev_product = DevProduct.query.get_or_404(product_id)
+        
+        # 检查权限：只有管理员或产品创建者可以上传图片
+        if current_user.role != 'admin' and current_user.id != dev_product.created_by:
+            return jsonify({'success': False, 'error': '您没有权限上传此产品的图片'}), 403
+        
+        # 检查是否有图片文件
+        if 'image' not in request.files:
+            return jsonify({'success': False, 'error': '请选择图片文件'}), 400
+        
+        image_file = request.files['image']
+        if image_file.filename == '':
+            return jsonify({'success': False, 'error': '请选择图片文件'}), 400
+        
+        # 验证文件类型
+        allowed_extensions = {'jpg', 'jpeg', 'png', 'gif'}
+        if not ('.' in image_file.filename and 
+                image_file.filename.rsplit('.', 1)[1].lower() in allowed_extensions):
+            return jsonify({'success': False, 'error': '不支持的图片格式！请选择 JPG、PNG 或 GIF 文件'}), 400
+        
+        # 验证文件大小 (12MB)
+        max_size = 12 * 1024 * 1024
+        image_file.seek(0, 2)  # 移动到文件末尾
+        file_size = image_file.tell()
+        image_file.seek(0)  # 回到文件开始
+        
+        if file_size > max_size:
+            return jsonify({
+                'success': False, 
+                'error': f'图片文件太大！最大允许 12MB，当前文件: {file_size / (1024*1024):.1f}MB'
+            }), 400
+        
+        # 使用Supabase服务上传图片
+        from app.utils.supabase_client import get_supabase_client
+        supabase_client = get_supabase_client()
+        
+        if supabase_client:
+            # 上传到Supabase
+            image_url = supabase_client.upload_product_file(dev_product.id, image_file, 'image', 'rd_product')
+            if image_url:
+                # 更新数据库
+                dev_product.image_path = image_url
+                dev_product.updated_at = datetime.now()
+                db.session.commit()
+                
+                current_app.logger.info(f"研发产品 {dev_product.id} 图片上传成功: {image_url}")
+                return jsonify({'success': True, 'image_url': image_url})
+            else:
+                return jsonify({'success': False, 'error': '上传到云端存储失败'}), 500
+        else:
+            return jsonify({'success': False, 'error': '云端存储服务不可用'}), 500
+            
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"上传研发产品图片失败: {str(e)}")
+        return jsonify({'success': False, 'error': f'上传失败: {str(e)}'}), 500

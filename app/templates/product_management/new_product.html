@@ -452,22 +452,12 @@
                                         </select>
                                     </div>
                                     <div class="col-md-6">
-                                        <label for="product_image" class="form-label">产品图片</label>
-                                        <input type="file" class="form-control" id="product_image" name="product_image" accept="image/*">
-                                        <div class="form-text">支持 PNG, JPG, JPEG, GIF 格式，图片大小不超过5MB，支持中文文件名</div>
+                                        <label for="description" class="form-label">产品描述</label>
+                                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
                                     </div>
                                 </div>
-
+                                <!-- 产品图片和PDF上传功能已移至产品详情页面 -->
                                 <div class="row mb-3">
-                                    <div class="col-md-6">
-                                        <label for="product_pdf" class="form-label">产品PDF文件</label>
-                                        <input type="file" class="form-control" id="product_pdf" name="product_pdf" accept=".pdf">
-                                        <div class="form-text">支持 PDF 格式，文件大小不超过12MB，支持中英文文件名</div>
-                                    </div>
-                                    <div class="col-md-6">
-                                    <label for="description" class="form-label">产品描述</label>
-                                    <textarea class="form-control" id="description" name="description" rows="3"></textarea>
-                                    </div>
                                 </div>
 
                                 {{ render_button('下一步：产品规格', type='button', color='primary', extra_class='next-tab') }}
@@ -2248,62 +2238,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始更新MN编码预览（立即执行）
     updateMNCodePreview(true);
 
-    // 添加产品图片文件大小检查
-    const productImageInput = document.getElementById('product_image');
-    if (productImageInput) {
-        productImageInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                // 检查文件类型
-                if (!file.type.match('image.*')) {
-                    alert('请选择图片文件（PNG、JPG、JPEG、GIF）');
-                    e.target.value = '';
-                    return;
-                }
-                
-                // 检查文件大小（最大5MB）
-                if (file.size > 5 * 1024 * 1024) {
-                    alert('图片大小不能超过5MB，请选择更小的图片或压缩后再上传');
-                    e.target.value = '';
-                    return;
-                }
-                
-                console.log('图片文件检查通过:', file.name, '大小:', Math.round(file.size / 1024) + 'KB');
-            }
-        });
-    }
+    // 产品图片上传功能已移至产品详情页面
 
-    // 添加PDF文件大小和文件名检查
-    const productPdfInput = document.getElementById('product_pdf');
-    if (productPdfInput) {
-        productPdfInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                // 检查文件类型
-                if (!file.type.match('application/pdf')) {
-                    alert('请选择PDF文件');
-                    e.target.value = '';
-                    return;
-                }
-                
-                // 文件名验证：支持中英文文件名，只需要检查是否包含不安全字符
-                if (/[<>:"/\\|?*]/.test(file.name)) {
-                    alert('文件名不能包含以下字符：< > : " / \\ | ? *');
-                    e.target.value = '';
-                    return;
-                }
-                
-                // 检查文件大小（最大12MB）
-                if (file.size > 12 * 1024 * 1024) {
-                    alert('PDF文件大小不能超过12MB，请选择更小的文件');
-                    e.target.value = '';
-                    return;
-                }
-                
-                console.log('PDF文件检查通过:', file.name, '大小:', Math.round(file.size / 1024) + 'KB');
-            }
-        });
-    }
+    // 产品PDF上传功能已移至产品详情页面
     
     // 动态编码生成函数
     function generateDynamicCode(value, field) {

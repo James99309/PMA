@@ -168,9 +168,23 @@ class SupabaseStorageClient:
         logger.info(f"☁️ Supabase URL: {self.supabase_url[:20]}...")
         logger.info(f"📦 云端桶配置: {self.bucket_config}")
         
-        # 创建Supabase客户端
-        self.supabase = create_client(self.supabase_url, self.supabase_key)
-        logger.info("✅ Supabase客户端初始化成功")
+        # 创建Supabase客户端 - 修复SDK版本兼容性问题
+        try:
+            # 针对2.7.0版本的Supabase Python SDK
+            self.supabase = create_client(self.supabase_url, self.supabase_key)
+            logger.info("✅ Supabase客户端初始化成功")
+            
+            # 测试storage属性访问是否正常（兼容老版本SDK）
+            try:
+                storage_test = self.supabase.storage
+                logger.info(f"✅ Storage属性访问成功: {type(storage_test)}")
+            except Exception as storage_error:
+                logger.warning(f"⚠️ Storage属性访问异常，但继续执行: {storage_error}")
+                # 对于老版本SDK，这可能是正常的，继续执行
+                
+        except Exception as e:
+            logger.error(f"Supabase客户端初始化失败: {str(e)}")
+            raise
     
     def get_bucket_name(self, bucket_type: str = 'default') -> str:
         """
@@ -187,9 +201,243 @@ class SupabaseStorageClient:
         else:
             return self.bucket_config.get(bucket_type, self.bucket_config['default'])
     
+    def upload_file(self, object_id: int, file, filename: str, file_type: str, 
+                    bucket_type: str = 'invoice', business_type: str = 'expense', **kwargs) -> Optional[dict]:
+        """
+        统一文件上传接口 - 基于发票上传的成功模式
+        
+        Args:
+            object_id: 业务对象ID (产品ID、报销明细ID等)
+            file: 文件对象
+            filename: 原始文件名
+            file_type: 文件类型 ('image', 'pdf')
+            bucket_type: 存储桶类型 ('invoice', 'product', 'rd_product')
+            business_type: 业务类型 ('expense', 'product', 'rd_product')
+            **kwargs: 其他参数 (detail_sequence, file_sequence等)
+        
+        Returns:
+            成功返回文件信息字典，失败返回None
+            {
+                'url': '访问URL',
+                'filename': '规范化文件名',
+                'storage_path': '存储路径',
+                'original_filename': '原始文件名',
+                'file_type': '文件类型'
+            }
+        """
+        try:
+            if self.use_local_storage:
+                return self._upload_file_local(object_id, file, filename, file_type, bucket_type, business_type, **kwargs)
+            else:
+                return self._upload_file_cloud(object_id, file, filename, file_type, bucket_type, business_type, **kwargs)
+        except Exception as e:
+            logger.error(f"统一文件上传失败: {str(e)}")
+            return None
+    
+    def _upload_file_cloud(self, object_id: int, file, filename: str, file_type: str, 
+                          bucket_type: str, business_type: str, **kwargs) -> Optional[dict]:
+        """
+        统一云端文件上传 - 使用发票上传的成功模式
+        """
+        try:
+            # 获取对应的存储桶名称
+            bucket_name = self.get_bucket_name(bucket_type)
+            
+            # 生成存储路径和文件名
+            if business_type == 'expense':
+                # 报销发票路径
+                detail_sequence = kwargs.get('detail_sequence')
+                file_sequence = kwargs.get('file_sequence')
+                standardized_info = self._generate_standardized_invoice_name(object_id, filename, detail_sequence, file_sequence)
+                if standardized_info:
+                    storage_path = standardized_info['storage_path']
+                    standardized_filename = standardized_info['filename']
+                else:
+                    storage_path = f"expense_invoices/{object_id}/{filename}"
+                    standardized_filename = filename
+            else:
+                # 产品文件路径 - 添加系统标识前缀
+                import uuid
+                import re
+                from datetime import datetime
+                
+                # 提取文件扩展名
+                file_ext = 'jpg'  # 默认扩展名
+                if '.' in filename:
+                    file_ext = filename.rsplit('.', 1)[1].lower()
+                
+                # 生成唯一安全的文件名（移除中文和特殊字符）
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                unique_id = uuid.uuid4().hex[:8]
+                safe_filename = f"{file_type}_{object_id}_{timestamp}_{unique_id}.{file_ext}"
+                
+                # 获取系统标识并构建带环境标识的路径
+                system_id = self._get_system_identifier()
+                if business_type == 'rd_product':
+                    storage_path = f"rd_product_files/{system_id}/{object_id}/{safe_filename}"
+                else:
+                    storage_path = f"product_files/{system_id}/{object_id}/{safe_filename}"
+                standardized_filename = safe_filename
+            
+            logger.info(f"☁️ 云端存储路径: {storage_path}")
+            
+            # 读取并处理文件内容
+            file_content = file.read()
+            file.seek(0)  # 重置文件指针
+            
+            # 根据文件类型处理文件内容
+            if file_type == 'image':
+                if business_type == 'expense':
+                    try:
+                        processed_content = self._process_invoice_image(file_content, filename)
+                    except Exception as e:
+                        logger.warning(f"发票图片处理失败，使用原始文件: {str(e)}")
+                        processed_content = file_content
+                else:
+                    # 产品图片处理
+                    original_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'jpg'
+                    try:
+                        processed_content = self._process_image(file, original_ext)
+                    except Exception as e:
+                        logger.warning(f"产品图片处理失败，使用原始文件: {str(e)}")
+                        processed_content = file_content
+            else:
+                # PDF文件直接使用
+                processed_content = file_content
+            
+            # 执行云端上传 - 使用成功的发票上传模式
+            logger.info(f"☁️ 准备上传到存储桶: {bucket_name}, 路径: {storage_path}")
+            
+            try:
+                # 使用新版SDK的上传方式，支持文件覆盖
+                from storage3 import create_client as create_storage_client
+                
+                # 先尝试删除旧文件，再上传新文件
+                try:
+                    # 尝试删除可能存在的同名文件
+                    self.supabase.storage.from_(bucket_name).remove([storage_path])
+                    logger.debug(f"已删除可能存在的旧文件: {storage_path}")
+                except Exception as delete_error:
+                    logger.debug(f"删除旧文件失败（文件可能不存在）: {delete_error}")
+                
+                # 上传新文件
+                res = self.supabase.storage.from_(bucket_name).upload(storage_path, processed_content)
+                logger.info("✅ 文件上传成功")
+                
+            except Exception as e:
+                logger.error(f"❌ 上传失败: {type(e).__name__}: {str(e)}")
+                raise
+            
+            # 检查上传结果（新版SDK返回UploadResponse对象）
+            if res:
+                # 新版SDK上传成功直接返回结果，无需检查error字段
+                # 生成访问URL
+                public_url = f"{self.supabase_url}/storage/v1/object/public/{bucket_name}/{storage_path}"
+                
+                logger.info(f"✅ 云端上传完成，文件访问URL: {public_url}")
+                
+                return {
+                    'url': public_url,
+                    'filename': standardized_filename,
+                    'storage_path': storage_path,
+                    'original_filename': filename,
+                    'file_type': file_type
+                }
+            else:
+                raise Exception(f"上传失败: 上传响应为空")
+                
+        except Exception as e:
+            logger.error(f"统一云端文件上传失败: {str(e)}")
+            return None
+    
+    def _upload_file_local(self, object_id: int, file, filename: str, file_type: str, 
+                          bucket_type: str, business_type: str, **kwargs) -> Optional[dict]:
+        """
+        统一本地文件上传
+        """
+        try:
+            # 验证文件类型
+            if file_type not in ['image', 'pdf']:
+                raise ValueError("文件类型必须是 'image' 或 'pdf'")
+            
+            # 验证文件扩展名
+            original_filename = secure_filename(filename)
+            if not original_filename:
+                raise ValueError("无效的文件名")
+                
+            file_ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else ''
+            
+            if file_type == 'image':
+                allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif']
+            else:  # pdf
+                allowed_extensions = ['pdf']
+            
+            if file_ext not in allowed_extensions:
+                raise ValueError(f"不支持的文件类型。{file_type}文件支持：{', '.join(allowed_extensions)}")
+            
+            # 验证文件大小
+            file.seek(0, 2)
+            file_size = file.tell()
+            file.seek(0)
+            
+            if file_size > self.MAX_FILE_SIZE:
+                raise ValueError(f"文件大小超过限制。最大允许: {self.MAX_FILE_SIZE // (1024*1024)}MB")
+            
+            if not file_size:
+                raise ValueError("文件内容为空")
+            
+            # 生成标准化文件名和路径
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            standardized_filename = f"{business_type}_{object_id}_{timestamp}.{file_ext}"
+            
+            # 获取对应的本地存储目录
+            bucket_dir = self.get_bucket_name(bucket_type)
+            storage_path = f"{bucket_dir}/{business_type}_{object_id}/{standardized_filename}"
+            
+            # 构建完整的本地文件路径
+            local_file_path = os.path.join(self.local_storage_root, storage_path)
+            local_dir = os.path.dirname(local_file_path)
+            
+            # 确保目录存在
+            os.makedirs(local_dir, exist_ok=True)
+            
+            # 处理文件内容
+            if file_type == 'image':
+                try:
+                    processed_content = self._process_image(file, file_ext)
+                except Exception as e:
+                    logger.warning(f"图片处理失败，使用原始文件: {str(e)}")
+                    file.seek(0)
+                    processed_content = file.read()
+            else:
+                file.seek(0)
+                processed_content = file.read()
+            
+            # 保存到本地文件系统
+            with open(local_file_path, 'wb') as f:
+                f.write(processed_content)
+            
+            # 生成本地访问URL
+            local_url = f"/storage/{storage_path}"
+            
+            logger.info(f"✅ 文件保存到本地: {local_file_path}")
+            logger.info(f"🔗 本地访问URL: {local_url}")
+            
+            return {
+                'url': local_url,
+                'filename': standardized_filename,
+                'storage_path': storage_path,
+                'original_filename': filename,
+                'file_type': file_type
+            }
+            
+        except Exception as e:
+            logger.error(f"本地文件上传失败: {str(e)}")
+            return None
+    
     def upload_product_file(self, product_id: int, file, file_type: str, bucket_type: str = 'product') -> Optional[str]:
         """
-        上传产品文件（支持本地/云端智能切换）
+        上传产品文件（支持本地/云端智能切换）- 现在使用统一上传接口
         
         Args:
             product_id: 产品ID
@@ -201,11 +449,24 @@ class SupabaseStorageClient:
             上传成功返回访问URL，失败返回None
         """
         try:
-            # 根据存储类型路由到对应的上传方法
-            if self.use_local_storage:
-                return self._upload_product_file_local(product_id, file, file_type, bucket_type)
+            # 确定业务类型
+            if bucket_type == 'rd_product':
+                business_type = 'rd_product'
             else:
-                return self._upload_product_file_cloud(product_id, file, file_type, bucket_type)
+                business_type = 'product'
+            
+            # 使用统一上传接口
+            result = self.upload_file(
+                object_id=product_id,
+                file=file,
+                filename=file.filename,
+                file_type=file_type,
+                bucket_type=bucket_type,
+                business_type=business_type
+            )
+            
+            # 返回URL以保持向下兼容
+            return result['url'] if result else None
             
         except Exception as e:
             logger.error(f"产品文件上传失败: {str(e)}")
@@ -336,26 +597,22 @@ class SupabaseStorageClient:
                 file.seek(0)
                 file_content = file.read()
             
-            # 使用版本兼容的上传方法
+            # 使用版本兼容的上传方法（使用发票上传的成功模式）
             try:
-                # 将文件内容包装为BytesIO对象
-                file_bytes = BytesIO(file_content)
-                
                 # 调试信息
                 logger.info(f"HAS_UPLOAD_FILE_OPTIONS: {HAS_UPLOAD_FILE_OPTIONS}")
+                logger.info(f"☁️ 云端存储路径: {filename}")
                 
                 # 使用多层容错机制
                 upload_success = False
                 
                 if HAS_UPLOAD_FILE_OPTIONS:
                     try:
-                        # 新版本SDK使用UploadFileOptions
+                        # 新版本SDK使用UploadFileOptions方式（不传递options参数）
                         logger.info("尝试使用UploadFileOptions方式上传")
-                        options = UploadFileOptions(content_type=self._get_content_type(file_type, file_ext))
                         res = self.supabase.storage.from_(bucket_name).upload(
                             filename,
-                            file_bytes,
-                            options
+                            file_content
                         )
                         upload_success = True
                         logger.info("UploadFileOptions方式上传成功")
@@ -368,8 +625,7 @@ class SupabaseStorageClient:
                         logger.info("尝试使用字典方式上传")
                         res = self.supabase.storage.from_(bucket_name).upload(
                             filename,
-                            file_bytes,
-                            {"content-type": self._get_content_type(file_type, file_ext)}
+                            file_content
                         )
                         upload_success = True
                         logger.info("字典方式上传成功")
@@ -378,11 +634,11 @@ class SupabaseStorageClient:
                 
                 if not upload_success:
                     try:
-                        # 最简化版本，不传递content-type
+                        # 最简化版本，直接使用字节内容
                         logger.info("尝试使用最简化方式上传")
                         res = self.supabase.storage.from_(bucket_name).upload(
                             filename,
-                            file_bytes
+                            file_content
                         )
                         upload_success = True
                         logger.info("最简化方式上传成功")
@@ -394,9 +650,6 @@ class SupabaseStorageClient:
                     try:
                         logger.info("所有SDK方法失败，尝试使用HTTP API直接上传")
                         import requests
-                        
-                        # 重置BytesIO位置
-                        file_bytes.seek(0)
                         
                         # 构建上传URL
                         upload_url = f"{self.supabase_url}/storage/v1/object/{bucket_name}/{filename}"
@@ -411,7 +664,7 @@ class SupabaseStorageClient:
                         # 发送POST请求上传文件
                         response = requests.post(
                             upload_url,
-                            data=file_bytes.read(),
+                            data=file_content,
                             headers=headers,
                             timeout=30
                         )
@@ -1094,21 +1347,24 @@ class SupabaseStorageClient:
     
     def _get_system_identifier(self) -> str:
         """
-        获取系统标识
+        基于APP_DOMAIN智能识别系统标识
         
         Returns:
-            系统标识字符串 (PMA-SA, PMA, LOCAL-PMA)
+            系统标识字符串 (LOCAL-PMA, PMA, PMA-SA)
         """
-        # 检查是否为云端部署
-        if not self.is_local_env:
-            # 云端环境，根据Supabase URL判断是PMA还是PMA-SA
-            supabase_url = os.getenv('SUPABASE_URL', '')
-            if 'pqzviljbpfoqvyfulakl' in supabase_url:  # PMA-SA项目URL标识
-                return 'PMA-SA'
-            else:
-                return 'PMA'  # 默认云端PMA项目
-        else:
-            # 本地环境
+        # 保留兼容性：优先使用环境变量配置的系统标识
+        system_id = os.getenv('SYSTEM_IDENTIFIER')
+        if system_id:
+            return system_id
+        
+        # 基于APP_DOMAIN智能识别三种环境
+        app_domain = os.getenv('APP_DOMAIN', '')
+        
+        if 'pma-sa.onrender.com' in app_domain:
+            return 'PMA-SA'
+        elif 'pma-ipwv.onrender.com' in app_domain:
+            return 'PMA'
+        else:  # 无域名或其他域名 = 本地环境
             return 'LOCAL-PMA'
     
     def _clean_filename_part(self, text: str) -> str:
@@ -1182,6 +1438,157 @@ class SupabaseStorageClient:
         except Exception as e:
             logger.error(f"获取文件序号失败: {str(e)}")
             return 1
+    
+    def delete_file_by_url(self, file_url: str, bucket_type: str = 'product') -> bool:
+        """
+        通过完整URL删除文件（支持本地和云端存储）
+        
+        Args:
+            file_url: 完整的文件URL
+            bucket_type: 存储桶类型 ('product', 'rd_product', 'invoice', 'default')
+            
+        Returns:
+            删除成功返回True，失败返回False
+        """
+        try:
+            if self.use_local_storage:
+                return self._delete_file_by_url_local(file_url)
+            else:
+                return self._delete_file_by_url_cloud(file_url, bucket_type)
+        except Exception as e:
+            logger.error(f"通过URL删除文件失败: {str(e)}")
+            return False
+    
+    def _delete_file_by_url_local(self, file_url: str) -> bool:
+        """
+        通过URL删除本地文件
+        
+        Args:
+            file_url: 本地文件URL (如: /storage/products/product_123/image_123_timestamp_uuid.jpg)
+            
+        Returns:
+            删除成功返回True，失败返回False
+        """
+        try:
+            # 本地URL格式: /storage/{bucket_dir}/{path}/{filename}
+            if not file_url.startswith('/storage/'):
+                logger.warning(f"不是本地存储URL: {file_url}")
+                return False
+            
+            # 提取相对路径（去掉/storage/前缀）
+            relative_path = file_url[9:]  # 去掉 '/storage/' 前缀
+            
+            # 构建完整的本地文件路径
+            local_file_path = os.path.join(self.local_storage_root, relative_path)
+            
+            # 检查文件是否存在
+            if not os.path.exists(local_file_path):
+                logger.warning(f"本地文件不存在: {local_file_path}")
+                return False
+            
+            # 删除文件
+            os.remove(local_file_path)
+            logger.info(f"✅ 本地文件删除成功: {local_file_path}")
+            
+            # 尝试删除空目录（如果目录为空）
+            try:
+                parent_dir = os.path.dirname(local_file_path)
+                if os.path.exists(parent_dir) and not os.listdir(parent_dir):
+                    os.rmdir(parent_dir)
+                    logger.debug(f"删除空目录: {parent_dir}")
+            except OSError:
+                pass  # 目录不为空或无法删除，忽略
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"本地文件删除失败: {str(e)}")
+            return False
+    
+    def _delete_file_by_url_cloud(self, file_url: str, bucket_type: str) -> bool:
+        """
+        通过URL删除云端文件
+        
+        Args:
+            file_url: 云端文件URL 
+            bucket_type: 存储桶类型
+            
+        Returns:
+            删除成功返回True，失败返回False
+        """
+        try:
+            # 云端URL格式: https://xxx.supabase.co/storage/v1/object/public/{bucket}/{path}
+            if not file_url.startswith('http'):
+                logger.warning(f"不是云端存储URL: {file_url}")
+                return False
+            
+            # 从URL中提取存储路径
+            storage_path = self._extract_storage_path_from_url(file_url)
+            if not storage_path:
+                logger.error(f"无法从URL提取存储路径: {file_url}")
+                return False
+            
+            # 获取存储桶名称
+            bucket_name = self.get_bucket_name(bucket_type)
+            
+            # 执行删除操作
+            logger.info(f"☁️ 准备删除云端文件: {bucket_name}/{storage_path}")
+            
+            try:
+                result = self.supabase.storage.from_(bucket_name).remove([storage_path])
+                
+                # 检查删除结果
+                if hasattr(result, 'error') and result.error:
+                    logger.error(f"云端文件删除失败: {result.error}")
+                    return False
+                
+                logger.info(f"✅ 云端文件删除成功: {storage_path}")
+                return True
+                
+            except Exception as delete_error:
+                logger.error(f"执行云端删除操作失败: {delete_error}")
+                return False
+            
+        except Exception as e:
+            logger.error(f"云端文件删除失败: {str(e)}")
+            return False
+    
+    def _extract_storage_path_from_url(self, file_url: str) -> str:
+        """
+        从完整URL中提取Supabase存储路径
+        
+        Args:
+            file_url: 完整的Supabase文件URL
+            
+        Returns:
+            存储路径字符串，失败返回空字符串
+        """
+        try:
+            from urllib.parse import urlparse
+            
+            # 解析URL
+            parsed_url = urlparse(file_url)
+            
+            # Supabase存储URL格式: /storage/v1/object/public/{bucket}/{path}
+            path_parts = parsed_url.path.split('/')
+            
+            # 验证URL格式
+            if len(path_parts) < 6 or path_parts[1] != 'storage' or path_parts[4] != 'public':
+                logger.error(f"URL格式不正确: {file_url}")
+                return ""
+            
+            # 提取存储路径（bucket名称之后的所有部分）
+            bucket_name = path_parts[5]  # 存储桶名称
+            storage_path = '/'.join(path_parts[6:])  # 存储路径
+            
+            logger.debug(f"从URL提取存储路径: bucket={bucket_name}, path={storage_path}")
+            
+            return storage_path
+            
+        except Exception as e:
+            logger.error(f"提取存储路径失败: {str(e)}")
+            return ""
+    
 
 # 全局Supabase客户端实例
 _supabase_client = None

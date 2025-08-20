@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel, render_currency_with_symbol, render_product_type_badge, render_product_status_badge %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel, render_currency_with_symbol, render_product_type_badge, render_product_status_badge, render_top_notification %}
 
 {% block title %}{{ _('产品详情') }} - {{ product.product_name }}{% endblock %}
 
@@ -193,6 +193,7 @@
 {% endblock %}
 
 {% block content %}
+{{ render_top_notification() }}
 <div class="container mt-4 product-detail-main">
     <div class="row mb-3">
         <div class="col-md-12">
@@ -200,7 +201,7 @@
                 <h2>{{ _('产品详情') }}</h2>
                 <div>
                     {{ render_button(_('返回列表'), url_for('product_route.product_list'), color='secondary', icon='fas fa-arrow-left') }}
-                    {% if current_user.has_permission('product', 'edit') %}
+                    {% if has_permission('product', 'edit') %}
                     {{ render_button(_('编辑产品'), url_for('product_route.edit_product_page', id=product.id), color='primary', icon='fas fa-edit') }}
                     {% endif %}
                 </div>
@@ -231,8 +232,13 @@
                                         <img src="{{ product.image_path }}"
                                              alt="{{ product.product_name }}"
                                              class="product-image">
+                                    {% elif product.image_path.startswith('/storage/') %}
+                                        <!-- 新版本地存储图片 -->
+                                        <img src="{{ product.image_path }}"
+                                             alt="{{ product.product_name }}"
+                                             class="product-image">
                                     {% else %}
-                                        <!-- 本地图片 -->
+                                        <!-- 旧版本地图片 -->
                                         <img src="{{ url_for('static', filename='uploads/products/' + product.image_path) }}"
                                              alt="{{ product.product_name }}"
                                              class="product-image">
@@ -243,6 +249,14 @@
                                 </div>
                                 {% endif %}
                             </div>
+                            
+                            <!-- 图片上传按钮（仅在有编辑权限时显示） -->
+                            {% if has_permission('product', 'edit') %}
+                            <div class="mt-2 text-center">
+                                {{ render_button(_('上传图片'), type='button', color='outline-primary', size='sm', icon='fas fa-upload', attrs={'id': 'uploadImageBtn'}) }}
+                                <input type="file" id="imageFileInput" accept="image/jpeg,image/jpg,image/png,image/gif" style="display: none;">
+                            </div>
+                            {% endif %}
                         </div>
 
                         <!-- 产品信息区域 -->
@@ -315,64 +329,87 @@
                         </div>
                     </div>
 
-                    <!-- PDF文件预览和下载部分 -->
-                    {% if product.pdf_path %}
+                    <!-- PDF文档上传和预览部分 -->
                     <div class="row mt-4">
                         <div class="col-md-12">
-                            <div class="product-property">
-                                <div class="property-label">{{ _('产品文档') }}</div>
-                                <div class="card">
-                                    <div class="card-body">
-                                        <div class="d-flex align-items-center mb-3">
-                                            <i class="fas fa-file-pdf text-danger fa-3x me-3"></i>
-                                            <div class="flex-grow-1">
-                                                <h6 class="mb-1">{{ product.pdf_path.split('/')[-1].split('_', 1)[-1] if '_' in product.pdf_path.split('/')[-1] else product.pdf_path.split('/')[-1] }}</h6>
-                                                <small class="text-muted">{{ _('PDF文档') }}</small>
-                                            </div>
-                                            <div>
-                                                {{ render_button(_('下载'), href=url_for('product_route.download_pdf', id=product.id), color='primary', icon='fas fa-download', attrs='target="_blank"') }}
-                                            </div>
-                                        </div>
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-file-pdf me-2 text-danger"></i>{{ _('产品文档') }}
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <!-- 上传/下载按钮区域 -->
+                                    <div class="text-center mb-3">
+                                        <!-- 上传按钮仅有编辑权限时显示 -->
+                                        {% if has_permission('product', 'edit') %}
+                                            {{ render_button(_('上传PDF文档'), type='button', color='outline-primary', icon='fas fa-upload', attrs={'id': 'uploadPdfBtn'}) }}
+                                            <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;">
+                                        {% endif %}
                                         
-                                        <!-- PDF预览区域 -->
-                                        <div id="pdfPreviewContainer" class="pdf-preview-container">
-                                            <div class="pdf-preview-header">
-                                                <span class="text-muted">{{ _('PDF封面预览') }}</span>
-                                                <small class="ms-2 text-info">{{ _('点击预览图可在新窗口查看完整PDF') }}</small>
+                                        <!-- 下载按钮当有PDF文档时始终显示（无论权限） -->
+                                        {% if product.pdf_path %}
+                                            {{ render_button(_('下载'), href=url_for('product_route.download_pdf', id=product.id), color='primary', icon='fas fa-download', attrs={'target': '_blank'}) }}
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <!-- PDF预览区域 -->
+                                    {% if product.pdf_path %}
+                                    <div class="d-flex align-items-center mb-3">
+                                        <i class="fas fa-file-pdf text-danger fa-3x me-3"></i>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">{{ product.pdf_path.split('/')[-1].split('_', 1)[-1] if '_' in product.pdf_path.split('/')[-1] else product.pdf_path.split('/')[-1] }}</h6>
+                                            <small class="text-muted">{{ _('PDF文档') }}</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- PDF预览容器 -->
+                                    <div id="pdfPreviewContainer" class="pdf-preview-container">
+                                        <div class="pdf-preview-header">
+                                            <span class="text-muted">{{ _('PDF封面预览') }}</span>
+                                            <small class="ms-2 text-info">{{ _('点击预览图可在新窗口查看完整PDF') }}</small>
+                                        </div>
+                                        <div class="pdf-preview-content">
+                                            <div class="pdf-loading" id="pdfLoading">
+                                                <div class="d-flex justify-content-center align-items-center" style="height: 200px;">
+                                                    <div class="spinner-border text-primary" role="status">
+                                                        <span class="visually-hidden">{{ _('加载中...') }}</span>
+                                                    </div>
+                                                    <span class="ms-2">{{ _('加载PDF预览中...') }}</span>
+                                                </div>
                                             </div>
-                                            <div class="pdf-preview-content">
-                                                <div class="pdf-loading" id="pdfLoading">
-                                                    <div class="d-flex justify-content-center align-items-center" style="height: 200px;">
-                                                        <div class="spinner-border text-primary" role="status">
-                                                            <span class="visually-hidden">{{ _('加载中...') }}</span>
-                                                        </div>
-                                                        <span class="ms-2">{{ _('加载PDF预览中...') }}</span>
+                                            <div class="pdf-preview-canvas-container" id="pdfCanvasContainer" style="display: none;">
+                                                <canvas id="pdfCanvas" class="pdf-preview-canvas"></canvas>
+                                                <div class="pdf-preview-overlay" onclick="openPdfInNewWindow()">
+                                                    <div class="pdf-preview-overlay-content">
+                                                        <i class="fas fa-external-link-alt"></i>
+                                                        <span>{{ _('点击在新窗口查看') }}</span>
                                                     </div>
                                                 </div>
-                                                <div class="pdf-preview-canvas-container" id="pdfCanvasContainer" style="display: none;">
-                                                    <canvas id="pdfCanvas" class="pdf-preview-canvas"></canvas>
-                                                    <div class="pdf-preview-overlay" onclick="openPdfInNewWindow()">
-                                                        <div class="pdf-preview-overlay-content">
-                                                            <i class="fas fa-external-link-alt"></i>
-                                                            <span>{{ _('点击在新窗口查看') }}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="pdf-error" id="pdfError" style="display: none;">
-                                                    <div class="text-center text-muted py-4">
-                                                        <i class="fas fa-exclamation-triangle text-warning fa-2x mb-2"></i>
-                                                        <div>{{ _('PDF预览加载失败') }}</div>
-                                                        <small>{{ _('请尝试直接下载文件查看') }}</small>
-                                                    </div>
+                                            </div>
+                                            <div class="pdf-error" id="pdfError" style="display: none;">
+                                                <div class="text-center text-muted py-4">
+                                                    <i class="fas fa-exclamation-triangle text-warning fa-2x mb-2"></i>
+                                                    <div>{{ _('PDF预览加载失败') }}</div>
+                                                    <small>{{ _('请尝试直接下载文件查看') }}</small>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
+                                    {% else %}
+                                    <!-- 当没有PDF文档时显示的占位区域 -->
+                                    <div class="text-center py-5 bg-light rounded">
+                                        <i class="fas fa-file-pdf text-muted fa-3x mb-3"></i>
+                                        <p class="text-muted mb-0">{{ _('暂无产品文档') }}</p>
+                                        {% if current_user.has_permission('product', 'edit') %}
+                                        <small class="text-muted">{{ _('点击上方"上传PDF文档"按钮添加产品文档') }}</small>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
                     </div>
-                    {% endif %}
                 </div>
             </div>
         </div>
@@ -395,8 +432,8 @@ if (typeof pdfjsLib !== 'undefined') {
  * 加载PDF预览
  */
 function loadPdfPreview() {
-    // 构建PDF URL
-    const pdfUrl = '{{ url_for("product_route.download_pdf", id=product.id) if product.pdf_path else "" }}';
+    // 使用专用的PDF预览API端点
+    const pdfUrl = '{{ url_for("product_route.get_pdf_preview", id=product.id) if product.pdf_path else "" }}';
     
     if (!pdfUrl) {
         showPdfError();
@@ -488,29 +525,202 @@ function showPdfError() {
 }
 
 /**
- * 在新窗口打开PDF
+ * 在新窗口打开PDF文件
  */
 function openPdfInNewWindow() {
-    if (currentPdfUrl) {
-        window.open(currentPdfUrl, '_blank');
+    // 直接使用PDF预览API在新窗口打开
+    const pdfUrl = '{{ url_for("product_route.get_pdf_preview", id=product.id) if product.pdf_path else "" }}';
+    if (pdfUrl) {
+        window.open(pdfUrl, '_blank');
     } else {
-        // 如果没有加载过，使用下载链接
-        const pdfUrl = '{{ url_for("product_route.download_pdf", id=product.id) if product.pdf_path else "" }}';
-        if (pdfUrl) {
-            window.open(pdfUrl, '_blank');
-        }
+        console.error('PDF文件不存在');
     }
+}
+
+/**
+ * 初始化图片上传功能
+ */
+function initImageUpload() {
+    const uploadBtn = document.getElementById('uploadImageBtn');
+    const fileInput = document.getElementById('imageFileInput');
+    
+    if (!uploadBtn || !fileInput) {
+        return; // 没有上传按钮或文件输入框（可能没有编辑权限）
+    }
+    
+    // 点击上传按钮时触发文件选择
+    uploadBtn.addEventListener('click', function() {
+        fileInput.click();
+    });
+    
+    // 文件选择变化时的处理
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        // 文件类型验证
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+        if (!allowedTypes.includes(file.type)) {
+            alert('{{ _("\u4e0d\u652f\u6301\u7684\u56fe\u7247\u683c\u5f0f\uff01\u8bf7\u9009\u62e9 JPG\u3001PNG \u6216 GIF \u6587\u4ef6") }}');
+            fileInput.value = '';
+            return;
+        }
+        
+        // 文件大小验证 (12MB)
+        const maxSize = 12 * 1024 * 1024;
+        if (file.size > maxSize) {
+            alert(`{{ _("\u56fe\u7247\u6587\u4ef6\u592a\u5927\uff01\u6700\u5927\u5141\u8bb8 12MB\uff0c\u5f53\u524d\u6587\u4ef6") }}: ${(file.size / (1024*1024)).toFixed(1)}MB`);
+            fileInput.value = '';
+            return;
+        }
+        
+        // 立即开始上传
+        uploadImage(file);
+    });
+}
+
+/**
+ * 上传图片函数
+ */
+function uploadImage(file) {
+    const uploadBtn = document.getElementById('uploadImageBtn');
+    const fileInput = document.getElementById('imageFileInput');
+    
+    // 禁用按钮并显示上传状态
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{{ _("\u4e0a\u4f20\u4e2d...") }}';
+    
+    // 创建 FormData
+    const formData = new FormData();
+    formData.append('image', file);
+    formData.append('csrf_token', '{{ csrf_token() }}');
+    
+    // 发送上传请求
+    fetch('/api/products/{{ product.id }}/upload-files', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showTopNotification('{{ _("\u56fe\u7247\u4e0a\u4f20\u6210\u529f\uff01\u9875\u9762\u5c06\u81ea\u52a8\u5237\u65b0") }}', 'success', 2000);
+            // 延迟刷新页面显示新图片，让用户看到成功提示
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            alert('{{ _("\u4e0a\u4f20\u5931\u8d25") }}: ' + (data.error || data.message || '{{ _("\u672a\u77e5\u9519\u8bef") }}'));
+        }
+    })
+    .catch(error => {
+        console.error('上传错误:', error);
+        alert('{{ _("\u4e0a\u4f20\u8fc7\u7a0b\u4e2d\u53d1\u751f\u9519\u8bef\uff0c\u8bf7\u91cd\u8bd5") }}');
+    })
+    .finally(() => {
+        // 恢复按钮状态
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = '<i class="fas fa-upload me-1"></i>{{ _("\u4e0a\u4f20\u56fe\u7247") }}';
+        fileInput.value = '';
+    });
+}
+
+/**
+ * 初始化PDF上传功能
+ */
+function initPdfUpload() {
+    const uploadBtn = document.getElementById('uploadPdfBtn');
+    const fileInput = document.getElementById('pdfFileInput');
+    
+    if (!uploadBtn || !fileInput) {
+        return; // 没有上传按钮或文件输入框（可能没有编辑权限）
+    }
+    
+    // 点击上传按钮时触发文件选择
+    uploadBtn.addEventListener('click', function() {
+        fileInput.click();
+    });
+    
+    // 文件选择变化时的处理
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        // 文件类型验证
+        if (file.type !== 'application/pdf') {
+            alert('{{ _("请选择PDF文件") }}');
+            fileInput.value = '';
+            return;
+        }
+        
+        // 文件大小验证 (12MB)
+        const maxSize = 12 * 1024 * 1024;
+        if (file.size > maxSize) {
+            alert(`{{ _("PDF文件太大！最大允许 12MB，当前文件") }}: ${(file.size / (1024*1024)).toFixed(1)}MB`);
+            fileInput.value = '';
+            return;
+        }
+        
+        // 立即开始上传
+        uploadPdf(file);
+    });
+}
+
+/**
+ * 上传PDF函数
+ */
+function uploadPdf(file) {
+    const uploadBtn = document.getElementById('uploadPdfBtn');
+    const fileInput = document.getElementById('pdfFileInput');
+    
+    // 禁用按钮并显示上传状态
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{{ _("上传中...") }}';
+    
+    // 创建 FormData
+    const formData = new FormData();
+    formData.append('pdf', file);
+    formData.append('csrf_token', '{{ csrf_token() }}');
+    
+    // 发送上传请求
+    fetch('/api/products/{{ product.id }}/upload-files', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showTopNotification('{{ _("PDF文档上传成功！页面将自动刷新") }}', 'success', 2000);
+            // 延迟刷新页面显示新PDF，让用户看到成功提示
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            alert('{{ _("上传失败") }}: ' + (data.error || data.message || '{{ _("未知错误") }}'));
+        }
+    })
+    .catch(error => {
+        console.error('上传错误:', error);
+        alert('{{ _("上传过程中发生错误，请重试") }}');
+    })
+    .finally(() => {
+        // 恢复按钮状态
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = '<i class="fas fa-upload me-1"></i>{{ _("上传PDF文档") }}';
+        fileInput.value = '';
+    });
 }
 
 // 页面加载完成后的初始化
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('产品详情页面PDF预览功能已初始化');
+    console.log('产品详情页面功能已初始化');
     
     // 检查是否有PDF文件，如果有则自动开始加载预览
     const pdfContainer = document.getElementById('pdfPreviewContainer');
     if (pdfContainer) {
         loadPdfPreview();
     }
+    
+    // 初始化上传功能（仅有编辑权限时）
+    {% if has_permission('product', 'edit') %}
+    initImageUpload();
+    initPdfUpload();
+    {% endif %}
 });
 </script>
 
