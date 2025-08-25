@@ -1866,6 +1866,10 @@ class ApprovalConfigManager {
      * 填充字段选项到下拉框
      */
     populateFieldOptions(selectElement, fields) {
+        // 保存当前选中的值
+        const currentValue = selectElement.value;
+        console.log('保存当前选中的字段值:', currentValue);
+        
         // 清空现有选项，保留第一个默认选项
         selectElement.innerHTML = '<option value="">请选择字段</option>';
         
@@ -1925,6 +1929,18 @@ class ApprovalConfigManager {
         }
         
         console.log('字段选项已加载:', selectElement.options.length - 1, '个字段');
+        
+        // 恢复之前选中的值（如果该值在新选项中存在）
+        if (currentValue) {
+            // 检查当前值是否在新选项中存在
+            const optionExists = Array.from(selectElement.options).some(option => option.value === currentValue);
+            if (optionExists) {
+                selectElement.value = currentValue;
+                console.log('已恢复字段选中值:', currentValue);
+            } else {
+                console.warn('之前选中的字段值不存在于新选项中:', currentValue);
+            }
+        }
     }
 
     /**
