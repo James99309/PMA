@@ -1,7 +1,9 @@
 import logging
+import os
 from logging.config import fileConfig
 
 from flask import current_app
+from sqlalchemy import create_engine, pool
 
 from alembic import context
 
@@ -31,13 +33,18 @@ def get_engine_url():
     except AttributeError:
         return str(get_engine().url).replace('%', '%%')
 
-
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-config.set_main_option('sqlalchemy.url', get_engine_url())
-target_db = current_app.extensions['migrate'].db
+# 检查是否有DATABASE_URL环境变量（独立运行模式）
+database_url = os.getenv('DATABASE_URL')
+if database_url:
+    # 独立运行模式 - 使用环境变量
+    config.set_main_option('sqlalchemy.url', database_url)
+    target_db = None
+    logger.info("使用独立模式运行 - DATABASE_URL环境变量")
+else:
+    # Flask应用模式
+    config.set_main_option('sqlalchemy.url', get_engine_url())
+    target_db = current_app.extensions['migrate'].db
+    logger.info("使用Flask应用模式运行")
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -46,6 +53,9 @@ target_db = current_app.extensions['migrate'].db
 
 
 def get_metadata():
+    if target_db is None:
+        # 独立模式 - 返回None，迁移将基于现有数据库结构
+        return None
     if hasattr(target_db, 'metadatas'):
         return target_db.metadatas[None]
     return target_db.metadata
@@ -79,39 +89,65 @@ def run_migrations_online():
     and associate a connection with the context.
 
     """
-
-    # this callback is used to prevent an auto-migration from being generated
-    # when there are no changes to the schema
-    # reference: http://alembic.zzzcomputing.com/en/latest/cookbook.html
-    def process_revision_directives(context, revision, directives):
-        if getattr(config.cmd_opts, 'autogenerate', False):
-            script = directives[0]
-            if script.upgrade_ops.is_empty():
-                directives[:] = []
-                logger.info('No changes in schema detected.')
-
-    conf_args = current_app.extensions['migrate'].configure_args
-    if conf_args.get("process_revision_directives") is None:
-        conf_args["process_revision_directives"] = process_revision_directives
-
-    connectable = get_engine()
-
-    with connectable.connect() as connection:
-        # 检测Supabase环境并设置search_path
-        database_url = str(connectable.url)
-        if 'supabase.com' in database_url or 'supabase.co' in database_url:
-            logger.info('检测到Supabase环境，设置search_path为public')
-            from sqlalchemy import text
-            connection.execute(text('SET search_path TO public'))
-        
-        context.configure(
-            connection=connection,
-            target_metadata=get_metadata(),
-            **conf_args
+    if target_db is None:
+        # 独立模式 - 直接使用环境变量中的数据库URL
+        logger.info("运行在独立模式")
+        connectable = create_engine(
+            config.get_main_option("sqlalchemy.url"),
+            poolclass=pool.NullPool,
         )
+        
+        with connectable.connect() as connection:
+            # 检测Supabase环境并设置search_path
+            database_url = config.get_main_option("sqlalchemy.url")
+            if 'supabase.com' in database_url or 'supabase.co' in database_url:
+                logger.info('检测到Supabase环境，设置search_path为public')
+                from sqlalchemy import text
+                connection.execute(text('SET search_path TO public'))
+            
+            context.configure(
+                connection=connection,
+                target_metadata=get_metadata()
+            )
 
-        with context.begin_transaction():
-            context.run_migrations()
+            with context.begin_transaction():
+                context.run_migrations()
+    else:
+        # Flask应用模式
+        logger.info("运行在Flask应用模式")
+        
+        # this callback is used to prevent an auto-migration from being generated
+        # when there are no changes to the schema
+        # reference: http://alembic.zzzcomputing.com/en/latest/cookbook.html
+        def process_revision_directives(context, revision, directives):
+            if getattr(config.cmd_opts, 'autogenerate', False):
+                script = directives[0]
+                if script.upgrade_ops.is_empty():
+                    directives[:] = []
+                    logger.info('No changes in schema detected.')
+
+        conf_args = current_app.extensions['migrate'].configure_args
+        if conf_args.get("process_revision_directives") is None:
+            conf_args["process_revision_directives"] = process_revision_directives
+
+        connectable = get_engine()
+
+        with connectable.connect() as connection:
+            # 检测Supabase环境并设置search_path
+            database_url = str(connectable.url)
+            if 'supabase.com' in database_url or 'supabase.co' in database_url:
+                logger.info('检测到Supabase环境，设置search_path为public')
+                from sqlalchemy import text
+                connection.execute(text('SET search_path TO public'))
+            
+            context.configure(
+                connection=connection,
+                target_metadata=get_metadata(),
+                **conf_args
+            )
+
+            with context.begin_transaction():
+                context.run_migrations()
 
 
 if context.is_offline_mode():

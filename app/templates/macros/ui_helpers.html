@@ -110,68 +110,46 @@
 {% endmacro %}
 
 {% macro render_project_type(type) %}
-  {# 使用dictionary_helpers.py中的标准项目类型映射 #}
-  {% set type_mappings = {
-    'channel_follow': {
-      'zh': '渠道跟进',
-      'en': 'Channel Follow'
-    },
-    'sales_focus': {
-      'zh': '销售重点',
-      'en': 'Sales Focus'
-    }, 
-    'business_opportunity': {
-      'zh': '客户服务',
-      'en': 'Service Opportunity'
-    }
-  } %}
-  
-  {# 处理中文到键的映射 #}
-  {% set key_map = {
-    '渠道跟进': 'channel_follow',
-    '销售重点': 'sales_focus',
-    '客户服务': 'business_opportunity'
-  } %}
-  
-  {# 通过测试已知翻译来检测当前语言 #}
-  {% set is_english = (_('搜索') == 'Search') %}
-  {% set lang_code = 'en' if is_english else 'zh' %}
-  
-  {# 处理不同的输入格式 #}
+  {# 使用统一的字典系统 #}
   {% if not type or type == 'None' or type == '' %}
     {# 空类型不显示任何内容 #}
-    {% set display_text = '' %}
-    {% set type_key = '' %}
-  {% elif type in type_mappings %}
-    {# 标准英文键 - 使用dictionary_helpers.py的映射 #}
-    {% set type_key = type %}
-    {% set display_text = type_mappings[type][lang_code] %}
-  {% elif type in key_map %}
-    {# 中文值转英文键 - 使用dictionary_helpers.py的映射 #}
-    {% set type_key = key_map[type] %}
-    {% set display_text = type_mappings[type_key][lang_code] %}
   {% else %}
-    {# 未知类型：不显示 #}
-    {% set display_text = '' %}
-    {% set type_key = '' %}
-  {% endif %}
-  
-  {# 只有有内容时才渲染徽章 #}
-  {% if display_text %}
-    <span class="badge badge-pill badge-transparent project-type-{{ type_key }}">
-      {{ display_text }}
-    </span>
+    {# 获取显示文本和类型键 #}
+    {% set display_text = type|project_type_label %}
+    {% set type_key = type %}
+    
+    {# 如果输入是中文，尝试获取对应的英文键 #}
+    {% if display_text == type %}
+      {# 可能是中文输入，尝试反向查找 #}
+      {% if type == '渠道跟进' %}
+        {% set type_key = 'channel_follow' %}
+        {% set display_text = type_key|project_type_label %}
+      {% elif type == '销售重点' %}
+        {% set type_key = 'sales_focus' %}
+        {% set display_text = type_key|project_type_label %}
+      {% elif type == '客户服务' %}
+        {% set type_key = 'business_opportunity' %}
+        {% set display_text = type_key|project_type_label %}
+      {% endif %}
+    {% endif %}
+    
+    {# 只有有内容时才渲染徽章 #}
+    {% if display_text and display_text != type_key %}
+      <span class="badge badge-pill badge-transparent project-type-{{ type_key }}">
+        {{ display_text }}
+      </span>
+    {% endif %}
   {% endif %}
 {% endmacro %}
 
 {% macro render_authorization_code(code, project_type=None, size="normal") %}
   {% if code %}
     {% set bg_color = '#6c757d' %}  {# 默认灰 #}
-    {% if code.startswith('CPJ') or project_type == '渠道跟进' %}
+    {% if code.startswith('CPJ') or project_type == 'channel_follow' or project_type == '渠道跟进' %}
       {% set bg_color = '#5bc0de' %}
-    {% elif code.startswith('SPJ') or project_type == '销售重点' %}
+    {% elif code.startswith('SPJ') or project_type == 'sales_focus' or project_type == '销售重点' %}
       {% set bg_color = '#0B6EFD' %}
-    {% elif code.startswith('APJ') or project_type == 'business_opportunity' %}
+    {% elif code.startswith('APJ') or project_type == 'business_opportunity' or project_type == '客户服务' %}
       {% set bg_color = '#198754' %}
     {% endif %}
     <span class="badge rounded-pill"

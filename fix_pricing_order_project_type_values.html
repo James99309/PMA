@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>修复批价单项目类型字段值加载问题</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h2>✅ 修复批价单项目类型字段"无可选值"问题</h2>
+        
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5><i class="fas fa-bug-slash"></i> 问题修复完成</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-exclamation-circle"></i> 问题根源分析</h6>
+                    <p>发现了字段值加载失败的根本原因：存在<strong>两个不同地方的处理逻辑冲突</strong></p>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>🔍 问题详细分析</h6>
+                        <ul class="list-group">
+                            <li class="list-group-item">
+                                <strong>通用处理</strong> (第1141行)<br>
+                                <code>if field_name == 'project_type'</code><br>
+                                <small class="text-muted">只匹配直接字段名</small>
+                            </li>
+                            <li class="list-group-item">
+                                <strong>批价单处理</strong> (第1196行)<br>
+                                <code>if field_name == 'project.project_type'</code><br>
+                                <small class="text-muted">只在批价单对象类型下生效</small>
+                            </li>
+                            <li class="list-group-item bg-danger text-white">
+                                <strong>冲突结果</strong><br>
+                                关联字段 <code>'project.project_type'</code> 无法匹配通用处理，
+                                导致返回空数组，前端显示"无可选值"
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h6>🔧 修复方案</h6>
+                        <ul class="list-group">
+                            <li class="list-group-item list-group-item-success">
+                                <strong>扩展通用处理逻辑</strong><br>
+                                <code>if field_name == 'project_type' or field_name == 'project.project_type'</code><br>
+                                <small>同时支持直接字段和关联字段</small>
+                            </li>
+                            <li class="list-group-item list-group-item-warning">
+                                <strong>移除重复处理</strong><br>
+                                删除批价单中重复的项目类型处理逻辑<br>
+                                <small>避免维护两套相同的逻辑</small>
+                            </li>
+                            <li class="list-group-item list-group-item-info">
+                                <strong>保持兼容性</strong><br>
+                                继续支持项目和报价单的直接 project_type 字段<br>
+                                <small>不影响现有功能</small>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <h6>📊 支持的字段场景</h6>
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>对象类型</th>
+                                        <th>字段名称</th>
+                                        <th>字段类型</th>
+                                        <th>处理方式</th>
+                                        <th>状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>项目 (project)</td>
+                                        <td><code>project_type</code></td>
+                                        <td>直接字段</td>
+                                        <td>通用处理</td>
+                                        <td><span class="badge bg-success">✅ 支持</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>报价单 (quotation)</td>
+                                        <td><code>project_type</code></td>
+                                        <td>直接字段</td>
+                                        <td>通用处理</td>
+                                        <td><span class="badge bg-success">✅ 支持</span></td>
+                                    </tr>
+                                    <tr class="table-primary">
+                                        <td>批价单 (pricing_order)</td>
+                                        <td><code>project.project_type</code></td>
+                                        <td>关联字段</td>
+                                        <td>通用处理</td>
+                                        <td><span class="badge bg-success">✅ 已修复</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card border-success">
+                            <div class="card-header bg-success text-white">
+                                <h6><i class="fas fa-code"></i> 修改的代码</h6>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>文件</strong>: <code>/app/views/approval_config.py</code></p>
+                                
+                                <p><strong>修改1</strong> (第1141行):</p>
+                                <pre class="bg-light p-2 rounded"><code>- if field_name == 'project_type':
++ if field_name == 'project_type' or field_name == 'project.project_type':</code></pre>
+                                
+                                <p><strong>修改2</strong> (第1194-1203行):</p>
+                                <pre class="bg-light p-2 rounded"><code>- # 硬编码处理关联项目类型字段
+- if field_name == 'project.project_type':
+-     # ... 重复的处理逻辑
+- elif hasattr(PricingOrder, field_name):
++ if hasattr(PricingOrder, field_name):</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card border-info">
+                            <div class="card-header bg-info text-white">
+                                <h6><i class="fas fa-check-circle"></i> 预期效果</h6>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>API响应示例</strong>:</p>
+                                <pre class="bg-light p-2 rounded"><code>{
+  "success": true,
+  "object_type": "pricing_order", 
+  "field_name": "project.project_type",
+  "values": [
+    "渠道跟进",
+    "销售重点", 
+    "客户服务"
+  ]
+}</code></pre>
+                                
+                                <p><strong>用户界面变化</strong>:</p>
+                                <ul class="mb-0">
+                                    <li>✅ 条件字段显示"项目类型"</li>
+                                    <li>✅ 操作符选择"从字段列表选择"时正常显示选项</li>
+                                    <li>✅ 比较值区域显示三个项目类型复选框</li>
+                                    <li>✅ 不再显示"无可选值"错误</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="alert alert-success">
+                            <h6><i class="fas fa-rocket"></i> 修复效果总结</h6>
+                            <ul class="mb-0">
+                                <li><strong>问题解决</strong>: 批价单审批步骤配置中的项目类型字段现在可以正常加载值选项</li>
+                                <li><strong>逻辑统一</strong>: 所有项目类型相关字段使用统一的处理逻辑和数据源</li>
+                                <li><strong>代码简化</strong>: 消除了重复代码，便于后续维护</li>
+                                <li><strong>兼容保证</strong>: 不影响项目和报价单中现有的项目类型字段功能</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6>🧪 测试验证步骤</h6>
+            </div>
+            <div class="card-body">
+                <ol>
+                    <li><strong>进入批价单审批配置</strong>: 访问批价单审批流程模板管理页面</li>
+                    <li><strong>创建分支步骤</strong>: 添加新的审批步骤，选择"分支决策步骤"类型</li>
+                    <li><strong>配置分支条件</strong>: 
+                        <ul>
+                            <li>条件字段: 选择"项目类型"</li>
+                            <li>条件操作符: 选择"从字段列表选择"</li>
+                        </ul>
+                    </li>
+                    <li><strong>验证比较值</strong>: 确认比较值区域正确显示三个项目类型选项的复选框</li>
+                    <li><strong>保存配置</strong>: 完成步骤配置并保存</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

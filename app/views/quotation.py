@@ -118,11 +118,11 @@ def list_quotations():
                 project_joined = True
             
             if project_type_filter == 'channel_follow':
-                query = query.filter(Project.project_type.in_(['channel_follow', '渠道跟进']))
+                query = query.filter(Project.project_type == 'channel_follow')
             elif project_type_filter == 'sales_focus':
-                query = query.filter(Project.project_type.in_(['sales_focus', '销售重点']))
+                query = query.filter(Project.project_type.in_(['sales_focus', 'sales_key']))
             elif project_type_filter == 'marketing_focus':
-                query = query.filter(Project.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进']))
+                query = query.filter(Project.project_type.in_(['sales_focus', 'sales_key', 'channel_follow']))
             else:
                 query = query.filter(Project.project_type == project_type_filter)
         
@@ -2830,11 +2830,11 @@ def view_quotation(id):
             
             # 渠道经理可以查看渠道跟进项目
             is_channel_manager = user_role == 'channel_manager'
-            is_channel_project = quotation.project.project_type in ['channel_follow', '渠道跟进']
+            is_channel_project = quotation.project.project_type == 'channel_follow'
             
             # 营销总监可以查看销售重点和渠道跟进项目
             is_sales_director = user_role == 'sales_director'
-            is_marketing_project = quotation.project.project_type in ['sales_focus', 'channel_follow', '销售重点', '渠道跟进']
+            is_marketing_project = quotation.project.project_type in ['sales_focus', 'sales_key', 'channel_follow']
             
             # 检查权限：特殊角色 OR (渠道经理 AND 渠道项目) OR (营销总监 AND 营销项目) OR 常规项目权限
             if not (is_special_role or (is_channel_manager and is_channel_project) or (is_sales_director and is_marketing_project) or can_view_project(current_user, quotation.project)):
@@ -3501,14 +3501,14 @@ def can_view_quotation(user, quotation):
         # 获取关联项目
         from app.models.project import Project
         project = Project.query.get(quotation.project_id)
-        if project and project.project_type in ['sales_focus', 'channel_follow', '销售重点', '渠道跟进']:
+        if project and project.project_type in ['sales_focus', 'sales_key', 'channel_follow']:
             return True
         
     # 渠道经理特殊处理：可以查看渠道跟进项目的报价单
     if user_role == 'channel_manager':
         from app.models.project import Project
         project = Project.query.get(quotation.project_id)
-        if project and project.project_type in ['channel_follow', '渠道跟进']:
+        if project and project.project_type == 'channel_follow':
             return True
     
     return False

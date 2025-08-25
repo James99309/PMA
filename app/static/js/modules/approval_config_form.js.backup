@@ -23,13 +23,110 @@ class ApprovalConfigForm {
    * 初始化表单功能
    */
   init() {
-    if (!window.ApprovalConfigMain || !window.ApprovalConfigMain.initialized) {
-      console.error('❌ ApprovalConfigMain 未初始化，表单模块无法启动');
-      return;
+    // 检查主模块是否已加载（兼容新旧版本）
+    const hasMainModule = window.approvalConfig && window.approvalConfig.initialized;
+    if (!hasMainModule) {
+      console.warn('⚠️ 主审批配置模块未完全加载，表单模块将独立运行');
+    } else {
+      console.log('🤝 主审批配置模块已就绪，表单模块与之协同工作');
     }
     
     this.initialized = true;
+    this.initEditModalLoadHandler();
     console.log('✅ ApprovalConfigForm 初始化完成');
+  }
+  
+  /**
+   * 初始化编辑模态框加载处理器
+   */
+  initEditModalLoadHandler() {
+    // 监听编辑模态框显示事件
+    const editModal = document.getElementById('editStepModal');
+    if (editModal) {
+      editModal.addEventListener('shown.bs.modal', (event) => {
+        this.handleEditModalShow(event);
+      });
+    }
+  }
+  
+  /**
+   * 处理编辑模态框显示
+   */
+  handleEditModalShow(event) {
+    // 从触发按钮获取数据
+    const triggerButton = event.relatedTarget;
+    if (!triggerButton) return;
+    
+    const editableFieldsData = triggerButton.getAttribute('data-editable-fields');
+    if (editableFieldsData) {
+      this.loadEditableFieldsData(editableFieldsData);
+    }
+  }
+  
+  /**
+   * 加载编辑模式的可编辑字段数据
+   */
+  loadEditableFieldsData(editableFieldsJson) {
+    try {
+      // 安全解析JSON数据
+      if (!editableFieldsJson || editableFieldsJson.trim() === '' || editableFieldsJson === 'null') {
+        console.debug('可编辑字段数据为空，跳过加载');
+        return;
+      }
+      
+      const cleanStr = editableFieldsJson.trim();
+      if (cleanStr === '[' || cleanStr === '{' || cleanStr.length < 2) {
+        console.debug('跳过不完整的可编辑字段数据:', cleanStr);
+        return;
+      }
+      
+      const editableFields = JSON.parse(cleanStr);
+      if (Array.isArray(editableFields) && editableFields.length > 0) {
+        this.populateEditableFields(editableFields, true);
+      }
+    } catch (error) {
+      console.debug('解析可编辑字段数据失败，使用空数组:', editableFieldsJson, '错误:', error.message);
+    }
+  }
+  
+  /**
+   * 填充可编辑字段徽章
+   */
+  populateEditableFields(fieldCodes, isEdit = false) {
+    const selector = document.getElementById(isEdit ? 'edit_editable_fields_select' : 'editable_fields_select');
+    const container = document.getElementById(isEdit ? 'edit_selected_fields' : 'selected_fields');
+    const hiddenInput = document.getElementById(isEdit ? 'edit_editable_fields_input' : 'editable_fields_input');
+    
+    if (!selector || !container || !hiddenInput) return;
+    
+    // 清空容器并重置数组
+    container.innerHTML = '';
+    if (isEdit) {
+      this.editSelectedFields = [];
+    } else {
+      this.selectedFields = [];
+    }
+    
+    // 为每个字段代码创建徽章
+    fieldCodes.forEach(fieldCode => {
+      const option = selector.querySelector(`option[value="${fieldCode}"]`);
+      if (option) {
+        const fieldName = option.textContent;
+        const group = option.getAttribute('data-group') || 'master';
+        
+        // 添加到数组
+        if (isEdit) {
+          this.editSelectedFields.push(fieldCode);
+          container.insertAdjacentHTML('beforeend', this.createEditFieldBadge(fieldCode, fieldName, group));
+        } else {
+          this.selectedFields.push(fieldCode);
+          container.insertAdjacentHTML('beforeend', this.createFieldBadge(fieldCode, fieldName, group));
+        }
+      }
+    });
+    
+    // 更新隐藏字段
+    hiddenInput.value = JSON.stringify(isEdit ? this.editSelectedFields : this.selectedFields);
   }
   
   /**
@@ -48,20 +145,22 @@ class ApprovalConfigForm {
    * 添加字段徽章（添加步骤）
    */
   addFieldBadge() {
-    const selector = document.getElementById('field_selector');
-    const container = document.getElementById('selected_fields_container');
+    // 支持新版组件化模态框的ID
+    const selector = document.getElementById('editable_fields_select') || document.getElementById('field_selector');
+    const container = document.getElementById('selected_fields') || document.getElementById('selected_fields_container');
     const hiddenInput = document.getElementById('editable_fields_input');
     
     if (!selector || !selector.value) return;
     
     const fieldCode = selector.value;
     const selectedOption = selector.options[selector.selectedIndex];
-    const fieldName = selectedOption.textContent.split(' ')[1]; // 移除前缀 [主] 或 [明]
-    const group = selectedOption.textContent.includes('[主]') ? 'master' : 'detail';
+    const fieldName = selectedOption.textContent;
+    const group = selectedOption.getAttribute('data-group') || 'master';
     
     // 检查是否已选择
     if (this.selectedFields.includes(fieldCode)) {
       alert('字段已选择');
+      selector.value = '';
       return;
     }
     
@@ -78,7 +177,9 @@ class ApprovalConfigForm {
     container.insertAdjacentHTML('beforeend', this.createFieldBadge(fieldCode, fieldName, group));
     
     // 更新隐藏字段
-    hiddenInput.value = JSON.stringify(this.selectedFields);
+    if (hiddenInput) {
+      hiddenInput.value = JSON.stringify(this.selectedFields);
+    }
     
     // 重置选择器
     selector.value = '';
@@ -88,7 +189,8 @@ class ApprovalConfigForm {
    * 移除字段徽章（添加步骤）
    */
   removeFieldBadge(fieldCode) {
-    const container = document.getElementById('selected_fields_container');
+    // 支持新版组件化模态框的ID
+    const container = document.getElementById('selected_fields') || document.getElementById('selected_fields_container');
     const hiddenInput = document.getElementById('editable_fields_input');
     
     // 从数组中移除
@@ -106,27 +208,31 @@ class ApprovalConfigForm {
     }
     
     // 更新隐藏字段
-    hiddenInput.value = JSON.stringify(this.selectedFields);
+    if (hiddenInput) {
+      hiddenInput.value = JSON.stringify(this.selectedFields);
+    }
   }
   
   /**
    * 添加字段徽章（编辑步骤）
    */
   addEditFieldBadge() {
-    const selector = document.getElementById('edit_field_selector');
-    const container = document.getElementById('edit_selected_fields_container');
+    // 支持新版组件化模态框的ID
+    const selector = document.getElementById('edit_editable_fields_select') || document.getElementById('edit_field_selector');
+    const container = document.getElementById('edit_selected_fields') || document.getElementById('edit_selected_fields_container');
     const hiddenInput = document.getElementById('edit_editable_fields_input');
     
     if (!selector || !selector.value) return;
     
     const fieldCode = selector.value;
     const selectedOption = selector.options[selector.selectedIndex];
-    const fieldName = selectedOption.textContent.split(' ')[1]; // 移除前缀 [主] 或 [明]
-    const group = selectedOption.textContent.includes('[主]') ? 'master' : 'detail';
+    const fieldName = selectedOption.textContent;
+    const group = selectedOption.getAttribute('data-group') || 'master';
     
     // 检查是否已选择
     if (this.editSelectedFields.includes(fieldCode)) {
       alert('字段已选择');
+      selector.value = '';
       return;
     }
     
@@ -143,7 +249,9 @@ class ApprovalConfigForm {
     container.insertAdjacentHTML('beforeend', this.createEditFieldBadge(fieldCode, fieldName, group));
     
     // 更新隐藏字段
-    hiddenInput.value = JSON.stringify(this.editSelectedFields);
+    if (hiddenInput) {
+      hiddenInput.value = JSON.stringify(this.editSelectedFields);
+    }
     
     // 重置选择器
     selector.value = '';
@@ -165,7 +273,8 @@ class ApprovalConfigForm {
    * 移除编辑字段徽章
    */
   removeEditFieldBadge(fieldCode) {
-    const container = document.getElementById('edit_selected_fields_container');
+    // 支持新版组件化模态框的ID
+    const container = document.getElementById('edit_selected_fields') || document.getElementById('edit_selected_fields_container');
     const hiddenInput = document.getElementById('edit_editable_fields_input');
     
     // 从数组中移除
@@ -183,7 +292,9 @@ class ApprovalConfigForm {
     }
     
     // 更新隐藏字段
-    hiddenInput.value = JSON.stringify(this.editSelectedFields);
+    if (hiddenInput) {
+      hiddenInput.value = JSON.stringify(this.editSelectedFields);
+    }
   }
   
   /**
@@ -517,8 +628,10 @@ window.handleBranchOperatorChange = function() {
 document.addEventListener('DOMContentLoaded', function() {
   // 延迟初始化，确保主模块先加载
   setTimeout(() => {
-    window.ApprovalConfigForm.init();
-  }, 200);
+    if (window.ApprovalConfigForm) {
+      window.ApprovalConfigForm.init();
+    }
+  }, 500); // 增加延迟时间确保主模块完全加载
 });
 
 console.log('📦 approval_config_form.js 已加载');

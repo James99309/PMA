@@ -76,6 +76,10 @@ def get_field_available_values(object_type, field_name):
     if '.' in field_name:
         return _get_nested_field_values(object_type, field_name)
     
+    # 处理特殊字段：批价单的 project_type 字段通过关联项目表获取
+    if field_name == 'project_type' and object_type in ['quotation', 'pricing_order']:
+        return _get_project_field_values(field_name)
+    
     # 验证字段是否存在
     if not _field_exists(table_name, field_name):
         raise ValueError(f"字段 {field_name} 在表 {table_name} 中不存在")
@@ -605,13 +609,13 @@ def _get_nested_fields_for_object(object_type):
     
     nested_fields = []
     
-    # 为报价单和订单等添加项目相关的嵌套字段
+    # 为报价单和订单等添加项目相关字段（使用直接字段名）
     if object_type in ['quotation', 'pricing_order', 'settlement_order']:
         project_fields = [
-            {'field': 'project.project_type', 'label': '项目.项目类型', 'has_mapping': True, 'type': 'nested'},
-            {'field': 'project.project_stage', 'label': '项目.项目阶段', 'has_mapping': True, 'type': 'nested'},
-            {'field': 'project.report_source', 'label': '项目.报备来源', 'has_mapping': True, 'type': 'nested'},
-            {'field': 'project.authorization_status', 'label': '项目.授权状态', 'has_mapping': True, 'type': 'nested'},
+            {'field': 'project_type', 'label': '项目类型', 'has_mapping': True, 'type': 'standard'},
+            {'field': 'project_stage', 'label': '项目阶段', 'has_mapping': True, 'type': 'standard'},
+            {'field': 'report_source', 'label': '报备来源', 'has_mapping': True, 'type': 'standard'},
+            {'field': 'authorization_status', 'label': '授权状态', 'has_mapping': True, 'type': 'standard'},
         ]
         nested_fields.extend(project_fields)
     

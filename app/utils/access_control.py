@@ -356,7 +356,7 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 营销总监特殊处理：可以查看销售重点和渠道跟进项目的报价单
         elif user_role == 'sales_director':
             marketing_projects = Project.query.filter(
-                Project.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进'])
+                Project.project_type.in_(['sales_focus', 'sales_key', 'channel_follow'])
             ).with_entities(Project.id).all()
             if marketing_projects:
                 marketing_project_ids = [p.id for p in marketing_projects]
@@ -1238,7 +1238,7 @@ def can_view_project(user, project):
     # 商务助理：可以查看销售重点、渠道跟进类型的项目
     if user_role == 'business_admin':
         # 检查是否为允许的项目类型
-        allowed_project_types = ['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow']
+        allowed_project_types = ['sales_key', 'sales_focus', 'channel_follow']
         if project.project_type in allowed_project_types:
             return True
     

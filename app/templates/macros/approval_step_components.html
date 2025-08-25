@@ -204,7 +204,7 @@
 {# 步骤操作按钮组件 #}
 {% macro render_step_actions(step, can_modify=True) %}
 <div class="btn-group" role="group">
-  {# 编辑步骤按钮 #}
+  {# 编辑步骤按钮 - 现在使用新版组件化模态框 #}
   {% set edit_attrs = {
     'data-bs-toggle': 'modal',
     'data-bs-target': '#editStepModal',
@@ -214,8 +214,8 @@
     'data-approver-selection': step.approver_selection or '',
     'data-approver-type': step.approver_type or '',
     'data-action-type': step.action_type or 'approve',
-    'data-editable-fields': (step.editable_fields or [])|tojson,
-    'data-cc-users': (step.cc_users or [])|tojson,
+    'data-editable-fields': (step.editable_fields or [])|tojson|safe,
+    'data-cc-users': (step.cc_users or [])|tojson|safe,
     'data-cc-enabled': step.cc_enabled
   } %}
   

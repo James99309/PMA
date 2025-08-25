@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "approval_config/components/step_list.html" import step_list with context %}
-{% from 'macros/ui_helpers.html' import render_enable_disable_badge with context %}
+{% from 'macros/ui_helpers.html' import render_enable_disable_badge, render_confirm_dialog with context %}
 {% from 'macros/approval_flow.html' import render_complete_approval_section %}
 
 {% block title %}审批流程模板详情{% endblock %}
@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/approval_flow.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/approval-config.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/notification.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -123,14 +124,14 @@
             </div>
           </div>
 
-          <!-- 版本化说明 -->
+          <!-- 快照机制说明 -->
           <div class="alert alert-info">
             <i class="fas fa-info-circle"></i>
-            <strong>版本化说明：</strong>
-            修改模板不会影响已创建的审批流程，新的审批流程将使用最新的模板配置。
+            <strong>快照机制保护：</strong>
+            修改模板不会影响已创建的审批流程。每个审批实例都有独立的快照数据，完全隔离模板变更的影响。
             当前有 {{ completed_instances_count }} 个已完成实例，{{ pending_instances_count }} 个进行中实例。
             {% if pending_instances_count > 0 %}
-            <br><small class="text-warning"><i class="fas fa-exclamation-triangle"></i> 有进行中的审批流程时，无法删除或重新排序步骤。</small>
+            <br><small class="text-success"><i class="fas fa-shield-alt"></i> 进行中的审批流程受快照机制完全保护，您可以安全地修改模板结构。</small>
             {% endif %}
           </div>
 
@@ -140,44 +141,39 @@
           <!-- 审批步骤列表 -->
           {{ step_list(steps, users, in_use, template, get_object_field_options) }}
           
-          <!-- 审批流程图展示 -->
-          {% if approval_instances and approval_instances|length > 0 %}
-          <div class="mt-4">
-            <h5 class="mb-3">
-              <i class="fas fa-project-diagram mr-2"></i>关联的审批流程实例
-            </h5>
-            {% for instance in approval_instances %}
-              <div class="mb-4">
-                <h6 class="text-muted">实例 #{{ instance.id }} - {{ instance.object_type|title }} ID: {{ instance.object_id }}</h6>
-                {{ render_complete_approval_section(
-                    object_type=instance.object_type,
-                    object_id=instance.object_id,
-                    object_status=instance.status,
-                    current_user_id=current_user.id,
-                    creator_id=instance.created_by,
-                    container_id='approvalFlowSection' + loop.index|string
-                ) }}
-              </div>
-              {% if not loop.last %}<hr class="my-4">{% endif %}
-            {% endfor %}
-          </div>
-          {% endif %}
         </div>
       </div>
     </div>
   </div>
 </div>
+
+<!-- 错误和确认对话框容器 -->
+{{ render_confirm_dialog('branchErrorDialog') }}
+{{ render_confirm_dialog('branchDeleteDialog') }}
+{{ render_confirm_dialog('branchWarningDialog') }}
+{{ render_confirm_dialog('branchConflictDialog') }}
+{{ render_confirm_dialog('stepDeleteDialog') }}
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/approval_flow.js') }}"></script>
 <script src="{{ url_for('static', filename='js/approval_flow_utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/common/notification.js') }}"></script>
 
 <!-- 审批配置重构模块 -->
 <script src="{{ url_for('static', filename='js/approval_config/approval-config.js') }}"></script>
 
 <script>
 console.log('📋 模板详情页面脚本加载完成');
+
+// 步骤字段数据全局变量
+window.stepFieldsData = {
+  {% for step in steps %}
+  {% if step.editable_fields %}
+  "{{ step.id }}": {{ (step.editable_fields or [])|tojson|safe }},
+  {% endif %}
+  {% endfor %}
+};
 
 // 确保showConfirmDialog函数可用
 window.showConfirmDialog = window.showConfirmDialog || function(options) {
@@ -188,5 +184,33 @@ window.showConfirmDialog = window.showConfirmDialog || function(options) {
         if (onCancel) onCancel();
     }
 };
+
+// 页面加载完成后渲染字段徽章
+document.addEventListener('DOMContentLoaded', function() {
+    // 等待approvalConfig实例可用
+    setTimeout(function() {
+        if (window.approvalConfig && typeof window.approvalConfig.renderFieldBadgesFromCodes === 'function') {
+            // 查找所有包含可编辑字段的步骤
+            const editableFieldsContainers = document.querySelectorAll('.editable-fields-display');
+            
+            editableFieldsContainers.forEach(container => {
+                const stepId = container.id.match(/step_(\d+)_editable_fields/);
+                if (stepId && stepId[1]) {
+                    // 从全局变量获取字段代码
+                    const stepFieldsData = window.stepFieldsData && window.stepFieldsData[stepId[1]];
+                    
+                    if (stepFieldsData && Array.isArray(stepFieldsData)) {
+                        const templateId = '{{ template.id }}';
+                        window.approvalConfig.renderFieldBadgesFromCodes(
+                            stepFieldsData, 
+                            container.id, 
+                            templateId
+                        );
+                    }
+                }
+            });
+        }
+    }, 500);
+});
 </script>
 {% endblock %} 

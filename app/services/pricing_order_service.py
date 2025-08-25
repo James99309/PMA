@@ -38,21 +38,23 @@ class PricingOrderService:
     
     @staticmethod
     def determine_approval_flow_type(project):
-        """根据项目信息确定审批流程类型"""
+        """根据项目信息确定审批流程类型 - 返回真实项目类型，不再进行V1兼容转换"""
         if not project:
-            return 'sales_key'
+            return 'sales_focus'  # 默认为销售重点，而不是兼容的sales_key
         
         project_type = project.project_type
-        # 支持中英文项目类型映射
-        if project_type in ["渠道跟进", "channel_follow"]:
+        # 直接返回真实的项目类型，移除V1兼容转换
+        if project_type == "channel_follow":
             return 'channel_follow'
-        elif project_type in ["销售机会", "sales_opportunity", "business_opportunity"]:
+        elif project_type == "business_opportunity":
             return 'sales_opportunity'
-        elif project_type in ["销售重点", "sales_key", "sales_focus"]:
-            return 'sales_key'
+        elif project_type == "sales_focus":
+            return 'sales_focus'  # 返回真实类型，不再转换为sales_key
+        elif project_type == "sales_key":
+            return 'sales_key'    # 保持已有的sales_key类型
         else:
-            # 默认为销售重点类
-            return 'sales_key'
+            # 默认为销售重点类型
+            return 'sales_focus'
     
     # V2 新方法：提交前验证
     @staticmethod
@@ -149,16 +151,33 @@ class PricingOrderService:
     def apply_direct_contract_to_pricing_order(pricing_order, current_user):
         """处理厂商直签设置，保持经销商和分销商为空"""
         try:
+            logger.info(f"🔍 [DIRECT_CONTRACT] ============= 厂商直签处理 =============")
+            logger.info(f"🔍 [DIRECT_CONTRACT] 当前用户: {current_user.username}")
+            logger.info(f"🔍 [DIRECT_CONTRACT] 批价单ID: {pricing_order.id}")
+            logger.info(f"🔍 [DIRECT_CONTRACT] is_direct_contract: {pricing_order.is_direct_contract}")
+            logger.info(f"🔍 [DIRECT_CONTRACT] 处理前状态:")
+            logger.info(f"🔍 [DIRECT_CONTRACT] - dealer_id: {pricing_order.dealer_id}")
+            logger.info(f"🔍 [DIRECT_CONTRACT] - distributor_id: {pricing_order.distributor_id}")
+            
             if pricing_order.is_direct_contract:
                 # 厂商直签时，保持经销商和分销商为空
+                logger.info(f"🔍 [DIRECT_CONTRACT] 🚨 检测到厂商直签=True，将清空经销商和分销商")
+                old_dealer_id = pricing_order.dealer_id
+                old_distributor_id = pricing_order.distributor_id
+                
                 pricing_order.dealer_id = None
                 pricing_order.distributor_id = None
-                logger.info("厂商直签开启，经销商和分销商保持为空")
+                
+                logger.info(f"🔍 [DIRECT_CONTRACT] 🚨 清空完成:")
+                logger.info(f"🔍 [DIRECT_CONTRACT] - dealer_id: {old_dealer_id} -> {pricing_order.dealer_id}")
+                logger.info(f"🔍 [DIRECT_CONTRACT] - distributor_id: {old_distributor_id} -> {pricing_order.distributor_id}")
+                logger.info(f"🔍 [DIRECT_CONTRACT] ✅ 厂商直签开启，经销商和分销商已清空")
                 return True, "厂商直签已启用，经销商和分销商设置为空"
-                        
-            return True, None
+            else:
+                logger.info(f"🔍 [DIRECT_CONTRACT] ✅ 非厂商直签模式，保持经销商和分销商不变")
+                return True, None
         except Exception as e:
-            logger.error(f"应用厂商直签设置失败: {str(e)}")
+            logger.error(f"🔍 [DIRECT_CONTRACT] ❌ 应用厂商直签设置失败: {str(e)}")
             return False, f"处理失败: {str(e)}"
     
     @staticmethod
@@ -784,15 +803,39 @@ class PricingOrderService:
     def _submit_for_approval_v2(pricing_order, current_user):
         """提交审批 - V2版本（使用统一审批流程系统）"""
         try:
+            logger.info(f"🔍 [APPROVAL_SERVICE] ============= 开始V2审批流程 =============")
+            logger.info(f"🔍 [APPROVAL_SERVICE] 批价单ID: {pricing_order.id}")
+            logger.info(f"🔍 [APPROVAL_SERVICE] 提交用户: {current_user.username} (ID: {current_user.id})")
+            logger.info(f"🔍 [APPROVAL_SERVICE] 提交前状态:")
+            logger.info(f"🔍 [APPROVAL_SERVICE] - dealer_id: {pricing_order.dealer_id}")
+            logger.info(f"🔍 [APPROVAL_SERVICE] - distributor_id: {pricing_order.distributor_id}")
+            logger.info(f"🔍 [APPROVAL_SERVICE] - is_direct_contract: {pricing_order.is_direct_contract}")
+            
             # 规范化厂商直签状态
+            logger.info(f"🔍 [APPROVAL_SERVICE] ============= 规范化厂商直签状态 =============")
             normalized, message = PricingOrderService.normalize_direct_contract_status(pricing_order, current_user)
             if not normalized:
+                logger.error(f"🔍 [APPROVAL_SERVICE] ❌ 规范化厂商直签状态失败: {message}")
                 return False, message
+            logger.info(f"🔍 [APPROVAL_SERVICE] ✅ 规范化厂商直签状态完成: {message or '无变化'}")
             
             # 应用厂商直签设置（在提交时自动填入当前用户的企业名称）
+            logger.info(f"🔍 [APPROVAL_SERVICE] ============= 应用厂商直签设置 =============")
+            logger.info(f"🔍 [APPROVAL_SERVICE] 应用前状态:")
+            logger.info(f"🔍 [APPROVAL_SERVICE] - dealer_id: {pricing_order.dealer_id}")
+            logger.info(f"🔍 [APPROVAL_SERVICE] - distributor_id: {pricing_order.distributor_id}")
+            logger.info(f"🔍 [APPROVAL_SERVICE] - is_direct_contract: {pricing_order.is_direct_contract}")
+            
             applied, apply_message = PricingOrderService.apply_direct_contract_to_pricing_order(pricing_order, current_user)
             if not applied:
+                logger.error(f"🔍 [APPROVAL_SERVICE] ❌ 应用厂商直签设置失败: {apply_message}")
                 return False, apply_message
+            
+            logger.info(f"🔍 [APPROVAL_SERVICE] ✅ 应用厂商直签设置完成: {apply_message or '无变化'}")
+            logger.info(f"🔍 [APPROVAL_SERVICE] 应用后状态:")
+            logger.info(f"🔍 [APPROVAL_SERVICE] - dealer_id: {pricing_order.dealer_id}")
+            logger.info(f"🔍 [APPROVAL_SERVICE] - distributor_id: {pricing_order.distributor_id}")
+            logger.info(f"🔍 [APPROVAL_SERVICE] - is_direct_contract: {pricing_order.is_direct_contract}")
             
             # 提交前完整验证
             can_submit, errors, warnings = PricingOrderService.validate_before_submit_v2(pricing_order, current_user)
@@ -1129,18 +1172,83 @@ class PricingOrderService:
             from app.helpers.approval_helpers import get_object_approval_instance
             from app.models.approval import ApprovalStatus, ApprovalStep
             
+            logger.info(f"🔍 [APPROVER_CHECK] ============= 检查当前审批人 =============")
+            logger.info(f"🔍 [APPROVER_CHECK] 批价单ID: {pricing_order.id}, 订单号: {pricing_order.order_number}")
+            logger.info(f"🔍 [APPROVER_CHECK] 当前用户: {current_user.username} (ID: {current_user.id})")
+            logger.info(f"🔍 [APPROVER_CHECK] 批价单创建者: {pricing_order.created_by}")
+            logger.info(f"🔍 [APPROVER_CHECK] 批价单状态: {pricing_order.status}")
+            
             # 获取当前审批实例
             approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
-            if not approval_instance or approval_instance.status != ApprovalStatus.PENDING:
+            logger.info(f"🔍 [APPROVER_CHECK] 审批实例: {approval_instance}")
+            
+            if not approval_instance:
+                logger.info(f"🔍 [APPROVER_CHECK] ❌ 未找到审批实例，返回 False")
                 return False
                 
+            logger.info(f"🔍 [APPROVER_CHECK] 审批实例状态: {approval_instance.status}")
+            logger.info(f"🔍 [APPROVER_CHECK] 期望状态: {ApprovalStatus.PENDING}")
+            
+            if approval_instance.status != ApprovalStatus.PENDING:
+                logger.info(f"🔍 [APPROVER_CHECK] ❌ 审批实例状态不是PENDING，返回 False")
+                return False
+                
+            logger.info(f"🔍 [APPROVER_CHECK] 当前审批步骤ID: {approval_instance.current_step}")
+            
             # 检查当前步骤的审批人
             current_step = ApprovalStep.query.get(approval_instance.current_step)
-            if current_step and current_step.approver_user_id == current_user.id:
-                return True
+            logger.info(f"🔍 [APPROVER_CHECK] 当前审批步骤对象: {current_step}")
+            
+            if current_step:
+                logger.info(f"🔍 [APPROVER_CHECK] 步骤审批人ID: {current_step.approver_user_id}")
+                logger.info(f"🔍 [APPROVER_CHECK] 步骤审批人类型: {current_step.approver_type}")
+                logger.info(f"🔍 [APPROVER_CHECK] 当前用户ID: {current_user.id}")
                 
+                # 处理直接指定审批人的情况
+                if current_step.approver_user_id and current_step.approver_user_id == current_user.id:
+                    logger.info(f"🔍 [APPROVER_CHECK] ✅ 直接指定的审批人匹配，返回 True")
+                    return True
+                
+                # 🔥 新增：处理分支决策类型的审批步骤
+                if current_step.approver_type == 'branch':
+                    logger.info(f"🔍 [APPROVER_CHECK] 检测到分支决策步骤，使用动态审批人确定...")
+                    try:
+                        from app.helpers.approval_helpers import get_step_actual_approver
+                        actual_approver = get_step_actual_approver(current_step, approval_instance)
+                        logger.info(f"🔍 [APPROVER_CHECK] 分支决策确定的实际审批人: {actual_approver}")
+                        
+                        if actual_approver and actual_approver.id == current_user.id:
+                            logger.info(f"🔍 [APPROVER_CHECK] ✅ 分支决策确定用户是当前审批人，返回 True")
+                            return True
+                        else:
+                            logger.info(f"🔍 [APPROVER_CHECK] ❌ 分支决策确定用户不是当前审批人")
+                    except Exception as e:
+                        logger.error(f"🔍 [APPROVER_CHECK] ❌ 分支决策审批人确定失败: {str(e)}")
+                
+                # 处理其他特殊审批人类型（如auto等）
+                if current_step.approver_type in ['auto', 'next_level']:
+                    logger.info(f"🔍 [APPROVER_CHECK] 检测到特殊审批人类型: {current_step.approver_type}")
+                    try:
+                        from app.helpers.approval_helpers import get_step_actual_approver
+                        actual_approver = get_step_actual_approver(current_step, approval_instance)
+                        logger.info(f"🔍 [APPROVER_CHECK] 特殊类型确定的实际审批人: {actual_approver}")
+                        
+                        if actual_approver and actual_approver.id == current_user.id:
+                            logger.info(f"🔍 [APPROVER_CHECK] ✅ 特殊类型确定用户是当前审批人，返回 True")
+                            return True
+                        else:
+                            logger.info(f"🔍 [APPROVER_CHECK] ❌ 特殊类型确定用户不是当前审批人")
+                    except Exception as e:
+                        logger.error(f"🔍 [APPROVER_CHECK] ❌ 特殊类型审批人确定失败: {str(e)}")
+                
+                logger.info(f"🔍 [APPROVER_CHECK] ❌ 所有审批人检查都未匹配")
+            else:
+                logger.info(f"🔍 [APPROVER_CHECK] ❌ 未找到当前审批步骤，返回 False")
+                
+            logger.info(f"🔍 [APPROVER_CHECK] ❌ 最终返回 False")
             return False
-        except Exception:
+        except Exception as e:
+            logger.error(f"🔍 [APPROVER_CHECK] ❌ 检查审批人时发生异常: {str(e)}")
             return False
 
 
@@ -1416,7 +1524,7 @@ class PricingOrderService:
         
         # 营销总监：可以看到所有的销售重点和渠道跟进的业务
         if user_role == 'sales_director':
-            return project_type in ['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow']
+            return project_type in ['sales_key', 'sales_focus', 'channel_follow']
         
         # 渠道经理：可以看到其权限范围内的批价单
         if user_role == 'channel_manager':
@@ -1670,19 +1778,75 @@ class PricingOrderService:
     def can_edit_basic_info(pricing_order, current_user, is_approval_context=False):
         """检查是否可以编辑基本信息（分销商、经销商等） - V2统一审批系统
         
-        审批状态下，只有当前审批人可以编辑基本信息
+        审批状态下，检查审批人是否被授权编辑基本信息字段
         """
+        logger.info(f"🔍 [BASIC_INFO_EDIT] ============= 检查基本信息编辑权限 =============")
+        logger.info(f"🔍 [BASIC_INFO_EDIT] 批价单ID: {pricing_order.id}, 订单号: {pricing_order.order_number}")
+        logger.info(f"🔍 [BASIC_INFO_EDIT] 当前用户: {current_user.username} (ID: {current_user.id})")
+        logger.info(f"🔍 [BASIC_INFO_EDIT] 批价单创建者: {pricing_order.created_by}")
+        logger.info(f"🔍 [BASIC_INFO_EDIT] 批价单状态: {pricing_order.status}")
+        logger.info(f"🔍 [BASIC_INFO_EDIT] 是否审批上下文: {is_approval_context}")
+        
         # 审批通过后不能编辑
         if pricing_order.status == 'approved':
+            logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 批价单已批准，不能编辑，返回 False")
             return False
             
         if pricing_order.status in ['draft', 'rejected']:
             # 草稿状态或被拒绝状态：创建人可编辑
-            return pricing_order.created_by == current_user.id
+            is_creator = pricing_order.created_by == current_user.id
+            logger.info(f"🔍 [BASIC_INFO_EDIT] 草稿/拒绝状态，检查是否为创建者: {is_creator}")
+            logger.info(f"🔍 [BASIC_INFO_EDIT] {'✅' if is_creator else '❌'} 返回 {is_creator}")
+            return is_creator
         elif pricing_order.status == 'pending':
-            # 审批中：V2系统下，只有当前审批人可以编辑基本信息
-            return PricingOrderService._is_current_approver_v2(pricing_order, current_user)
+            # 审批中：检查是否为当前审批人 + 是否有基本信息字段的编辑权限
+            logger.info(f"🔍 [BASIC_INFO_EDIT] 审批状态，检查是否为当前审批人...")
+            is_current_approver = PricingOrderService._is_current_approver_v2(pricing_order, current_user)
+            logger.info(f"🔍 [BASIC_INFO_EDIT] 是否为当前审批人: {is_current_approver}")
+            
+            if not is_current_approver:
+                logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 不是当前审批人，返回 False")
+                return False
+            
+            # 获取当前步骤的可编辑字段
+            logger.info(f"🔍 [BASIC_INFO_EDIT] ✅ 是当前审批人，检查可编辑字段权限...")
+            from app.helpers.approval_helpers import get_object_approval_instance
+            from app.models.approval import ApprovalStep
+            
+            approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
+            logger.info(f"🔍 [BASIC_INFO_EDIT] 审批实例: {approval_instance}")
+            
+            if not approval_instance:
+                logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 未找到审批实例，返回 False")
+                return False
                 
+            current_step = ApprovalStep.query.get(approval_instance.current_step)
+            logger.info(f"🔍 [BASIC_INFO_EDIT] 当前步骤: {current_step}")
+            
+            if not current_step:
+                logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 未找到当前审批步骤，返回 False")
+                return False
+                
+            editable_fields = current_step.editable_fields or []
+            logger.info(f"🔍 [BASIC_INFO_EDIT] 当前步骤可编辑字段: {editable_fields}")
+            
+            # 检查是否有任何基本信息字段在可编辑列表中
+            basic_info_fields = ['dealer_id', 'distributor_id', 'is_direct_contract', 'is_factory_pickup']
+            has_basic_edit_permission = any(field in editable_fields for field in basic_info_fields)
+            logger.info(f"🔍 [BASIC_INFO_EDIT] 基本信息字段: {basic_info_fields}")
+            logger.info(f"🔍 [BASIC_INFO_EDIT] 是否有基本信息字段编辑权限: {has_basic_edit_permission}")
+            
+            if has_basic_edit_permission:
+                # 记录具体哪些基本信息字段可以编辑
+                editable_basic_fields = [field for field in basic_info_fields if field in editable_fields]
+                logger.info(f"🔍 [BASIC_INFO_EDIT] ✅ 可编辑的基本信息字段: {editable_basic_fields}")
+            else:
+                logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 无基本信息字段编辑权限")
+            
+            logger.info(f"🔍 [BASIC_INFO_EDIT] {'✅' if has_basic_edit_permission else '❌'} 返回 {has_basic_edit_permission}")
+            return has_basic_edit_permission
+        
+        logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 其他状态，返回 False")        
         return False
     @staticmethod
     def admin_rollback_pricing_order(pricing_order_id, admin_user_id, reason=None):
@@ -1972,19 +2136,75 @@ class PricingOrderService:
     def can_edit_basic_info(pricing_order, current_user, is_approval_context=False):
         """检查是否可以编辑基本信息（分销商、经销商等） - V2统一审批系统
         
-        审批状态下，只有当前审批人可以编辑基本信息
+        审批状态下，检查审批人是否被授权编辑基本信息字段
         """
+        logger.info(f"🔍 [BASIC_INFO_EDIT] ============= 检查基本信息编辑权限 =============")
+        logger.info(f"🔍 [BASIC_INFO_EDIT] 批价单ID: {pricing_order.id}, 订单号: {pricing_order.order_number}")
+        logger.info(f"🔍 [BASIC_INFO_EDIT] 当前用户: {current_user.username} (ID: {current_user.id})")
+        logger.info(f"🔍 [BASIC_INFO_EDIT] 批价单创建者: {pricing_order.created_by}")
+        logger.info(f"🔍 [BASIC_INFO_EDIT] 批价单状态: {pricing_order.status}")
+        logger.info(f"🔍 [BASIC_INFO_EDIT] 是否审批上下文: {is_approval_context}")
+        
         # 审批通过后不能编辑
         if pricing_order.status == 'approved':
+            logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 批价单已批准，不能编辑，返回 False")
             return False
             
         if pricing_order.status in ['draft', 'rejected']:
             # 草稿状态或被拒绝状态：创建人可编辑
-            return pricing_order.created_by == current_user.id
+            is_creator = pricing_order.created_by == current_user.id
+            logger.info(f"🔍 [BASIC_INFO_EDIT] 草稿/拒绝状态，检查是否为创建者: {is_creator}")
+            logger.info(f"🔍 [BASIC_INFO_EDIT] {'✅' if is_creator else '❌'} 返回 {is_creator}")
+            return is_creator
         elif pricing_order.status == 'pending':
-            # 审批中：V2系统下，只有当前审批人可以编辑基本信息
-            return PricingOrderService._is_current_approver_v2(pricing_order, current_user)
+            # 审批中：检查是否为当前审批人 + 是否有基本信息字段的编辑权限
+            logger.info(f"🔍 [BASIC_INFO_EDIT] 审批状态，检查是否为当前审批人...")
+            is_current_approver = PricingOrderService._is_current_approver_v2(pricing_order, current_user)
+            logger.info(f"🔍 [BASIC_INFO_EDIT] 是否为当前审批人: {is_current_approver}")
+            
+            if not is_current_approver:
+                logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 不是当前审批人，返回 False")
+                return False
+            
+            # 获取当前步骤的可编辑字段
+            logger.info(f"🔍 [BASIC_INFO_EDIT] ✅ 是当前审批人，检查可编辑字段权限...")
+            from app.helpers.approval_helpers import get_object_approval_instance
+            from app.models.approval import ApprovalStep
+            
+            approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
+            logger.info(f"🔍 [BASIC_INFO_EDIT] 审批实例: {approval_instance}")
+            
+            if not approval_instance:
+                logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 未找到审批实例，返回 False")
+                return False
                 
+            current_step = ApprovalStep.query.get(approval_instance.current_step)
+            logger.info(f"🔍 [BASIC_INFO_EDIT] 当前步骤: {current_step}")
+            
+            if not current_step:
+                logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 未找到当前审批步骤，返回 False")
+                return False
+                
+            editable_fields = current_step.editable_fields or []
+            logger.info(f"🔍 [BASIC_INFO_EDIT] 当前步骤可编辑字段: {editable_fields}")
+            
+            # 检查是否有任何基本信息字段在可编辑列表中
+            basic_info_fields = ['dealer_id', 'distributor_id', 'is_direct_contract', 'is_factory_pickup']
+            has_basic_edit_permission = any(field in editable_fields for field in basic_info_fields)
+            logger.info(f"🔍 [BASIC_INFO_EDIT] 基本信息字段: {basic_info_fields}")
+            logger.info(f"🔍 [BASIC_INFO_EDIT] 是否有基本信息字段编辑权限: {has_basic_edit_permission}")
+            
+            if has_basic_edit_permission:
+                # 记录具体哪些基本信息字段可以编辑
+                editable_basic_fields = [field for field in basic_info_fields if field in editable_fields]
+                logger.info(f"🔍 [BASIC_INFO_EDIT] ✅ 可编辑的基本信息字段: {editable_basic_fields}")
+            else:
+                logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 无基本信息字段编辑权限")
+            
+            logger.info(f"🔍 [BASIC_INFO_EDIT] {'✅' if has_basic_edit_permission else '❌'} 返回 {has_basic_edit_permission}")
+            return has_basic_edit_permission
+        
+        logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 其他状态，返回 False")        
         return False
     @staticmethod
     def admin_rollback_pricing_order(pricing_order_id, admin_user_id, reason=None):

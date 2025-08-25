@@ -59,13 +59,9 @@ class ProjectTypeApproverConfig(db.Model):
         """获取项目类型显示名称"""
         type_labels = {
             'channel_follow': '渠道跟进',
-            '渠道跟进': '渠道跟进',
             'sales_focus': '销售重点',
-            '销售重点': '销售重点',
-            'sales_key': '销售重点',
-            'business_opportunity': '销售机会',
-            '销售机会': '销售机会',
-            'sales_opportunity': '销售机会'
+            'sales_key': '销售重点',  # 向sales_focus统一
+            'business_opportunity': '客户服务'
         }
         return type_labels.get(self.project_type, self.project_type)
 
@@ -135,13 +131,9 @@ class ProjectTypeApproverConfig(db.Model):
         # 保持原有的硬编码映射作为默认值
         default_mapping = {
             'channel_follow': 'channel_manager',
-            '渠道跟进': 'channel_manager',
             'sales_focus': 'sales_director',
-            '销售重点': 'sales_director',
-            'sales_key': 'sales_director',
-            'business_opportunity': 'service_manager',
-            '销售机会': 'service_manager',
-            'sales_opportunity': 'service_manager'
+            'sales_key': 'sales_director',  # 向sales_focus统一
+            'business_opportunity': 'service_manager'
         }
         
         target_role = default_mapping.get(project_type, 'ceo')
@@ -162,19 +154,19 @@ class ProjectTypeApproverConfig(db.Model):
         """
         default_configs = [
             {
-                'project_type': '渠道跟进',
+                'project_type': 'channel_follow',
                 'approver_type': 'role',
                 'approver_role': 'channel_manager',
                 'fallback_role': 'ceo'
             },
             {
-                'project_type': '销售重点',
+                'project_type': 'sales_focus',
                 'approver_type': 'role',
                 'approver_role': 'sales_director',
                 'fallback_role': 'ceo'
             },
             {
-                'project_type': '销售机会',
+                'project_type': 'business_opportunity',
                 'approver_type': 'role',
                 'approver_role': 'service_manager',
                 'fallback_role': 'ceo'

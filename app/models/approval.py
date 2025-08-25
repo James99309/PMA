@@ -118,7 +118,7 @@ class ApprovalStep(db.Model):
     
     # 分支步骤支持
     step_type = db.Column(db.String(20), default='normal', comment="步骤类型：normal(常规) 或 branch(分支)")
-    branch_condition = db.Column(db.JSON, nullable=True, comment="分支条件配置")
+    branch_condition = db.Column(db.JSON, nullable=True, comment="分支条件配置（兼容性保留，新版使用独立表）")
     
     # 废弃字段：复杂并行分支功能已简化，以下字段保留但不再使用
     parent_step_id = db.Column(db.Integer, db.ForeignKey("approval_step.id"), nullable=True, comment="[废弃] 上级步骤ID，用于并行分支")
@@ -150,6 +150,25 @@ class ApprovalStep(db.Model):
         """判断是否为分支步骤"""
         return self.step_type == 'branch'
     
+    
+    def get_branch_conditions(self):
+        """获取分支条件 - 统一使用新表数据"""
+        from app.models.approval_branch_condition import ApprovalBranchCondition
+        return ApprovalBranchCondition.get_step_conditions(self.id)
+    
+    def get_branch_field(self):
+        """获取分支字段名"""
+        if self.branch_condition:
+            return self.branch_condition.get('field')
+        return None
+    
+    def get_default_branch(self):
+        """获取默认分支配置"""
+        if self.branch_condition:
+            return self.branch_condition.get('default_branch', {})
+        return {}
+    
+    
     # 注意：原来的并行分支相关方法已移除，现在使用简化的分支链模式
 
     @property
@@ -180,62 +199,70 @@ class ApprovalStep(db.Model):
         return True
 
     def evaluate_branch_condition(self, target_object):
-        """评估分支条件"""
-        if not self.branch_condition or self.step_type != 'branch':
-            return None
-            
-        condition = self.branch_condition
+        """评估分支条件 - 统一使用新表数据"""
+        print(f"🔍 [DEBUG] 开始评估分支条件 - Step ID: {self.id}, Name: {self.step_name}")
+        print(f"🔍 [DEBUG] 步骤类型: {self.step_type}, 动作类型: {self.action_type}")
         
-        # 检查是否为新的多条件格式
-        if 'conditions' in condition and isinstance(condition['conditions'], list):
-            return self._evaluate_multiple_conditions(target_object, condition)
-        else:
-            # 兼容旧的单条件格式
-            return self._evaluate_single_condition(target_object, condition)
-    
-    def _evaluate_multiple_conditions(self, target_object, branch_config):
-        """评估多个分支条件，按顺序处理，返回第一个匹配的条件"""
-        field = branch_config.get('field')
-        conditions = branch_config.get('conditions', [])
-        
-        if not field or not conditions:
-            print(f"多条件配置不完整: field={field}, conditions count={len(conditions)}")
+        if self.step_type != 'branch' and self.action_type != 'branch_decision':
+            print(f"🔍 [DEBUG] 非分支步骤，跳过条件评估")
             return None
-            
+        
+        # 直接从新表获取所有分支条件
+        from app.models.approval_branch_condition import ApprovalBranchCondition
+        conditions = ApprovalBranchCondition.get_step_conditions(self.id)
+        print(f"🔍 [DEBUG] 从新表获取到 {len(conditions)} 个分支条件")
+        
+        if not conditions:
+            print(f"🔍 [DEBUG] 步骤 {self.id} 没有分支条件配置")
+            return None
+        
+        # 调试所有条件
+        for i, cond in enumerate(conditions):
+            print(f"🔍 [DEBUG] 条件{i+1}: operator={cond.operator}, field_value={cond.field_value}, approver_id={cond.approver_id}")
+        
+        # 获取字段名（从JSON配置或使用默认值）
+        field_name = self.get_branch_field() or 'project_type'
+        print(f"🔍 [DEBUG] 分支字段名: {field_name}")
+        
         try:
             # 获取目标对象的字段值
-            object_value = self._get_object_field_value(target_object, field)
-            print(f"多条件评估: 字段={field}, 对象值={object_value}, 条件数量={len(conditions)}")
+            print(f"🔍 [DEBUG] 目标对象类型: {type(target_object)}")
+            object_value = self._get_object_field_value(target_object, field_name)
+            print(f"🔍 [DEBUG] 分支条件评估: 字段={field_name}, 对象值={object_value}, 类型={type(object_value)}, 条件数量={len(conditions)}")
             
             # 按顺序评估每个条件，返回第一个匹配的条件配置
             for index, condition in enumerate(conditions):
-                operator = condition.get('operator')
-                value = condition.get('value')
+                operator = condition.operator
+                value = condition.field_value
+                
+                print(f"🔍 [DEBUG] 开始评估条件{index+1}: operator={operator}, value={value}")
                 
                 if not operator:
-                    print(f"条件{index+1}配置不完整: operator={operator}")
+                    print(f"🔍 [DEBUG] 条件{index+1}配置不完整: operator={operator}")
                     continue
                     
                 # 执行条件判断
                 result = self._evaluate_condition(object_value, operator, value)
-                print(f"条件{index+1}评估结果: {result} (operator={operator}, value={value})")
+                print(f"🔍 [DEBUG] 条件{index+1}评估结果: {result} (operator={operator}, value={value})")
                 
                 if result:
-                    print(f"✅ 匹配到条件{index+1}，停止后续条件评估")
+                    print(f"🔍 [DEBUG] ✅ 匹配到条件{index+1}，停止后续条件评估")
+                    print(f"🔍 [DEBUG] 匹配条件详情: approver_id={condition.approver_id}, approver_type={condition.approver_type}, action={condition.action}")
                     # 返回匹配的条件配置（包含审批人和动作信息）
                     return {
                         'matched': True,
                         'condition_index': index,
                         'condition': condition,
-                        'approver_id': condition.get('approver_id'),
-                        'approver_type': condition.get('approver_type'),
-                        'action': condition.get('action'),
-                        'next_step_order': condition.get('next_step_order')
+                        'approver_id': condition.approver_id,
+                        'approver_type': condition.approver_type or 'user',
+                        'action': condition.action,
+                        'next_step_order': None
                     }
             
             # 如果没有条件匹配，返回默认分支
-            print("❌ 没有条件匹配，使用默认分支")
-            default_branch = branch_config.get('default_branch', {})
+            print("🔍 [DEBUG] ❌ 没有条件匹配，使用默认分支")
+            default_branch = self.get_default_branch()
+            print(f"🔍 [DEBUG] 默认分支配置: {default_branch}")
             return {
                 'matched': False,
                 'condition_index': -1,
@@ -247,91 +274,120 @@ class ApprovalStep(db.Model):
             }
             
         except Exception as e:
-            print(f"多条件评估异常: {str(e)}")
+            print(f"分支条件评估异常: {str(e)}")
             import traceback
             traceback.print_exc()
             return None
     
-    def _evaluate_single_condition(self, target_object, condition):
-        """评估单个分支条件（兼容旧格式）"""
-        field = condition.get('field')
-        operator = condition.get('operator')
-        value = condition.get('value')
-        
-        if not field or not operator:
-            print(f"单条件配置不完整: field={field}, operator={operator}")
-            return None
-            
-        try:
-            # 获取目标对象的字段值
-            object_value = self._get_object_field_value(target_object, field)
-            print(f"单条件评估: 字段={field}, 对象值={object_value}, 操作符={operator}, 条件值={value}")
-            
-            # 执行条件判断
-            result = self._evaluate_condition(object_value, operator, value)
-            print(f"单条件评估结果: {result}")
-            return result
-        except Exception as e:
-            print(f"单条件评估异常: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return None
     
     def _get_object_field_value(self, target_object, field):
         """获取目标对象的字段值"""
+        print(f"🔍 [DEBUG] 获取对象字段值 - 字段: {field}, 对象类型: {type(target_object)}")
+        
+        # 特殊处理：批价单的 project_type 字段
+        if field == 'project_type' and hasattr(target_object, 'quotation'):
+            print(f"🔍 [DEBUG] 检测到批价单的 project_type 字段访问，尝试从报价单获取")
+            if target_object.quotation and hasattr(target_object.quotation, 'project_type'):
+                result = target_object.quotation.project_type
+                print(f"🔍 [DEBUG] ✅ 批价单项目类型通过报价单获取: {result}")
+                return result
+            elif hasattr(target_object, 'project') and target_object.project and hasattr(target_object.project, 'project_type'):
+                # 后备方案：如果没有报价单，从关联项目获取
+                result = target_object.project.project_type
+                print(f"🔍 [DEBUG] ✅ 批价单项目类型通过关联项目获取: {result}")
+                return result
+            else:
+                print(f"🔍 [DEBUG] ❌ 批价单既没有关联报价单也没有关联项目的 project_type 字段")
+        
         try:
             # 支持点分隔的嵌套字段访问，如 project.project_type
             if '.' in field:
+                print(f"🔍 [DEBUG] 处理嵌套字段访问: {field}")
                 parts = field.split('.')
                 value = target_object
+                print(f"🔍 [DEBUG] 字段路径分解: {parts}")
+                
                 for i, part in enumerate(parts):
                     if value is None:
+                        print(f"🔍 [DEBUG] 路径 {'.'.join(parts[:i])} 的值为 None，中断访问")
                         break
+                    
+                    print(f"🔍 [DEBUG] 访问路径 {i+1}/{len(parts)}: {part} (当前对象类型: {type(value)})")
                     
                     # 支持方法调用，如 get_status()
                     if part.endswith('()'):
                         method_name = part[:-2]
                         if hasattr(value, method_name):
                             value = getattr(value, method_name)()
+                            print(f"🔍 [DEBUG] 调用方法 {method_name}()，返回值: {value}")
                         else:
-                            print(f"方法 {method_name} 不存在于对象 {type(value)}")
+                            print(f"🔍 [DEBUG] 方法 {method_name} 不存在于对象 {type(value)}")
                             return None
                     else:
                         # 普通属性访问
                         if hasattr(value, part):
                             value = getattr(value, part)
+                            print(f"🔍 [DEBUG] 获取属性 {part}，值: {value} (类型: {type(value)})")
                         else:
-                            print(f"属性 {part} 不存在于对象 {type(value)} (路径: {'.'.join(parts[:i+1])})")
+                            print(f"🔍 [DEBUG] 属性 {part} 不存在于对象 {type(value)} (路径: {'.'.join(parts[:i+1])})")
                             return None
+                
+                print(f"🔍 [DEBUG] 最终字段值: {value}")
                 return value
             else:
+                print(f"🔍 [DEBUG] 处理单一字段访问: {field}")
                 # 支持方法调用
                 if field.endswith('()'):
                     method_name = field[:-2]
                     if hasattr(target_object, method_name):
-                        return getattr(target_object, method_name)()
+                        result = getattr(target_object, method_name)()
+                        print(f"🔍 [DEBUG] 调用方法 {method_name}()，返回值: {result}")
+                        return result
                     else:
-                        print(f"方法 {method_name} 不存在于对象 {type(target_object)}")
+                        print(f"🔍 [DEBUG] 方法 {method_name} 不存在于对象 {type(target_object)}")
                         return None
                 else:
                     # 普通属性访问
-                    return getattr(target_object, field, None)
+                    if hasattr(target_object, field):
+                        result = getattr(target_object, field, None)
+                        print(f"🔍 [DEBUG] 获取属性 {field}，值: {result} (类型: {type(result)})")
+                        return result
+                    else:
+                        print(f"🔍 [DEBUG] 属性 {field} 不存在于对象 {type(target_object)}")
+                        return None
         except (AttributeError, TypeError) as e:
-            print(f"获取字段值失败: field={field}, error={str(e)}")
+            print(f"🔍 [DEBUG] 获取字段值失败: field={field}, error={str(e)}")
             return None
     
     def _evaluate_condition(self, object_value, operator, condition_value):
         """评估条件表达式"""
+        print(f"🔍 [DEBUG] 开始评估条件 - object_value: {object_value} (类型: {type(object_value)}), operator: {operator}, condition_value: {condition_value}")
+        
         if object_value is None:
-            return operator in ['is_null', 'is_empty']
+            result = operator in ['is_null', 'is_empty']
+            print(f"🔍 [DEBUG] 对象值为None，操作符 {operator} 的结果: {result}")
+            return result
             
         # 字符串化处理
         obj_str = str(object_value)
         cond_str = str(condition_value)
+        print(f"🔍 [DEBUG] 字符串化后 - obj_str: '{obj_str}', cond_str: '{cond_str}'")
         
         try:
             if operator == 'equals':
-                return obj_str == cond_str
+                print(f"🔍 [DEBUG] 处理 equals 操作符")
+                # 增强equals逻辑：如果条件值包含逗号，自动转换为多值匹配逻辑
+                if ',' in cond_str:
+                    print(f"🔍 [DEBUG] 条件值包含逗号，转换为多值匹配")
+                    values = [v.strip() for v in cond_str.split(',')]
+                    print(f"🔍 [DEBUG] 分割后的值列表: {values}")
+                    result = self._check_multi_value_match(obj_str, values)
+                    print(f"🔍 [DEBUG] 多值匹配结果: {result}")
+                    return result
+                else:
+                    result = obj_str == cond_str
+                    print(f"🔍 [DEBUG] 单值equals匹配结果: {result}")
+                    return result
             elif operator == 'not_equals':
                 return obj_str != cond_str
             elif operator == 'contains':
@@ -343,9 +399,13 @@ class ApprovalStep(db.Model):
             elif operator == 'ends_with':
                 return obj_str.lower().endswith(cond_str.lower())
             elif operator == 'in':
-                # 支持逗号分隔的多值匹配
+                print(f"🔍 [DEBUG] 处理 in 操作符")
+                # 增强的多值匹配
                 values = [v.strip() for v in cond_str.split(',')]
-                return obj_str in values
+                print(f"🔍 [DEBUG] in操作符 - 分割后的值列表: {values}")
+                result = self._check_multi_value_match(obj_str, values)
+                print(f"🔍 [DEBUG] in操作符 - 多值匹配结果: {result}")
+                return result
             elif operator == 'not_in':
                 values = [v.strip() for v in cond_str.split(',')]
                 return obj_str not in values
@@ -374,6 +434,62 @@ class ApprovalStep(db.Model):
         except Exception as e:
             print(f"条件评估异常: operator={operator}, object_value={object_value}, condition_value={condition_value}, error={str(e)}")
             return False
+    
+    def _check_multi_value_match(self, object_value, condition_values):
+        """
+        检查多值匹配，支持字典映射
+        
+        Args:
+            object_value: 对象的实际值
+            condition_values: 条件值列表
+            
+        Returns:
+            bool: 是否匹配
+        """
+        print(f"🔍 [DEBUG] 开始多值匹配检查")
+        print(f"🔍 [DEBUG] object_value: '{object_value}' (类型: {type(object_value)})")
+        print(f"🔍 [DEBUG] condition_values: {condition_values}")
+        
+        # 直接匹配
+        if object_value in condition_values:
+            print(f"🔍 [DEBUG] ✅ 直接匹配: {object_value} in {condition_values}")
+            return True
+        else:
+            print(f"🔍 [DEBUG] ❌ 直接匹配失败: {object_value} not in {condition_values}")
+        
+        # 字典映射匹配（project_type等枚举字段）
+        try:
+            print(f"🔍 [DEBUG] 尝试字典映射匹配...")
+            from app.utils.field_value_helper import get_project_type_mapping
+            mapping = get_project_type_mapping()
+            print(f"🔍 [DEBUG] 获取到项目类型映射: {mapping}")
+            
+            # 检查英文值 -> 中文值映射
+            mapped_value = mapping.get(object_value)
+            print(f"🔍 [DEBUG] 英文到中文映射: {object_value} -> {mapped_value}")
+            if mapped_value and mapped_value in condition_values:
+                print(f"🔍 [DEBUG] ✅ 映射匹配成功: {object_value} -> {mapped_value} in {condition_values}")
+                return True
+            else:
+                print(f"🔍 [DEBUG] ❌ 英文到中文映射匹配失败")
+            
+            # 检查中文值 -> 英文值的反向映射
+            reverse_mapping = {v: k for k, v in mapping.items()}
+            print(f"🔍 [DEBUG] 反向映射字典: {reverse_mapping}")
+            for cond_value in condition_values:
+                if cond_value in reverse_mapping and reverse_mapping[cond_value] == object_value:
+                    print(f"🔍 [DEBUG] ✅ 反向映射匹配: {object_value} == {reverse_mapping[cond_value]} <- {cond_value}")
+                    return True
+                else:
+                    print(f"🔍 [DEBUG] 检查反向映射: '{cond_value}' in reverse_mapping = {cond_value in reverse_mapping}")
+                    if cond_value in reverse_mapping:
+                        print(f"🔍 [DEBUG] reverse_mapping['{cond_value}'] = '{reverse_mapping[cond_value]}' vs object_value = '{object_value}'")
+                    
+        except Exception as e:
+            print(f"🔍 [DEBUG] ⚠️ 字典映射检查异常: {str(e)}")
+        
+        print(f"🔍 [DEBUG] ❌ 最终无匹配: {object_value} not in {condition_values}")
+        return False
     
     def _compare_numeric(self, value1, value2, operator):
         """数值比较"""

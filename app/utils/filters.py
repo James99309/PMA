@@ -2,9 +2,9 @@ def project_type_style(project_type):
     """返回项目类型对应的样式类"""
     styles = {
         'sales_focus': 'bg-primary',
-        '销售重点': 'bg-primary',
+        'sales_key': 'bg-primary',      # 向sales_focus统一
         'channel_follow': 'bg-info',
-        '渠道跟进': 'bg-info',
+        'business_opportunity': 'bg-success',
         'normal': 'bg-secondary'
     }
     return styles.get(project_type, 'bg-secondary')

@@ -12,17 +12,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# 项目类型对应的授权编号前缀（支持中英文项目类型）
+# 项目类型对应的授权编号前缀（统一使用英文键）
 PROJECT_TYPE_PREFIXES = {
-    # 中文项目类型
-    '销售重点': 'SPJ',
-    '渠道跟进': 'CPJ',
-    '客户服务': 'APJ',  # 客户服务类型项目（原业务机会），使用APJ前缀
-    # 英文项目类型
     'sales_focus': 'SPJ',
+    'sales_key': 'SPJ',      # 向sales_focus统一
     'channel_follow': 'CPJ',
-    'business_opportunity': 'APJ',
-    'sales_key': 'SPJ'  # 销售重点的另一种英文表示
+    'business_opportunity': 'APJ'
 }
 
 def generate_authorization_code(project_type):

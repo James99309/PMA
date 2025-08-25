@@ -13,7 +13,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="{{ modal_id }}Label">{{ title }}</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close modal-close-btn" aria-label="Close"></button>
       </div>
       <form id="{{ form_id }}" method="POST" action="{{ action_url }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -163,24 +163,23 @@
           <div class="form-group mb-3">
             <label for="{{ 'edit_' if is_edit else '' }}action_type">执行动作</label>
             <select class="form-control" id="{{ 'edit_' if is_edit else '' }}action_type" name="action_type">
-              <option value="">请选择执行动作（可选）</option>
+              <option value="">常规审批（默认）</option>
               <option value="authorization">授权编号</option>
               <option value="quotation_approval">报价审核</option>
               <option value="payment_processing">支付处理</option>
               <option value="project_authorization">项目授权</option>
               <option value="channel_authorization">渠道授权</option>
               <option value="business_authorization">业务授权</option>
-              <option value="customer_service_authorization">客服授权</option>
-              <option value="branch_decision">分支决策</option>
               <option value="pricing_settlement_approval">批结算审批</option>
             </select>
-            <small class="form-text text-muted">执行动作决定审批通过后系统的后续处理</small>
+            <small class="form-text text-muted">常规审批为默认选项，特殊动作将在审批通过后执行额外的系统处理</small>
           </div>
           
           {# 可编辑字段配置 #}
           <div class="form-group mb-3">
             <label for="{{ 'edit_' if is_edit else '' }}editable_fields_select">可编辑字段</label>
-            <select class="form-control" id="{{ 'edit_' if is_edit else '' }}editable_fields_select">
+            <select class="form-control" id="{{ 'edit_' if is_edit else '' }}editable_fields_select" 
+                    onchange="{% if is_edit %}addEditFieldBadge(){% else %}addFieldBadge(){% endif %}">
               <option value="">点击选择可编辑字段</option>
               {% if template and get_object_field_options %}
                 {% set field_options = get_object_field_options(template.object_type) %}
@@ -188,19 +187,19 @@
                   {% if field_options is mapping and 'master' in field_options %}
                     <optgroup label="主记录字段">
                       {% for field_code, field_name in field_options.master %}
-                        <option value="{{ field_code }}">{{ field_name }}</option>
+                        <option value="{{ field_code }}" data-group="master">{{ field_name }}</option>
                       {% endfor %}
                     </optgroup>
                     {% if field_options.detail %}
                     <optgroup label="明细字段">
                       {% for field_code, field_name in field_options.detail %}
-                        <option value="{{ field_code }}">{{ field_name }}</option>
+                        <option value="{{ field_code }}" data-group="detail">{{ field_name }}</option>
                       {% endfor %}
                     </optgroup>
                     {% endif %}
                   {% else %}
                     {% for field_code, field_name in field_options %}
-                      <option value="{{ field_code }}">{{ field_name }}</option>
+                      <option value="{{ field_code }}" data-group="master">{{ field_name }}</option>
                     {% endfor %}
                   {% endif %}
                 {% endif %}
@@ -208,8 +207,21 @@
             </select>
             <div id="{{ 'edit_' if is_edit else '' }}selected_fields" class="mt-2">
               {# 已选择的字段徽章将显示在这里 #}
+              <small class="text-muted">使用下拉框选择字段后会在此显示</small>
             </div>
             <small class="form-text text-muted">审批人可以在审批时修改这些字段的值</small>
+            
+            {# 隐藏字段用于提交数据 - 强制渲染版本 #}
+            {% if mode == 'edit' %}
+            <input type="hidden" id="edit_editable_fields_input" name="editable_fields" value="">
+            {% else %}
+            <input type="hidden" id="editable_fields_input" name="editable_fields" value="">
+            {% endif %}
+            
+            {# 🔍 调试信息：模板变量状态 #}
+            <!-- DEBUG: is_edit={{ is_edit }}, is_edit_type={{ is_edit.__class__.__name__ }}, mode={{ mode }}, hiddenInputId={{ 'edit_' if is_edit else '' }}editable_fields_input -->
+            <!-- DEBUG_VERBOSE: is_edit_truthy={{ is_edit if is_edit else 'False' }}, is_edit_string={{ is_edit|string }}, is_edit_raw={{ is_edit }} -->
+            <!-- FORCE_RENDER: mode_direct={{ mode }}, rendered_input_id={{ 'edit_editable_fields_input' if mode == 'edit' else 'editable_fields_input' }} -->
           </div>
           
           {# 邮件通知设置 #}
@@ -250,7 +262,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn btn-secondary modal-close-btn">取消</button>
           <button type="submit" class="btn btn-primary">
             <i class="fas fa-save"></i> {{ '更新步骤' if is_edit else '添加步骤' }}
           </button>
@@ -267,6 +279,6 @@
 {% endmacro %}
 
 {# 快捷宏：编辑步骤模态框 #}
-{% macro render_edit_step_modal(users, get_object_field_options=None, template=None) %}
+{% macro render_edit_step_modal(template, users, get_object_field_options=None) %}
   {{ render_step_form_modal('editStepModal', 'edit', template, users, get_object_field_options) }}
 {% endmacro %}

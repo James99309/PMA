@@ -719,6 +719,132 @@ def approve_pricing_order(order_id):
         })
 
 
+def evaluate_branch_condition_for_display(branch_condition, pricing_order):
+    """
+    为前端显示评估分支条件，确定具体的审批人
+    直接实现字段获取和条件评估逻辑，避免依赖实例方法
+    """
+    try:
+        from app.models.user import User
+        
+        # 获取分支条件配置
+        field = branch_condition.get('field')
+        conditions = branch_condition.get('conditions', [])
+        default_branch = branch_condition.get('default_branch')
+        
+        logger.info(f"🔍 [显示评估] 开始评估分支条件: field={field}, conditions={len(conditions)}个")
+        
+        # 获取对象字段值（实现特殊处理逻辑）
+        field_value = None
+        
+        # 特殊处理：批价单的 project_type 字段
+        if field == 'project_type' and hasattr(pricing_order, 'quotation'):
+            logger.info(f"🔍 [显示评估] 检测到批价单的 project_type 字段访问，尝试从报价单获取")
+            if pricing_order.quotation and hasattr(pricing_order.quotation, 'project_type'):
+                field_value = pricing_order.quotation.project_type
+                logger.info(f"🔍 [显示评估] ✅ 批价单项目类型通过报价单获取: {field_value}")
+            elif hasattr(pricing_order, 'project') and pricing_order.project and hasattr(pricing_order.project, 'project_type'):
+                # 后备方案：如果没有报价单，从关联项目获取
+                field_value = pricing_order.project.project_type
+                logger.info(f"🔍 [显示评估] ✅ 批价单项目类型通过关联项目获取: {field_value}")
+            else:
+                logger.info(f"🔍 [显示评估] ❌ 批价单既没有关联报价单也没有关联项目的 project_type 字段")
+        
+        # 通用字段获取
+        if field_value is None:
+            try:
+                # 支持点分隔的嵌套字段访问，如 project.project_type
+                if '.' in field:
+                    logger.info(f"🔍 [显示评估] 处理嵌套字段访问: {field}")
+                    parts = field.split('.')
+                    value = pricing_order
+                    for part in parts:
+                        if hasattr(value, part):
+                            value = getattr(value, part)
+                        else:
+                            logger.info(f"🔍 [显示评估] 字段路径中断: {part}")
+                            value = None
+                            break
+                    field_value = value
+                else:
+                    # 直接字段访问
+                    if hasattr(pricing_order, field):
+                        field_value = getattr(pricing_order, field)
+                    else:
+                        logger.info(f"🔍 [显示评估] 对象没有字段: {field}")
+            except Exception as e:
+                logger.error(f"🔍 [显示评估] 获取字段值失败: field={field}, error={str(e)}")
+        
+        logger.info(f"🔍 [显示评估] 获取字段值: field={field}, value={field_value}")
+        
+        # 查找匹配的条件
+        for condition in conditions:
+            condition_value = condition.get('value')
+            operator = condition.get('operator', 'equals')
+            
+            logger.info(f"🔍 [显示评估] 检查条件: operator={operator}, condition_value={condition_value}")
+            
+            # 实现条件评估逻辑
+            match = False
+            if field_value is None:
+                match = operator in ['is_null', 'is_empty']
+            else:
+                obj_str = str(field_value)
+                cond_str = str(condition_value)
+                
+                if operator == 'equals':
+                    match = obj_str == cond_str
+                elif operator == 'in':
+                    # 处理多值匹配
+                    if isinstance(condition_value, list):
+                        match = obj_str in [str(v) for v in condition_value]
+                    else:
+                        # 处理逗号分隔的字符串
+                        cond_values = [v.strip() for v in cond_str.split(',')]
+                        match = obj_str in cond_values
+                elif operator == 'not_equals':
+                    match = obj_str != cond_str
+                elif operator == 'contains':
+                    match = cond_str.lower() in obj_str.lower()
+                elif operator == 'not_contains':
+                    match = cond_str.lower() not in obj_str.lower()
+                # 可以根据需要添加更多操作符
+            
+            logger.info(f"🔍 [显示评估] 条件匹配结果: {match}")
+            
+            if match:
+                approver_id = condition.get('approver_id')
+                if approver_id:
+                    user = User.query.get(approver_id)
+                    if user:
+                        logger.info(f"🔍 [显示评估] ✅ 匹配成功，确定审批人: {user.real_name} (ID: {approver_id})")
+                        return {
+                            'user_id': approver_id,
+                            'username': user.username,
+                            'real_name': user.real_name
+                        }
+                break
+        
+        # 如果没有匹配的条件，使用默认分支
+        if default_branch and default_branch.get('approver_id'):
+            approver_id = default_branch.get('approver_id')
+            user = User.query.get(approver_id)
+            if user:
+                logger.info(f"🔍 [显示评估] 使用默认分支审批人: {user.real_name} (ID: {approver_id})")
+                return {
+                    'user_id': approver_id,
+                    'username': user.username,
+                    'real_name': user.real_name
+                }
+        
+        logger.info(f"🔍 [显示评估] ❌ 未能确定具体审批人")
+        return None
+        
+    except Exception as e:
+        logger.error(f"🔍 [显示评估] 评估分支条件失败: {e}")
+        return None
+
+
 @pricing_order_bp.route('/api/approval/<int:order_id>/flow')
 @login_required
 def get_pricing_order_approval_flow(order_id):
@@ -867,9 +993,35 @@ def get_pricing_order_approval_flow(order_id):
                     # 🔍 调试：打印审批人信息
                     logger.info(f"🔍 设置审批人: approver_id={step_data['approver_id']}, username={approver.username}, real_name={approver.real_name}, final_name={step_data['approver_name']}")
             else:
-                # 对于分支决策等特殊步骤，可能没有固定审批人
+                # 对于分支决策等特殊步骤，尝试通过分支条件确定具体审批人
                 if step.get('action_type') == 'branch_decision':
-                    step_data['approver_name'] = '分支决策'
+                    # 尝试通过分支条件确定具体审批人
+                    snapshot_step = None
+                    if approval_instance.template_snapshot and 'steps' in approval_instance.template_snapshot:
+                        snapshot_steps = approval_instance.template_snapshot.get('steps', [])
+                        snapshot_step = next((s for s in snapshot_steps if s.get('step_id') == step['id']), None)
+                    
+                    if snapshot_step and snapshot_step.get('branch_condition'):
+                        try:
+                            logger.info(f"🔍 开始为分支决策步骤 {step['step_name']} 评估具体审批人")
+                            # 调用分支条件评估逻辑确定审批人
+                            determined_approver = evaluate_branch_condition_for_display(
+                                snapshot_step['branch_condition'], 
+                                pricing_order
+                            )
+                            if determined_approver:
+                                step_data['approver_name'] = determined_approver['real_name']
+                                step_data['approver_id'] = determined_approver['user_id']
+                                logger.info(f"🔍 ✅ 分支决策步骤确定审批人: {determined_approver['real_name']} (ID: {determined_approver['user_id']})")
+                            else:
+                                step_data['approver_name'] = '分支决策'
+                                logger.info(f"🔍 ❌ 无法确定分支决策步骤的具体审批人，显示'分支决策'")
+                        except Exception as e:
+                            logger.error(f"🔍 分支条件评估失败: {e}")
+                            step_data['approver_name'] = '分支决策'
+                    else:
+                        step_data['approver_name'] = '分支决策'
+                        logger.info(f"🔍 无分支条件配置，显示'分支决策'")
             
             flow_data.append(step_data)
         
@@ -1639,43 +1791,112 @@ def save_and_submit_pricing_order(order_id):
         pricing_details = data.get('pricing_details', [])
         settlement_details = data.get('settlement_details', [])
         
+        # 🔍 添加详细的数据接收调试信息
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] ============= 开始处理批价单保存和提交 =============")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] 批价单ID: {order_id}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] 当前用户: {current_user.username} (ID: {current_user.id})")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] 完整请求数据: {data}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] basic_info 内容: {basic_info}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] basic_info 中的关键字段:")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - dealer_id: {basic_info.get('dealer_id', '字段不存在')}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - distributor_id: {basic_info.get('distributor_id', '字段不存在')}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - is_direct_contract: {basic_info.get('is_direct_contract', '字段不存在')}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - is_factory_pickup: {basic_info.get('is_factory_pickup', '字段不存在')}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] pricing_details 数量: {len(pricing_details)}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] settlement_details 数量: {len(settlement_details)}")
+        
+        # 记录提交前的数据库状态
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] 提交前数据库状态:")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - dealer_id: {pricing_order.dealer_id}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - distributor_id: {pricing_order.distributor_id}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - pricing_total_discount_rate: {pricing_order.pricing_total_discount_rate}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - is_direct_contract: {pricing_order.is_direct_contract}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - is_factory_pickup: {pricing_order.is_factory_pickup}")
+        
         # 更新基本信息
         # 处理厂商直签和厂家提货字段
         is_direct_contract = basic_info.get('is_direct_contract', False)
         is_factory_pickup = basic_info.get('is_factory_pickup', False)
         
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] 基本信息处理:")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - is_direct_contract: {is_direct_contract} (类型: {type(is_direct_contract)})")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - is_factory_pickup: {is_factory_pickup} (类型: {type(is_factory_pickup)})")
+        
         pricing_order.is_direct_contract = is_direct_contract
         pricing_order.is_factory_pickup = is_factory_pickup
         
         # 根据厂商直签状态处理经销商和分销商
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] ============= 经销商分销商处理逻辑 =============")
         if is_direct_contract:
             # 厂商直签时，清空经销商和分销商
+            logger.info(f"🔍 [SAVE_AND_SUBMIT] 🚨 进入厂商直签模式，将清空经销商和分销商")
+            logger.info(f"🔍 [SAVE_AND_SUBMIT] 🚨 清空前: dealer_id={pricing_order.dealer_id}, distributor_id={pricing_order.distributor_id}")
             pricing_order.dealer_id = None
             pricing_order.distributor_id = None
+            logger.info(f"🔍 [SAVE_AND_SUBMIT] 🚨 清空后: dealer_id={pricing_order.dealer_id}, distributor_id={pricing_order.distributor_id}")
         else:
             # 非厂商直签时，正常处理经销商和分销商
+            logger.info(f"🔍 [SAVE_AND_SUBMIT] ✅ 进入非厂商直签模式，正常处理经销商和分销商")
+            
             if 'dealer_id' in basic_info:
                 dealer_id = basic_info['dealer_id']
+                logger.info(f"🔍 [SAVE_AND_SUBMIT] 经销商处理 - 原始值: {dealer_id} (类型: {type(dealer_id)})")
+                
                 if dealer_id and str(dealer_id).strip():
                     try:
+                        old_dealer_id = pricing_order.dealer_id
                         pricing_order.dealer_id = int(dealer_id)
-                    except (ValueError, TypeError):
+                        logger.info(f"🔍 [SAVE_AND_SUBMIT] ✅ 经销商ID已设置: {old_dealer_id} -> {pricing_order.dealer_id}")
+                    except (ValueError, TypeError) as e:
                         pricing_order.dealer_id = None
+                        logger.info(f"🔍 [SAVE_AND_SUBMIT] ❌ 经销商ID转换失败: {e}")
                 else:
+                    old_dealer_id = pricing_order.dealer_id
                     pricing_order.dealer_id = None
+                    logger.info(f"🔍 [SAVE_AND_SUBMIT] ⚠️ 经销商ID为空或无效: {old_dealer_id} -> {pricing_order.dealer_id}")
+            else:
+                logger.info(f"🔍 [SAVE_AND_SUBMIT] ❌ basic_info 中没有 dealer_id 字段")
             
             # 处理分销商：如果厂家提货开启，清空分销商
             if is_factory_pickup:
+                logger.info(f"🔍 [SAVE_AND_SUBMIT] 🚨 厂家提货模式，清空分销商")
+                old_distributor_id = pricing_order.distributor_id
                 pricing_order.distributor_id = None
+                logger.info(f"🔍 [SAVE_AND_SUBMIT] 🚨 分销商清空: {old_distributor_id} -> {pricing_order.distributor_id}")
             elif 'distributor_id' in basic_info:
                 distributor_id = basic_info['distributor_id']
+                logger.info(f"🔍 [SAVE_AND_SUBMIT] 分销商处理 - 原始值: {distributor_id} (类型: {type(distributor_id)})")
+                
                 if distributor_id and str(distributor_id).strip():
                     try:
+                        old_distributor_id = pricing_order.distributor_id
                         pricing_order.distributor_id = int(distributor_id)
-                    except (ValueError, TypeError):
+                        logger.info(f"🔍 [SAVE_AND_SUBMIT] ✅ 分销商ID已设置: {old_distributor_id} -> {pricing_order.distributor_id}")
+                    except (ValueError, TypeError) as e:
                         pricing_order.distributor_id = None
+                        logger.info(f"🔍 [SAVE_AND_SUBMIT] ❌ 分销商ID转换失败: {e}")
                 else:
+                    old_distributor_id = pricing_order.distributor_id
                     pricing_order.distributor_id = None
+                    logger.info(f"🔍 [SAVE_AND_SUBMIT] ⚠️ 分销商ID为空或无效: {old_distributor_id} -> {pricing_order.distributor_id}")
+            else:
+                logger.info(f"🔍 [SAVE_AND_SUBMIT] ❌ basic_info 中没有 distributor_id 字段")
+        
+        # 处理总折扣率
+        if 'pricing_total_discount_rate' in basic_info:
+            pricing_total_discount_rate = basic_info['pricing_total_discount_rate']
+            logger.info(f"🔍 [DEBUG] 总折扣率处理 - 原始值: {pricing_total_discount_rate} (类型: {type(pricing_total_discount_rate)})")
+            
+            if pricing_total_discount_rate is not None:
+                try:
+                    pricing_order.pricing_total_discount_rate = float(pricing_total_discount_rate)
+                    logger.info(f"🔍 [DEBUG] 总折扣率已设置: {pricing_order.pricing_total_discount_rate}")
+                except (ValueError, TypeError) as e:
+                    logger.info(f"🔍 [DEBUG] 总折扣率转换失败: {e}")
+            else:
+                logger.info(f"🔍 [DEBUG] 总折扣率为空")
+        else:
+            logger.info(f"🔍 [DEBUG] basic_info 中没有 pricing_total_discount_rate 字段")
         
         # 保存明细（如果提供）
         if pricing_details:
@@ -1781,17 +2002,51 @@ def save_and_submit_pricing_order(order_id):
         pricing_order.calculate_pricing_totals(recalculate_discount_rate=True)
         pricing_order.calculate_settlement_totals(recalculate_discount_rate=True)
         
+        # 记录数据处理完成后的状态
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] ============= 数据处理完成后状态 =============")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] - dealer_id: {pricing_order.dealer_id}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] - distributor_id: {pricing_order.distributor_id}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] - pricing_total_discount_rate: {pricing_order.pricing_total_discount_rate}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] - is_direct_contract: {pricing_order.is_direct_contract}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] - is_factory_pickup: {pricing_order.is_factory_pickup}")
+        
+        # 在审批提交前强制保存数据到数据库
+        db.session.commit()
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] ✅ 审批提交前已强制保存数据到数据库")
+        
         # 提交审批
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] ============= 开始提交审批 =============")
         success, error = PricingOrderService.submit_for_approval(order_id, current_user.id)
         
         if not success:
+            logger.error(f"🔍 [SAVE_AND_SUBMIT] ❌ 提交审批失败: {error}")
             db.session.rollback()
+            logger.info(f"🔍 [SAVE_AND_SUBMIT] 🔄 数据库事务已回滚")
             return jsonify({
                 'success': False,
                 'message': error
             })
         
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] ✅ 提交审批成功，准备提交数据库事务...")
+        
+        # 提交前再次记录状态
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] 提交事务前最后状态:")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] - dealer_id: {pricing_order.dealer_id}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] - distributor_id: {pricing_order.distributor_id}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] - pricing_total_discount_rate: {pricing_order.pricing_total_discount_rate}")
+        
         db.session.commit()
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] ✅ 数据库事务已提交")
+        
+        # 记录最终数据库状态（重新查询确认）
+        updated_pricing_order = PricingOrder.query.get(order_id)
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] ============= 最终数据库状态（重新查询确认） =============")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] - dealer_id: {updated_pricing_order.dealer_id}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] - distributor_id: {updated_pricing_order.distributor_id}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] - pricing_total_discount_rate: {updated_pricing_order.pricing_total_discount_rate}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] - is_direct_contract: {updated_pricing_order.is_direct_contract}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] - is_factory_pickup: {updated_pricing_order.is_factory_pickup}")
+        logger.info(f"🔍 [SAVE_AND_SUBMIT] ============= /save_and_submit 处理完成 =============")
         
         return jsonify({
             'success': True,

@@ -853,10 +853,10 @@ def view_project(project_id):
     elif user_role in ['finance_director', 'finace_director', 'solution_manager', 'solution', 'product_manager', 'product']:
         has_permission = True
     # 渠道经理可以查看渠道跟进项目
-    elif user_role == 'channel_manager' and project.project_type in ['channel_follow', '渠道跟进']:
+    elif user_role == 'channel_manager' and project.project_type == 'channel_follow':
         has_permission = True
     # 销售总监可以查看渠道跟进和销售重点项目
-    elif user_role == 'sales_director' and project.project_type in ['channel_follow', 'sales_focus', '渠道跟进', '销售重点']:
+    elif user_role == 'sales_director' and project.project_type in ['channel_follow', 'sales_focus', 'sales_key']:
         has_permission = True
     # 服务经理可以查看客户服务项目
     elif user_role in ['service', 'service_manager'] and project.project_type == 'business_opportunity':
@@ -1497,17 +1497,12 @@ def edit_project(project_id):
             if vendor_sales_manager_id:
                 project.vendor_sales_manager_id = int(vendor_sales_manager_id) if vendor_sales_manager_id != '' else None
             
-            # 更新项目类型
+            # 更新项目类型 - 只接受英文键
             new_project_type = request.form.get('project_type', 'normal')
-            new_project_type = {
-                '渠道跟进': 'channel_follow',
-                '销售重点': 'sales_focus',
-                '客户服务': 'business_opportunity',
-                'normal': 'normal',
-                'channel_follow': 'channel_follow',
-                'sales_focus': 'sales_focus',
-                'business_opportunity': 'business_opportunity'
-            }.get(new_project_type, 'normal')
+            
+            # 验证项目类型有效性
+            if new_project_type not in ['normal', 'channel_follow', 'sales_focus', 'sales_key', 'business_opportunity']:
+                new_project_type = 'normal'
             if new_project_type != project.project_type:
                 project.project_type = new_project_type
             

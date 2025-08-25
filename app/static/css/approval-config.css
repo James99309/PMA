@@ -6,6 +6,16 @@
     background-color: #f8f9ff;
 }
 
+/* 添加分支条件按钮样式 */
+.branch-add-button:hover {
+    border-color: #007bff !important;
+    background-color: #f8f9ff;
+}
+
+.branch-add-button:hover .text-muted {
+    color: #007bff !important;
+}
+
 /* 自定义徽章颜色 */
 .bg-purple {
     background-color: #6f42c1 !important;
@@ -198,4 +208,59 @@
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* 字段锁定相关样式 */
+.field-lock-warning {
+    background-color: #e3f2fd !important;
+    border: 1px solid #90caf9 !important;
+    color: #1565c0 !important;
+    font-size: 0.875rem;
+    border-radius: 4px;
+}
+
+.field-lock-warning i {
+    color: #1976d2;
+    margin-right: 6px;
+}
+
+/* 锁定状态的表单控件样式 */
+.form-control:disabled,
+.form-control[readonly] {
+    background-color: #f8f9fa !important;
+    cursor: not-allowed;
+    border-color: #dee2e6;
+}
+
+.form-control:disabled::placeholder,
+.form-control[readonly]::placeholder {
+    color: #adb5bd !important;
+}
+
+/* 锁定字段的特殊样式 */
+.form-control.field-locked {
+    background-color: #f8f9fa !important;
+    border-left: 3px solid #ffc107 !important;
+    position: relative;
+}
+
+.form-control.field-locked:focus {
+    box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25) !important;
+    border-color: #ffc107 !important;
+}
+
+/* 锁定图标叠加效果 */
+.field-container {
+    position: relative;
+}
+
+.field-container .lock-overlay {
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    color: #ffc107;
+    font-size: 16px;
+    pointer-events: none;
+    z-index: 10;
 }

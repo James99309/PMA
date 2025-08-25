@@ -820,12 +820,48 @@ class ApprovalFlow {
     // 提交审批申请
     async submitForApproval() {
         try {
-            const response = await fetch(`${this.options.apiBasePath}/${this.objectId}/submit`, {
+            console.log('🔍 [DEBUG] submitForApproval 开始执行');
+            console.log('🔍 [DEBUG] this.objectType:', this.objectType);
+            console.log('🔍 [DEBUG] this.objectId:', this.objectId);
+            console.log('🔍 [DEBUG] this.options.apiBasePath:', this.options.apiBasePath);
+            
+            let apiEndpoint, requestBody = {};
+            
+            // 批价单特殊处理：需要先保存数据再提交审批
+            if (this.objectType === 'pricing_order') {
+                console.log('🔍 [DEBUG] ✅ 检测到批价单类型，使用 save_and_submit');
+                apiEndpoint = `${this.options.apiBasePath}/${this.objectId}/save_and_submit`;
+                console.log('🔍 [DEBUG] apiEndpoint 设置为:', apiEndpoint);
+                
+                // 收集批价单页面数据
+                if (typeof window.pricingOrderDataCollection === 'function') {
+                    requestBody = window.pricingOrderDataCollection();
+                    console.log('🔍 [DEBUG] 批价单提交审批，收集的数据:', requestBody);
+                } else {
+                    // 后备方案：收集基本缓存数据
+                    requestBody = {
+                        basic_info: window.pricingOrderCache || {},
+                        pricing_details: typeof collectPricingDetails === 'function' ? collectPricingDetails() : [],
+                        settlement_details: typeof collectSettlementDetails === 'function' ? collectSettlementDetails() : []
+                    };
+                    console.log('🔍 [DEBUG] 批价单提交审批，使用后备数据收集:', requestBody);
+                }
+            } else {
+                // 其他对象类型：使用原来的提交方式
+                console.log('🔍 [DEBUG] ❌ 非批价单类型，使用普通 submit');
+                apiEndpoint = `${this.options.apiBasePath}/${this.objectId}/submit`;
+            }
+            
+            console.log('🔍 [DEBUG] 最终请求URL:', apiEndpoint);
+            console.log('🔍 [DEBUG] 请求方法: POST');
+            
+            const response = await fetch(apiEndpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': this.getCSRFToken()
-                }
+                },
+                body: Object.keys(requestBody).length > 0 ? JSON.stringify(requestBody) : undefined
             });
             
             const data = await response.json();
@@ -878,12 +914,48 @@ class ApprovalFlow {
     // 重新提交审批
     async resubmitApproval() {
         try {
-            const response = await fetch(`${this.options.apiBasePath}/${this.objectId}/resubmit`, {
+            console.log('🔍 [DEBUG] resubmitApproval 开始执行');
+            console.log('🔍 [DEBUG] this.objectType:', this.objectType);
+            console.log('🔍 [DEBUG] this.objectId:', this.objectId);
+            console.log('🔍 [DEBUG] this.options.apiBasePath:', this.options.apiBasePath);
+            
+            let apiEndpoint, requestBody = {};
+            
+            // 批价单特殊处理：没有专门的 resubmit 路由，使用 save_and_submit
+            if (this.objectType === 'pricing_order') {
+                console.log('🔍 [DEBUG] ✅ 检测到批价单类型，重新提交使用 save_and_submit');
+                apiEndpoint = `${this.options.apiBasePath}/${this.objectId}/save_and_submit`;
+                console.log('🔍 [DEBUG] resubmit apiEndpoint 设置为:', apiEndpoint);
+                
+                // 收集批价单页面数据
+                if (typeof window.pricingOrderDataCollection === 'function') {
+                    requestBody = window.pricingOrderDataCollection();
+                    console.log('🔍 [DEBUG] 批价单重新提交，收集的数据:', requestBody);
+                } else {
+                    // 后备方案：收集基本缓存数据
+                    requestBody = {
+                        basic_info: window.pricingOrderCache || {},
+                        pricing_details: typeof collectPricingDetails === 'function' ? collectPricingDetails() : [],
+                        settlement_details: typeof collectSettlementDetails === 'function' ? collectSettlementDetails() : []
+                    };
+                    console.log('🔍 [DEBUG] 批价单重新提交，使用后备数据收集:', requestBody);
+                }
+            } else {
+                // 其他对象类型：使用原来的重新提交方式
+                console.log('🔍 [DEBUG] ❌ 非批价单类型，使用普通 resubmit');
+                apiEndpoint = `${this.options.apiBasePath}/${this.objectId}/resubmit`;
+            }
+            
+            console.log('🔍 [DEBUG] 重新提交最终请求URL:', apiEndpoint);
+            console.log('🔍 [DEBUG] 重新提交请求方法: POST');
+            
+            const response = await fetch(apiEndpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': this.getCSRFToken()
-                }
+                },
+                body: Object.keys(requestBody).length > 0 ? JSON.stringify(requestBody) : undefined
             });
             
             const data = await response.json();

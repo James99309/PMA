@@ -1,0 +1,271 @@
+/* Toast通知组件样式 */
+
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    max-width: 400px;
+    pointer-events: none;
+}
+
+.toast {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    margin-bottom: 12px;
+    max-width: 100%;
+    opacity: 0;
+    pointer-events: auto;
+    position: relative;
+    transform: translateX(100%);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: 300px;
+    border-left: 4px solid transparent;
+}
+
+/* 显示状态 */
+.toast.toast-show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+/* 隐藏状态 */
+.toast.toast-hide {
+    opacity: 0;
+    transform: translateX(100%);
+    margin-bottom: 0;
+    max-height: 0;
+    padding: 0;
+}
+
+/* 暂停状态（鼠标悬停） */
+.toast.toast-paused {
+    transform: translateX(-5px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Toast内容 */
+.toast-content {
+    display: flex;
+    align-items: flex-start;
+    padding: 16px 20px;
+    gap: 12px;
+}
+
+.toast-icon {
+    flex-shrink: 0;
+    font-size: 20px;
+    margin-top: 2px;
+}
+
+.toast-message {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.4;
+    color: #333;
+    word-break: break-word;
+}
+
+.toast-close {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
+    margin-left: 8px;
+    transition: color 0.2s ease;
+}
+
+.toast-close:hover {
+    color: #666;
+}
+
+/* Success Toast */
+.toast-success {
+    border-left-color: #28a745;
+}
+
+.toast-success .toast-icon {
+    color: #28a745;
+}
+
+/* Error Toast */
+.toast-error {
+    border-left-color: #dc3545;
+}
+
+.toast-error .toast-icon {
+    color: #dc3545;
+}
+
+/* Warning Toast */
+.toast-warning {
+    border-left-color: #ffc107;
+}
+
+.toast-warning .toast-icon {
+    color: #ffc107;
+}
+
+/* Info Toast */
+.toast-info {
+    border-left-color: #17a2b8;
+}
+
+.toast-info .toast-icon {
+    color: #17a2b8;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    .toast-container {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+    }
+    
+    .toast {
+        min-width: auto;
+        width: 100%;
+    }
+    
+    .toast-content {
+        padding: 12px 16px;
+        gap: 10px;
+    }
+    
+    .toast-message {
+        font-size: 13px;
+    }
+    
+    .toast-icon {
+        font-size: 18px;
+    }
+}
+
+/* 高对比度主题支持 */
+@media (prefers-contrast: high) {
+    .toast {
+        border-width: 2px;
+        border-style: solid;
+    }
+    
+    .toast-success {
+        border-color: #28a745;
+    }
+    
+    .toast-error {
+        border-color: #dc3545;
+    }
+    
+    .toast-warning {
+        border-color: #ffc107;
+    }
+    
+    .toast-info {
+        border-color: #17a2b8;
+    }
+}
+
+/* 减少动效主题支持 */
+@media (prefers-reduced-motion: reduce) {
+    .toast {
+        transition: opacity 0.2s ease;
+    }
+    
+    .toast.toast-show {
+        transform: none;
+    }
+    
+    .toast.toast-hide {
+        transform: none;
+    }
+    
+    .toast.toast-paused {
+        transform: none;
+    }
+}
+
+/* 深色主题支持 */
+@media (prefers-color-scheme: dark) {
+    .toast {
+        background: #2d3748;
+        color: #e2e8f0;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+    
+    .toast-message {
+        color: #e2e8f0;
+    }
+    
+    .toast-close {
+        color: #a0aec0;
+    }
+    
+    .toast-close:hover {
+        color: #e2e8f0;
+    }
+}
+
+/* 载入动画关键帧 */
+@keyframes toastSlideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes toastSlideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+/* 堆叠效果 */
+.toast:nth-child(n+2) {
+    margin-top: -4px;
+    transform: scale(0.98);
+}
+
+.toast:nth-child(n+3) {
+    transform: scale(0.96);
+    opacity: 0.9;
+}
+
+.toast:nth-child(n+4) {
+    transform: scale(0.94);
+    opacity: 0.8;
+}
+
+.toast:nth-child(n+5) {
+    transform: scale(0.92);
+    opacity: 0.7;
+}
+
+/* Focus accessibility */
+.toast-close:focus {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
+}
+
+/* 无障碍访问支持 */
+.toast[role="alert"] {
+    /* 自动被屏幕阅读器读出 */
+}
+
+.toast[role="status"] {
+    /* 用于状态更新，不会打断用户 */
+}

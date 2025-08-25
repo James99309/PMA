@@ -56,10 +56,11 @@ def initialize_data_ownership():
             for project in projects:
                 project.owner_id = default_owner_id
                 # 将旧的项目类型格式转换为新格式
-                if not project.project_type or project.project_type not in ['normal', 'channel_follow', 'sales_focus']:
-                    if project.project_type == '渠道跟进':
+                if not project.project_type or project.project_type not in ['normal', 'channel_follow', 'sales_focus', 'sales_key', 'business_opportunity']:
+                    # 数据已清理，这个逻辑主要用于历史兼容性
+                    if project.project_type in ['渠道跟进']:
                         project.project_type = 'channel_follow'
-                    elif project.project_type == '销售重点':
+                    elif project.project_type in ['销售重点']:
                         project.project_type = 'sales_focus'
                     else:
                         project.project_type = 'normal'
