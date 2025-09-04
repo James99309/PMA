@@ -3341,20 +3341,6 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
     # 记录详细的诊断信息
     current_app.logger.info(f"开始发起审批流程: 对象类型={object_type}, 对象ID={object_id}, 模板ID={template_id}")
     
-    # 检查是否是项目授权申请，如果是则使用智能路由
-    if object_type == 'project':
-        project = Project.query.get(object_id)
-        if project:
-            # 检查是否是授权申请（通过模板名或其他标识）
-            template = ApprovalProcessTemplate.query.get(template_id)
-            if template and ('授权' in template.name or 'authorization' in template.name.lower() or '智能授权' in template.name):
-                # 使用统一的智能授权模板
-                unified_template = create_or_get_unified_authorization_template()
-                if unified_template:
-                    template_id = unified_template.id
-                    approver = get_authorization_approver_by_project_type(project.project_type)
-                    current_app.logger.info(f"项目 {object_id} 使用智能授权路由，项目类型: {project.project_type}, 将分配给: {approver.username if approver else '未知用户'}")
-    
     # 检查是否已存在进行中的审批实例（不包括被拒绝的和已召回的）
     existing = get_object_approval_instance(object_type, object_id, include_rejected=False)
     
@@ -3939,6 +3925,21 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
             current_app.logger.info(f"[DEBUG] 查找下一步骤: next_step_order={next_step_order}, found={next_step is not None}")
             
             if next_step:
+                # 🔥 新增：先执行当前步骤的分支动作（如果是分支决策步骤）
+                current_app.logger.info(f"🔍 [BRANCH_DEBUG] 检查分支决策执行条件:")
+                current_app.logger.info(f"🔍 [BRANCH_DEBUG]   步骤类型: {current_step_action_type}")
+                current_app.logger.info(f"🔍 [BRANCH_DEBUG]   审批动作: {action}")
+                current_app.logger.info(f"🔍 [BRANCH_DEBUG]   条件匹配: 步骤是branch_decision={current_step_action_type == 'branch_decision'}, 动作是APPROVE={action == ApprovalAction.APPROVE}")
+                
+                if current_step_action_type == 'branch_decision' and action == ApprovalAction.APPROVE:
+                    current_app.logger.info(f"🔍 [BRANCH_ACTION_DEBUG] ===== 开始执行分支决策步骤动作 =====")
+                    current_app.logger.info(f"🔍 [BRANCH_ACTION_DEBUG] 步骤类型: {current_step_action_type}")
+                    current_app.logger.info(f"🔍 [BRANCH_ACTION_DEBUG] 审批动作: {action}")
+                    current_app.logger.info(f"🔍 [BRANCH_ACTION_DEBUG] 审批实例: {instance.id}, 对象类型: {instance.object_type}, 对象ID: {instance.object_id}")
+                    
+                    # 执行分支匹配的动作，传递批价单数据
+                    _execute_branch_decision_action(instance, current_step, current_step_obj, record, user_id, pricing_order_data)
+                
                 # 更新到下一步，使用step_id而不是step_order
                 next_step_id = next_step.get('step_id') if isinstance(next_step, dict) else next_step.id
                 instance.current_step = next_step_id
@@ -3950,27 +3951,91 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
             else:
                 # 🔥 修复：所有步骤已完成，但要先执行当前步骤的动作（如分支决策）
                 
+                # === 调试断点Level4: 执行动作判断 ===
+                print("\n🔥 === Level4调试断点: 执行动作判断 ===")
+                print("current_step_action_type:", repr(current_step_action_type))
+                print("action:", repr(action))
+                print("ApprovalAction.APPROVE:", repr(ApprovalAction.APPROVE))
+                print("条件结果:")
+                print("  action_type存在:", bool(current_step_action_type))
+                print("  action是APPROVE:", action == ApprovalAction.APPROVE)
+                print("  整体条件:", current_step_action_type and action == ApprovalAction.APPROVE)
+                # import pdb; pdb.set_trace()  # 暂时注释掉调试断点
+                
                 # 先执行当前步骤的动作（特别是分支决策步骤）
+                current_app.logger.info(f"🔍 [EXECUTE_ACTION_DEBUG] ===== 开始执行审批动作 =====")
+                current_app.logger.info(f"🔍 [EXECUTE_ACTION_DEBUG] instance.object_type: {instance.object_type}")
+                current_app.logger.info(f"🔍 [EXECUTE_ACTION_DEBUG] instance.object_id: {instance.object_id}")
+                current_app.logger.info(f"🔍 [EXECUTE_ACTION_DEBUG] action: {action}")
+                current_app.logger.info(f"🔍 [EXECUTE_ACTION_DEBUG] current_step_action_type: {current_step_action_type}")
                 if current_step_action_type and action == ApprovalAction.APPROVE:
                     
                     # 创建临时的ApprovalStep对象来执行动作
                     if current_step_obj:
                         try:
+                            current_app.logger.info(f"🔍 [OBJECT_TYPE_DEBUG] ===== 开始对象类型判断 =====")
                             target_object = None
                             if instance.object_type == 'project':
+                                current_app.logger.info(f"🔍 [OBJECT_TYPE_DEBUG] ✅ 检测到 project 类型")
                                 from app.models.project import Project
                                 target_object = Project.query.get(instance.object_id)
                             elif instance.object_type == 'expense':
+                                current_app.logger.info(f"🔍 [OBJECT_TYPE_DEBUG] ✅ 检测到 expense 类型")
                                 from app.models.expense import Expense
                                 target_object = Expense.query.get(instance.object_id)
-                            
-                            if target_object:
-                                result = current_step_obj.execute_action(record, target_object)
+                            elif instance.object_type == 'pricing_order':
+                                current_app.logger.info(f"🔍 [OBJECT_TYPE_DEBUG] ✅ 检测到 pricing_order 类型")
+                                current_app.logger.info(f"🔍 [OBJECT_TYPE_DEBUG] 开始导入 PricingOrder 模型")
+                                from app.models.pricing_order import PricingOrder
+                                target_object = PricingOrder.query.get(instance.object_id)
+                                current_app.logger.info(f"🔍 [OBJECT_TYPE_DEBUG] ✅ PricingOrder 对象获取完成: {target_object}")
                             else:
+                                current_app.logger.info(f"🔍 [OBJECT_TYPE_DEBUG] ❌ 未识别的对象类型: {instance.object_type}")
+                            
+                            current_app.logger.info(f"🔍 [EXECUTE_CALL_DEBUG] target_object: {target_object}")
+                            if target_object:
+                                # === 调试断点Level5: execute_action调用前 ===
+                                print("\n🔥 === Level5调试断点: 即将调用execute_action ===")
+                                print("step_obj:", current_step_obj)
+                                print("step_id:", getattr(current_step_obj, 'id', 'None'))
+                                print("step_name:", getattr(current_step_obj, 'step_name', 'None'))
+                                print("action_type:", getattr(current_step_obj, 'action_type', 'None'))
+                                print("record:", record)
+                                print("target_object:", target_object)
+                                print("pricing_order_data存在:", bool(pricing_order_data))
+                                if pricing_order_data:
+                                    print("pricing_order_data:", pricing_order_data)
+                                print("是批价单:", instance.object_type == 'pricing_order')
+                                print("有数据:", bool(pricing_order_data))
+                                # import pdb; pdb.set_trace()  # 暂时注释掉调试断点
+                                
+                                current_app.logger.info(f"🔍 [EXECUTE_CALL_DEBUG] ✅ 目标对象存在，调用 execute_action")
+                                current_app.logger.info(f"🔍 [EXECUTE_CALL_DEBUG] current_step_obj: {current_step_obj}")
+                                current_app.logger.info(f"🔍 [EXECUTE_CALL_DEBUG] current_step_obj.action_type: {current_step_obj.action_type if current_step_obj else 'None'}")
+                                # 如果是批价单审批且有数据，传递批价单数据
+                                if instance.object_type == 'pricing_order' and pricing_order_data:
+                                    print(">>> 调用: execute_action(含数据)")
+                                    result = current_step_obj.execute_action(record, target_object, pricing_order_data)
+                                else:
+                                    print(">>> 调用: execute_action(标准版)")
+                                    result = current_step_obj.execute_action(record, target_object)
+                                    
+                                # === 调试断点Level5b: execute_action调用后 ===
+                                print("\n🔥 === Level5b调试断点: execute_action完成 ===")
+                                print("执行结果:", result)
+                                # import pdb; pdb.set_trace()  # 暂时注释掉调试断点
+                                
+                                current_app.logger.info(f"🔍 [EXECUTE_CALL_DEBUG] ✅ execute_action 执行完成，结果: {result}")
+                            else:
+                                current_app.logger.info(f"🔍 [EXECUTE_CALL_DEBUG] ❌ 目标对象为空，跳过执行")
                                 pass  # 目标对象不存在
                         except Exception as e:
+                            current_app.logger.error(f"🔍 [EXECUTE_CALL_DEBUG] ❌ 执行动作时发生异常: {str(e)}")
                             import traceback
                             traceback.print_exc()
+                else:
+                    current_app.logger.info(f"🔍 [EXECUTE_ACTION_DEBUG] ❌ 跳过动作执行 - current_step_action_type: {current_step_action_type}, action: {action}")
+                    current_app.logger.info(f"🔍 [EXECUTE_ACTION_DEBUG] 条件检查: current_step_action_type存在={bool(current_step_action_type)}, action是APPROVE={action == ApprovalAction.APPROVE}")
                 
                 # 流程通过
                 instance.status = ApprovalStatus.APPROVED
@@ -4101,7 +4166,7 @@ def _handle_project_authorization(instance, project_type, preview_only=False, br
         return None
 
 
-def process_approval(instance_id, action, comment=None, user_id=None, project_type=None):
+def process_approval(instance_id, action, comment=None, user_id=None, project_type=None, pricing_order_data=None):
     """处理审批操作
     
     Args:
@@ -4110,20 +4175,49 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
         comment: 审批意见
         user_id: 操作人ID，默认为当前登录用户
         project_type: 项目类型，用于授权步骤
+        pricing_order_data: 批价单数据，用于批结算步骤
         
     Returns:
         布尔值，表示操作是否成功
     """
+    # === 调试断点Level3: process_approval函数入口 ===
+    print("\n🔥 === Level3调试断点: process_approval()被调用 ===")
+    print("instance_id:", instance_id)
+    print("action:", action, "类型:", type(action))
+    print("comment:", comment)
+    print("user_id:", user_id)
+    print("project_type:", project_type)
+    print("pricing_order_data存在:", bool(pricing_order_data))
+    if pricing_order_data:
+        print("pricing_order_data:", pricing_order_data)
+    # import pdb; pdb.set_trace()  # 暂时注释掉调试断点
+    
+    # 🔍 添加函数入口调试信息
+    current_app.logger.info(f"🔍 [FUNCTION_DEBUG] ===== process_approval函数被调用 =====")
+    current_app.logger.info(f"🔍 [FUNCTION_DEBUG] 参数: instance_id={instance_id}, action={action}, comment={comment}, user_id={user_id}, project_type={project_type}")
+    if pricing_order_data:
+        current_app.logger.info(f"🔍 [FUNCTION_DEBUG] 批价单数据: {pricing_order_data}")
+    
     # 导入所需的模型
     from app.models.approval import ApprovalStep
     
     # 如果提供了项目类型，使用扩展的处理函数
     if project_type is not None:
+        current_app.logger.info(f"🔍 [FUNCTION_DEBUG] 重定向到 process_approval_with_project_type")
         return process_approval_with_project_type(instance_id, action, project_type, comment, user_id)
     
     # 原始处理逻辑保持不变...
     instance = ApprovalInstance.query.get(instance_id)
+    current_app.logger.info(f"🔍 [INSTANCE_DEBUG] 审批实例查询结果:")
+    current_app.logger.info(f"🔍 [INSTANCE_DEBUG]   实例存在: {instance is not None}")
+    if instance:
+        current_app.logger.info(f"🔍 [INSTANCE_DEBUG]   实例状态: {instance.status}")
+        current_app.logger.info(f"🔍 [INSTANCE_DEBUG]   对象类型: {instance.object_type}")
+        current_app.logger.info(f"🔍 [INSTANCE_DEBUG]   对象ID: {instance.object_id}")
+        current_app.logger.info(f"🔍 [INSTANCE_DEBUG]   当前步骤: {instance.current_step}")
+    
     if not instance or instance.status != ApprovalStatus.PENDING:
+        current_app.logger.warning(f"🔍 [INSTANCE_DEBUG] 审批实例无效或状态不是PENDING，函数返回False")
         return False
     
     if user_id is None:
@@ -4137,7 +4231,20 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
     
     # 获取当前步骤 - 修复：使用模板快照
     current_step = instance.get_current_step_info()
+    current_app.logger.info(f"🔍 [STEP_DEBUG] 当前步骤信息获取结果:")
+    current_app.logger.info(f"🔍 [STEP_DEBUG]   步骤存在: {current_step is not None}")
+    if current_step:
+        if isinstance(current_step, dict):
+            current_app.logger.info(f"🔍 [STEP_DEBUG]   步骤类型: 字典格式 (快照)")
+            current_app.logger.info(f"🔍 [STEP_DEBUG]   动作类型: {current_step.get('action_type')}")
+            current_app.logger.info(f"🔍 [STEP_DEBUG]   步骤顺序: {current_step.get('step_order')}")
+            current_app.logger.info(f"🔍 [STEP_DEBUG]   步骤名称: {current_step.get('step_name')}")
+        else:
+            current_app.logger.info(f"🔍 [STEP_DEBUG]   步骤类型: 对象格式")
+            current_app.logger.info(f"🔍 [STEP_DEBUG]   动作类型: {getattr(current_step, 'action_type', None)}")
+    
     if not current_step:
+        current_app.logger.warning(f"🔍 [STEP_DEBUG] 无法获取当前步骤信息，函数返回False")
         return False
     
     # 使用新的动态审批人确定函数检查权限
@@ -4279,6 +4386,21 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
             current_app.logger.info(f"[DEBUG] 查找下一步骤: next_step_order={next_step_order}, found={next_step is not None}")
             
             if next_step:
+                # 🔥 新增：先执行当前步骤的分支动作（如果是分支决策步骤）
+                current_app.logger.info(f"🔍 [BRANCH_DEBUG] 检查分支决策执行条件:")
+                current_app.logger.info(f"🔍 [BRANCH_DEBUG]   步骤类型: {current_step_action_type}")
+                current_app.logger.info(f"🔍 [BRANCH_DEBUG]   审批动作: {action}")
+                current_app.logger.info(f"🔍 [BRANCH_DEBUG]   条件匹配: 步骤是branch_decision={current_step_action_type == 'branch_decision'}, 动作是APPROVE={action == ApprovalAction.APPROVE}")
+                
+                if current_step_action_type == 'branch_decision' and action == ApprovalAction.APPROVE:
+                    current_app.logger.info(f"🔍 [BRANCH_ACTION_DEBUG] ===== 开始执行分支决策步骤动作 =====")
+                    current_app.logger.info(f"🔍 [BRANCH_ACTION_DEBUG] 步骤类型: {current_step_action_type}")
+                    current_app.logger.info(f"🔍 [BRANCH_ACTION_DEBUG] 审批动作: {action}")
+                    current_app.logger.info(f"🔍 [BRANCH_ACTION_DEBUG] 审批实例: {instance.id}, 对象类型: {instance.object_type}, 对象ID: {instance.object_id}")
+                    
+                    # 执行分支匹配的动作，传递批价单数据
+                    _execute_branch_decision_action(instance, current_step, current_step_obj, record, user_id, pricing_order_data)
+                
                 # 更新到下一步，使用step_id而不是step_order
                 next_step_id = next_step.get('step_id') if isinstance(next_step, dict) else next_step.id
                 instance.current_step = next_step_id
@@ -6091,23 +6213,18 @@ def can_recall_approval(object_type, object_id, user_id):
         # 只有在待审批状态下才能召回
         if approval_instance.status != ApprovalStatus.PENDING:
             return False
-            
-        # 只有提交人可以召回
-        if approval_instance.created_by != user_id:
-            return False
-            
-        # 检查是否已经有人审批过（如果已经审批过则不能召回）
-        approved_records = ApprovalRecord.query.filter_by(
-            instance_id=approval_instance.id
-        ).filter(
-            ApprovalRecord.action.in_(['approve', 'reject'])
-        ).first()
         
-        # 如果已经有审批记录，则不能召回
-        if approved_records:
+        # 获取用户信息检查权限
+        from app.models.user import User
+        user = User.query.get(user_id)
+        if not user:
             return False
             
-        return True
+        # 发起人可以召回，或者管理员可以召回任何审批
+        if approval_instance.created_by == user_id or user.role == 'admin':
+            return True
+        
+        return False
         
     except Exception as e:
         current_app.logger.error(f"检查召回权限失败: {str(e)}")
@@ -6548,9 +6665,14 @@ def recall_approval_process(object_type, object_id, user_id=None):
         if not instance:
             return False, "未找到待审批的流程实例"
         
-        # 检查权限：只有创建者才能召回
-        if instance.created_by != user_id:
-            return False, "只有审批流程的创建者才能召回"
+        # 检查权限：创建者或管理员可以召回
+        from app.models.user import User
+        user = User.query.get(user_id)
+        if not user:
+            return False, "用户不存在"
+        
+        if instance.created_by != user_id and user.role != 'admin':
+            return False, "只有审批流程的创建者或管理员才能召回"
         
         # 更新审批实例状态
         instance.status = ApprovalStatus.RECALLED
@@ -7263,3 +7385,197 @@ def should_lock_branch_field(step_id, condition_index):
     except Exception as e:
         current_app.logger.error(f"判断字段锁定状态失败: {str(e)}")
         return False  # 出错时默认可编辑
+
+
+def _execute_branch_decision_action(instance, current_step, current_step_obj, record, user_id, pricing_order_data=None):
+    """执行分支决策步骤的匹配动作
+    
+    Args:
+        instance: 审批实例对象
+        current_step: 当前步骤信息（字典格式）
+        current_step_obj: 当前步骤对象（ApprovalStep）
+        record: 审批记录对象
+        user_id: 操作人ID
+        pricing_order_data: 批价单数据，用于保存操作
+    """
+    try:
+        current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] ===== 开始执行分支动作 =====")
+        current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] 接收到的参数:")
+        current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC]   instance: {instance}")
+        current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC]   current_step: {current_step}")
+        current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC]   user_id: {user_id}")
+        current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC]   pricing_order_data 存在: {pricing_order_data is not None}")
+        current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC]   pricing_order_data 类型: {type(pricing_order_data)}")
+        current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC]   pricing_order_data 内容: {pricing_order_data}")
+        current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] 分析分支条件...")
+        
+        # 获取分支条件
+        branch_condition = current_step.get('branch_condition')
+        if not branch_condition:
+            current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] ❌ 未找到分支条件，跳过动作执行")
+            return
+        
+        current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] 分支条件: {branch_condition}")
+        
+        # 确定匹配的动作
+        matched_action = _get_matched_branch_action(instance, branch_condition)
+        if not matched_action:
+            current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] ❌ 未匹配到任何分支动作，跳过执行")
+            return
+        
+        current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] ✅ 匹配到动作: {matched_action}")
+        
+        # 创建临时的ApprovalStep对象来执行动作
+        temp_step = type('TempStep', (), {})()
+        temp_step.action_type = matched_action
+        temp_step.id = current_step_obj.id if current_step_obj else 'temp'
+        
+        # 创建目标对象
+        target_object = None
+        if instance.object_type == 'project':
+            current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] ✅ 检测到 project 类型")
+            from app.models.project import Project
+            target_object = Project.query.get(instance.object_id)
+        elif instance.object_type == 'expense':
+            current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] ✅ 检测到 expense 类型")
+            from app.models.expense import Expense
+            target_object = Expense.query.get(instance.object_id)
+        elif instance.object_type == 'pricing_order':
+            current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] ✅ 检测到 pricing_order 类型")
+            from app.models.pricing_order import PricingOrder
+            target_object = PricingOrder.query.get(instance.object_id)
+        else:
+            current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] ❌ 未识别的对象类型: {instance.object_type}")
+            return
+        
+        current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] 目标对象: {target_object}")
+        
+        if target_object:
+            current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] ✅ 开始创建ApprovalStep对象并调用execute_action")
+            current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] matched_action: {matched_action}")
+            
+            # 创建真正的ApprovalStep对象来执行动作
+            from app.models.approval import ApprovalStep, ApprovalActionType
+            
+            # 创建临时的审批步骤对象
+            temp_approval_step = ApprovalStep()
+            temp_approval_step.action_type = matched_action  # 例如：'pricing_settlement_approval'
+            temp_approval_step.id = current_step_obj.id if current_step_obj else 'branch_temp'
+            
+            current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] 创建临时ApprovalStep对象，action_type: {temp_approval_step.action_type}")
+            current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] 准备调用 execute_action:")
+            current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC]   是否为批价单: {instance.object_type == 'pricing_order'}")
+            current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC]   是否有批价单数据: {pricing_order_data is not None}")
+            current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC]   将传递的数据类型: {type(pricing_order_data)}")
+            
+            try:
+                # 调用ApprovalStep的execute_action方法，传递审批记录和目标对象以及批价单数据
+                if instance.object_type == 'pricing_order' and pricing_order_data:
+                    result = temp_approval_step.execute_action(record, target_object, pricing_order_data)
+                    current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] ✅ execute_action 执行完成（含批价单数据），结果: {result}")
+                else:
+                    result = temp_approval_step.execute_action(record, target_object)
+                    current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] ✅ execute_action 执行完成（无批价单数据），结果: {result}")
+            except Exception as action_error:
+                current_app.logger.error(f"🔍 [BRANCH_ACTION_EXEC] ❌ execute_action 执行异常: {str(action_error)}")
+                import traceback
+                current_app.logger.error(traceback.format_exc())
+        else:
+            current_app.logger.info(f"🔍 [BRANCH_ACTION_EXEC] ❌ 目标对象为空")
+            
+    except Exception as e:
+        current_app.logger.error(f"🔍 [BRANCH_ACTION_EXEC] ❌ 执行分支动作时发生异常: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+
+def _get_matched_branch_action(instance, branch_condition):
+    """获取匹配的分支动作
+    
+    Args:
+        instance: 审批实例对象
+        branch_condition: 分支条件配置
+        
+    Returns:
+        str: 匹配的动作类型，如 'pricing_settlement_approval'
+    """
+    try:
+        import json
+        if isinstance(branch_condition, str):
+            branch_condition = json.loads(branch_condition)
+        
+        field_name = branch_condition.get('field')
+        conditions = branch_condition.get('conditions', [])
+        
+        current_app.logger.info(f"🔍 [BRANCH_MATCH] 条件字段: {field_name}, 条件数量: {len(conditions)}")
+        
+        # 获取字段值
+        field_value = _get_field_value_for_branch(instance, field_name)
+        current_app.logger.info(f"🔍 [BRANCH_MATCH] 字段值: {field_value}")
+        
+        # 匹配条件
+        for i, condition in enumerate(conditions):
+            condition_value = condition.get('value')
+            operator = condition.get('operator', 'equals')
+            action = condition.get('action')
+            
+            current_app.logger.info(f"🔍 [BRANCH_MATCH] 检查条件{i+1}: {field_value} {operator} {condition_value}, 动作: {action}")
+            
+            is_match = False
+            if operator == 'equals':
+                is_match = str(field_value) == str(condition_value)
+            elif operator == 'in':
+                # 处理逗号分隔的值列表
+                values = [v.strip() for v in str(condition_value).split(',')]
+                is_match = str(field_value) in values
+            elif operator == 'contains':
+                is_match = str(condition_value) in str(field_value)
+            
+            current_app.logger.info(f"🔍 [BRANCH_MATCH] 匹配结果: {is_match}")
+            
+            if is_match and action:
+                current_app.logger.info(f"🔍 [BRANCH_MATCH] ✅ 找到匹配动作: {action}")
+                return action
+        
+        current_app.logger.info(f"🔍 [BRANCH_MATCH] ❌ 未找到匹配的条件")
+        return None
+        
+    except Exception as e:
+        current_app.logger.error(f"🔍 [BRANCH_MATCH] ❌ 匹配分支动作时发生异常: {str(e)}")
+        return None
+
+
+def _get_field_value_for_branch(instance, field_name):
+    """获取用于分支条件匹配的字段值
+    
+    Args:
+        instance: 审批实例对象
+        field_name: 字段名称
+        
+    Returns:
+        字段值
+    """
+    try:
+        if instance.object_type == 'pricing_order':
+            # 批价单的特殊处理：从关联的报价单获取项目类型
+            if field_name == 'project_type':
+                from app.models.pricing_order import PricingOrder
+                pricing_order = PricingOrder.query.get(instance.object_id)
+                if pricing_order and pricing_order.quotation and pricing_order.quotation.project:
+                    return pricing_order.quotation.project.project_type
+        elif instance.object_type == 'project':
+            from app.models.project import Project
+            project = Project.query.get(instance.object_id)
+            if project and hasattr(project, field_name):
+                return getattr(project, field_name)
+        elif instance.object_type == 'expense':
+            from app.models.expense import Expense
+            expense = Expense.query.get(instance.object_id)
+            if expense and hasattr(expense, field_name):
+                return getattr(expense, field_name)
+        
+        return None
+        
+    except Exception as e:
+        current_app.logger.error(f"🔍 [FIELD_VALUE] ❌ 获取字段值时发生异常: {str(e)}")
+        return None

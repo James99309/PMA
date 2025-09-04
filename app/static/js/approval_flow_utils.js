@@ -91,7 +91,6 @@ async function loadApprovalFlow(objectType, objectId) {
  * @param {string} objectStatus - 对象状态
  */
 function autoShowApprovalUI(objectType, objectId, objectStatus) {
-    console.log(`autoShowApprovalUI: ${objectType}#${objectId} status=${objectStatus}`);
     
     let flow = getApprovalFlowInstance(objectType, objectId);
     if (!flow) {
@@ -173,37 +172,35 @@ function setGlobalCSRFToken(token) {
  * 事件监听器：审批提交成功
  */
 document.addEventListener('approval_submitted', function(event) {
-    console.log('审批提交成功:', event.detail);
+    console.log('审批提交成功，将重新加载页面以更新状态');
     
-    // 可以在这里添加全局的成功处理逻辑
-    // 比如刷新页面状态、显示通知等
+    // 显示成功消息
+    if (typeof showSuccessMessage === 'function') {
+        showSuccessMessage('审批提交成功');
+    }
+    
+    // 延迟刷新页面，让用户看到成功提示
+    setTimeout(() => {
+        window.location.reload();
+    }, 1500);
 });
 
 /**
  * 事件监听器：审批处理成功
  */
 document.addEventListener('approval_approved', function(event) {
-    console.log('审批处理成功:', event.detail);
-    
-    // 重新加载审批流程数据以更新UI状态
-    const flow = window.approvalFlowInstance;
-    if (flow) {
-        console.log('重新加载审批流程数据...');
-        flow.loadApprovalFlow();
-    }
-    
-    // 🔥 新增：更新页面状态信息，支付步骤需要更长的处理时间
-    setTimeout(() => {
-        updatePageStatusAfterApproval(event.detail);
-    }, 1000); // 增加延迟时间，确保支付步骤完全处理完成
+    console.log('审批处理成功，将重新加载页面以更新状态');
     
     // 显示成功消息
     const message = event.detail.action === 'approve' ? '审批已通过' : '审批已拒绝';
     if (typeof showSuccessMessage === 'function') {
         showSuccessMessage(message);
-    } else {
-        console.log(message);
     }
+    
+    // 延迟刷新页面，让用户看到成功提示
+    setTimeout(() => {
+        window.location.reload();
+    }, 1500);
 });
 
 /**
@@ -214,35 +211,28 @@ async function updatePageStatusAfterApproval(eventDetail, retryCount = 0) {
     console.log(`开始更新页面状态信息... (尝试 ${retryCount + 1}/${maxRetries + 1})`);
     
     try {
-        // 获取当前页面的对象类型和ID
-        const currentUrl = window.location.pathname;
-        let objectType = null;
-        let objectId = null;
-        
-        // 解析URL以确定对象类型和ID
-        if (currentUrl.includes('/expense/')) {
-            objectType = 'expense';
-            const match = currentUrl.match(/\/expense\/(\d+)/);
-            if (match) {
-                objectId = match[1];
-            }
-        } else if (currentUrl.includes('/order/')) {
-            objectType = 'order';
-            const match = currentUrl.match(/\/order\/(\d+)/);
-            if (match) {
-                objectId = match[1];
-            }
-        }
+        // 直接从事件详情获取对象信息，无需URL解析
+        const objectType = eventDetail.objectType;
+        const objectId = eventDetail.objectId;
         
         if (!objectType || !objectId) {
-            console.log('无法解析对象类型或ID，跳过状态更新');
+            console.log('事件详情中缺少对象类型或ID，跳过状态更新');
             return;
         }
         
-        console.log(`检测到对象类型: ${objectType}, ID: ${objectId}`);
+        console.log(`从事件获取对象信息 - 类型: ${objectType}, ID: ${objectId}`);
+        
+        // 动态构建API路径，支持所有对象类型
+        let apiPath;
+        if (objectType === 'pricing_order') {
+            apiPath = `/pricing_order/api/${objectId}/status`;
+        } else {
+            // 通用路径格式，适用于其他对象类型
+            apiPath = `/${objectType}/api/${objectId}/status`;
+        }
         
         // 调用API获取最新的对象状态
-        const response = await fetch(`/${objectType}/api/${objectId}/status`);
+        const response = await fetch(apiPath);
         
         if (!response.ok) {
             console.warn('获取最新状态失败，尝试页面刷新方案');
@@ -264,7 +254,9 @@ async function updatePageStatusAfterApproval(eventDetail, retryCount = 0) {
             // 更新操作按钮可见性
             updateActionButtonsVisibility(data);
             
-            console.log(`页面状态更新完成 - 状态: ${data.status}, 锁定: ${data.is_locked}`);
+            // 审批完成后将通过页面刷新来更新状态，无需前端权限同步
+            
+            console.log(`页面状态更新完成 - 类型: ${objectType}, 状态: ${data.status}, 锁定: ${data.is_locked}`);
             
             // 🔥 特殊处理：如果是支付完成，显示特殊提示
             if (data.status === 'paid') {
@@ -362,6 +354,9 @@ function updateActionButtonsVisibility(statusData) {
     // 这部分逻辑可以根据具体需求进一步完善
     console.log('更新操作按钮可见性 (待完善)');
 }
+
+// updatePricingOrderPermissions 相关函数已移除
+// 改为使用页面刷新机制来更新状态，更加简洁可靠
 
 /**
  * 显示召回确认模态框
@@ -531,11 +526,22 @@ function updateOperationSection(newStatus) {
 /**
  * 更新操作区域的可见性
  * 根据用户权限决定是否显示操作区域
+ * V2审批系统使用模态框，不需要页面操作区域
  */
 function updateOperationSectionVisibility() {
+    // V2审批系统检测：通过审批流程容器或特定标识判断
+    const isV2System = document.querySelector('.approval-flow-container') || 
+                      document.querySelector('[data-approval-version="v2"]') ||
+                      (window.approvalFlowInstance && window.approvalFlowInstance.version === 'v2');
+    
+    if (isV2System) {
+        console.log('V2审批系统：使用模态框审批，跳过操作区域查找');
+        return;
+    }
+    
     const operationSection = document.getElementById('approvalOperationSection');
     if (!operationSection) {
-        console.log('找不到操作区域');
+        console.log('V1审批系统未找到操作区域，可能页面不需要此区域');
         return;
     }
     

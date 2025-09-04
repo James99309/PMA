@@ -176,26 +176,80 @@ class ApprovalStep(db.Model):
         """获取动作类型标签"""
         return ApprovalActionType.get_label(self.action_type) if self.action_type else ''
 
-    def execute_action(self, approval_record, target_object):
+    def execute_action(self, approval_record, target_object, pricing_order_data=None):
         """执行审批动作"""
+        
+        # === 调试断点1: 函数入口信息 ===
+        print("\n=== execute_action 调试断点1: 函数入口 ===")
+        print("步骤ID:", self.id)
+        print("步骤名称:", self.step_name)
+        print("步骤类型:", self.step_type)
+        print("action_type:", repr(self.action_type))
+        print("approval_record:", approval_record)
+        print("target_object:", target_object)
+        print("pricing_order_data存在:", bool(pricing_order_data))
+        if pricing_order_data:
+            print("pricing_order_data:", pricing_order_data)
+        import pdb; pdb.set_trace()  # 手动调试断点
+        
+        # 导入枚举定义用于对比
+        from app.models.approval import ApprovalActionType
+        
+        # === 调试断点2: 关键条件判断前 ===
+        print("\n=== execute_action 调试断点2: 条件判断分析 ===")
+        print("当前action_type:", repr(self.action_type))
+        print("目标PRICING_SETTLEMENT_APPROVAL:", repr(ApprovalActionType.PRICING_SETTLEMENT_APPROVAL))
+        print("是否相等:", self.action_type == ApprovalActionType.PRICING_SETTLEMENT_APPROVAL)
+        print("所有动作类型:")
+        for attr_name in dir(ApprovalActionType):
+            if not attr_name.startswith('_'):
+                attr_value = getattr(ApprovalActionType, attr_name)
+                status = "匹配" if attr_value == self.action_type else "不匹配"
+                print("  ", attr_name, "=", repr(attr_value), status)
+        import pdb; pdb.set_trace()  # 手动调试断点
+        
         if self.action_type == ApprovalActionType.QUOTATION_APPROVAL:
+            print(">>> 进入分支: QUOTATION_APPROVAL")
             return self._execute_quotation_approval(approval_record, target_object)
         elif self.action_type == ApprovalActionType.AUTHORIZATION:
+            print(">>> 进入分支: AUTHORIZATION")
             return self._execute_authorization(approval_record, target_object)
         elif self.action_type == ApprovalActionType.PAYMENT_PROCESSING:
+            print(">>> 进入分支: PAYMENT_PROCESSING")
             return self._execute_payment_processing(approval_record, target_object)
         elif self.action_type == ApprovalActionType.PROJECT_AUTHORIZATION:
+            print(">>> 进入分支: PROJECT_AUTHORIZATION")
             return self._execute_project_authorization(approval_record, target_object)
         elif self.action_type == ApprovalActionType.CHANNEL_AUTHORIZATION:
+            print(">>> 进入分支: CHANNEL_AUTHORIZATION")
             return self._execute_channel_authorization(approval_record, target_object)
         elif self.action_type == ApprovalActionType.BUSINESS_AUTHORIZATION:
+            print(">>> 进入分支: BUSINESS_AUTHORIZATION")
             return self._execute_business_authorization(approval_record, target_object)
         elif self.action_type == ApprovalActionType.CUSTOMER_SERVICE_AUTHORIZATION:
+            print(">>> 进入分支: CUSTOMER_SERVICE_AUTHORIZATION")
             return self._execute_customer_service_authorization(approval_record, target_object)
         elif self.action_type == ApprovalActionType.BRANCH_DECISION:
+            print(">>> 进入分支: BRANCH_DECISION")
             return self._execute_branch_decision(approval_record, target_object)
         elif self.action_type == ApprovalActionType.PRICING_SETTLEMENT_APPROVAL:
-            return self._execute_pricing_settlement_approval(approval_record, target_object)
+            # === 调试断点3: 成功进入目标分支 ===
+            print("\n=== execute_action 调试断点3: 进入PRICING_SETTLEMENT_APPROVAL ===")
+            print("条件匹配成功！即将调用 _execute_pricing_settlement_approval")
+            print("approval_record:", approval_record)
+            print("target_object:", target_object)
+            print("pricing_order_data:", pricing_order_data)
+            import pdb; pdb.set_trace()  # 手动调试断点
+            
+            print(">>> 进入分支: PRICING_SETTLEMENT_APPROVAL")
+            return self._execute_pricing_settlement_approval(approval_record, target_object, pricing_order_data)
+        else:
+            # === 调试断点4: 未匹配任何分支 ===
+            print("\n=== execute_action 调试断点4: 未匹配分支 ===")
+            print("action_type:", self.action_type, "没有匹配任何分支")
+            print("返回默认值: True")
+            import pdb; pdb.set_trace()  # 手动调试断点
+            
         return True
 
     def evaluate_branch_condition(self, target_object):
@@ -841,122 +895,137 @@ class ApprovalStep(db.Model):
         except Exception as e:
             print(f"记录分支决策失败: {str(e)}")
     
-    def _execute_pricing_settlement_approval(self, approval_record, pricing_order):
-        """执行批结算审批权限检查动作（同时检查批价单和结算单权限）"""
+    def _execute_pricing_settlement_approval(self, approval_record, pricing_order, pricing_order_data=None):
+        """执行批结算审批 - 接收外部页面数据并保存到数据库"""
         try:
             from app.models.user import User
-            from app.permissions import get_role_permission
-            from datetime import datetime
+            from app.services.pricing_order_service import PricingOrderService
+            from flask import current_app
+            
+            # === 调试断点1: 函数入口 ===
+            print(f"\n=== 调试断点1: 批结算审批函数开始执行 ===")
+            print(f"批价单ID: {pricing_order.id}")
+            print(f"审批记录ID: {approval_record.id}")
+            print(f"审批人ID: {approval_record.approver_id}")
+            print(f"接收到的数据: {pricing_order_data}")
+            print(f"数据类型: {type(pricing_order_data)}")
+            if pricing_order_data:
+                print(f"数据内容详情: {type(pricing_order_data).__name__} - {pricing_order_data}")
+            import pdb; pdb.set_trace()  # 手动调试断点
+            
+            current_app.logger.info(f"批结算审批 - 动作开始执行，批价单ID: {pricing_order.id}")
+            current_app.logger.info(f"批结算审批 - 接收到的数据: {pricing_order_data}")
+            current_app.logger.info(f"批结算审批 - 数据类型: {type(pricing_order_data)}")
             
             approver = User.query.get(approval_record.approver_id)
             if not approver:
-                print(f"批结算审批失败：找不到审批人 {approval_record.approver_id}")
+                current_app.logger.error(f"批结算审批失败：找不到审批人 {approval_record.approver_id}")
                 return False
             
-            # 获取审批人角色的权限下限配置
-            role_permission = get_role_permission(approver.role, 'pricing_order')
-            if not role_permission:
-                print(f"批结算审批失败：找不到角色权限配置 {approver.role}")
-                return False
+            # === 调试断点2: 数据验证 ===
+            print(f"\n=== 调试断点2: 数据验证阶段 ===")
+            print(f"审批人查找结果: {approver.username if approver else '未找到'}")
+            print(f"pricing_order_data 是否存在: {bool(pricing_order_data)}")
+            if pricing_order_data:
+                print(f"数据字段检查:")
+                for key, value in pricing_order_data.items():
+                    print(f"  - {key}: {value} (类型: {type(value)})")
+            import pdb; pdb.set_trace()  # 手动调试断点
             
-            pricing_limit = role_permission.pricing_discount_limit or 0
-            settlement_limit = role_permission.settlement_discount_limit or 0
-            
-            # 1. 业务规则验证
-            violations = self._validate_pricing_business_rules(pricing_order, approval_record, pricing_limit, settlement_limit)
-            
-            # 2. 数据更新和状态管理
-            if approval_record.action == 'approve' and not violations:
-                self._update_pricing_order_status(pricing_order, approval_record)
-                self._sync_related_objects(pricing_order)
-            
-            # 3. 记录所有违规信息
-            if violations:
-                violation_text = "; ".join(violations)
-                warning_msg = f"[批结算权限下限违规提醒] {violation_text}"
+            # 如果有外部传递的批价单数据，保存到数据库
+            if pricing_order_data:
+                current_app.logger.info(f"批结算审批 - 开始保存外部页面数据: {pricing_order_data}")
                 
-                if approval_record.comment:
-                    approval_record.comment = f"{approval_record.comment}\n\n{warning_msg}"
-                else:
-                    approval_record.comment = warning_msg
+                # === 调试断点3: 保存前状态 ===
+                print(f"\n=== 调试断点3: 保存前数据库状态 ===")
+                print(f"保存前批价单折扣率:")
+                print(f"  - pricing_total_discount_rate: {pricing_order.pricing_total_discount_rate}")
+                print(f"  - settlement_total_discount_rate: {pricing_order.settlement_total_discount_rate}")
+                print(f"即将调用保存函数，传入数据: {pricing_order_data}")
+                import pdb; pdb.set_trace()  # 手动调试断点
                 
-                print(f"批结算审批权限违规: {violation_text}")
+                # 使用成熟的核心保存逻辑 - 修复函数签名
+                service = PricingOrderService()
+                from flask_login import current_user
+                success = service.save_pricing_order_core_data(pricing_order.id, pricing_order_data, current_user)
+                
+                # === 调试断点4: 保存结果验证 ===
+                print(f"\n=== 调试断点4: 保存结果验证 ===")
+                print(f"保存函数返回结果: {success}")
+                # 重新查询数据库状态
+                from app.models.pricing_order import PricingOrder
+                updated_order = PricingOrder.query.get(pricing_order.id)
+                print(f"保存后数据库状态:")
+                print(f"  - pricing_total_discount_rate: {updated_order.pricing_total_discount_rate}")
+                print(f"  - settlement_total_discount_rate: {updated_order.settlement_total_discount_rate}")
+                import pdb; pdb.set_trace()  # 手动调试断点
+                
+                if not success:
+                    current_app.logger.error("批结算审批 - 保存批价单数据失败")
+                    return False
+                    
+                current_app.logger.info("批结算审批 - 批价单数据保存成功")
             else:
-                print("批结算审批权限检查通过")
+                current_app.logger.warning("批结算审批 - 没有外部页面数据传递，跳过数据保存")
+                current_app.logger.info(f"批结算审批 - 当前批价单折扣率: {pricing_order.pricing_total_discount_rate}")
+            
+            # === 调试断点5: 函数结束 ===
+            print(f"\n=== 调试断点5: 函数执行完成 ===")
+            print(f"最终返回结果: True")
+            import pdb; pdb.set_trace()  # 手动调试断点
             
             return True
             
         except Exception as e:
-            print(f"执行批结算审批动作失败: {str(e)}")
+            from flask import current_app
+            print(f"\n=== 调试断点: 异常处理 ===")
+            print(f"异常信息: {str(e)}")
             import traceback
-            traceback.print_exc()
+            print(f"异常堆栈: {traceback.format_exc()}")
+            import pdb; pdb.set_trace()  # 手动调试断点
+            
+            current_app.logger.error(f"执行批结算审批动作失败: {str(e)}")
+            current_app.logger.error(traceback.format_exc())
             return False
     
-    def _validate_pricing_business_rules(self, pricing_order, approval_record, pricing_limit, settlement_limit):
-        """验证批价单业务规则"""
-        violations = []
+    def _get_approval_request_data(self, approval_record):
+        """从审批记录中获取前端提交的数据
         
-        # 检查批价单和结算单折扣率
-        current_pricing_rate = (pricing_order.pricing_total_discount_rate or 1.0) * 100
-        current_settlement_rate = (pricing_order.settlement_total_discount_rate or 1.0) * 100
-        
-        # 同时检查批价和结算权限下限
-        if pricing_limit > 0 and current_pricing_rate < pricing_limit:
-            violations.append(f"批价单折扣率{current_pricing_rate:.1f}%低于权限下限{pricing_limit}%")
-        
-        if settlement_limit > 0 and current_settlement_rate < settlement_limit:
-            violations.append(f"结算单折扣率{current_settlement_rate:.1f}%低于权限下限{settlement_limit}%")
-        
-        # 金额一致性验证
-        if pricing_order.settlement_total_amount and pricing_order.pricing_total_amount:
-            if pricing_order.settlement_total_amount > pricing_order.pricing_total_amount:
-                violations.append("结算单总额不能大于批价单总额")
-        
-        # 最小利润率验证（如果需要）
-        if pricing_order.pricing_total_amount and pricing_order.settlement_total_amount:
-            profit_margin = self._calculate_profit_margin(pricing_order)
-            min_margin = 5.0  # 最小利润率5%，可以配置
-            if profit_margin < min_margin:
-                violations.append(f"利润率{profit_margin:.1f}%低于要求的{min_margin}%")
-        
-        return violations
-    
-    def _calculate_profit_margin(self, pricing_order):
-        """计算利润率"""
-        if not pricing_order.pricing_total_amount or pricing_order.pricing_total_amount == 0:
-            return 0.0
-        
-        profit = pricing_order.pricing_total_amount - (pricing_order.settlement_total_amount or 0)
-        return (profit / pricing_order.pricing_total_amount) * 100
-    
-    def _update_pricing_order_status(self, pricing_order, approval_record):
-        """更新批价单状态"""
-        from datetime import datetime
-        
-        pricing_order.status = 'approved'
-        pricing_order.approved_at = datetime.now()
-        pricing_order.approved_by = approval_record.approver_id
-        
-        print(f"批价单状态已更新: status=approved, approved_by={approval_record.approver_id}")
-    
-    def _sync_related_objects(self, pricing_order):
-        """同步相关对象状态"""
+        解析approval_record.frontend_data中的JSON数据，返回标准格式的请求数据
+        """
         try:
-            # 更新关联项目状态
-            if pricing_order.project:
-                pricing_order.project.pricing_status = 'approved'
-                print(f"项目批价状态已更新: project_id={pricing_order.project.id}, pricing_status=approved")
+            import json
             
-            # 更新关联报价单状态（如果有）
-            if hasattr(pricing_order, 'quotation') and pricing_order.quotation:
-                pricing_order.quotation.pricing_approved = True
-                print(f"报价单批价状态已更新: quotation_id={pricing_order.quotation.id}")
+            # 从frontend_data中解析数据
+            if approval_record.frontend_data:
+                data = json.loads(approval_record.frontend_data)
+                
+                # 转换为标准的请求数据格式
+                request_data = {}
+                
+                # 基本信息字段
+                for field in ['company_name', 'contact_person', 'contact_phone', 'remarks', 
+                             'dealer_id', 'distributor_id', 'factory_pickup', 'total_discount_rate']:
+                    if field in data:
+                        request_data[field] = data[field]
+                
+                # 明细数据处理
+                if 'details' in data:
+                    request_data['details'] = data['details']
+                elif 'table_data' in data and data['table_data']:
+                    # 兼容不同的前端数据格式
+                    request_data['details'] = data['table_data']
+                else:
+                    request_data['details'] = []
+                
+                return request_data
             
-        except Exception as e:
-            print(f"同步相关对象状态失败: {str(e)}")
-            # 不抛出异常，避免影响主流程
-    
-    # 注意：原来的子步骤查找方法已移除，现在使用分支链模式
+            # 如果没有frontend_data，返回空的请求数据
+            return {'details': []}
+            
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            print(f"解析审批数据失败: {str(e)}")
+            return {'details': []}
 
 
 class ApprovalInstance(db.Model):

@@ -838,96 +838,13 @@ def view_project(project_id):
     # 导入权限检查函数，确保在所有代码路径中都可用
     from app.permissions import is_admin_or_ceo
     
-    project = Project.query.get_or_404(project_id)
-    
-    # 检查查看权限
-    has_permission = False
-    
-    # 统一处理角色字符串，去除空格
-    user_role = current_user.role.strip() if current_user.role else ''
+    # 使用统一的权限检查逻辑
+    from app.utils.access_control import get_viewable_data
+    viewable_projects = get_viewable_data(Project, current_user)
+    project = viewable_projects.filter_by(id=project_id).first()
 
-    # 管理员可以查看所有项目
-    if user_role == 'admin':
-        has_permission = True
-    # 财务总监、解决方案经理、产品经理可以查看所有项目
-    elif user_role in ['finance_director', 'finace_director', 'solution_manager', 'solution', 'product_manager', 'product']:
-        has_permission = True
-    # 渠道经理可以查看渠道跟进项目
-    elif user_role == 'channel_manager' and project.project_type == 'channel_follow':
-        has_permission = True
-    # 销售总监可以查看渠道跟进和销售重点项目
-    elif user_role == 'sales_director' and project.project_type in ['channel_follow', 'sales_focus', 'sales_key']:
-        has_permission = True
-    # 服务经理可以查看客户服务项目
-    elif user_role in ['service', 'service_manager'] and project.project_type == 'business_opportunity':
-        has_permission = True
-    # 项目拥有者可以查看自己的项目
-    elif project.owner_id == current_user.id:
-        has_permission = True
-    # 厂商销售负责人可以查看自己负责的项目
-    elif project.vendor_sales_manager_id == current_user.id:
-        has_permission = True
-    
-    # 基于四级权限系统的访问控制
-    if not has_permission and current_user.has_permission('project', 'view'):
-        permission_level = current_user.get_permission_level('project')
-        logger.debug(f"用户 {current_user.username} 的项目权限级别: {permission_level}")
-        
-        if permission_level == 'system':
-            # 系统级权限：可以查看所有项目
-            has_permission = True
-            logger.debug(f"系统级权限 - 允许访问项目 {project_id}")
-        elif permission_level == 'company':
-            # 公司级权限：可以查看同公司的所有项目
-            if current_user.company_name:
-                project_owner = User.query.get(project.owner_id)
-                if project_owner and project_owner.company_name == current_user.company_name:
-                    has_permission = True
-                    logger.debug(f"公司级权限 - 同公司项目 - 允许访问项目 {project_id}")
-        elif permission_level == 'department':
-            # 部门级权限：可以查看同部门的项目
-            if current_user.department and current_user.company_name:
-                project_owner = User.query.get(project.owner_id)
-                if (project_owner and 
-                    project_owner.department == current_user.department and 
-                    project_owner.company_name == current_user.company_name):
-                    has_permission = True
-                    logger.debug(f"部门级权限 - 同部门项目 - 允许访问项目 {project_id}")
-    
-    # 通过归属关系获得权限
-    if not has_permission:
-        allowed_user_ids = current_user.get_viewable_user_ids() if hasattr(current_user, 'get_viewable_user_ids') else [current_user.id]
-        if project.owner_id in allowed_user_ids:
-            has_permission = True
-        
-        # 通过项目直接共享获得权限
-        if not has_permission:
-            if (hasattr(project, 'share_enabled') and project.share_enabled and 
-                hasattr(project, 'shared_with_users') and project.shared_with_users and
-                current_user.id in project.shared_user_ids):
-                has_permission = True
-                logger.debug(f"用户 {current_user.username} 通过项目直接共享权限访问项目 {project_id}")
-        
-        # 通过客户共享获得权限
-        if not has_permission:
-            from app.utils.access_control import get_projects_through_customer_sharing_condition
-            customer_shared_condition = get_projects_through_customer_sharing_condition(current_user, Project)
-            if customer_shared_condition is not None:
-                try:
-                    # 检查当前项目是否满足客户共享条件
-                    project_query = Project.query.filter(
-                        Project.id == project.id,
-                        customer_shared_condition
-                    )
-                    shared_project = project_query.first()
-                    if shared_project:
-                        has_permission = True
-                        logger.debug(f"用户 {current_user.username} 通过客户共享权限访问项目 {project_id}")
-                except Exception as e:
-                    logger.debug(f"检查项目客户共享权限时出错: {e}")
-
-    if not has_permission:
-        logger.warning(f"用户 {current_user.username} (ID: {current_user.id}, 角色: {current_user.role}) 尝试查看无权限的项目: {project_id} (类型: {project.project_type}, 所有者: {project.owner_id})")
+    if not project:
+        logger.warning(f"用户 {current_user.username} (ID: {current_user.id}, 角色: {current_user.role}) 尝试查看无权限的项目: {project_id}")
         flash('您没有权限查看此项目', 'danger')
         return redirect(url_for('project.list_projects'))
     
@@ -4075,12 +3992,12 @@ def recall_project_approval(project_id):
         
         logging.info(f"审批实例状态: instance_id={approval_instance.id}, status={approval_instance.status}, created_by={approval_instance.created_by}")
         
-        # 检查召回权限
-        if approval_instance.created_by != current_user.id:
-            logging.warning(f"召回权限检查失败: created_by={approval_instance.created_by}, current_user={current_user.id}")
+        # 检查召回权限：发起人或管理员可以召回
+        if approval_instance.created_by != current_user.id and current_user.role != 'admin':
+            logging.warning(f"召回权限检查失败: created_by={approval_instance.created_by}, current_user={current_user.id}, role={current_user.role}")
             return jsonify({
                 'success': False,
-                'message': '只有审批发起人可以召回'
+                'message': '只有审批发起人或管理员可以召回'
             }), 403
         
         if approval_instance.status != ApprovalStatus.PENDING:

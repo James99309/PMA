@@ -4,10 +4,6 @@
  */
 class ApprovalFlow {
     constructor(objectType, objectId, options = {}) {
-        console.log('🔍 ApprovalFlow 初始化');
-        console.log('🔍 objectType:', objectType);
-        console.log('🔍 objectId:', objectId);
-        
         this.objectType = objectType;
         this.objectId = objectId;
         this.options = {
@@ -65,11 +61,9 @@ class ApprovalFlow {
     // 加载审批流程数据
     async loadFlow() {
         try {
-            console.log(`开始加载审批流程，对象类型: ${this.objectType}, ID: ${this.objectId}`);
             
             const response = await fetch(`${this.options.apiBasePath}/${this.objectId}/flow`);
             
-            console.log('审批流程API响应状态:', response.status);
             
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -77,33 +71,32 @@ class ApprovalFlow {
             
             const data = await response.json();
             
-            console.log('审批流程API数据:', data);
             
             if (data.success && data.approval_flow) {
                 this.approvalData = data.approval_flow;
-                console.log('获取到审批实例ID:', this.approvalData.instance_id);
                 
                 // 🔍 调试：检查审批步骤数据
                 if (this.approvalData.stages && this.approvalData.stages.length > 0) {
                     const firstStage = this.approvalData.stages[0];
-                    console.log('🔍 第一步审批数据:', firstStage);
-                    console.log('🔍 第一步审批人ID:', firstStage.approver_id);
-                    console.log('🔍 第一步审批人姓名:', firstStage.approver_name);
                 }
                 this.renderFlow();
                 this.showContainer();
-                console.log('审批流程图已显示');
                 
                 // 触发审批控制按钮更新和操作区域可见性更新
                 if (typeof updateApprovalControlButtons === 'function') {
                     setTimeout(updateApprovalControlButtons, 100);
                 }
-                if (typeof updateOperationSectionVisibility === 'function') {
+                
+                // V2审批系统智能检测：避免不必要的操作区域查找
+                const isV2System = document.querySelector('.approval-flow-container') || 
+                                  document.querySelector('[data-approval-version="v2"]');
+                if (!isV2System && typeof updateOperationSectionVisibility === 'function') {
                     setTimeout(updateOperationSectionVisibility, 150);
+                } else if (isV2System) {
+                    console.log('V2审批系统：跳过传统操作区域更新，使用模态框审批');
                 }
             } else {
                 // 如果没有审批流程，使用API返回的控制信息
-                console.log('未找到审批流程:', data.message);
                 
                 if (data.control_info) {
                     // 使用API返回的控制信息
@@ -114,7 +107,6 @@ class ApprovalFlow {
                         can_resubmit: data.control_info.can_resubmit,
                         is_creator: data.control_info.is_creator
                     };
-                    console.log('获取控制信息:', this.approvalData);
                 } else {
                     // 降级处理：设置默认的控制信息
                     this.approvalData = {
@@ -124,7 +116,6 @@ class ApprovalFlow {
                         can_resubmit: false,
                         is_creator: false
                     };
-                    console.log('使用默认控制信息');
                 }
                 
                 this.hideContainer();
@@ -133,7 +124,11 @@ class ApprovalFlow {
                 if (typeof updateApprovalControlButtons === 'function') {
                     setTimeout(updateApprovalControlButtons, 100);
                 }
-                if (typeof updateOperationSectionVisibility === 'function') {
+                // V2审批系统使用模态框，无需操作区域可见性更新
+                const isV2System = document.querySelector('.approval-flow-container') || 
+                                 document.querySelector('[data-approval-version="v2"]') ||
+                                 (window.approvalFlowInstance && window.approvalFlowInstance.version === 'v2');
+                if (typeof updateOperationSectionVisibility === 'function' && !isV2System) {
                     setTimeout(updateOperationSectionVisibility, 150);
                 }
             }
@@ -148,7 +143,6 @@ class ApprovalFlow {
         const section = document.getElementById(this.options.containerId);
         if (section) {
             section.style.display = 'block';
-            console.log(`显示审批流程容器: ${this.options.containerId}`);
         } else {
             console.error(`找不到审批流程容器: ${this.options.containerId}`);
         }
@@ -159,7 +153,6 @@ class ApprovalFlow {
         const section = document.getElementById(this.options.containerId);
         if (section) {
             section.style.display = 'none';
-            console.log(`隐藏审批流程容器: ${this.options.containerId}`);
         } else {
             console.error(`找不到要隐藏的容器: ${this.options.containerId}`);
         }
@@ -181,11 +174,6 @@ class ApprovalFlow {
         const canApprove = this.approvalData.can_approve;
         const isRecalled = this.approvalData.status === 'recalled';
         
-        console.log('🔍 审批流程关键参数:');
-        console.log('🔍 currentStage:', currentStage);
-        console.log('🔍 canApprove:', canApprove);
-        console.log('🔍 isRecalled:', isRecalled);
-        console.log('🔍 status:', this.approvalData.status);
         
         // 召回状态不显示横幅提示
         
@@ -226,11 +214,9 @@ class ApprovalFlow {
         
         // 设置点击事件（召回状态下禁用）
         if (!isRecalled && canApprove && stage.stage_order === currentStage) {
-            console.log(`🔍 步骤 ${stage.stage_order} 可以审批，绑定点击事件`);
             stageDiv.classList.add('can-approve');
             stageDiv.onclick = () => this.openApprovalModal(stage);
         } else {
-            console.log(`🔍 步骤 ${stage.stage_order} 不可审批，条件: isRecalled=${isRecalled}, canApprove=${canApprove}, stage.stage_order=${stage.stage_order}, currentStage=${currentStage}`);
         }
         
         // 创建圆圈
@@ -256,7 +242,6 @@ class ApprovalFlow {
         circleDiv.className = 'stage-circle';
         
         // 调试信息：输出步骤状态
-        console.log(`步骤 ${stage.stage_order} (${stage.stage_name}): status="${stage.status}", currentStage=${currentStage}, isRecalled=${isRecalled}`);
         
         if (isRecalled) {
             // 召回状态下，检查是否是召回发生的节点
@@ -300,7 +285,6 @@ class ApprovalFlow {
             } else {
                 circleDiv.innerHTML = '<i class="fas fa-check"></i>';
             }
-            console.log(`✅ 步骤 ${stage.stage_order} 标记为已审批通过，添加completed类`);
         } else if (stage.status === 'rejected') {
             circleDiv.classList.add('rejected');
             // 支付步骤被拒绝显示为暂缓
@@ -323,7 +307,6 @@ class ApprovalFlow {
             // 其他未知状态，显示为pending状态
             circleDiv.classList.add('pending');
             circleDiv.innerHTML = stage.stage_order;
-            console.log(`⚠️ 步骤 ${stage.stage_order} 状态未识别，添加pending类。状态值: "${stage.status}"`);
         }
         
         return circleDiv;
@@ -525,22 +508,18 @@ class ApprovalFlow {
         
         // 只有项目审批才显示授权预览
         if (this.objectType === 'project') {
-            console.log('🔍 正在加载项目授权预览...');
             
             try {
                 const authPreview = await this.getAuthorizationPreview();
                 if (authPreview && authPreview.authorization_code) {
-                    console.log('🔍 显示授权预览:', authPreview.authorization_code);
                     authText.textContent = authPreview.message || `通过审批后将授予授权编码：${authPreview.authorization_code}`;
                     authSection.style.display = 'flex';
                     
                     // 保存授权预览数据供后续使用
                     this.currentAuthPreview = authPreview;
                 } else {
-                    console.log('🔍 未获取到授权预览信息');
                 }
             } catch (error) {
-                console.log('🔍 获取授权预览失败:', error);
             }
         }
     }
@@ -591,20 +570,16 @@ class ApprovalFlow {
         // 通过按钮
         const approveBtn = dialog.querySelector('.dialog-approve-btn');
         if (approveBtn) {
-            console.log('🔍 绑定通过按钮点击事件');
             approveBtn.onclick = () => {
-                console.log('🔍 通过按钮被点击');
                 
                 // 如果已经显示过警告，则直接确认继续
                 if (approveBtn.dataset.warningShown === 'true') {
-                    console.log('🔍 用户确认继续审批（忽略权限违规）');
                     this.proceedWithApproval('approve');
                 } else {
                     this.handleApprovalAction('approve');
                 }
             };
         } else {
-            console.log('🔍 未找到通过按钮 (.dialog-approve-btn)');
         }
         
         // 点击遮罩层关闭
@@ -616,20 +591,21 @@ class ApprovalFlow {
     
     // 处理审批操作
     async handleApprovalAction(action) {
-        console.log('🔍 handleApprovalAction 被调用');
-        console.log('🔍 action 参数:', action);
         
         const comment = document.getElementById('approvalComment').value.trim();
         
         try {
             // 如果是通过操作且为批价单/结算单类型，先进行权限检查
+            
             if (action === 'approve' && this.needsPricingApprovalCheck()) {
-                const checkResult = await this.checkPricingApprovalLimits();
+                    const checkResult = await this.checkPricingApprovalLimits();
                 if (checkResult && checkResult.has_violations) {
                     // 显示权限违规警告
                     this.showPricingViolationWarning(checkResult.violations);
                     return; // 不关闭对话框，等待用户确认
+                } else {
                 }
+            } else {
             }
             
             // 隐藏对话框
@@ -653,7 +629,6 @@ class ApprovalFlow {
     // 检查批价审批权限下限
     async checkPricingApprovalLimits() {
         try {
-            console.log('🔍 开始权限下限检查');
             
             const response = await fetch('/approval/api/check-pricing-approval-limits', {
                 method: 'POST',
@@ -673,7 +648,6 @@ class ApprovalFlow {
             }
             
             const result = await response.json();
-            console.log('🔍 权限检查结果:', result);
             
             return result.success ? result : null;
             
@@ -685,7 +659,6 @@ class ApprovalFlow {
     
     // 显示权限违规警告
     showPricingViolationWarning(violations) {
-        console.log('🔍 显示权限违规警告:', violations);
         
         const violationSection = document.getElementById('pricingViolationSection');
         const violationList = document.getElementById('pricingViolationList');
@@ -725,8 +698,6 @@ class ApprovalFlow {
     
     // 直接继续审批流程（跳过权限检查）
     async proceedWithApproval(action) {
-        console.log('🔍 proceedWithApproval 被调用');
-        console.log('🔍 action 参数:', action);
         
         const comment = document.getElementById('approvalComment').value.trim();
         
@@ -752,35 +723,60 @@ class ApprovalFlow {
         
         // 如果没有实例ID，尝试从其他地方获取
         console.warn('未找到审批实例ID，审批操作可能失败');
-        console.log('当前审批数据:', this.approvalData);
         return null;
     }
     
+    
     // 处理审批
     async processApproval(stageId, action, comment = '') {
+        debugger; // 🔍 断点2：检查审批处理是否执行
         try {
             // 获取审批实例ID（需要从当前审批流程数据中获取）
             const instanceId = this.getApprovalInstanceId();
+            debugger; // 🔍 断点3：检查实例ID是否正确获取
             if (!instanceId) {
                 throw new Error('未找到审批实例ID');
             }
             
-            // 使用表单数据格式，因为通用审批端点期望表单数据
+            // 统一的审批处理方式
+            
             const formData = new FormData();
             formData.append('action', action);
             formData.append('comment', comment);
             
-            // 如果是项目审批，添加项目类型参数以启用授权功能
-            if (this.objectType === 'project') {
-                console.log('🔍 添加项目类型参数以启用授权功能');
-                // 尝试从当前审批数据中获取项目类型
-                const projectType = this.getProjectType();
-                if (projectType) {
-                    console.log('🔍 项目类型:', projectType);
-                    formData.append('project_type', projectType);
+            // 批价单特殊处理：收集页面数据传递给后端审批路由
+            if (this.objectType === 'pricing_order') {
+                debugger; // 🔍 断点4：检查批价单数据处理
+                // 收集批价单页面数据
+                if (typeof window.pricingOrderDataCollection === 'function') {
+                    const pricingData = window.pricingOrderDataCollection();
+                    debugger; // 🔍 断点5：检查收集到的数据
+                    
+                    // 将基本信息数据添加到formData中
+                    if (pricingData.basic_info) {
+                        Object.keys(pricingData.basic_info).forEach(key => {
+                            if (pricingData.basic_info[key] !== null && pricingData.basic_info[key] !== undefined) {
+                                formData.append(key, pricingData.basic_info[key]);
+                            }
+                        });
+                    }
+                    
+                } else {
+                    console.warn('批价单审批：pricingOrderDataCollection function not found');
                 }
             }
             
+            // 如果是项目审批，添加项目类型参数以启用授权功能
+            if (this.objectType === 'project') {
+                // 尝试从当前审批数据中获取项目类型
+                const projectType = this.getProjectType();
+                if (projectType) {
+                    formData.append('project_type', projectType);
+                } else {
+                }
+            }
+            
+            debugger; // 🔍 断点6：检查即将发送的请求数据
             const response = await fetch(`/approval/approve/${instanceId}`, {
                 method: 'POST',
                 headers: {
@@ -789,7 +785,35 @@ class ApprovalFlow {
                 body: formData
             });
             
+            debugger; // 🔍 断点7：检查服务器响应
+            
+            // 添加详细的响应调试
+            console.log('🔍 [DEBUG] ========== 响应详情 ==========');
+            console.log('🔍 [DEBUG] Response Status:', response.status);
+            console.log('🔍 [DEBUG] Response OK:', response.ok);
+            console.log('🔍 [DEBUG] Response URL:', response.url);
+            console.log('🔍 [DEBUG] Response Type:', response.type);
+            console.log('🔍 [DEBUG] Response Headers:', Object.fromEntries(response.headers.entries()));
+
+            // 克隆响应以便多次读取
+            const responseClone = response.clone();
+            const responseText = await responseClone.text();
+            console.log('🔍 [DEBUG] 原始响应文本:', responseText);
+            console.log('🔍 [DEBUG] 响应长度:', responseText.length, '字节');
+
+            // 解析JSON
             const data = await response.json();
+            
+            debugger; // 🔍 断点8：检查响应数据内容
+            
+            // 添加详细的数据调试
+            console.log('🔍 [DEBUG] ========== 解析后的数据 ==========');
+            console.log('🔍 [DEBUG] 响应数据:', data);
+            console.log('🔍 [DEBUG] 响应数据类型:', typeof data);
+            console.log('🔍 [DEBUG] 响应数据字段:', Object.keys(data));
+            console.log('🔍 [DEBUG] success字段:', data.success);
+            console.log('🔍 [DEBUG] message字段:', data.message);
+            console.log('🔍 [DEBUG] 完整JSON:', JSON.stringify(data, null, 2));
             
             if (data.success) {
                 // 在重新加载流程图之前显示气泡
@@ -820,23 +844,16 @@ class ApprovalFlow {
     // 提交审批申请
     async submitForApproval() {
         try {
-            console.log('🔍 [DEBUG] submitForApproval 开始执行');
-            console.log('🔍 [DEBUG] this.objectType:', this.objectType);
-            console.log('🔍 [DEBUG] this.objectId:', this.objectId);
-            console.log('🔍 [DEBUG] this.options.apiBasePath:', this.options.apiBasePath);
             
             let apiEndpoint, requestBody = {};
             
             // 批价单特殊处理：需要先保存数据再提交审批
             if (this.objectType === 'pricing_order') {
-                console.log('🔍 [DEBUG] ✅ 检测到批价单类型，使用 save_and_submit');
                 apiEndpoint = `${this.options.apiBasePath}/${this.objectId}/save_and_submit`;
-                console.log('🔍 [DEBUG] apiEndpoint 设置为:', apiEndpoint);
                 
                 // 收集批价单页面数据
                 if (typeof window.pricingOrderDataCollection === 'function') {
                     requestBody = window.pricingOrderDataCollection();
-                    console.log('🔍 [DEBUG] 批价单提交审批，收集的数据:', requestBody);
                 } else {
                     // 后备方案：收集基本缓存数据
                     requestBody = {
@@ -844,16 +861,12 @@ class ApprovalFlow {
                         pricing_details: typeof collectPricingDetails === 'function' ? collectPricingDetails() : [],
                         settlement_details: typeof collectSettlementDetails === 'function' ? collectSettlementDetails() : []
                     };
-                    console.log('🔍 [DEBUG] 批价单提交审批，使用后备数据收集:', requestBody);
                 }
             } else {
                 // 其他对象类型：使用原来的提交方式
-                console.log('🔍 [DEBUG] ❌ 非批价单类型，使用普通 submit');
                 apiEndpoint = `${this.options.apiBasePath}/${this.objectId}/submit`;
             }
             
-            console.log('🔍 [DEBUG] 最终请求URL:', apiEndpoint);
-            console.log('🔍 [DEBUG] 请求方法: POST');
             
             const response = await fetch(apiEndpoint, {
                 method: 'POST',
@@ -914,23 +927,16 @@ class ApprovalFlow {
     // 重新提交审批
     async resubmitApproval() {
         try {
-            console.log('🔍 [DEBUG] resubmitApproval 开始执行');
-            console.log('🔍 [DEBUG] this.objectType:', this.objectType);
-            console.log('🔍 [DEBUG] this.objectId:', this.objectId);
-            console.log('🔍 [DEBUG] this.options.apiBasePath:', this.options.apiBasePath);
             
             let apiEndpoint, requestBody = {};
             
             // 批价单特殊处理：没有专门的 resubmit 路由，使用 save_and_submit
             if (this.objectType === 'pricing_order') {
-                console.log('🔍 [DEBUG] ✅ 检测到批价单类型，重新提交使用 save_and_submit');
                 apiEndpoint = `${this.options.apiBasePath}/${this.objectId}/save_and_submit`;
-                console.log('🔍 [DEBUG] resubmit apiEndpoint 设置为:', apiEndpoint);
                 
                 // 收集批价单页面数据
                 if (typeof window.pricingOrderDataCollection === 'function') {
                     requestBody = window.pricingOrderDataCollection();
-                    console.log('🔍 [DEBUG] 批价单重新提交，收集的数据:', requestBody);
                 } else {
                     // 后备方案：收集基本缓存数据
                     requestBody = {
@@ -938,16 +944,12 @@ class ApprovalFlow {
                         pricing_details: typeof collectPricingDetails === 'function' ? collectPricingDetails() : [],
                         settlement_details: typeof collectSettlementDetails === 'function' ? collectSettlementDetails() : []
                     };
-                    console.log('🔍 [DEBUG] 批价单重新提交，使用后备数据收集:', requestBody);
                 }
             } else {
                 // 其他对象类型：使用原来的重新提交方式
-                console.log('🔍 [DEBUG] ❌ 非批价单类型，使用普通 resubmit');
                 apiEndpoint = `${this.options.apiBasePath}/${this.objectId}/resubmit`;
             }
             
-            console.log('🔍 [DEBUG] 重新提交最终请求URL:', apiEndpoint);
-            console.log('🔍 [DEBUG] 重新提交请求方法: POST');
             
             const response = await fetch(apiEndpoint, {
                 method: 'POST',
@@ -1021,7 +1023,13 @@ class ApprovalFlow {
     
     // 事件分发
     dispatchEvent(eventName, detail) {
-        const event = new CustomEvent(`approval_${eventName}`, { detail });
+        // 自动包含对象类型和ID信息，避免后续需要URL解析
+        const enrichedDetail = {
+            ...detail,
+            objectType: this.objectType,
+            objectId: this.objectId
+        };
+        const event = new CustomEvent(`approval_${eventName}`, { detail: enrichedDetail });
         document.dispatchEvent(event);
     }
     
@@ -1101,13 +1109,9 @@ class ApprovalFlow {
     
     // 获取授权编码预览
     async getAuthorizationPreview() {
-        console.log('🔍 getAuthorizationPreview 方法被调用');
-        console.log('🔍 this.objectType:', this.objectType);
-        console.log('🔍 this.objectId:', this.objectId);
         
         try {
             const url = `/${this.objectType}/api/approval/${this.objectId}/preview-authorization`;
-            console.log('调用授权预览API:', url);
             
             const response = await fetch(url, {
                 method: 'POST',
@@ -1118,26 +1122,20 @@ class ApprovalFlow {
                 body: JSON.stringify({})
             });
             
-            console.log('预览API响应状态:', response.status);
             
             if (!response.ok) {
                 const errorText = await response.text();
-                console.log('预览授权编码API响应非200，状态:', response.status, '错误信息:', errorText);
                 return null;
             }
             
             const data = await response.json();
-            console.log('预览API响应数据:', data);
             
             if (data.success) {
-                console.log('成功获取授权预览:', data.authorization_code);
                 return data;
             } else {
-                console.log('预览授权编码返回不成功，原因:', data.message);
                 return null;
             }
         } catch (error) {
-            console.log('获取授权编码预览失败（可能不是授权步骤）:', error);
             return null;
         }
     }
@@ -1146,28 +1144,24 @@ class ApprovalFlow {
     getProjectType() {
         // 如果之前获取授权预览时保存了项目类型，直接使用
         if (this.cachedProjectType) {
-            console.log('🔍 使用缓存的项目类型:', this.cachedProjectType);
             return this.cachedProjectType;
         }
         
         // 从当前授权预览数据中获取（如果可用）
         if (this.currentAuthPreview && this.currentAuthPreview.project_type) {
             this.cachedProjectType = this.currentAuthPreview.project_type;
-            console.log('🔍 从授权预览数据获取项目类型:', this.cachedProjectType);
             return this.cachedProjectType;
         }
         
         // 从页面数据获取
         if (window.projectData && window.projectData.project_type) {
             this.cachedProjectType = window.projectData.project_type;
-            console.log('🔍 从页面数据获取项目类型:', this.cachedProjectType);
             return this.cachedProjectType;
         }
         
         // 最后手段：根据当前审批数据推断
         // 从授权预览API的响应中，我们看到项目类型是channel_follow
         // 这是临时方案，应该从更可靠的来源获取
-        console.log('⚠️ 使用默认项目类型推断: channel_follow');
         this.cachedProjectType = 'channel_follow';
         return this.cachedProjectType;
     }

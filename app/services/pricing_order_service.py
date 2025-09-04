@@ -1,5 +1,6 @@
 from datetime import datetime
 from sqlalchemy.exc import SQLAlchemyError
+from decimal import Decimal
 import logging
 from app import db
 from app.models.pricing_order import (
@@ -905,7 +906,7 @@ class PricingOrderService:
             return False, f"提交失败: {str(e)}"
     
     @staticmethod
-    def approve_step(pricing_order_id, step_order, current_user_id, action, comment=None, frontend_amounts=None):
+    def approve_step(pricing_order_id, step_order, current_user_id, action, comment=None, frontend_amounts=None, frontend_data=None):
         """审批步骤
         
         Args:
@@ -915,8 +916,20 @@ class PricingOrderService:
             action: 审批动作（approve/reject）
             comment: 审批意见
             frontend_amounts: 前端传递的金额数据，格式为 {'pricing_total': float, 'settlement_total': float}
+            frontend_data: 前端传递的完整表单数据，格式为 {'basic_info': {}, 'pricing_details': [], 'settlement_details': []}
         """
         try:
+            # 🔍 [调试] 添加详细的入口调试信息
+            logger.info(f"🔍 [DEBUG] ===== approve_step 开始执行 =====")
+            logger.info(f"🔍 [DEBUG] 参数 - pricing_order_id: {pricing_order_id}")
+            logger.info(f"🔍 [DEBUG] 参数 - step_order: {step_order}")
+            logger.info(f"🔍 [DEBUG] 参数 - current_user_id: {current_user_id}")
+            logger.info(f"🔍 [DEBUG] 参数 - action: {action}")
+            logger.info(f"🔍 [DEBUG] 参数 - comment: {comment}")
+            logger.info(f"🔍 [DEBUG] 参数 - frontend_amounts: {frontend_amounts}")
+            logger.info(f"🔍 [DEBUG] 参数 - frontend_data: {frontend_data}")
+            logger.info(f"🔍 [DEBUG] frontend_data类型: {type(frontend_data)}")
+            
             pricing_order = PricingOrder.query.get(pricing_order_id)
             if not pricing_order:
                 return False, "批价单不存在"
@@ -954,6 +967,9 @@ class PricingOrderService:
                 PricingOrderService.unlock_related_objects(pricing_order)
                 
             elif action == 'approve':
+                # 数据保存逻辑已移到批结算审批动作内部，这里不再需要处理frontend_data
+                logger.info(f"🔍 [DEBUG] 审批通过，继续处理审批流程")
+                
                 # 已取消快速审批功能，审批步骤需要逐步进行
                 # 检查是否还有下一步
                 next_step = PricingOrderApprovalRecord.query.filter_by(
@@ -1186,8 +1202,13 @@ class PricingOrderService:
                 logger.info(f"🔍 [APPROVER_CHECK] ❌ 未找到审批实例，返回 False")
                 return False
                 
-            logger.info(f"🔍 [APPROVER_CHECK] 审批实例状态: {approval_instance.status}")
-            logger.info(f"🔍 [APPROVER_CHECK] 期望状态: {ApprovalStatus.PENDING}")
+            logger.info(f"🔍 [APPROVER_CHECK] 审批实例详细信息:")
+            logger.info(f"🔍 [APPROVER_CHECK]   - ID: {approval_instance.id}")
+            logger.info(f"🔍 [APPROVER_CHECK]   - 对象类型: {approval_instance.object_type}")
+            logger.info(f"🔍 [APPROVER_CHECK]   - 对象ID: {approval_instance.object_id}")
+            logger.info(f"🔍 [APPROVER_CHECK]   - 状态: {approval_instance.status}")
+            logger.info(f"🔍 [APPROVER_CHECK]   - 当前步骤ID: {approval_instance.current_step}")
+            logger.info(f"🔍 [APPROVER_CHECK]   - 期望状态: {ApprovalStatus.PENDING}")
             
             if approval_instance.status != ApprovalStatus.PENDING:
                 logger.info(f"🔍 [APPROVER_CHECK] ❌ 审批实例状态不是PENDING，返回 False")
@@ -1200,9 +1221,21 @@ class PricingOrderService:
             logger.info(f"🔍 [APPROVER_CHECK] 当前审批步骤对象: {current_step}")
             
             if current_step:
-                logger.info(f"🔍 [APPROVER_CHECK] 步骤审批人ID: {current_step.approver_user_id}")
-                logger.info(f"🔍 [APPROVER_CHECK] 步骤审批人类型: {current_step.approver_type}")
-                logger.info(f"🔍 [APPROVER_CHECK] 当前用户ID: {current_user.id}")
+                logger.info(f"🔍 [APPROVER_CHECK] 当前步骤详细信息:")
+                logger.info(f"🔍 [APPROVER_CHECK]   - 步骤ID: {current_step.id}")
+                logger.info(f"🔍 [APPROVER_CHECK]   - 步骤名称: {current_step.step_name}")
+                logger.info(f"🔍 [APPROVER_CHECK]   - 步骤顺序: {current_step.step_order}")
+                logger.info(f"🔍 [APPROVER_CHECK]   - 审批人ID: {current_step.approver_user_id}")
+                logger.info(f"🔍 [APPROVER_CHECK]   - 审批人类型: {current_step.approver_type}")
+                logger.info(f"🔍 [APPROVER_CHECK]   - 动作类型: {current_step.action_type}")
+                logger.info(f"🔍 [APPROVER_CHECK]   - 当前用户ID: {current_user.id}")
+                
+                # 如果有审批人ID，获取审批人用户名
+                if current_step.approver_user_id:
+                    from app.models.user import User
+                    approver_user = User.query.get(current_step.approver_user_id)
+                    approver_username = approver_user.username if approver_user else "未知用户"
+                    logger.info(f"🔍 [APPROVER_CHECK]   - 指定审批人用户名: {approver_username}")
                 
                 # 处理直接指定审批人的情况
                 if current_step.approver_user_id and current_step.approver_user_id == current_user.id:
@@ -1257,6 +1290,8 @@ class PricingOrderService:
     def can_edit_pricing_details(pricing_order, current_user, is_approval_context=False):
         """检查是否可以编辑批价单明细 - V2统一审批系统
         
+        审批状态下，检查审批人是否被授权编辑定价相关字段
+        
         Args:
             pricing_order: 批价单对象
             current_user: 当前用户
@@ -1270,8 +1305,33 @@ class PricingOrderService:
             # 草稿状态或被拒绝状态：创建人可编辑
             return pricing_order.created_by == current_user.id
         elif pricing_order.status == 'pending':
-            # 审批中：只有当前审批人可以编辑
-            return PricingOrderService._is_current_approver_v2(pricing_order, current_user)
+            # 审批中：检查是否为当前审批人 + 是否有定价字段的编辑权限
+            is_current_approver = PricingOrderService._is_current_approver_v2(pricing_order, current_user)
+            
+            if not is_current_approver:
+                return False
+            
+            # 获取当前步骤的可编辑字段
+            from app.helpers.approval_helpers import get_object_approval_instance
+            from app.models.approval import ApprovalStep
+            
+            approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
+            
+            if not approval_instance:
+                return False
+                
+            current_step = ApprovalStep.query.get(approval_instance.current_step)
+            
+            if not current_step:
+                return False
+                
+            editable_fields = current_step.editable_fields or []
+            
+            # 检查是否有任何定价相关字段在可编辑列表中
+            pricing_fields = ['product_name', 'unit_price', 'total_price', 'pricing_details']
+            has_pricing_edit_permission = any(field in editable_fields for field in pricing_fields)
+            
+            return has_pricing_edit_permission
                 
         return False
     @staticmethod
@@ -1308,8 +1368,34 @@ class PricingOrderService:
             return False
         
         elif pricing_order.status == 'pending':
-            # 审批中：V2系统下，只有当前审批人可以编辑
-            if PricingOrderService._is_current_approver_v2(pricing_order, current_user):
+            # 审批中：检查是否为当前审批人 + 是否有结算字段的编辑权限
+            is_current_approver = PricingOrderService._is_current_approver_v2(pricing_order, current_user)
+            
+            if not is_current_approver:
+                return False
+            
+            # 获取当前步骤的可编辑字段
+            from app.helpers.approval_helpers import get_object_approval_instance
+            from app.models.approval import ApprovalStep
+            
+            approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
+            
+            if not approval_instance:
+                return False
+                
+            current_step = ApprovalStep.query.get(approval_instance.current_step)
+            
+            if not current_step:
+                return False
+                
+            editable_fields = current_step.editable_fields or []
+            
+            # 检查是否有任何结算相关字段在可编辑列表中
+            settlement_fields = ['settlement_details', 'settlement_amount', 'settlement_rate', 'cost_price', 'settlement_total_discount_rate']
+            has_settlement_edit_permission = any(field in editable_fields for field in settlement_fields)
+            
+            # 只有在有结算字段编辑权限时才进行其他权限检查
+            if has_settlement_edit_permission:
                 # 管理员或在审批上下文中自动获得权限
                 if is_admin or is_approval_context:
                     return True
@@ -1577,171 +1663,12 @@ class PricingOrderService:
         
         return False
     
-    @staticmethod
-    def save_approval_data(pricing_order, pricing_details, settlement_details, basic_info, current_user, logger):
-        """
-        统一的审批数据保存方法
-        确保批价单和结算单数据保存逻辑一致
-        
-        Args:
-            pricing_order: 批价单对象
-            pricing_details: 批价单明细数据
-            settlement_details: 结算单明细数据
-            basic_info: 基本信息
-            current_user: 当前用户
-            logger: 日志对象
-            
-        Returns:
-            tuple: (success, error_message)
-        """
-        try:
-            # 在审批上下文中，保存原始审批步骤用于权限检查
-            pricing_order._original_approval_step = pricing_order.current_approval_step
-            
-            # 1. 保存基本信息
-            if basic_info:
-                pricing_order.is_direct_contract = basic_info.get('is_direct_contract', False)
-                pricing_order.is_factory_pickup = basic_info.get('is_factory_pickup', False)
-                if basic_info.get('distributor_id'):
-                    pricing_order.distributor_id = basic_info.get('distributor_id')
-                if basic_info.get('dealer_id'):
-                    pricing_order.dealer_id = basic_info.get('dealer_id')
-            
-            # 2. 保存批价单明细（关键修复）
-            if pricing_details:
-                # 在审批上下文中检查权限（允许更宽松的权限检查）
-                if not PricingOrderService.can_edit_pricing_details(pricing_order, current_user, is_approval_context=True):
-                    logger.warning(f"用户 {current_user.username} 没有批价单明细编辑权限")
-                else:
-                    from app.models.pricing_order import PricingOrderDetail
-                    logger.info(f"开始处理 {len(pricing_details)} 条批价单明细")
-                    
-                    for detail_data in pricing_details:
-                        # 🔥 关键修复：通过产品名称查找批价单明细，而不是依赖前端传递的ID
-                        product_name = detail_data.get('product_name', '').strip()
-                        if not product_name:
-                            logger.warning("跳过空产品名称的批价单明细")
-                            continue
-                        
-                        # 查找对应的批价单明细
-                        detail = PricingOrderDetail.query.filter_by(
-                            pricing_order_id=pricing_order.id,
-                            product_name=product_name
-                        ).first()
-                        
-                        if detail:
-                            logger.info(f"找到批价单明细: ID={detail.id}, 产品={product_name}")
-                            
-                            if 'discount_rate' in detail_data:
-                                # 前端传递的是百分比形式（如40.5），需要转换为小数形式（如0.405）
-                                discount_rate_percent = float(detail_data['discount_rate'])
-                                old_discount_rate = detail.discount_rate
-                                detail.discount_rate = discount_rate_percent / 100
-                                logger.info(f"更新批价单明细 {detail.id}: 折扣率从 {old_discount_rate:.3f} 更新为 {detail.discount_rate:.3f} (前端传递: {discount_rate_percent}%)")
-                            
-                            if 'unit_price' in detail_data:
-                                old_unit_price = detail.unit_price
-                                detail.unit_price = float(detail_data['unit_price'])
-                                logger.info(f"更新批价单明细 {detail.id}: 单价从 {old_unit_price:.2f} 更新为 {detail.unit_price:.2f}")
-                            
-                            if 'quantity' in detail_data:
-                                # 🔥 关键修复：审批状态下严禁修改数量
-                                if pricing_order.status == 'pending':
-                                    logger.warning(f"审批状态下拒绝修改数量：产品={product_name}, 当前数量={detail.quantity}, 尝试修改为={detail_data['quantity']}")
-                                else:
-                                    old_quantity = detail.quantity
-                                    detail.quantity = int(detail_data['quantity'])
-                                    logger.info(f"更新批价单明细 {detail.id}: 数量从 {old_quantity} 更新为 {detail.quantity}")
-                            
-                            # 重新计算价格确保一致性
-                            detail.calculate_prices()
-                            logger.info(f"批价单明细 {detail.id} 重新计算后总价: {detail.total_price:.2f}")
-                        else:
-                            logger.warning(f"未找到产品名称为 '{product_name}' 的批价单明细")
-            
-            # 3. 保存结算单明细（关键修复）
-            if settlement_details:
-                if not PricingOrderService.can_edit_settlement_details(pricing_order, current_user, is_approval_context=True):
-                    logger.warning(f"用户 {current_user.username} 没有结算单明细编辑权限")
-                else:
-                    from app.models.pricing_order import SettlementOrderDetail
-                    logger.info(f"开始处理 {len(settlement_details)} 条结算单明细")
-                    
-                    for detail_data in settlement_details:
-                        # 🔥 关键修复：通过产品名称查找结算单明细，而不是依赖前端传递的ID
-                        product_name = detail_data.get('product_name', '').strip()
-                        if not product_name:
-                            logger.warning("跳过空产品名称的结算单明细")
-                            continue
-                        
-                        # 查找对应的结算单明细
-                        detail = SettlementOrderDetail.query.filter_by(
-                            pricing_order_id=pricing_order.id,
-                            product_name=product_name
-                        ).first()
-                        
-                        if detail:
-                            logger.info(f"找到结算单明细: ID={detail.id}, 产品={product_name}")
-                            
-                            if 'discount_rate' in detail_data:
-                                # 前端传递的是百分比形式（如40.5），需要转换为小数形式（如0.405）
-                                discount_rate_percent = float(detail_data['discount_rate'])
-                                old_discount_rate = detail.discount_rate
-                                detail.discount_rate = discount_rate_percent / 100
-                                logger.info(f"更新结算单明细 {detail.id}: 折扣率从 {old_discount_rate:.3f} 更新为 {detail.discount_rate:.3f} (前端传递: {discount_rate_percent}%)")
-                            
-                            if 'unit_price' in detail_data:
-                                old_unit_price = detail.unit_price
-                                detail.unit_price = float(detail_data['unit_price'])
-                                logger.info(f"更新结算单明细 {detail.id}: 单价从 {old_unit_price:.2f} 更新为 {detail.unit_price:.2f}")
-                            
-                            if 'quantity' in detail_data:
-                                # 🔥 关键修复：审批状态下严禁修改数量
-                                if pricing_order.status == 'pending':
-                                    logger.warning(f"审批状态下拒绝修改数量：产品={product_name}, 当前数量={detail.quantity}, 尝试修改为={detail_data['quantity']}")
-                                else:
-                                    old_quantity = detail.quantity
-                                    detail.quantity = int(detail_data['quantity'])
-                                    logger.info(f"更新结算单明细 {detail.id}: 数量从 {old_quantity} 更新为 {detail.quantity}")
-                            
-                            # 重新计算价格确保一致性
-                            detail.calculate_prices()
-                            logger.info(f"结算单明细 {detail.id} 重新计算后总价: {detail.total_price:.2f}")
-                        else:
-                            logger.warning(f"未找到产品名称为 '{product_name}' 的结算单明细")
-            
-            # 4. 统一计算总金额和总折扣率
-            pricing_order.calculate_pricing_totals()
-            pricing_order.calculate_settlement_totals()
-            
-            # 5. 更新独立结算单模型（关键修复）
-            from app.models.pricing_order import SettlementOrder, SettlementOrderDetail
-            settlement_order = SettlementOrder.query.filter_by(pricing_order_id=pricing_order.id).first()
-            if settlement_order:
-                # 修复结算单明细关系（确保 settlement_order_id 字段正确）
-                settlement_details_by_po = SettlementOrderDetail.query.filter_by(pricing_order_id=pricing_order.id).all()
-                for detail in settlement_details_by_po:
-                    if detail.settlement_order_id != settlement_order.id:
-                        detail.settlement_order_id = settlement_order.id
-                        logger.info(f"修复结算单明细 {detail.id} 的关系: settlement_order_id = {settlement_order.id}")
-                
-                # 重新计算独立结算单的总金额
-                settlement_order.calculate_totals()
-                logger.info(f"更新独立结算单 {settlement_order.order_number}: 总金额 {settlement_order.total_amount:,.2f}, 折扣率 {settlement_order.discount_percentage:.1f}%")
-            else:
-                logger.warning(f"未找到批价单 {pricing_order.order_number} 对应的独立结算单")
-            
-            return True, None
-            
-        except Exception as e:
-            logger.error(f"审批数据保存失败: {str(e)}")
-            return False, f"保存数据失败: {str(e)}"
 
     @staticmethod
     def can_edit_quantity(pricing_order, current_user, is_approval_context=False):
-        """检查是否可以编辑数量字段
+        """检查是否可以编辑数量字段 - V2统一审批系统
         
-        审批状态下，数量字段应该被锁定，不允许任何人编辑
+        审批状态下，检查审批人是否被授权编辑数量相关字段
         """
         # 审批通过后不能编辑
         if pricing_order.status == 'approved':
@@ -1751,8 +1678,33 @@ class PricingOrderService:
             # 草稿状态或被拒绝状态：创建人可编辑数量
             return pricing_order.created_by == current_user.id
         elif pricing_order.status == 'pending':
-            # 审批状态下，数量字段锁定，任何人都不能编辑
-            return False
+            # 审批中：检查是否为当前审批人 + 是否有数量字段的编辑权限
+            is_current_approver = PricingOrderService._is_current_approver_v2(pricing_order, current_user)
+            
+            if not is_current_approver:
+                return False
+            
+            # 获取当前步骤的可编辑字段
+            from app.helpers.approval_helpers import get_object_approval_instance
+            from app.models.approval import ApprovalStep
+            
+            approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
+            
+            if not approval_instance:
+                return False
+                
+            current_step = ApprovalStep.query.get(approval_instance.current_step)
+            
+            if not current_step:
+                return False
+                
+            editable_fields = current_step.editable_fields or []
+            
+            # 检查是否有任何数量相关字段在可编辑列表中
+            quantity_fields = ['quantity', 'unit_quantity', 'total_quantity']
+            has_quantity_edit_permission = any(field in editable_fields for field in quantity_fields)
+            
+            return has_quantity_edit_permission
                 
         return False
     
@@ -1760,7 +1712,7 @@ class PricingOrderService:
     def can_edit_discount_and_price(pricing_order, current_user, is_approval_context=False):
         """检查是否可以编辑折扣率和单价字段 - V2统一审批系统
         
-        审批状态下，只有当前审批人可以编辑折扣率和单价
+        审批状态下，检查审批人是否被授权编辑折扣和价格相关字段
         """
         # 审批通过后不能编辑
         if pricing_order.status == 'approved':
@@ -1770,8 +1722,33 @@ class PricingOrderService:
             # 草稿状态或被拒绝状态：创建人可编辑
             return pricing_order.created_by == current_user.id
         elif pricing_order.status == 'pending':
-            # 审批中：V2系统下，只有当前审批人可以编辑折扣率和单价
-            return PricingOrderService._is_current_approver_v2(pricing_order, current_user)
+            # 审批中：检查是否为当前审批人 + 是否有折扣价格字段的编辑权限
+            is_current_approver = PricingOrderService._is_current_approver_v2(pricing_order, current_user)
+            
+            if not is_current_approver:
+                return False
+            
+            # 获取当前步骤的可编辑字段
+            from app.helpers.approval_helpers import get_object_approval_instance
+            from app.models.approval import ApprovalStep
+            
+            approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
+            
+            if not approval_instance:
+                return False
+                
+            current_step = ApprovalStep.query.get(approval_instance.current_step)
+            
+            if not current_step:
+                return False
+                
+            editable_fields = current_step.editable_fields or []
+            
+            # 检查是否有任何折扣价格相关字段在可编辑列表中
+            discount_price_fields = ['discount_rate', 'unit_price', 'discounted_price', 'total_discount_rate']
+            has_discount_price_edit_permission = any(field in editable_fields for field in discount_price_fields)
+            
+            return has_discount_price_edit_permission
                 
         return False
     @staticmethod
@@ -1935,343 +1912,162 @@ class PricingOrderService:
         
         return False
     
-    @staticmethod
-    def save_approval_data(pricing_order, pricing_details, settlement_details, basic_info, current_user, logger):
-        """
-        统一的审批数据保存方法
-        确保批价单和结算单数据保存逻辑一致
-        
-        Args:
-            pricing_order: 批价单对象
-            pricing_details: 批价单明细数据
-            settlement_details: 结算单明细数据
-            basic_info: 基本信息
-            current_user: 当前用户
-            logger: 日志对象
-            
-        Returns:
-            tuple: (success, error_message)
-        """
-        try:
-            # 在审批上下文中，保存原始审批步骤用于权限检查
-            pricing_order._original_approval_step = pricing_order.current_approval_step
-            
-            # 1. 保存基本信息
-            if basic_info:
-                pricing_order.is_direct_contract = basic_info.get('is_direct_contract', False)
-                pricing_order.is_factory_pickup = basic_info.get('is_factory_pickup', False)
-                if basic_info.get('distributor_id'):
-                    pricing_order.distributor_id = basic_info.get('distributor_id')
-                if basic_info.get('dealer_id'):
-                    pricing_order.dealer_id = basic_info.get('dealer_id')
-            
-            # 2. 保存批价单明细（关键修复）
-            if pricing_details:
-                # 在审批上下文中检查权限（允许更宽松的权限检查）
-                if not PricingOrderService.can_edit_pricing_details(pricing_order, current_user, is_approval_context=True):
-                    logger.warning(f"用户 {current_user.username} 没有批价单明细编辑权限")
-                else:
-                    from app.models.pricing_order import PricingOrderDetail
-                    logger.info(f"开始处理 {len(pricing_details)} 条批价单明细")
-                    
-                    for detail_data in pricing_details:
-                        # 🔥 关键修复：通过产品名称查找批价单明细，而不是依赖前端传递的ID
-                        product_name = detail_data.get('product_name', '').strip()
-                        if not product_name:
-                            logger.warning("跳过空产品名称的批价单明细")
-                            continue
-                        
-                        # 查找对应的批价单明细
-                        detail = PricingOrderDetail.query.filter_by(
-                            pricing_order_id=pricing_order.id,
-                            product_name=product_name
-                        ).first()
-                        
-                        if detail:
-                            logger.info(f"找到批价单明细: ID={detail.id}, 产品={product_name}")
-                            
-                            if 'discount_rate' in detail_data:
-                                # 前端传递的是百分比形式（如40.5），需要转换为小数形式（如0.405）
-                                discount_rate_percent = float(detail_data['discount_rate'])
-                                old_discount_rate = detail.discount_rate
-                                detail.discount_rate = discount_rate_percent / 100
-                                logger.info(f"更新批价单明细 {detail.id}: 折扣率从 {old_discount_rate:.3f} 更新为 {detail.discount_rate:.3f} (前端传递: {discount_rate_percent}%)")
-                            
-                            if 'unit_price' in detail_data:
-                                old_unit_price = detail.unit_price
-                                detail.unit_price = float(detail_data['unit_price'])
-                                logger.info(f"更新批价单明细 {detail.id}: 单价从 {old_unit_price:.2f} 更新为 {detail.unit_price:.2f}")
-                            
-                            if 'quantity' in detail_data:
-                                # 🔥 关键修复：审批状态下严禁修改数量
-                                if pricing_order.status == 'pending':
-                                    logger.warning(f"审批状态下拒绝修改数量：产品={product_name}, 当前数量={detail.quantity}, 尝试修改为={detail_data['quantity']}")
-                                else:
-                                    old_quantity = detail.quantity
-                                    detail.quantity = int(detail_data['quantity'])
-                                    logger.info(f"更新批价单明细 {detail.id}: 数量从 {old_quantity} 更新为 {detail.quantity}")
-                            
-                            # 重新计算价格确保一致性
-                            detail.calculate_prices()
-                            logger.info(f"批价单明细 {detail.id} 重新计算后总价: {detail.total_price:.2f}")
-                        else:
-                            logger.warning(f"未找到产品名称为 '{product_name}' 的批价单明细")
-            
-            # 3. 保存结算单明细（关键修复）
-            if settlement_details:
-                if not PricingOrderService.can_edit_settlement_details(pricing_order, current_user, is_approval_context=True):
-                    logger.warning(f"用户 {current_user.username} 没有结算单明细编辑权限")
-                else:
-                    from app.models.pricing_order import SettlementOrderDetail
-                    logger.info(f"开始处理 {len(settlement_details)} 条结算单明细")
-                    
-                    for detail_data in settlement_details:
-                        # 🔥 关键修复：通过产品名称查找结算单明细，而不是依赖前端传递的ID
-                        product_name = detail_data.get('product_name', '').strip()
-                        if not product_name:
-                            logger.warning("跳过空产品名称的结算单明细")
-                            continue
-                        
-                        # 查找对应的结算单明细
-                        detail = SettlementOrderDetail.query.filter_by(
-                            pricing_order_id=pricing_order.id,
-                            product_name=product_name
-                        ).first()
-                        
-                        if detail:
-                            logger.info(f"找到结算单明细: ID={detail.id}, 产品={product_name}")
-                            
-                            if 'discount_rate' in detail_data:
-                                # 前端传递的是百分比形式（如40.5），需要转换为小数形式（如0.405）
-                                discount_rate_percent = float(detail_data['discount_rate'])
-                                old_discount_rate = detail.discount_rate
-                                detail.discount_rate = discount_rate_percent / 100
-                                logger.info(f"更新结算单明细 {detail.id}: 折扣率从 {old_discount_rate:.3f} 更新为 {detail.discount_rate:.3f} (前端传递: {discount_rate_percent}%)")
-                            
-                            if 'unit_price' in detail_data:
-                                old_unit_price = detail.unit_price
-                                detail.unit_price = float(detail_data['unit_price'])
-                                logger.info(f"更新结算单明细 {detail.id}: 单价从 {old_unit_price:.2f} 更新为 {detail.unit_price:.2f}")
-                            
-                            if 'quantity' in detail_data:
-                                # 🔥 关键修复：审批状态下严禁修改数量
-                                if pricing_order.status == 'pending':
-                                    logger.warning(f"审批状态下拒绝修改数量：产品={product_name}, 当前数量={detail.quantity}, 尝试修改为={detail_data['quantity']}")
-                                else:
-                                    old_quantity = detail.quantity
-                                    detail.quantity = int(detail_data['quantity'])
-                                    logger.info(f"更新结算单明细 {detail.id}: 数量从 {old_quantity} 更新为 {detail.quantity}")
-                            
-                            # 重新计算价格确保一致性
-                            detail.calculate_prices()
-                            logger.info(f"结算单明细 {detail.id} 重新计算后总价: {detail.total_price:.2f}")
-                        else:
-                            logger.warning(f"未找到产品名称为 '{product_name}' 的结算单明细")
-            
-            # 4. 统一计算总金额和总折扣率
-            pricing_order.calculate_pricing_totals()
-            pricing_order.calculate_settlement_totals()
-            
-            # 5. 更新独立结算单模型（关键修复）
-            from app.models.pricing_order import SettlementOrder, SettlementOrderDetail
-            settlement_order = SettlementOrder.query.filter_by(pricing_order_id=pricing_order.id).first()
-            if settlement_order:
-                # 修复结算单明细关系（确保 settlement_order_id 字段正确）
-                settlement_details_by_po = SettlementOrderDetail.query.filter_by(pricing_order_id=pricing_order.id).all()
-                for detail in settlement_details_by_po:
-                    if detail.settlement_order_id != settlement_order.id:
-                        detail.settlement_order_id = settlement_order.id
-                        logger.info(f"修复结算单明细 {detail.id} 的关系: settlement_order_id = {settlement_order.id}")
-                
-                # 重新计算独立结算单的总金额
-                settlement_order.calculate_totals()
-                logger.info(f"更新独立结算单 {settlement_order.order_number}: 总金额 {settlement_order.total_amount:,.2f}, 折扣率 {settlement_order.discount_percentage:.1f}%")
-            else:
-                logger.warning(f"未找到批价单 {pricing_order.order_number} 对应的独立结算单")
-            
-            return True, None
-            
-        except Exception as e:
-            logger.error(f"审批数据保存失败: {str(e)}")
-            return False, f"保存数据失败: {str(e)}"
-
-    @staticmethod
-    def can_edit_quantity(pricing_order, current_user, is_approval_context=False):
-        """检查是否可以编辑数量字段
-        
-        审批状态下，数量字段应该被锁定，不允许任何人编辑
-        """
-        # 审批通过后不能编辑
-        if pricing_order.status == 'approved':
-            return False
-            
-        if pricing_order.status in ['draft', 'rejected']:
-            # 草稿状态或被拒绝状态：创建人可编辑数量
-            return pricing_order.created_by == current_user.id
-        elif pricing_order.status == 'pending':
-            # 审批状态下，数量字段锁定，任何人都不能编辑
-            return False
-                
-        return False
     
     @staticmethod
-    def can_edit_discount_and_price(pricing_order, current_user, is_approval_context=False):
-        """检查是否可以编辑折扣率和单价字段 - V2统一审批系统
-        
-        审批状态下，只有当前审批人可以编辑折扣率和单价
+    def save_pricing_order_core_data(pricing_order_id, request_data, current_user):
         """
-        # 审批通过后不能编辑
-        if pricing_order.status == 'approved':
-            return False
-            
-        if pricing_order.status in ['draft', 'rejected']:
-            # 草稿状态或被拒绝状态：创建人可编辑
-            return pricing_order.created_by == current_user.id
-        elif pricing_order.status == 'pending':
-            # 审批中：V2系统下，只有当前审批人可以编辑折扣率和单价
-            return PricingOrderService._is_current_approver_v2(pricing_order, current_user)
-                
-        return False
-    @staticmethod
-    def can_edit_basic_info(pricing_order, current_user, is_approval_context=False):
-        """检查是否可以编辑基本信息（分销商、经销商等） - V2统一审批系统
+        审批专用的数据保存函数
         
-        审批状态下，检查审批人是否被授权编辑基本信息字段
+        直接保存前端传递的完整数据，确保折扣率修改后的级联计算结果被正确保存
         """
-        logger.info(f"🔍 [BASIC_INFO_EDIT] ============= 检查基本信息编辑权限 =============")
-        logger.info(f"🔍 [BASIC_INFO_EDIT] 批价单ID: {pricing_order.id}, 订单号: {pricing_order.order_number}")
-        logger.info(f"🔍 [BASIC_INFO_EDIT] 当前用户: {current_user.username} (ID: {current_user.id})")
-        logger.info(f"🔍 [BASIC_INFO_EDIT] 批价单创建者: {pricing_order.created_by}")
-        logger.info(f"🔍 [BASIC_INFO_EDIT] 批价单状态: {pricing_order.status}")
-        logger.info(f"🔍 [BASIC_INFO_EDIT] 是否审批上下文: {is_approval_context}")
-        
-        # 审批通过后不能编辑
-        if pricing_order.status == 'approved':
-            logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 批价单已批准，不能编辑，返回 False")
-            return False
-            
-        if pricing_order.status in ['draft', 'rejected']:
-            # 草稿状态或被拒绝状态：创建人可编辑
-            is_creator = pricing_order.created_by == current_user.id
-            logger.info(f"🔍 [BASIC_INFO_EDIT] 草稿/拒绝状态，检查是否为创建者: {is_creator}")
-            logger.info(f"🔍 [BASIC_INFO_EDIT] {'✅' if is_creator else '❌'} 返回 {is_creator}")
-            return is_creator
-        elif pricing_order.status == 'pending':
-            # 审批中：检查是否为当前审批人 + 是否有基本信息字段的编辑权限
-            logger.info(f"🔍 [BASIC_INFO_EDIT] 审批状态，检查是否为当前审批人...")
-            is_current_approver = PricingOrderService._is_current_approver_v2(pricing_order, current_user)
-            logger.info(f"🔍 [BASIC_INFO_EDIT] 是否为当前审批人: {is_current_approver}")
-            
-            if not is_current_approver:
-                logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 不是当前审批人，返回 False")
-                return False
-            
-            # 获取当前步骤的可编辑字段
-            logger.info(f"🔍 [BASIC_INFO_EDIT] ✅ 是当前审批人，检查可编辑字段权限...")
-            from app.helpers.approval_helpers import get_object_approval_instance
-            from app.models.approval import ApprovalStep
-            
-            approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
-            logger.info(f"🔍 [BASIC_INFO_EDIT] 审批实例: {approval_instance}")
-            
-            if not approval_instance:
-                logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 未找到审批实例，返回 False")
-                return False
-                
-            current_step = ApprovalStep.query.get(approval_instance.current_step)
-            logger.info(f"🔍 [BASIC_INFO_EDIT] 当前步骤: {current_step}")
-            
-            if not current_step:
-                logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 未找到当前审批步骤，返回 False")
-                return False
-                
-            editable_fields = current_step.editable_fields or []
-            logger.info(f"🔍 [BASIC_INFO_EDIT] 当前步骤可编辑字段: {editable_fields}")
-            
-            # 检查是否有任何基本信息字段在可编辑列表中
-            basic_info_fields = ['dealer_id', 'distributor_id', 'is_direct_contract', 'is_factory_pickup']
-            has_basic_edit_permission = any(field in editable_fields for field in basic_info_fields)
-            logger.info(f"🔍 [BASIC_INFO_EDIT] 基本信息字段: {basic_info_fields}")
-            logger.info(f"🔍 [BASIC_INFO_EDIT] 是否有基本信息字段编辑权限: {has_basic_edit_permission}")
-            
-            if has_basic_edit_permission:
-                # 记录具体哪些基本信息字段可以编辑
-                editable_basic_fields = [field for field in basic_info_fields if field in editable_fields]
-                logger.info(f"🔍 [BASIC_INFO_EDIT] ✅ 可编辑的基本信息字段: {editable_basic_fields}")
-            else:
-                logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 无基本信息字段编辑权限")
-            
-            logger.info(f"🔍 [BASIC_INFO_EDIT] {'✅' if has_basic_edit_permission else '❌'} 返回 {has_basic_edit_permission}")
-            return has_basic_edit_permission
-        
-        logger.info(f"🔍 [BASIC_INFO_EDIT] ❌ 其他状态，返回 False")        
-        return False
-    @staticmethod
-    def admin_rollback_pricing_order(pricing_order_id, admin_user_id, reason=None):
-        """管理员将已通过的批价单退回到草稿状态（清除所有审批痕迹）"""
         try:
-            from app.models.user import User
-            
-            # 先检查权限
-            can_rollback, error_msg = PricingOrderService.can_admin_rollback_pricing_order(
-                pricing_order_id, admin_user_id
-            )
-            if not can_rollback:
-                return False, error_msg
-            
-            # 获取用户和批价单
-            admin_user = User.query.get(admin_user_id)
-            pricing_order = PricingOrder.query.get(pricing_order_id)
-            
-            # 开始数据库事务
-            from app import db
             from flask import current_app
             
-            # 1. 删除所有审批记录（清除痕迹）
-            approval_records = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order_id
-            ).all()
+            pricing_order = PricingOrder.query.get_or_404(pricing_order_id)
             
-            for record in approval_records:
-                db.session.delete(record)
+            processed_fields = []
             
-            # 2. 重置批价单状态为草稿
-            pricing_order.status = 'draft'
-            pricing_order.current_approval_step = 0
-            pricing_order.approved_at = None
-            pricing_order.final_approver_id = None
+            # === 直接保存所有前端传递的数据 ===
             
-            # 3. 重置结算单审批状态（保留数据，仅重置状态）
-            PricingOrderService.reset_settlement_approval_status(pricing_order_id)
+            # 处理基本信息字段
+            if 'basic_info' in request_data:
+                basic_info = request_data['basic_info']
+                
+                # 经销商和分销商
+                if 'dealer_id' in basic_info:
+                    pricing_order.dealer_id = basic_info['dealer_id']
+                    processed_fields.append('dealer_id')
+                
+                if 'distributor_id' in basic_info:
+                    pricing_order.distributor_id = basic_info['distributor_id']
+                    processed_fields.append('distributor_id')
+                
+                # 布尔字段
+                if 'is_direct_contract' in basic_info:
+                    pricing_order.is_direct_contract = basic_info['is_direct_contract'] == True
+                    processed_fields.append('is_direct_contract')
+                
+                if 'is_factory_pickup' in basic_info:
+                    pricing_order.is_factory_pickup = basic_info['is_factory_pickup'] == True
+                    processed_fields.append('is_factory_pickup')
+                
+                # 批价单总折扣率
+                if 'pricing_total_discount_rate' in basic_info and basic_info['pricing_total_discount_rate'] is not None:
+                    old_value = pricing_order.pricing_total_discount_rate
+                    pricing_order.pricing_total_discount_rate = Decimal(str(basic_info['pricing_total_discount_rate']))
+                    processed_fields.append('pricing_total_discount_rate')
+                    current_app.logger.info(f"✅ 更新批价单总折扣率: {old_value} -> {basic_info['pricing_total_discount_rate']}")
+                
+                # 结算单总折扣率
+                if 'settlement_total_discount_rate' in basic_info and basic_info['settlement_total_discount_rate'] is not None:
+                    old_value = pricing_order.settlement_total_discount_rate
+                    pricing_order.settlement_total_discount_rate = Decimal(str(basic_info['settlement_total_discount_rate']))
+                    processed_fields.append('settlement_total_discount_rate')
+                    current_app.logger.info(f"✅ 更新结算单总折扣率: {old_value} -> {basic_info['settlement_total_discount_rate']}")
             
-            # 4. 解锁相关对象
-            PricingOrderService.unlock_related_objects(pricing_order)
+            # 处理批价单明细数据
+            if 'pricing_details' in request_data:
+                details_data = request_data['pricing_details']
+                current_app.logger.info(f"收到批价单明细数据: {len(details_data)} 条")
+                
+                # 删除现有批价单明细
+                PricingOrderDetail.query.filter_by(pricing_order_id=pricing_order_id).delete()
+                
+                # 重新创建明细并计算总金额
+                pricing_total_amount = Decimal('0')
+                for detail_data in details_data:
+                    # 从前端数据获取字段值
+                    market_price = Decimal(str(detail_data.get('market_price', 0)))
+                    unit_price = Decimal(str(detail_data.get('unit_price', 0)))
+                    quantity = int(detail_data.get('quantity', 1))
+                    discount_rate = Decimal(str(detail_data.get('discount_rate', 100))) / 100  # 转换为小数
+                    
+                    # 计算小计 (前端已计算好，直接使用)
+                    total_price = unit_price * quantity
+                    pricing_total_amount += total_price
+                    
+                    # 创建明细记录
+                    detail = PricingOrderDetail(
+                        pricing_order_id=pricing_order_id,
+                        product_name=detail_data.get('product_name', ''),
+                        product_model=detail_data.get('product_model', ''),
+                        product_desc=detail_data.get('product_desc', ''),
+                        brand=detail_data.get('brand', ''),
+                        unit=detail_data.get('unit', '台'),
+                        product_mn=detail_data.get('product_mn', ''),
+                        market_price=market_price,
+                        unit_price=unit_price,
+                        quantity=quantity,
+                        discount_rate=discount_rate,
+                        total_price=total_price
+                    )
+                    db.session.add(detail)
+                
+                # 更新批价单总金额
+                pricing_order.pricing_total_amount = pricing_total_amount
+                processed_fields.append('pricing_details')
+                current_app.logger.info(f"✅ 更新批价单明细和总金额: {pricing_total_amount}")
             
-            # 5. 记录操作日志
-            current_app.logger.info(
-                f"管理员 {admin_user.username} (ID: {admin_user_id}) "
-                f"将批价单 {pricing_order.order_number} (ID: {pricing_order_id}) 的审批状态退回到草稿状态。"
-                f"原因：{reason or '未提供'}"
-            )
+            # 处理结算单明细数据
+            if 'settlement_details' in request_data:
+                from app.models.pricing_order import SettlementOrderDetail
+                
+                details_data = request_data['settlement_details']
+                current_app.logger.info(f"收到结算单明细数据: {len(details_data)} 条")
+                
+                # 删除现有结算单明细
+                SettlementOrderDetail.query.filter_by(pricing_order_id=pricing_order_id).delete()
+                
+                # 重新创建明细并计算总金额
+                settlement_total_amount = Decimal('0')
+                for detail_data in details_data:
+                    # 从前端数据获取字段值
+                    market_price = Decimal(str(detail_data.get('market_price', 0)))
+                    unit_price = Decimal(str(detail_data.get('unit_price', 0)))
+                    quantity = int(detail_data.get('quantity', 1))
+                    discount_rate = Decimal(str(detail_data.get('discount_rate', 100))) / 100  # 转换为小数
+                    
+                    # 计算小计
+                    total_price = unit_price * quantity
+                    settlement_total_amount += total_price
+                    
+                    # 创建明细记录
+                    detail = SettlementOrderDetail(
+                        pricing_order_id=pricing_order_id,
+                        product_name=detail_data.get('product_name', ''),
+                        product_model=detail_data.get('product_model', ''),
+                        product_desc=detail_data.get('product_desc', ''),
+                        brand=detail_data.get('brand', ''),
+                        unit=detail_data.get('unit', '台'),
+                        product_mn=detail_data.get('product_mn', ''),
+                        market_price=market_price,
+                        unit_price=unit_price,
+                        quantity=quantity,
+                        discount_rate=discount_rate,
+                        total_price=total_price
+                    )
+                    db.session.add(detail)
+                
+                # 更新结算单总金额
+                pricing_order.settlement_total_amount = settlement_total_amount
+                processed_fields.append('settlement_details')
+                current_app.logger.info(f"✅ 更新结算单明细和总金额: {settlement_total_amount}")
             
-            # 提交事务
+            # 提交数据库变更
             db.session.commit()
             
-            return True, "批价单审批已成功退回到草稿状态，所有审批记录已清除"
+            # 验证保存结果
+            pricing_order_after = PricingOrder.query.get(pricing_order_id)
+            current_app.logger.info(f"🔍 [保存服务] 保存后数据库状态:")
+            current_app.logger.info(f"🔍   - pricing_total_discount_rate: {pricing_order_after.pricing_total_discount_rate}")
+            current_app.logger.info(f"🔍   - settlement_total_discount_rate: {pricing_order_after.settlement_total_discount_rate}")
+            
+            current_app.logger.info(f"审批保存成功 - 批价单 {pricing_order_id}, 处理字段: {processed_fields}")
+            return True, f"数据保存成功，处理字段: {', '.join(processed_fields)}"
             
         except Exception as e:
             db.session.rollback()
-            return False, f"退回失败: {str(e)}" 
-    
-    @staticmethod
-    def can_modify_direct_contract(pricing_order, current_user):
-        """检查是否可以修改厂商直签状态 - V2版本专用"""
-        # 只有厂家账户可以设置厂商直签状态
-        if not current_user.is_vendor_user():
-            return False, "只有厂家账户可以设置厂商直签状态"
-        
-        # 审批中和审批通过后都不可修改（修正：审批中不能修改）
-        if pricing_order.status in ['pending', 'approved']:
-            return False, "审批过程中和审批通过后不可修改厂商直签状态"
-        
-        return True, None
+            current_app.logger.error(f"审批保存失败 - 批价单 {pricing_order_id}: {str(e)}")
+            import traceback
+            current_app.logger.error(traceback.format_exc())
+            return False, f"保存失败: {str(e)}"

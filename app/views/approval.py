@@ -397,6 +397,15 @@ def approve(instance_id):
     
     处理用户对审批实例的同意/拒绝操作
     """
+    # === 调试断点Level1: 路由入口 ===
+    print("\n🔥 === Level1调试断点: approve()路由被访问 ===")
+    print("审批实例ID:", instance_id)
+    print("请求方法:", request.method)
+    print("请求URL:", request.url)
+    print("当前用户:", current_user.username, "ID:", current_user.id)
+    print("请求表单数据:", dict(request.form))
+    # import pdb; pdb.set_trace()  # 暂时注释掉调试断点
+    
     # 获取表单数据
     action_value = request.form.get('action')
     comment = request.form.get('comment', '')
@@ -446,6 +455,27 @@ def approve(instance_id):
         flash(_('找不到审批实例'), 'danger')
         return redirect(url_for('approval.center'))
     
+    # 收集批价单相关数据
+    pricing_order_data = {}
+    if instance.object_type == 'pricing_order':
+        current_app.logger.info(f"批价单审批 - 开始收集页面数据，实例ID: {instance_id}")
+        current_app.logger.info(f"批价单审批 - 请求表单数据: {dict(request.form)}")
+        
+        # 收集批价单基础数据
+        basic_fields = [
+            'dealer', 'distributor', 'remark', 
+            'sales_manager', 'contract_amount', 'payment_terms',
+            'delivery_terms', 'delivery_date', 'company_id',
+            'pricing_total_discount_rate'  # 添加折扣率字段
+        ]
+        for field in basic_fields:
+            value = request.form.get(field)
+            if value:
+                pricing_order_data[field] = value
+        
+        current_app.logger.info(f"批价单审批 - 收集到的页面数据: {pricing_order_data}")
+        current_app.logger.info(f"批价单审批 - 是否有数据: {bool(pricing_order_data)}")
+    
     current_step = get_current_step_info(instance)
     # 检查是否是授权步骤或分支决策步骤（分支决策步骤可能包含授权动作）
     is_authorization_step = (
@@ -463,6 +493,16 @@ def approve(instance_id):
         # 执行审批操作，如果是授权步骤或分支决策步骤并且提供了项目类型，则传递项目类型
         from app.helpers.approval_helpers import process_approval as helper_process_approval
         
+        # === 调试断点Level2: 选择处理分支前 ===
+        print("\n🔥 === Level2调试断点: 选择处理分支 ===")
+        print("object_type:", instance.object_type)
+        print("is_authorization_step:", is_authorization_step)
+        print("is_branch_decision_step:", is_branch_decision_step)
+        print("pricing_order_data存在:", bool(pricing_order_data))
+        if pricing_order_data:
+            print("pricing_order_data内容:", pricing_order_data)
+        # import pdb; pdb.set_trace()  # 暂时注释掉调试断点
+        
         # 对于项目审批，如果是授权步骤或分支决策步骤，传递项目类型参数
         if (is_authorization_step or is_branch_decision_step) and instance.object_type == 'project':
             # 如果前端没有提供project_type，从项目对象中获取
@@ -472,7 +512,20 @@ def approve(instance_id):
                 if project_obj:
                     project_type = project_obj.project_type
             
+            print(">>> 选择分支: 项目审批")
             success = helper_process_approval(instance_id, action, comment, project_type=project_type)
+        elif instance.object_type == 'pricing_order' and pricing_order_data:
+            # === 调试断点Level2b: 批价单分支被选择 ===
+            print("\n🔥 === Level2b调试断点: 即将调用批价单审批 ===")
+            print("instance_id:", instance_id)
+            print("action:", action)
+            print("comment:", comment)
+            print("pricing_order_data:", pricing_order_data)
+            # import pdb; pdb.set_trace()  # 暂时注释掉调试断点
+            
+            # 对于批价单审批，传递收集到的页面数据
+            print(">>> 选择分支: 批价单审批")
+            success = helper_process_approval(instance_id, action, comment, pricing_order_data=pricing_order_data)
         else:
             success = helper_process_approval(instance_id, action, comment)
         

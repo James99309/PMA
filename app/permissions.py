@@ -257,6 +257,20 @@ def approval_view_permission_required(object_type_param, object_id_param):
         return decorated_function
     return decorator
 
+def get_role_permission(role, module):
+    """
+    获取指定角色和模块的权限配置
+    
+    参数:
+        role: 用户角色
+        module: 模块名称
+    
+    返回:
+        RolePermission: 权限配置对象，如果不存在则返回None
+    """
+    from app.models.role_permissions import RolePermission
+    return RolePermission.query.filter_by(role=role, module=module).first()
+
 def permission_required_with_approval_context(module, action):
     """
     增强版权限检查装饰器，支持审批上下文

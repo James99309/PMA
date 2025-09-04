@@ -600,6 +600,52 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 1. 共享记录(is_shared=True)：跟随客户的访问权限（包括共享权限）
         # 2. 非共享记录(is_shared=False)：仅对管理员、上级账户和记录创建者可见
         
+        # 检查是否从项目页面查询
+        is_project_query = False
+        project_id = None
+        if special_filters:
+            for filter_condition in special_filters:
+                # 检测是否有 project_id 过滤条件
+                try:
+                    if hasattr(filter_condition, 'left') and hasattr(filter_condition.left, 'key'):
+                        if filter_condition.left.key == 'project_id':
+                            is_project_query = True
+                            # 获取项目ID值
+                            if hasattr(filter_condition, 'right'):
+                                project_id = filter_condition.right.value
+                            break
+                except:
+                    continue
+        
+        # 如果是项目查询，检查用户是否有项目访问权限
+        if is_project_query and project_id:
+            # 管理员可以看到项目的所有行动记录
+            if user.role in ['admin', 'system_admin']:
+                return model_class.query.filter(
+                    model_class.project_id == project_id,
+                    *special_filters
+                )
+            
+            # 检查用户是否能看到这个项目
+            viewable_projects = get_viewable_data(Project, user)
+            project = viewable_projects.filter_by(id=project_id).first()
+            
+            if project:
+                # 用户有项目权限，可以看到项目的所有共享行动记录和自己的记录
+                # 不需要检查公司权限
+                return model_class.query.filter(
+                    model_class.project_id == project_id,
+                    db.or_(
+                        db.or_(model_class.is_shared == True, model_class.is_shared.is_(None)),  # 共享记录
+                        model_class.owner_id == user.id  # 自己的记录
+                    ),
+                    *special_filters
+                )
+            else:
+                # 用户没有项目权限
+                return model_class.query.filter(False)
+        
+        # 以下是原有的公司过滤逻辑（用于公司页面和通用查询）
         try:
             viewable_company_ids = [company.id for company in get_viewable_data(Company, user).all()]
         except Exception as e:
@@ -673,6 +719,62 @@ def get_viewable_data(model_class, user, special_filters=None):
             )
         
         return model_class.query.filter(*action_filters, *special_filters)
+    
+    # 批价单的特殊处理 - PricingOrder 使用 created_by 字段而不是 owner_id
+    if model_class.__name__ == 'PricingOrder':
+        # 检查用户是否有批价单模块的查看权限
+        if not user.has_permission('pricing_order', 'view'):
+            return model_class.query.filter(False)
+        
+        # 获取用户在批价单模块的权限级别
+        permission_level = user.get_permission_level('pricing_order')
+        
+        # 为软删除模型添加is_deleted过滤条件
+        base_filters = []
+        if hasattr(model_class, 'is_deleted'):
+            base_filters.append(model_class.is_deleted == False)
+        
+        if permission_level == 'system':
+            # 系统级权限：可以查看所有批价单
+            all_filters = base_filters + (special_filters if special_filters else [])
+            return model_class.query.filter(*all_filters)
+        elif permission_level == 'company' and user.company_name:
+            # 企业级权限：可以查看企业下所有批价单
+            company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
+            all_filters = base_filters + [model_class.created_by.in_(company_user_ids)] + (special_filters if special_filters else [])
+            return model_class.query.filter(*all_filters)
+        elif permission_level == 'department' and user.department and user.company_name:
+            # 部门级权限：可以查看部门下所有批价单
+            dept_user_ids = [u.id for u in User.query.filter(
+                User.department == user.department,
+                User.company_name == user.company_name
+            ).all()]
+            all_filters = base_filters + [model_class.created_by.in_(dept_user_ids)] + (special_filters if special_filters else [])
+            return model_class.query.filter(*all_filters)
+        
+        # 个人级权限或其他情况：基础权限控制
+        viewable_user_ids = [user.id]
+        
+        # 归属关系：可以查看下级创建的批价单
+        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+        for affiliation in affiliations:
+            viewable_user_ids.append(affiliation.owner_id)
+        
+        # 部门负责人权限：可以查看本公司本部门所有用户的批价单
+        if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+            dept_users = User.query.filter_by(
+                department=user.department,
+                company_name=user.company_name
+            ).all()
+            dept_user_ids = [u.id for u in dept_users]
+            viewable_user_ids.extend(dept_user_ids)
+        
+        # 去重
+        viewable_user_ids = list(set(viewable_user_ids))
+        
+        # 基于权限管理系统的数据访问控制，使用 created_by 字段
+        all_filters = base_filters + [model_class.created_by.in_(viewable_user_ids)] + (special_filters if special_filters else [])
+        return model_class.query.filter(*all_filters)
     
     # 标准数据访问控制：自己的数据 + 归属关系授权的数据
     viewable_user_ids = [user.id]

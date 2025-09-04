@@ -2622,11 +2622,11 @@ def recall_approval(expense_id):
                 'message': '报销单不存在或无权限访问'
             }), 404
         
-        # 检查是否是报销单创建人
+        # 检查召回权限：创建人或管理员可以召回
         if not can_edit_data(expense_obj, current_user):
             return jsonify({
                 'success': False,
-                'message': '只有报销单创建人可以召回审批'
+                'message': '只有报销单创建人或管理员可以召回审批'
             }), 403
         
         # 召回审批流程

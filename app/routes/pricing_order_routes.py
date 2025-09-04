@@ -6,11 +6,12 @@ from app.models.project import Project
 from app.models.quotation import Quotation
 from app.models.customer import Company
 from app.services.pricing_order_service import PricingOrderService
-from app.services.pdf_generator import PDFGenerator
+# from app.services.pdf_generator import PDFGenerator  # 临时注释，避免WeasyPrint问题
 from app.services.discount_permission_service import DiscountPermissionService
-from app.permissions import check_permission
+from app.permissions import check_permission, permission_required
 import logging
 import os
+import json
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -638,18 +639,18 @@ def submit_pricing_order(order_id):
 @pricing_order_bp.route('/<int:order_id>/approve', methods=['POST'])
 @login_required
 def approve_pricing_order(order_id):
-    """审批批价单"""
+    """审批批价单 - 已弃用，建议使用统一审批API"""
+    # 注意：此路由已弃用，前端现在统一使用 /approval/approve/{instanceId}
+    # 数据保存逻辑已移到批结算审批动作内部
+    
     try:
-        pricing_order = PricingOrder.query.get_or_404(order_id)
+        current_app.logger.warning(f"⚠️ 使用了已弃用的批价单审批路由: {order_id}")
         
+        pricing_order = PricingOrder.query.get_or_404(order_id)
         data = request.get_json()
+        
         action = data.get('action')  # 'approve' 或 'reject'
         comment = data.get('comment', '')
-        
-        # 新增：接收前端可能传递的明细数据
-        pricing_details = data.get('pricing_details', [])
-        settlement_details = data.get('settlement_details', [])
-        basic_info = data.get('basic_info', {})
         
         if action not in ['approve', 'reject']:
             return jsonify({
@@ -657,46 +658,12 @@ def approve_pricing_order(order_id):
                 'message': '无效的审批动作'
             })
         
-        # 🔥 关键修复：只有在通过审批时才保存前端数据，拒绝时不保存
-        if action == 'approve' and (pricing_details or settlement_details or basic_info):
-            logger.info(f"审批通过，保存前端修改的数据: 批价单明细{len(pricing_details)}条, 结算单明细{len(settlement_details)}条")
-            
-            # 使用统一的审批数据保存方法
-            success, error_message = PricingOrderService.save_approval_data(
-                pricing_order, pricing_details, settlement_details, basic_info, current_user, logger
-            )
-            
-            if not success:
-                db.session.rollback()
-                return jsonify({
-                    'success': False,
-                    'message': error_message
-                })
-            
-            # 提交保存的数据
-            db.session.commit()
-            logger.info(f"审批通过，数据保存成功: {pricing_order.order_number}")
-        elif action == 'reject':
-            logger.info(f"审批拒绝，不保存前端修改的数据: {pricing_order.order_number}")
-        
         # 获取当前审批步骤
         current_step = pricing_order.current_approval_step
         
-        # 准备前端金额数据（如果有的话）
-        frontend_amounts = None
-        if action == 'approve' and (pricing_details or settlement_details):
-            # 计算前端最新的总金额
-            pricing_total = sum(float(detail.get('total_price', 0)) for detail in pricing_details) if pricing_details else pricing_order.pricing_total_amount
-            settlement_total = sum(float(detail.get('total_price', 0)) for detail in settlement_details) if settlement_details else pricing_order.settlement_total_amount
-            
-            frontend_amounts = {
-                'pricing_total': pricing_total,
-                'settlement_total': settlement_total
-            }
-            logger.info(f"前端金额数据: 批价单总额={pricing_total}, 结算单总额={settlement_total}")
-        
+        # 简化调用，不传递前端数据
         success, error = PricingOrderService.approve_step(
-            order_id, current_step, current_user.id, action, comment, frontend_amounts
+            order_id, current_step, current_user.id, action, comment, None, None
         )
         
         if not success:
@@ -1487,91 +1454,6 @@ def save_pricing_details(order_id):
         })
 
 
-@pricing_order_bp.route('/<int:order_id>/save_settlement_details', methods=['POST'])
-@login_required
-def save_settlement_details(order_id):
-    """保存结算单明细（批量保存）"""
-    try:
-        pricing_order = PricingOrder.query.get_or_404(order_id)
-        
-        # 记录当前项目阶段状态用于调试
-        project_stage_before = pricing_order.project.current_stage if pricing_order.project else None
-        logger.info(f"保存结算单 {pricing_order.order_number} 明细前，项目阶段: {project_stage_before}")
-        
-        # 权限检查 - 使用统一的权限检查函数
-        (can_edit_pricing, can_edit_settlement, is_approval_context,
-         can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
-        if not can_edit_settlement:
-            return jsonify({
-                'success': False,
-                'message': '您没有权限编辑结算单明细'
-            })
-        
-        data = request.get_json()
-        details_data = data.get('details', [])
-        
-        if not details_data:
-            return jsonify({
-                'success': False,
-                'message': '请添加至少一个产品明细'
-            })
-        
-        # 删除现有明细
-        existing_details = SettlementOrderDetail.query.filter_by(pricing_order_id=order_id).all()
-        for detail in existing_details:
-            db.session.delete(detail)
-        
-        # 创建新明细
-        for detail_data in details_data:
-            # 验证必填字段
-            if not detail_data.get('product_name'):
-                continue
-            
-            # 创建结算单明细
-            settlement_detail = SettlementOrderDetail(
-                pricing_order_id=order_id,
-                product_name=detail_data['product_name'],
-                product_model=detail_data.get('product_model', ''),
-                product_desc=detail_data.get('product_desc', ''),
-                brand=detail_data.get('brand', ''),
-                unit=detail_data.get('unit', '台'),
-                product_mn=detail_data.get('product_mn', ''),
-                market_price=float(detail_data.get('market_price', 0)),
-                quantity=int(detail_data.get('quantity', 1)),
-                discount_rate=float(detail_data.get('discount_rate', 100)) / 100,
-                pricing_detail_id=detail_data.get('pricing_detail_id')  # 如果有关联的批价单明细
-            )
-            
-            # 计算价格
-            settlement_detail.calculate_prices()
-            db.session.add(settlement_detail)
-        
-        # 重新计算总额
-        pricing_order.calculate_settlement_totals()
-        
-        db.session.commit()
-        
-        # 检查项目阶段是否被意外修改
-        project_stage_after = pricing_order.project.current_stage if pricing_order.project else None
-        if project_stage_before != project_stage_after:
-            logger.warning(f"警告：保存结算单 {pricing_order.order_number} 明细时，项目阶段发生了意外变化: {project_stage_before} -> {project_stage_after}")
-        else:
-            logger.info(f"保存结算单 {pricing_order.order_number} 明细后，项目阶段保持不变: {project_stage_after}")
-        
-        return jsonify({
-            'success': True,
-            'message': '结算单明细保存成功'
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"保存结算单明细失败: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f'保存失败: {str(e)}'
-        })
-
-
 @pricing_order_bp.route('/test')
 @login_required
 def test_pricing():
@@ -1584,46 +1466,118 @@ def test_pricing():
 def save_all_pricing_data(order_id):
     """保存批价单所有数据（基本信息和明细）"""
     try:
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] ============= 开始保存批价单数据 =============")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] 批价单ID: {order_id}")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] 当前用户: {current_user.username} (ID: {current_user.id})")
+        
         pricing_order = PricingOrder.query.get_or_404(order_id)
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] 批价单信息:")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 订单号: {pricing_order.order_number}")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 状态: {pricing_order.status}")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 创建者: {pricing_order.created_by}")
         
         # 记录当前项目阶段状态用于调试
         project_stage_before = pricing_order.project.current_stage if pricing_order.project else None
-        logger.info(f"保存批价单 {pricing_order.order_number} 所有数据前，项目阶段: {project_stage_before}")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] 项目阶段: {project_stage_before}")
         
         # 权限检查 - 使用统一的权限检查函数
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] 开始权限检查...")
         (can_edit_pricing, can_edit_settlement, is_approval_context,
          can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
+        
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] 权限检查结果:")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 可编辑批价: {can_edit_pricing}")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 可编辑结算: {can_edit_settlement}")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 审批上下文: {is_approval_context}")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 可编辑数量: {can_edit_quantity}")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 可编辑折扣价格: {can_edit_discount_price}")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 可编辑基本信息: {can_edit_basic_info}")
+        
         if not can_edit_pricing:
+            logger.info(f"🔥 [SAVE_ALL_DEBUG] ❌ 权限检查失败，返回错误")
             return jsonify({
                 'success': False,
                 'message': '您没有权限编辑该批价单'
             })
         
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] ✅ 权限检查通过，开始处理数据")
+        
+        # 获取请求数据
         data = request.get_json()
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] 接收到的完整数据:")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] {json.dumps(data, indent=2, ensure_ascii=False, default=str)}")
         basic_info = data.get('basic_info', {})
         pricing_details = data.get('pricing_details', [])
         settlement_details = data.get('settlement_details', [])
         
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] 数据结构分析:")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - basic_info 字段数量: {len(basic_info)}")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - pricing_details 条目数量: {len(pricing_details)}")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - settlement_details 条目数量: {len(settlement_details)}")
+        
+        if basic_info:
+            logger.info(f"🔥 [SAVE_ALL_DEBUG] basic_info 内容: {basic_info}")
+        
+        if pricing_details:
+            logger.info(f"🔥 [SAVE_ALL_DEBUG] pricing_details 第一条: {pricing_details[0] if pricing_details else None}")
+        
+        if settlement_details:
+            logger.info(f"🔥 [SAVE_ALL_DEBUG] settlement_details 第一条: {settlement_details[0] if settlement_details else None}")
+        
         # 更新基本信息
-        if 'distributor_id' in basic_info:
-            distributor_id = basic_info['distributor_id']
-            if distributor_id and str(distributor_id).strip():
-                try:
-                    pricing_order.distributor_id = int(distributor_id)
-                except (ValueError, TypeError):
-                    pricing_order.distributor_id = None
-            else:
-                pricing_order.distributor_id = None
-                
-        if 'dealer_id' in basic_info:
-            dealer_id = basic_info['dealer_id']
-            if dealer_id and str(dealer_id).strip():
-                try:
-                    pricing_order.dealer_id = int(dealer_id)
-                except (ValueError, TypeError):
+        # 处理厂商直签和厂家提货字段
+        is_direct_contract = basic_info.get('is_direct_contract', False)
+        is_factory_pickup = basic_info.get('is_factory_pickup', False)
+        
+        pricing_order.is_direct_contract = is_direct_contract
+        pricing_order.is_factory_pickup = is_factory_pickup
+        
+        # 根据厂商直签状态处理经销商和分销商
+        if is_direct_contract:
+            # 厂商直签时，清空经销商和分销商
+            pricing_order.dealer_id = None
+            pricing_order.distributor_id = None
+        else:
+            # 非厂商直签时，正常处理经销商和分销商
+            if 'dealer_id' in basic_info:
+                dealer_id = basic_info['dealer_id']
+                if dealer_id and str(dealer_id).strip():
+                    try:
+                        pricing_order.dealer_id = int(dealer_id)
+                    except (ValueError, TypeError):
+                        pricing_order.dealer_id = None
+                else:
                     pricing_order.dealer_id = None
-            else:
-                pricing_order.dealer_id = None
+            
+            # 处理分销商：如果厂家提货开启，清空分销商
+            if is_factory_pickup:
+                pricing_order.distributor_id = None
+            elif 'distributor_id' in basic_info:
+                distributor_id = basic_info['distributor_id']
+                if distributor_id and str(distributor_id).strip():
+                    try:
+                        pricing_order.distributor_id = int(distributor_id)
+                    except (ValueError, TypeError):
+                        pricing_order.distributor_id = None
+                else:
+                    pricing_order.distributor_id = None
+        
+        # 处理总折扣率
+        if 'pricing_total_discount_rate' in basic_info:
+            pricing_total_discount_rate = basic_info['pricing_total_discount_rate']
+            if pricing_total_discount_rate and str(pricing_total_discount_rate).strip():
+                try:
+                    # 将百分比转换为小数
+                    discount_rate = float(pricing_total_discount_rate) / 100
+                    pricing_order.pricing_total_discount_rate = discount_rate
+                except (ValueError, TypeError):
+                    pass  # 保留原值
+        
+        # 处理币种
+        if 'currency' in basic_info:
+            currency = basic_info['currency']
+            if currency and str(currency).strip():
+                pricing_order.currency = currency
         
         # 保存批价单明细（如果提供）
         if pricing_details:
@@ -1744,11 +1698,27 @@ def save_all_pricing_data(order_id):
                         settlement_detail.unit_price = float(detail_data['unit_price'])
                     settlement_detail.calculate_prices()
         
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] ============= 开始保存数据到数据库 =============")
+        
         # 重新计算总额和总折扣率（基于明细数据）
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] 重新计算批价单总额和总折扣率...")
         pricing_order.calculate_pricing_totals(recalculate_discount_rate=True)
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] 重新计算结算单总额和总折扣率...")
         pricing_order.calculate_settlement_totals(recalculate_discount_rate=True)
         
-        db.session.commit()
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] 计算完成后的状态:")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 批价单总金额: {pricing_order.pricing_total_amount}")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 批价单总折扣率: {pricing_order.pricing_total_discount_rate}")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 结算单总金额: {pricing_order.settlement_total_amount}")
+        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 结算单总折扣率: {pricing_order.settlement_total_discount_rate}")
+        
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] 准备提交数据库事务...")
+        try:
+            db.session.commit()
+            logger.info(f"🔥 [SAVE_ALL_DEBUG] ✅ 数据库事务提交成功")
+        except Exception as e:
+            logger.error(f"🔥 [SAVE_ALL_DEBUG] ❌ 数据库事务提交失败: {str(e)}")
+            raise
         
         # 检查项目阶段是否被意外修改
         project_stage_after = pricing_order.project.current_stage if pricing_order.project else None
@@ -1757,14 +1727,24 @@ def save_all_pricing_data(order_id):
         else:
             logger.info(f"保存批价单 {pricing_order.order_number} 数据后，项目阶段保持不变: {project_stage_after}")
         
+        logger.info(f"🔥 [SAVE_ALL_DEBUG] ✅ 批价单保存完全成功")
         return jsonify({
             'success': True,
             'message': '批价单保存成功'
         })
         
     except Exception as e:
-        db.session.rollback()
-        logger.error(f"保存批价单所有数据失败: {str(e)}")
+        logger.error(f"🔥 [SAVE_ALL_DEBUG] ❌ 保存过程中发生异常: {str(e)}")
+        logger.error(f"🔥 [SAVE_ALL_DEBUG] 异常类型: {type(e).__name__}")
+        import traceback
+        logger.error(f"🔥 [SAVE_ALL_DEBUG] 异常堆栈:\n{traceback.format_exc()}")
+        
+        try:
+            db.session.rollback()
+            logger.info(f"🔥 [SAVE_ALL_DEBUG] 数据库事务已回滚")
+        except Exception as rollback_e:
+            logger.error(f"🔥 [SAVE_ALL_DEBUG] 数据库回滚失败: {str(rollback_e)}")
+        
         return jsonify({
             'success': False,
             'message': f'保存失败: {str(e)}'
@@ -2191,65 +2171,9 @@ def delete_pricing_order(order_id):
 @pricing_order_bp.route('/<int:order_id>/export_pdf/<pdf_type>')
 @login_required
 def export_pdf(order_id, pdf_type):
-    """导出批价单/结算单PDF"""
-    try:
-        pricing_order = PricingOrder.query.get_or_404(order_id)
-        
-        # 权限检查 - 使用统一的权限管理
-        if not PricingOrderService.can_export_pdf(pricing_order, current_user, pdf_type):
-            flash('您没有权限导出该批价单', 'danger')
-            return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
-        
-        # 创建PDF生成器实例
-        pdf_generator = PDFGenerator()
-        
-        # 根据类型生成PDF
-        if pdf_type == 'pricing':
-            pdf_result = pdf_generator.generate_pricing_order_pdf(pricing_order)
-            pdf_content = pdf_result['content']
-            filename = pdf_result['filename']
-        elif pdf_type == 'settlement':
-            # 检查结算单查看权限
-            if not PricingOrderService.can_view_settlement_tab(current_user):
-                flash('您没有权限查看结算单', 'danger')
-                return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
-            pdf_result = pdf_generator.generate_settlement_order_pdf(pricing_order)
-            pdf_content = pdf_result['content']
-            filename = pdf_result['filename']
-        else:
-            flash('无效的PDF类型', 'danger')
-            return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
-        
-        # 创建临时文件
-        import tempfile
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
-        temp_file.write(pdf_content)
-        temp_file.close()
-        
-        # 发送文件
-        def remove_file(response):
-            try:
-                os.remove(temp_file.name)
-            except Exception as e:
-                logger.warning(f"清理临时PDF文件失败: {str(e)}")
-            return response
-        
-        response = send_file(
-            temp_file.name,
-            as_attachment=True,
-            download_name=filename,
-            mimetype='application/pdf'
-        )
-        
-        # 在响应后清理临时文件
-        response.call_on_close(lambda: remove_file(response))
-        
-        return response
-        
-    except Exception as e:
-        logger.error(f"导出PDF失败: {str(e)}")
-        flash(f'导出PDF失败: {str(e)}', 'danger')
-        return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
+    """导出批价单/结算单PDF - 临时禁用WeasyPrint"""
+    flash('PDF导出功能暂时不可用（WeasyPrint库问题）', 'warning')
+    return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
 
 
 @pricing_order_bp.route('/<int:order_id>/admin_rollback', methods=['POST'])
@@ -2298,4 +2222,212 @@ def admin_rollback_pricing_order(order_id):
         return jsonify({
             'success': False,
             'message': f'退回失败: {str(e)}'
+        }), 500
+
+
+@pricing_order_bp.route('/api/<int:order_id>/status')
+@login_required
+def get_pricing_order_status(order_id):
+    """获取批价单状态信息 - 用于审批后页面状态更新"""
+    logger.info(f"🔍 [状态API] 用户 {current_user.username} 请求批价单 {order_id} 状态")
+    try:
+        from app.utils.access_control import get_viewable_data
+        
+        # 获取批价单信息
+        logger.debug(f"🔍 [状态API] 开始获取可查看的批价单数据...")
+        viewable_orders = get_viewable_data(PricingOrder, current_user)
+        logger.debug(f"🔍 [状态API] 可查看数据过滤器创建成功")
+        
+        pricing_order = viewable_orders.filter(PricingOrder.id == order_id).first()
+        if not pricing_order:
+            logger.warning(f"❌ [状态API] 批价单 {order_id} 不存在或用户 {current_user.username} 无权访问")
+            return jsonify({
+                'success': False,
+                'message': '批价单不存在或您没有权限访问'
+            }), 404
+        
+        logger.debug(f"✅ [状态API] 成功获取批价单: ID={pricing_order.id}, 状态={pricing_order.status}")
+        
+        # 检查权限 - 统一权限检查
+        logger.debug(f"🔍 [状态API] 开始检查用户权限...")
+        try:
+            (can_edit_pricing, can_edit_settlement, is_approval_context,
+             can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
+            logger.debug(f"✅ [状态API] 权限检查完成: 批价={can_edit_pricing}, 结算={can_edit_settlement}, 审批中={is_approval_context}")
+        except Exception as perm_error:
+            logger.error(f"❌ [状态API] 权限检查失败: {str(perm_error)}")
+            raise perm_error
+        
+        # 构建状态响应
+        response_data = {
+            'success': True,
+            'status': pricing_order.status,
+            'is_locked': pricing_order.status in ['approved', 'paid'],
+            'permissions': {
+                'can_edit_pricing': can_edit_pricing,
+                'can_edit_settlement': can_edit_settlement,
+                'can_edit_quantity': can_edit_quantity,
+                'can_edit_discount_price': can_edit_discount_price,
+                'can_edit_basic_info': can_edit_basic_info,
+                'is_approval_context': is_approval_context
+            },
+            'order_info': {
+                'order_number': pricing_order.order_number,
+                'current_approver': None,  # 可以后续扩展
+                'last_updated': pricing_order.updated_at.isoformat() if pricing_order.updated_at else None
+            }
+        }
+        
+        logger.info(f"✅ [状态API] 成功返回批价单 {order_id} 状态, 锁定={response_data['is_locked']}")
+        return jsonify(response_data)
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"❌ [状态API] 获取批价单 {order_id} 状态失败: {str(e)}")
+        logger.error(f"❌ [状态API] 详细错误信息:\n{error_details}")
+        return jsonify({
+            'success': False,
+            'message': f'获取状态失败: {str(e)}'
+        }), 500
+
+
+# ========== V2 统一审批系统 API ==========
+
+@pricing_order_bp.route('/api/approval/<int:order_id>/submit', methods=['POST'])
+@login_required
+@permission_required('pricing_order', 'edit')
+def submit_pricing_order_approval(order_id):
+    """提交批价单审批 - V2统一审批系统"""
+    try:
+        logger.info(f"[V2审批] 提交批价单审批: order_id={order_id}, user_id={current_user.id}")
+        
+        # 获取批价单
+        pricing_order = PricingOrder.query.get_or_404(order_id)
+        
+        # 权限检查 - 只有创建人可以提交
+        if pricing_order.created_by != current_user.id and current_user.role != 'admin':
+            logger.warning(f"[V2审批] 无权限提交: order_id={order_id}, user_id={current_user.id}")
+            return jsonify({
+                'success': False,
+                'message': '只有创建人可以提交审批'
+            }), 403
+        
+        # 检查状态
+        if pricing_order.status not in ['draft', 'rejected']:
+            logger.warning(f"[V2审批] 状态不允许提交: status={pricing_order.status}")
+            return jsonify({
+                'success': False,
+                'message': '只有草稿或被拒绝状态的批价单才能提交审批'
+            })
+        
+        # 获取请求数据并保存
+        data = request.get_json() or {}
+        logger.info(f"[V2审批] 收到请求数据: {data}")
+        
+        # 使用专门的审批保存函数
+        success, message = PricingOrderService.save_pricing_order_core_data(
+            order_id, data, current_user
+        )
+        
+        if not success:
+            logger.error(f"[V2审批] 数据保存失败: {message}")
+            return jsonify({
+                'success': False,
+                'message': f'数据保存失败: {message}'
+            })
+        
+        # 导入V2审批系统
+        from app.helpers.approval_helpers import start_approval_process, get_available_templates
+        from app.models.approval import ApprovalProcessTemplate
+        
+        # 获取批价单审批模板
+        template = ApprovalProcessTemplate.query.filter_by(
+            object_type='pricing_order',
+            is_active=True
+        ).first()
+        
+        if not template:
+            logger.error(f"[V2审批] 未找到批价单审批模板")
+            return jsonify({
+                'success': False,
+                'message': '未找到可用的审批模板'
+            }), 400
+        
+        # 启动V2审批流程
+        approval_instance = start_approval_process(
+            'pricing_order', 
+            order_id, 
+            template.id, 
+            current_user.id
+        )
+        
+        if not approval_instance:
+            logger.error(f"[V2审批] 启动审批流程失败")
+            return jsonify({
+                'success': False,
+                'message': '启动审批流程失败'
+            })
+        
+        # 更新批价单状态为待审批
+        pricing_order.status = 'pending'
+        db.session.commit()
+        
+        logger.info(f"[V2审批] 成功提交: order_id={order_id}, approval_instance={approval_instance.id}")
+        return jsonify({
+            'success': True,
+            'message': '批价单已提交审批',
+            'approval_instance_id': approval_instance.id
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"[V2审批] 提交失败: order_id={order_id}, error={str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'提交审批失败: {str(e)}'
+        }), 500
+
+
+@pricing_order_bp.route('/api/approval/<int:order_id>/resubmit', methods=['POST'])
+@login_required
+@permission_required('pricing_order', 'edit')
+def resubmit_pricing_order_approval(order_id):
+    """重新提交批价单审批 - V2统一审批系统"""
+    try:
+        logger.info(f"[V2审批] 重新提交批价单审批: order_id={order_id}, user_id={current_user.id}")
+        
+        # 获取批价单
+        pricing_order = PricingOrder.query.get_or_404(order_id)
+        
+        # 权限检查
+        if pricing_order.created_by != current_user.id and current_user.role != 'admin':
+            return jsonify({
+                'success': False,
+                'message': '只有创建人可以重新提交审批'
+            }), 403
+        
+        # 获取请求数据并保存
+        data = request.get_json() or {}
+        
+        # 使用专门的审批保存函数
+        success, message = PricingOrderService.save_pricing_order_core_data(
+            order_id, data, current_user
+        )
+        
+        if not success:
+            return jsonify({
+                'success': False,
+                'message': f'数据保存失败: {message}'
+            })
+        
+        # 重新提交逻辑与提交相同
+        return submit_pricing_order_approval(order_id)
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"[V2审批] 重新提交失败: order_id={order_id}, error={str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'重新提交失败: {str(e)}'
         }), 500 

@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+w{% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_button, render_pricing_order_number, render_project_type, render_confirm_dialog %}
 {% from 'macros/approval_flow.html' import render_complete_approval_section %}
 
@@ -1102,6 +1102,9 @@
     <!-- 创建人权限标记（用于JavaScript权限检查） -->
     <div data-is-creator="{{ 'true' if current_user.id == pricing_order.created_by else 'false' }}" style="display: none;"></div>
     
+    <!-- 基本信息编辑权限标记（用于JavaScript权限检查） -->
+    <div id="basicInfoPermissionMarker" data-can-edit-basic-info="{{ 'true' if can_edit_basic_info else 'false' }}" style="display: none;"></div>
+    
     <!-- 审批流程图（仅显示流程图，操作按钮已移至页面顶部） -->
     {% from 'macros/approval_flow.html' import render_approval_flow_container, render_approval_confirm_modal, render_recall_confirm_modal %}
     {{ render_approval_flow_container('pricing_order', pricing_order.id, 'pricingOrderApprovalSection', '批价单审批流程') }}
@@ -1627,6 +1630,8 @@ input[type="number"].form-control {
     }
 }
 
+/* 只读状态样式已移除 - 改为使用页面刷新机制 */
+
 /* 大屏幕时隐藏移动端卡片 */
 @media (min-width: 769px) {
     .mobile-card-container {
@@ -1775,6 +1780,18 @@ input[type="number"].discount-rate {
 const PRICING_ORDER_ID = "{{ pricing_order.id }}";
 const PRICING_ORDER_STATUS = "{{ pricing_order.status }}";
 
+// 🔒 全局权限检查函数
+function canEditBasicInfo() {
+    const permissionMarker = document.getElementById('basicInfoPermissionMarker');
+    if (permissionMarker) {
+        const canEdit = permissionMarker.dataset.canEditBasicInfo === 'true';
+        console.log('🔒 基本信息编辑权限检查:', canEdit);
+        return canEdit;
+    }
+    console.warn('🔒 权限标记元素未找到，默认拒绝编辑');
+    return false;
+}
+
 // 更新基本信息（前端缓存）
 function updateBasicInfo(field, value) {
     console.log('更新基本信息（前端缓存）:', field, value);
@@ -1790,6 +1807,12 @@ function updateBasicInfo(field, value) {
 
 // 厂商直签开关点击处理
 function toggleDirectContractSwitch() {
+    // 🔒 权限检查 - 如果无权限编辑基本信息，直接返回
+    if (!canEditBasicInfo()) {
+        console.log('🔒 无权限操作厂商直签开关');
+        return;
+    }
+    
     const directContractSwitch = document.getElementById('directContractSwitch');
     
     // 如果开关被禁用，不执行任何操作
@@ -1837,18 +1860,20 @@ function toggleDirectContract() {
         updateBasicInfo('is_direct_contract', true);
         updateBasicInfo('is_factory_pickup', false);
     } else {
-        // 厂商直签关闭：启用经销商和分销商选择
-        if (dealerSelect) {
+        // 厂商直签关闭：启用经销商和分销商选择（需检查权限）
+        if (dealerSelect && canEditBasicInfo()) {
             dealerSelect.enable();
             dealerSelect.clear(true); // 抑制change事件，避免触发updateSwitchesBasedOnDealer
         }
-        if (distributorSelect) {
+        if (distributorSelect && canEditBasicInfo()) {
             distributorSelect.enable(); // 明确启用分销商输入框
             distributorSelect.clear(true); // 抑制change事件
         }
         
-        // 启用厂家提货开关
-        factoryPickupSwitch.disabled = false;
+        // 启用厂家提货开关（需检查权限）
+        if (canEditBasicInfo()) {
+            factoryPickupSwitch.disabled = false;
+        }
         
         updateBasicInfo('dealer_id', '');
         updateBasicInfo('distributor_id', '');
@@ -1940,7 +1965,6 @@ function initializeSwitches() {
     
     // 等待SearchableSelect实例初始化完成
     setTimeout(() => {
-        console.log('初始化开关状态...');
         
         // 初始化厂商直签状态
         if (directContractSwitch.checked) {
@@ -1981,7 +2005,7 @@ function updateSwitchesBasedOnDealer() {
         factoryPickupSwitch.checked = false;
         
         // 分销商输入框在非直签模式下保持启用
-        if (distributorSelect) {
+        if (distributorSelect && canEditBasicInfo()) {
             distributorSelect.enable();
         }
         
@@ -1989,7 +2013,7 @@ function updateSwitchesBasedOnDealer() {
         updateBasicInfo('is_factory_pickup', false);
     } else {
         // 有经销商时：启用分销商选择框和厂家提货开关
-        if (distributorSelect) {
+        if (distributorSelect && canEditBasicInfo()) {
             distributorSelect.enable();
         }
         // 厂家提货开关根据分销商内容决定是否启用
@@ -2007,8 +2031,10 @@ function updateFactoryPickupSwitchState() {
     const hasDistributor = distributorSelect && distributorSelect.hiddenInput.value && distributorSelect.hiddenInput.value.trim() !== '';
     
     if (hasDealer) {
-        // 有经销商时，厂家提货开关可以启用
-        factoryPickupSwitch.disabled = false;
+        // 有经销商时，厂家提货开关可以启用（但需检查权限）
+        if (canEditBasicInfo()) {
+            factoryPickupSwitch.disabled = false;
+        }
     } else {
         // 没有经销商时，禁用厂家提货开关
         factoryPickupSwitch.disabled = true;
@@ -2560,7 +2586,6 @@ function calculateRowValues(row, triggerType) {
 // 初始化已有行的数据
 function initializeExistingRows() {
     try {
-        console.log('初始化已有行的数据');
         
         // 初始化批价单表格的已有行
         $('#pricingTable tbody tr').each(function() {
@@ -2605,14 +2630,6 @@ function initializeExistingRows() {
                         $subtotalInput.data('raw-value', subtotalValue);
                     }
                 }
-                
-                console.log('已有行初始化:', {
-                    产品: productName,
-                    数量: quantityValue,
-                    市场价: priceValue,
-                    单价: unitPriceValue,
-                    小计: subtotalValue
-                });
             }
         });
         
@@ -2662,7 +2679,6 @@ function initializeExistingRows() {
             }
         });
         
-        console.log('已有行数据初始化完成');
     } catch (e) {
         console.error('初始化已有行数据时出错:', e);
     }
@@ -3059,19 +3075,18 @@ $(document).ready(function() {
         calculateAndUpdateTotalDiscountRate(tabType);
     });
     
-    // 初始化标准审批流程
-    if (typeof initStandardApprovalFlow === 'function') {
-        // 配置批价单特有的预验证函数
-        window.pricingOrderPreValidation = function(action) {
-            if (action === 'approve') {
-                // 执行金额校验
-                return validateAmountBeforeApproval();
-            }
-            return true;
-        };
-        
-        // 配置批价单特有的数据收集函数
-        window.pricingOrderDataCollection = function() {
+    // 配置批价单特有的预验证函数（总是定义，不依赖于审批流程脚本）
+    window.pricingOrderPreValidation = function(action) {
+        if (action === 'approve') {
+            // 执行金额校验
+            return validateAmountBeforeApproval();
+        }
+        return true;
+    };
+    
+    // 配置批价单特有的数据收集函数（总是定义，不依赖于审批流程脚本）
+    window.pricingOrderDataCollection = function() {
+            debugger; // 🔍 断点1：检查数据收集函数是否被调用
             console.log('🔍 [DEBUG] 前端数据收集开始...');
             
             // 收集当前表单的实时数据
@@ -3130,20 +3145,38 @@ $(document).ready(function() {
                 console.log('🔍 [DEBUG] 厂家提货 (从表单获取):', currentFormData.is_factory_pickup);
             }
             
-            // 获取批价单总折扣率 - 从显示元素获取当前值
-            const pricingTotalDiscountSpan = document.getElementById('pricingTotalDiscount');
-            if (pricingTotalDiscountSpan) {
-                const discountText = pricingTotalDiscountSpan.textContent || pricingTotalDiscountSpan.innerText;
-                const discountValue = parseFloat(discountText);
+            // 获取批价单总折扣率 - 只收集INPUT元素
+            const pricingTotalDiscountElement = document.getElementById('pricingTotalDiscount');
+            if (pricingTotalDiscountElement && pricingTotalDiscountElement.tagName === 'INPUT') {
+                const discountValue = parseFloat(pricingTotalDiscountElement.value);
                 if (!isNaN(discountValue)) {
                     // 转换为小数形式（数据库存储格式）
                     currentFormData.pricing_total_discount_rate = discountValue / 100;
-                    console.log('🔍 [DEBUG] 批价单总折扣率 (从显示元素获取):', discountText + '% => ' + currentFormData.pricing_total_discount_rate);
+                    console.log('🔍 [DEBUG] 批价单总折扣率收集成功 (INPUT):', pricingTotalDiscountElement.value + '% => ' + currentFormData.pricing_total_discount_rate);
                 } else {
-                    console.log('🔍 [DEBUG] 批价单总折扣率解析失败:', discountText);
+                    console.log('🔍 [DEBUG] 批价单总折扣率解析失败 (INPUT):', pricingTotalDiscountElement.value);
                 }
+            } else if (pricingTotalDiscountElement) {
+                console.log('🔍 [DEBUG] 批价单总折扣率跳过收集 (元素类型: ' + pricingTotalDiscountElement.tagName + ', 非INPUT元素)');
             } else {
-                console.log('🔍 [DEBUG] 未找到批价单总折扣率显示元素');
+                console.log('🔍 [DEBUG] 未找到批价单总折扣率元素');
+            }
+            
+            // 获取结算单总折扣率 - 只收集INPUT元素
+            const settlementTotalDiscountElement = document.getElementById('settlementTotalDiscount');
+            if (settlementTotalDiscountElement && settlementTotalDiscountElement.tagName === 'INPUT') {
+                const discountValue = parseFloat(settlementTotalDiscountElement.value);
+                if (!isNaN(discountValue)) {
+                    // 转换为小数形式（数据库存储格式）
+                    currentFormData.settlement_total_discount_rate = discountValue / 100;
+                    console.log('🔍 [DEBUG] 结算单总折扣率收集成功 (INPUT):', settlementTotalDiscountElement.value + '% => ' + currentFormData.settlement_total_discount_rate);
+                } else {
+                    console.log('🔍 [DEBUG] 结算单总折扣率解析失败 (INPUT):', settlementTotalDiscountElement.value);
+                }
+            } else if (settlementTotalDiscountElement) {
+                console.log('🔍 [DEBUG] 结算单总折扣率跳过收集 (元素类型: ' + settlementTotalDiscountElement.tagName + ', 非INPUT元素)');
+            } else {
+                console.log('🔍 [DEBUG] 未找到结算单总折扣率元素');
             }
             
             // 合并缓存数据和当前表单数据
@@ -3152,6 +3185,15 @@ $(document).ready(function() {
             console.log('🔍 [DEBUG] 缓存数据:', window.pricingOrderCache);
             console.log('🔍 [DEBUG] 当前表单数据:', currentFormData);
             console.log('🔍 [DEBUG] 合并后的基本信息:', basicInfo);
+            
+            // 显示关键字段收集情况
+            console.log('🔍 [DEBUG] === 关键字段收集汇总 ===');
+            console.log('🔍 [DEBUG] 批价总折扣率:', basicInfo.pricing_total_discount_rate !== undefined ? basicInfo.pricing_total_discount_rate : 'null');
+            console.log('🔍 [DEBUG] 结算总折扣率:', basicInfo.settlement_total_discount_rate !== undefined ? basicInfo.settlement_total_discount_rate : 'null');
+            console.log('🔍 [DEBUG] 分销商ID:', basicInfo.distributor_id !== undefined ? basicInfo.distributor_id : 'null');
+            console.log('🔍 [DEBUG] 经销商ID:', basicInfo.dealer_id !== undefined ? basicInfo.dealer_id : 'null');
+            console.log('🔍 [DEBUG] 厂家提货:', basicInfo.is_factory_pickup !== undefined ? basicInfo.is_factory_pickup : 'null');
+            console.log('🔍 [DEBUG] ========================');
             
             const result = {
                 basic_info: basicInfo,
@@ -3163,8 +3205,10 @@ $(document).ready(function() {
             return result;
         };
         
+    // 初始化标准审批流程
+    if (typeof initStandardApprovalFlow === 'function') {
         // 初始化审批流程（使用统一审批流程系统）
-        initStandardApprovalFlow('pricing_order', {{ pricing_order.id }}, 'pricingOrderApprovalSection', {
+        initStandardApprovalFlow('pricing_order', '{{ pricing_order.id }}', 'pricingOrderApprovalSection', {
             preValidation: window.pricingOrderPreValidation,
             dataCollection: window.pricingOrderDataCollection,
             apiBasePath: '/pricing_order/api/approval'
@@ -3182,11 +3226,11 @@ $(document).ready(function() {
         } else if ('{{ pricing_order.status }}' === 'draft') {
             // 草稿状态：使用后端提供的审批历史标识
             {% if has_approval_history %}
-            // 存在审批历史（包括召回），显示流程图
-            shouldShowApprovalFlow = true;
-            console.log('发现审批历史，显示流程图');
+                // 存在审批历史（包括召回），显示流程图
+                shouldShowApprovalFlow = true;
+                console.log('发现审批历史，显示流程图');
             {% else %}
-            console.log('无审批历史，不显示流程图');
+                console.log('无审批历史，不显示流程图');
             {% endif %}
         }
         
@@ -3198,7 +3242,11 @@ $(document).ready(function() {
             }
         }
         
-        console.log('标准审批流程初始化完成');
+        
+        // 数据收集函数验证
+        if (typeof window.pricingOrderDataCollection !== 'function') {
+            console.error('批价单数据收集函数未定义');
+        }
     } else {
         console.warn('标准审批流程脚本未加载');
     }
@@ -3852,16 +3900,12 @@ function updateBatchActionButtons() {
     const $selectedCount = $('#selectedCount');
     const $selectedCountText = $('#selectedCountText');
     
-    console.log(`批量操作状态更新: 选中 ${selectedCount} 个项目`);
-    
     if (selectedCount > 0) {
         $batchActionsArea.css('display', 'flex');
         $selectedCount.text(selectedCount);
         $selectedCountText.text(selectedCount);
-        console.log('显示批量操作按钮');
     } else {
         $batchActionsArea.css('display', 'none');
-        console.log('隐藏批量操作按钮');
     }
 }
 
@@ -4744,36 +4788,9 @@ window.discountLimits = {
     settlement_discount_limit: {% if discount_limits.settlement_discount_limit is not none %}{{ discount_limits.settlement_discount_limit }}{% else %}null{% endif %}
 };
 
-// 🔥 增强调试信息
-console.log('=== 折扣权限调试信息 ===');
-console.log('1. 设置window.discountLimits:', window.discountLimits);
-console.log('2. window.discountLimits类型:', typeof window.discountLimits);
-console.log('3. 模板discount_limits变量是否存在:', '{% if discount_limits %}true{% else %}false{% endif %}');
-console.log('4. 模板中的原始discount_limits:', JSON.stringify({
-    pricing_discount_limit: {% if discount_limits.pricing_discount_limit is not none %}{{ discount_limits.pricing_discount_limit }}{% else %}null{% endif %},
-    settlement_discount_limit: {% if discount_limits.settlement_discount_limit is not none %}{{ discount_limits.settlement_discount_limit }}{% else %}null{% endif %}
-}));
-console.log('5. pricing_discount_limit值:', {{ discount_limits.pricing_discount_limit|default('null') }});
-console.log('6. settlement_discount_limit值:', {% if discount_limits.settlement_discount_limit is not none %}{{ discount_limits.settlement_discount_limit }}{% else %}null{% endif %});
-console.log('7. window.discountLimits是否存在:', !!window.discountLimits);
-console.log('8. window.discountLimits.pricing_discount_limit:', window.discountLimits.pricing_discount_limit);
-console.log('========================');
-
-// 🔥 重要调试：检查折扣权限数据是否正确
-if (window.discountLimits) {
-    console.log('✅ 折扣权限数据已加载:', window.discountLimits);
-    if (window.discountLimits.pricing_discount_limit !== null) {
-        console.log(`📊 批价单折扣下限: ${window.discountLimits.pricing_discount_limit}%`);
-    } else {
-        console.log('⚠️ 批价单折扣下限未设置');
-    }
-    if (window.discountLimits.settlement_discount_limit !== null) {
-        console.log(`📊 结算单折扣下限: ${window.discountLimits.settlement_discount_limit}%`);
-    } else {
-        console.log('⚠️ 结算单折扣下限未设置');
-    }
-} else {
-    console.log('❌ 折扣权限数据未加载！');
+// 折扣权限数据验证
+if (!window.discountLimits) {
+    console.error('❌ 折扣权限数据未加载！');
 }
 
 // 初始化Bootstrap页签切换
@@ -4808,65 +4825,26 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化折扣权限检查
     initializeDiscountPermissionCheck();
     
-    console.log('页签初始化完成，总折扣率已重新计算，总金额使用数据库值');
     
     // 初始化批量操作功能
-    console.log('开始初始化批量操作功能');
     initializeBatchOperations();
     
     // 确保批量操作按钮初始状态为隐藏
     updateBatchActionButtons();
     
     // 初始化搜索下拉框
-    console.log('开始初始化搜索下拉框');
-    
-    // 添加详细调试信息
-    console.log('=== 搜索下拉框调试信息 ===');
-    const wrappers = document.querySelectorAll('.searchable-select-wrapper');
-    console.log('找到的搜索下拉框容器数量:', wrappers.length);
-    
-    wrappers.forEach((wrapper, index) => {
-        console.log(`容器 ${index + 1}:`, {
-            type: wrapper.dataset.type,
-            name: wrapper.dataset.name,
-            input: wrapper.querySelector('.searchable-select-input'),
-            hiddenInput: wrapper.querySelector('.searchable-select-value'),
-            dropdown: wrapper.querySelector('.searchable-select-dropdown')
-        });
-    });
-    
-    if (wrappers.length === 0) {
-        console.error('❌ 没有找到搜索下拉框容器！检查HTML结构...');
-        // 检查是否有传统的select元素
-        const oldSelects = document.querySelectorAll('#dealerSelect, #distributorSelect');
-        console.log('找到的传统select元素:', oldSelects.length);
-        oldSelects.forEach((select, index) => {
-            console.log(`传统select ${index + 1}:`, select);
-        });
-    } else {
-        console.log('✅ 开始初始化搜索下拉框...');
-        initializeSearchableSelects();
-    }
+    initializeSearchableSelects();
 });
 
 // 初始化批量操作功能
 function initializeBatchOperations() {
-    console.log('批量操作功能初始化中...');
-    
-    // 检查必要元素是否存在
-    console.log('全选复选框:', $('#selectAllPricing').length);
-    console.log('批量操作区域:', $('#batchActionsArea').length);
-    console.log('明细复选框:', $('.pricing-detail-checkbox').length);
-    
     // 全选复选框事件
     $(document).on('change', '#selectAllPricing', function() {
-        console.log('全选复选框状态变化');
         toggleSelectAllPricing();
     });
     
     // 单个复选框事件
     $(document).on('change', '.pricing-detail-checkbox', function() {
-        console.log('单个复选框状态变化');
         updateBatchActionButtons();
         
         // 更新全选复选框状态
@@ -5025,8 +5003,23 @@ function checkDiscountPermission(inputElement) {
         console.log('🔧 重新设置折扣权限数据:', window.discountLimits);
     }
     
-    const discountRate = parseFloat(inputElement.value);
-    console.log(`📊 折扣率解析结果: 原始值="${inputElement.value}", 解析值=${discountRate}, 是否有效=${!isNaN(discountRate)}`);
+    // 🔥 修复：支持both <input>和<span>元素
+    let elementValue;
+    if (inputElement.tagName.toLowerCase() === 'input') {
+        elementValue = inputElement.value;
+    } else if (inputElement.tagName.toLowerCase() === 'span') {
+        // 对于span元素，使用textContent并去除%符号
+        elementValue = (inputElement.textContent || inputElement.innerText || '').replace('%', '').trim();
+    } else {
+        // 其他元素类型的兼容处理
+        elementValue = inputElement.value || inputElement.textContent || inputElement.innerText || '';
+        if (typeof elementValue === 'string') {
+            elementValue = elementValue.replace('%', '').trim();
+        }
+    }
+
+    const discountRate = parseFloat(elementValue);
+    console.log(`📊 折扣率解析结果: 原始值="${elementValue}", 解析值=${discountRate}, 元素类型=${inputElement.tagName}, 是否有效=${!isNaN(discountRate)}`);
     
     if (isNaN(discountRate) || discountRate === '') {
         // 清除警告样式
@@ -5094,11 +5087,12 @@ function checkDiscountPermission(inputElement) {
     }
 }
 
-// 批量检查所有折扣率（支持联动）
+// 批量检查所有折扣率（支持联动，同时支持input和span元素）
 function checkAllDiscountRates() {
-    const discountInputs = document.querySelectorAll('input.discount-rate, input[id$="TotalDiscount"]');
-    discountInputs.forEach(input => {
-        checkDiscountPermission(input);
+    // 🔥 修复：同时选择input和span元素进行折扣权限检查
+    const discountElements = document.querySelectorAll('input.discount-rate, input[id$="TotalDiscount"], span[id$="TotalDiscount"]');
+    discountElements.forEach(element => {
+        checkDiscountPermission(element);
     });
 }
 
@@ -5229,15 +5223,6 @@ class SearchableSelect {
         this.isOpen = false;
         this.options = [];
         
-        console.log('📝 SearchableSelect 初始化信息:', {
-            type: this.type,
-            name: this.name,
-            input: this.input,
-            hiddenInput: this.hiddenInput,
-            dropdown: this.dropdown,
-            inputDisabled: this.input ? this.input.disabled : 'input不存在'
-        });
-        
         if (!this.input || !this.hiddenInput || !this.dropdown) {
             console.error('❌ SearchableSelect 初始化失败：缺少必要的DOM元素');
             return;
@@ -5321,10 +5306,7 @@ class SearchableSelect {
         this.isOpen = true;
         this.wrapper.classList.add('open');
         if (this.options.length === 0) {
-            console.log(`${this.type} 选项为空，开始加载...`);
             this.loadOptions();
-        } else {
-            console.log(`${this.type} 已有选项，直接显示`);
         }
     }
     
@@ -5442,7 +5424,6 @@ class SearchableSelect {
     }
     
     loadOptions() {
-        console.log(`开始加载 ${this.type} 选项...`);
         this.dropdown.innerHTML = '<div class="searchable-select-loading">加载中...</div>';
         
         // 分销商使用经销商的API端点
@@ -5462,7 +5443,6 @@ class SearchableSelect {
                 console.log(`${this.type} 数据:`, data);
                 this.options = Array.isArray(data) ? data : [];
                 this.renderOptions(this.options);
-                console.log(`${this.type} 选项加载完成，共 ${this.options.length} 个选项`);
             })
             .catch(error => {
                 console.error(`加载 ${this.type} 选项失败:`, error);
