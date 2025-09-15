@@ -269,7 +269,11 @@ class SupabaseStorageClient:
                 # 生成唯一安全的文件名（移除中文和特殊字符）
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 unique_id = uuid.uuid4().hex[:8]
-                safe_filename = f"{file_type}_{object_id}_{timestamp}_{unique_id}.{file_ext}"
+                # 为附件类型使用简洁格式，其他类型保持原有格式
+                if file_type == 'attachment':
+                    safe_filename = f"{object_id}_{timestamp}_{unique_id}.{file_ext}"
+                else:
+                    safe_filename = f"{file_type}_{object_id}_{timestamp}_{unique_id}.{file_ext}"
                 
                 # 获取系统标识并构建带环境标识的路径
                 system_id = self._get_system_identifier()
@@ -357,8 +361,8 @@ class SupabaseStorageClient:
         """
         try:
             # 验证文件类型
-            if file_type not in ['image', 'pdf']:
-                raise ValueError("文件类型必须是 'image' 或 'pdf'")
+            if file_type not in ['image', 'pdf', 'attachment']:
+                raise ValueError("文件类型必须是 'image'、'pdf' 或 'attachment'")
             
             # 验证文件扩展名
             original_filename = secure_filename(filename)
@@ -369,8 +373,11 @@ class SupabaseStorageClient:
             
             if file_type == 'image':
                 allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif']
-            else:  # pdf
+            elif file_type == 'pdf':
                 allowed_extensions = ['pdf']
+            else:  # attachment
+                allowed_extensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 
+                                     'txt', 'zip', 'rar', '7z', 'csv', 'json', 'xml']
             
             if file_ext not in allowed_extensions:
                 raise ValueError(f"不支持的文件类型。{file_type}文件支持：{', '.join(allowed_extensions)}")
@@ -478,8 +485,8 @@ class SupabaseStorageClient:
         """
         try:
             # 验证文件类型
-            if file_type not in ['image', 'pdf']:
-                raise ValueError("文件类型必须是 'image' 或 'pdf'")
+            if file_type not in ['image', 'pdf', 'attachment']:
+                raise ValueError("文件类型必须是 'image'、'pdf' 或 'attachment'")
             
             # 验证文件扩展名
             original_filename = secure_filename(file.filename)
@@ -490,8 +497,11 @@ class SupabaseStorageClient:
             
             if file_type == 'image':
                 allowed_extensions = ['jpg', 'jpeg', 'png', 'gif']
-            else:  # pdf
+            elif file_type == 'pdf':
                 allowed_extensions = ['pdf']
+            else:  # attachment
+                allowed_extensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 
+                                     'txt', 'zip', 'rar', '7z', 'csv', 'json', 'xml']
             
             if file_ext not in allowed_extensions:
                 raise ValueError(f"不支持的文件类型。{file_type}文件支持：{', '.join(allowed_extensions)}")
@@ -559,16 +569,22 @@ class SupabaseStorageClient:
             bucket_name = self.get_bucket_name(bucket_type)
             
             # 验证文件类型
-            if file_type not in ['image', 'pdf']:
-                raise ValueError("文件类型必须是 'image' 或 'pdf'")
+            if file_type not in ['image', 'pdf', 'attachment']:
+                raise ValueError("文件类型必须是 'image'、'pdf' 或 'attachment'")
             
             # 生成文件名
             if file_type == 'image':
                 filename = f"product_{product_id}.jpg"
                 allowed_extensions = ['jpg', 'jpeg', 'png', 'gif']
-            else:  # pdf
+            elif file_type == 'pdf':
                 filename = f"product_{product_id}.pdf"
                 allowed_extensions = ['pdf']
+            else:  # attachment
+                # 保持原始文件扩展名
+                file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'bin'
+                filename = f"product_{product_id}_attachment.{file_ext}"
+                allowed_extensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 
+                                     'txt', 'zip', 'rar', '7z', 'csv', 'json', 'xml']
             
             # 验证文件扩展名
             original_filename = secure_filename(file.filename)
@@ -794,8 +810,26 @@ class SupabaseStorageClient:
                 'bmp': 'image/bmp'
             }
             return content_types.get(file_ext, 'image/jpeg')
-        else:  # pdf
+        elif file_type == 'pdf':
             return 'application/pdf'
+        else:  # attachment
+            # 根据扩展名返回对应的 Content-Type
+            content_types = {
+                'doc': 'application/msword',
+                'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'xls': 'application/vnd.ms-excel',
+                'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'ppt': 'application/vnd.ms-powerpoint',
+                'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                'txt': 'text/plain',
+                'zip': 'application/zip',
+                'rar': 'application/x-rar-compressed',
+                '7z': 'application/x-7z-compressed',
+                'csv': 'text/csv',
+                'json': 'application/json',
+                'xml': 'text/xml'
+            }
+            return content_types.get(file_ext, 'application/octet-stream')
     
     def delete_product_file(self, product_id: int, file_type: str, bucket_type: str = 'product') -> bool:
         """
@@ -819,7 +853,7 @@ class SupabaseStorageClient:
             elif file_type == 'pdf':
                 filename = f"product_{product_id}.pdf"
             else:
-                raise ValueError("文件类型必须是 'image' 或 'pdf'")
+                raise ValueError("文件类型必须是 'image'、'pdf' 或 'attachment'")
             
             # 删除文件
             result = self.supabase.storage.from_(bucket_name).remove([filename])
@@ -833,6 +867,47 @@ class SupabaseStorageClient:
             
         except Exception as e:
             logger.error(f"文件删除失败: {str(e)}")
+            return False
+    
+    def delete_file_by_url(self, file_url: str) -> bool:
+        """
+        根据文件URL删除Supabase存储文件
+        
+        Args:
+            file_url: 完整的Supabase文件URL
+            
+        Returns:
+            删除成功返回True，失败返回False
+        """
+        try:
+            # 解析URL获取存储桶和文件路径
+            # URL格式: https://xxx.supabase.co/storage/v1/object/public/bucket-name/path/to/file
+            import re
+            url_pattern = r'/storage/v1/object/public/([^/]+)/(.+)$'
+            match = re.search(url_pattern, file_url)
+            
+            if not match:
+                logger.error(f"无法解析文件URL格式: {file_url}")
+                return False
+            
+            bucket_name = match.group(1)
+            file_path = match.group(2)
+            
+            logger.info(f"准备删除文件: bucket={bucket_name}, path={file_path}")
+            
+            # 删除文件
+            result = self.supabase.storage.from_(bucket_name).remove([file_path])
+            logger.info(f"删除API返回结果: {result}")
+            
+            if hasattr(result, 'error') and result.error:
+                logger.error(f"Supabase删除错误: {result.error}")
+                return False
+            
+            logger.info(f"文件删除成功: {file_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"文件删除失败: {str(e)}, URL: {file_url}")
             return False
     
     def upload_expense_invoice(self, detail_id: int, file, filename: str, bucket_type: str = 'invoice', detail_sequence: int = None, file_sequence: int = None):
@@ -1525,24 +1600,31 @@ class SupabaseStorageClient:
             # 从URL中提取存储路径
             storage_path = self._extract_storage_path_from_url(file_url)
             if not storage_path:
-                logger.error(f"无法从URL提取存储路径: {file_url}")
+                logger.error(f"❌ 无法从URL提取存储路径: {file_url}")
                 return False
+
+            logger.info(f"🔍 URL路径解析成功: {storage_path}")
             
             # 获取存储桶名称
             bucket_name = self.get_bucket_name(bucket_type)
-            
+
             # 执行删除操作
-            logger.info(f"☁️ 准备删除云端文件: {bucket_name}/{storage_path}")
-            
+            logger.info(f"☁️ 准备删除云端文件: bucket={bucket_name}, path={storage_path}")
+            logger.info(f"🔗 完整URL: {file_url}")
+
             try:
                 result = self.supabase.storage.from_(bucket_name).remove([storage_path])
-                
+
                 # 检查删除结果
                 if hasattr(result, 'error') and result.error:
-                    logger.error(f"云端文件删除失败: {result.error}")
+                    logger.error(f"❌ 云端文件删除失败: bucket={bucket_name}, path={storage_path}, error={result.error}")
                     return False
-                
-                logger.info(f"✅ 云端文件删除成功: {storage_path}")
+
+                # 记录删除结果详情
+                if hasattr(result, 'data') and result.data:
+                    logger.info(f"✅ 云端文件删除成功: bucket={bucket_name}, path={storage_path}, result={result.data}")
+                else:
+                    logger.info(f"✅ 云端文件删除成功: bucket={bucket_name}, path={storage_path}")
                 return True
                 
             except Exception as delete_error:

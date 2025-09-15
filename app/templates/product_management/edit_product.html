@@ -37,7 +37,6 @@
         <div class="row align-items-center">
             <div class="col-auto">
                 <h1 class="page-title mb-0">{{ _('编辑研发产品') }}</h1>
-                <small class="text-muted">{{ dev_product.name }} - {{ dev_product.model }}</small>
             </div>
             <div class="col text-end">
                 <!-- 操作按钮组 -->
@@ -62,9 +61,8 @@
                             <div class="col-12">
                                 <div class="card bg-light">
                                     <div class="card-body py-2">
-                                        <h6 class="card-title mb-1">MN编码预览 <small class="text-muted">(自动生成)</small></h6>
+                                        <h6 class="card-title mb-1">MN编码预览</h6>
                                         <div id="mn_code_preview" class="h4 mb-0 font-monospace">{{ dev_product.mn_code or 'BDE0' }}</div>
-                                        <div class="mt-1 small text-muted">注：未选择的项会显示为"0"</div>
                                     </div>
                                 </div>
                             </div>
@@ -106,14 +104,6 @@
                                         </select>
                                         <!-- 使用隐藏字段保存原始值 -->
                                         <input type="hidden" name="region_id" value="{{ dev_product.region_id }}">
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label for="status" class="form-label">产品状态 <span class="text-danger">*</span></label>
-                                        <select class="form-select" id="status" name="status" required>
-                                            {% for status in statuses %}
-                                            <option value="{{ status }}" {% if status == dev_product.status %}selected{% endif %}>{{ status }}</option>
-                                            {% endfor %}
-                                        </select>
                                     </div>
                                 </div>
 
@@ -239,6 +229,9 @@
 {% block scripts %}
 {{ super() }}
 
+<!-- 引入共享的规格管理函数 -->
+<script src="{{ url_for('static', filename='js/spec-management-common.js') }}"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // 选项卡切换
@@ -281,29 +274,21 @@ document.addEventListener('DOMContentLoaded', function() {
         row.innerHTML = `
             <td>
                 <div class="spec-input-container">
-                    <input type="text" 
-                           class="form-control spec-input" 
-                           data-row-id="${rowId}" 
-                           placeholder="选择或输入规格名称"
-                           list="spec-options-${rowId}">
-                    <datalist id="spec-options-${rowId}">
-                        <!-- 规格选项将在这里动态生成 -->
-                    </datalist>
+                    <select class="form-control spec-select" 
+                            data-row-id="${rowId}">
+                        <option value="">-- 请选择规格 --</option>
+                        <!-- 选项将动态加载 -->
+                    </select>
                 </div>
                 <input type="hidden" name="spec_name[]" value="">
                 <input type="hidden" name="spec_field_ids[]" value="">
             </td>
             <td>
                 <div class="indicator-input-container">
-                    <input type="text" 
-                           class="form-control indicator-text-input" 
-                           data-row-id="${rowId}"
-                           placeholder="请先选择规格"
-                           disabled
-                           list="indicator-options-${rowId}">
-                    <datalist id="indicator-options-${rowId}">
-                        <!-- 指标选项将在这里动态生成 -->
-                    </datalist>
+                    <select class="form-control indicator-select" 
+                            data-row-id="${rowId}" disabled>
+                        <option value="">-- 请先选择规格 --</option>
+                    </select>
                     <input type="hidden" name="indicator_values[]" value="">
                     <input type="hidden" name="indicator_codes[]" value="">
                 </div>
@@ -353,113 +338,9 @@ document.addEventListener('DOMContentLoaded', function() {
     addSpecBtn.addEventListener('click', function() {
         const newRow = createSpecRow(null, [], true); // 创建非编码规格行
         specsTableBody.appendChild(newRow);
-        setupSpecRow(newRow);
+        SpecManagement.setupNonCodeSpecRow(newRow); // 使用共享函数
     });
 
-    // 设置规格行的交互功能
-    function setupSpecRow(row) {
-        const specInput = row.querySelector('.spec-input');
-        const indicatorInput = row.querySelector('.indicator-text-input');
-        const specNameHidden = row.querySelector('input[name="spec_name[]"]');
-        const specFieldIdHidden = row.querySelector('input[name="spec_field_ids[]"]');
-        const indicatorValueHidden = row.querySelector('input[name="indicator_values[]"]');
-        const indicatorCodeHidden = row.querySelector('input[name="indicator_codes[]"]');
-
-        // 加载所有可用的规格选项（包括编码和非编码）
-        loadAllSpecOptions(row);
-
-        // 规格选择事件
-        specInput.addEventListener('input', function() {
-            const specName = this.value.trim();
-            specNameHidden.value = specName;
-            
-            if (specName) {
-                // 启用指标输入框
-                indicatorInput.disabled = false;
-                indicatorInput.placeholder = '输入或选择指标值';
-                
-                // 加载指标选项
-                loadIndicatorOptionsBySpecName(row, specName);
-            } else {
-                // 禁用指标输入框
-                indicatorInput.disabled = true;
-                indicatorInput.placeholder = '请先选择规格';
-                indicatorInput.value = '';
-                indicatorValueHidden.value = '';
-                indicatorCodeHidden.value = '';
-            }
-        });
-
-        // 指标选择事件
-        indicatorInput.addEventListener('input', function() {
-            const indicatorValue = this.value.trim();
-            indicatorValueHidden.value = indicatorValue;
-            
-            // 检查是否是预定义的指标选项
-            const datalist = row.querySelector(`datalist[id*="indicator-options"]`);
-            if (datalist) {
-                const options = datalist.querySelectorAll('option');
-                let foundCode = '';
-                options.forEach(option => {
-                    if (option.value === indicatorValue) {
-                        foundCode = option.dataset.code || '';
-                    }
-                });
-                indicatorCodeHidden.value = foundCode;
-            }
-            
-            // 更新MN编码预览
-            updateMNCodePreview();
-        });
-    }
-
-    // 加载非编码规格选项
-    function loadAllSpecOptions(row) {
-        const subcategoryId = document.querySelector('input[name="subcategory_id"]').value;
-        if (!subcategoryId) return;
-
-        // 只获取现有产品的非编码规格
-        fetch(`/product-management/api/product/{{ dev_product.id }}/specs`)
-        .then(response => response.json())
-        .then(existingSpecsData => {
-            const datalist = row.querySelector(`datalist[id*="spec-options"]`);
-            datalist.innerHTML = '';
-            
-            let nonCodedSpecsCount = 0;
-            
-            // 只添加现有的非编码规格选项
-            if (existingSpecsData.specs) {
-                const nonCodedSpecs = existingSpecsData.specs.filter(spec => 
-                    !spec.field_code || spec.field_code.trim() === ''
-                );
-                
-                nonCodedSpecs.forEach(spec => {
-                    const option = document.createElement('option');
-                    option.value = spec.field_name;
-                    option.dataset.isCodedSpec = 'false';
-                    datalist.appendChild(option);
-                });
-                
-                nonCodedSpecsCount = nonCodedSpecs.length;
-            }
-            
-            // 控制添加规格按钮的显示
-            const addSpecBtn = document.getElementById('add-spec-btn');
-            const addSpecContainer = addSpecBtn.closest('div');
-            if (nonCodedSpecsCount === 0) {
-                addSpecContainer.style.display = 'none';
-            } else {
-                addSpecContainer.style.display = 'block';
-            }
-        })
-        .catch(error => {
-            console.error('加载规格选项失败:', error);
-            // 出错时也隐藏添加按钮
-            const addSpecBtn = document.getElementById('add-spec-btn');
-            const addSpecContainer = addSpecBtn.closest('div');
-            addSpecContainer.style.display = 'none';
-        });
-    }
 
 
     // 载现有规格数据
@@ -486,77 +367,47 @@ document.addEventListener('DOMContentLoaded', function() {
                     .then(response => response.json())
                     .then(data => {
                         if (data.specs && data.specs.length > 0) {
+                            // 分离编码规格和非编码规格
+                            const codedSpecs = [];
+                            const nonCodedSpecs = [];
+                            
                             data.specs.forEach(spec => {
                                 // 正确判断是否是编码规格：基于规格字段定义，而不仅仅是field_code
                                 const isCodedSpec = codedSpecNames.has(spec.field_name);
-                                
-                                const row = createSpecRowForExisting(spec, isCodedSpec);
-                                specsTableBody.appendChild(row);
-                                
-                                // 为编码规格设置交互功能
                                 if (isCodedSpec) {
-                                    setupCodedSpecRow(row, spec);
+                                    codedSpecs.push(spec);
                                 } else {
-                                    setupNonCodedSpecRow(row, spec);
+                                    nonCodedSpecs.push(spec);
                                 }
                             });
+                            
+                            // 先添加编码规格（排在前面）
+                            codedSpecs.forEach(spec => {
+                                const row = createSpecRowForExisting(spec, true);
+                                specsTableBody.appendChild(row);
+                                // 使用共享函数处理编码规格指标
+                                setupEditSpecRow(row, spec, true);
+                            });
+                            
+                            // 再添加非编码规格（排在后面）
+                            nonCodedSpecs.forEach(spec => {
+                                const row = createSpecRowForExisting(spec, false);
+                                specsTableBody.appendChild(row);
+                                // 使用共享函数处理非编码规格指标
+                                setupEditSpecRow(row, spec, false);
+                            });
                         }
-                        
-                        // 检查非编码规格数量，控制添加按钮显示
-                        checkAndControlAddButton(data.specs || []);
                         
                         // 初始化编码预览（显示当前MN编码）
                         setTimeout(() => {
                             updateMNCodePreview();
+                            // 检查是否还能添加更多非编码规格
+                            SpecManagement.checkCanAddMoreSpecs();
                         }, 100);
                     });
             })
             .catch(error => {
                 console.error('加载现有规格失败:', error);
-                // 出错时隐藏添加按钮
-                const addSpecBtn = document.getElementById('add-spec-btn');
-                const addSpecContainer = addSpecBtn.closest('div');
-                addSpecContainer.style.display = 'none';
-            });
-    }
-
-    // 检查并控制添加按钮的显示
-    function checkAndControlAddButton(specs) {
-        // 获取编码规格名称集合
-        const subcategoryId = document.querySelector('input[name="subcategory_id"]').value;
-        
-        fetch(`/product-management/api/subcategory/${subcategoryId}/spec-fields`)
-            .then(response => response.json())
-            .then(fieldData => {
-                const codedSpecNames = new Set();
-                if (fieldData.spec_fields) {
-                    fieldData.spec_fields.forEach(field => {
-                        if (field.use_in_code) {
-                            codedSpecNames.add(field.name);
-                        }
-                    });
-                }
-                
-                // 正确筛选非编码规格
-                const nonCodedSpecs = specs.filter(spec => 
-                    !codedSpecNames.has(spec.field_name)
-                );
-                
-                const addSpecBtn = document.getElementById('add-spec-btn');
-                const addSpecContainer = addSpecBtn.closest('div');
-                
-                if (nonCodedSpecs.length === 0) {
-                    addSpecContainer.style.display = 'none';
-                } else {
-                    addSpecContainer.style.display = 'block';
-                }
-            })
-            .catch(error => {
-                console.error('获取编码规格定义失败:', error);
-                // 出错时隐藏添加按钮
-                const addSpecBtn = document.getElementById('add-spec-btn');
-                const addSpecContainer = addSpecBtn.closest('div');
-                addSpecContainer.style.display = 'none';
             });
     }
 
@@ -569,6 +420,11 @@ document.addEventListener('DOMContentLoaded', function() {
         row.id = rowId;
         row.dataset.isCodedSpec = isCodedSpec ? 'true' : 'false';
         row.dataset.specId = spec.id;
+        
+        // 添加position信息用于MN编码预览
+        if (spec.position !== undefined) {
+            row.dataset.specPosition = spec.position;
+        }
         
         const statusBadge = isCodedSpec ? 
             '<span class="badge bg-info me-2">编码规格</span>' : 
@@ -591,15 +447,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 </td>
                 <td>
                     <div class="indicator-input-container">
-                        <input type="text" 
-                               class="form-control indicator-text-input" 
-                               data-row-id="${rowId}"
-                               value="${spec.field_value}"
-                               placeholder="输入或选择指标值"
-                               list="indicator-options-${rowId}">
-                        <datalist id="indicator-options-${rowId}">
-                            <!-- 指标选项将在这里动态生成 -->
-                        </datalist>
+                        <select class="form-control indicator-select" 
+                                data-row-id="${rowId}">
+                            <option value="">-- 请选择指标值 --</option>
+                        </select>
                         <input type="hidden" name="indicator_values[]" value="${spec.field_value}">
                         <input type="hidden" name="indicator_codes[]" value="${spec.field_code || ''}">
                     </div>
@@ -625,11 +476,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 </td>
                 <td>
                     <div class="indicator-input-container">
-                        <input type="text" 
-                               class="form-control indicator-text-input" 
-                               data-row-id="${rowId}"
-                               value="${spec.field_value}"
-                               placeholder="请输入指标值">
+                        <select class="form-control indicator-select" 
+                                data-row-id="${rowId}">
+                            <option value="">-- 请选择指标值 --</option>
+                        </select>
                         <input type="hidden" name="indicator_values[]" value="${spec.field_value}">
                         <input type="hidden" name="indicator_codes[]" value="">
                     </div>
@@ -646,128 +496,50 @@ document.addEventListener('DOMContentLoaded', function() {
         return row;
     }
 
-    // 设置编码规格行的交互功能
-    function setupCodedSpecRow(row, spec) {
-        const indicatorInput = row.querySelector('.indicator-text-input');
+    // 设置编辑页面规格行的交互功能
+    function setupEditSpecRow(row, spec, isCodedSpec) {
+        const indicatorSelect = row.querySelector('.indicator-select');
         const indicatorValueHidden = row.querySelector('input[name="indicator_values[]"]');
         const indicatorCodeHidden = row.querySelector('input[name="indicator_codes[]"]');
-
-        // 通过规格名称找到对应的字段并加载指标选项
-        loadIndicatorOptionsBySpecName(row, spec.field_name);
         
-        // 指标选择事件
-        indicatorInput.addEventListener('input', function() {
-            const indicatorValue = this.value.trim();
-            indicatorValueHidden.value = indicatorValue;
-            
-            // 检查是否是预定义的指标选项
-            const datalist = row.querySelector(`datalist[id*="indicator-options"]`);
-            if (datalist) {
-                const options = datalist.querySelectorAll('option');
-                let foundCode = '';
-                options.forEach(option => {
-                    if (option.value === indicatorValue) {
-                        foundCode = option.dataset.code || '';
-                    }
-                });
-                if (foundCode) {
-                    indicatorCodeHidden.value = foundCode;
-                } else if (spec.field_code) {
-                    // 如果没找到匹配的选项，保持原有编码
-                    indicatorCodeHidden.value = spec.field_code;
-                }
+        if (indicatorSelect) {
+            // 使用共享函数加载指标选项
+            if (isCodedSpec) {
+                // 编码规格：通过规格名称和字段ID加载选项
+                SpecManagement.loadIndicatorOptionsForSpec(row, spec.field_name, null);
+            } else {
+                // 非编码规格：需要先找到对应的field_id，然后加载选项
+                SpecManagement.loadIndicatorOptionsForSpec(row, spec.field_name, null);
             }
             
-            // 更新MN编码预览
-            updateMNCodePreview();
-        });
-    }
-
-    // 通过规格名称加载指标选项
-    function loadIndicatorOptionsBySpecName(row, specName) {
-        const subcategoryId = document.querySelector('input[name="subcategory_id"]').value;
-        if (!subcategoryId || !specName) return;
-
-        fetch(`/product-management/api/subcategory/${subcategoryId}/spec-fields`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.spec_fields && data.spec_fields.length > 0) {
-                    const specField = data.spec_fields.find(field => field.name === specName);
-                    if (specField && specField.options) {
-                        const datalist = row.querySelector(`datalist[id*="indicator-options"]`);
-                        datalist.innerHTML = '';
-                        
-                        specField.options.forEach(option => {
-                            const optionEl = document.createElement('option');
-                            optionEl.value = option.value;
-                            optionEl.dataset.code = option.code;
-                            optionEl.dataset.id = option.id;
-                            datalist.appendChild(optionEl);
-                        });
+            // 设置当前值为选中状态（延迟执行，确保选项已加载）
+            setTimeout(() => {
+                if (spec.field_value) {
+                    indicatorSelect.value = spec.field_value;
+                    indicatorValueHidden.value = spec.field_value;
+                    // 如果有编码也保持
+                    if (spec.field_code) {
+                        indicatorCodeHidden.value = spec.field_code;
                     }
                 }
-            })
-            .catch(error => {
-                console.error('加载编码规格指标选项失败:', error);
+            }, 500);
+            
+            // 绑定选择事件
+            indicatorSelect.addEventListener('change', function() {
+                const value = this.value;
+                const selectedOption = this.options[this.selectedIndex];
+                const code = selectedOption.dataset.code || '';
+                
+                // 更新隐藏字段
+                indicatorValueHidden.value = value;
+                indicatorCodeHidden.value = code;
+                
+                // 更新MN编码预览（如果是编码规格）
+                if (isCodedSpec) {
+                    updateMNCodePreview();
+                }
             });
-    }
-
-    // 设置非编码规格行的交互功能
-    function setupNonCodedSpecRow(row, spec) {
-        const specInput = row.querySelector('.spec-input');
-        const indicatorInput = row.querySelector('.indicator-text-input');
-        const specNameHidden = row.querySelector('input[name="spec_name[]"]');
-        const indicatorValueHidden = row.querySelector('input[name="indicator_values[]"]');
-
-        // 尝试为非编码规格加载指标选项（如果该规格名称在编码规格中存在的话）
-        if (spec.field_name) {
-            loadIndicatorOptionsBySpecName(row, spec.field_name);
         }
-
-        // 规格名称修改事件
-        specInput.addEventListener('input', function() {
-            const specName = this.value.trim();
-            specNameHidden.value = specName;
-            
-            // 当规格名称改变时，尝试加载对应的指标选项
-            if (specName) {
-                loadIndicatorOptionsBySpecName(row, specName);
-            }
-        });
-
-        // 指标值修改事件
-        indicatorInput.addEventListener('input', function() {
-            const indicatorValue = this.value.trim();
-            indicatorValueHidden.value = indicatorValue;
-            
-            // 更新MN编码预览（非编码规格不影响编码，但为了保持一致性）
-            updateMNCodePreview();
-        });
-    }
-
-    // 为编码规格加载指标选项
-    function loadIndicatorOptionsForCodedSpec(row, fieldId) {
-        if (!fieldId) return;
-
-        fetch(`/product-management/api/spec-field/${fieldId}/options`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.options && data.options.length > 0) {
-                    const datalist = row.querySelector(`datalist[id*="indicator-options"]`);
-                    datalist.innerHTML = '';
-                    
-                    data.options.forEach(option => {
-                        const optionEl = document.createElement('option');
-                        optionEl.value = option.value;
-                        optionEl.dataset.code = option.code;
-                        optionEl.dataset.id = option.id;
-                        datalist.appendChild(optionEl);
-                    });
-                }
-            })
-            .catch(error => {
-                console.error('加载编码规格指标选项失败:', error);
-            });
     }
 
     // 表单提交验证
@@ -837,51 +609,50 @@ document.addEventListener('DOMContentLoaded', function() {
             prefixCodes = categoryCode + subcategoryCode + regionCode;
         }
         
-        // 获取所有编码规格的指标编码，按位置排序
+        // 获取所有编码规格的编码值，直接按照它们在表格中的顺序
         const specRows = document.querySelectorAll('#specs-table-body tr[data-is-coded-spec="true"]');
-        const specCodes = ['0', '0', '0', '0', '0', '0', '0', '0', '0', '0']; // 10个位置的规格编码，默认为0
+        const specCodes = [];
+        
+        // 创建一个数组来存储带position的规格编码
+        const specsWithPosition = [];
         
         specRows.forEach(row => {
-            const specNameInput = row.querySelector('input[name="spec_name[]"]');
-            const indicatorCodeInput = row.querySelector('input[name="indicator_codes[]"]');
+            const indicatorCodeInput = row.querySelector('input[name="indicator_codes[]"]') || 
+                                      row.querySelector('input[name="spec_option_codes[]"]');
+            const specFieldIdInput = row.querySelector('input[name="spec_field_ids[]"]');
             
-            if (specNameInput && indicatorCodeInput) {
-                const specName = specNameInput.value.trim();
+            if (indicatorCodeInput && indicatorCodeInput.value) {
                 const code = indicatorCodeInput.value.trim();
+                const fieldId = specFieldIdInput ? specFieldIdInput.value : null;
                 
-                if (specName && code) {
-                    // 根据规格名称确定位置（位置4-13，即数组索引0-9）
-                    let position = -1;
-                    switch(specName) {
-                        case '频率范围':
-                            position = 0; // 第4位
-                            break;
-                        case '带宽':
-                            position = 1; // 第5位
-                            break;
-                        case '功率':
-                            position = 2; // 第6位
-                            break;
-                        case '阻抗':
-                            position = 3; // 第7位
-                            break;
-                        case '电源类型':
-                            position = 4; // 第8位
-                            break;
-                    }
-                    
-                    if (position >= 0 && position < 10) {
-                        specCodes[position] = code.charAt(0) || '0'; // 只取第一个字符
-                    }
-                }
+                // 获取该规格的position（从data属性或者后端传递的信息）
+                const position = row.dataset.specPosition || row.dataset.position || specsWithPosition.length;
+                
+                specsWithPosition.push({
+                    position: parseInt(position) || 999,
+                    code: code || '0'
+                });
             }
         });
         
-        // 去掉末尾的'0'，但保持至少一位数字
-        let effectiveSpecCodes = specCodes.join('');
-        effectiveSpecCodes = effectiveSpecCodes.replace(/0+$/, '') || '0'; // 去掉末尾的连续0，但至少保持一个0
+        // 按position排序
+        specsWithPosition.sort((a, b) => a.position - b.position);
         
-        // 构造完整的MN编码：前3位保持不变 + 规格编码
+        // 提取排序后的编码
+        specsWithPosition.forEach(spec => {
+            specCodes.push(spec.code);
+        });
+        
+        // 如果没有规格编码，至少添加一个'0'
+        if (specCodes.length === 0) {
+            specCodes.push('0');
+        }
+        
+        // 去掉末尾的'0'
+        let effectiveSpecCodes = specCodes.join('');
+        effectiveSpecCodes = effectiveSpecCodes.replace(/0+$/, '') || '0';
+        
+        // 构造完整的MN编码：前3位 + 规格编码
         const newMNCode = prefixCodes + effectiveSpecCodes;
         
         // 更新预览显示

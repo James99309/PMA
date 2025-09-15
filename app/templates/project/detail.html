@@ -8,8 +8,8 @@
 {% block title %}{{ _('项目详情') }}{% endblock %}
 
 {% block head %}
-<!-- 引入项目阶段进度条样式 -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/project_stages.css') }}">
+<!-- 引入通用阶段跟踪样式 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/stage-tracker.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
 <!-- 审批流程标准化样式和脚本 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/approval_flow.css') }}">
@@ -106,7 +106,7 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    <div id="projectStageProgress"></div>
+                    <div id="projectStageProgress" class="stage-tracker stage-tracker--project"></div>
                 </div>
             </div>
         </div>
@@ -561,8 +561,9 @@
 
 {% block scripts %}
 {{ super() }}
-<!-- 引入项目阶段进度条脚本 -->
-<script src="{{ url_for('static', filename='js/project_stages.js') }}"></script>
+<!-- 引入通用阶段跟踪组件 -->
+<script src="{{ url_for('static', filename='js/stage-tracker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/project-stage-tracker.js') }}"></script>
 
 <!-- 初始化客户搜索组件 -->
 {{ init_customer_search_scripts() }}
@@ -728,9 +729,10 @@
         console.log('调试: 主线阶段配置:', stageConfigs.mainStages);
         console.log('调试: 分支阶段配置:', stageConfigs.branchStages);
         
-        const projectStageProgress = new ProjectStageProgress({
+        const projectStageProgress = new ProjectStageTracker({
             containerId: 'projectStageProgress',
-            projectId: {{ project.id }},
+            objectId: {{ project.id }},
+            projectId: {{ project.id }},  // 保持向后兼容
             currentStage: '{{ current_stage_key }}',
             csrfToken: '{{ csrf_token() }}',
             updateUrl: '{{ url_for("project.update_project_stage") }}',
@@ -738,7 +740,8 @@
             isLocked: {{ project.is_locked|lower }},
             userRole: '{{ current_user.role }}',
             {% if stageHistory %}stageHistory: {{ stageHistory|tojson }},{% endif %}
-            stageDefs: {{ project_stages_config()|tojson }}
+            stageDefs: {{ project_stages_config()|tojson }},
+            i18nTexts: {{ get_stage_i18n_texts()|tojson }}
         });
 
         // 绑定删除按钮事件

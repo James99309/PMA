@@ -179,14 +179,20 @@ def inject_language_functions():
     }
 
 # 添加项目阶段配置上下文处理器
-def inject_project_stages_config():
+# 添加通用阶段配置上下文处理器
+def inject_stage_configs():
     """
-    向模板上下文注入项目阶段配置信息，供前端使用
+    向模板上下文注入通用阶段配置信息，供前端使用
     """
-    def project_stages_config():
+    from app.config.stage_configs import get_stage_config, get_i18n_texts
+    
+    def get_stage_config_for_template(object_type='project'):
         """
-        生成项目阶段配置，包括主线阶段和分支阶段
+        生成指定对象类型的阶段配置，包括主线阶段和分支阶段
         支持国际化，根据当前语言返回相应的阶段名称
+        
+        Args:
+            object_type: 对象类型，如 'project', 'rd_product' 等
         
         Returns:
             dict: 包含主线阶段和分支阶段的配置信息
@@ -198,31 +204,60 @@ def inject_project_stages_config():
         except:
             lang = 'zh'  # 默认中文
         
-        # 主线阶段（不包括lost和paused）
-        mainStages = []
-        branchStages = []
+        # 从配置文件获取阶段配置
+        config = get_stage_config(object_type)
         
-        # 根据PROJECT_STAGE_LABELS按顺序构建阶段配置
-        for i, (key, value) in enumerate(PROJECT_STAGE_LABELS.items()):
+        # 处理主线阶段
+        mainStages = []
+        for stage in config.get('mainStages', []):
             stage_info = {
-                'id': i,
-                'key': key,  # 使用英文key作为标识符
-                'name': value[lang],  # 使用当前语言的名称
-                'zh_name': value['zh'],  # 保留中文名称用于兼容性
-                'en_name': value['en']   # 保留英文名称用于兼容性
+                'id': stage['id'],
+                'key': stage['key'],
+                'name': stage.get(f'{lang}_name', stage['name']),
+                'zh_name': stage.get('zh_name', stage['name']),
+                'en_name': stage.get('en_name', stage['name']),
+                'description': stage.get('description', ''),
+                'order': stage.get('order', 0),
+                'colors': stage.get('colors')  # 透传颜色配置（可选）
             }
-            
-            # 根据阶段类型分类
-            if key in ['lost', 'paused']:
-                branchStages.append(stage_info)
-            else:
-                mainStages.append(stage_info)
+            mainStages.append(stage_info)
+        
+        # 处理分支阶段
+        branchStages = []
+        for stage in config.get('branchStages', []):
+            stage_info = {
+                'id': stage['id'],
+                'key': stage['key'],
+                'name': stage.get(f'{lang}_name', stage['name']),
+                'zh_name': stage.get('zh_name', stage['name']),
+                'en_name': stage.get('en_name', stage['name']),
+                'description': stage.get('description', ''),
+                'order': stage.get('order', 0),
+                'type': stage.get('type', 'branch')
+            }
+            branchStages.append(stage_info)
         
         return {
             'mainStages': mainStages,
             'branchStages': branchStages
         }
     
+    def project_stages_config():
+        """保持向后兼容的项目阶段配置函数"""
+        return get_stage_config_for_template('project')
+    
+    def get_stage_i18n_texts():
+        """获取阶段相关的国际化文本"""
+        try:
+            from app.utils.i18n import get_current_language
+            lang = get_current_language()
+        except:
+            lang = 'zh'  # 默认中文
+        
+        return get_i18n_texts(lang)
+    
     return {
-        'project_stages_config': project_stages_config
+        'get_stage_config_for_template': get_stage_config_for_template,
+        'project_stages_config': project_stages_config,  # 保持向后兼容
+        'get_stage_i18n_texts': get_stage_i18n_texts
     }

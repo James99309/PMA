@@ -778,9 +778,9 @@ def create_app(config_class=Config):
     # 将语言检测函数注册到 Jinja2 全局环境
     app.jinja_env.globals['get_current_language'] = get_current_language
 
-    # 添加项目阶段配置函数到模板上下文
-    from app.context_processors import inject_project_stages_config
-    app.context_processor(inject_project_stages_config)
+    # 添加通用阶段配置函数到模板上下文
+    from app.context_processors import inject_stage_configs
+    app.context_processor(inject_stage_configs)
 
     # 添加用户辅助函数到模板上下文
     from app.context_processors import inject_user_helpers

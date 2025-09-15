@@ -1,10 +1,13 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel, render_confirm_dialog, render_top_notification %}
+{% from 'macros/gantt_chart.html' import render_gantt_chart %}
 
 {% block title %}{{ _('研发产品详情') }} - {{ dev_product.name }}{% endblock %}
 
 {% block head %}
 {{ super() }}
+<!-- 引入甘特图组件样式 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/gantt-chart.css') }}">
 <style>
     /* 研发产品详情页主容器顶部留白，避免被fixed导航遮挡 */
     .container.product-detail-main {
@@ -128,6 +131,7 @@
 {% endblock %}
 
 {% block content %}
+{{ render_top_notification() }}
 <div class="container mt-4 product-detail-main">
     <div class="row mb-3">
         <div class="col-md-12">
@@ -140,17 +144,38 @@
                     {{ render_button(_('编辑产品'), href=url_for('product_management.edit_product', id=dev_product.id), color='warning', icon='fas fa-edit') }}
                     {% endif %}
 
-                    {% if dev_product.status != '申请入库' and dev_product.status != '已入库' and dev_product.created_by == current_user.id %}
-                    {{ render_button(_('申请入库'), color='success', icon='fas fa-upload', attrs='type="button" data-bs-toggle="modal" data-bs-target="#applyModal"') }}
-                    {% endif %}
-
-                    {% if dev_product.status == '申请入库' and current_user.role == 'admin' %}
-                    {{ render_button(_('审核入库'), color='success', icon='fas fa-check', attrs='type="button" data-bs-toggle="modal" data-bs-target="#approveModal"') }}
-                    {% endif %}
 
                     {% if current_user.role == 'admin' or current_user.id == dev_product.created_by %}
                     {{ render_button(_('删除产品'), color='danger', icon='fas fa-trash', attrs='type="button" data-bs-toggle="modal" data-bs-target="#deleteModal"') }}
                     {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 研发产品甘特图阶段管理 -->
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body p-0">
+                    {{ render_gantt_chart(
+                        object_type='rd_product',
+                        object_id=dev_product.id,
+                        current_stage=dev_product.current_stage_key,
+                        stage_config=get_stage_config_for_template('rd_product'),
+                        stage_history=dev_product.get_stage_history(),
+                        can_edit=((current_user.role == 'admin') or (current_user.id == dev_product.created_by)),
+                        api_endpoints={
+                            'updateStage': url_for("product_management.update_rd_product_stage", product_id=dev_product.id)
+                        },
+                        options={
+                            'height': 'auto',
+                            'container_id': 'rdProductGanttChart'
+                        },
+                        current_user_id=current_user.id,
+                        creator_id=dev_product.created_by,
+                        creator_name=dev_product.creator.real_name or dev_product.creator.username if dev_product.creator else None
+                    ) }}
                 </div>
             </div>
         </div>
@@ -161,11 +186,6 @@
             <div class="card product-detail-card">
                 <div class="product-header">
                     <h2>{{ dev_product.name }}</h2>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="ml-2">MN: {{ dev_product.mn_code }}</span>
-                        </div>
-                    </div>
                 </div>
 
                 <div class="product-body">
@@ -222,6 +242,11 @@
                                     </div>
 
                                     <div class="product-property">
+                                        <div class="property-label">MN编码</div>
+                                        <div class="property-value">{{ dev_product.mn_code or _('暂无') }}</div>
+                                    </div>
+
+                                    <div class="product-property">
                                         <div class="property-label">{{ _('销售区域') }}</div>
                                         <div class="property-value">{{ dev_product.region.name if dev_product.region else _('暂无') }}</div>
                                     </div>
@@ -231,19 +256,8 @@
                                     <div class="product-property">
                                         <div class="property-label">{{ _('产品状态') }}</div>
                                         <div class="property-value">
-                                            {% if dev_product.status == '调研中' %}
-                                            <span class="badge bg-info">{{ _('调研中') }}</span>
-                                            {% elif dev_product.status == '立项中' %}
-                                            <span class="badge bg-warning">{{ _('立项中') }}</span>
-                                            {% elif dev_product.status == '研发中' %}
-                                            <span class="badge bg-primary">{{ _('研发中') }}</span>
-                                            {% elif dev_product.status == '申请入库' %}
-                                            <span class="badge bg-secondary">{{ _('申请入库') }}</span>
-                                            {% elif dev_product.status == '已入库' %}
-                                            <span class="badge bg-success">{{ _('已入库') }}</span>
-                                            {% else %}
-                                            <span class="badge bg-dark">{{ dev_product.status }}</span>
-                                            {% endif %}
+                                            {% from 'macros/ui_helpers.html' import render_dev_product_status_badge %}
+                                            {{ render_dev_product_status_badge(dev_product.status if dev_product.status else '未设置') }}
                                         </div>
                                     </div>
 
@@ -359,49 +373,12 @@
     </div>
 </div>
 
-<!-- 申请入库确认模态框 -->
-<div class="modal fade" id="applyModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">确认申请入库</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                确定要申请产品 "{{ dev_product.name }}" 入库吗？提交后需等待管理员审核。
-            </div>
-            <div class="modal-footer">
-                {{ render_button('取消', '#', color='secondary', attrs='type="button" data-bs-dismiss="modal"') }}
-                <form action="{{ url_for('product_management.apply_product', id=dev_product.id) }}" method="post">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    {{ render_button('确认申请', '#', color='success', type='submit') }}
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
 
-<!-- 审核入库确认模态框 -->
-<div class="modal fade" id="approveModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">确认审核入库</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                确定要批准产品 "{{ dev_product.name }}" 入库吗？
-            </div>
-            <div class="modal-footer">
-                {{ render_button('取消', '#', color='secondary', attrs='type="button" data-bs-dismiss="modal"') }}
-                <form action="{{ url_for('product_management.approve_product', id=dev_product.id) }}" method="post">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    {{ render_button('确认入库', '#', color='success', type='submit') }}
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
+
+<!-- 引入甘特图组件 -->
+<!-- 引入通用确认对话框组件 -->
+<script src="{{ url_for('static', filename='js/approval_config/approval-config.js') }}"></script>
+<script src="{{ url_for('static', filename='js/gantt-chart.js') }}"></script>
 
 <script>
 /**
@@ -505,11 +482,16 @@ function uploadImage(file) {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('研发产品详情页面已初始化');
     
+    // 甘特图组件已通过宏自动初始化，无需手动初始化
+    
     // 初始化图片上传功能
     {% if current_user.role == 'admin' or current_user.id == dev_product.created_by %}
     initImageUpload();
     {% endif %}
 });
 </script>
+
+<!-- 阶段推进确认对话框 -->
+{{ render_confirm_dialog('stageProgressConfirmDialog') }}
 
 {% endblock %}

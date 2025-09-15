@@ -1,0 +1,271 @@
+{#
+    通用阶段跟踪模板宏
+    提供统一的阶段跟踪组件渲染功能
+#}
+
+{% macro render_stage_tracker(object_type, object_id, current_stage, stage_config, options={}) %}
+{#
+    渲染通用阶段跟踪组件
+
+    参数：
+    - object_type: 对象类型 ('project', 'rd_product', 'product' 等)
+    - object_id: 对象ID
+    - current_stage: 当前阶段键值
+    - stage_config: 阶段配置对象
+    - options: 可选参数
+        - container_id: 容器ID（默认：'stageTrackerSection'）
+        - show_title: 是否显示标题（默认：true）
+        - title: 自定义标题（默认：根据object_type生成）
+        - editable: 是否可编辑（默认：false）
+        - theme_class: 主题CSS类（默认：根据object_type生成）
+        - update_url: 阶段更新API URL（必需，如果editable为true）
+        - csrf_token: CSRF令牌（必需，如果editable为true）
+        - i18n_texts: 国际化文本对象
+#}
+
+{% set container_id = options.get('container_id', 'stageTrackerSection') %}
+{% set show_title = options.get('show_title', true) %}
+{% set editable = options.get('editable', false) %}
+{% set theme_class = options.get('theme_class', 'stage-tracker--' + object_type) %}
+
+{# 生成默认标题 #}
+{% set default_titles = {
+    'project': '项目阶段跟踪',
+    'rd_product': '研发产品阶段跟踪', 
+    'product': '产品阶段跟踪'
+} %}
+{% set title = options.get('title', default_titles.get(object_type, '阶段跟踪')) %}
+
+{# 默认国际化文本 #}
+{% set default_i18n = {
+    'confirmAdvanceTitle': '确认阶段推进',
+    'confirmAdvance': '确认推进',
+    'cancel': '取消',
+    'operationNote': '此操作将更新阶段状态，推进后将无法直接回退。',
+    'loading': '处理中...',
+    'updateSuccess': '阶段更新成功',
+    'updateFailed': '阶段更新失败',
+    'networkError': '网络请求失败',
+    'permissionDenied': '权限不足',
+    'invalidStage': '无效的阶段'
+} %}
+{% set i18n_texts = options.get('i18n_texts', default_i18n) %}
+
+<div class="card mb-4">
+    {% if show_title %}
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">{{ title }}</h5>
+        {% if editable %}
+        <small class="text-muted">{{ _('点击阶段节点推进流程') }}</small>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    <div class="card-body">
+        <div id="{{ container_id }}" 
+             class="stage-tracker {{ theme_class }}"
+             data-object-type="{{ object_type }}"
+             data-object-id="{{ object_id }}"
+             data-current-stage="{{ current_stage }}"
+             data-editable="{{ 'true' if editable else 'false' }}"
+             {% if editable and options.get('update_url') %}
+             data-update-url="{{ options.get('update_url') }}"
+             {% endif %}
+             {% if editable and options.get('csrf_token') %}
+             data-csrf-token="{{ options.get('csrf_token') }}"
+             {% endif %}
+             data-i18n-texts="{{ i18n_texts | tojson | e }}">
+            
+            {# 阶段进度条容器 #}
+            <div class="stage-progress-container">
+                <div class="stage-progress-bar">
+                    <div class="stage-progress-fill"></div>
+                </div>
+                
+                {# 阶段节点 #}
+                <div class="stage-markers">
+                    {% for stage in stage_config.mainStages %}
+                    <div class="stage-marker" 
+                         data-stage="{{ stage.key }}"
+                         data-stage-name="{{ stage.name }}"
+                         {% if stage.description %}data-description="{{ stage.description }}"{% endif %}>
+                        <div class="stage-dot">
+                            <i class="{{ stage.get('icon', 'fas fa-circle') }}"></i>
+                        </div>
+                        <div class="stage-name">{{ stage.name }}</div>
+                        {% if stage.get('date') %}
+                        <div class="stage-extra">
+                            <div class="stage-days">{{ stage.date }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            {# 阶段详细信息 #}
+            <div class="stage-details mt-3">
+                <div class="current-stage-info">
+                    <strong>{{ _('当前阶段') }}:</strong>
+                    <span class="current-stage-name"></span>
+                    <span class="current-stage-date text-muted ms-2"></span>
+                </div>
+                
+                {% if editable %}
+                <div class="stage-actions mt-2">
+                    <div class="next-stage-hint text-muted">
+                        <i class="fas fa-info-circle"></i>
+                        <span>{{ _('点击下一阶段节点推进流程') }}</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{# 确认对话框模板（仅在可编辑模式下渲染） #}
+{% if editable %}
+<div class="modal fade" id="stageAdvanceConfirmModal" tabindex="-1" aria-labelledby="stageAdvanceConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="stageAdvanceConfirmModalLabel">
+                    <i class="fas fa-arrow-right text-warning me-2"></i>
+                    <span class="modal-title-text">{{ i18n_texts.confirmAdvanceTitle }}</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="stage-advance-message"></div>
+                <div class="stage-advance-detail text-muted mt-2"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {{ i18n_texts.cancel }}
+                </button>
+                <button type="button" class="btn btn-warning" id="confirmStageAdvance">
+                    <i class="fas fa-arrow-right me-1"></i>
+                    <span class="confirm-text">{{ i18n_texts.confirmAdvance }}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endmacro %}
+
+{#
+    渲染阶段跟踪所需的CSS和JavaScript资源引用
+
+    参数：
+    - include_css: 是否包含CSS文件（默认：true）
+    - include_js: 是否包含JavaScript文件（默认：true）
+    - object_type: 对象类型，用于包含特定的JavaScript文件
+#}
+{% macro render_stage_tracker_resources(include_css=true, include_js=true, object_type=none) %}
+    {% if include_css %}
+    <!-- 阶段跟踪CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/stage-tracker.css') }}">
+    {% endif %}
+    
+    {% if include_js %}
+    <!-- 阶段跟踪JavaScript -->
+    <script src="{{ url_for('static', filename='js/stage-tracker.js') }}"></script>
+    
+    {% if object_type %}
+    <!-- 对象特定的阶段跟踪JavaScript -->
+    {% if object_type == 'project' %}
+    <script src="{{ url_for('static', filename='js/project-stage-tracker.js') }}"></script>
+    {% elif object_type == 'rd_product' %}
+    <script src="{{ url_for('static', filename='js/rd-product-stage-tracker.js') }}"></script>
+    {% endif %}
+    {% endif %}
+    {% endif %}
+{% endmacro %}
+
+{#
+    渲染阶段跟踪初始化脚本
+
+    参数：
+    - object_type: 对象类型
+    - object_id: 对象ID
+    - container_id: 容器ID（默认：'stageTrackerSection'）
+    - stage_config: 阶段配置
+    - options: 初始化选项
+#}
+{% macro render_stage_tracker_init_script(object_type, object_id, stage_config, options={}) %}
+{% set container_id = options.get('container_id', 'stageTrackerSection') %}
+{% set editable = options.get('editable', false) %}
+{% set update_url = options.get('update_url', '') %}
+{% set csrf_token = options.get('csrf_token', '') %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 阶段配置
+    const stageConfig = {{ stage_config | tojson }};
+    
+    // 初始化选项
+    const initOptions = {
+        containerId: '{{ container_id }}',
+        objectType: '{{ object_type }}',
+        objectId: {{ object_id }},
+        stageConfig: stageConfig,
+        editable: {{ 'true' if editable else 'false' }},
+        {% if editable and update_url %}
+        updateUrl: '{{ update_url }}',
+        {% endif %}
+        {% if editable and csrf_token %}
+        csrfToken: '{{ csrf_token }}',
+        {% endif %}
+        ...{{ options.get('extra_options', {}) | tojson }}
+    };
+    
+    // 根据对象类型创建相应的阶段跟踪器
+    let stageTracker;
+    {% if object_type == 'project' %}
+    if (typeof ProjectStageTracker !== 'undefined') {
+        stageTracker = new ProjectStageTracker(initOptions);
+    }
+    {% elif object_type == 'rd_product' %}
+    if (typeof RdProductStageTracker !== 'undefined') {
+        stageTracker = new RdProductStageTracker(initOptions);
+    }
+    {% else %}
+    // 使用通用阶段跟踪器
+    if (typeof StageTracker !== 'undefined') {
+        stageTracker = new StageTracker(initOptions);
+    }
+    {% endif %}
+    
+    if (stageTracker) {
+        // 初始化阶段跟踪器
+        stageTracker.init();
+        
+        // 将实例存储到全局变量中，便于其他脚本访问
+        window.stageTrackerInstance = stageTracker;
+    } else {
+        console.error('阶段跟踪器类未找到，请检查JavaScript文件是否正确加载');
+    }
+});
+</script>
+{% endmacro %}
+
+{#
+    完整的阶段跟踪组件（包含资源和初始化）
+    
+    这是一个便捷宏，包含了所有必需的组件
+    
+    参数：与其他宏相同
+#}
+{% macro render_complete_stage_tracker(object_type, object_id, current_stage, stage_config, options={}) %}
+    {# 渲染CSS和JS资源 #}
+    {{ render_stage_tracker_resources(object_type=object_type) }}
+    
+    {# 渲染阶段跟踪器UI #}
+    {{ render_stage_tracker(object_type, object_id, current_stage, stage_config, options) }}
+    
+    {# 渲染初始化脚本 #}
+    {{ render_stage_tracker_init_script(object_type, object_id, stage_config, options) }}
+{% endmacro %}

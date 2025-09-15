@@ -1,0 +1,107 @@
+{# 甘特图组件宏 #}
+{% macro render_gantt_chart(object_type, object_id, current_stage, stage_config, stage_history, can_edit=False, api_endpoints=None, options=None, current_user_id=None, creator_id=None, creator_name=None) -%}
+{%- set options = options or {} -%}
+{%- set container_height = options.get('height', 'auto') -%}
+{%- set container_id = options.get('container_id', 'ganttChart') -%}
+
+<div class="gantt-chart-wrapper" style="height: {{ container_height }};">
+    <div class="gantt-container" id="{{ container_id }}">
+        <!-- 主要甘特图区域 -->
+        <div class="gantt-main-area">
+            <!-- 左侧任务树 -->
+            <div class="task-tree">
+                <div class="tree-header">
+                    <i class="fas fa-tasks me-2"></i>
+                    {{ _('阶段管理') }}
+                </div>
+                <div class="tree-content">
+                    <div class="task-list" id="taskList">
+                        <!-- 任务列表将由JavaScript动态生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧甘特图 -->
+            <div class="gantt-chart">
+                <!-- 时间轴标题栏 -->
+                <div class="gantt-header">
+                    <div class="gantt-nav">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="prevMonth">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <span class="gantt-month" id="currentMonth"></span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="nextMonth">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                    <div class="gantt-days" id="ganttDays">
+                        <!-- 日期标题将由JavaScript动态生成 -->
+                    </div>
+                </div>
+                
+                <!-- 甘特图内容区域 -->
+                <div class="gantt-content" id="ganttContent">
+                    <div class="gantt-bars" id="ganttBars">
+                        <!-- 甘特条将由JavaScript动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部详情面板 (现在在container内部) -->
+        <div class="gantt-details" id="ganttDetails">
+            <div class="details-header">
+                <div class="details-title" id="detailsTitle">{{ _('阶段详情') }}</div>
+                <div class="details-actions">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="closeDetails">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="details-content" id="detailsContent">
+                <!-- 详情内容将由JavaScript动态生成 -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 甘特图数据脚本 -->
+<script type="application/json" id="gantt-data-{{ container_id }}">
+{
+    "objectType": "{{ object_type }}",
+    "objectId": {{ object_id }},
+    "currentStage": "{{ current_stage }}",
+    "stageConfig": {{ stage_config|tojson }},
+    "stageHistory": {{ stage_history|tojson }},
+    "canEdit": {{ can_edit|lower }},
+    "apiEndpoints": {{ api_endpoints|tojson if api_endpoints else '{}' }},
+    "csrfToken": "{{ csrf_token() }}",
+    "options": {{ options|tojson }},
+    "containerId": "{{ container_id }}",
+    "currentUserId": {{ current_user_id|tojson if current_user_id else 'null' }},
+    "creatorId": {{ creator_id|tojson if creator_id else 'null' }},
+    "creatorName": {{ creator_name|tojson if creator_name else 'null' }}
+}
+</script>
+
+{%- endmacro %}
+
+{# 简化版甘特图组件调用宏 #}
+{% macro render_rd_product_gantt(dev_product, can_edit=False, api_endpoints=None, current_user_id=None) -%}
+{{ render_gantt_chart(
+    object_type='rd_product',
+    object_id=dev_product.id,
+    current_stage=dev_product.current_stage_key,
+    stage_config=get_stage_config_for_template('rd_product'),
+    stage_history=dev_product.get_stage_history(),
+    can_edit=can_edit,
+    api_endpoints=api_endpoints,
+    options={
+        'height': 'auto',
+        'container_id': 'rdProductGanttChart'
+    },
+    current_user_id=current_user_id,
+    creator_id=dev_product.created_by.id if dev_product.created_by else None,
+    creator_name=dev_product.created_by.real_name or dev_product.created_by.username if dev_product.created_by else None
+) }}
+{%- endmacro %}

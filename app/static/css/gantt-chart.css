@@ -1,0 +1,1175 @@
+/**
+ * 甘特图组件样式
+ * 基于研发产品甘特图演示提取的通用样式系统
+ */
+
+/* ==================== 甘特图变量系统 ==================== */
+:root {
+    /* 基础颜色 */
+    --gantt-primary-color: #0d6efd;
+    --gantt-success-color: #198754;
+    --gantt-warning-color: #ffc107;
+    --gantt-danger-color: #dc3545;
+    --gantt-info-color: #0dcaf0;
+    --gantt-secondary-color: #6c757d;
+    --gantt-light-color: #f8f9fa;
+    --gantt-dark-color: #343a40;
+    
+    /* 甘特图专用颜色 */
+    --gantt-grid-color: #d0d0d0;
+    --gantt-header-bg: #f8f9fa;
+    --gantt-border-color: #dee2e6;
+    --gantt-hover-bg: rgba(0,0,0,0.05);
+    --gantt-selected-bg: #e3f2fd;
+    --gantt-focus-bg: #e9f2ff; /* 日期选中同色的整列背景 */
+    
+    /* 研发阶段颜色系统（莫兰迪系） */
+    /* 调研阶段 - 柔和绿 */
+    --gantt-research-main: #6B8E6B;
+    --gantt-research-sub: #98B297;
+    --gantt-research-light: #E7ECE7;
+    --gantt-research-hover: #5A7A5A;
+    --gantt-research-sub-hover: #C7D3C6;
+    
+    /* 立项阶段 - 柔和蓝灰 */
+    --gantt-planning-main: #6B89A6;
+    --gantt-planning-sub: #9BB1C9;
+    --gantt-planning-light: #E8EEF5;
+    --gantt-planning-hover: #5C7894;
+    --gantt-planning-sub-hover: #C8D6E6;
+    
+    /* 研发阶段 - 柔和棕橙 */
+    --gantt-development-main: #C99265;
+    --gantt-development-sub: #DDB08A;
+    --gantt-development-light: #F3E6D8;
+    --gantt-development-hover: #B67F53;
+    --gantt-development-sub-hover: #E6C7A8;
+    
+    /* 申请入库阶段 - 柔和紫灰 */
+    --gantt-apply-main: #8C7AA9;
+    --gantt-apply-sub: #B4A6C8;
+    --gantt-apply-light: #ECE7F3;
+    --gantt-apply-hover: #7A6994;
+    --gantt-apply-sub-hover: #D6CEE4;
+    
+    /* 已入库阶段 - 柔和蓝绿 */
+    --gantt-stored-main: #5E8A75;
+    --gantt-stored-sub: #8FB3A0;
+    --gantt-stored-light: #E3EFEA;
+    --gantt-stored-hover: #4F7864;
+    --gantt-stored-sub-hover: #C9DED5;
+}
+
+/* ==================== 甘特图容器结构 ==================== */
+
+.gantt-chart-wrapper {
+    border: 1px solid var(--gantt-border-color);
+    border-radius: 8px;
+    overflow: visible;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.gantt-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.gantt-main-area {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+/* ==================== 左侧任务树 ==================== */
+
+.task-tree {
+    width: 400px;
+    background: white;
+    border-right: 2px solid var(--gantt-grid-color);
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+}
+
+.tree-header {
+    height: 80px;
+    background: var(--gantt-header-bg);
+    border-bottom: 1px solid var(--gantt-grid-color);
+    display: flex;
+    align-items: center;
+    padding: 0 15px;
+    font-weight: 600;
+    font-size: 16px;
+    color: #333;
+}
+
+.tree-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+}
+
+.task-list {
+    min-height: 100%;
+}
+
+/* ==================== 任务项样式 ==================== */
+
+.task-item {
+    display: flex;
+    align-items: center;
+    padding: 0 15px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    height: 28px;
+    box-sizing: border-box;
+    font-size: 13px;
+    line-height: 1.2;
+}
+
+.task-item:hover {
+    background-color: var(--gantt-hover-bg);
+}
+
+.task-item.selected {
+    background-color: var(--gantt-selected-bg);
+    border-left: 4px solid var(--gantt-primary-color);
+}
+
+.task-item.main-stage {
+    font-weight: 600;
+    border-bottom: 1px solid var(--gantt-grid-color);
+    height: 32px;
+    font-size: 14px;
+}
+
+.task-item.sub-stage {
+    padding-left: 45px;
+    font-size: 12px;
+    height: 26px;
+}
+
+/* ==================== 阶段颜色系统 ==================== */
+
+/* 调研阶段颜色 */
+.task-item[data-stage="research"] {
+    background-color: var(--gantt-research-main);
+    color: white;
+}
+.task-item[data-stage="research"]:hover {
+    background-color: var(--gantt-research-hover);
+}
+.task-item[data-parent="research"] {
+    background-color: var(--gantt-research-light);
+    color: var(--gantt-research-main);
+    border-left: 3px solid var(--gantt-research-sub);
+}
+.task-item[data-parent="research"]:hover {
+    background-color: var(--gantt-research-sub-hover);
+}
+
+/* 立项阶段颜色 */
+.task-item[data-stage="planning"] {
+    background-color: var(--gantt-planning-main);
+    color: white;
+}
+.task-item[data-stage="planning"]:hover {
+    background-color: var(--gantt-planning-hover);
+}
+.task-item[data-parent="planning"] {
+    background-color: var(--gantt-planning-light);
+    color: var(--gantt-planning-main);
+    border-left: 3px solid var(--gantt-planning-sub);
+}
+.task-item[data-parent="planning"]:hover {
+    background-color: var(--gantt-planning-sub-hover);
+}
+
+/* 研发阶段颜色 */
+.task-item[data-stage="development"] {
+    background-color: var(--gantt-development-main);
+    color: white;
+}
+.task-item[data-stage="development"]:hover {
+    background-color: var(--gantt-development-hover);
+}
+.task-item[data-parent="development"] {
+    background-color: var(--gantt-development-light);
+    color: var(--gantt-development-main);
+    border-left: 3px solid var(--gantt-development-sub);
+}
+.task-item[data-parent="development"]:hover {
+    background-color: var(--gantt-development-sub-hover);
+}
+
+/* 申请入库阶段颜色 */
+.task-item[data-stage="apply_storage"] {
+    background-color: var(--gantt-apply-main);
+    color: white;
+}
+.task-item[data-stage="apply_storage"]:hover {
+    background-color: var(--gantt-apply-hover);
+}
+.task-item[data-parent="apply_storage"] {
+    background-color: var(--gantt-apply-light);
+    color: var(--gantt-apply-main);
+    border-left: 3px solid var(--gantt-apply-sub);
+}
+.task-item[data-parent="apply_storage"]:hover {
+    background-color: var(--gantt-apply-sub-hover);
+}
+
+/* 已入库阶段颜色 */
+.task-item[data-stage="stored"] {
+    background-color: var(--gantt-stored-main);
+    color: white;
+}
+.task-item[data-stage="stored"]:hover {
+    background-color: var(--gantt-stored-hover);
+}
+.task-item[data-parent="stored"] {
+    background-color: var(--gantt-stored-light);
+    color: var(--gantt-stored-main);
+    border-left: 3px solid var(--gantt-stored-sub);
+}
+.task-item[data-parent="stored"]:hover {
+    background-color: var(--gantt-stored-sub-hover);
+}
+
+/* ==================== 任务项元素 ==================== */
+
+.expand-icon {
+    margin-right: 8px;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.expand-icon.expanded {
+    transform: rotate(90deg);
+}
+
+.task-name {
+    flex: 1;
+}
+
+.stage-status-icon {
+    width: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 6px;
+    color: #333;
+}
+
+.task-actions {
+    display: none;
+    gap: 5px;
+}
+
+.task-item:hover .task-actions {
+    display: flex;
+}
+
+.task-actions .btn {
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    transition: background-color 0.2s;
+    padding: 0;
+    line-height: 1;
+}
+
+.task-actions .btn:hover {
+    background-color: #dee2e6;
+}
+
+.task-actions .btn-add {
+    color: var(--gantt-success-color);
+}
+
+.task-actions .btn-edit {
+    color: var(--gantt-secondary-color);
+}
+
+.task-actions .btn-delete {
+    color: var(--gantt-danger-color);
+}
+
+/* ==================== 右侧甘特图区域 ==================== */
+
+.gantt-chart {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.gantt-header {
+    height: 80px;
+    background: var(--gantt-header-bg);
+    border-bottom: 1px solid var(--gantt-grid-color);
+    display: flex;
+    flex-direction: column;
+    padding: 10px 15px;
+}
+
+.gantt-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.gantt-nav .btn {
+    margin: 0 5px;
+}
+
+.gantt-month {
+    font-weight: 600;
+    font-size: 16px;
+    margin: 0 15px;
+    min-width: 120px;
+    text-align: center;
+}
+
+.gantt-days {
+    display: flex;
+    font-size: 12px;
+    color: #666;
+    border-bottom: 1px solid var(--gantt-grid-color);
+}
+
+.gantt-day {
+    flex: 1;
+    text-align: center;
+    padding: 2px;
+    border-right: 1px solid #f0f0f0;
+    min-width: 25px;
+}
+
+.gantt-day:last-child {
+    border-right: none;
+}
+
+.gantt-day.weekend {
+    background-color: #f8f9fa;
+    color: #999;
+}
+
+/* 选中的日期高亮（点击阶段后定位的日期） */
+.gantt-day.selected {
+    background-color: #e9f2ff;
+    border-bottom: 2px solid var(--gantt-primary-color);
+    color: #0b5ed7;
+}
+
+/* 选中日期在内容区的整列高亮（通过脚本插入 .focus-column） */
+.focus-column {
+    background: var(--gantt-focus-bg);
+}
+
+.gantt-day.today {
+    background-color: var(--gantt-primary-color);
+    color: white;
+    font-weight: 600;
+}
+
+/* ==================== 甘特图内容区域 ==================== */
+
+.gantt-content {
+    flex: 1;
+    overflow-y: auto;
+    position: relative;
+}
+
+.gantt-bars {
+    position: relative;
+    min-height: 100%;
+}
+
+.gantt-bar-row {
+    position: relative;
+    border-bottom: 1px solid #f0f0f0;
+    height: 28px;
+    display: flex;
+    align-items: center;
+}
+
+.gantt-bar-row.main-stage {
+    height: 32px;
+    border-bottom: 1px solid var(--gantt-grid-color);
+}
+
+.gantt-bar-row.sub-stage {
+    height: 26px;
+}
+
+.gantt-bar {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    font-size: 10px;
+    font-weight: 500;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.2s;
+    z-index: 5;
+    min-height: calc(100% - 4px);
+}
+
+/* 进度填充条：覆盖在底色之上，宽度=完成度% */
+.gantt-bar .gantt-bar-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    border-radius: 3px 0 0 3px;
+    z-index: 1;
+}
+
+/* 实际完成时间边线标记 */
+.gantt-bar-actual-end {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 0;
+    z-index: 3;
+    pointer-events: none;
+    box-shadow: 1px 0 1px rgba(0, 0, 0, 0.3);
+}
+
+/* 主阶段的实际完成标记稍微粗一点 */
+.gantt-bar-row.main-stage .gantt-bar-actual-end {
+    width: 3px;
+    background: rgba(0, 0, 0, 0.7);
+    box-shadow: 1px 0 2px rgba(0, 0, 0, 0.4);
+}
+
+/* 已完成状态的甘特条增加subtle边框效果 */
+.gantt-bar[data-status="completed"] {
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+/* 延期部分的甘特条扩展 */
+.gantt-bar-extended {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    opacity: 0.7;
+    z-index: 2;
+    pointer-events: none;
+    border-left: 2px solid #ff9999;
+}
+
+.gantt-bar:hover {
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    transform: scaleY(1.05);
+}
+
+/* 鼠标悬停时高亮实际完成标记 */
+.gantt-bar:hover .gantt-bar-actual-end {
+    background: rgba(0, 0, 0, 0.7);
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+}
+
+/* 鼠标悬停时高亮延期部分 */
+.gantt-bar:hover .gantt-bar-extended {
+    opacity: 0.9;
+    border-left-color: #ff6666;
+}
+
+/* 甘特条结束标记 */
+.gantt-bar::after { display: none; content: none; }
+
+/* 甘特条文本 */
+.gantt-bar-text {
+    padding: 0 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    text-align: left; /* 文本靠左，贴近阶段起点 */
+    line-height: 1;
+    position: relative;
+    z-index: 2; /* 确保文字在填充条之上 */
+}
+
+/* 右侧状态图标 */
+.gantt-status-icon {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #333;
+    opacity: 0.9;
+}
+
+/* 甘特条颜色通过JavaScript动态设置，支持渐变和进度显示 */
+
+/* ==================== 底部详情面板 ==================== */
+
+.gantt-details {
+    border-top: 1px solid var(--gantt-border-color);
+    background: white;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-in-out;
+    display: flex;
+    flex-direction: column;
+}
+
+.gantt-container .gantt-details.expanded {
+    max-height: 80vh !important;
+    overflow-y: auto !important;
+}
+
+.details-header {
+    background: var(--gantt-header-bg);
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--gantt-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.details-title {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.details-actions .btn {
+    padding: 2px 8px;
+    font-size: 12px;
+}
+
+.details-content {
+    padding: 15px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* ==================== 表单样式 ==================== */
+
+.gantt-form {
+    display: grid;
+    gap: 15px;
+    max-width: 600px;
+}
+
+.gantt-form .row {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 10px;
+    align-items: center;
+}
+
+.gantt-form label {
+    font-weight: 600;
+    color: #555;
+    text-align: right;
+    font-size: 13px;
+}
+
+.gantt-form .form-control {
+    padding: 6px 10px;
+    font-size: 13px;
+    border: 1px solid var(--gantt-border-color);
+    border-radius: 4px;
+}
+
+.gantt-form .form-control:focus {
+    border-color: var(--gantt-primary-color);
+    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
+}
+
+.gantt-form .btn {
+    padding: 6px 15px;
+    font-size: 13px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.gantt-form .btn-primary {
+    background-color: var(--gantt-primary-color);
+    color: white;
+}
+
+.gantt-form .btn-primary:hover {
+    background-color: #0b5ed7;
+}
+
+.gantt-form .btn-secondary {
+    background-color: var(--gantt-secondary-color);
+    color: white;
+}
+
+.gantt-form .btn-secondary:hover {
+    background-color: #5c636a;
+}
+
+.gantt-form .btn-danger {
+    background-color: var(--gantt-danger-color);
+    color: white;
+}
+
+.gantt-form .btn-danger:hover {
+    background-color: #bb2d3b;
+}
+
+/* ==================== 响应式设计 ==================== */
+
+@media (max-width: 768px) {
+    .task-tree {
+        width: 300px;
+    }
+    
+    .tree-header {
+        padding: 0 10px;
+        font-size: 14px;
+    }
+    
+    .task-item {
+        padding: 0 10px;
+        font-size: 12px;
+    }
+    
+    .task-item.sub-stage {
+        padding-left: 30px;
+    }
+    
+    .gantt-header {
+        padding: 8px 10px;
+    }
+    
+    .gantt-nav {
+        margin-bottom: 5px;
+    }
+    
+    .gantt-month {
+        font-size: 14px;
+        margin: 0 10px;
+        min-width: 100px;
+    }
+    
+    .gantt-day {
+        min-width: 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    .gantt-container {
+        flex-direction: column;
+    }
+    
+    .task-tree {
+        width: 100%;
+        max-height: 200px;
+        border-right: none;
+        border-bottom: 2px solid var(--gantt-grid-color);
+    }
+    
+    .gantt-chart {
+        min-height: 300px;
+    }
+}
+
+/* 详情面板样式 */
+.details-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1.5fr 1fr;
+    gap: 30px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    padding: 0;
+}
+
+.details-section {
+    margin-bottom: 0;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    align-self: start;
+}
+
+.section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin: 0 0 16px 0;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #3498db;
+}
+
+.detail-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    gap: 12px;
+}
+
+.detail-item:last-child {
+    margin-bottom: 0;
+}
+
+.detail-label {
+    font-weight: 500;
+    color: #495057;
+    min-width: 100px;
+    flex-shrink: 0;
+}
+
+.detail-value {
+    flex: 1;
+}
+
+.detail-value input,
+.detail-value select,
+.detail-value textarea {
+    width: 100%;
+    padding: 6px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.detail-value textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.detail-value input:focus,
+.detail-value select:focus,
+.detail-value textarea:focus {
+    outline: none;
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.detail-value input[readonly],
+.detail-value textarea[readonly] {
+    background-color: #e9ecef;
+    opacity: 1;
+}
+
+/* 状态徽章样式 */
+.status-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    display: inline-block;
+}
+
+.status-planned {
+    background-color: #e3f2fd;
+    color: #1565c0;
+    border: 1px solid #bbdefb;
+}
+
+.status-in-progress {
+    background-color: #fff3e0;
+    color: #ef6c00;
+    border: 1px solid #ffcc02;
+}
+
+.status-completed {
+    background-color: #e8f5e8;
+    color: #2e7d32;
+    border: 1px solid #c8e6c9;
+}
+
+.status-paused {
+    background-color: #fff8e1;
+    color: #f57c00;
+    border: 1px solid #ffecb3;
+}
+
+.status-cancelled {
+    background-color: #ffebee;
+    color: #c62828;
+    border: 1px solid #ffcdd2;
+}
+
+/* 附件管理样式 */
+.attachment-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.attachment-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.attachment-item:hover {
+    background-color: #f8f9fa;
+}
+
+.attachment-item i {
+    color: #dc3545;
+    margin-right: 10px;
+    font-size: 16px;
+}
+
+.attachment-name {
+    flex: 1;
+    font-size: 14px;
+    color: #495057;
+}
+
+.attachment-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.attachment-actions button {
+    padding: 4px 8px;
+    background: none;
+    border: 1px solid #dee2e6;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 12px;
+    color: #6c757d;
+}
+
+.attachment-actions button:hover {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
+/* 操作按钮样式 */
+.details-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    margin-top: 20px;
+    border-radius: 0 0 8px 8px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-standard {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-standard i {
+    font-size: 12px;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #545b62;
+}
+
+.btn-success {
+    background-color: #28a745;
+    color: white;
+}
+
+.btn-success:hover {
+    background-color: #1e7e34;
+}
+
+.btn-warning {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.btn-warning:hover {
+    background-color: #d39e00;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #bd2130;
+}
+
+.btn-info {
+    background-color: #17a2b8;
+    color: white;
+}
+
+.btn-info:hover {
+    background-color: #117a8b;
+}
+
+/* 进度滑块样式 */
+input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: #e9ecef;
+    border-radius: 3px;
+    outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    background: #007bff;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    background: #007bff;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    border: none;
+}
+
+/* ==================== 阶段记录样式 ==================== */
+
+/* 阶段记录专用样式 */
+.stage-records-section {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 300px;
+}
+
+.stage-records-history {
+    flex: 1;
+    max-height: 250px;
+    overflow-y: auto;
+    margin-bottom: 12px; /* 更紧凑 */
+    padding-right: 2px;
+    text-align: left; /* 确保整体左对齐 */
+}
+
+.stage-records-history::-webkit-scrollbar {
+    width: 6px;
+}
+
+.stage-records-history::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.stage-records-history::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.stage-records-history::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+.stage-record-item {
+    padding: 6px 10px 10px 10px;/* 底部稍多，容纳删除图标 */
+    margin-bottom: 4px;         /* 减少间距 */
+    background: #fff;
+    border: 1px solid #eceff3;  /* 更淡的分隔线 */
+    border-radius: 4px;
+    position: relative;         /* 用于定位删除图标 */
+    text-align: left;
+}
+
+.stage-record-item:last-child {
+    margin-bottom: 0;
+}
+
+.record-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;         /* 标题与正文更贴近 */
+    position: relative;
+}
+
+.record-creator {
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 13px;
+}
+
+.record-time {
+    font-size: 12px;
+    color: #6c757d;
+}
+
+.record-content {
+    line-height: 1.3;           /* 更紧凑 */
+    color: #495057;
+    font-size: 13px;
+    white-space: pre-wrap;
+    text-align: left;           /* 明确左对齐 */
+    margin: 0;                  /* 去掉多余外边距 */
+    padding: 0;
+}
+
+/* 防止富文本/段落造成的额外空白 */
+.record-content p { margin: 0; }
+.record-content ul { margin: 0 0 0 18px; }
+.record-content ol { margin: 0 0 0 18px; }
+
+/* 删除图标（悬停显示） */
+.record-delete {
+    position: absolute;
+    right: 8px;
+    bottom: 6px;               /* 放到底部右侧 */
+    display: none;
+    color: #dc3545;
+    cursor: pointer;
+}
+.stage-record-item:hover .record-delete { display: inline-flex; }
+.record-delete i { pointer-events: none; }
+
+.stage-records-input {
+    border-top: 1px solid #e9ecef;
+    padding-top: 16px;
+    margin-top: auto;
+}
+
+/* 阶段范围信息样式 */
+.section-scope-info {
+    font-size: 12px;
+    color: #6c757d;
+    background-color: #f8f9fa;
+    padding: 4px 8px;
+    border-radius: 3px;
+    margin-bottom: 8px;
+    border-left: 2px solid #007bff;
+}
+
+.record-input-area {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.record-input-area textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+    resize: vertical;
+    min-height: 80px;
+}
+
+.record-input-area textarea:focus {
+    outline: none;
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.record-input-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.no-records {
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+    padding: 40px 20px;
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .details-body {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    
+    .details-footer {
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+    }
+    
+    .action-buttons {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .detail-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+    
+    .detail-label {
+        min-width: auto;
+    }
+}

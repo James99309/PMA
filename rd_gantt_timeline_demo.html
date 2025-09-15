@@ -1,0 +1,2036 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>研发产品甘特图阶段管理 - UI展示</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #0d6efd;
+            --success-color: #198754;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --info-color: #0dcaf0;
+            --secondary-color: #6c757d;
+            --light-green: #90EE90;
+            --dark-green: #228B22;
+            --grid-color: #d0d0d0;
+            --header-bg: #f8f9fa;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #ffffff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .gantt-container {
+            display: flex;
+            flex: 1;
+            width: 100%;
+            min-height: 0;
+        }
+
+        :root {
+            --primary-color: #0d6efd;
+            --success-color: #198754;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --info-color: #0dcaf0;
+            --secondary-color: #6c757d;
+            --light-green: #90EE90;
+            --dark-green: #228B22;
+            --grid-color: #d0d0d0;
+            --header-bg: #f8f9fa;
+            
+            /* 研发阶段颜色系统 */
+            /* 调研阶段 - 绿色系 */
+            --research-main: #2e7d32;
+            --research-sub: #66bb6a;
+            --research-light: #c8e6c9;
+            
+            /* 立项阶段 - 蓝色系 */
+            --planning-main: #1976d2;
+            --planning-sub: #42a5f5;
+            --planning-light: #bbdefb;
+            
+            /* 研发阶段 - 橙色系 */
+            --development-main: #f57c00;
+            --development-sub: #ffb74d;
+            --development-light: #ffe0b2;
+        }
+
+        /* 左侧任务树形结构 */
+        .task-tree {
+            width: 400px;
+            background: white;
+            border-right: 2px solid var(--grid-color);
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+        }
+
+        .tree-header {
+            height: 80px;
+            background: var(--header-bg);
+            border-bottom: 1px solid var(--grid-color);
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            font-weight: 600;
+            font-size: 16px;
+            color: #333;
+        }
+
+        .tree-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            height: 28px;
+            box-sizing: border-box;
+            font-size: 13px;
+            line-height: 1.2;
+        }
+
+        .task-item:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+
+        .task-item.selected {
+            background-color: #e3f2fd;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .task-item.main-stage {
+            font-weight: 600;
+            border-bottom: 1px solid var(--grid-color);
+            height: 32px;
+            font-size: 14px;
+        }
+
+        .task-item.sub-stage {
+            padding-left: 45px;
+            font-size: 12px;
+            height: 26px;
+        }
+
+        /* 调研阶段颜色 */
+        .task-item[data-stage="research"] {
+            background-color: var(--research-main);
+            color: white;
+        }
+        .task-item[data-stage="research"]:hover {
+            background-color: #1b5e20;
+        }
+        .task-item[data-parent="research"] {
+            background-color: var(--research-light);
+            color: var(--research-main);
+            border-left: 3px solid var(--research-sub);
+        }
+        .task-item[data-parent="research"]:hover {
+            background-color: #a5d6a7;
+        }
+
+        /* 立项阶段颜色 */
+        .task-item[data-stage="planning"] {
+            background-color: var(--planning-main);
+            color: white;
+        }
+        .task-item[data-stage="planning"]:hover {
+            background-color: #1565c0;
+        }
+        .task-item[data-parent="planning"] {
+            background-color: var(--planning-light);
+            color: var(--planning-main);
+            border-left: 3px solid var(--planning-sub);
+        }
+        .task-item[data-parent="planning"]:hover {
+            background-color: #90caf9;
+        }
+
+        /* 研发阶段颜色 */
+        .task-item[data-stage="development"] {
+            background-color: var(--development-main);
+            color: white;
+        }
+        .task-item[data-stage="development"]:hover {
+            background-color: #ef6c00;
+        }
+        .task-item[data-parent="development"] {
+            background-color: var(--development-light);
+            color: var(--development-main);
+            border-left: 3px solid var(--development-sub);
+        }
+        .task-item[data-parent="development"]:hover {
+            background-color: #ffcc02;
+        }
+
+        .expand-icon {
+            margin-right: 8px;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .expand-icon.expanded {
+            transform: rotate(90deg);
+        }
+
+        .task-name {
+            flex: 1;
+        }
+
+        .task-actions {
+            display: none;
+            gap: 5px;
+        }
+
+        .task-item:hover .task-actions {
+            display: flex;
+        }
+
+        .action-btn {
+            width: 20px;
+            height: 20px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            transition: background-color 0.2s;
+        }
+
+        .action-btn:hover {
+            background-color: #dee2e6;
+        }
+
+        .action-btn.add-btn {
+            color: var(--success-color);
+        }
+
+        .action-btn.delete-btn {
+            color: var(--danger-color);
+        }
+
+        /* 右侧甘特图区域 */
+        .gantt-chart {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .gantt-header {
+            height: 80px;
+            background: var(--header-bg);
+            border-bottom: 1px solid var(--grid-color);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .month-nav {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            border-bottom: 1px solid var(--grid-color);
+            z-index: 10;
+        }
+
+        .month-nav-btn {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 5px 15px;
+            border-radius: 5px;
+            transition: background-color 0.2s;
+        }
+
+        .month-nav-btn:hover {
+            background-color: #e9ecef;
+        }
+
+        .current-month {
+            margin: 0 20px;
+            font-weight: 600;
+            font-size: 16px;
+            min-width: 120px;
+            text-align: center;
+        }
+
+        .today-badge {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: linear-gradient(135deg, var(--primary-color), #0056b3);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .today-badge:hover {
+            background: linear-gradient(135deg, #0056b3, var(--primary-color));
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transform: translateY(-50%) scale(1.05);
+        }
+
+        .today-badge:active {
+            transform: translateY(-50%) scale(0.95);
+        }
+
+        .date-header {
+            position: absolute;
+            top: 40px;
+            left: 0;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            transition: transform 0.3s ease;
+            background: var(--header-bg);
+        }
+
+        .date-cell {
+            min-width: 30px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid var(--grid-color);
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .date-cell.weekend {
+            background-color: #fff3e0;
+            color: #f57c00;
+        }
+
+        .date-cell.today {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: 600;
+        }
+
+        .gantt-body {
+            flex: 1;
+            overflow-x: auto;
+            overflow-y: hidden;
+            position: relative;
+        }
+
+        .gantt-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transition: transform 0.3s ease;
+        }
+
+        .gantt-row {
+            height: 28px;
+            display: flex;
+            border-bottom: 1px solid #f0f0f0;
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .gantt-row.main-stage {
+            height: 32px;
+            background-color: #fafafa;
+            border-bottom: 1px solid var(--grid-color);
+            box-sizing: border-box;
+        }
+
+        .gantt-row.sub-stage {
+            height: 26px;
+            box-sizing: border-box;
+        }
+
+        .gantt-cell {
+            min-width: 30px;
+            height: 100%;
+            border-right: 1px solid var(--grid-color);
+            position: relative;
+            background: white;
+        }
+
+        .gantt-bar {
+            position: absolute;
+            top: 2px;
+            bottom: 2px;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            font-size: 10px;
+            font-weight: 500;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 5;
+            min-height: calc(100% - 4px);
+        }
+
+        .gantt-bar:hover {
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transform: scaleY(1.05);
+        }
+
+        /* 甘特条结束标记 */
+        .gantt-bar::after {
+            content: '';
+            position: absolute;
+            right: -2px;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: currentColor;
+            opacity: 0.8;
+            border-radius: 0 2px 2px 0;
+        }
+
+        .gantt-bar.completed::after {
+            background: rgba(0,0,0,0.3);
+        }
+
+        .gantt-bar.in-progress::after {
+            background: repeating-linear-gradient(
+                180deg,
+                transparent,
+                transparent 3px,
+                rgba(0,0,0,0.3) 3px,
+                rgba(0,0,0,0.3) 6px
+            );
+        }
+
+        /* 通用状态颜色 - 仅作为后备 */
+        .gantt-bar.overdue {
+            background: linear-gradient(90deg, var(--danger-color) 0%, #ff6b6b 100%);
+        }
+
+        .gantt-bar-text {
+            padding: 0 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* 底部详情面板 */
+        .details-panel {
+            height: 0;
+            background: white;
+            border-top: 2px solid var(--grid-color);
+            overflow: hidden;
+            transition: height 0.3s ease;
+            position: relative;
+        }
+
+        .details-panel.open {
+            height: 400px;
+        }
+
+        .details-content {
+            padding: 20px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .details-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .details-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0;
+            color: #333;
+        }
+
+        .details-subtitle {
+            font-size: 14px;
+            color: #6c757d;
+            margin-left: 15px;
+        }
+
+        .close-details {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+            transition: color 0.2s;
+        }
+
+        .close-details:hover {
+            color: #333;
+        }
+
+        .details-body {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1.5fr 1fr;
+            gap: 30px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .details-section {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .detail-item {
+            display: flex;
+            margin-bottom: 15px;
+            align-items: flex-start;
+            min-height: 32px;
+        }
+
+        .detail-label {
+            font-weight: 500;
+            color: #6c757d;
+            font-size: 13px;
+            width: 100px;
+            margin-right: 15px;
+            text-align: right;
+            flex-shrink: 0;
+            padding-top: 6px;
+            line-height: 1.4;
+        }
+
+        .detail-value {
+            font-size: 14px;
+            color: #333;
+            flex: 1;
+            display: flex;
+            align-items: center;
+        }
+
+        .detail-value input,
+        .detail-value textarea,
+        .detail-value select {
+            width: 100%;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 13px;
+            background: white;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            box-sizing: border-box;
+        }
+
+        .detail-value input:focus,
+        .detail-value textarea:focus,
+        .detail-value select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.1);
+        }
+
+        .detail-value textarea {
+            min-height: 120px;
+            resize: vertical;
+            align-self: flex-start;
+        }
+
+        .attachment-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+        }
+
+        .attachment-item {
+            display: flex;
+            align-items: center;
+            padding: 5px;
+            margin-bottom: 5px;
+            background: #f8f9fa;
+            border-radius: 3px;
+        }
+
+        .attachment-item i {
+            margin-right: 8px;
+            color: #6c757d;
+        }
+
+        .attachment-name {
+            flex: 1;
+            font-size: 13px;
+        }
+
+        .attachment-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .attachment-actions button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #6c757d;
+            font-size: 14px;
+            padding: 2px 5px;
+        }
+
+        .attachment-actions button:hover {
+            color: #333;
+        }
+
+        .details-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 15px;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* 标准化按钮样式 */
+        .btn-standard {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 120px;
+            justify-content: center;
+        }
+
+        .btn-standard:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .btn-standard:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: #333;
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-info {
+            background: var(--info-color);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: var(--secondary-color);
+            color: white;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-completed { background-color: var(--success-color); color: white; }
+        .status-in-progress { background-color: var(--primary-color); color: white; }
+        .status-planned { background-color: var(--secondary-color); color: white; }
+        .status-overdue { background-color: var(--danger-color); color: white; }
+
+        /* 上下文菜单 */
+        .context-menu {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 5px 0;
+            z-index: 1000;
+            min-width: 150px;
+            display: none;
+        }
+
+        .context-menu-item {
+            padding: 8px 15px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+        }
+
+        .context-menu-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .context-menu-item i {
+            margin-right: 8px;
+            width: 16px;
+        }
+
+        /* 滚动条样式 */
+        .gantt-body::-webkit-scrollbar,
+        .tree-content::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+
+        .gantt-body::-webkit-scrollbar-track,
+        .tree-content::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .gantt-body::-webkit-scrollbar-thumb,
+        .tree-content::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+
+        /* 添加阶段模态框样式 */
+        .modal-body .form-label {
+            font-weight: 600;
+            color: #495057;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .task-tree {
+                width: 300px;
+            }
+            
+            .date-cell {
+                min-width: 25px;
+            }
+            
+            .gantt-cell {
+                min-width: 25px;
+            }
+        }
+
+        /* 今日线 */
+        .today-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: var(--danger-color);
+            z-index: 20;
+            pointer-events: none;
+        }
+
+        .today-line::before {
+            content: '今日';
+            position: absolute;
+            top: -20px;
+            left: -15px;
+            background: var(--danger-color);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="gantt-container">
+        <!-- 左侧任务树 -->
+        <div class="task-tree">
+            <div class="tree-header">
+                <i class="fas fa-tasks me-2"></i>
+                研发产品阶段管理
+            </div>
+            <div class="tree-content" id="taskTree">
+                <!-- 调研阶段 -->
+                <div class="task-item main-stage" data-stage="research" data-level="0">
+                    <div class="expand-icon expanded" data-expanded="true">
+                        <i class="fas fa-chevron-right"></i>
+                    </div>
+                    <div class="task-name">调研阶段</div>
+                    <div class="task-actions">
+                        <button class="action-btn add-btn" title="添加子阶段">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="action-btn delete-btn" title="删除阶段">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="task-item sub-stage" data-stage="market-research" data-parent="research" data-level="1">
+                    <div class="expand-icon"></div>
+                    <div class="task-name">市场调研</div>
+                    <div class="task-actions">
+                        <button class="action-btn add-btn" title="添加子任务">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="action-btn delete-btn" title="删除">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="task-item sub-stage" data-stage="tech-analysis" data-parent="research" data-level="1">
+                    <div class="expand-icon"></div>
+                    <div class="task-name">技术分析</div>
+                    <div class="task-actions">
+                        <button class="action-btn add-btn" title="添加子任务">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="action-btn delete-btn" title="删除">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 立项阶段 -->
+                <div class="task-item main-stage" data-stage="planning" data-level="0">
+                    <div class="expand-icon expanded" data-expanded="true">
+                        <i class="fas fa-chevron-right"></i>
+                    </div>
+                    <div class="task-name">立项阶段</div>
+                    <div class="task-actions">
+                        <button class="action-btn add-btn" title="添加子阶段">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="action-btn delete-btn" title="删除阶段">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="task-item sub-stage" data-stage="requirement-analysis" data-parent="planning" data-level="1">
+                    <div class="expand-icon"></div>
+                    <div class="task-name">需求分析</div>
+                    <div class="task-actions">
+                        <button class="action-btn add-btn" title="添加子任务">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="action-btn delete-btn" title="删除">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="task-item sub-stage" data-stage="resource-planning" data-parent="planning" data-level="1">
+                    <div class="expand-icon"></div>
+                    <div class="task-name">资源规划</div>
+                    <div class="task-actions">
+                        <button class="action-btn add-btn" title="添加子任务">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="action-btn delete-btn" title="删除">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 研发阶段 -->
+                <div class="task-item main-stage" data-stage="development" data-level="0">
+                    <div class="expand-icon" data-expanded="false">
+                        <i class="fas fa-chevron-right"></i>
+                    </div>
+                    <div class="task-name">研发阶段</div>
+                    <div class="task-actions">
+                        <button class="action-btn add-btn" title="添加子阶段">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="action-btn delete-btn" title="删除阶段">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="task-item sub-stage" data-stage="prototype-dev" data-parent="development" data-level="1" style="display: none;">
+                    <div class="expand-icon"></div>
+                    <div class="task-name">原型开发</div>
+                    <div class="task-actions">
+                        <button class="action-btn add-btn" title="添加子任务">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="action-btn delete-btn" title="删除">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="task-item sub-stage" data-stage="testing" data-parent="development" data-level="1" style="display: none;">
+                    <div class="expand-icon"></div>
+                    <div class="task-name">产品测试</div>
+                    <div class="task-actions">
+                        <button class="action-btn add-btn" title="添加子任务">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="action-btn delete-btn" title="删除">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧甘特图 -->
+        <div class="gantt-chart">
+            <div class="gantt-header">
+                <div class="month-nav">
+                    <button class="month-nav-btn" id="prevMonth">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div class="current-month" id="currentMonth">2024年1月</div>
+                    <button class="month-nav-btn" id="nextMonth">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <button class="today-badge" id="todayBadge" title="回到今天">
+                        <i class="fas fa-calendar-day me-1"></i>今天
+                    </button>
+                </div>
+                <div class="date-header" id="dateHeader">
+                    <!-- 日期将通过JavaScript生成 -->
+                </div>
+            </div>
+            <div class="gantt-body" id="ganttBody">
+                <div class="gantt-grid" id="ganttGrid">
+                    <!-- 甘特图行将通过JavaScript生成 -->
+                </div>
+                <!-- 今日线 -->
+                <div class="today-line" id="todayLine"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部详情面板 -->
+    <div class="details-panel" id="detailsPanel">
+        <div class="details-content" id="detailsContent">
+            <!-- 详情内容将通过JavaScript生成 -->
+        </div>
+    </div>
+
+    <!-- 上下文菜单 -->
+    <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" data-action="add">
+            <i class="fas fa-plus"></i>添加子阶段
+        </div>
+        <div class="context-menu-item" data-action="edit">
+            <i class="fas fa-edit"></i>编辑阶段
+        </div>
+        <div class="context-menu-item" data-action="delete">
+            <i class="fas fa-trash"></i>删除阶段
+        </div>
+    </div>
+
+    <!-- 模态框已移除，使用详惃面板替代 -->
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        class GanttChart {
+            constructor() {
+                this.currentDate = new Date(2024, 0, 1); // 2024年1月
+                this.selectedTask = null;
+                this.tasks = this.generateMockData();
+                
+                this.init();
+                this.bindEvents();
+                this.renderGantt();
+                this.updateTodayLine();
+            }
+
+            generateMockData() {
+                const data = {
+                    'research': {
+                        name: '调研阶段',
+                        type: 'main',
+                        status: 'completed',
+                        owner: '张工程师'
+                    },
+                    'market-research': {
+                        name: '市场调研',
+                        type: 'sub',
+                        parent: 'research',
+                        startDate: new Date(2024, 0, 2),
+                        endDate: new Date(2024, 0, 10),
+                        status: 'completed',
+                        progress: 100,
+                        owner: '李研究员'
+                    },
+                    'tech-analysis': {
+                        name: '技术分析',
+                        type: 'sub',
+                        parent: 'research',
+                        startDate: new Date(2024, 0, 8),
+                        endDate: new Date(2024, 0, 20),
+                        status: 'completed',
+                        progress: 100,
+                        owner: '王经理'
+                    },
+                    'planning': {
+                        name: '立项阶段',
+                        type: 'main',
+                        status: 'in-progress',
+                        owner: '张工程师'
+                    },
+                    'requirement-analysis': {
+                        name: '需求分析',
+                        type: 'sub',
+                        parent: 'planning',
+                        startDate: new Date(2024, 0, 15),
+                        endDate: new Date(2024, 0, 28),
+                        status: 'completed',
+                        progress: 100,
+                        owner: '李研究员'
+                    },
+                    'resource-planning': {
+                        name: '资源规划',
+                        type: 'sub',
+                        parent: 'planning',
+                        startDate: new Date(2024, 0, 25),
+                        endDate: new Date(2024, 1, 10),
+                        status: 'in-progress',
+                        progress: 40,
+                        owner: '王经理'
+                    },
+                    'development': {
+                        name: '研发阶段',
+                        type: 'main',
+                        status: 'planned',
+                        owner: '张工程师'
+                    },
+                    'prototype-dev': {
+                        name: '原型开发',
+                        type: 'sub',
+                        parent: 'development',
+                        startDate: new Date(2024, 2, 5),  // 3月开始
+                        endDate: new Date(2024, 3, 25),   // 4月结束
+                        status: 'planned',
+                        progress: 0,
+                        owner: '李研究员'
+                    },
+                    'testing': {
+                        name: '产品测试',
+                        type: 'sub',
+                        parent: 'development',
+                        startDate: new Date(2024, 3, 20), // 4月开始
+                        endDate: new Date(2024, 4, 15),   // 5月结束
+                        status: 'planned',
+                        progress: 0,
+                        owner: '王经理'
+                    }
+                };
+                
+                // 为每个任务添加模拟的实际时间和描述
+                Object.keys(data).forEach(key => {
+                    const task = data[key];
+                    if (task.status === 'completed') {
+                        task.actualStartDate = new Date(task.startDate);
+                        task.actualEndDate = new Date(task.endDate);
+                    } else if (task.status === 'in-progress') {
+                        task.actualStartDate = new Date(task.startDate);
+                        task.actualEndDate = null;
+                    }
+                    task.description = `这是${task.name}的详细描述信息。在这个阶段中，我们将完成相关的工作内容。`;
+                });
+                
+                // 计算主阶段的时间范围和进度
+                this.calculateMainStageTimeRanges(data);
+                
+                return data;
+            }
+
+            calculateMainStageTimeRanges(tasks) {
+                // 遍历所有主阶段
+                const mainStages = ['research', 'planning', 'development'];
+                
+                mainStages.forEach(mainStageId => {
+                    const mainStage = tasks[mainStageId];
+                    if (!mainStage) return;
+                    
+                    // 找到所有子阶段
+                    const subStages = Object.keys(tasks).filter(key => 
+                        tasks[key].parent === mainStageId
+                    ).map(key => tasks[key]);
+                    
+                    if (subStages.length > 0) {
+                        // 计算最早开始时间和最晚结束时间
+                        let earliestStart = subStages[0].startDate;
+                        let latestEnd = subStages[0].endDate;
+                        let totalProgress = 0;
+                        let completedCount = 0;
+                        
+                        subStages.forEach(subStage => {
+                            if (subStage.startDate < earliestStart) {
+                                earliestStart = subStage.startDate;
+                            }
+                            if (subStage.endDate > latestEnd) {
+                                latestEnd = subStage.endDate;
+                            }
+                            totalProgress += subStage.progress || 0;
+                            if (subStage.status === 'completed') completedCount++;
+                        });
+                        
+                        // 设置主阶段的时间范围
+                        mainStage.startDate = earliestStart;
+                        mainStage.endDate = latestEnd;
+                        
+                        // 计算主阶段进度
+                        mainStage.progress = Math.round(totalProgress / subStages.length);
+                        
+                        // 更新主阶段状态
+                        if (completedCount === subStages.length) {
+                            mainStage.status = 'completed';
+                            mainStage.progress = 100;
+                        } else if (completedCount > 0 || mainStage.progress > 0) {
+                            mainStage.status = 'in-progress';
+                        }
+                    }
+                });
+            }
+
+            init() {
+                this.updateMonthDisplay();
+                this.generateDateHeader();
+                this.renderTaskRows();
+            }
+
+            bindEvents() {
+                // 月份导航
+                document.getElementById('prevMonth').addEventListener('click', () => this.navigateMonth(-1));
+                document.getElementById('nextMonth').addEventListener('click', () => this.navigateMonth(1));
+                
+                // 今天徽章
+                document.getElementById('todayBadge').addEventListener('click', () => this.goToToday());
+                
+                // 任务树展开/收起
+                document.addEventListener('click', (e) => {
+                    if (e.target.closest('.expand-icon') && e.target.closest('.main-stage')) {
+                        this.toggleTaskExpansion(e.target.closest('.expand-icon'));
+                    }
+                    
+                    if (e.target.closest('.task-item')) {
+                        this.selectTaskAndNavigate(e.target.closest('.task-item'));
+                    }
+                    
+                    if (e.target.closest('.add-btn')) {
+                        e.stopPropagation();
+                        this.showCreateStagePanel(e.target.closest('.task-item'));
+                    }
+                    
+                    if (e.target.closest('.delete-btn')) {
+                        e.stopPropagation();
+                        this.deleteStage(e.target.closest('.task-item'));
+                    }
+                });
+
+                // 甘特条点击
+                document.addEventListener('click', (e) => {
+                    if (e.target.closest('.gantt-bar')) {
+                        const taskId = e.target.closest('.gantt-bar').dataset.task;
+                        this.showTaskDetails(taskId);
+                    }
+                });
+
+                // 关闭详情面板 - 移除这里的绑定，因为按钮是动态生成的
+
+                // 保存新阶段 - 已移除，使用详情面板处理
+
+                // 阶段类型变化 - 已移除，使用详情面板处理
+
+                // 右键菜单
+                document.addEventListener('contextmenu', (e) => {
+                    if (e.target.closest('.task-item')) {
+                        e.preventDefault();
+                        this.showContextMenu(e, e.target.closest('.task-item'));
+                    }
+                });
+
+                // 点击其他地方隐藏上下文菜单
+                document.addEventListener('click', () => {
+                    document.getElementById('contextMenu').style.display = 'none';
+                });
+            }
+
+            navigateMonth(direction) {
+                this.currentDate.setMonth(this.currentDate.getMonth() + direction);
+                this.updateMonthDisplay();
+                this.generateDateHeader();
+                this.renderGantt();
+                this.updateTodayLine();
+            }
+
+            updateMonthDisplay() {
+                const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+                const monthText = `${this.currentDate.getFullYear()}年${months[this.currentDate.getMonth()]}`;
+                document.getElementById('currentMonth').textContent = monthText;
+            }
+
+            generateDateHeader() {
+                const dateHeader = document.getElementById('dateHeader');
+                const ganttBody = document.getElementById('ganttBody');
+                const today = new Date();
+                
+                // 获取甘特图可用宽度
+                const availableWidth = ganttBody.clientWidth;
+                const cellWidth = 30;
+                const maxCells = Math.floor(availableWidth / cellWidth);
+                
+                // 当前月份的天数
+                const currentYear = this.currentDate.getFullYear();
+                const currentMonth = this.currentDate.getMonth();
+                const daysInCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+                
+                let html = '';
+                let totalDays = 0;
+                let currentDate = new Date(currentYear, currentMonth, 1);
+                
+                // 显示当前月份
+                for (let day = 1; day <= daysInCurrentMonth && totalDays < maxCells; day++) {
+                    const date = new Date(currentYear, currentMonth, day);
+                    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                    const isToday = date.toDateString() === today.toDateString();
+                    
+                    let classes = 'date-cell';
+                    if (isWeekend) classes += ' weekend';
+                    if (isToday) classes += ' today';
+                    
+                    html += `<div class="${classes}" data-date="${date.toISOString()}">${day}</div>`;
+                    totalDays++;
+                }
+                
+                // 如果还有空间，显示下个月的日期
+                if (totalDays < maxCells) {
+                    const nextMonth = (currentMonth + 1) % 12;
+                    const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
+                    const daysInNextMonth = new Date(nextYear, nextMonth + 1, 0).getDate();
+                    const remainingCells = maxCells - totalDays;
+                    const daysToShow = Math.min(daysInNextMonth, remainingCells);
+                    
+                    // 添加月份分隔线
+                    html += `<div class="date-cell" style="background: var(--header-bg); border-left: 2px solid var(--grid-color); font-weight: 600; color: var(--primary-color);">${nextMonth + 1}月</div>`;
+                    totalDays++;
+                    
+                    // 显示下个月的日期
+                    for (let day = 1; day <= daysToShow && totalDays < maxCells; day++) {
+                        const date = new Date(nextYear, nextMonth, day);
+                        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                        const isToday = date.toDateString() === today.toDateString();
+                        
+                        let classes = 'date-cell';
+                        if (isWeekend) classes += ' weekend';
+                        if (isToday) classes += ' today';
+                        
+                        html += `<div class="${classes}" data-date="${date.toISOString()}" style="opacity: 0.7;">${day}</div>`;
+                        totalDays++;
+                    }
+                }
+                
+                dateHeader.innerHTML = html;
+                dateHeader.style.width = `${totalDays * cellWidth}px`;
+                document.getElementById('ganttGrid').style.width = `${totalDays * cellWidth}px`;
+                
+                // 存储总天数以便其他方法使用
+                this.totalDisplayDays = totalDays;
+            }
+
+            renderTaskRows() {
+                const taskItems = document.querySelectorAll('.task-item');
+                const ganttGrid = document.getElementById('ganttGrid');
+                
+                let html = '';
+                taskItems.forEach((taskItem) => {
+                    if (taskItem.style.display !== 'none') {
+                        const taskId = taskItem.dataset.stage;
+                        const isMainStage = taskItem.classList.contains('main-stage');
+                        const classes = isMainStage ? 'gantt-row main-stage' : 'gantt-row sub-stage';
+                        
+                        html += `<div class="${classes}" data-task="${taskId}">`;
+                        
+                        // 生成日期单元格
+                        const daysInMonth = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 0).getDate();
+                        for (let day = 1; day <= daysInMonth; day++) {
+                            html += `<div class="gantt-cell"></div>`;
+                        }
+                        
+                        html += `</div>`;
+                    }
+                });
+                
+                ganttGrid.innerHTML = html;
+            }
+
+            renderGantt() {
+                this.renderTaskRows();
+                
+                // 渲染甘特条
+                const ganttRows = document.querySelectorAll('.gantt-row');
+                ganttRows.forEach(row => {
+                    const taskId = row.dataset.task;
+                    const task = this.tasks[taskId];
+                    
+                    if (task && this.isTaskInCurrentMonth(task)) {
+                        const bar = this.createGanttBar(task, taskId);
+                        if (bar) {
+                            row.appendChild(bar);
+                        }
+                    }
+                });
+            }
+
+            isTaskInCurrentMonth(task) {
+                const currentMonth = this.currentDate.getMonth();
+                const currentYear = this.currentDate.getFullYear();
+                
+                return (task.startDate.getFullYear() === currentYear && task.startDate.getMonth() === currentMonth) ||
+                       (task.endDate.getFullYear() === currentYear && task.endDate.getMonth() === currentMonth) ||
+                       (task.startDate < new Date(currentYear, currentMonth, 1) && task.endDate > new Date(currentYear, currentMonth + 1, 0));
+            }
+
+            createGanttBar(task, taskId) {
+                const currentMonthStart = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), 1);
+                const currentMonthEnd = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 0);
+                
+                let startDay, endDay;
+                
+                if (task.startDate >= currentMonthStart) {
+                    startDay = task.startDate.getDate();
+                } else {
+                    startDay = 1;
+                }
+                
+                if (task.endDate <= currentMonthEnd) {
+                    endDay = task.endDate.getDate();
+                } else {
+                    endDay = currentMonthEnd.getDate();
+                }
+                
+                const left = (startDay - 1) * 30;
+                const width = (endDay - startDay + 1) * 30 - 2;
+                
+                if (width <= 0) return null;
+                
+                const bar = document.createElement('div');
+                bar.className = `gantt-bar ${task.status}`;
+                bar.dataset.task = taskId;
+                bar.style.left = `${left}px`;
+                bar.style.width = `${width}px`;
+                
+                // 根据阶段类型设置颜色
+                let mainColor, subColor, lightColor;
+                
+                // 先检查是否是子阶段
+                if (task.parent === 'research' || taskId === 'research') {
+                    mainColor = 'var(--research-main)';
+                    subColor = 'var(--research-sub)';
+                    lightColor = 'var(--research-light)';
+                } else if (task.parent === 'planning' || taskId === 'planning') {
+                    mainColor = 'var(--planning-main)';
+                    subColor = 'var(--planning-sub)';
+                    lightColor = 'var(--planning-light)';
+                } else if (task.parent === 'development' || taskId === 'development') {
+                    mainColor = 'var(--development-main)';
+                    subColor = 'var(--development-sub)';
+                    lightColor = 'var(--development-light)';
+                } else {
+                    mainColor = 'var(--primary-color)';
+                    subColor = 'var(--info-color)';
+                    lightColor = '#e3f2fd';
+                }
+                
+                // 根据状态设置背景
+                if (task.status === 'completed') {
+                    bar.style.background = `linear-gradient(135deg, ${mainColor} 0%, ${subColor} 100%)`;
+                } else if (task.status === 'in-progress' && task.progress > 0) {
+                    // 进度条效果
+                    bar.style.background = `linear-gradient(90deg, ${mainColor} 0%, ${mainColor} ${task.progress}%, ${lightColor} ${task.progress}%, ${lightColor} 100%)`;
+                } else if (task.status === 'planned') {
+                    bar.style.background = lightColor;
+                    bar.style.color = mainColor;
+                    bar.style.border = `1px solid ${mainColor}`;
+                } else if (task.status === 'overdue') {
+                    bar.style.background = `linear-gradient(90deg, var(--danger-color) 0%, #ff6b6b 100%)`;
+                }
+                
+                const text = document.createElement('div');
+                text.className = 'gantt-bar-text';
+                text.textContent = task.name;
+                bar.appendChild(text);
+                
+                return bar;
+            }
+
+            updateTodayLine() {
+                const today = new Date();
+                const todayLine = document.getElementById('todayLine');
+                
+                if (today.getFullYear() === this.currentDate.getFullYear() && 
+                    today.getMonth() === this.currentDate.getMonth()) {
+                    const todayPosition = (today.getDate() - 1) * 30 + 15; // 居中显示
+                    todayLine.style.left = `${todayPosition}px`;
+                    todayLine.style.display = 'block';
+                } else {
+                    todayLine.style.display = 'none';
+                }
+            }
+
+            toggleTaskExpansion(expandIcon) {
+                const taskItem = expandIcon.closest('.task-item');
+                const mainStageId = taskItem.dataset.stage;
+                const isExpanded = expandIcon.dataset.expanded === 'true';
+                const subStages = document.querySelectorAll(`[data-parent="${mainStageId}"]`);
+                
+                if (isExpanded) {
+                    // 收起
+                    expandIcon.classList.remove('expanded');
+                    expandIcon.dataset.expanded = 'false';
+                    subStages.forEach(subStage => {
+                        subStage.style.display = 'none';
+                    });
+                } else {
+                    // 展开
+                    expandIcon.classList.add('expanded');
+                    expandIcon.dataset.expanded = 'true';
+                    subStages.forEach(subStage => {
+                        subStage.style.display = 'flex';
+                    });
+                }
+                
+                this.renderGantt();
+            }
+
+            selectTask(taskItem) {
+                // 移除之前的选中状态
+                document.querySelectorAll('.task-item.selected').forEach(item => {
+                    item.classList.remove('selected');
+                });
+                
+                // 添加选中状态
+                taskItem.classList.add('selected');
+                this.selectedTask = taskItem.dataset.stage;
+                
+                // 显示任务详情
+                this.showTaskDetails(this.selectedTask);
+            }
+
+            selectTaskAndNavigate(taskItem) {
+                const taskId = taskItem.dataset.stage;
+                const task = this.tasks[taskId];
+                
+                // 先选中任务
+                this.selectTask(taskItem);
+                
+                // 如果任务有数据，导航到任务开始时间所在月份
+                if (task && task.startDate) {
+                    this.navigateToDate(task.startDate);
+                }
+            }
+
+            navigateToDate(targetDate) {
+                const targetYear = targetDate.getFullYear();
+                const targetMonth = targetDate.getMonth();
+                const currentYear = this.currentDate.getFullYear();
+                const currentMonth = this.currentDate.getMonth();
+                
+                // 如果不在同一个月份，则导航到目标月份
+                if (targetYear !== currentYear || targetMonth !== currentMonth) {
+                    this.currentDate = new Date(targetYear, targetMonth, 1);
+                    this.updateMonthDisplay();
+                    this.generateDateHeader();
+                    this.renderGantt();
+                    this.updateTodayLine();
+                }
+            }
+
+            goToToday() {
+                const today = new Date();
+                this.navigateToDate(today);
+            }
+
+            showTaskDetails(taskId, mode = 'view', tempTask = null) {
+                try {
+                    console.log('显示任务详情:', taskId, '模式:', mode);
+                    
+                    let task;
+                    if (mode === 'create') {
+                        task = tempTask || this.createTempTask();
+                    } else {
+                        task = this.tasks[taskId];
+                        if (!task) {
+                            console.warn('任务不存在:', taskId);
+                            return;
+                        }
+                    }
+                    
+                    const detailsPanel = document.getElementById('detailsPanel');
+                    const detailsContent = document.getElementById('detailsContent');
+                    
+                    if (!detailsPanel || !detailsContent) {
+                        console.error('详情面板元素不存在');
+                        return;
+                    }
+                
+                    // 获取主阶段名称
+                    let mainStageName = '';
+                    if (task.type === 'sub' && task.parent) {
+                        const parentTask = this.tasks[task.parent];
+                        if (parentTask) {
+                            mainStageName = parentTask.name;
+                        }
+                    }
+                
+                const statusClass = `status-${task.status}`;
+                const statusText = this.getStatusText(task.status);
+                
+                // 模拟附件数据
+                const attachments = task.attachments || [
+                    { id: 1, name: '阶段计划书.pdf', size: '2.3MB' },
+                    { id: 2, name: '技术方案.docx', size: '1.5MB' }
+                ];
+                
+                detailsContent.innerHTML = `
+                    <div class="details-header">
+                        <div>
+                            <span class="details-title">${task.name}</span>
+                            ${mainStageName ? `<span class="details-subtitle">${mainStageName} > ${task.name}</span>` : ''}
+                        </div>
+                        <button class="close-details" id="closeDetails">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="details-body">
+                        <!-- 基本信息 -->
+                        <div class="details-section">
+                            <h4 class="section-title">基本信息</h4>
+                            ${mode === 'create' ? `
+                            <div class="detail-item">
+                                <span class="detail-label">阶段名称：</span>
+                                <span class="detail-value">
+                                    <input type="text" value="${task.name || ''}" id="taskName" placeholder="输入阶段名称" />
+                                </span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">所属主阶段：</span>
+                                <span class="detail-value">
+                                    <select id="taskParent">
+                                        <option value="research" ${task.parent === 'research' ? 'selected' : ''}>调研阶段</option>
+                                        <option value="planning" ${task.parent === 'planning' ? 'selected' : ''}>立项阶段</option>
+                                        <option value="development" ${task.parent === 'development' ? 'selected' : ''}>研发阶段</option>
+                                    </select>
+                                </span>
+                            </div>
+                            ` : `
+                            ${mainStageName ? `
+                            <div class="detail-item">
+                                <span class="detail-label">主阶段：</span>
+                                <span class="detail-value">${mainStageName}</span>
+                            </div>
+                            ` : ''}
+                            <div class="detail-item">
+                                <span class="detail-label">状态：</span>
+                                <span class="detail-value">
+                                    <span class="status-badge ${statusClass}">${statusText}</span>
+                                </span>
+                            </div>
+                            `}
+                            <div class="detail-item">
+                                <span class="detail-label">负责人：</span>
+                                <span class="detail-value">
+                                    <input type="text" value="${task.owner || ''}" id="taskOwner" placeholder="输入负责人" />
+                                </span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">计划时间：</span>
+                                <span class="detail-value">
+                                    <div style="display: flex; gap: 10px; align-items: center;">
+                                        <input type="date" value="${task.startDate ? task.startDate.toISOString().split('T')[0] : ''}" id="taskStartDate" style="flex: 1;" />
+                                        <span>~</span>
+                                        <input type="date" value="${task.endDate ? task.endDate.toISOString().split('T')[0] : ''}" id="taskEndDate" style="flex: 1;" />
+                                    </div>
+                                </span>
+                            </div>
+                            ${mode !== 'create' ? `
+                            <div class="detail-item">
+                                <span class="detail-label">实际时间：</span>
+                                <span class="detail-value">
+                                    ${task.actualStartDate ? task.actualStartDate.toLocaleDateString() : '未开始'} ~ 
+                                    ${task.actualEndDate ? task.actualEndDate.toLocaleDateString() : '进行中'}
+                                </span>
+                            </div>
+                            ` : ''}
+                            <div class="detail-item">
+                                <span class="detail-label">完成进度：</span>
+                                <span class="detail-value">
+                                    <div style="display: flex; align-items: center;">
+                                        <input type="range" min="0" max="100" value="${task.progress || 0}" id="taskProgress" style="flex: 1; margin-right: 10px;" />
+                                        <span id="progressValue">${task.progress || 0}%</span>
+                                    </div>
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <!-- 详情描述 -->
+                        <div class="details-section">
+                            <h4 class="section-title">阶段详情</h4>
+                            <div class="detail-item" style="flex-direction: column;">
+                                <textarea id="taskDescription" placeholder="输入阶段描述...">${task.description || ''}</textarea>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-size: 11px; color: #999;">创建时间：</span>
+                                <span class="detail-value" style="font-size: 11px; color: #999;">
+                                    ${task.createdAt || '2024-01-01 10:00:00'}
+                                </span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label" style="font-size: 11px; color: #999;">更新时间：</span>
+                                <span class="detail-value" style="font-size: 11px; color: #999;">
+                                    ${task.updatedAt || '2024-01-15 14:30:00'}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <!-- 附件管理 -->
+                        <div class="details-section">
+                            <h4 class="section-title">附件管理</h4>
+                            <ul class="attachment-list">
+                                ${attachments.map(att => `
+                                    <li class="attachment-item">
+                                        <i class="fas fa-file-pdf"></i>
+                                        <span class="attachment-name">${att.name}</span>
+                                        <div class="attachment-actions">
+                                            <button title="下载"><i class="fas fa-download"></i></button>
+                                            <button title="删除"><i class="fas fa-trash"></i></button>
+                                        </div>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                            <button class="btn-standard btn-info" style="margin-top: 10px; width: 100%;">
+                                <i class="fas fa-upload"></i> 上传附件
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="details-footer">
+                        <div class="action-buttons">
+                            ${mode === 'create' ? '' : `
+                                ${this.renderButton('完成阶段', 'success', 'fas fa-check', 'completeStage')}
+                                ${this.renderButton('暂停阶段', 'warning', 'fas fa-pause', 'pauseStage')}
+                                ${this.renderButton('删除阶段', 'danger', 'fas fa-trash', 'deleteStage')}
+                            `}
+                        </div>
+                        <div>
+                            ${mode === 'create' 
+                                ? this.renderButton('保存新阶段', 'primary', 'fas fa-save', 'createStage')
+                                : this.renderButton('保存修改', 'primary', 'fas fa-save', 'saveChanges')
+                            }
+                            ${this.renderButton('取消', 'secondary', 'fas fa-times', 'cancel')}
+                        </div>
+                    </div>
+                `;
+                
+                    detailsPanel.classList.add('open');
+                    
+                    // 延迟绑定事件，确保DOM更新完成
+                    setTimeout(() => {
+                        this.bindDetailEvents(taskId, mode);
+                    }, 10);
+                    
+                    console.log('详情面板已打开');
+                } catch (error) {
+                    console.error('显示详情面板时出错:', error);
+                }
+            }
+
+            // 标准化按钮生成函数
+            renderButton(text, color, icon, action) {
+                return `
+                    <button class="btn-standard btn-${color}" data-action="${action}">
+                        ${icon ? `<i class="${icon}"></i>` : ''}
+                        ${text}
+                    </button>
+                `;
+            }
+
+            // 创建临时任务数据
+            createTempTask() {
+                const today = new Date();
+                const nextWeek = new Date();
+                nextWeek.setDate(nextWeek.getDate() + 7);
+                
+                return {
+                    name: '',
+                    type: 'sub',
+                    parent: 'research',
+                    owner: '',
+                    startDate: today,
+                    endDate: nextWeek,
+                    progress: 0,
+                    status: 'planned',
+                    description: '',
+                    attachments: []
+                };
+            }
+
+            // 显示创建阶段面板
+            showCreateStagePanel(parentTask = null) {
+                console.log('显示创建阶段面板', parentTask);
+                
+                const tempTask = this.createTempTask();
+                
+                // 根据父任务设置默认值
+                if (parentTask) {
+                    if (parentTask.classList.contains('main-stage')) {
+                        tempTask.parent = parentTask.dataset.stage;
+                    } else if (parentTask.classList.contains('sub-stage')) {
+                        tempTask.parent = parentTask.dataset.parent;
+                    }
+                }
+                
+                this.showTaskDetails('temp_new', 'create', tempTask);
+            }
+
+            // 绑定详情面板事件
+            bindDetailEvents(taskId, mode = 'view') {
+                try {
+                    console.log('绑定详情面板事件');
+                    
+                    // 关闭按钮
+                    const closeBtn = document.getElementById('closeDetails');
+                    if (closeBtn) {
+                        closeBtn.addEventListener('click', () => {
+                            this.hideTaskDetails();
+                        });
+                    } else {
+                        console.warn('关闭按钮不存在');
+                    }
+                    
+                    // 进度滑块
+                    const progressSlider = document.getElementById('taskProgress');
+                    const progressValue = document.getElementById('progressValue');
+                    if (progressSlider && progressValue) {
+                        progressSlider.addEventListener('input', (e) => {
+                            progressValue.textContent = e.target.value + '%';
+                        });
+                    }
+                    
+                    // 操作按钮
+                    const actionButtons = document.querySelectorAll('[data-action]');
+                    if (actionButtons.length > 0) {
+                        actionButtons.forEach(btn => {
+                            btn.addEventListener('click', (e) => {
+                                const action = e.currentTarget.dataset.action;
+                                this.handleDetailAction(action, taskId, mode);
+                            });
+                        });
+                    } else {
+                        console.warn('没有找到操作按钮');
+                    }
+                    
+                    console.log('事件绑定完成');
+                } catch (error) {
+                    console.error('绑定事件时出错:', error);
+                }
+            }
+
+            // 处理详情操作
+            handleDetailAction(action, taskId, mode = 'view') {
+                switch (action) {
+                    case 'completeStage':
+                        if (confirm('确定将此阶段标记为完成？')) {
+                            this.tasks[taskId].status = 'completed';
+                            this.tasks[taskId].progress = 100;
+                            alert('阶段已完成！');
+                            this.renderGantt();
+                            this.showTaskDetails(taskId);
+                        }
+                        break;
+                    case 'pauseStage':
+                        if (confirm('确定暂停此阶段？')) {
+                            this.tasks[taskId].status = 'paused';
+                            alert('阶段已暂停！');
+                            this.renderGantt();
+                            this.showTaskDetails(taskId);
+                        }
+                        break;
+                    case 'deleteStage':
+                        if (confirm('确定删除此阶段？此操作不可恢复！')) {
+                            delete this.tasks[taskId];
+                            alert('阶段已删除！');
+                            this.hideTaskDetails();
+                            location.reload();
+                        }
+                        break;
+                    case 'createStage':
+                        this.handleCreateStage();
+                        break;
+                    case 'saveChanges':
+                        // 保存修改
+                        const owner = document.getElementById('taskOwner').value;
+                        const progress = document.getElementById('taskProgress').value;
+                        const description = document.getElementById('taskDescription').value;
+                        const startDate = document.getElementById('taskStartDate').value;
+                        const endDate = document.getElementById('taskEndDate').value;
+                        
+                        this.tasks[taskId].owner = owner;
+                        this.tasks[taskId].progress = parseInt(progress);
+                        this.tasks[taskId].description = description;
+                        if (startDate) this.tasks[taskId].startDate = new Date(startDate);
+                        if (endDate) this.tasks[taskId].endDate = new Date(endDate);
+                        
+                        alert('修改已保存！');
+                        this.renderGantt();
+                        break;
+                    case 'cancel':
+                        this.hideTaskDetails();
+                        break;
+                }
+            }
+
+            hideTaskDetails() {
+                document.getElementById('detailsPanel').classList.remove('open');
+            }
+
+            getStatusText(status) {
+                const statusMap = {
+                    'completed': '已完成',
+                    'in-progress': '进行中',
+                    'planned': '计划中',
+                    'overdue': '已逾期'
+                };
+                return statusMap[status] || '未知';
+            }
+
+            // 处理创建阶段
+            handleCreateStage() {
+                try {
+                    // 获取表单数据
+                    const name = document.getElementById('taskName').value.trim();
+                    const parent = document.getElementById('taskParent').value;
+                    const owner = document.getElementById('taskOwner').value.trim();
+                    const startDate = document.getElementById('taskStartDate').value;
+                    const endDate = document.getElementById('taskEndDate').value;
+                    const progress = parseInt(document.getElementById('taskProgress').value) || 0;
+                    const description = document.getElementById('taskDescription').value;
+                    
+                    // 验证必填字段
+                    if (!name) {
+                        alert('请输入阶段名称！');
+                        return;
+                    }
+                    
+                    // 生成新的任务ID
+                    const taskId = 'stage_' + Date.now();
+                    
+                    // 创建新任务
+                    const newTask = {
+                        name: name,
+                        type: 'sub',
+                        parent: parent,
+                        owner: owner,
+                        startDate: startDate ? new Date(startDate) : new Date(),
+                        endDate: endDate ? new Date(endDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                        progress: progress,
+                        status: 'planned',
+                        description: description,
+                        attachments: [],
+                        actualStartDate: null,
+                        actualEndDate: null,
+                        createdAt: new Date().toLocaleString(),
+                        updatedAt: new Date().toLocaleString()
+                    };
+                    
+                    // 添加到任务列表
+                    this.tasks[taskId] = newTask;
+                    
+                    // 更新主阶段时间范围
+                    this.calculateMainStageTimeRanges(this.tasks);
+                    
+                    // 创建DOM元素
+                    this.addTaskToDOM(taskId, newTask);
+                    
+                    // 重新渲染甘特图
+                    this.renderGantt();
+                    
+                    // 关闭详情面板
+                    this.hideTaskDetails();
+                    
+                    alert('新阶段已成功创建！');
+                    
+                } catch (error) {
+                    console.error('创建阶段时出错:', error);
+                    alert('创建阶段失败，请重试！');
+                }
+            }
+
+            // 添加任务到DOM
+            addTaskToDOM(taskId, task) {
+                const taskTree = document.getElementById('taskTree');
+                const parentStageElement = document.querySelector(`[data-stage="${task.parent}"]`);
+                
+                if (!parentStageElement) {
+                    console.error('未找到父阶段元素:', task.parent);
+                    return;
+                }
+                
+                // 创建新的任务元素
+                const taskElement = document.createElement('div');
+                taskElement.className = 'task-item sub-stage';
+                taskElement.dataset.stage = taskId;
+                taskElement.dataset.parent = task.parent;
+                taskElement.dataset.level = '1';
+                
+                taskElement.innerHTML = `
+                    <div class="expand-icon"></div>
+                    <div class="task-name">${task.name}</div>
+                    <div class="task-actions">
+                        <button class="action-btn add-btn" title="添加子任务">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="action-btn delete-btn" title="删除">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+                
+                // 找到插入位置（父阶段后面的最后一个子阶段之后）
+                const existingSubStages = document.querySelectorAll(`[data-parent="${task.parent}"]`);
+                if (existingSubStages.length > 0) {
+                    const lastSubStage = existingSubStages[existingSubStages.length - 1];
+                    lastSubStage.insertAdjacentElement('afterend', taskElement);
+                } else {
+                    parentStageElement.insertAdjacentElement('afterend', taskElement);
+                }
+                
+                // 确保父阶段是展开状态
+                const expandIcon = parentStageElement.querySelector('.expand-icon');
+                if (expandIcon && expandIcon.dataset.expanded !== 'true') {
+                    this.toggleTaskExpansion(expandIcon);
+                }
+            }
+
+            deleteStage(taskItem) {
+                const stageName = taskItem.querySelector('.task-name').textContent;
+                if (confirm(`确定要删除阶段"${stageName}"吗？`)) {
+                    taskItem.remove();
+                    this.renderGantt();
+                    alert('阶段已删除！');
+                }
+            }
+
+            showContextMenu(event, taskItem) {
+                const contextMenu = document.getElementById('contextMenu');
+                contextMenu.style.display = 'block';
+                contextMenu.style.left = `${event.pageX}px`;
+                contextMenu.style.top = `${event.pageY}px`;
+                
+                // 绑定菜单项点击事件
+                contextMenu.querySelectorAll('.context-menu-item').forEach(item => {
+                    item.onclick = () => {
+                        const action = item.dataset.action;
+                        contextMenu.style.display = 'none';
+                        
+                        switch (action) {
+                            case 'add':
+                                this.showCreateStagePanel(taskItem);
+                                break;
+                            case 'edit':
+                                alert(`编辑功能：${taskItem.querySelector('.task-name').textContent}`);
+                                break;
+                            case 'delete':
+                                this.deleteStage(taskItem);
+                                break;
+                        }
+                    };
+                });
+            }
+        }
+
+        // 初始化甘特图
+        document.addEventListener('DOMContentLoaded', function() {
+            const gantt = new GanttChart();
+            
+            console.log('🚀 研发产品甘特图阶段管理 UI 演示已加载');
+            console.log('💡 尝试以下交互操作:');
+            console.log('   • 点击左侧任务自动跳转到对应日期月份');
+            console.log('   • 点击右上角"今天"徽章回到当前日期');
+            console.log('   • 点击主阶段展开/收起子阶段');
+            console.log('   • 左右切换月份查看不同时间段');
+            console.log('   • 点击甘特条查看任务详情');
+            console.log('   • 点击"+"按钮添加新阶段');
+            console.log('   • 右键点击任务显示上下文菜单');
+        });
+    </script>
+</body>
+</html>

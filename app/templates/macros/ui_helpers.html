@@ -7150,19 +7150,7 @@ document.addEventListener('DOMContentLoaded', function() {
     {% elif renderer_name == 'render_expense_status_badge' or renderer_name == 'expense_status' %}
         {{ render_expense_status_badge(badge_value) }}
     {% elif renderer_name == 'rd_product_status' %}
-        {% if badge_value == '调研中' %}
-            <span class="badge badge-pill badge-transparent product-status-research">调研中</span>
-        {% elif badge_value == '立项中' %}
-            <span class="badge badge-pill badge-transparent product-status-planning">立项中</span>
-        {% elif badge_value == '研发中' %}
-            <span class="badge badge-pill badge-transparent product-status-development">研发中</span>
-        {% elif badge_value == '已入库' %}
-            <span class="badge badge-pill badge-transparent product-status-completed">已入库</span>
-        {% elif badge_value == '已停产' %}
-            <span class="badge badge-pill badge-transparent product-status-discontinued">已停产</span>
-        {% else %}
-            <span class="badge badge-pill badge-transparent badge-muted">{{ badge_value }}</span>
-        {% endif %}
+        {{ render_dev_product_status_badge(badge_value) }}
     {% elif renderer_name == 'inventory_status' %}
         {% if badge_value == '缺货' %}
             <span class="badge badge-pill badge-transparent badge-danger">缺货</span>

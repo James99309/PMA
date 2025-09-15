@@ -1,10 +1,10 @@
-from flask import Blueprint, render_template, render_template_string, request, jsonify, redirect, url_for, flash, current_app, send_file
+from flask import Blueprint, render_template, render_template_string, request, jsonify, redirect, url_for, flash, current_app, send_file, Response
 from flask_babel import gettext as _
 from flask_login import login_required, current_user
 from app import db
 from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField, ProductCodeFieldOption, ProductRegion
 from app.models.dev_product import DevProduct, DevProductSpec
-from app.permissions import admin_required, product_manager_required, permission_required
+from app.permissions import admin_required, product_manager_required, permission_required, has_permission
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 import random
@@ -758,7 +758,7 @@ def products_list_ajax():
                     'title_field': {'field': 'model'},
                     'link_url': '/product-management/{id}',
                     'badges': [
-                        {'field': 'status', 'renderer': 'rd_product_status'}
+                        {'field': 'status', 'renderer': 'render_dev_product_status_badge'}
                     ],
                     'details': [
                         {'field': 'mn_code', 'label': '产品料号'},
@@ -779,19 +779,11 @@ def products_list_ajax():
                 # 桌面端使用传统表格行渲染
                 html_rows = []
                 for product in formatted_results:
-                    # 产品状态徽章
-                    status_badge = ''
-                    if product.status:
-                        status_map = {
-                            '调研中': '<span class="badge badge-pill badge-transparent product-status-research">调研中</span>',
-                            '立项中': '<span class="badge badge-pill badge-transparent product-status-planning">立项中</span>',
-                            '研发中': '<span class="badge badge-pill badge-transparent product-status-development">研发中</span>',
-                            '已入库': '<span class="badge badge-pill badge-transparent product-status-completed">已入库</span>',
-                            '已停产': '<span class="badge badge-pill badge-transparent product-status-discontinued">已停产</span>'
-                        }
-                        status_badge = status_map.get(product.status, f'<span class="badge badge-pill badge-transparent badge-muted">{product.status}</span>')
-                    else:
-                        status_badge = '<span class="badge badge-pill badge-transparent badge-muted">未设置</span>'
+                    # 使用通用徽章宏渲染产品状态
+                    status_badge = render_template_string('''
+                    {% from 'macros/ui_helpers.html' import render_dev_product_status_badge %}
+                    {{ render_dev_product_status_badge(status) }}
+                    ''', status=product.status if product.status else '未设置')
                     
                     created_at = product.created_at.strftime('%Y-%m-%d') if product.created_at else '-'
                     
@@ -848,12 +840,9 @@ def products_list_ajax():
 def new_product():
     # 获取所有产品分类
     categories = ProductCategory.query.all()
-    # 获取所有状态选项
-    statuses = ['调研中', '立项中', '研发中']
     
     return render_template('product_management/new_product.html', 
-                           categories=categories,
-                           statuses=statuses)
+                           categories=categories)
 
 # 获取子分类API
 @product_management_bp.route('/api/category/<int:category_id>/subcategories', methods=['GET'])
@@ -901,7 +890,7 @@ def get_region_options():
         current_app.logger.error(f"获取销售区域选项出错: {str(e)}")
         return jsonify({'regions': [], 'error': str(e)}), 500
 
-# 生成MN编码
+# 生成MN编码（旧版本，保留以兼容）
 def generate_mn_code(category, subcategory, region_code):
     # MN编码格式：XYZ XXXXX 
     # X: 分类编码, Y: 子分类编码, Z: 销售区域编码, XXXXX: 5位自动生成的唯一标识符
@@ -917,6 +906,46 @@ def generate_mn_code(category, subcategory, region_code):
     while DevProduct.query.filter_by(mn_code=mn_code).first():
         unique_part = ''.join(random.choice(chars) for _ in range(5))
         mn_code = f"{category.code_letter}{subcategory.code_letter}{region_code}{unique_part}"
+    
+    return mn_code
+
+# 统一的MN编码生成函数（基于规格position）
+def generate_mn_code_from_specs(category, subcategory, region_code, specs_data):
+    """
+    统一的MN编码生成函数
+    
+    Args:
+        category: 产品分类对象
+        subcategory: 产品子分类对象
+        region_code: 区域编码字符
+        specs_data: 包含position和code的规格数据列表
+                   [{'position': 1, 'code': 'A'}, ...]
+    
+    Returns:
+        str: 生成的MN编码
+    """
+    # 按position排序
+    specs_data.sort(key=lambda x: x.get('position', 999))
+    
+    # 提取前10个规格编码
+    spec_codes = []
+    for spec in specs_data[:10]:
+        spec_codes.append(spec.get('code', '0'))
+    
+    # 去掉末尾的'0'
+    last_non_zero_index = -1
+    for i in range(len(spec_codes) - 1, -1, -1):
+        if spec_codes[i] != '0':
+            last_non_zero_index = i
+            break
+    
+    if last_non_zero_index >= 0:
+        effective_spec_codes = spec_codes[:last_non_zero_index + 1]
+    else:
+        effective_spec_codes = []
+    
+    # 生成MN编码
+    mn_code = f"{category.code_letter}{subcategory.code_letter}{region_code}{''.join(effective_spec_codes)}"
     
     return mn_code
 
@@ -1193,7 +1222,7 @@ def save():
         unit = request.form.get('unit') or ""
         retail_price = request.form.get('retail_price')
         currency = request.form.get('currency', 'CNY')  # 获取货币类型，默认为人民币
-        status = request.form.get('status', '研发中')
+        status = '调研中'  # 创建时统一从调研阶段开始
         no_update_mn = request.form.get('no_update_mn') == 'true'  # 检查是否不更新MN编码
         
         # 验证必填字段
@@ -1258,33 +1287,8 @@ def save():
                         })
                         current_app.logger.debug(f"规格字段 {field.name} (ID: {field_id}) 位置: {field.position}, 编码: {spec_option_codes[i] if spec_option_codes[i] else '0'}")
             
-            # 按position排序
-            spec_position_data.sort(key=lambda x: x['position'])
-            
-            # 提取排序后的编码，映射到MN编码位置4-13
-            spec_codes = []
-            for i, spec_data in enumerate(spec_position_data[:10]):  # 最多10个规格位置
-                spec_codes.append(spec_data['code'])
-                current_app.logger.debug(f"规格顺序 {i + 1} (数据库位置 {spec_data['position']}) -> MN位置 {4 + i}, 编码: {spec_data['code']}")
-            
-            # 构建MN编码时去掉末尾的'0'
-            # 找到最后一个非'0'编码的位置
-            last_non_zero_index = -1
-            for i in range(len(spec_codes) - 1, -1, -1):
-                if spec_codes[i] != '0':
-                    last_non_zero_index = i
-                    break
-            
-            # 只使用到最后一个有效编码的部分
-            if last_non_zero_index >= 0:
-                effective_spec_codes = spec_codes[:last_non_zero_index + 1]
-            else:
-                effective_spec_codes = []  # 如果都是'0'，则不包含规格编码
-            
-            current_app.logger.debug(f"有效规格编码序列: {effective_spec_codes}")
-            
-            # 完整MN编码格式，去掉末尾的'0'
-            mn_code = f"{category.code_letter}{subcategory.code_letter}{region_code}{''.join(effective_spec_codes)}"
+            # 使用统一的MN编码生成函数
+            mn_code = generate_mn_code_from_specs(category, subcategory, region_code, spec_position_data)
             current_app.logger.debug(f"生成的完整MN编码: {mn_code}")
             
             # 检查MN编号是否重复
@@ -1580,10 +1584,9 @@ def edit_product(id):
         flash(_('您没有权限编辑此产品'), 'danger')
         return redirect(url_for('product_management.index'))
     
-    # 获取所有产品分类和状态
+    # 获取所有产品分类
     categories = db.session.query(ProductCategory).order_by(ProductCategory.name).all()
     subcategories = db.session.query(ProductSubcategory).filter_by(category_id=product.category_id).order_by(ProductSubcategory.name).all()
-    statuses = ['调研中', '立项中', '研发中', '申请入库', '已入库']
     
     # 获取产品规格并添加详细日志
     specs_db = db.session.query(DevProductSpec).filter_by(dev_product_id=id).all()
@@ -1608,8 +1611,7 @@ def edit_product(id):
         dev_product=product, 
         specs=specs,
         categories=categories,
-        subcategories=subcategories,
-        statuses=statuses
+        subcategories=subcategories
     )
 
 # 更新产品
@@ -1641,7 +1643,6 @@ def update_product(id):
         currency = request.form.get('currency', 'CNY')
         dev_product.currency = currency
         
-        dev_product.status = request.form.get('status', '研发中')
         dev_product.updated_at = datetime.now()
         
         # 检查是否需要更新MN编码
@@ -1663,43 +1664,34 @@ def update_product(id):
                     region_code = region.code_letter
             
             # 获取规格编码（从产品关联的规格中获取）
-            spec_codes = []
             specs = DevProductSpec.query.filter_by(dev_product_id=id).all()
             
-            # 按规格名称确定位置，构建规格编码数组
-            position_codes = ['0'] * 10  # 初始化10个位置都是'0'
-            
-            # 定义规格名称到位置的映射
-            spec_position_mapping = {
-                '频率范围': 0,  # 第4位
-                '带宽': 1,      # 第5位
-                '功率': 2,      # 第6位
-                '阻抗': 3,      # 第7位
-                '电源类型': 4   # 第8位
-            }
-            
+            # 构建规格位置数据
+            spec_position_data = []
             for spec in specs:
-                if spec.field_code and spec.field_name in spec_position_mapping:
-                    position_index = spec_position_mapping[spec.field_name]
-                    if 0 <= position_index < 10:
-                        position_codes[position_index] = spec.field_code
+                if spec.field_code and spec.field_name:
+                    # 查询规格字段的position信息
+                    spec_field = ProductCodeField.query.filter_by(
+                        subcategory_id=dev_product.subcategory_id,
+                        name=spec.field_name
+                    ).first()
+                    
+                    if spec_field:
+                        spec_position_data.append({
+                            'position': spec_field.position,
+                            'code': spec.field_code
+                        })
+                        current_app.logger.debug(f"规格 {spec.field_name}: position={spec_field.position}, code={spec.field_code}")
+                    else:
+                        # 如果找不到对应的字段，尝试用较大的position值
+                        spec_position_data.append({
+                            'position': 999,
+                            'code': spec.field_code
+                        })
+                        current_app.logger.warning(f"未找到规格字段 {spec.field_name} 的position信息")
             
-            # 构建MN编码时去掉末尾的'0'
-            # 找到最后一个非'0'编码的位置
-            last_non_zero_index = -1
-            for i in range(len(position_codes) - 1, -1, -1):
-                if position_codes[i] != '0':
-                    last_non_zero_index = i
-                    break
-            
-            # 只使用到最后一个有效编码的部分
-            if last_non_zero_index >= 0:
-                effective_spec_codes = position_codes[:last_non_zero_index + 1]
-            else:
-                effective_spec_codes = []  # 如果都是'0'，则不包含规格编码
-            
-            # 生成新的MN编码，去掉末尾的'0'
-            new_mn_code = f"{category.code_letter}{subcategory.code_letter}{region_code}{''.join(effective_spec_codes)}"
+            # 使用统一的MN编码生成函数
+            new_mn_code = generate_mn_code_from_specs(category, subcategory, region_code, spec_position_data)
             current_app.logger.debug(f"更新MN编码: {dev_product.mn_code} -> {new_mn_code}")
             
             # 检查新MN编号是否重复（排除当前产品）
@@ -2218,11 +2210,10 @@ def get_models_by_subcategory(subcategory_id):
 def get_spec_fields_by_subcategory(subcategory_id):
     """根据子分类ID获取规格字段列表"""
     try:
-        # 查找该子分类下的所有规格类型字段（只包含用于编码的字段）
+        # 查找该子分类下的所有规格类型字段（包括编码和非编码规格）
         spec_fields = ProductCodeField.query.filter(
             ProductCodeField.subcategory_id == subcategory_id,
-            ProductCodeField.field_type == 'spec',
-            (ProductCodeField.use_in_code == True) | (ProductCodeField.use_in_code.is_(None))
+            ProductCodeField.field_type == 'spec'
         ).order_by(ProductCodeField.position).all()
         
         # 处理结果
@@ -2699,6 +2690,11 @@ def get_spec_field_options():
 def get_product_specs(product_id):
     """获取产品的现有规格数据"""
     try:
+        # 获取产品信息
+        product = DevProduct.query.get(product_id)
+        if not product:
+            return jsonify({'specs': []})
+        
         # 获取产品的所有规格
         specs = DevProductSpec.query.filter_by(dev_product_id=product_id).all()
         
@@ -2710,6 +2706,20 @@ def get_product_specs(product_id):
                 'field_value': spec.field_value,
                 'field_code': spec.field_code
             }
+            
+            # 尝试获取规格的position信息
+            if product.subcategory_id and spec.field_name:
+                spec_field = ProductCodeField.query.filter_by(
+                    subcategory_id=product.subcategory_id,
+                    name=spec.field_name
+                ).first()
+                if spec_field:
+                    spec_data['position'] = spec_field.position
+                else:
+                    spec_data['position'] = 999  # 未找到position的默认值
+            else:
+                spec_data['position'] = 999
+            
             specs_data.append(spec_data)
         
         return jsonify({'specs': specs_data})
@@ -2857,3 +2867,851 @@ def upload_rd_product_image(product_id):
         db.session.rollback()
         current_app.logger.error(f"上传研发产品图片失败: {str(e)}")
         return jsonify({'success': False, 'error': f'上传失败: {str(e)}'}), 500
+
+# 更新研发产品阶段
+@product_management_bp.route('/api/rd-products/<int:product_id>/update-stage', methods=['POST'])
+@login_required
+@permission_required('product_code', 'edit')
+def update_rd_product_stage(product_id):
+    """更新研发产品阶段"""
+    try:
+        # 获取产品
+        dev_product = DevProduct.query.get_or_404(product_id)
+        
+        # 检查权限：只有管理员或产品创建者可以更新阶段
+        if current_user.role != 'admin' and current_user.id != dev_product.created_by:
+            return jsonify({
+                'success': False, 
+                'message': '您没有权限更新此产品的阶段'
+            }), 403
+        
+        # 获取请求数据
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': '请求数据格式错误'
+            }), 400
+            
+        target_stage = data.get('current_stage')
+        description = data.get('description', '')
+        
+        if not target_stage:
+            return jsonify({
+                'success': False,
+                'message': '目标阶段不能为空'
+            }), 400
+        
+        # 验证阶段是否有效
+        from app.config.stage_configs import get_stage_by_key
+        stage_info = get_stage_by_key('rd_product', target_stage)
+        if not stage_info:
+            return jsonify({
+                'success': False,
+                'message': f'无效的阶段: {target_stage}'
+            }), 400
+        
+        # 检查阶段推进是否被阻止
+        can_advance, reason = dev_product.can_advance_to_stage(target_stage)
+        if not can_advance:
+            return jsonify({
+                'success': False,
+                'message': reason,
+                'blocked': True
+            }), 400
+        
+        # 更新阶段
+        old_stage = dev_product.current_stage_key
+        dev_product.update_stage(
+            target_stage, 
+            user_id=current_user.id,
+            description=description
+        )
+        
+        # 提交数据库更改
+        db.session.commit()
+        
+        current_app.logger.info(f"用户 {current_user.username} 将研发产品 {dev_product.id} 的阶段从 {old_stage} 更新为 {target_stage}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'阶段已更新为: {stage_info["name"]}',
+            'new_stage': target_stage,
+            'stage_name': stage_info['name']
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"更新研发产品阶段失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'更新失败: {str(e)}'
+        }), 500
+
+
+@product_management_bp.route('/api/rd-products/<int:product_id>/stage-records', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def get_stage_records(product_id):
+    """获取研发产品的阶段记录（支持层级化查询）"""
+    try:
+        dev_product = DevProduct.query.get_or_404(product_id)
+
+        # 获取查询的阶段keys参数
+        stage_keys_param = request.args.get('stage_keys', '')
+        stage_keys = [key.strip() for key in stage_keys_param.split(',') if key.strip()] if stage_keys_param else []
+
+        # 获取阶段记录 (存储在JSON字段中)
+        all_stage_records = getattr(dev_product, 'stage_records', []) or []
+
+        # 如果指定了stage_keys，则按阶段过滤记录
+        if stage_keys:
+            filtered_records = []
+            for record in all_stage_records:
+                # 确保记录有stage_key字段，如果没有则跳过
+                if 'stage_key' in record and record['stage_key'] in stage_keys:
+                    filtered_records.append(record)
+        else:
+            # 如果没有指定stage_keys，返回所有记录
+            filtered_records = all_stage_records
+
+        return jsonify({
+            'success': True,
+            'records': filtered_records
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"获取阶段记录失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'获取失败: {str(e)}'
+        }), 500
+
+
+@product_management_bp.route('/api/rd-products/<int:product_id>/stage-records', methods=['POST'])
+@login_required
+@permission_required('product_code', 'edit')
+def add_stage_record(product_id):
+    """添加研发产品阶段记录"""
+    try:
+        dev_product = DevProduct.query.get_or_404(product_id)
+        
+        # 检查权限：只有创建者可以添加记录
+        if dev_product.created_by != current_user.id:
+            return jsonify({
+                'success': False,
+                'message': '只有产品创建者可以添加阶段记录'
+            }), 403
+        
+        data = request.get_json()
+        content = data.get('content', '').strip()
+        stage_key = data.get('stage_key', '')
+        
+        if not content:
+            return jsonify({
+                'success': False,
+                'message': '记录内容不能为空'
+            }), 400
+        
+        # 创建新记录
+        new_record = {
+            'id': int(time.time() * 1000),  # 使用时间戳作为临时ID
+            'content': content,
+            'stage_key': stage_key,
+            'created_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+            'creator_id': current_user.id,
+            'creator_name': current_user.username or current_user.real_name or '未知用户'
+        }
+        
+        # 获取现有记录
+        stage_records = getattr(dev_product, 'stage_records', []) or []
+        
+        # 添加新记录到开头（最新的在上面）
+        stage_records.insert(0, new_record)
+        
+        # 更新产品记录（需要通过setattr触发更新）
+        setattr(dev_product, 'stage_records', stage_records)
+        
+        # 标记字段为已修改（对于JSON字段很重要）
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(dev_product, 'stage_records')
+        
+        # 提交到数据库
+        db.session.commit()
+        
+        current_app.logger.info(f"用户 {current_user.username} 为研发产品 {product_id} 添加了阶段记录")
+        
+        return jsonify({
+            'success': True,
+            'message': '阶段记录已保存',
+            'record': new_record
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"添加阶段记录失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'保存失败: {str(e)}'
+        }), 500
+
+
+@product_management_bp.route('/api/rd-products/<int:product_id>/stage-records/<int:record_id>', methods=['DELETE'])
+@login_required
+@permission_required('product_code', 'edit')
+def delete_stage_record(product_id, record_id):
+    """删除研发产品阶段记录（仅创建者）"""
+    try:
+        dev_product = DevProduct.query.get_or_404(product_id)
+
+        # 只有产品创建者可删
+        if dev_product.created_by != current_user.id:
+            return jsonify({'success': False, 'message': '只有产品创建者可以删除阶段记录'}), 403
+
+        stage_records = getattr(dev_product, 'stage_records', []) or []
+        new_records = [r for r in stage_records if int(r.get('id', -1)) != int(record_id)]
+        if len(new_records) == len(stage_records):
+            return jsonify({'success': False, 'message': '记录不存在或已删除'}), 404
+
+        setattr(dev_product, 'stage_records', new_records)
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(dev_product, 'stage_records')
+        db.session.commit()
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"删除阶段记录失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'删除失败: {str(e)}'}), 500
+
+
+@product_management_bp.route('/api/rd-products/<int:product_id>/stage-attachments', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def get_stage_attachments(product_id):
+    """获取阶段附件列表（支持层级化查询）"""
+    try:
+        dev_product = DevProduct.query.get_or_404(product_id)
+
+        from app.models.gantt_models import StageAttachment
+
+        # 支持两种参数方式：单个stage_key或多个stage_keys
+        stage_key = request.args.get('stage_key')
+        stage_keys_param = request.args.get('stage_keys', '')
+
+        # 构建查询条件
+        query = StageAttachment.query.filter_by(product_id=product_id)
+
+        if stage_keys_param:
+            # 支持多阶段查询（新的层级化功能）
+            stage_keys = [key.strip() for key in stage_keys_param.split(',') if key.strip()]
+            if stage_keys:
+                query = query.filter(StageAttachment.stage_key.in_(stage_keys))
+        elif stage_key:
+            # 保持对单个stage_key的向后兼容
+            query = query.filter_by(stage_key=stage_key)
+        
+        attachments = query.order_by(StageAttachment.uploaded_at.desc()).all()
+        
+        # 转换为前端格式
+        attachment_list = []
+        for att in attachments:
+            attachment_list.append({
+                'id': att.id,
+                'file_name': att.file_name,
+                'file_path': att.file_path,
+                'file_size': att.file_size,
+                'file_size_mb': att.file_size_mb,
+                'file_type': att.file_type,
+                'stage_key': att.stage_key,
+                'uploaded_at': att.uploaded_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'uploader_name': att.uploader.real_name or att.uploader.username if att.uploader else '未知',
+                'description': att.description
+            })
+        
+        return jsonify({
+            'success': True,
+            'attachments': attachment_list
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"获取阶段附件失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'获取失败: {str(e)}'
+        }), 500
+
+
+@product_management_bp.route('/api/rd-products/<int:product_id>/stage-attachments/upload', methods=['POST'])
+@login_required
+@permission_required('product_code', 'edit')
+def upload_stage_attachment(product_id):
+    """上传阶段附件到Supabase"""
+    try:
+        dev_product = DevProduct.query.get_or_404(product_id)
+        
+        # 检查权限：只有创建者和管理员可以上传附件
+        if current_user.role != 'admin' and current_user.id != dev_product.created_by:
+            return jsonify({
+                'success': False,
+                'message': '您没有权限上传此产品的附件'
+            }), 403
+        
+        # 检查文件
+        if 'attachment' not in request.files:
+            return jsonify({
+                'success': False, 
+                'message': '请选择要上传的文件'
+            }), 400
+        
+        file = request.files['attachment']
+        stage_key = request.form.get('stage_key')
+        description = request.form.get('description', '')
+        
+        if file.filename == '':
+            return jsonify({
+                'success': False,
+                'message': '请选择要上传的文件'
+            }), 400
+            
+        if not stage_key:
+            return jsonify({
+                'success': False,
+                'message': '缺少阶段信息'
+            }), 400
+        
+        # 验证文件类型
+        allowed_extensions = {
+            'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 
+            'txt', 'zip', 'rar', '7z', 'jpg', 'jpeg', 'png', 'gif'
+        }
+        if not ('.' in file.filename and 
+                file.filename.rsplit('.', 1)[1].lower() in allowed_extensions):
+            return jsonify({
+                'success': False,
+                'message': '不支持的文件格式！请选择文档、图片或压缩文件'
+            }), 400
+        
+        # 验证文件大小 (20MB)
+        max_size = 20 * 1024 * 1024
+        file.seek(0, 2)  # 移动到文件末尾
+        file_size = file.tell()
+        file.seek(0)  # 回到开头
+        
+        if file_size > max_size:
+            return jsonify({
+                'success': False,
+                'message': '文件大小不能超过20MB'
+            }), 400
+        
+        # 上传到Supabase
+        supabase_client = get_supabase_client()
+        if not supabase_client:
+            return jsonify({
+                'success': False,
+                'message': 'Supabase存储服务不可用'
+            }), 500
+        
+        # 生成文件路径
+        import uuid
+        file_extension = file.filename.rsplit('.', 1)[1].lower()
+        unique_filename = f"{uuid.uuid4().hex}.{file_extension}"
+        file_path = f"products/{product_id}/stages/{stage_key}/{unique_filename}"
+        
+        # 根据文件扩展名判断文件类型
+        if file_extension in ['jpg', 'jpeg', 'png', 'gif']:
+            file_type = 'image'
+        elif file_extension == 'pdf':
+            file_type = 'pdf'
+        else:
+            file_type = 'attachment'  # 新增的附件类型
+        
+        # 使用现有的 upload_product_file 方法
+        file_url = supabase_client.upload_product_file(
+            product_id=product_id,
+            file=file,
+            file_type=file_type,
+            bucket_type='rd_product'
+        )
+        
+        if file_url:
+            # 从URL中提取文件路径
+            import re
+            # URL格式: https://xxx.supabase.co/storage/v1/object/public/rd-product-images/rd_product_files/xxx/xxx/filename
+            file_path_match = re.search(r'rd_product_files/(.+)$', file_url)
+            file_path = file_path_match.group(0) if file_path_match else unique_filename
+            
+            current_app.logger.info(f"附件上传成功: {file_url}")
+        else:
+            return jsonify({
+                'success': False,
+                'message': '文件上传失败'
+            }), 500
+        
+        # 保存附件记录到数据库
+        from app.models.gantt_models import StageAttachment
+        
+        attachment = StageAttachment(
+            product_id=product_id,
+            stage_key=stage_key,
+            file_name=file.filename,
+            file_path=file_url,  # 保存完整的URL
+            file_size=file_size,
+            file_type=file_extension,  # 使用文件扩展名而非 content_type
+            uploaded_by=current_user.id,
+            description=description
+        )
+        
+        db.session.add(attachment)
+        db.session.commit()
+        
+        current_app.logger.info(f"用户 {current_user.username} 为研发产品 {product_id} 上传了阶段附件")
+        
+        return jsonify({
+            'success': True,
+            'message': '附件上传成功',
+            'attachment': {
+                'id': attachment.id,
+                'file_name': attachment.file_name,
+                'file_size_mb': attachment.file_size_mb,
+                'file_type': attachment.file_type,
+                'uploaded_at': attachment.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')
+            }
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"上传阶段附件失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'上传失败: {str(e)}'
+        }), 500
+
+
+@product_management_bp.route('/api/rd-products/<int:product_id>/stage-attachments/<int:attachment_id>', methods=['DELETE'])
+@login_required
+@permission_required('product_code', 'edit')
+def delete_stage_attachment(product_id, attachment_id):
+    """删除阶段附件"""
+    try:
+        from app.models.gantt_models import StageAttachment
+        
+        attachment = StageAttachment.query.filter_by(
+            id=attachment_id, 
+            product_id=product_id
+        ).first_or_404()
+        
+        # 检查权限：只有上传者和管理员可以删除
+        if current_user.role != 'admin' and current_user.id != attachment.uploaded_by:
+            return jsonify({
+                'success': False,
+                'message': '您没有权限删除此附件'
+            }), 403
+        
+        # 从Supabase删除文件
+        cloud_delete_success = True
+        if attachment.file_path:
+            current_app.logger.info(f"准备删除研发产品附件: ID={attachment.id}, 文件名={attachment.file_name}, 路径={attachment.file_path}")
+            supabase_client = get_supabase_client()
+            if supabase_client:
+                # 指定正确的bucket_type为rd_product
+                current_app.logger.info(f"使用bucket_type='rd_product'删除云端文件: {attachment.file_path}")
+                cloud_delete_success = supabase_client.delete_file_by_url(attachment.file_path, 'rd_product')
+                if cloud_delete_success:
+                    current_app.logger.info(f"✅ 云端文件删除成功: {attachment.file_path}")
+                else:
+                    current_app.logger.warning(f"❌ 云端文件删除失败: {attachment.file_path}")
+                    # 注意：云端删除失败不阻止数据库删除，但会记录警告
+            else:
+                current_app.logger.warning("Supabase客户端不可用，跳过云端文件删除")
+                cloud_delete_success = False
+        
+        # 删除数据库记录
+        db.session.delete(attachment)
+        db.session.commit()
+        
+        current_app.logger.info(f"用户 {current_user.username} 删除了附件 {attachment.file_name}")
+        
+        # 根据云端删除结果返回相应消息
+        if cloud_delete_success:
+            message = '附件删除成功'
+        else:
+            message = '附件数据库记录已删除，但云端文件删除失败'
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'cloud_delete_success': cloud_delete_success
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"删除阶段附件失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'删除失败: {str(e)}'
+        }), 500
+
+# 下载阶段附件（使用与删除一致的地址：数据库保存的公有URL）
+@product_management_bp.route('/api/rd-products/<int:product_id>/stage-attachments/<int:attachment_id>/download', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def download_stage_attachment(product_id, attachment_id):
+    """下载阶段附件：直接重定向到保存的公有URL，并附加download参数"""
+    try:
+        # 延迟导入，避免循环依赖
+        from app.models.gantt_models import StageAttachment
+
+        # 获取产品（确保产品存在）
+        dev_product = DevProduct.query.get_or_404(product_id)
+
+        # 兜底校验查看权限
+        if not current_user.has_permission('product_code', 'view'):
+            return jsonify({'success': False, 'message': '您没有权限访问此附件'}), 403
+
+        # 获取附件记录
+        attachment = StageAttachment.query.filter_by(
+            id=attachment_id,
+            product_id=product_id
+        ).first()
+
+        if not attachment or not attachment.file_path:
+            return jsonify({'success': False, 'message': '附件不存在或未找到文件路径'}), 404
+
+        # 直接重定向到公有URL，附带download参数强制下载
+        from urllib.parse import quote
+        download_url = f"{attachment.file_path}?download={quote(attachment.file_name or 'download')}"
+        return redirect(download_url)
+
+    except Exception as e:
+        current_app.logger.error(f"下载阶段附件失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'下载失败: {str(e)}'}), 500
+
+
+# ================== 研发产品子阶段（里程碑）API ==================
+
+@product_management_bp.route('/api/rd-products/<int:product_id>/stages', methods=['POST'])
+@login_required
+@permission_required('product_code', 'edit')
+def create_rd_product_sub_stage(product_id):
+    """创建研发产品的子阶段（使用 DevProductMilestone 持久化）"""
+    try:
+        from app.models.gantt_models import DevProductMilestone
+
+        # 产品存在性校验
+        dev_product = DevProduct.query.get_or_404(product_id)
+
+        # 权限：管理员或创建者
+        if current_user.role != 'admin' and current_user.id != dev_product.created_by:
+            return jsonify({'success': False, 'message': '您没有权限创建子阶段'}), 403
+
+        data = request.get_json(silent=True) or {}
+        stage_data = data.get('stage_data') or data  # 兼容两种传参
+
+        name = (stage_data or {}).get('name', '').strip()
+        stage_key = (stage_data or {}).get('parent_stage', '').strip()
+        description = (stage_data or {}).get('description', '')
+        progress = int((stage_data or {}).get('progress') or 0)
+        status = (stage_data or {}).get('status') or 'planned'
+        start_date_raw = (stage_data or {}).get('start_date')
+        end_date_raw = (stage_data or {}).get('end_date')
+
+        if not name or not stage_key:
+            return jsonify({'success': False, 'message': '阶段名称与所属主阶段不能为空'}), 400
+
+        # 日期解析
+        def parse_date(val):
+            if not val:
+                return None
+            try:
+                from datetime import datetime
+                if isinstance(val, str):
+                    v = val.replace('Z', '+00:00')
+                    try:
+                        return datetime.fromisoformat(v)
+                    except Exception:
+                        # 兼容仅日期
+                        return datetime.strptime(val[:10], '%Y-%m-%d')
+                return None
+            except Exception:
+                return None
+
+        planned_start = parse_date(start_date_raw)
+        planned_end = parse_date(end_date_raw)
+
+        milestone = DevProductMilestone(
+            product_id=product_id,
+            stage_key=stage_key,
+            name=name,
+            description=description,
+            planned_start_date=planned_start,
+            planned_end_date=planned_end,
+            status=status,
+            progress=progress,
+            created_by=current_user.id
+        )
+
+        db.session.add(milestone)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': '子阶段创建成功',
+            'id': milestone.id,
+            'stage': {
+                'id': milestone.id,
+                'name': milestone.name,
+                'parent': milestone.stage_key,
+                'start_date': milestone.planned_start_date.isoformat() if milestone.planned_start_date else None,
+                'end_date': milestone.planned_end_date.isoformat() if milestone.planned_end_date else None,
+                'progress': milestone.progress,
+                'status': milestone.status,
+                'description': milestone.description
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"创建子阶段失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'创建失败: {str(e)}'}), 500
+
+
+@product_management_bp.route('/api/rd-products/<int:product_id>/stages', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def list_rd_product_sub_stages(product_id):
+    """获取研发产品的子阶段（里程碑）列表"""
+    try:
+        from app.models.gantt_models import DevProductMilestone
+
+        # 确认产品存在
+        DevProduct.query.get_or_404(product_id)
+
+        # 查询该产品的所有里程碑
+        milestones = (DevProductMilestone
+                      .query
+                      .filter_by(product_id=product_id)
+                      .order_by(DevProductMilestone.created_at.asc())
+                      .all())
+
+        def iso(dt):
+            return dt.isoformat() if dt else None
+
+        stages = []
+        for m in milestones:
+            stages.append({
+                'id': m.id,
+                'name': m.name,
+                'stage_key': m.stage_key,
+                'description': m.description or '',
+                'status': m.status or 'planned',
+                'progress': m.progress or 0,
+                'start_date': iso(m.planned_start_date),
+                'end_date': iso(m.planned_end_date),
+                'created_at': iso(m.created_at),
+                'updated_at': iso(m.updated_at)
+            })
+
+        return jsonify({'success': True, 'stages': stages})
+
+    except Exception as e:
+        current_app.logger.error(f"获取子阶段列表失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'获取失败: {str(e)}'}), 500
+
+
+@product_management_bp.route('/api/rd-products/<int:product_id>/stages/<int:stage_id>', methods=['DELETE'])
+@login_required
+@permission_required('product_code', 'edit')
+def delete_rd_product_sub_stage(product_id, stage_id):
+    """删除研发产品子阶段（里程碑）"""
+    try:
+        from app.models.gantt_models import DevProductMilestone
+
+        dev_product = DevProduct.query.get_or_404(product_id)
+
+        # 权限：管理员或产品创建者
+        if current_user.role != 'admin' and current_user.id != dev_product.created_by:
+            return jsonify({'success': False, 'message': '您没有权限删除子阶段'}), 403
+
+        milestone = DevProductMilestone.query.filter_by(id=stage_id, product_id=product_id).first()
+        if not milestone:
+            return jsonify({'success': False, 'message': '子阶段不存在'}), 404
+
+        db.session.delete(milestone)
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': '子阶段删除成功'})
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"删除子阶段失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'删除失败: {str(e)}'}), 500
+
+
+@product_management_bp.route('/api/rd-products/<int:product_id>/stages/<int:stage_id>', methods=['PUT'])
+@login_required
+@permission_required('product_code', 'edit')
+def update_rd_product_sub_stage(product_id, stage_id):
+    """更新研发产品子阶段（里程碑）"""
+    try:
+        from app.models.gantt_models import DevProductMilestone
+
+        dev_product = DevProduct.query.get_or_404(product_id)
+
+        # 权限：管理员或产品创建者
+        if current_user.role != 'admin' and current_user.id != dev_product.created_by:
+            return jsonify({'success': False, 'message': '您没有权限更新子阶段'}), 403
+
+        milestone = DevProductMilestone.query.filter_by(id=stage_id, product_id=product_id).first()
+        if not milestone:
+            return jsonify({'success': False, 'message': '子阶段不存在'}), 404
+
+        data = request.get_json(silent=True) or {}
+        stage_data = data.get('stage_data') or data
+
+        def parse_date(val):
+            if not val:
+                return None
+            try:
+                from datetime import datetime
+                v = str(val).replace('Z', '+00:00')
+                try:
+                    return datetime.fromisoformat(v)
+                except Exception:
+                    return datetime.strptime(v[:10], '%Y-%m-%d')
+            except Exception:
+                return None
+
+        # 更新字段（仅提供的项）
+        if 'name' in stage_data:
+            milestone.name = (stage_data.get('name') or '').strip() or milestone.name
+        if 'parent_stage' in stage_data:
+            milestone.stage_key = (stage_data.get('parent_stage') or milestone.stage_key)
+        if 'description' in stage_data:
+            milestone.description = stage_data.get('description') or ''
+        if 'status' in stage_data:
+            milestone.status = stage_data.get('status') or milestone.status
+        if 'progress' in stage_data:
+            try:
+                milestone.progress = int(stage_data.get('progress') or 0)
+            except Exception:
+                pass
+        if 'start_date' in stage_data:
+            milestone.planned_start_date = parse_date(stage_data.get('start_date'))
+        if 'end_date' in stage_data:
+            milestone.planned_end_date = parse_date(stage_data.get('end_date'))
+
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': '子阶段更新成功'})
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"更新子阶段失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'更新失败: {str(e)}'}), 500
+
+
+@product_management_bp.route('/api/rd-products/<int:product_id>/main-stage/plan', methods=['PUT'])
+@login_required
+@permission_required('product_code', 'edit')
+def update_rd_product_main_stage_plan(product_id):
+    """更新研发产品主阶段的计划起止时间（持久化到stage_history JSON中）"""
+    try:
+        dev_product = DevProduct.query.get_or_404(product_id)
+
+        # 权限：管理员或产品创建者
+        if current_user.role != 'admin' and current_user.id != dev_product.created_by:
+            return jsonify({'success': False, 'message': '您没有权限更新主阶段计划'}), 403
+
+        data = request.get_json(silent=True) or {}
+        stage_key = data.get('stage_key')
+        planned_start_date = data.get('planned_start_date')  # ISO或YYYY-MM-DD
+        planned_end_date = data.get('planned_end_date')
+        progress = data.get('progress')
+        status = (data.get('status') or '').strip()  # in-progress/paused/completed 或空
+
+        if not stage_key:
+            return jsonify({'success': False, 'message': '缺少阶段标识 stage_key'}), 400
+
+        # 解析日期
+        def parse_date(val):
+            if not val:
+                return None
+            from datetime import datetime
+            v = str(val).replace('Z', '+00:00')
+            try:
+                dt = datetime.fromisoformat(v)
+            except Exception:
+                try:
+                    dt = datetime.strptime(v[:10], '%Y-%m-%d')
+                except Exception:
+                    dt = None
+            return dt.strftime('%Y-%m-%d %H:%M:%S') if dt else None
+
+        planned_start = parse_date(planned_start_date)
+        planned_end = parse_date(planned_end_date)
+
+        # 更新或插入对应阶段的计划字段
+        history = dev_product.stage_history or []
+        updated = False
+        for rec in history:
+            if rec.get('stage') == stage_key:
+                rec['plannedStart'] = planned_start
+                rec['plannedEnd'] = planned_end
+                if progress is not None:
+                    try:
+                        rec['progress'] = int(progress)
+                    except Exception:
+                        pass
+                updated = True
+                break
+        if not updated:
+            # 若不存在该阶段记录，创建一个仅含计划信息的记录
+            new_rec = {
+                'stage': stage_key,
+                'plannedStart': planned_start,
+                'plannedEnd': planned_end
+            }
+            if progress is not None:
+                try:
+                    new_rec['progress'] = int(progress)
+                except Exception:
+                    pass
+            history.append(new_rec)
+
+        from sqlalchemy.orm.attributes import flag_modified
+        dev_product.stage_history = history
+        flag_modified(dev_product, 'stage_history')
+        dev_product.updated_at = datetime.now()
+        # 如果带有状态更新，按照规则同步产品阶段
+        from app.config.stage_configs import get_next_stage
+        # current_stage_key 基于产品 status 映射
+        current_stage_key = dev_product.current_stage_key
+        new_stage_key = None
+        if status == 'in-progress':
+            # 如果切换到当前主阶段进行中且产品还不在该阶段，则推进到该阶段
+            if current_stage_key != stage_key:
+                new_stage_key = stage_key
+        elif status == 'completed':
+            # 如果当前产品正处于该主阶段，推进到下一阶段
+            if current_stage_key == stage_key:
+                nxt = get_next_stage('rd_product', current_stage_key)
+                if nxt:
+                    new_stage_key = nxt.get('key') or nxt.get('stage')
+        # 暂停状态不改变产品阶段
+
+        if new_stage_key:
+            # 使用模型自带方法推进阶段（会写入历史并更新status）
+            dev_product.update_stage(new_stage_key, user_id=current_user.id,
+                                     description=f'甘特图同步：{stage_key} 完成/启动 → {new_stage_key}')
+
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': '主阶段计划已更新',
+                        'synced_stage': new_stage_key or current_stage_key})
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"更新主阶段计划失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'更新失败: {str(e)}'}), 500
