@@ -311,7 +311,9 @@ EXPENSE_STATUS = [
     ('draft', '草稿'),
     ('pending', '待审批'),
     ('approved', '已通过'),
-    ('rejected', '已驳回')
+    ('rejected', '已驳回'),
+    ('awaiting_payment', '待支付'),
+    ('paid', '已支付')
 ]
 
 # 添加SQLAlchemy事件监听器，在明细变化时自动更新主表总额

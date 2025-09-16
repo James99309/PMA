@@ -198,35 +198,38 @@ def expense_list():
             else_=0
         )).label('pending_amount'),
         func.sum(case(
-            (Expense.status == 'approved', 1),
+            (Expense.status == 'paid', 1),
             else_=0
-        )).label('approved_count'),
+        )).label('paid_count'),
         func.sum(case(
-            (Expense.status == 'approved', Expense.total_amount),
+            (Expense.status == 'paid', Expense.total_amount),
             else_=0
-        )).label('approved_amount')
+        )).label('paid_amount'),
+        func.sum(case(
+            (Expense.status == 'awaiting_payment', 1),
+            else_=0
+        )).label('awaiting_count'),
+        func.sum(case(
+            (Expense.status == 'awaiting_payment', Expense.total_amount),
+            else_=0
+        )).label('awaiting_amount')
     ).first()
     
     total_count = stats_result.total_count or 0
     total_amount = stats_result.total_amount or 0
     pending_count = stats_result.pending_count or 0
     pending_amount = stats_result.pending_amount or 0
-    approved_count = stats_result.approved_count or 0
-    approved_amount = stats_result.approved_amount or 0
+    paid_count = stats_result.paid_count or 0
+    paid_amount = stats_result.paid_amount or 0
+    awaiting_count = stats_result.awaiting_count or 0
+    awaiting_amount = stats_result.awaiting_amount or 0
     
-    # 获取筛选选项数据 - 基于当前列表实际数据生成筛选选项
-    # 1. 获取实际存在的申请人ID（基于权限过滤的报销单数据）
-    unique_owner_ids_query = get_viewable_data(Expense, current_user)\
-        .filter(Expense.owner_id.isnot(None))\
-        .with_entities(Expense.owner_id.distinct())
-    
-    unique_owner_ids = {row[0] for row in unique_owner_ids_query.all()}
-    
-    # 只查询需要的用户，避免加载所有用户
-    users = User.query.filter(
-        User.id.in_(unique_owner_ids),
-        User.is_active == True
-    ).order_by(User.real_name, User.username).all() if unique_owner_ids else []
+    # 获取筛选选项数据 - 直接查询有报销单的用户
+    # 1. 获取所有有报销单的用户
+    users = User.query.join(Expense, User.id == Expense.owner_id)\
+        .filter(Expense.is_deleted == False, User.is_active == True)\
+        .distinct()\
+        .order_by(User.real_name, User.username).all()
     
     # 2. 获取实际存在的客户ID（基于权限过滤的报销单数据）
     unique_customer_ids_query = get_viewable_data(Expense, current_user)\
@@ -259,8 +262,8 @@ def expense_list():
                 'translate': True
             })
     
-    # 按状态重要性排序（草稿、待审批、已通过、已拒绝）
-    status_order = {'draft': 1, 'pending': 2, 'approved': 3, 'rejected': 4}
+    # 按状态重要性排序（草稿、待审批、已通过、已拒绝、待支付、已支付）
+    status_order = {'draft': 1, 'pending': 2, 'approved': 3, 'rejected': 4, 'awaiting_payment': 5, 'paid': 6}
     status_options.sort(key=lambda x: status_order.get(x['value'], 999))
     
     # 构建筛选配置
@@ -343,16 +346,28 @@ def expense_list():
                     'click_params': {'status': 'pending'}
                 },
                 {
-                    'id': 'approved',
-                    'title': _('已通过'),
-                    'icon': 'fas fa-check-circle',
-                    'value': approved_count,
-                    'amount': approved_amount / 10000,
+                    'id': 'awaiting_payment',
+                    'title': _('待支付'),
+                    'icon': 'fas fa-hourglass-half',
+                    'value': awaiting_count,
+                    'amount': awaiting_amount / 10000,
+                    'unit': _('单'),
+                    'amount_unit': _('万元'),
+                    'color': 'info',
+                    'clickable': True,
+                    'click_params': {'status': 'awaiting_payment'}
+                },
+                {
+                    'id': 'paid',
+                    'title': _('已支付'),
+                    'icon': 'fas fa-money-check-alt',
+                    'value': paid_count,
+                    'amount': paid_amount / 10000,
                     'unit': _('单'),
                     'amount_unit': _('万元'),
                     'color': 'success',
                     'clickable': True,
-                    'click_params': {'status': 'approved'}
+                    'click_params': {'status': 'paid'}
                 }
             ]
         },
@@ -680,13 +695,21 @@ def expense_list_ajax():
                 else_=0
             )).label('pending_stats_amount'),
             func.sum(case(
-                (Expense.status == 'approved', 1),
+                (Expense.status == 'paid', 1),
                 else_=0
-            )).label('approved_stats_count'),
+            )).label('paid_stats_count'),
             func.sum(case(
-                (Expense.status == 'approved', Expense.total_amount),
+                (Expense.status == 'paid', Expense.total_amount),
                 else_=0
-            )).label('approved_stats_amount')
+            )).label('paid_stats_amount'),
+            func.sum(case(
+                (Expense.status == 'awaiting_payment', 1),
+                else_=0
+            )).label('awaiting_stats_count'),
+            func.sum(case(
+                (Expense.status == 'awaiting_payment', Expense.total_amount),
+                else_=0
+            )).label('awaiting_stats_amount')
         ).first()
         
         statistics = {
@@ -694,8 +717,10 @@ def expense_list_ajax():
             'total_amount': (stats_result.total_stats_amount or 0) / 10000,
             'pending_count': stats_result.pending_stats_count or 0,
             'pending_amount': (stats_result.pending_stats_amount or 0) / 10000,
-            'approved_count': stats_result.approved_stats_count or 0,
-            'approved_amount': (stats_result.approved_stats_amount or 0) / 10000
+            'paid_count': stats_result.paid_stats_count or 0,
+            'paid_amount': (stats_result.paid_stats_amount or 0) / 10000,
+            'awaiting_count': stats_result.awaiting_stats_count or 0,
+            'awaiting_amount': (stats_result.awaiting_stats_amount or 0) / 10000
         }
         
         return jsonify({
