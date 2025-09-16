@@ -226,10 +226,15 @@ def expense_list():
     
     # 获取筛选选项数据 - 直接查询有报销单的用户
     # 1. 获取所有有报销单的用户
-    users = User.query.join(Expense, User.id == Expense.owner_id)\
-        .filter(Expense.is_deleted == False, User.is_active == True)\
-        .distinct()\
-        .order_by(User.real_name, User.username).all()
+    # 注意：User.is_active 是一个 Python 属性，不能用于 SQL 过滤；应使用映射列 User._is_active
+    users = (
+        User.query
+        .join(Expense, User.id == Expense.owner_id)
+        .filter(Expense.is_deleted == False, User._is_active == True)
+        .distinct()
+        .order_by(User.real_name, User.username)
+        .all()
+    )
     
     # 2. 获取实际存在的客户ID（基于权限过滤的报销单数据）
     unique_customer_ids_query = get_viewable_data(Expense, current_user)\
