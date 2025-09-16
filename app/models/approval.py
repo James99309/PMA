@@ -190,7 +190,7 @@ class ApprovalStep(db.Model):
         print("pricing_order_data存在:", bool(pricing_order_data))
         if pricing_order_data:
             print("pricing_order_data:", pricing_order_data)
-        import pdb; pdb.set_trace()  # 手动调试断点
+        # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
         
         # 导入枚举定义用于对比
         from app.models.approval import ApprovalActionType
@@ -206,7 +206,7 @@ class ApprovalStep(db.Model):
                 attr_value = getattr(ApprovalActionType, attr_name)
                 status = "匹配" if attr_value == self.action_type else "不匹配"
                 print("  ", attr_name, "=", repr(attr_value), status)
-        import pdb; pdb.set_trace()  # 手动调试断点
+        # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
         
         if self.action_type == ApprovalActionType.QUOTATION_APPROVAL:
             print(">>> 进入分支: QUOTATION_APPROVAL")
@@ -239,7 +239,7 @@ class ApprovalStep(db.Model):
             print("approval_record:", approval_record)
             print("target_object:", target_object)
             print("pricing_order_data:", pricing_order_data)
-            import pdb; pdb.set_trace()  # 手动调试断点
+            # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
             
             print(">>> 进入分支: PRICING_SETTLEMENT_APPROVAL")
             return self._execute_pricing_settlement_approval(approval_record, target_object, pricing_order_data)
@@ -248,7 +248,7 @@ class ApprovalStep(db.Model):
             print("\n=== execute_action 调试断点4: 未匹配分支 ===")
             print("action_type:", self.action_type, "没有匹配任何分支")
             print("返回默认值: True")
-            import pdb; pdb.set_trace()  # 手动调试断点
+            # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
             
         return True
 
@@ -721,13 +721,17 @@ class ApprovalStep(db.Model):
                     )
                 project.authorization_status = 'approved'
                 project.authorization_type = 'project'
-                
+
                 # 授权通过后更新报备时间为当前日期
                 from datetime import date
                 project.report_time = date.today()
             else:
                 project.authorization_status = 'rejected'
-                
+
+            # 提交数据库事务
+            from app import db
+            db.session.commit()
+
             return True
         except Exception as e:
             print(f"执行项目授权动作失败: {str(e)}")
@@ -736,38 +740,72 @@ class ApprovalStep(db.Model):
     def _execute_channel_authorization(self, approval_record, project):
         """执行渠道授权动作"""
         try:
-            print(f"🔥 开始执行渠道授权动作")
-            print(f"🔥 审批动作: {approval_record.action}")
-            print(f"🔥 项目ID: {project.id}, 项目类型: {project.project_type}")
-            print(f"🔥 当前授权编码: {project.authorization_code}")
-            
+            print(f"🔥🔥🔥 [CHANNEL_AUTH_START] ========== 开始执行渠道授权动作 ==========")
+            print(f"🔥 [CHANNEL_AUTH] 方法被调用！")
+            print(f"🔥 [CHANNEL_AUTH] 审批动作: {approval_record.action}")
+            print(f"🔥 [CHANNEL_AUTH] 审批人ID: {approval_record.approver_id}")
+            print(f"🔥 [CHANNEL_AUTH] 项目ID: {project.id}")
+            print(f"🔥 [CHANNEL_AUTH] 项目名称: {project.project_name if hasattr(project, 'project_name') else 'N/A'}")
+            print(f"🔥 [CHANNEL_AUTH] 项目类型: {project.project_type}")
+            print(f"🔥 [CHANNEL_AUTH] 当前授权编码: {project.authorization_code}")
+
+            # 添加日志记录
+            from flask import current_app
+            current_app.logger.info(f"[CHANNEL_AUTH] 执行渠道授权 - 项目ID:{project.id}, 类型:{project.project_type}")
+
             from app.utils.authorization import generate_channel_authorization_code
-            
+
             if approval_record.action == 'approve':
                 if not project.authorization_code:
-                    print(f"🔥 开始生成授权编码...")
-                    project.authorization_code = generate_channel_authorization_code(
+                    print(f"🔥 [CHANNEL_AUTH] 项目没有授权编码，开始生成...")
+
+                    # 生成授权编码
+                    authorization_code = generate_channel_authorization_code(
                         project.project_type,
-                        project.id, 
+                        project.id,
                         approval_record.approver_id
                     )
-                    print(f"🔥 生成的授权编码: {project.authorization_code}")
+
+                    print(f"🔥 [CHANNEL_AUTH] 生成的授权编码: {authorization_code}")
+
+                    # 赋值给项目
+                    project.authorization_code = authorization_code
+                    print(f"🔥 [CHANNEL_AUTH] 已赋值给项目对象")
+
                 else:
-                    print(f"🔥 项目已有授权编码，跳过生成")
-                
+                    print(f"🔥 [CHANNEL_AUTH] 项目已有授权编码: {project.authorization_code}，跳过生成")
+
                 project.authorization_status = 'approved'
                 project.authorization_type = 'channel'
-                print(f"🔥 设置授权状态: approved, 类型: channel")
-                
+                print(f"🔥 [CHANNEL_AUTH] 设置授权状态: approved, 类型: channel")
+
                 # 授权通过后更新报备时间为当前日期
                 from datetime import date
                 project.report_time = date.today()
-                print(f"🔥 更新报备时间: {project.report_time}")
+                print(f"🔥 [CHANNEL_AUTH] 更新报备时间: {project.report_time}")
+
+                # 打印项目对象的最终状态
+                print(f"🔥 [CHANNEL_AUTH] 项目最终状态:")
+                print(f"    - authorization_code: {project.authorization_code}")
+                print(f"    - authorization_status: {project.authorization_status}")
+                print(f"    - authorization_type: {project.authorization_type}")
+                print(f"    - report_time: {project.report_time}")
+
             else:
                 project.authorization_status = 'rejected'
-                print(f"🔥 设置授权状态: rejected")
-                
-            print(f"🔥 渠道授权动作执行成功")
+                print(f"🔥 [CHANNEL_AUTH] 设置授权状态: rejected")
+
+            # 提交数据库事务
+            print(f"🔥 [CHANNEL_AUTH] 准备提交数据库事务...")
+            from app import db
+            db.session.commit()
+            print(f"🔥 [CHANNEL_AUTH] ✅ 数据库事务已成功提交!")
+
+            # 验证是否真的保存了
+            db.session.refresh(project)
+            print(f"🔥 [CHANNEL_AUTH] 验证：从数据库重新读取后的授权编码: {project.authorization_code}")
+
+            print(f"🔥🔥🔥 [CHANNEL_AUTH_END] ========== 渠道授权动作执行成功 ==========")
             return True
         except Exception as e:
             print(f"🔥 执行渠道授权动作失败: {str(e)}")
@@ -803,7 +841,11 @@ class ApprovalStep(db.Model):
                 project.report_time = date.today()
             else:
                 project.authorization_status = 'rejected'
-                
+
+            # 提交数据库事务
+            from app import db
+            db.session.commit()
+
             return True
         except Exception as e:
             print(f"执行客服授权动作失败: {str(e)}")
@@ -812,12 +854,22 @@ class ApprovalStep(db.Model):
     def _execute_branch_decision(self, approval_record, target_object):
         """执行分支决策动作"""
         try:
+            print(f"🔥🔥🔥 [BRANCH_DECISION_START] ========== 开始执行分支决策 ==========")
+            print(f"🔥 [BRANCH_DECISION] 方法被调用！")
+            print(f"🔥 [BRANCH_DECISION] 步骤ID: {self.id}")
+            print(f"🔥 [BRANCH_DECISION] 步骤名称: {self.step_name}")
+            print(f"🔥 [BRANCH_DECISION] 目标对象类型: {type(target_object).__name__}")
+            print(f"🔥 [BRANCH_DECISION] 目标对象ID: {getattr(target_object, 'id', 'N/A')}")
+
             # 分支决策步骤主要用于条件判断，确定下一步的流程走向
-            
+
             # 评估分支条件
+            print(f"🔥 [BRANCH_DECISION] 开始评估分支条件...")
             condition_result = self.evaluate_branch_condition(target_object)
+            print(f"🔥 [BRANCH_DECISION] 条件评估结果: {condition_result}")
+
             if condition_result is None:
-                print(f"分支条件评估失败，步骤ID: {self.id}")
+                print(f"🔥 [BRANCH_DECISION] ❌ 分支条件评估失败，步骤ID: {self.id}")
                 return False
             
             # 处理新的多条件格式返回结果
@@ -911,7 +963,7 @@ class ApprovalStep(db.Model):
             print(f"数据类型: {type(pricing_order_data)}")
             if pricing_order_data:
                 print(f"数据内容详情: {type(pricing_order_data).__name__} - {pricing_order_data}")
-            import pdb; pdb.set_trace()  # 手动调试断点
+            # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
             
             current_app.logger.info(f"批结算审批 - 动作开始执行，批价单ID: {pricing_order.id}")
             current_app.logger.info(f"批结算审批 - 接收到的数据: {pricing_order_data}")
@@ -930,7 +982,7 @@ class ApprovalStep(db.Model):
                 print(f"数据字段检查:")
                 for key, value in pricing_order_data.items():
                     print(f"  - {key}: {value} (类型: {type(value)})")
-            import pdb; pdb.set_trace()  # 手动调试断点
+            # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
             
             # 如果有外部传递的批价单数据，保存到数据库
             if pricing_order_data:
@@ -942,7 +994,7 @@ class ApprovalStep(db.Model):
                 print(f"  - pricing_total_discount_rate: {pricing_order.pricing_total_discount_rate}")
                 print(f"  - settlement_total_discount_rate: {pricing_order.settlement_total_discount_rate}")
                 print(f"即将调用保存函数，传入数据: {pricing_order_data}")
-                import pdb; pdb.set_trace()  # 手动调试断点
+                # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
                 
                 # 使用成熟的核心保存逻辑 - 修复函数签名
                 service = PricingOrderService()
@@ -958,7 +1010,7 @@ class ApprovalStep(db.Model):
                 print(f"保存后数据库状态:")
                 print(f"  - pricing_total_discount_rate: {updated_order.pricing_total_discount_rate}")
                 print(f"  - settlement_total_discount_rate: {updated_order.settlement_total_discount_rate}")
-                import pdb; pdb.set_trace()  # 手动调试断点
+                # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
                 
                 if not success:
                     current_app.logger.error("批结算审批 - 保存批价单数据失败")
@@ -972,7 +1024,7 @@ class ApprovalStep(db.Model):
             # === 调试断点5: 函数结束 ===
             print(f"\n=== 调试断点5: 函数执行完成 ===")
             print(f"最终返回结果: True")
-            import pdb; pdb.set_trace()  # 手动调试断点
+            # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
             
             return True
             
@@ -982,7 +1034,7 @@ class ApprovalStep(db.Model):
             print(f"异常信息: {str(e)}")
             import traceback
             print(f"异常堆栈: {traceback.format_exc()}")
-            import pdb; pdb.set_trace()  # 手动调试断点
+            # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
             
             current_app.logger.error(f"执行批结算审批动作失败: {str(e)}")
             current_app.logger.error(traceback.format_exc())

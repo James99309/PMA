@@ -478,10 +478,15 @@ def approve(instance_id):
     
     current_step = get_current_step_info(instance)
     # 检查是否是授权步骤或分支决策步骤（分支决策步骤可能包含授权动作）
+    action_type = getattr(current_step, 'action_type', None) if current_step else None
     is_authorization_step = (
-        current_step and 
-        hasattr(current_step, 'action_type') and 
-        current_step.action_type == 'authorization'
+        action_type in [
+            'authorization',
+            'project_authorization',
+            'channel_authorization',
+            'business_authorization',
+            'customer_service_authorization'
+        ]
     )
     is_branch_decision_step = (
         current_step and 
@@ -1252,22 +1257,26 @@ def process_approval(instance_id):
         if not can_user_approve(instance_id, current_user.id):
             return jsonify({'success': False, 'message': '您没有权限审批此流程'})
         
-        # 检查是否是授权步骤
+        # 检查是否是授权步骤（包含所有授权类型）
         current_step = get_current_step_info(instance)
-        is_authorization_step = (
-            current_step and 
-            hasattr(current_step, 'action_type') and 
-            current_step.action_type == 'authorization'
-        )
+        action_type = getattr(current_step, 'action_type', None) if current_step else None
+        is_authorization_step = action_type in [
+            'authorization',
+            'project_authorization',
+            'channel_authorization',
+            'business_authorization',
+            'customer_service_authorization'
+        ]
         
         # 处理审批
         approval_action = ApprovalAction.APPROVE if action == 'approve' else ApprovalAction.REJECT
         success = process_approval_with_project_type(
-            instance_id, 
+            instance_id,
             approval_action,
             project_type=None,
             comment=comment,
-            user_id=current_user.id
+            user_id=current_user.id,
+            pricing_order_data=None
         )
         
         if success:

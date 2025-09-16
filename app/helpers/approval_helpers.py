@@ -3721,19 +3721,20 @@ def process_auto_step(instance_id, user_id=None):
     
     
     # 自动批准处理
-    return process_approval_with_project_type(instance_id, 'approve', None, '自动执行', user_id)
+    return process_approval_with_project_type(instance_id, 'approve', None, '自动执行', user_id, None)
 
 
-def process_approval_with_project_type(instance_id, action, project_type=None, comment=None, user_id=None):
+def process_approval_with_project_type(instance_id, action, project_type=None, comment=None, user_id=None, pricing_order_data=None):
     """处理审批操作，支持项目类型修改 - 修复版：支付步骤保持PENDING状态
-    
+
     Args:
         instance_id: 审批实例ID
         action: 审批动作（ApprovalAction枚举值）
         project_type: 项目类型，用于授权步骤
         comment: 审批意见
         user_id: 操作人ID
-        
+        pricing_order_data: 批价单数据，用于批结算步骤
+
     Returns:
         布尔值，表示操作是否成功
     """
@@ -3779,8 +3780,13 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
     
     # 判断是否为授权步骤，同时获取分支授权动作
     branch_action = None
-    if action_type == 'authorization':
+    # 直接授权类步骤（非分支）
+    if action_type in ['authorization', 'project_authorization', 'channel_authorization', 'business_authorization', 'customer_service_authorization']:
         is_authorization_step = True
+        # 非通用authorization时，明确指定分支动作类型，供授权处理函数选择对应编码生成器
+        if action_type != 'authorization':
+            branch_action = action_type
+    # 分支决策步骤中包含授权动作
     elif action_type == 'branch_decision' and branch_condition:
         # 对于分支步骤，检查匹配的分支action是否为授权类型
         # 简化版本：检查当前项目类型匹配的分支action是否包含'authorization'
@@ -3801,10 +3807,11 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
                                 (condition.get('operator') == 'in' and field_value == condition.get('value')) or
                                 (condition.get('operator') == 'contains' and condition.get('value') in str(field_value))):
                                 action_type_found = condition.get('action', '')
+                                # 分支动作包含 authorization 时认为是授权步骤
                                 is_authorization_step = 'authorization' in action_type_found
                                 if is_authorization_step:
                                     branch_action = action_type_found
-                                break
+                                    break
         except Exception as e:
             current_app.logger.error(f"检查分支授权步骤失败: {e}")
             is_authorization_step = False
@@ -3843,13 +3850,13 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
     
     db.session.add(record)
     
-    # 处理授权编号逻辑 - 只有通过且是授权步骤时才执行
-    authorization_result = None
-    
-    if action == ApprovalAction.APPROVE and is_authorization_step and instance.object_type == 'project':
-        authorization_result = _handle_project_authorization(instance, project_type, preview_only=False, branch_action=branch_action)
-    else:
-        pass  # 其他情况暂不处理
+    # 【已移除】处理授权编号逻辑 - 授权逻辑已移至分支决策动作中执行
+    # authorization_result = None
+    #
+    # if action == ApprovalAction.APPROVE and is_authorization_step and instance.object_type == 'project':
+    #     authorization_result = _handle_project_authorization(instance, project_type, preview_only=False, branch_action=branch_action)
+    # else:
+    #     pass  # 其他情况暂不处理
     
     # 如果拒绝，直接结束流程
     if action == ApprovalAction.REJECT:
@@ -4158,7 +4165,10 @@ def _handle_project_authorization(instance, project_type, preview_only=False, br
         for q in quotations:
             q.project_stage = project.current_stage
             q.project_type = project.project_type
-        
+
+        # 提交数据库事务
+        db.session.commit()
+
         current_app.logger.info(f"项目授权成功: {project.id}, 授权编号: {authorization_code}, 项目类型: {project.project_type}")
         return authorization_code
     except Exception as e:
@@ -4204,7 +4214,7 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
     # 如果提供了项目类型，使用扩展的处理函数
     if project_type is not None:
         current_app.logger.info(f"🔍 [FUNCTION_DEBUG] 重定向到 process_approval_with_project_type")
-        return process_approval_with_project_type(instance_id, action, project_type, comment, user_id)
+        return process_approval_with_project_type(instance_id, action, project_type, comment, user_id, pricing_order_data)
     
     # 原始处理逻辑保持不变...
     instance = ApprovalInstance.query.get(instance_id)
