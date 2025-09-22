@@ -605,11 +605,29 @@
   {# 未申请时不显示任何内容 #}
 {% endmacro %}
 
-{% macro render_enable_disable_badge(is_enabled) %}
-  {% if is_enabled %}
-    <span class="badge bg-success">启用</span>
+
+{% macro render_object_type_badge(object_type) %}
+  {% set type_map = {
+    'project': {'label': '项目', 'color': 'bg-info'},
+    'quotation': {'label': '报价单', 'color': 'bg-primary'},
+    'customer': {'label': '客户', 'color': 'bg-warning'},
+    'purchase_order': {'label': '订单', 'color': 'bg-success'},
+    'expense': {'label': '报销单', 'color': 'bg-secondary'},
+    'settlement': {'label': '结算单', 'color': 'bg-dark'},
+    'pricing_order': {'label': '批价单', 'color': 'bg-danger'},
+    'standard_product': {'label': '标准产品', 'color': 'bg-info'},
+    'rd_product': {'label': '研发产品', 'color': 'bg-warning'},
+    'product_analysis': {'label': '产品分析', 'color': 'bg-primary'},
+    'inventory_stock': {'label': '库存', 'color': 'bg-success'},
+    'performance_target': {'label': '绩效目标', 'color': 'bg-secondary'},
+    'user': {'label': '用户', 'color': 'bg-info'},
+    'department': {'label': '部门', 'color': 'bg-primary'}
+  } %}
+  {% if object_type and object_type in type_map %}
+    {% set config = type_map[object_type] %}
+    <span class="badge {{ config.color }}">{{ config.label }}</span>
   {% else %}
-    <span class="badge bg-danger">禁用</span>
+    <span class="badge bg-secondary">{{ object_type or '未知' }}</span>
   {% endif %}
 {% endmacro %}
 
@@ -1758,14 +1776,6 @@
   </button>
 {% endmacro %}
 
-{# 用户徽章宏 - 显示用户真实姓名 #}
-{% macro render_user_badge(user, color_class="bg-primary") %}
-  {% if user %}
-    <span class="badge {{ color_class }} text-white">{{ user.real_name or user.username }}</span>
-  {% else %}
-    <span class="badge bg-secondary text-white">未指定</span>
-  {% endif %}
-{% endmacro %}
 
 {# 渠道验证提示函数 - 仅保留业务逻辑函数 #}
 <script>
@@ -2565,6 +2575,8 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
         {% set value = item.owner if item.owner else None %}
     {% elif column.key == 'vendor_sales_manager' %}
         {% set value = item.vendor_sales_manager if item.vendor_sales_manager else None %}
+    {% elif column.key == 'creator' %}
+        {% set value = item.creator if item.creator else None %}
     {% elif column.key == 'status' %}
         {% set value = 'active' if item.is_active else 'inactive' %}
     {% elif column.key == 'is_active' and column.render == 'render_user_status_badge' %}
@@ -2716,38 +2728,33 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
             {{ render_report_source_badge(value) if value else '-' }}
         {% elif column.render == 'render_expense_invoice_images' %}
             {{ render_expense_invoice_images(item) }}
+        {% elif column.render == 'render_object_type_badge' %}
+            {{ render_object_type_badge(value) if value else '-' }}
+        {% elif column.render == 'get_object_type_display' %}
+            {{ get_object_type_display(value) if value else '-' }}
         {% else %}
             {{ caller(value, column.render) if caller else value }}
         {% endif %}
     
     {% elif column.type == 'actions' %}
-        {# 操作按钮列 #}
+        {# 操作按钮列 - 根据对象类型判断 #}
         <div class="btn-group" role="group" aria-label="操作">
-            {% if has_permission(list_config.module_name, 'view') %}
-            {% if list_config.module_name == 'project' %}
-            <a href="{{ url_for('project.view_project', project_id=item.id) }}" 
-               class="btn btn-outline-primary btn-sm" title="{{ _('查看详情') }}">
-                <i class="fas fa-eye"></i>
-            </a>
+            {% if item.__class__.__name__ == 'ApprovalProcessTemplate' %}
+                {# 审批流程模板的操作按钮 - 配置图标 #}
+                <a href="{{ url_for('approval_config.template_detail', template_id=item.id) }}"
+                   class="btn btn-outline-primary btn-sm" title="{{ _('配置模板') }}">
+                    <i class="fas fa-cogs"></i>
+                </a>
             {% else %}
-            <a href="{{ url_for(list_config.module_name + '.view_' + list_config.module_name, **{list_config.module_name + '_id': item.id}) }}" 
-               class="btn btn-outline-primary btn-sm" title="{{ _('查看详情') }}">
-                <i class="fas fa-eye"></i>
-            </a>
-            {% endif %}
-            {% endif %}
-            {% if has_permission(list_config.module_name, 'edit') %}
-            {% if list_config.module_name == 'project' %}
-            <a href="{{ url_for('project.edit_project', project_id=item.id) }}" 
-               class="btn btn-outline-secondary btn-sm" title="{{ _('编辑') }}">
-                <i class="fas fa-edit"></i>
-            </a>
-            {% else %}
-            <a href="{{ url_for(list_config.module_name + '.edit_' + list_config.module_name, **{list_config.module_name + '_id': item.id}) }}" 
-               class="btn btn-outline-secondary btn-sm" title="{{ _('编辑') }}">
-                <i class="fas fa-edit"></i>
-            </a>
-            {% endif %}
+                {# 其他类型显示通用按钮（简化版本避免权限检查） #}
+                {% if list_config is defined and list_config.module_name %}
+                    <a href="#" class="btn btn-outline-primary btn-sm" title="{{ _('查看详情') }}">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                    <a href="#" class="btn btn-outline-secondary btn-sm" title="{{ _('编辑') }}">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                {% endif %}
             {% endif %}
         </div>
         

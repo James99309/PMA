@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel %}
 
-{% block title %}{{ '编辑' if is_edit else '新建' }}审批流程模板{% endblock %}
+{% block title %}{{ _('编辑审批流程模板') if is_edit else _('新建审批流程模板') }}{% endblock %}
 
 {% block custom_head %}
 <!-- 确保jQuery被正确加载 -->
@@ -92,14 +92,14 @@
         <div class="row align-items-center">
             <div class="col-auto">
                 <h1 class="page-title mb-0">
-                    <i class="fas fa-tasks me-2"></i>{{ '编辑' if is_edit else '新建' }}审批流程模板
+                    <i class="fas fa-tasks me-2"></i>{{ _('编辑审批流程模板') if is_edit else _('新建审批流程模板') }}
                 </h1>
             </div>
             <div class="col text-end">
                 <!-- 操作按钮组 -->
                 <div class="btn-toolbar justify-content-end" role="toolbar">
                     {{ render_button(
-                        text='返回列表',
+                        text=_('返回列表'),
                         href=url_for('approval_config.template_list'),
                         color='secondary',
                         icon='fas fa-arrow-left'
@@ -228,8 +228,8 @@
             <!-- 标准化表单提交按钮 -->
             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                 {{ render_confirm_cancel(
-                    confirm_text='保存',
-                    cancel_text='取消',
+                    confirm_text=_('保存'),
+                    cancel_text=_('取消'),
                     cancel_href=url_for('approval_config.template_list'),
                     confirm_color='primary',
                     cancel_color='secondary',

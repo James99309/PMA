@@ -801,10 +801,9 @@ def create_app(config_class=Config):
     app.jinja_env.globals['validate_image_url'] = validate_image_url
 
     # 注册全局帮助函数
-    from app.helpers.ui_helpers import format_datetime, render_action_button, render_user_badge, get_user_display_name, render_filter_button
+    from app.helpers.ui_helpers import format_datetime, render_action_button, get_user_display_name, render_filter_button
     app.jinja_env.globals['format_datetime'] = format_datetime
     app.jinja_env.globals['render_action_button'] = render_action_button
-    app.jinja_env.globals['render_user_badge'] = render_user_badge
     app.jinja_env.globals['get_user_display_name'] = get_user_display_name
     app.jinja_env.globals['render_filter_button'] = render_filter_button
     

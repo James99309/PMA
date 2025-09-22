@@ -2495,29 +2495,37 @@ def can_user_approve(instance_id, user_id=None):
 
 # ----- 以下是审批流程配置模块需要的函数 ----- #
 
-def get_approval_templates(page=1, per_page=10, object_type=None, is_active=None):
+def get_approval_templates(page=1, per_page=10, object_type=None, is_active=None, search=None, creator_id=None):
     """获取审批流程模板列表
-    
+
     Args:
         page: 页码
         per_page: 每页数量
         object_type: 过滤特定类型的审批对象
         is_active: 是否只返回启用的模板
-        
+        search: 搜索关键字（模板名称）
+        creator_id: 过滤特定创建人的模板
+
     Returns:
         分页对象，包含审批流程模板列表
     """
     query = ApprovalProcessTemplate.query
-    
+
     if object_type:
         query = query.filter(ApprovalProcessTemplate.object_type == object_type)
-        
+
     if is_active is not None:
         query = query.filter(ApprovalProcessTemplate.is_active == is_active)
-    
+
+    if search:
+        query = query.filter(ApprovalProcessTemplate.name.ilike(f'%{search}%'))
+
+    if creator_id:
+        query = query.filter(ApprovalProcessTemplate.created_by == creator_id)
+
     # 按创建时间倒序排列
     query = query.order_by(ApprovalProcessTemplate.created_at.desc())
-    
+
     # 返回分页结果
     return query.paginate(page=page, per_page=per_page, error_out=False)
 
@@ -4453,16 +4461,38 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
 
 def _send_approval_notification(instance, step, action, comment):
     """发送审批通知邮件（内部函数）
-    
+
     Args:
         instance: 审批实例
         step: 当前步骤
         action: 审批动作
         comment: 审批意见
     """
-    # 邮件发送逻辑，可根据项目实际需求实现
-    # 这里仅添加占位，实际实现可在第五阶段通知系统中完成
-    pass 
+    # 使用通用的审批邮件服务
+    from app.services.approval_email_service import ApprovalEmailService
+
+    try:
+        # 可以根据不同的对象类型添加自定义上下文
+        custom_context = {}
+
+        # 根据对象类型获取额外信息
+        if instance.object_type == 'quotation':
+            # 可以添加报价单特定信息
+            custom_context['project_stage'] = '项目阶段信息'
+        elif instance.object_type == 'expense':
+            # 可以添加报销单特定信息
+            custom_context['expense_type'] = '报销类型'
+
+        # 调用通用服务发送邮件
+        ApprovalEmailService.send_approval_notification(
+            instance=instance,
+            step=step,
+            action=action,
+            comment=comment,
+            custom_context=custom_context
+        )
+    except Exception as e:
+        current_app.logger.error(f"调用审批邮件服务失败: {str(e)}") 
 
 
 def delete_approval_instance(instance_id):

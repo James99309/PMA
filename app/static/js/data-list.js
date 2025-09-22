@@ -102,7 +102,7 @@ function setupDataList(config) {
     
     // 初始化筛选搜索功能（如果配置了）
     if (config.filter) {
-        // 如果是AJAX模式，需要配置筛选搜索的AJAX参数
+        // 明确设置筛选搜索的模式
         if (config.ajax_mode) {
             config.filter.ajax_mode = true;
             config.filter.ajax_endpoint = config.ajax_endpoint;
@@ -170,6 +170,10 @@ function setupDataList(config) {
                     config.onDataLoad(data);
                 }
             };
+        } else {
+            // 传统表单提交模式
+            config.filter.ajax_mode = false;
+            console.log('📄 配置筛选搜索为传统表单提交模式');
         }
         
         // 初始化筛选搜索功能

@@ -1,0 +1,60 @@
+{# 审批流程模板列表数据模板 - 配合通用数据列表组件使用 #}
+{% from "macros/ui_helpers.html" import render_enable_disable_badge %}
+
+{% if templates.items %}
+  {% for template in templates.items %}
+    <tr>
+      <td>{{ template.name }}</td>
+      <td>{{ get_object_type_display(template.object_type) }}</td>
+      <td>
+        {{ render_enable_disable_badge(template.is_active) }}
+      </td>
+      <td>{{ template.creator.username if template.creator else '-' }}</td>
+      <td>{{ format_datetime(template.created_at) if template.created_at else '-' }}</td>
+      <td>
+        <div class="btn-group" role="group">
+          <a href="{{ url_for('approval_config.template_detail', template_id=template.id) }}"
+             class="btn btn-sm btn-info" title="查看详情">
+            <i class="fas fa-eye"></i> 查看
+          </a>
+          <a href="{{ url_for('approval_config.edit_template', template_id=template.id) }}"
+             class="btn btn-sm btn-primary" title="编辑模板">
+            <i class="fas fa-edit"></i> 编辑
+          </a>
+          {% set has_instances = check_template_has_instances(template.id) %}
+          {% if has_instances %}
+            {# 已有审批流程的模板，显示禁用/启用按钮 #}
+            <button type="button"
+                    class="btn btn-sm {% if template.is_active %}btn-warning{% else %}btn-success{% endif %}"
+                    onclick="confirmToggleTemplate('{{ template.id }}', '{{ template.name }}', {{ template.is_active|tojson }})"
+                    title="{% if template.is_active %}禁用模板{% else %}启用模板{% endif %}">
+              {% if template.is_active %}
+                <i class="fas fa-ban"></i> 禁用
+              {% else %}
+                <i class="fas fa-check"></i> 启用
+              {% endif %}
+            </button>
+          {% else %}
+            {# 未使用的模板，显示删除按钮 #}
+            <button type="button"
+                    class="btn btn-sm btn-danger"
+                    onclick="showDeleteConfirm('{{ template.id }}', '{{ template.name|e }}')"
+                    title="删除模板">
+              <i class="fas fa-trash"></i> 删除
+            </button>
+          {% endif %}
+        </div>
+      </td>
+    </tr>
+  {% endfor %}
+{% else %}
+  <tr>
+    <td colspan="6" class="text-center py-4">
+      <div class="text-muted">
+        <i class="fas fa-inbox fa-2x mb-2"></i>
+        <p class="mb-0">暂无审批流程模板</p>
+        <small>点击"创建模板"按钮开始创建您的第一个审批流程模板</small>
+      </div>
+    </td>
+  </tr>
+{% endif %}

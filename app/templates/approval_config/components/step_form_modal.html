@@ -251,13 +251,50 @@
           <div id="{{ 'edit_' if is_edit else '' }}ccUsersSection" style="display: none;">
             <div class="form-group mb-3">
               <label for="{{ 'edit_' if is_edit else '' }}cc_users">抄送用户</label>
-              <select class="form-control" id="{{ 'edit_' if is_edit else '' }}cc_users" 
-                      name="cc_users" multiple size="5">
-                {% for user in users %}
-                  <option value="{{ user.id }}">{{ user.real_name or user.username }} ({{ user.email or '无邮箱' }})</option>
-                {% endfor %}
-              </select>
-              <small class="form-text text-muted">按住Ctrl键可多选用户</small>
+
+              {# 已选中用户的徽章展示区域 #}
+              <div id="{{ 'edit_' if is_edit else '' }}selectedCcUsersContainer" class="mb-2">
+                <div id="{{ 'edit_' if is_edit else '' }}selectedCcUsersBadges" class="d-flex flex-wrap gap-2">
+                  {# 这里将通过JavaScript动态显示选中的用户徽章 #}
+                </div>
+              </div>
+
+              {# 用户选择复选框列表 #}
+              <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto; background-color: #f8f9fa;">
+                <div class="mb-3">
+                  <input type="text" class="form-control form-control-sm"
+                         id="{{ 'edit_' if is_edit else '' }}ccUserSearch"
+                         placeholder="搜索用户..."
+                         onkeyup="filterCcUsers('{{ 'edit_' if is_edit else '' }}')">
+                </div>
+                <div id="{{ 'edit_' if is_edit else '' }}ccUsersList" class="cc-users-list">
+                  {% for user in users %}
+                    {% if user.email %}  {# 只显示有邮箱的用户 #}
+                    <div class="cc-user-item d-flex align-items-center mb-2 p-2 rounded"
+                         data-user-name="{{ (user.real_name or user.username)|lower }}">
+                      <div class="form-check">
+                        <input class="form-check-input cc-user-checkbox"
+                               type="checkbox"
+                               id="{{ 'edit_' if is_edit else '' }}cc_user_{{ user.id }}"
+                               name="cc_users"
+                               value="{{ user.id }}"
+                               data-username="{{ user.real_name or user.username }}"
+                               data-email="{{ user.email }}"
+                               onchange="updateCcUserBadges('{{ 'edit_' if is_edit else '' }}')">
+                        <label class="form-check-label ms-2"
+                               for="{{ 'edit_' if is_edit else '' }}cc_user_{{ user.id }}">
+                          <div class="d-flex flex-column">
+                            <span class="fw-bold text-dark">{{ user.real_name or user.username }}</span>
+                            <small class="text-muted">{{ user.email }}</small>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+              <small class="form-text text-muted">选择需要抄送邮件的用户，只显示已配置邮箱的用户</small>
             </div>
           </div>
         </div>

@@ -58,22 +58,120 @@ def template_list():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
     object_type = request.args.get('object_type')
-    
-    # 获取模板列表
+    is_active = request.args.get('is_active')
+    creator_id = request.args.get('creator_id')
+    search = request.args.get('search', '').strip()
+
+    # 获取模板列表 - 支持筛选
     templates = get_approval_templates(
-        page=page, 
+        page=page,
         per_page=per_page,
-        object_type=object_type
+        object_type=object_type,
+        is_active=True if is_active == 'true' else False if is_active == 'false' else None,
+        search=search,
+        creator_id=creator_id
     )
-    
+
     # 获取业务对象类型列表
     object_types = get_object_types()
-    
+
+    # 查询实际数据生成筛选选项
+    from app.models.user import User
+    from sqlalchemy import distinct
+
+    # 获取所有实际创建过模板的用户
+    creator_ids = db.session.query(distinct(ApprovalProcessTemplate.created_by)).all()
+    creator_ids = [c[0] for c in creator_ids if c[0]]
+    creators = User.query.filter(User.id.in_(creator_ids)).order_by(User.real_name, User.username).all() if creator_ids else []
+
+    # 获取实际存在的业务类型
+    actual_object_types = db.session.query(distinct(ApprovalProcessTemplate.object_type)).all()
+    actual_object_types = [t[0] for t in actual_object_types if t[0]]
+    # 筛选出实际存在的业务类型选项
+    actual_object_type_options = [(code, name) for code, name in object_types if code in actual_object_types]
+
+    # 配置标准化的筛选搜索
+    filter_config = {
+        'action_url': url_for('approval_config.template_list'),
+        'reset_url': url_for('approval_config.template_list'),
+        'form_id': 'templateFilterForm',
+        'auto_submit': True,
+        'dynamic_reset_button': True,
+        'search_field': {
+            'name': 'search',
+            'label': '搜索模板',
+            'placeholder': '搜索模板名称...',
+            'value': search
+        },
+        'filter_fields': [
+            {
+                'name': 'object_type',
+                'label': '业务类型',
+                'all_option_text': '全部业务类型',
+                'current_value': object_type or '',
+                'auto_submit': True,
+                'options': [
+                    {'value': code, 'label': name, 'translate': False} for code, name in actual_object_type_options
+                ],
+                'col_width': 'col-md-3'
+            },
+            {
+                'name': 'is_active',
+                'label': '模板状态',
+                'all_option_text': '全部状态',
+                'current_value': is_active or '',
+                'auto_submit': True,
+                'options': [
+                    {'value': 'true', 'label': '活跃', 'translate': False},
+                    {'value': 'false', 'label': '非活跃', 'translate': False}
+                ],
+                'col_width': 'col-md-3'
+            },
+            {
+                'name': 'creator_id',
+                'label': '创建人',
+                'all_option_text': '全部创建人',
+                'current_value': creator_id or '',
+                'auto_submit': True,
+                'options': [
+                    {'value': str(user.id), 'label': user.real_name or user.username, 'translate': False}
+                    for user in creators
+                ],
+                'col_width': 'col-md-3'
+            }
+        ],
+        'search_button_text': '搜索',
+        'reset_button_text': '重置'
+    }
+
+    # 配置标准化的数据列表
+    list_config = {
+        'module_name': 'approval_template',
+        'title': None,  # 页面级标题由模板控制，此处不显示
+        'ajax_mode': False,
+        'filter': filter_config,
+        'table': {
+            'columns': [
+                {'key': 'name', 'field': 'name', 'label': '模板名称', 'sortable': True, 'width': '20%', 'type': 'link', 'url_template': '/admin/approval/process/{id}/edit'},
+                {'key': 'object_type', 'field': 'object_type', 'label': '业务类型', 'sortable': True, 'width': '15%', 'render': 'get_object_type_display'},
+                {'key': 'is_active', 'field': 'is_active', 'label': '状态', 'sortable': False, 'width': '10%', 'render': 'render_status_badge'},
+                {'key': 'creator', 'field': 'creator', 'label': '创建人', 'sortable': True, 'width': '15%', 'render': 'render_owner'},
+                {'key': 'created_at', 'field': 'created_at', 'label': '创建时间', 'sortable': True, 'width': '20%'},
+                {'key': 'actions', 'type': 'actions', 'label': '操作', 'sortable': False, 'width': '20%'}
+            ],
+            'enhanced_striping': True,
+            'show_header': True
+        },
+        'pagination': templates if hasattr(templates, 'pages') else None
+    }
+
     return render_template(
         'approval_config/template_list.html',
         templates=templates,
         object_types=object_types,
         current_object_type=object_type,
+        filter_config=filter_config,
+        list_config=list_config,
         can_modify=True  # 管理员权限页面默认可修改
     )
 

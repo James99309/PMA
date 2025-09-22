@@ -20,13 +20,11 @@
         </div>
     </div>
 
-    <!-- 使用通用列表组件 -->
-    {{ render_data_list(list_config, templates.items) }}
-
-    <!-- 移动端+号浮动按钮，仅小屏幕显示 -->
-    <div class="d-lg-none">
-        {{ render_button('创建模板', url_for('approval_config.create_template'), color='primary', icon='fas fa-plus', extra_class='rounded-circle shadow position-fixed', attrs='id="mobileFabBtn" style="right: 24px; bottom: 24px; width: 56px; height: 56px; z-index: 1050; font-size: 2rem; display: flex; align-items: center; justify-content: center;"') }}
-    </div>
+    <!-- 使用通用列表组件，传入自定义表格内容 -->
+    {% call render_data_list(list_config) %}
+        <!-- 自定义表格内容将通过 include 加载 -->
+        {% include 'approval_config/template_list_data.html' %}
+    {% endcall %}
 </div>
 {% endblock %}
 
@@ -44,9 +42,6 @@
 {% block scripts %}
   <!-- 通用数据列表组件 -->
   <script src="{{ url_for('static', filename='js/data-list.js') }}"></script>
-
-  <!-- 筛选搜索组件 -->
-  <script src="{{ url_for('static', filename='js/filter-search.js') }}"></script>
 
   <!-- 审批配置重构模块 -->
   <script src="{{ url_for('static', filename='js/approval_config/approval-config.js') }}"></script>
@@ -140,11 +135,9 @@
       };
 
       // 初始化数据列表
-      if (typeof window.setupDataList === 'function') {
-        window.setupDataList(templateListConfig);
+      if (typeof window.initDataList === 'function') {
+        window.initDataList(templateListConfig);
       }
-
-      // 筛选功能由通用数据列表组件自动处理，无需额外配置
     });
   </script>
-{% endblock %}
+{% endblock %} 

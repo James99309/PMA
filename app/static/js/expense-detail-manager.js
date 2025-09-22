@@ -2510,17 +2510,29 @@ class ExpenseDetailManager {
                     let actualUserExtension = expectedExtension;
                     
                     if (file.name.startsWith('tempImage')) {
-                        console.warn('🚨 检测到Safari tempImage重命名:', file.name);
-                        console.warn('🚨 这意味着Safari修改了用户的原始文件名和可能的格式');
-                        
-                        // Safari的tempImage文件通常是HEIC格式，但用户原始文件可能是其他格式
-                        // 由于我们无法得知用户真正的原始文件扩展名，我们需要采用保守策略
-                        if (file.type === 'image/heic' && file.name.endsWith('.heic')) {
-                            // 这是一个真正的Safari转换的HEIC文件
-                            // 为了避免格式混乱，我们假设用户上传的是常见格式，强制使用JPG
-                            console.warn('🔒 Safari tempImage文件强制使用JPG扩展名以保证兼容性');
-                            forcedExtension = 'jpg';
-                            actualUserExtension = 'jpg';
+                        console.warn('🚨 [DEBUG] 检测到Safari tempImage重命名:', file.name);
+                        console.warn('🚨 [DEBUG] Safari修改了原始文件名，需要检测真实格式');
+                        console.warn('📋 [DEBUG] 原始文件信息:', {
+                            name: file.name,
+                            type: file.type,
+                            size: file.size,
+                            lastModified: new Date(file.lastModified).toISOString()
+                        });
+
+                        // 使用FileReader检测文件实际内容格式
+                        console.log('🔍 [DEBUG] 开始检测文件真实格式...');
+                        const actualFormat = await this.detectFileFormat(file);
+                        console.log('🔍 [DEBUG] 格式检测结果:', actualFormat);
+
+                        if (actualFormat) {
+                            console.info(`✅ [DEBUG] 检测到Safari文件的真实格式: ${actualFormat}`);
+                            console.info(`🔧 [DEBUG] 强制扩展名从 ${expectedExtension} 改为 ${actualFormat}`);
+                            forcedExtension = actualFormat;
+                            actualUserExtension = actualFormat;
+                        } else {
+                            console.warn('⚠️ [DEBUG] 无法检测Safari文件格式，使用原文件名');
+                            console.warn('⚠️ [DEBUG] 保持原始扩展名:', expectedExtension);
+                            // 保持原始文件名，不进行强制转换
                         }
                     } else if (expectedExtension && expectedExtension !== 'heic' && file.type === 'image/heic') {
                         // 非tempImage情况下的MIME类型不匹配检测
@@ -2533,19 +2545,21 @@ class ExpenseDetailManager {
                     
                     try {
                         if (row.id) {
-                            console.log('📞 调用预览API:', `/expense/api/preview_invoice_filename/${row.id}`);
-                            
+                            console.log('📞 [DEBUG] 调用预览API:', `/expense/api/preview_invoice_filename/${row.id}`);
+
                             // 如果有detail_id，调用预览API获取规范化文件名
                             // 如果检测到Safari错误转换，传递修正后的信息
-                            const apiFilename = forcedExtension ? 
+                            const apiFilename = forcedExtension ?
                                 `corrected_file.${actualUserExtension}` : file.name;
-                            const apiMimeType = forcedExtension ? 
+                            const apiMimeType = forcedExtension ?
                                 `image/${actualUserExtension === 'jpg' ? 'jpeg' : actualUserExtension}` : (file.type || '');
-                                
-                            console.log('📤 传递给预览API的参数:', {
+
+                            console.log('📤 [DEBUG] 传递给预览API的参数:', {
                                 original: { filename: file.name, mimeType: file.type },
                                 corrected: { filename: apiFilename, mimeType: apiMimeType },
-                                forcedExtension: forcedExtension
+                                forcedExtension: forcedExtension,
+                                actualUserExtension: actualUserExtension,
+                                expectedExtension: expectedExtension
                             });
                             
                             const previewResponse = await fetch(`/expense/api/preview_invoice_filename/${row.id}`, {
@@ -4764,7 +4778,7 @@ class ExpenseDetailManager {
      */
     checkScrollability(container) {
         if (!container) return;
-        
+
         // 延迟检查，确保DOM更新完成
         setTimeout(() => {
             const isScrollable = container.scrollWidth > container.clientWidth;
@@ -4774,6 +4788,108 @@ class ExpenseDetailManager {
                 container.classList.remove('scrollable');
             }
         }, 100);
+    }
+
+    /**
+     * 检测文件的实际格式（基于文件头魔术字节）
+     * @param {File} file - 要检测的文件对象
+     * @returns {Promise<string|null>} - 返回检测到的格式扩展名，失败返回null
+     */
+    async detectFileFormat(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                try {
+                    const arrayBuffer = e.target.result;
+                    const bytes = new Uint8Array(arrayBuffer);
+
+                    console.log('🔬 [DEBUG] 文件头检测:', {
+                        bytesLength: bytes.length,
+                        firstBytes: Array.from(bytes.slice(0, 16)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ')
+                    });
+
+                    if (bytes.length < 4) {
+                        console.warn('⚠️ [DEBUG] 文件太小，无法检测格式');
+                        resolve(null);
+                        return;
+                    }
+
+                    // JPEG: FF D8 FF
+                    if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+                        console.log('✅ [DEBUG] 检测到JPEG格式 (FF D8 FF)');
+                        resolve('jpg');
+                        return;
+                    }
+
+                    // PNG: 89 50 4E 47 0D 0A 1A 0A
+                    if (bytes.length >= 8 &&
+                        bytes[0] === 0x89 && bytes[1] === 0x50 &&
+                        bytes[2] === 0x4E && bytes[3] === 0x47 &&
+                        bytes[4] === 0x0D && bytes[5] === 0x0A &&
+                        bytes[6] === 0x1A && bytes[7] === 0x0A) {
+                        console.log('✅ [DEBUG] 检测到PNG格式 (89 50 4E 47...)');
+                        resolve('png');
+                        return;
+                    }
+
+                    // GIF: 47 49 46 38 (GIF8)
+                    if (bytes[0] === 0x47 && bytes[1] === 0x49 &&
+                        bytes[2] === 0x46 && bytes[3] === 0x38) {
+                        console.log('✅ 检测到GIF格式');
+                        resolve('gif');
+                        return;
+                    }
+
+                    // PDF: 25 50 44 46 (%PDF)
+                    if (bytes[0] === 0x25 && bytes[1] === 0x50 &&
+                        bytes[2] === 0x44 && bytes[3] === 0x46) {
+                        console.log('✅ 检测到PDF格式');
+                        resolve('pdf');
+                        return;
+                    }
+
+                    // BMP: 42 4D (BM)
+                    if (bytes[0] === 0x42 && bytes[1] === 0x4D) {
+                        console.log('✅ 检测到BMP格式');
+                        resolve('bmp');
+                        return;
+                    }
+
+                    // HEIC/HEIF: 检查ftyp box (position 4-8)
+                    if (bytes.length > 11 &&
+                        bytes[4] === 0x66 && bytes[5] === 0x74 && // 'ft'
+                        bytes[6] === 0x79 && bytes[7] === 0x70) { // 'yp'
+
+                        // 检查brand (position 8-12)
+                        const brand = String.fromCharCode(bytes[8], bytes[9], bytes[10], bytes[11]);
+                        const heicBrands = ['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'hevm', 'hevs'];
+
+                        if (heicBrands.includes(brand)) {
+                            console.log('✅ 检测到HEIC格式');
+                            resolve('heic');
+                            return;
+                        }
+                    }
+
+                    console.warn('⚠️ 无法识别文件格式');
+                    resolve(null);
+
+                } catch (error) {
+                    console.error('文件格式检测失败:', error);
+                    resolve(null);
+                }
+            };
+
+            reader.onerror = function() {
+                console.error('读取文件失败');
+                resolve(null);
+            };
+
+            // 只读取前1024字节用于格式检测
+            const blob = file.slice(0, 1024);
+            reader.readAsArrayBuffer(blob);
+        });
     }
 }
 

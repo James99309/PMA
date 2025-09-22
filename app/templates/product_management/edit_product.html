@@ -289,8 +289,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             data-row-id="${rowId}" disabled>
                         <option value="">-- 请先选择规格 --</option>
                     </select>
-                    <input type="hidden" name="indicator_values[]" value="">
-                    <input type="hidden" name="indicator_codes[]" value="">
+                    <input type="hidden" name="spec_value[]" value="">
+                    <input type="hidden" name="spec_option_codes[]" value="">
                 </div>
             </td>
             <td>
@@ -451,8 +451,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 data-row-id="${rowId}">
                             <option value="">-- 请选择指标值 --</option>
                         </select>
-                        <input type="hidden" name="indicator_values[]" value="${spec.field_value}">
-                        <input type="hidden" name="indicator_codes[]" value="${spec.field_code || ''}">
+                        <input type="hidden" name="spec_value[]" value="${spec.field_value}">
+                        <input type="hidden" name="spec_option_codes[]" value="${spec.field_code || ''}">
                     </div>
                 </td>
                 <td>
@@ -480,8 +480,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 data-row-id="${rowId}">
                             <option value="">-- 请选择指标值 --</option>
                         </select>
-                        <input type="hidden" name="indicator_values[]" value="${spec.field_value}">
-                        <input type="hidden" name="indicator_codes[]" value="">
+                        <input type="hidden" name="spec_value[]" value="${spec.field_value}">
+                        <input type="hidden" name="spec_option_codes[]" value="">
                     </div>
                 </td>
                 <td>
@@ -499,8 +499,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // 设置编辑页面规格行的交互功能
     function setupEditSpecRow(row, spec, isCodedSpec) {
         const indicatorSelect = row.querySelector('.indicator-select');
-        const indicatorValueHidden = row.querySelector('input[name="indicator_values[]"]');
-        const indicatorCodeHidden = row.querySelector('input[name="indicator_codes[]"]');
+        const indicatorValueHidden = row.querySelector('input[name="spec_value[]"]');
+        const indicatorCodeHidden = row.querySelector('input[name="spec_option_codes[]"]');
         
         if (indicatorSelect) {
             // 使用共享函数加载指标选项
@@ -617,7 +617,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const specsWithPosition = [];
         
         specRows.forEach(row => {
-            const indicatorCodeInput = row.querySelector('input[name="indicator_codes[]"]') || 
+            const indicatorCodeInput = row.querySelector('input[name="spec_option_codes[]"]') || 
                                       row.querySelector('input[name="spec_option_codes[]"]');
             const specFieldIdInput = row.querySelector('input[name="spec_field_ids[]"]');
             

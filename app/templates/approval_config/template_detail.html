@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% from "approval_config/components/step_list.html" import step_list with context %}
-{% from 'macros/ui_helpers.html' import render_enable_disable_badge, render_confirm_dialog with context %}
+{% from 'macros/ui_helpers.html' import render_status_badge, render_confirm_dialog, render_button with context %}
 {% from 'macros/approval_flow.html' import render_complete_approval_section %}
 
-{% block title %}审批流程模板详情{% endblock %}
+{% block title %}{{ _('审批流程模板详情') }}{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/approval_flow.css') }}">
@@ -13,48 +13,54 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-4">
+<div class="container-fluid page-with-fixed-nav">
   <div class="row">
     <div class="col-12">
-      <!-- 面包屑导航 -->
-      <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-          <li class="breadcrumb-item"><a href="{{ url_for('admin.system_settings') }}">管理后台</a></li>
-          <li class="breadcrumb-item"><a href="{{ url_for('approval_config.template_list') }}">审批流程模板</a></li>
-          <li class="breadcrumb-item active" aria-current="page">{{ template.name }}</li>
-        </ol>
-      </nav>
-
-      <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="card-title mb-0">
-            <i class="fas fa-tasks mr-2"></i>审批流程模板详情
-          </h5>
-          <div>
-            <a href="{{ url_for('approval_config.edit_template', template_id=template.id) }}" class="btn btn-info btn-sm">
-              <i class="fas fa-edit"></i> 编辑模板
-            </a>
-            <a href="{{ url_for('approval_config.template_list') }}" class="btn btn-outline-secondary btn-sm ml-2">
-              <i class="fas fa-arrow-left"></i> 返回列表
-            </a>
+      <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
+      <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+          <div class="col-auto">
+            <h1 class="page-title mb-0">
+              <i class="fas fa-tasks me-2"></i>{{ _('审批流程模板详情') }}
+            </h1>
+          </div>
+          <div class="col text-end">
+            <!-- 操作按钮组 -->
+            <div class="btn-toolbar justify-content-end" role="toolbar">
+              {{ render_button(
+                text=_('编辑模板'),
+                href=url_for('approval_config.edit_template', template_id=template.id),
+                color='info',
+                icon='fas fa-edit'
+              ) }}
+              {{ render_button(
+                text=_('返回列表'),
+                href=url_for('approval_config.template_list'),
+                color='secondary',
+                icon='fas fa-arrow-left'
+              ) }}
+            </div>
           </div>
         </div>
+      </div>
+
+      <div class="card">
         <div class="card-body">
           <!-- 模板基本信息 -->
           <div class="row mb-4">
             <div class="col-md-6">
               <dl class="row">
-                <dt class="col-sm-4">模板名称：</dt>
+                <dt class="col-sm-4">{{ _('模板名称') }}：</dt>
                 <dd class="col-sm-8" style="color: #000;">{{ template.name }}</dd>
                 
-                <dt class="col-sm-4">适用业务对象：</dt>
+                <dt class="col-sm-4">{{ _('适用业务对象') }}：</dt>
                 <dd class="col-sm-8" style="color: #000;">{{ get_object_type_display(template.object_type) }}</dd>
                 
-                <dt class="col-sm-4">创建人：</dt>
+                <dt class="col-sm-4">{{ _('创建人') }}：</dt>
                 <dd class="col-sm-8" style="color: #000;">{{ template.creator.username }}</dd>
                 
                 {% if template.required_fields and template.required_fields|length > 0 %}
-                <dt class="col-sm-4">必填字段：</dt>
+                <dt class="col-sm-4">{{ _('必填字段') }}：</dt>
                 <dd class="col-sm-8">
                   <div class="required-fields-list">
                     {% set field_options = get_object_field_options(template.object_type) %}
@@ -103,21 +109,21 @@
             </div>
             <div class="col-md-6">
               <dl class="row">
-                <dt class="col-sm-4">创建时间：</dt>
+                <dt class="col-sm-4">{{ _('创建时间') }}：</dt>
                 <dd class="col-sm-8" style="color: #000;">{{ format_datetime(template.created_at) }}</dd>
                 
-                <dt class="col-sm-4">状态：</dt>
+                <dt class="col-sm-4">{{ _('状态') }}：</dt>
                 <dd class="col-sm-8">
-                  {{ render_enable_disable_badge(template.is_active) }}
+                  {{ render_status_badge(template.is_active) }}
                 </dd>
                 
-                <dt class="col-sm-4">是否已使用：</dt>
+                <dt class="col-sm-4">{{ _('是否已使用') }}：</dt>
                 <dd class="col-sm-8">
                   {% if in_use %}
-                    <span class="badge badge-warning" style="color: #000; background-color: #ffc107 !important;">已关联审批实例</span>
-                    <small class="text-muted d-block">（已关联实例的模板只能修改名称和状态）</small>
+                    <span class="badge badge-warning" style="color: #000; background-color: #ffc107 !important;">{{ _('已关联审批实例') }}</span>
+                    <small class="text-muted d-block">{{ _('（已关联实例的模板只能修改名称和状态）') }}</small>
                   {% else %}
-                    <span class="badge badge-info" style="color: #fff; background-color: #17a2b8 !important;">未使用</span>
+                    <span class="badge badge-info" style="color: #fff; background-color: #17a2b8 !important;">{{ _('未使用') }}</span>
                   {% endif %}
                 </dd>
               </dl>
@@ -127,11 +133,11 @@
           <!-- 快照机制说明 -->
           <div class="alert alert-info">
             <i class="fas fa-info-circle"></i>
-            <strong>快照机制保护：</strong>
-            修改模板不会影响已创建的审批流程。每个审批实例都有独立的快照数据，完全隔离模板变更的影响。
-            当前有 {{ completed_instances_count }} 个已完成实例，{{ pending_instances_count }} 个进行中实例。
+            <strong>{{ _('快照机制保护') }}：</strong>
+            {{ _('修改模板不会影响已创建的审批流程。每个审批实例都有独立的快照数据，完全隔离模板变更的影响。') }}
+            {{ _('当前有') }} {{ completed_instances_count }} {{ _('个已完成实例，') }}{{ pending_instances_count }} {{ _('个进行中实例。') }}
             {% if pending_instances_count > 0 %}
-            <br><small class="text-success"><i class="fas fa-shield-alt"></i> 进行中的审批流程受快照机制完全保护，您可以安全地修改模板结构。</small>
+            <br><small class="text-success"><i class="fas fa-shield-alt"></i> {{ _('进行中的审批流程受快照机制完全保护，您可以安全地修改模板结构。') }}</small>
             {% endif %}
           </div>
 

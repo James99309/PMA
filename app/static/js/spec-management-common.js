@@ -13,8 +13,8 @@ window.SpecManagement = {
         const indicatorSelect = row.querySelector('.indicator-select');
         const specNameHidden = row.querySelector('input[name="spec_name[]"]');
         const specFieldIdHidden = row.querySelector('input[name="spec_field_ids[]"]');
-        const indicatorValueHidden = row.querySelector('input[name="indicator_values[]"]');
-        const indicatorCodeHidden = row.querySelector('input[name="indicator_codes[]"]');
+        const indicatorValueHidden = row.querySelector('input[name="spec_value[]"]');
+        const indicatorCodeHidden = row.querySelector('input[name="spec_option_codes[]"]');
 
         // 加载可选的非编码规格
         this.loadNonCodedSpecSelect(row);

@@ -1946,13 +1946,53 @@ def upload_invoice_temp():
         temp_id = str(uuid.uuid4())
         original_filename = secure_filename(file.filename)
         
-        # 检测Safari tempImage重命名并修正扩展名
+        # 智能检测文件实际格式，修正Safari错误
         filename = original_filename
-        if original_filename.startswith('tempImage') and original_filename.endswith('.heic'):
-            # Safari的tempImage文件，为了兼容性强制使用JPG扩展名
-            name, ext = os.path.splitext(original_filename)
-            filename = f"{name}.jpg"
-            logger.warning(f"检测到Safari tempImage文件，修正扩展名：{original_filename} -> {filename}")
+        logger.info(f"[DEBUG] 开始处理文件：{original_filename}")
+        logger.info(f"[DEBUG] 文件MIME类型：{file.content_type}")
+
+        if original_filename.startswith('tempImage'):
+            logger.warning(f"[DEBUG] 检测到Safari tempImage文件：{original_filename}")
+
+            # 读取文件内容检测真实格式
+            file_content = file.read()
+            file.seek(0)  # 重置文件指针
+
+            logger.info(f"[DEBUG] 文件大小：{len(file_content)} 字节")
+            if len(file_content) >= 16:
+                file_header = ' '.join([f'{b:02x}' for b in file_content[:16]])
+                logger.info(f"[DEBUG] 文件头：{file_header}")
+
+            # 检测文件实际格式
+            actual_format = None
+            if len(file_content) >= 8:
+                # JPEG: FF D8 FF
+                if file_content[:3] == b'\xFF\xD8\xFF':
+                    actual_format = 'jpg'
+                # PNG: 89 50 4E 47 0D 0A 1A 0A
+                elif file_content[:8] == b'\x89PNG\r\n\x1a\n':
+                    actual_format = 'png'
+                # GIF: 47 49 46 38
+                elif file_content[:4] == b'GIF8':
+                    actual_format = 'gif'
+                # PDF: 25 50 44 46
+                elif file_content[:4] == b'%PDF':
+                    actual_format = 'pdf'
+                # HEIC/HEIF: ftyp in position 4-8
+                elif len(file_content) > 11 and file_content[4:8] == b'ftyp':
+                    ftyp = file_content[8:12]
+                    if ftyp in [b'heic', b'heix', b'hevc', b'hevx', b'heim', b'heis', b'hevm', b'hevs']:
+                        actual_format = 'heic'
+
+            if actual_format:
+                name, ext = os.path.splitext(original_filename)
+                filename = f"{name}.{actual_format}"
+                logger.info(f"[DEBUG] 基于文件内容修正Safari文件格式：{original_filename} -> {filename}")
+            else:
+                logger.warning(f"[DEBUG] 无法检测Safari文件的实际格式，保持原文件名：{original_filename}")
+                filename = original_filename
+        else:
+            logger.info(f"[DEBUG] 非Safari tempImage文件，保持原文件名：{original_filename}")
         
         # 添加时间戳避免重复
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

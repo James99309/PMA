@@ -98,6 +98,159 @@
     transform: translateY(-2px);
 }
 
+/* 抄送用户相关样式 */
+.cc-users-list {
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.cc-user-item {
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.cc-user-item:hover {
+    background-color: #e3f2fd !important;
+    border-color: #90caf9;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.cc-user-item .form-check {
+    width: 100%;
+    margin: 0;
+}
+
+.cc-user-item .form-check-input {
+    width: 18px;
+    height: 18px;
+    margin-top: 0;
+    border: 2px solid #dee2e6;
+    border-radius: 4px;
+    background-color: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cc-user-item .form-check-input:checked {
+    background-color: #007bff;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.cc-user-item .form-check-input:focus {
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.cc-user-item .form-check-label {
+    cursor: pointer;
+    width: 100%;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.cc-user-item .form-check-label .fw-bold {
+    color: #333 !important;
+    font-weight: 600;
+}
+
+.cc-user-item .form-check-label .text-muted {
+    color: #6c757d !important;
+    font-size: 0.8rem;
+}
+
+/* 用户徽章样式 */
+#selectedCcUsersBadges .badge,
+#edit_selectedCcUsersBadges .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 20px;
+}
+
+#selectedCcUsersBadges .badge i,
+#edit_selectedCcUsersBadges .badge i {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+#selectedCcUsersBadges .badge i:hover,
+#edit_selectedCcUsersBadges .badge i:hover {
+    opacity: 1;
+}
+
+/* 搜索框样式 */
+#ccUserSearch,
+#edit_ccUserSearch {
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 6px 12px;
+    width: 100%;
+}
+
+#ccUserSearch:focus,
+#edit_ccUserSearch:focus {
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* 用户列表滚动区域样式 */
+#ccUsersList,
+#edit_ccUsersList {
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+/* 未选择用户时的提示样式 */
+#selectedCcUsersContainer .text-muted,
+#edit_selectedCcUsersContainer .text-muted {
+    font-style: italic;
+    font-size: 0.875rem;
+}
+
+/* 确保复选框在所有浏览器中正确显示 */
+.cc-user-item .form-check-input[type="checkbox"] {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    position: relative;
+    display: inline-block;
+    vertical-align: top;
+    flex-shrink: 0;
+}
+
+.cc-user-item .form-check-input[type="checkbox"]:checked::before {
+    content: "✓";
+    position: absolute;
+    top: -2px;
+    left: 2px;
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 1;
+}
+
+/* 解决模态框中的z-index问题 */
+.modal .cc-user-item .form-check-input {
+    z-index: 1;
+    position: relative;
+}
+
+/* 搜索框在模态框中的样式优化 */
+.modal .cc-users-list #ccUserSearch,
+.modal .cc-users-list #edit_ccUserSearch {
+    z-index: 1;
+    position: relative;
+}
+
 .branch-step-button.active {
     border-color: #007bff;
     background: linear-gradient(135deg, #f8f9ff 0%, #e9f2ff 100%);

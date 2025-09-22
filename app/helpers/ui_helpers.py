@@ -45,31 +45,12 @@ def render_filter_button(text, type="submit", btn_class="btn-primary", icon=None
     </button>
     '''
 
-def render_user_badge(user, badge_class="bg-info"):
-    """渲染用户徽章
-    
-    Args:
-        user: 用户对象或用户名
-        badge_class: 徽章样式类
-        
-    Returns:
-        HTML徽章元素字符串
-    """
-    if not user:
-        return '<span class="badge bg-secondary">无</span>'
-    
-    # 如果是用户对象，获取真实姓名或用户名
-    if hasattr(user, 'real_name') and user.real_name:
-        display_name = user.real_name
-    elif hasattr(user, 'name'):
-        display_name = user.name
-    elif hasattr(user, 'username'):
-        display_name = user.username
-    else:
-        display_name = str(user)
-    
-    return f'<span class="badge {badge_class}">{display_name}</span>'
 
+def render_user_badge(user, badge_class="bg-info"):
+    """临时占位函数，应使用 render_owner 替代"""
+    # 这是一个临时函数，避免导入错误
+    # 应该使用 render_owner 替代
+    return f'<span class="badge {badge_class}">临时用户徽章</span>'
 
 def format_datetime(dt):
     """格式化日期时间

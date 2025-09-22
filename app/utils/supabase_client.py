@@ -949,9 +949,13 @@ class SupabaseStorageClient:
         try:
             # 获取本地目录名
             local_dir_name = self.get_bucket_name(bucket_type)
-            
-            # 生成规范化的文件名和存储路径
-            standardized_info = self._generate_standardized_invoice_name(detail_id, filename, detail_sequence, file_sequence)
+
+            # 读取文件内容（提前读取用于格式检测）
+            file_content = file.read()
+            file.seek(0)  # 重置文件指针
+
+            # 生成规范化的文件名和存储路径（传入文件内容用于格式检测）
+            standardized_info = self._generate_standardized_invoice_name(detail_id, filename, detail_sequence, file_sequence, file_content)
             if not standardized_info:
                 logger.warning(f"生成规范化文件名失败，使用简化命名")
                 # 简化的本地存储路径
@@ -974,14 +978,11 @@ class SupabaseStorageClient:
                 os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
                 
             logger.info(f"📁 本地存储路径: {local_file_path}")
-            
-            # 处理并保存图片文件
-            file_content = file.read()
-            file.seek(0)
-            
+
             try:
-                # 处理图片（压缩等）
-                processed_content = self._process_invoice_image(file_content, filename)
+                # 处理图片（压缩等），使用标准化后的文件名（可能已经修正了扩展名）
+                final_filename = standardized_info['filename'] if standardized_info else safe_filename
+                processed_content = self._process_invoice_image(file_content, final_filename)
             except Exception as e:
                 logger.warning(f"图片处理失败，使用原始文件: {str(e)}")
                 processed_content = file_content
@@ -1016,9 +1017,13 @@ class SupabaseStorageClient:
         try:
             # 获取对应的存储桶名称
             bucket_name = self.get_bucket_name(bucket_type)
-            
-            # 生成规范化的文件名和存储路径
-            standardized_info = self._generate_standardized_invoice_name(detail_id, filename, detail_sequence, file_sequence)
+
+            # 读取文件内容（提前读取用于格式检测）
+            file_content = file.read()
+            file.seek(0)  # 重置文件指针
+
+            # 生成规范化的文件名和存储路径（传入文件内容用于格式检测）
+            standardized_info = self._generate_standardized_invoice_name(detail_id, filename, detail_sequence, file_sequence, file_content)
             if not standardized_info:
                 logger.error(f"生成规范化文件名失败，使用原始命名: {filename}")
                 storage_path = f"expense_invoices/{detail_id}/{filename}"
@@ -1028,13 +1033,11 @@ class SupabaseStorageClient:
                 logger.info(f"生成规范化文件名: {standardized_filename}")
                 logger.info(f"☁️ 云端存储路径: {storage_path}")
             
-            # 读取并处理图片文件
-            file_content = file.read()
-            file.seek(0)  # 重置文件指针
-            
             # 压缩图片以节省存储空间和带宽
             try:
-                processed_content = self._process_invoice_image(file_content, filename)
+                # 使用标准化后的文件名（可能已经修正了扩展名）
+                final_filename = standardized_info['filename'] if standardized_info else filename
+                processed_content = self._process_invoice_image(file_content, final_filename)
             except Exception as e:
                 logger.warning(f"图片处理失败，使用原始文件: {str(e)}")
                 processed_content = file_content
@@ -1054,10 +1057,11 @@ class SupabaseStorageClient:
                     try:
                         # 新版本SDK使用UploadFileOptions
                         logger.info("尝试使用UploadFileOptions方式上传")
-                        # 根据原始文件扩展名设置Content-Type
-                        original_ext = filename.split('.')[-1].lower() if '.' in filename else 'jpg'
+                        # 根据标准化后的文件扩展名设置Content-Type（可能已经修正了错误的扩展名）
+                        final_filename = standardized_info['filename'] if standardized_info else filename
+                        final_ext = final_filename.split('.')[-1].lower() if '.' in final_filename else 'jpg'
                         options = UploadFileOptions(
-                            content_type=self._get_content_type('image', original_ext)
+                            content_type=self._get_content_type('image', final_ext)
                         )
                         res = self.supabase.storage.from_(bucket_name).upload(
                             storage_path,
@@ -1264,7 +1268,55 @@ class SupabaseStorageClient:
         except Exception as e:
             logger.error(f"发票图片删除失败: {str(e)}")
             return False
-    
+
+    def detect_actual_image_format(self, file_content: bytes) -> Optional[str]:
+        """
+        检测图片文件的真实格式（通过文件头魔术字节）
+
+        Args:
+            file_content: 文件内容字节
+
+        Returns:
+            文件格式字符串 ('jpg', 'png', 'gif', 'heic' 等) 或 None
+        """
+        if not file_content or len(file_content) < 12:
+            return None
+
+        # JPEG: FF D8 FF
+        if file_content[:3] == b'\xFF\xD8\xFF':
+            return 'jpg'
+
+        # PNG: 89 50 4E 47 0D 0A 1A 0A
+        if file_content[:8] == b'\x89PNG\r\n\x1a\n':
+            return 'png'
+
+        # GIF: GIF87a 或 GIF89a
+        if file_content[:6] in [b'GIF87a', b'GIF89a']:
+            return 'gif'
+
+        # WebP: RIFF....WEBP
+        if file_content[:4] == b'RIFF' and len(file_content) > 11 and file_content[8:12] == b'WEBP':
+            return 'webp'
+
+        # BMP: BM
+        if file_content[:2] == b'BM':
+            return 'bmp'
+
+        # PDF: %PDF
+        if file_content[:4] == b'%PDF':
+            return 'pdf'
+
+        # HEIC/HEIF: 检查ISO基础媒体文件格式
+        if len(file_content) > 11 and file_content[4:8] == b'ftyp':
+            ftyp = file_content[8:12]
+            # HEIC相关的ftyp品牌
+            if ftyp in [b'heic', b'heix', b'hevc', b'hevx', b'heim', b'heis', b'hevm', b'hevs', b'mif1', b'msf1']:
+                return 'heic'
+
+        # 无法识别
+        logger.warning(f"无法识别文件格式，文件头: {file_content[:12].hex()}")
+        return None
+
     def _process_invoice_image(self, file_content: bytes, filename: str = '') -> bytes:
         """
         处理发票图片：压缩和调整大小，保留原始格式
@@ -1343,17 +1395,20 @@ class SupabaseStorageClient:
             logger.error(f"图片处理失败: {str(e)}")
             raise
     
-    def _generate_standardized_invoice_name(self, detail_id: int, original_filename: str, detail_sequence: int = None, file_sequence: int = None) -> Optional[dict]:
+    def _generate_standardized_invoice_name(self, detail_id: int, original_filename: str, detail_sequence: int = None, file_sequence: int = None, file_content: bytes = None) -> Optional[dict]:
         """
         生成规范化的发票文件名和存储路径
-        
+
         命名规范: {项目代码}-{客户简称}-{报销单号}-{明细序号}-{文件序号}.{扩展名}
         存储路径: invoice_files/{项目代码}/{客户简称}/{报销单号}/{文件名}
-        
+
         Args:
             detail_id: 报销明细ID
             original_filename: 原始文件名
-            
+            detail_sequence: 明细序号（可选）
+            file_sequence: 文件序号（可选）
+            file_content: 文件内容（可选，用于检测真实格式）
+
         Returns:
             dict: 包含filename和storage_path的字典，失败返回None
         """
@@ -1361,19 +1416,43 @@ class SupabaseStorageClient:
             from app.models.expense import ExpenseDetail, Expense
             from app.models.customer import Company
             from app.models.project import Project
-            
+
             # 获取报销明细信息
             detail = ExpenseDetail.query.get(detail_id)
             if not detail or not detail.expense:
                 logger.error(f"未找到报销明细或报销单: detail_id={detail_id}")
                 return None
-            
+
             expense = detail.expense
-            
+
             # 保留原始文件扩展名
             file_ext = 'jpg'  # 默认扩展名
             if '.' in original_filename:
                 file_ext = original_filename.rsplit('.', 1)[1].lower()
+
+            # 新增：检测文件实际格式，避免Safari错误
+            if file_content:
+                logger.info(f"[DEBUG] Supabase: 开始检测文件格式，原始扩展名={file_ext}")
+                actual_format = self.detect_actual_image_format(file_content)
+                logger.info(f"[DEBUG] Supabase: 格式检测结果={actual_format}")
+
+                if actual_format:
+                    # 如果检测到实际格式与扩展名不同
+                    if actual_format != file_ext:
+                        logger.warning(f"[DEBUG] Supabase: 检测到格式不匹配：文件名扩展名={file_ext}, 实际格式={actual_format}")
+                        # 特别处理Safari错误：文件扩展名是heic但实际不是HEIC格式
+                        if file_ext == 'heic' and actual_format != 'heic':
+                            logger.info(f"[DEBUG] Supabase: 🔧 修正Safari错误：将错误的.heic扩展名改为.{actual_format}")
+                            file_ext = actual_format
+                        # 或者用户选择了错误的扩展名
+                        elif file_ext != 'pdf' and actual_format == 'pdf':
+                            # PDF格式特殊处理，保持为PDF
+                            logger.info(f"[DEBUG] Supabase: 检测到PDF文件，使用.pdf扩展名")
+                            file_ext = 'pdf'
+                    else:
+                        logger.info(f"[DEBUG] Supabase: 格式匹配正确：{file_ext}")
+                else:
+                    logger.warning(f"[DEBUG] Supabase: 无法检测文件格式，保持原扩展名: {file_ext}")
             
             # 1. 系统标识
             system_id = self._get_system_identifier()
@@ -1400,10 +1479,15 @@ class SupabaseStorageClient:
             # 生成规范化文件名
             # 格式: PMA-SA_BX20250810_01_02.jpg
             standardized_filename = f"{system_id}_{expense_number}_{detail_sequence:02d}_{file_sequence:02d}.{file_ext}"
-            
+
+            logger.info(f"[DEBUG] Supabase: 生成标准文件名={standardized_filename}")
+            logger.info(f"[DEBUG] Supabase: 使用扩展名={file_ext}")
+
             # 生成存储路径
             # 格式: invoice_files/PMA-SA/BX20250810/PMA-SA_BX20250810_01_02.jpg
             storage_path = f"invoice_files/{system_id}/{expense_number}/{standardized_filename}"
+
+            logger.info(f"[DEBUG] Supabase: 完整存储路径={storage_path}")
             
             return {
                 'filename': standardized_filename,

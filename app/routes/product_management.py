@@ -949,125 +949,82 @@ def generate_mn_code_from_specs(category, subcategory, region_code, specs_data):
     
     return mn_code
 
-# 辅助函数：检查规格字段是否有特定选项，如果没有则添加
-def add_spec_option_if_not_exists(field_id, option_value, product_model):
+# 标准的研发产品规格处理函数
+def save_dev_product_specs(dev_product_id, spec_data_list, logger=None):
     """
-    检查规格字段是否已包含指定的选项值，如果没有则添加
-    
-    参数:
-    - field_id: 规格字段ID
-    - option_value: 选项值
-    - product_model: 产品型号，用于描述信息
-    
-    返回:
-    - 如果已存在匹配选项，返回该选项ID
-    - 如果不存在并成功添加，返回新选项ID
-    - 如果添加失败，返回None
+    标准的研发产品规格保存函数
+
+    Args:
+        dev_product_id: 研发产品ID
+        spec_data_list: 规格数据列表
+            [
+                {
+                    'id': existing_spec_id (可选，用于更新),
+                    'field_name': '规格名称',
+                    'field_value': '规格值',
+                    'field_code': '规格编码' (可选),
+                    'action': 'create'|'update'|'delete' (可选)
+                }
+            ]
+        logger: 日志记录器
+
+    Returns:
+        tuple: (success, saved_specs, error_message)
     """
+    if not logger:
+        logger = current_app.logger
+
+    saved_specs = []
+
     try:
-        # 检查是否已存在相同值的选项
-        existing_option = ProductCodeFieldOption.query.filter_by(
-            field_id=field_id, 
-            value=option_value
-        ).first()
-        
-        if existing_option:
-            return existing_option.id
-        
-        # 获取字段信息，确认是规格字段
-        field = ProductCodeField.query.get(field_id)
-        if not field or field.field_type != 'spec':
-            logger.warning(f"字段ID {field_id} 不是有效的规格字段")
-            return None
-        
-        # 查找当前最大排序位置
-        max_position = db.session.query(db.func.max(ProductCodeFieldOption.position))\
-            .filter_by(field_id=field_id).scalar() or 0
-        
-        # 生成一个唯一编码
-        # 首先查询该字段的现有选项编码
-        existing_options = ProductCodeFieldOption.query.filter_by(field_id=field_id).all()
-        existing_codes = [opt.code for opt in existing_options]
-        
-        # 尝试使用数字编码（规格值通常使用数字编码）
-        # 检查是否是数值型规格值
-        try:
-            numeric_value = float(option_value.replace(',', ''))
-            is_numeric = True
-        except (ValueError, AttributeError):
-            is_numeric = False
-        
-        unique_code = None
-        
-        # 对于数值型规格，尝试使用数值编码
-        if is_numeric:
-            # 尝试使用短编码 (1-9)
-            for code in range(1, 10):
-                if str(code) not in existing_codes:
-                    unique_code = str(code)
-                    break
-                    
-            # 如果短编码不可用，尝试使用A-Z
-            if not unique_code:
-                for code in string.ascii_uppercase:
-                    if code not in existing_codes:
-                        unique_code = code
-                        break
-        else:
-            # 对于文本型规格，首选使用首字母
-            if option_value and isinstance(option_value, str):
-                first_letter = option_value[0].upper()
-                if first_letter.isalpha() and first_letter not in existing_codes:
-                    unique_code = first_letter
-            
-            # 如果首字母不可用，尝试使用A-Z
-            if not unique_code:
-                for code in string.ascii_uppercase:
-                    if code not in existing_codes:
-                        unique_code = code
-                        break
-            
-            # 如果字母不可用，尝试使用数字
-            if not unique_code:
-                for code in range(1, 10):
-                    if str(code) not in existing_codes:
-                        unique_code = str(code)
-                        break
-        
-        # 如果所有尝试都失败，使用一个替代方案
-        if not unique_code:
-            # 尝试使用两位数或两个字符的代码
-            for prefix in string.ascii_uppercase:
-                for suffix in range(1, 10):
-                    code = f"{prefix}{suffix}"
-                    if code not in existing_codes:
-                        unique_code = code
-                        break
-                if unique_code:
-                    break
-            
-            # 如果仍然找不到唯一编码，使用 "X" + 时间戳后两位作为最后手段
-            if not unique_code:
-                timestamp = int(time.time()) % 100  # 获取时间戳后两位
-                unique_code = f"X{timestamp:02d}"
-                logger.warning(f"为字段ID {field_id} 使用时间戳生成编码: {unique_code}")
-        
-        # 创建新选项
-        new_option = ProductCodeFieldOption(
-            field_id=field_id,
-            value=option_value,
-            code=unique_code,
-            description=f"从产品 {product_model} 自动添加的规格值",
-            position=max_position + 1
-        )
-        db.session.add(new_option)
-        db.session.flush()  # 获取新ID但不提交事务
-        
-        logger.info(f"为字段 '{field.name}' 添加新规格选项: '{option_value}' (编码: {unique_code})")
-        return new_option.id
+        for spec_data in spec_data_list:
+            action = spec_data.get('action', 'create')
+
+            if action == 'delete':
+                # 删除规格
+                spec_id = spec_data.get('id')
+                if spec_id:
+                    spec_to_delete = DevProductSpec.query.get(spec_id)
+                    if spec_to_delete and spec_to_delete.dev_product_id == dev_product_id:
+                        # 只能删除非编码规格
+                        if not spec_to_delete.field_code or spec_to_delete.field_code.strip() == '':
+                            db.session.delete(spec_to_delete)
+                            logger.debug(f"删除非编码规格: {spec_to_delete.field_name}")
+
+            elif action == 'update':
+                # 更新现有规格
+                spec_id = spec_data.get('id')
+                if spec_id:
+                    existing_spec = DevProductSpec.query.get(spec_id)
+                    if existing_spec and existing_spec.dev_product_id == dev_product_id:
+                        existing_spec.field_name = spec_data['field_name']
+                        existing_spec.field_value = spec_data['field_value']
+                        # 如果是编码规格，更新编码
+                        if spec_data.get('field_code'):
+                            existing_spec.field_code = spec_data['field_code']
+                        logger.debug(f"更新规格: {spec_data['field_name']} = {spec_data['field_value']}")
+                        saved_specs.append(existing_spec)
+
+            else:  # create
+                # 创建新规格（简化逻辑，与编辑时一致）
+                if spec_data.get('field_name', '').strip():
+                    new_spec = DevProductSpec(
+                        dev_product_id=dev_product_id,
+                        field_name=spec_data['field_name'],
+                        field_value=spec_data.get('field_value', ''),
+                        field_code=spec_data.get('field_code') if spec_data.get('field_code') and spec_data.get('field_code') != '0' else None
+                    )
+                    db.session.add(new_spec)
+                    logger.debug(f"添加新规格: {spec_data['field_name']} = {spec_data.get('field_value', '')}")
+                    saved_specs.append(new_spec)
+
+        db.session.flush()  # 确保所有更改在同一个事务中
+        return (True, saved_specs, None)
+
     except Exception as e:
-        logger.error(f"添加规格选项失败: {str(e)}")
-        return None
+        logger.error(f"保存规格时出错: {str(e)}")
+        return (False, [], str(e))
+
 
 # MN编号重复检查函数
 def check_mn_code_duplicate_internal(mn_code, exclude_dev_product_id=None):
@@ -1144,60 +1101,6 @@ def check_mn_code_duplicate_internal(mn_code, exclude_dev_product_id=None):
     except Exception as e:
         logger.error(f"检查MN编号重复时出错: {str(e)}")
         return {'is_duplicate': False, 'dev_products': [], 'standard_products': [], 'error': str(e)}
-
-# 添加规格选项（使用指定编码）
-def add_spec_option_with_code(field_id, option_value, option_code, product_model):
-    """添加规格选项，使用指定的编码"""
-    logger = logging.getLogger(__name__)
-    
-    try:
-        # 检查字段是否存在
-        field = ProductCodeField.query.get(field_id)
-        if not field:
-            logger.error(f"字段ID {field_id} 不存在")
-            return None
-        
-        # 检查选项是否已存在
-        existing_option = ProductCodeFieldOption.query.filter_by(
-            field_id=field_id,
-            value=option_value
-        ).first()
-        
-        if existing_option:
-            logger.info(f"选项 '{option_value}' 已存在于字段 '{field.name}'")
-            return existing_option.id
-        
-        # 检查编码是否已被使用
-        existing_code = ProductCodeFieldOption.query.filter_by(
-            field_id=field_id,
-            code=option_code
-        ).first()
-        
-        if existing_code:
-            logger.warning(f"编码 '{option_code}' 已被字段 '{field.name}' 的选项 '{existing_code.value}' 使用")
-            # 如果编码已被使用，回退到自动编码
-            return add_spec_option_if_not_exists(field_id, option_value, product_model)
-        
-        # 获取最大position
-        max_position = db.session.query(db.func.max(ProductCodeFieldOption.position))\
-            .filter_by(field_id=field_id).scalar() or 0
-        
-        # 创建新选项
-        new_option = ProductCodeFieldOption(
-            field_id=field_id,
-            value=option_value,
-            code=option_code,
-            description=f"从产品 {product_model} 自动添加的规格值 (动态编码)",
-            position=max_position + 1
-        )
-        db.session.add(new_option)
-        db.session.flush()  # 获取新ID但不提交事务
-        
-        logger.info(f"为字段 '{field.name}' 添加新规格选项: '{option_value}' (动态编码: {option_code})")
-        return new_option.id
-    except Exception as e:
-        logger.error(f"添加规格选项失败: {str(e)}")
-        return None
 
 # 保存新产品
 @product_management_bp.route('/save', methods=['POST'])
@@ -1366,165 +1269,68 @@ def save():
             spec_names = request.form.getlist('spec_name[]')
             spec_values = request.form.getlist('spec_value[]')
             spec_option_codes = request.form.getlist('spec_option_codes[]')
-            
+
             # 2. 收集新增规格数据 (new_spec_names[] + new_option_values[])
             new_spec_names = request.form.getlist('new_spec_names[]')
             new_option_values = request.form.getlist('new_option_values[]')
-            
-            # 3. 合并所有规格数据
-            all_specs = []
-            
+
             # 记录日志
             current_app.logger.debug(f"规格名称: {spec_names}")
             current_app.logger.debug(f"规格值: {spec_values}")
             current_app.logger.debug(f"规格编码: {spec_option_codes}")
             current_app.logger.debug(f"新增规格: {new_spec_names}")
             current_app.logger.debug(f"新增选项: {new_option_values}")
-            
-            # 合并规格数据
+
+            # 3. 转换为标准格式
+            spec_data_list = []
+
+            # 处理现有规格数据
             for i in range(len(spec_names)):
                 if i < len(spec_values) and spec_names[i].strip() and spec_values[i].strip():
-                    spec_code = spec_option_codes[i] if i < len(spec_option_codes) else '0'
-                    all_specs.append({
+                    spec_code = spec_option_codes[i] if i < len(spec_option_codes) and spec_option_codes[i] != '0' else None
+                    spec_data_list.append({
                         'field_name': spec_names[i].strip(),
                         'field_value': spec_values[i].strip(),
                         'field_code': spec_code,
-                        'is_new': False
+                        'action': 'create'
                     })
-            
-            # 合并新规格数据        
+
+            # 处理新增规格数据（非编码规格）
             for i in range(len(new_spec_names)):
                 if i < len(new_option_values) and new_spec_names[i].strip() and new_option_values[i].strip():
-                    all_specs.append({
+                    spec_data_list.append({
                         'field_name': new_spec_names[i].strip(),
                         'field_value': new_option_values[i].strip(),
-                        'field_code': '0',
-                        'is_new': True
+                        'field_code': None,  # 新增规格都是非编码
+                        'action': 'create'
                     })
-            
-            # 查找现有规格字段
-            existing_fields = ProductCodeField.query.filter_by(
-                subcategory_id=subcategory_id,
-                field_type='spec'
-            ).all()
-            existing_names = {field.name.lower(): field for field in existing_fields}
-            
-            # 打印准备保存的规格数据
-            current_app.logger.debug(f"准备保存 {len(all_specs)} 个规格")
-            
-            # 保存规格数据
-            saved_specs = []
-            
-            for spec in all_specs:
-                spec_name = spec['field_name']
-                spec_value = spec['field_value']
-                spec_code = spec['field_code']
-                
-                current_app.logger.debug(f"保存规格: {spec_name} = {spec_value} (编码: {spec_code})")
-                
-                try:
-                    # 创建产品规格记录
-                    new_spec = DevProductSpec(
-                        dev_product_id=new_product.id,
-                        field_name=spec_name,
-                        field_value=spec_value
-                    )
-                    db.session.add(new_spec)
-                    db.session.flush()  # 保存规格获取ID
-                    saved_specs.append(new_spec)
-                    
-                    # 检查是否需要创建或更新规格字段
-                    spec_lower = spec_name.lower()
-                    if spec_lower not in existing_names:
-                        # 创建新规格字段
-                        max_pos = db.session.query(db.func.max(ProductCodeField.position))\
-                            .filter_by(subcategory_id=subcategory_id).scalar() or 0
-                        
-                        new_field = ProductCodeField(
-                            subcategory_id=subcategory_id,
-                            name=spec_name,
-                            field_type='spec',
-                            description=f'从产品 {model} 自动添加的规格字段',
-                            position=max_pos + 1,
-                            max_length=1,
-                            is_required=False,
-                            use_in_code=False  # 产品中新增的规格默认不纳入编码
-                        )
-                        db.session.add(new_field)
-                        db.session.flush()
-                        
-                        # 添加规格选项，如果有动态编码则使用动态编码
-                        if spec_value:
-                            if spec_code and spec_code != '0':
-                                # 使用动态编码创建选项
-                                option_id = add_spec_option_with_code(new_field.id, spec_value, spec_code, model)
-                                current_app.logger.info(f"为字段 '{spec_name}' 添加新规格选项: '{spec_value}' (动态编码: {spec_code})")
-                            else:
-                                # 使用自动编码创建选项
-                                option_id = add_spec_option_if_not_exists(new_field.id, spec_value, model)
-                                current_app.logger.info(f"为字段 '{spec_name}' 添加新规格选项: '{spec_value}' (自动编码)")
-                            
-                            # 检索选项对象以获取编码
-                            if option_id:
-                                option = ProductCodeFieldOption.query.get(option_id)
-                                if option:
-                                    new_spec.field_code = option.code
-                                    current_app.logger.debug(f"已设置规格 '{spec_name}' 的编码为: {option.code}")
-                        
-                        # 更新已有字段字典
-                        existing_names[spec_lower] = new_field
-                    else:
-                        # 为现有字段添加选项
-                        field = existing_names[spec_lower]
-                        
-                        if spec_code and spec_code != '0':
-                            # 使用动态编码创建选项
-                            option_id = add_spec_option_with_code(field.id, spec_value, spec_code, model)
-                            current_app.logger.info(f"为现有字段 '{spec_name}' 添加新规格选项: '{spec_value}' (动态编码: {spec_code})")
-                        else:
-                            # 使用自动编码创建选项
-                            option_id = add_spec_option_if_not_exists(field.id, spec_value, model)
-                            current_app.logger.info(f"为现有字段 '{spec_name}' 添加新规格选项: '{spec_value}' (自动编码)")
-                        
-                        # 检索选项对象以获取编码
-                        if option_id:
-                            option = ProductCodeFieldOption.query.get(option_id)
-                            if option:
-                                new_spec.field_code = option.code
-                                current_app.logger.debug(f"已设置规格 '{spec_name}' 的编码为: {option.code}")
-                except Exception as e:
-                    current_app.logger.error(f"保存规格 '{spec_name}' 时出错: {str(e)}")
-                    # 继续处理其他规格
-            
-            # 提交所有规格数据
-            db.session.commit()
-            
-            # 验证规格是否成功保存
-            saved_specs_db = DevProductSpec.query.filter_by(dev_product_id=new_product.id).all()
-            current_app.logger.info(f"为产品 ID:{new_product.id} 保存了 {len(saved_specs_db)} 个规格: {[spec.field_name for spec in saved_specs_db]}")
-            current_app.logger.info(f"规格详情: {[(spec.id, spec.field_name, spec.field_value) for spec in saved_specs_db]}")
-            
-            if not saved_specs_db:
-                current_app.logger.warning(f"产品 ID:{new_product.id} 没有保存任何规格，尽管尝试保存了: {[spec.field_name for spec in saved_specs]}")
-                # 检查数据库表是否存在问题
-                db_error = None
-                try:
-                    test_spec = DevProductSpec(
-                        dev_product_id=new_product.id,
-                        field_name="测试规格",
-                        field_value="测试值"
-                    )
-                    db.session.add(test_spec)
-                    db.session.commit()
-                    current_app.logger.info(f"测试规格保存成功，ID: {test_spec.id}")
-                except Exception as e:
-                    db_error = str(e)
-                    current_app.logger.error(f"数据库测试规格保存失败: {db_error}")
-                    db.session.rollback()
-            
-            # 成功保存，重定向到产品列表
-            flash(_('新产品已成功添加到研发产品库，自定义规格字段也已同步到产品分类模块'), 'success')
-            return redirect(url_for('product_management.index'))
+
+            current_app.logger.debug(f"准备保存 {len(spec_data_list)} 个规格")
+
+            # 4. 使用标准函数保存规格
+            success, saved_specs, error_message = save_dev_product_specs(
+                new_product.id,
+                spec_data_list,
+                current_app.logger
+            )
+
+            if success:
+                # 提交产品和规格数据
+                db.session.commit()
+
+                # 验证规格是否成功保存
+                saved_specs_db = DevProductSpec.query.filter_by(dev_product_id=new_product.id).all()
+                current_app.logger.info(f"为产品 ID:{new_product.id} 保存了 {len(saved_specs_db)} 个规格: {[spec.field_name for spec in saved_specs_db]}")
+                current_app.logger.info(f"规格详情: {[(spec.id, spec.field_name, spec.field_value) for spec in saved_specs_db]}")
+
+                # 成功保存，重定向到产品列表
+                flash(_('新产品已成功添加到研发产品库'), 'success')
+                return redirect(url_for('product_management.index'))
+            else:
+                # 规格保存失败
+                current_app.logger.error(f"规格保存失败: {error_message}")
+                flash(f'产品已保存，但规格保存失败: {error_message}', 'warning')
+                return redirect(url_for('product_management.index'))
             
         except IntegrityError as spec_error:
             # 规格保存时的完整性错误
@@ -1829,51 +1635,63 @@ def update_product(id):
                 flash(_('删除PDF文件失败，请重试'), 'warning')
         
         # 处理规格字段
-        # 1. 处理删除的规格
-        deleted_spec_ids = request.form.getlist('deleted_spec_ids[]')
-        if deleted_spec_ids:
+        try:
+            # 1. 收集删除操作
+            deleted_spec_ids = request.form.getlist('deleted_spec_ids[]')
+
+            # 2. 收集现有规格的更新操作
+            existing_spec_ids = request.form.getlist('existing_spec_ids[]')
+            spec_names = request.form.getlist('spec_name[]')
+            spec_values = request.form.getlist('spec_value[]')
+            spec_codes = request.form.getlist('spec_option_codes[]')
+
+            # 转换为标准格式
+            spec_data_list = []
+
+            # 处理删除操作
             for spec_id in deleted_spec_ids:
                 if spec_id:
-                    spec_to_delete = DevProductSpec.query.get(spec_id)
-                    if spec_to_delete and spec_to_delete.dev_product_id == id:
-                        # 只能删除非编码规格（没有field_code的规格）
-                        if not spec_to_delete.field_code or spec_to_delete.field_code.strip() == '':
-                            db.session.delete(spec_to_delete)
-                            current_app.logger.debug(f"删除非编码规格: {spec_to_delete.field_name}")
-        
-        # 2. 处理现有规格的更新
-        existing_spec_ids = request.form.getlist('existing_spec_ids[]')
-        spec_names = request.form.getlist('spec_name[]')
-        spec_values = request.form.getlist('indicator_values[]')
-        spec_codes = request.form.getlist('indicator_codes[]')
-        
-        for i in range(len(existing_spec_ids)):
-            if existing_spec_ids[i] and i < len(spec_names) and i < len(spec_values):
-                existing_spec = DevProductSpec.query.get(existing_spec_ids[i])
-                if existing_spec and existing_spec.dev_product_id == id:
-                    # 更新规格数据
-                    existing_spec.field_name = spec_names[i]
-                    existing_spec.field_value = spec_values[i]
-                    
-                    # 如果是编码规格，更新编码
-                    if existing_spec.field_code and i < len(spec_codes):
-                        existing_spec.field_code = spec_codes[i]
-                    
-                    current_app.logger.debug(f"更新规格: {spec_names[i]} = {spec_values[i]}")
-        
-        # 3. 处理新增的规格（没有existing_spec_ids的）
-        for i in range(len(spec_names)):
-            # 如果这个索引没有对应的existing_spec_id，说明是新增的
-            if (i >= len(existing_spec_ids) or not existing_spec_ids[i]) and spec_names[i].strip():
-                # 创建新的非编码规格
-                new_spec = DevProductSpec(
-                    dev_product_id=dev_product.id,
-                    field_name=spec_names[i],
-                    field_value=spec_values[i] if i < len(spec_values) else '',
-                    field_code=None  # 非编码规格没有编码
-                )
-                db.session.add(new_spec)
-                current_app.logger.debug(f"添加新非编码规格: {spec_names[i]} = {spec_values[i] if i < len(spec_values) else ''}")
+                    spec_data_list.append({
+                        'id': spec_id,
+                        'action': 'delete'
+                    })
+
+            # 处理更新操作
+            for i in range(len(existing_spec_ids)):
+                if existing_spec_ids[i] and i < len(spec_names) and i < len(spec_values):
+                    spec_code = spec_codes[i] if i < len(spec_codes) else None
+                    spec_data_list.append({
+                        'id': existing_spec_ids[i],
+                        'field_name': spec_names[i],
+                        'field_value': spec_values[i],
+                        'field_code': spec_code,
+                        'action': 'update'
+                    })
+
+            # 处理新增操作（没有existing_spec_ids的）
+            for i in range(len(spec_names)):
+                if (i >= len(existing_spec_ids) or not existing_spec_ids[i]) and spec_names[i].strip():
+                    spec_data_list.append({
+                        'field_name': spec_names[i],
+                        'field_value': spec_values[i] if i < len(spec_values) else '',
+                        'field_code': None,  # 新增规格都是非编码
+                        'action': 'create'
+                    })
+
+            # 使用标准函数处理规格
+            success, saved_specs, error_message = save_dev_product_specs(
+                dev_product.id,
+                spec_data_list,
+                current_app.logger
+            )
+
+            if not success:
+                current_app.logger.error(f"规格处理失败: {error_message}")
+                flash(f'规格处理失败: {error_message}', 'warning')
+
+        except Exception as spec_error:
+            current_app.logger.error(f"规格处理异常: {str(spec_error)}")
+            flash('规格处理时发生错误，请重试', 'warning')
         
         # 提交更改
         db.session.commit()

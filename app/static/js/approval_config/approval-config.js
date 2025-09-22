@@ -3234,10 +3234,85 @@ class ApprovalConfigManager {
         const modal = checkbox.closest('.modal');
         const prefix = checkbox.id.includes('edit_') ? 'edit_' : '';
         const ccSection = modal.querySelector(`#${prefix}ccUsersSection`);
-        
+
         if (ccSection) {
             ccSection.style.display = checkbox.checked ? 'block' : 'none';
+
+            // 如果关闭抄送，清空所有选中的用户
+            if (!checkbox.checked) {
+                const checkboxes = ccSection.querySelectorAll('.cc-user-checkbox');
+                checkboxes.forEach(cb => cb.checked = false);
+                this.updateCcUserBadges(prefix);
+            }
         }
+    }
+
+    /**
+     * 更新抄送用户徽章显示
+     */
+    updateCcUserBadges(prefix = '') {
+        const badgesContainer = document.querySelector(`#${prefix}selectedCcUsersBadges`);
+        const checkboxes = document.querySelectorAll(`#${prefix}ccUsersList .cc-user-checkbox:checked`);
+
+        if (!badgesContainer) return;
+
+        // 清空现有徽章
+        badgesContainer.innerHTML = '';
+
+        if (checkboxes.length === 0) {
+            badgesContainer.innerHTML = '<small class="text-muted">未选择任何用户</small>';
+            return;
+        }
+
+        // 添加每个选中用户的徽章
+        checkboxes.forEach(checkbox => {
+            const username = checkbox.getAttribute('data-username');
+            const userId = checkbox.value;
+
+            const badge = document.createElement('span');
+            badge.className = 'badge bg-info text-white me-2 mb-1';
+            badge.style.fontSize = '0.875rem';
+            badge.innerHTML = `
+                ${username}
+                <i class="fas fa-times ms-1"
+                   style="cursor: pointer;"
+                   onclick="window.approvalConfig.removeCcUser('${prefix}', '${userId}')"></i>
+            `;
+
+            badgesContainer.appendChild(badge);
+        });
+    }
+
+    /**
+     * 移除抄送用户
+     */
+    removeCcUser(prefix, userId) {
+        const checkbox = document.querySelector(`#${prefix}cc_user_${userId}`);
+        if (checkbox) {
+            checkbox.checked = false;
+            this.updateCcUserBadges(prefix);
+        }
+    }
+
+    /**
+     * 过滤抄送用户列表
+     */
+    filterCcUsers(prefix = '') {
+        const searchInput = document.querySelector(`#${prefix}ccUserSearch`);
+        const userItems = document.querySelectorAll(`#${prefix}ccUsersList .cc-user-item`);
+
+        if (!searchInput || !userItems.length) return;
+
+        const searchText = searchInput.value.toLowerCase();
+
+        userItems.forEach(item => {
+            const userName = item.getAttribute('data-user-name');
+            if (!searchText || userName.includes(searchText)) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
+        });
     }
 
     /**
@@ -3865,6 +3940,20 @@ window.updateSelectedFieldValues = function(prefix) {
         window.approvalConfig.updateSelectedFieldValues(prefix);
     } else {
         console.error('❌ [调试] window.approvalConfig 不存在，无法调用类方法');
+    }
+};
+
+// 全局抄送用户徽章更新函数
+window.updateCcUserBadges = function(prefix) {
+    if (window.approvalConfig) {
+        window.approvalConfig.updateCcUserBadges(prefix);
+    }
+};
+
+// 全局抄送用户搜索过滤函数
+window.filterCcUsers = function(prefix) {
+    if (window.approvalConfig) {
+        window.approvalConfig.filterCcUsers(prefix);
     }
 };
 
