@@ -3467,10 +3467,10 @@ def can_view_quotation(user, quotation):
     if user_role in ['finance_director', 'finace_director']:
         return True
     
-    # 🔧 修复：使用四级权限系统进行权限判断
+    # 🔧 修复：使用四级权限系统进行权限判断，但不阻断后续检查
     if user.has_permission('quotation', 'view'):
         permission_level = user.get_permission_level('quotation')
-        
+
         if permission_level == 'system':
             # 系统级权限：可以查看所有报价单
             return True
@@ -3479,18 +3479,20 @@ def can_view_quotation(user, quotation):
             if hasattr(quotation, 'project') and quotation.project:
                 from app.models.user import User
                 project_owner = User.query.get(quotation.project.owner_id)
-                return project_owner and project_owner.company_name == user.company_name
+                if project_owner and project_owner.company_name == user.company_name:
+                    return True
         elif permission_level == 'department' and user.department and user.company_name:
             # 部门级权限：可以查看部门下所有报价单
             if hasattr(quotation, 'project') and quotation.project:
                 from app.models.user import User
                 project_owner = User.query.get(quotation.project.owner_id)
-                return (project_owner and 
-                       project_owner.company_name == user.company_name and
-                       project_owner.department == user.department)
-        # 个人级权限会在下面的归属链检查中处理
-    
-    # 归属链检查
+                if (project_owner and
+                    project_owner.company_name == user.company_name and
+                    project_owner.department == user.department):
+                    return True
+        # 四级权限系统检查失败时，继续检查归属链和特殊权限
+
+    # 归属链检查 - 数据归属优先于四级权限系统
     from app.models.user import Affiliation
     affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
     if quotation.owner_id in affiliation_owner_ids:
