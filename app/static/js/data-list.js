@@ -312,8 +312,11 @@ function updateStatsFromAjax(config, statistics) {
                 parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
                 const formattedWithCommas = parts.join('.');
                 
-                // 添加货币符号 - 优先从配置中获取，然后从单位配置中获取，最后使用默认值
-                let currencySymbol = config.currency_symbol;
+                // 添加货币符号 - 优先从API返回的配置中获取，然后从卡片配置中获取，最后使用默认值
+                let currencySymbol = window.currentApiResponse ? window.currentApiResponse.currency_symbol : null;
+                if (!currencySymbol && config.currency_symbol) {
+                    currencySymbol = config.currency_symbol;
+                }
                 if (!currencySymbol && unitConfig && unitConfig.currency_symbol) {
                     currencySymbol = unitConfig.currency_symbol;
                 }
@@ -390,15 +393,35 @@ function setListItemCountLoading() {
  */
 function loadInitialData(config) {
     if (!config.ajax_mode) return;
-    
-    console.log('🔄 加载初始数据');
-    
+
+    console.log('🔄 检查初始数据加载状态');
+
     const targetElement = document.querySelector(config.ajax_target.startsWith('#') ? config.ajax_target : '#' + config.ajax_target);
     if (!targetElement) {
         console.error(`❌ 找不到目标元素: ${config.ajax_target}`);
         return;
     }
-    
+
+    // 检查是否已有初始数据
+    const hasInitialData = targetElement.hasAttribute('data-initial-loaded');
+    const initialCount = parseInt(targetElement.getAttribute('data-initial-count') || '0');
+
+    if (hasInitialData && initialCount > 0) {
+        console.log(`✅ 已有初始数据 ${initialCount} 项，跳过AJAX加载`);
+
+        // 设置初始加载完成标志和偏移量
+        infiniteScrollState.initialLoadComplete = true;
+        infiniteScrollState.currentOffset = initialCount;
+
+        // 更新列表计数显示为初始数据数量
+        updateListItemCount(initialCount);
+
+        console.log(`📊 无限滚动状态初始化: offset=${infiniteScrollState.currentOffset}, initialLoadComplete=${infiniteScrollState.initialLoadComplete}`);
+        return;
+    }
+
+    console.log('🔄 无初始数据，开始AJAX加载');
+
     // 显示加载状态
     const columns = config.table.columns ? config.table.columns.length : 5;
     targetElement.innerHTML = `
@@ -411,20 +434,20 @@ function loadInitialData(config) {
             </td>
         </tr>
     `;
-    
+
     // 设置列表计数为加载状态
     setListItemCountLoading();
-    
+
     // 构建请求URL
     const url = new URL(config.ajax_endpoint, window.location.origin);
     url.searchParams.set('offset', 0);
-    
+
     // 使用无限滚动配置的分页大小，如果没有配置则使用默认20
     const infiniteScrollConfig = config.table && config.table.infinite_scroll ? config.table.infinite_scroll : config.infinite_scroll;
-    const pageSize = (infiniteScrollConfig && infiniteScrollConfig.page_size) ? 
+    const pageSize = (infiniteScrollConfig && infiniteScrollConfig.page_size) ?
         infiniteScrollConfig.page_size : 20;
     url.searchParams.set('limit', pageSize);
-    
+
     // 发送AJAX请求
     fetch(url)
         .then(response => {
@@ -435,7 +458,7 @@ function loadInitialData(config) {
         })
         .then(data => {
             console.log('✅ 初始数据加载成功:', data);
-            
+
             // 更新表格内容
             const noDataText = (config.i18n && config.i18n.noData) || '暂无数据';
             targetElement.innerHTML = data.html || `
@@ -443,7 +466,7 @@ function loadInitialData(config) {
                     <td colspan="${columns}" class="text-center py-4">${noDataText}</td>
                 </tr>
             `;
-            
+
             // 设置初始加载完成标志，启用无限滚动
             infiniteScrollState.initialLoadComplete = true;
             
@@ -641,9 +664,23 @@ function setupInfiniteScroll(config) {
         scrollMode
     });
     
-    // 初始化状态 - 等待初始数据加载完成后再设置offset
-    infiniteScrollState.currentOffset = 0; // 先设置为0，等初始数据加载完成后更新
-    infiniteScrollState.initialLoadComplete = false; // 初始加载完成标志
+    // 初始化状态 - 检查是否已有初始数据
+    const targetElement = document.querySelector(config.ajax_target.startsWith('#') ? config.ajax_target : '#' + config.ajax_target);
+    const hasInitialData = targetElement && targetElement.hasAttribute('data-initial-loaded');
+    const initialCount = parseInt(targetElement?.getAttribute('data-initial-count') || '0');
+
+    if (hasInitialData && initialCount > 0) {
+        // 有初始数据时，直接设置为初始数据数量
+        infiniteScrollState.currentOffset = initialCount;
+        infiniteScrollState.initialLoadComplete = true;
+        console.log(`🔄 无限滚动：检测到初始数据 ${initialCount} 项，设置offset=${initialCount}`);
+    } else {
+        // 无初始数据时，等待初始数据加载完成后再设置offset
+        infiniteScrollState.currentOffset = 0;
+        infiniteScrollState.initialLoadComplete = false;
+        console.log('🔄 无限滚动：无初始数据，等待AJAX加载完成');
+    }
+
     infiniteScrollState.consecutiveLoadCount = 0; // 连续加载计数器
     const limit = pageSize;
     

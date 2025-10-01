@@ -65,6 +65,7 @@ COMMON_FIELDS = {
     
     # 关联字段
     'user_id': '用户ID',
+    'created_by': '创建人',
     'owner_id': '负责人',
     'manager_id': '管理员ID',
     'parent_id': '父级ID',
@@ -659,6 +660,7 @@ def get_form_fields_by_module():
             'authorization_status': '授权状态',
             'authorization_code': '授权编号',
             'report_source': '报备来源',
+            'created_by': '创建人',
             'owner_id': '负责人',
             'vendor_sales_manager_id': '厂商销售',
             'current_stage': '当前阶段',

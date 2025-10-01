@@ -258,6 +258,20 @@
   {% endif %}
 {% endmacro %}
 
+{% macro get_default_currency_symbol() %}
+    ¥
+{% endmacro %}
+
+{% macro get_stats_currency_symbol() %}
+    {%- set current_lang = get_current_language() if get_current_language else 'zh' -%}
+    {%- if current_lang == 'en' -%}${% else %}¥{% endif -%}
+{% endmacro %}
+
+{% macro get_stats_currency_display() %}
+    {%- set current_lang = get_current_language() if get_current_language else 'zh' -%}
+    {%- if current_lang == 'en' -%}万美元{% else %}万元{% endif -%}
+{% endmacro %}
+
 {% macro render_currency_with_symbol(amount, currency='CNY') %}
   {% if amount is not none %}
     {% set currency_symbols = {
@@ -1983,8 +1997,11 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
                             {% set numeric_amount = card.amount | float if card.amount is string else (card.amount | default(0)) %}
                             {% set converted_amount = numeric_amount / 10000 %}
                             {% set formatted_amount = '{:,.2f}'.format(converted_amount) %}
-                            <span class="fs-5" id="{{ card.id }}Amount">¥{{ formatted_amount }}</span>
-                            <span class="text-muted ms-1" id="{{ card.id }}Unit">{{ card.amount_unit | default('万元') }}</span>
+                            {# 优先使用卡片配置中的货币符号和单位，否则使用函数 #}
+                            {% set currency_symbol = card.currency_symbol if card.currency_symbol else get_stats_currency_symbol() %}
+                            {% set unit_display = card.amount_unit if card.amount_unit else get_stats_currency_display() %}
+                            <span class="fs-5" id="{{ card.id }}Amount">{{ currency_symbol }}{{ formatted_amount }}</span>
+                            <span class="text-muted ms-1" id="{{ card.id }}Unit">{{ unit_display }}</span>
                         {% endif %}
                     </div>
                     {% endif %}
@@ -2032,7 +2049,7 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
                 </h5>
             </div>
             <div class="list-title-stats">
-                {% if ajax_mode %}
+                {% if ajax_mode and not items %}
                 <span class="list-item-count count-loading" id="listItemCount">
                     {{ _('加载中') }}
                 </span>
@@ -2086,9 +2103,9 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
                     </tr>
                 </thead>
                 {% endif %}
-                <tbody {% if ajax_mode %}id="{{ table_config.ajax_target }}"{% endif %}>
-                    {% if ajax_mode %}
-                        <!-- AJAX模式：内容将通过JavaScript动态加载 -->
+                <tbody {% if ajax_mode %}id="{{ table_config.ajax_target }}"{% endif %}{% if ajax_mode and items %} data-initial-loaded="true" data-initial-count="{{ items|length }}"{% endif %}>
+                    {% if ajax_mode and not items %}
+                        <!-- AJAX模式且无初始数据：内容将通过JavaScript动态加载 -->
                         <tr data-loading-state="true">
                             <td colspan="{{ table_config.columns|length }}" class="text-center py-4">
                                 <div class="spinner-border text-primary" role="status">
@@ -2097,6 +2114,17 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
                                 <div class="mt-2">{{ _('正在加载数据...') }}</div>
                             </td>
                         </tr>
+                    {% elif ajax_mode and items %}
+                        <!-- AJAX模式且有初始数据：立即渲染初始数据，后续通过无限滚动加载更多 -->
+                        {% for item in items %}
+                        <tr>
+                            {% for column in table_config.columns %}
+                            <td {% if column.align %}class="text-{{ column.align }}"{% endif %}>
+                                {{ render_table_cell(item, column) }}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
                     {% else %}
                         <!-- 传统模式：直接渲染数据 -->
                         {% if items %}
@@ -2673,7 +2701,7 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
     {% elif column.type == 'number' %}
         {# 数字类型 #}
         {% if column.format == 'currency' %}
-            ¥{{ "{:,.2f}".format(value) if value else '0.00' }}
+            {{ get_default_currency_symbol() }}{{ "{:,.2f}".format(value) if value else '0.00' }}
         {% elif column.format == 'wan' %}
             {{ "{:.2f}".format(value/10000) if value else '0.00' }}万
         {% else %}
@@ -2838,9 +2866,9 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
   
   {% if is_mobile and list_config.mobile_template %}
     {# 移动端：使用专用卡片模板（优先级最高） #}
-    <div class="mobile-cards-container" {% if list_config.ajax_mode %}id="{{ list_config.table.ajax_target }}"{% endif %}>
+    <div class="mobile-cards-container" {% if list_config.ajax_mode %}id="{{ list_config.table.ajax_target }}"{% endif %}{% if list_config.ajax_mode and items %} data-initial-loaded="true" data-initial-count="{{ items|length }}"{% endif %}>
       {% if list_config.ajax_mode and not items %}
-        <!-- AJAX模式：内容将通过JavaScript动态加载 -->
+        <!-- AJAX模式且无初始数据：内容将通过JavaScript动态加载 -->
         <div class="d-flex justify-content-center align-items-center p-4" data-loading-state="true">
           <div class="spinner-border text-primary me-2" role="status">
             <span class="visually-hidden">{{ _('加载中...') }}</span>
@@ -2853,9 +2881,9 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
     </div>
   {% elif is_mobile and list_config.smart_mobile_card %}
     {# 移动端：使用智能卡片配置（优先级第二） #}
-    <div class="mobile-cards-container" {% if list_config.ajax_mode %}id="{{ list_config.table.ajax_target }}"{% endif %}>
+    <div class="mobile-cards-container" {% if list_config.ajax_mode %}id="{{ list_config.table.ajax_target }}"{% endif %}{% if list_config.ajax_mode and items %} data-initial-loaded="true" data-initial-count="{{ items|length }}"{% endif %}>
       {% if list_config.ajax_mode and not items %}
-        <!-- AJAX模式：内容将通过JavaScript动态加载 -->
+        <!-- AJAX模式且无初始数据：内容将通过JavaScript动态加载 -->
         <div class="d-flex justify-content-center align-items-center p-4" data-loading-state="true">
           <div class="spinner-border text-primary me-2" role="status">
             <span class="visually-hidden">{{ _('加载中...') }}</span>
@@ -2868,9 +2896,9 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
     </div>
   {% elif is_mobile and list_config.table %}
     {# 移动端：使用通用卡片渲染（默认启用） #}
-    <div class="mobile-cards-container" {% if list_config.ajax_mode %}id="{{ list_config.table.ajax_target }}"{% endif %}>
+    <div class="mobile-cards-container" {% if list_config.ajax_mode %}id="{{ list_config.table.ajax_target }}"{% endif %}{% if list_config.ajax_mode and items %} data-initial-loaded="true" data-initial-count="{{ items|length }}"{% endif %}>
       {% if list_config.ajax_mode and not items %}
-        <!-- AJAX模式：内容将通过JavaScript动态加载 -->
+        <!-- AJAX模式且无初始数据：内容将通过JavaScript动态加载 -->
         <div class="d-flex justify-content-center align-items-center p-4" data-loading-state="true">
           <div class="spinner-border text-primary me-2" role="status">
             <span class="visually-hidden">{{ _('加载中...') }}</span>
@@ -3040,7 +3068,7 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
                         {% endif %}
                     {% elif column.type == 'number' %}
                         {% if column.format == 'currency' %}
-                            ¥{{ "%.2f"|format(value) }}
+                            {{ get_default_currency_symbol() }}{{ "%.2f"|format(value) }}
                         {% elif column.format == 'wan' %}
                             {{ "%.2f"|format(value / 10000) }}万
                         {% else %}
@@ -7232,7 +7260,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 {% elif detail_config.format == 'datetime' and detail_value.strftime %}
                     {{ detail_value.strftime('%Y-%m-%d %H:%M') }}
                 {% elif detail_config.format == 'currency' %}
-                    ¥{{ "%.2f"|format(detail_value) }}
+                    {{ get_default_currency_symbol() }}{{ "%.2f"|format(detail_value) }}
                 {% elif detail_config.format == 'phone' %}
                     <a href="tel:{{ detail_value }}" class="text-decoration-none">{{ detail_value }}</a>
                 {% elif detail_config.format == 'email' %}
@@ -7477,7 +7505,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </h5>
             </div>
             <div class="list-title-stats">
-                {% if ajax_mode %}
+                {% if ajax_mode and not items %}
                 <span class="list-item-count count-loading" id="listItemCount">
                     {{ _('加载中') }}
                 </span>

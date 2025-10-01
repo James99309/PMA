@@ -65,10 +65,15 @@ class Project(SharingMixin, db.Model):
     
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, default=get_local_time)
-    
-    owner_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-    # 明确指定外键字段，避免与locked_by外键冲突
-    owner = relationship('User', foreign_keys=[owner_id], backref='projects')
+
+    # 不可变字段 - 记录谁发起/报备了项目
+    created_by = Column(Integer, ForeignKey('users.id'), nullable=False, comment='项目发起人/报备人（不可变）')
+    # 可变字段 - 记录当前项目负责人
+    owner_id = Column(Integer, ForeignKey('users.id'), nullable=True, comment='当前项目负责人')
+
+    # 明确指定外键字段，避免冲突
+    creator = relationship('User', foreign_keys=[created_by], backref='created_projects')
+    owner = relationship('User', foreign_keys=[owner_id], backref='owned_projects')
     # 为locked_by添加关系
     locked_by_user = relationship('User', foreign_keys=[locked_by])
     # 为销售负责人添加关系

@@ -1,6 +1,10 @@
-from datetime import datetime
+from datetime import datetime, date
 from zoneinfo import ZoneInfo
 from enum import Enum
+import json
+import re
+import traceback
+from flask import current_app
 from app import db
 from app.models.user import User
 
@@ -178,130 +182,60 @@ class ApprovalStep(db.Model):
 
     def execute_action(self, approval_record, target_object, pricing_order_data=None):
         """执行审批动作"""
-        
-        # === 调试断点1: 函数入口信息 ===
-        print("\n=== execute_action 调试断点1: 函数入口 ===")
-        print("步骤ID:", self.id)
-        print("步骤名称:", self.step_name)
-        print("步骤类型:", self.step_type)
-        print("action_type:", repr(self.action_type))
-        print("approval_record:", approval_record)
-        print("target_object:", target_object)
-        print("pricing_order_data存在:", bool(pricing_order_data))
-        if pricing_order_data:
-            print("pricing_order_data:", pricing_order_data)
-        # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
-        
-        # 导入枚举定义用于对比
         from app.models.approval import ApprovalActionType
-        
-        # === 调试断点2: 关键条件判断前 ===
-        print("\n=== execute_action 调试断点2: 条件判断分析 ===")
-        print("当前action_type:", repr(self.action_type))
-        print("目标PRICING_SETTLEMENT_APPROVAL:", repr(ApprovalActionType.PRICING_SETTLEMENT_APPROVAL))
-        print("是否相等:", self.action_type == ApprovalActionType.PRICING_SETTLEMENT_APPROVAL)
-        print("所有动作类型:")
-        for attr_name in dir(ApprovalActionType):
-            if not attr_name.startswith('_'):
-                attr_value = getattr(ApprovalActionType, attr_name)
-                status = "匹配" if attr_value == self.action_type else "不匹配"
-                print("  ", attr_name, "=", repr(attr_value), status)
-        # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
-        
+
         if self.action_type == ApprovalActionType.QUOTATION_APPROVAL:
-            print(">>> 进入分支: QUOTATION_APPROVAL")
             return self._execute_quotation_approval(approval_record, target_object)
         elif self.action_type == ApprovalActionType.AUTHORIZATION:
-            print(">>> 进入分支: AUTHORIZATION")
             return self._execute_authorization(approval_record, target_object)
         elif self.action_type == ApprovalActionType.PAYMENT_PROCESSING:
-            print(">>> 进入分支: PAYMENT_PROCESSING")
             return self._execute_payment_processing(approval_record, target_object)
         elif self.action_type == ApprovalActionType.PROJECT_AUTHORIZATION:
-            print(">>> 进入分支: PROJECT_AUTHORIZATION")
             return self._execute_project_authorization(approval_record, target_object)
         elif self.action_type == ApprovalActionType.CHANNEL_AUTHORIZATION:
-            print(">>> 进入分支: CHANNEL_AUTHORIZATION")
             return self._execute_channel_authorization(approval_record, target_object)
         elif self.action_type == ApprovalActionType.BUSINESS_AUTHORIZATION:
-            print(">>> 进入分支: BUSINESS_AUTHORIZATION")
             return self._execute_business_authorization(approval_record, target_object)
         elif self.action_type == ApprovalActionType.CUSTOMER_SERVICE_AUTHORIZATION:
-            print(">>> 进入分支: CUSTOMER_SERVICE_AUTHORIZATION")
             return self._execute_customer_service_authorization(approval_record, target_object)
         elif self.action_type == ApprovalActionType.BRANCH_DECISION:
-            print(">>> 进入分支: BRANCH_DECISION")
             return self._execute_branch_decision(approval_record, target_object)
         elif self.action_type == ApprovalActionType.PRICING_SETTLEMENT_APPROVAL:
-            # === 调试断点3: 成功进入目标分支 ===
-            print("\n=== execute_action 调试断点3: 进入PRICING_SETTLEMENT_APPROVAL ===")
-            print("条件匹配成功！即将调用 _execute_pricing_settlement_approval")
-            print("approval_record:", approval_record)
-            print("target_object:", target_object)
-            print("pricing_order_data:", pricing_order_data)
-            # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
-            
-            print(">>> 进入分支: PRICING_SETTLEMENT_APPROVAL")
             return self._execute_pricing_settlement_approval(approval_record, target_object, pricing_order_data)
-        else:
-            # === 调试断点4: 未匹配任何分支 ===
-            print("\n=== execute_action 调试断点4: 未匹配分支 ===")
-            print("action_type:", self.action_type, "没有匹配任何分支")
-            print("返回默认值: True")
-            # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
-            
+
         return True
 
     def evaluate_branch_condition(self, target_object):
         """评估分支条件 - 统一使用新表数据"""
-        print(f"🔍 [DEBUG] 开始评估分支条件 - Step ID: {self.id}, Name: {self.step_name}")
-        print(f"🔍 [DEBUG] 步骤类型: {self.step_type}, 动作类型: {self.action_type}")
-        
         if self.step_type != 'branch' and self.action_type != 'branch_decision':
-            print(f"🔍 [DEBUG] 非分支步骤，跳过条件评估")
             return None
         
         # 直接从新表获取所有分支条件
         from app.models.approval_branch_condition import ApprovalBranchCondition
         conditions = ApprovalBranchCondition.get_step_conditions(self.id)
-        print(f"🔍 [DEBUG] 从新表获取到 {len(conditions)} 个分支条件")
-        
+
         if not conditions:
-            print(f"🔍 [DEBUG] 步骤 {self.id} 没有分支条件配置")
             return None
-        
-        # 调试所有条件
-        for i, cond in enumerate(conditions):
-            print(f"🔍 [DEBUG] 条件{i+1}: operator={cond.operator}, field_value={cond.field_value}, approver_id={cond.approver_id}")
-        
+
         # 获取字段名（从JSON配置或使用默认值）
         field_name = self.get_branch_field() or 'project_type'
-        print(f"🔍 [DEBUG] 分支字段名: {field_name}")
         
         try:
             # 获取目标对象的字段值
-            print(f"🔍 [DEBUG] 目标对象类型: {type(target_object)}")
             object_value = self._get_object_field_value(target_object, field_name)
-            print(f"🔍 [DEBUG] 分支条件评估: 字段={field_name}, 对象值={object_value}, 类型={type(object_value)}, 条件数量={len(conditions)}")
             
             # 按顺序评估每个条件，返回第一个匹配的条件配置
             for index, condition in enumerate(conditions):
                 operator = condition.operator
                 value = condition.field_value
-                
-                print(f"🔍 [DEBUG] 开始评估条件{index+1}: operator={operator}, value={value}")
-                
+
                 if not operator:
-                    print(f"🔍 [DEBUG] 条件{index+1}配置不完整: operator={operator}")
                     continue
-                    
+
                 # 执行条件判断
                 result = self._evaluate_condition(object_value, operator, value)
-                print(f"🔍 [DEBUG] 条件{index+1}评估结果: {result} (operator={operator}, value={value})")
-                
+
                 if result:
-                    print(f"🔍 [DEBUG] ✅ 匹配到条件{index+1}，停止后续条件评估")
-                    print(f"🔍 [DEBUG] 匹配条件详情: approver_id={condition.approver_id}, approver_type={condition.approver_type}, action={condition.action}")
                     # 返回匹配的条件配置（包含审批人和动作信息）
                     return {
                         'matched': True,
@@ -314,9 +248,7 @@ class ApprovalStep(db.Model):
                     }
             
             # 如果没有条件匹配，返回默认分支
-            print("🔍 [DEBUG] ❌ 没有条件匹配，使用默认分支")
             default_branch = self.get_default_branch()
-            print(f"🔍 [DEBUG] 默认分支配置: {default_branch}")
             return {
                 'matched': False,
                 'condition_index': -1,
@@ -328,119 +260,87 @@ class ApprovalStep(db.Model):
             }
             
         except Exception as e:
-            print(f"分支条件评估异常: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            current_app.logger.error(f"分支条件评估异常: {str(e)}")
             return None
     
     
     def _get_object_field_value(self, target_object, field):
         """获取目标对象的字段值"""
-        print(f"🔍 [DEBUG] 获取对象字段值 - 字段: {field}, 对象类型: {type(target_object)}")
-        
+
         # 特殊处理：批价单的 project_type 字段
         if field == 'project_type' and hasattr(target_object, 'quotation'):
-            print(f"🔍 [DEBUG] 检测到批价单的 project_type 字段访问，尝试从报价单获取")
             if target_object.quotation and hasattr(target_object.quotation, 'project_type'):
                 result = target_object.quotation.project_type
-                print(f"🔍 [DEBUG] ✅ 批价单项目类型通过报价单获取: {result}")
                 return result
             elif hasattr(target_object, 'project') and target_object.project and hasattr(target_object.project, 'project_type'):
                 # 后备方案：如果没有报价单，从关联项目获取
                 result = target_object.project.project_type
-                print(f"🔍 [DEBUG] ✅ 批价单项目类型通过关联项目获取: {result}")
                 return result
-            else:
-                print(f"🔍 [DEBUG] ❌ 批价单既没有关联报价单也没有关联项目的 project_type 字段")
         
         try:
             # 支持点分隔的嵌套字段访问，如 project.project_type
             if '.' in field:
-                print(f"🔍 [DEBUG] 处理嵌套字段访问: {field}")
                 parts = field.split('.')
                 value = target_object
-                print(f"🔍 [DEBUG] 字段路径分解: {parts}")
-                
+
                 for i, part in enumerate(parts):
                     if value is None:
-                        print(f"🔍 [DEBUG] 路径 {'.'.join(parts[:i])} 的值为 None，中断访问")
                         break
-                    
-                    print(f"🔍 [DEBUG] 访问路径 {i+1}/{len(parts)}: {part} (当前对象类型: {type(value)})")
-                    
+
                     # 支持方法调用，如 get_status()
                     if part.endswith('()'):
                         method_name = part[:-2]
                         if hasattr(value, method_name):
                             value = getattr(value, method_name)()
-                            print(f"🔍 [DEBUG] 调用方法 {method_name}()，返回值: {value}")
                         else:
-                            print(f"🔍 [DEBUG] 方法 {method_name} 不存在于对象 {type(value)}")
                             return None
                     else:
                         # 普通属性访问
                         if hasattr(value, part):
                             value = getattr(value, part)
-                            print(f"🔍 [DEBUG] 获取属性 {part}，值: {value} (类型: {type(value)})")
                         else:
-                            print(f"🔍 [DEBUG] 属性 {part} 不存在于对象 {type(value)} (路径: {'.'.join(parts[:i+1])})")
                             return None
-                
-                print(f"🔍 [DEBUG] 最终字段值: {value}")
+
                 return value
             else:
-                print(f"🔍 [DEBUG] 处理单一字段访问: {field}")
                 # 支持方法调用
                 if field.endswith('()'):
                     method_name = field[:-2]
                     if hasattr(target_object, method_name):
                         result = getattr(target_object, method_name)()
-                        print(f"🔍 [DEBUG] 调用方法 {method_name}()，返回值: {result}")
                         return result
                     else:
-                        print(f"🔍 [DEBUG] 方法 {method_name} 不存在于对象 {type(target_object)}")
                         return None
                 else:
                     # 普通属性访问
                     if hasattr(target_object, field):
                         result = getattr(target_object, field, None)
-                        print(f"🔍 [DEBUG] 获取属性 {field}，值: {result} (类型: {type(result)})")
                         return result
                     else:
-                        print(f"🔍 [DEBUG] 属性 {field} 不存在于对象 {type(target_object)}")
                         return None
         except (AttributeError, TypeError) as e:
-            print(f"🔍 [DEBUG] 获取字段值失败: field={field}, error={str(e)}")
             return None
     
     def _evaluate_condition(self, object_value, operator, condition_value):
         """评估条件表达式"""
-        print(f"🔍 [DEBUG] 开始评估条件 - object_value: {object_value} (类型: {type(object_value)}), operator: {operator}, condition_value: {condition_value}")
-        
+
         if object_value is None:
             result = operator in ['is_null', 'is_empty']
-            print(f"🔍 [DEBUG] 对象值为None，操作符 {operator} 的结果: {result}")
             return result
             
         # 字符串化处理
         obj_str = str(object_value)
         cond_str = str(condition_value)
-        print(f"🔍 [DEBUG] 字符串化后 - obj_str: '{obj_str}', cond_str: '{cond_str}'")
         
         try:
             if operator == 'equals':
-                print(f"🔍 [DEBUG] 处理 equals 操作符")
                 # 增强equals逻辑：如果条件值包含逗号，自动转换为多值匹配逻辑
                 if ',' in cond_str:
-                    print(f"🔍 [DEBUG] 条件值包含逗号，转换为多值匹配")
                     values = [v.strip() for v in cond_str.split(',')]
-                    print(f"🔍 [DEBUG] 分割后的值列表: {values}")
                     result = self._check_multi_value_match(obj_str, values)
-                    print(f"🔍 [DEBUG] 多值匹配结果: {result}")
                     return result
                 else:
                     result = obj_str == cond_str
-                    print(f"🔍 [DEBUG] 单值equals匹配结果: {result}")
                     return result
             elif operator == 'not_equals':
                 return obj_str != cond_str
@@ -453,12 +353,9 @@ class ApprovalStep(db.Model):
             elif operator == 'ends_with':
                 return obj_str.lower().endswith(cond_str.lower())
             elif operator == 'in':
-                print(f"🔍 [DEBUG] 处理 in 操作符")
                 # 增强的多值匹配
                 values = [v.strip() for v in cond_str.split(',')]
-                print(f"🔍 [DEBUG] in操作符 - 分割后的值列表: {values}")
                 result = self._check_multi_value_match(obj_str, values)
-                print(f"🔍 [DEBUG] in操作符 - 多值匹配结果: {result}")
                 return result
             elif operator == 'not_in':
                 values = [v.strip() for v in cond_str.split(',')]
@@ -480,69 +377,47 @@ class ApprovalStep(db.Model):
             elif operator == 'is_not_empty':
                 return bool(obj_str and obj_str.strip())
             elif operator == 'regex_match':
-                import re
                 return bool(re.search(cond_str, obj_str, re.IGNORECASE))
             else:
-                print(f"不支持的操作符: {operator}")
                 return False
         except Exception as e:
-            print(f"条件评估异常: operator={operator}, object_value={object_value}, condition_value={condition_value}, error={str(e)}")
             return False
     
     def _check_multi_value_match(self, object_value, condition_values):
         """
         检查多值匹配，支持字典映射
-        
+
         Args:
             object_value: 对象的实际值
             condition_values: 条件值列表
-            
+
         Returns:
             bool: 是否匹配
         """
-        print(f"🔍 [DEBUG] 开始多值匹配检查")
-        print(f"🔍 [DEBUG] object_value: '{object_value}' (类型: {type(object_value)})")
-        print(f"🔍 [DEBUG] condition_values: {condition_values}")
-        
+
         # 直接匹配
         if object_value in condition_values:
-            print(f"🔍 [DEBUG] ✅ 直接匹配: {object_value} in {condition_values}")
             return True
-        else:
-            print(f"🔍 [DEBUG] ❌ 直接匹配失败: {object_value} not in {condition_values}")
-        
+
         # 字典映射匹配（project_type等枚举字段）
         try:
-            print(f"🔍 [DEBUG] 尝试字典映射匹配...")
             from app.utils.field_value_helper import get_project_type_mapping
             mapping = get_project_type_mapping()
-            print(f"🔍 [DEBUG] 获取到项目类型映射: {mapping}")
-            
+
             # 检查英文值 -> 中文值映射
             mapped_value = mapping.get(object_value)
-            print(f"🔍 [DEBUG] 英文到中文映射: {object_value} -> {mapped_value}")
             if mapped_value and mapped_value in condition_values:
-                print(f"🔍 [DEBUG] ✅ 映射匹配成功: {object_value} -> {mapped_value} in {condition_values}")
                 return True
-            else:
-                print(f"🔍 [DEBUG] ❌ 英文到中文映射匹配失败")
-            
+
             # 检查中文值 -> 英文值的反向映射
             reverse_mapping = {v: k for k, v in mapping.items()}
-            print(f"🔍 [DEBUG] 反向映射字典: {reverse_mapping}")
             for cond_value in condition_values:
                 if cond_value in reverse_mapping and reverse_mapping[cond_value] == object_value:
-                    print(f"🔍 [DEBUG] ✅ 反向映射匹配: {object_value} == {reverse_mapping[cond_value]} <- {cond_value}")
                     return True
-                else:
-                    print(f"🔍 [DEBUG] 检查反向映射: '{cond_value}' in reverse_mapping = {cond_value in reverse_mapping}")
-                    if cond_value in reverse_mapping:
-                        print(f"🔍 [DEBUG] reverse_mapping['{cond_value}'] = '{reverse_mapping[cond_value]}' vs object_value = '{object_value}'")
-                    
+
         except Exception as e:
-            print(f"🔍 [DEBUG] ⚠️ 字典映射检查异常: {str(e)}")
-        
-        print(f"🔍 [DEBUG] ❌ 最终无匹配: {object_value} not in {condition_values}")
+            pass
+
         return False
     
     def _compare_numeric(self, value1, value2, operator):
@@ -629,7 +504,6 @@ class ApprovalStep(db.Model):
             
             return True
         except Exception as e:
-            print(f"执行报价审核动作失败: {str(e)}")
             return False
 
     def _execute_authorization(self, approval_record, project):
@@ -647,7 +521,6 @@ class ApprovalStep(db.Model):
                 
             return True
         except Exception as e:
-            print(f"执行授权动作失败: {str(e)}")
             return False
 
     def _execute_payment_processing(self, approval_record, target_object):
@@ -658,10 +531,8 @@ class ApprovalStep(db.Model):
                 return self._process_expense_payment(approval_record, target_object)
             else:
                 # 其他对象类型的支付处理可以在此扩展
-                print(f"不支持的支付处理对象类型: {target_object.__class__.__name__}")
                 return True
         except Exception as e:
-            print(f"执行支付处理动作失败: {str(e)}")
             return False
 
     def _process_expense_payment(self, approval_record, expense):
@@ -700,7 +571,6 @@ class ApprovalStep(db.Model):
     def _parse_payment_info(self, comment):
         """从评论中解析支付信息"""
         try:
-            import json
             # 尝试解析JSON格式的支付信息
             return json.loads(comment)
         except (json.JSONDecodeError, ValueError):
@@ -723,42 +593,28 @@ class ApprovalStep(db.Model):
                 project.authorization_type = 'project'
 
                 # 授权通过后更新报备时间为当前日期
-                from datetime import date
                 project.report_time = date.today()
             else:
                 project.authorization_status = 'rejected'
 
             # 提交数据库事务
-            from app import db
             db.session.commit()
 
             return True
         except Exception as e:
-            print(f"执行项目授权动作失败: {str(e)}")
             return False
 
     def _execute_channel_authorization(self, approval_record, project):
         """执行渠道授权动作"""
         try:
-            print(f"🔥🔥🔥 [CHANNEL_AUTH_START] ========== 开始执行渠道授权动作 ==========")
-            print(f"🔥 [CHANNEL_AUTH] 方法被调用！")
-            print(f"🔥 [CHANNEL_AUTH] 审批动作: {approval_record.action}")
-            print(f"🔥 [CHANNEL_AUTH] 审批人ID: {approval_record.approver_id}")
-            print(f"🔥 [CHANNEL_AUTH] 项目ID: {project.id}")
-            print(f"🔥 [CHANNEL_AUTH] 项目名称: {project.project_name if hasattr(project, 'project_name') else 'N/A'}")
-            print(f"🔥 [CHANNEL_AUTH] 项目类型: {project.project_type}")
-            print(f"🔥 [CHANNEL_AUTH] 当前授权编码: {project.authorization_code}")
 
             # 添加日志记录
-            from flask import current_app
             current_app.logger.info(f"[CHANNEL_AUTH] 执行渠道授权 - 项目ID:{project.id}, 类型:{project.project_type}")
 
             from app.utils.authorization import generate_channel_authorization_code
 
             if approval_record.action == 'approve':
                 if not project.authorization_code:
-                    print(f"🔥 [CHANNEL_AUTH] 项目没有授权编码，开始生成...")
-
                     # 生成授权编码
                     authorization_code = generate_channel_authorization_code(
                         project.project_type,
@@ -766,51 +622,25 @@ class ApprovalStep(db.Model):
                         approval_record.approver_id
                     )
 
-                    print(f"🔥 [CHANNEL_AUTH] 生成的授权编码: {authorization_code}")
-
                     # 赋值给项目
                     project.authorization_code = authorization_code
-                    print(f"🔥 [CHANNEL_AUTH] 已赋值给项目对象")
-
-                else:
-                    print(f"🔥 [CHANNEL_AUTH] 项目已有授权编码: {project.authorization_code}，跳过生成")
 
                 project.authorization_status = 'approved'
                 project.authorization_type = 'channel'
-                print(f"🔥 [CHANNEL_AUTH] 设置授权状态: approved, 类型: channel")
-
                 # 授权通过后更新报备时间为当前日期
-                from datetime import date
                 project.report_time = date.today()
-                print(f"🔥 [CHANNEL_AUTH] 更新报备时间: {project.report_time}")
-
-                # 打印项目对象的最终状态
-                print(f"🔥 [CHANNEL_AUTH] 项目最终状态:")
-                print(f"    - authorization_code: {project.authorization_code}")
-                print(f"    - authorization_status: {project.authorization_status}")
-                print(f"    - authorization_type: {project.authorization_type}")
-                print(f"    - report_time: {project.report_time}")
 
             else:
                 project.authorization_status = 'rejected'
-                print(f"🔥 [CHANNEL_AUTH] 设置授权状态: rejected")
 
             # 提交数据库事务
-            print(f"🔥 [CHANNEL_AUTH] 准备提交数据库事务...")
-            from app import db
             db.session.commit()
-            print(f"🔥 [CHANNEL_AUTH] ✅ 数据库事务已成功提交!")
 
             # 验证是否真的保存了
             db.session.refresh(project)
-            print(f"🔥 [CHANNEL_AUTH] 验证：从数据库重新读取后的授权编码: {project.authorization_code}")
 
-            print(f"🔥🔥🔥 [CHANNEL_AUTH_END] ========== 渠道授权动作执行成功 ==========")
             return True
         except Exception as e:
-            print(f"🔥 执行渠道授权动作失败: {str(e)}")
-            import traceback
-            traceback.print_exc()
             return False
 
     def _execute_business_authorization(self, approval_record, project):
@@ -818,7 +648,6 @@ class ApprovalStep(db.Model):
         try:
             return self._execute_customer_service_authorization(approval_record, project)
         except Exception as e:
-            print(f"执行业务授权动作失败: {str(e)}")
             return False
 
     def _execute_customer_service_authorization(self, approval_record, project):
@@ -837,39 +666,26 @@ class ApprovalStep(db.Model):
                 project.authorization_type = 'customer_service'
                 
                 # 授权通过后更新报备时间为当前日期
-                from datetime import date
                 project.report_time = date.today()
             else:
                 project.authorization_status = 'rejected'
 
             # 提交数据库事务
-            from app import db
             db.session.commit()
 
             return True
         except Exception as e:
-            print(f"执行客服授权动作失败: {str(e)}")
             return False
 
     def _execute_branch_decision(self, approval_record, target_object):
         """执行分支决策动作"""
         try:
-            print(f"🔥🔥🔥 [BRANCH_DECISION_START] ========== 开始执行分支决策 ==========")
-            print(f"🔥 [BRANCH_DECISION] 方法被调用！")
-            print(f"🔥 [BRANCH_DECISION] 步骤ID: {self.id}")
-            print(f"🔥 [BRANCH_DECISION] 步骤名称: {self.step_name}")
-            print(f"🔥 [BRANCH_DECISION] 目标对象类型: {type(target_object).__name__}")
-            print(f"🔥 [BRANCH_DECISION] 目标对象ID: {getattr(target_object, 'id', 'N/A')}")
-
             # 分支决策步骤主要用于条件判断，确定下一步的流程走向
 
             # 评估分支条件
-            print(f"🔥 [BRANCH_DECISION] 开始评估分支条件...")
             condition_result = self.evaluate_branch_condition(target_object)
-            print(f"🔥 [BRANCH_DECISION] 条件评估结果: {condition_result}")
 
             if condition_result is None:
-                print(f"🔥 [BRANCH_DECISION] ❌ 分支条件评估失败，步骤ID: {self.id}")
                 return False
             
             # 处理新的多条件格式返回结果
@@ -880,12 +696,10 @@ class ApprovalStep(db.Model):
                     'approver_type': condition_result.get('approver_type'),
                     'action': condition_result.get('action')
                 }
-                print(f"使用多条件结果: 匹配={condition_result.get('matched')}, 条件索引={condition_result.get('condition_index')}")
             else:
                 # 兼容旧的单条件格式
                 branch_result = self.get_branch_result(condition_result)
                 if not branch_result:
-                    print(f"未找到分支结果配置，条件结果: {condition_result}")
                     return False
             
             # 记录分支决策结果
@@ -895,37 +709,25 @@ class ApprovalStep(db.Model):
             if branch_result.get('approver_type') == 'next_branch':
                 next_branch_step = self.get_next_branch_step(condition_result)
                 if next_branch_step:
-                    print(f"跳转到下一个分支步骤: {next_branch_step.step_name}")
                     # 递归执行下一个分支步骤
                     return next_branch_step._execute_branch_decision(approval_record, target_object)
                 else:
-                    print(f"警告：未找到下一个分支步骤，将采用默认处理")
                     return True
             
             # 如果分支结果中指定了动作，执行对应动作
             if branch_result.get('action'):
                 action_type = branch_result.get('action')
-                print(f"🔥 分支决策: 准备执行动作 {action_type}")
-                print(f"🔥 分支结果: {branch_result}")
-                print(f"🔥 审批记录: action={approval_record.action}, approver_id={approval_record.approver_id}")
-                print(f"🔥 目标对象: type={type(target_object).__name__}, id={getattr(target_object, 'id', 'N/A')}")
-                
+
                 temp_step = type(self)()
                 temp_step.action_type = action_type
                 temp_step.action_params = branch_result.get('action_params', {})
-                
-                print(f"🔥 创建临时步骤: action_type={temp_step.action_type}")
-                
+
                 result = temp_step.execute_action(approval_record, target_object)
-                print(f"🔥 执行动作结果: {result}")
                 
                 return result
             
             return True
         except Exception as e:
-            print(f"执行分支决策动作失败: {str(e)}")
-            import traceback
-            traceback.print_exc()
             return False
     
     def _record_branch_decision(self, approval_record, condition_result, branch_result):
@@ -945,25 +747,13 @@ class ApprovalStep(db.Model):
                 approval_record.comment = f"[分支决策] {decision_info}"
                 
         except Exception as e:
-            print(f"记录分支决策失败: {str(e)}")
+            pass
     
     def _execute_pricing_settlement_approval(self, approval_record, pricing_order, pricing_order_data=None):
         """执行批结算审批 - 接收外部页面数据并保存到数据库"""
         try:
-            from app.models.user import User
             from app.services.pricing_order_service import PricingOrderService
-            from flask import current_app
             
-            # === 调试断点1: 函数入口 ===
-            print(f"\n=== 调试断点1: 批结算审批函数开始执行 ===")
-            print(f"批价单ID: {pricing_order.id}")
-            print(f"审批记录ID: {approval_record.id}")
-            print(f"审批人ID: {approval_record.approver_id}")
-            print(f"接收到的数据: {pricing_order_data}")
-            print(f"数据类型: {type(pricing_order_data)}")
-            if pricing_order_data:
-                print(f"数据内容详情: {type(pricing_order_data).__name__} - {pricing_order_data}")
-            # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
             
             current_app.logger.info(f"批结算审批 - 动作开始执行，批价单ID: {pricing_order.id}")
             current_app.logger.info(f"批结算审批 - 接收到的数据: {pricing_order_data}")
@@ -974,43 +764,17 @@ class ApprovalStep(db.Model):
                 current_app.logger.error(f"批结算审批失败：找不到审批人 {approval_record.approver_id}")
                 return False
             
-            # === 调试断点2: 数据验证 ===
-            print(f"\n=== 调试断点2: 数据验证阶段 ===")
-            print(f"审批人查找结果: {approver.username if approver else '未找到'}")
-            print(f"pricing_order_data 是否存在: {bool(pricing_order_data)}")
-            if pricing_order_data:
-                print(f"数据字段检查:")
-                for key, value in pricing_order_data.items():
-                    print(f"  - {key}: {value} (类型: {type(value)})")
-            # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
             
             # 如果有外部传递的批价单数据，保存到数据库
             if pricing_order_data:
                 current_app.logger.info(f"批结算审批 - 开始保存外部页面数据: {pricing_order_data}")
                 
-                # === 调试断点3: 保存前状态 ===
-                print(f"\n=== 调试断点3: 保存前数据库状态 ===")
-                print(f"保存前批价单折扣率:")
-                print(f"  - pricing_total_discount_rate: {pricing_order.pricing_total_discount_rate}")
-                print(f"  - settlement_total_discount_rate: {pricing_order.settlement_total_discount_rate}")
-                print(f"即将调用保存函数，传入数据: {pricing_order_data}")
-                # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
                 
                 # 使用成熟的核心保存逻辑 - 修复函数签名
                 service = PricingOrderService()
                 from flask_login import current_user
                 success = service.save_pricing_order_core_data(pricing_order.id, pricing_order_data, current_user)
                 
-                # === 调试断点4: 保存结果验证 ===
-                print(f"\n=== 调试断点4: 保存结果验证 ===")
-                print(f"保存函数返回结果: {success}")
-                # 重新查询数据库状态
-                from app.models.pricing_order import PricingOrder
-                updated_order = PricingOrder.query.get(pricing_order.id)
-                print(f"保存后数据库状态:")
-                print(f"  - pricing_total_discount_rate: {updated_order.pricing_total_discount_rate}")
-                print(f"  - settlement_total_discount_rate: {updated_order.settlement_total_discount_rate}")
-                # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
                 
                 if not success:
                     current_app.logger.error("批结算审批 - 保存批价单数据失败")
@@ -1021,21 +785,10 @@ class ApprovalStep(db.Model):
                 current_app.logger.warning("批结算审批 - 没有外部页面数据传递，跳过数据保存")
                 current_app.logger.info(f"批结算审批 - 当前批价单折扣率: {pricing_order.pricing_total_discount_rate}")
             
-            # === 调试断点5: 函数结束 ===
-            print(f"\n=== 调试断点5: 函数执行完成 ===")
-            print(f"最终返回结果: True")
-            # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
             
             return True
             
         except Exception as e:
-            from flask import current_app
-            print(f"\n=== 调试断点: 异常处理 ===")
-            print(f"异常信息: {str(e)}")
-            import traceback
-            print(f"异常堆栈: {traceback.format_exc()}")
-            # import pdb; pdb.set_trace()  # 手动调试断点 - 已移除
-            
             current_app.logger.error(f"执行批结算审批动作失败: {str(e)}")
             current_app.logger.error(traceback.format_exc())
             return False
@@ -1046,7 +799,6 @@ class ApprovalStep(db.Model):
         解析approval_record.frontend_data中的JSON数据，返回标准格式的请求数据
         """
         try:
-            import json
             
             # 从frontend_data中解析数据
             if approval_record.frontend_data:
@@ -1076,7 +828,6 @@ class ApprovalStep(db.Model):
             return {'details': []}
             
         except (json.JSONDecodeError, KeyError, TypeError) as e:
-            print(f"解析审批数据失败: {str(e)}")
             return {'details': []}
 
 

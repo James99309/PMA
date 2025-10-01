@@ -2020,6 +2020,11 @@ input[type="number"].discount-rate:hover {
     white-space: nowrap;
 }
 
+/* 移除最后一个按钮的右边距，确保按钮组完全右对齐 */
+.page-header-with-actions .btn-toolbar > *:last-child {
+    margin-right: 0 !important;
+}
+
 /* 响应式设计 - 移动端优化 */
 @media (max-width: 768px) {
     /* 移除body的默认间距 */

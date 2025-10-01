@@ -859,7 +859,13 @@ def project_list_ajax():
         except Exception as e:
             current_app.logger.error(f"标准组件模板渲染失败: {e}")
             html = f'<tr><td colspan="12" class="text-center text-muted">渲染失败: {str(e)}</td></tr>'
-        
+
+        # 获取货币配置信息（必须在统计计算之前）
+        from app.utils.i18n import get_current_language, get_default_currency, get_currency_symbol
+        current_lang = get_current_language()
+        default_currency = get_default_currency()
+        currency_symbol = get_currency_symbol(default_currency)
+
         # 计算统计数据 - 使用高效的聚合查询算法
         try:
             # 构建筛选查询（不包含current_stage筛选，以显示各阶段统计）
@@ -870,7 +876,7 @@ def project_list_ajax():
                                                 is_active, industry, report_source, project_type, None)
 
             # 使用优化的聚合统计函数
-            raw_statistics = get_full_project_stats(stats_query, target_currency)
+            raw_statistics = get_full_project_stats(stats_query, default_currency)
 
             # 格式化统计数据
             statistics = _format_stats_for_ajax(raw_statistics)
@@ -890,13 +896,6 @@ def project_list_ajax():
                 'lost': 0,
                 'paused': 0
             }
-        
-        # 获取货币配置信息
-        from app.utils.i18n import get_current_language, get_default_currency, get_currency_symbol
-        current_lang = get_current_language()
-        default_currency = get_default_currency()
-        currency_symbol = get_currency_symbol(default_currency)
-
 
         # 返回JSON响应（包含货币配置）
         return jsonify({

@@ -54,8 +54,9 @@ def center():
             get_order_pending_count,
             get_expense_pending_count
         )
-        
-        pending_count = get_pending_approval_count(current_user.id)
+
+        # 🔥 进入审批中心时强制刷新待审批数量缓存
+        pending_count = get_pending_approval_count(current_user.id, force_refresh=True)
         created_pending_count = get_pending_created_count(current_user.id)
         pricing_order_pending_count = get_pricing_order_pending_count(current_user.id)
         order_pending_count = get_order_pending_count(current_user.id)

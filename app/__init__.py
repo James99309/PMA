@@ -579,19 +579,15 @@ def create_app(config_class=Config):
         """向模板上下文注入当前用户的权限信息"""
         def has_permission(module, action):
             from flask_login import current_user
-            import sys
-            print(f"[DEBUG][context_processor.has_permission] user={getattr(current_user, 'username', None)}, role={getattr(current_user, 'role', None)}, module={module}, action={action}", file=sys.stderr)
             
             try:
                 # 如果用户未登录，则没有权限
                 if not current_user.is_authenticated:
-                    print("[DEBUG][context_processor.has_permission] not authenticated, return False", file=sys.stderr)
                     return False
                     
                 # 管理员和CEO默认拥有所有权限
                 from app.permissions import is_admin_or_ceo
                 if is_admin_or_ceo():
-                    print(f"[DEBUG][context_processor.has_permission] admin/ceo ({current_user.role}), return True", file=sys.stderr)
                     return True
                     
                 # 获取角色权限
@@ -625,26 +621,28 @@ def create_app(config_class=Config):
                 # 最终权限 = 角色权限 OR 个人权限
                 final_permission = role_has_permission or personal_has_permission
                 
-                if role_permission:
-                    print(f"[DEBUG][context_processor.has_permission] using role_permission: role={current_user.role}, module={module}", file=sys.stderr)
+                # Role permission found, will be used in final calculation
                 
                 return final_permission
                 
             except Exception as e:
                 # 发生数据库错误时，回滚事务并记录错误
-                print(f"[ERROR][context_processor.has_permission] Database error: {str(e)}", file=sys.stderr)
+                # Database error in permission check - log to app logger if available
+                try:
+                    from flask import current_app
+                    current_app.logger.error(f"Permission check database error: {str(e)}")
+                except:
+                    pass  # Ignore logging errors
                 try:
                     from app import db
                     db.session.rollback()
-                    print("[DEBUG][context_processor.has_permission] Transaction rolled back", file=sys.stderr)
                 except Exception as rollback_error:
-                    print(f"[ERROR][context_processor.has_permission] Rollback failed: {str(rollback_error)}", file=sys.stderr)
+                    pass  # Ignore rollback errors in permission context
                 
                 # 对于权限检查失败，默认返回False（安全策略）
                 # 但对于管理员和CEO，即使数据库出错也应该有权限
                 from app.permissions import is_admin_or_ceo
                 if is_admin_or_ceo():
-                    print(f"[DEBUG][context_processor.has_permission] Admin/CEO fallback ({current_user.role}), return True", file=sys.stderr)
                     return True
                 
                 return False

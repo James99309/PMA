@@ -827,6 +827,16 @@ function performGenericAjaxFilter(config) {
                 dataLength: data.html ? data.html.length : 0,
                 hasHTML: !!data.html
             });
+
+            // 保存API返回的配置到全局变量，供统计更新使用
+            if (data.currency_symbol || data.currency || data.language) {
+                window.currentApiResponse = {
+                    currency_symbol: data.currency_symbol,
+                    currency: data.currency,
+                    language: data.language
+                };
+                console.log('💰 保存货币配置:', window.currentApiResponse);
+            }
             
             if (actualTargetElement) {
                 actualTargetElement.innerHTML = data.html;

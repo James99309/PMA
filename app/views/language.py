@@ -10,6 +10,7 @@ from app import db
 from app.utils.i18n import set_current_language, get_supported_languages
 from flask_babel import gettext as _
 from datetime import datetime, timedelta
+import time
 
 language_bp = Blueprint('language', __name__, url_prefix='/language')
 
@@ -40,11 +41,18 @@ def switch_language():
                 current_user.language_preference = language
                 db.session.commit()
             
-            # 创建响应并设置cookie
+            # 创建响应并设置cookie，增加更多信息用于前端更新
             response = make_response(jsonify({
                 'success': True,
                 'message': _('语言切换成功'),
-                'language': language
+                'language': language,
+                'language_display': '简体中文' if language == 'zh' else 'English',
+                'require_reload': True,  # 始终要求刷新页面以确保内容完全更新
+                'updated_elements': {     # 需要更新的页面元素信息
+                    'language_display': '简体中文' if language == 'zh' else 'English',
+                    'current_user_authenticated': current_user.is_authenticated,
+                    'timestamp': int(time.time())
+                }
             }))
             
             # 设置语言cookie，有效期30天

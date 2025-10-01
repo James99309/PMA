@@ -67,25 +67,51 @@ def login():
             session['username'] = user.username
             session['login_time'] = time.time()  # 记录登录时间
             
-            # 同步语言设置：优先使用用户偏好，其次使用cookie，最后默认中文
+            # 🌍 增强的语言继承逻辑：确保登录前后语言设置的连贯性
             cookie_language = request.cookies.get('language')
             user_language = user.language_preference
-            
-            # 如果用户没有语言偏好但cookie有语言设置，则同步到用户偏好
-            if not user_language and cookie_language and cookie_language in ['zh', 'en']:
-                user.language_preference = cookie_language
-                user_language = cookie_language
-                db.session.commit()
-                logger.info(f"用户 {user.username} 同步cookie语言设置到用户偏好: {cookie_language}")
-            
-            # 设置session中的语言（优先使用用户偏好，其次cookie，最后默认中文）
-            final_language = user_language or cookie_language or 'zh'
+
+            # 智能语言继承策略
+            if cookie_language and cookie_language in ['zh', 'en']:
+                if not user_language:
+                    # 用户没有语言偏好，采用cookie语言并保存到用户偏好
+                    user.language_preference = cookie_language
+                    final_language = cookie_language
+                    db.session.commit()
+                    logger.info(f"用户 {user.username} 首次登录，采用cookie语言: {cookie_language}")
+                elif user_language != cookie_language:
+                    # 用户有偏好但与cookie不同，说明用户在登录页面更改了语言，优先使用cookie
+                    user.language_preference = cookie_language
+                    final_language = cookie_language
+                    db.session.commit()
+                    logger.info(f"用户 {user.username} 登录页语言已更改，更新用户偏好: {user_language} -> {cookie_language}")
+                else:
+                    # 用户偏好与cookie一致，使用用户偏好
+                    final_language = user_language
+                    logger.info(f"用户 {user.username} 使用已有语言偏好: {final_language}")
+            else:
+                # 没有有效的cookie语言，使用用户偏好或默认中文
+                final_language = user_language or 'zh'
+                logger.info(f"用户 {user.username} 使用用户偏好或默认语言: {final_language}")
+
+            # 设置session语言并确保国际化模块同步
             session['language'] = final_language
-            logger.info(f"用户 {user.username} 登录时设置语言: {final_language}")
+            from app.utils.i18n import set_current_language
+            set_current_language(final_language)
             
             # 记录登录日志
             logger.info(f"用户 {user.username} (ID: {user.id}, 角色: {user.role}) 成功登录")
             
+            # 🔥 登录成功后初始化待审批数量缓存
+            try:
+                from app.helpers.approval_helpers import get_pending_approval_count
+                # 强制计算并缓存待审批数量
+                pending_count = get_pending_approval_count(user.id, force_refresh=True)
+                logger.info(f"用户 {user.username} 登录成功，初始化待审批数量缓存: {pending_count}")
+            except Exception as e:
+                # 缓存初始化失败不应影响登录流程
+                logger.error(f"初始化待审批数量缓存失败: {e}")
+
             # 重定向到登录前的页面或默认页面
             next_page = request.args.get('next')
             if not next_page or urlparse(next_page).netloc != '':

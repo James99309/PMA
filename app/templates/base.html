@@ -1042,7 +1042,7 @@
         function initLanguageSwitcher() {
             // 初始化语言显示状态
             updateLanguageDisplay();
-            
+
             // 绑定桌面端语言切换事件
             document.querySelectorAll('.main-language-option').forEach(option => {
                 option.addEventListener('click', function(e) {
@@ -1051,8 +1051,8 @@
                     switchLanguage(selectedLang);
                 });
             });
-            
-            // 绑定移动端侧边栏语言切换事件  
+
+            // 绑定移动端侧边栏语言切换事件
             document.querySelectorAll('.mobile-sidebar-language-option').forEach(option => {
                 option.addEventListener('click', function(e) {
                     e.preventDefault();
@@ -1060,7 +1060,7 @@
                     switchLanguage(selectedLang);
                 });
             });
-            
+
             // 绑定用户菜单语言切换事件（如果存在）
             document.querySelectorAll('.language-option').forEach(option => {
                 option.addEventListener('click', function(e) {
@@ -1068,6 +1068,70 @@
                     const selectedLang = this.getAttribute('data-lang');
                     switchLanguage(selectedLang);
                 });
+            });
+
+            // 🔄 增强的跨页面语言同步机制
+            initCrossPageLanguageSync();
+        }
+
+        // 🌐 跨页面语言同步功能
+        function initCrossPageLanguageSync() {
+            // 监听localStorage变化（跨标签页通信）
+            window.addEventListener('storage', function(e) {
+                if (e.key === 'language_changed') {
+                    try {
+                        const changeData = JSON.parse(e.newValue || '{}');
+                        const { timestamp, language, method } = changeData;
+
+                        // 避免重复处理相同的变更
+                        const lastProcessed = sessionStorage.getItem('last_language_change_processed');
+                        if (lastProcessed && parseInt(lastProcessed) >= timestamp) {
+                            return;
+                        }
+
+                        console.log(`🔄 检测到其他页面语言变更: ${language} (方法: ${method})`);
+
+                        // 根据变更方法决定处理方式
+                        if (method === 'dynamic_update') {
+                            // 其他页面使用了动态更新，我们也尝试动态更新
+                            updateLanguageDisplay();
+                            console.log('✅ 已同步语言显示状态');
+                        } else {
+                            // 其他页面刷新了，询问用户是否也要刷新
+                            if (confirm('语言设置已在其他页面更改，是否刷新当前页面应用新语言？')) {
+                                window.location.reload();
+                            } else {
+                                // 用户选择不刷新，至少更新语言显示
+                                updateLanguageDisplay();
+                            }
+                        }
+
+                        // 记录已处理的时间戳
+                        sessionStorage.setItem('last_language_change_processed', timestamp.toString());
+
+                    } catch (error) {
+                        console.warn('⚠️ 处理跨页面语言变更时出错:', error);
+                        // 回退到简单的更新方式
+                        updateLanguageDisplay();
+                    }
+                }
+            });
+
+            // 监听页面可见性变化，当用户切换回页面时检查语言状态
+            document.addEventListener('visibilitychange', function() {
+                if (!document.hidden) {
+                    // 页面变为可见时，检查语言状态是否需要更新
+                    setTimeout(() => {
+                        updateLanguageDisplay();
+                    }, 100);
+                }
+            });
+
+            // 监听焦点变化，当窗口获得焦点时同步语言状态
+            window.addEventListener('focus', function() {
+                setTimeout(() => {
+                    updateLanguageDisplay();
+                }, 100);
             });
         }
         
@@ -1117,18 +1181,27 @@
             });
         }
         
-        // 统一的语言切换函数
+        // 🚀 增强的语言切换函数：支持无刷新更新和智能回退
         function switchLanguage(selectedLang) {
             // 获取CSRF令牌
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
                               document.querySelector('input[name="csrf_token"]')?.value;
-            
+
             if (!csrfToken) {
                 console.error('未找到CSRF令牌');
                 alert('语言切换失败：安全令牌未找到');
                 return;
             }
-            
+
+            // 显示加载状态
+            const currentLangElements = document.querySelectorAll('[id*="CurrentLanguage"], [id*="currentLanguage"]');
+            currentLangElements.forEach(el => {
+                if (el.textContent) {
+                    el.dataset.originalText = el.textContent;
+                    el.textContent = '切换中...';
+                }
+            });
+
             // 发送语言切换请求
             fetch('/language/switch', {
                 method: 'POST',
@@ -1141,19 +1214,77 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // 通知其他页面语言已变更
+                    // 🔄 始终刷新页面以确保内容完全更新
                     if (typeof(Storage) !== "undefined") {
-                        localStorage.setItem('language_changed', Date.now());
+                        localStorage.setItem('language_changed', JSON.stringify({
+                            timestamp: Date.now(),
+                            language: selectedLang,
+                            method: 'page_reload'
+                        }));
                     }
-                    // 刷新页面以应用新语言
+                    console.log('✅ 语言切换成功，正在刷新页面...');
                     window.location.reload();
                 } else {
+                    // 恢复原始文本
+                    restoreOriginalLanguageText(currentLangElements);
                     alert(data.message || '语言切换失败');
                 }
             })
             .catch(error => {
                 console.error('语言切换失败:', error);
+                // 恢复原始文本
+                restoreOriginalLanguageText(currentLangElements);
                 alert('语言切换失败，请稍后重试');
+            });
+        }
+
+        // 🎨 动态更新页面语言内容的函数
+        function updatePageLanguageContent(data) {
+            const language = data.language;
+            const languageDisplay = data.language_display;
+
+            // 更新所有语言显示元素
+            const languageElements = [
+                'mainCurrentLanguage',
+                'currentLanguageText',
+                'mobileCurrentLanguageTop'
+            ];
+
+            languageElements.forEach(elementId => {
+                const element = document.getElementById(elementId);
+                if (element) {
+                    element.textContent = languageDisplay;
+                }
+            });
+
+            // 更新语言选择状态标记
+            updateLanguageSelectionMarkers(language);
+
+            console.log(`🌍 页面语言内容已更新为: ${languageDisplay} (${language})`);
+        }
+
+        // 🔄 更新语言选择的状态标记
+        function updateLanguageSelectionMarkers(currentLang) {
+            // 更新所有检查标记
+            const allChecks = document.querySelectorAll('[id*="check-"], [id*="main-check-"]');
+            allChecks.forEach(check => {
+                check.style.visibility = 'hidden';
+            });
+
+            // 显示当前语言的检查标记
+            const currentChecks = document.querySelectorAll(`#check-${currentLang}, #main-check-${currentLang}`);
+            currentChecks.forEach(check => {
+                check.style.visibility = 'visible';
+            });
+        }
+
+        // 🔙 恢复原始语言文本
+        function restoreOriginalLanguageText(elements) {
+            elements.forEach(el => {
+                if (el.dataset.originalText) {
+                    el.textContent = el.dataset.originalText;
+                    delete el.dataset.originalText;
+                }
             });
         }
     </script>

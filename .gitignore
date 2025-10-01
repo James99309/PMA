@@ -15,6 +15,9 @@ app.db
 
 # 环境配置文件
 .env
+.env.local
+.env.*.backup
+.env.supabase.prod
 .flaskenv
 
 # 日志文件
@@ -34,6 +37,8 @@ Thumbs.db
 *.bak
 *.swp
 *.tmp
+*.backup
+*_backup.py
 
 # 测试文件和缓存
 .pytest_cache/

@@ -1791,7 +1791,6 @@ def add_action_api(contact_id):
         db.session.rollback()
         import traceback
         traceback_str = traceback.format_exc()
-        print(f"添加行动记录出错: {str(e)}\n{traceback_str}")
         return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500
 
 @customer.route('/api/companies/<company_type>')
@@ -1985,26 +1984,21 @@ def check_duplicates():
         if not current_user.role == 'admin':
             return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
         
-        # 打印请求内容，帮助调试
-        print(f"收到check-duplicates请求: {request.data}")
         
         # 检查请求是否包含JSON数据
         if not request.is_json:
-            print(f"请求不是JSON格式: {request.data}")
             return jsonify({'success': False, 'message': '请求必须是JSON格式'}), 400
         
         data = request.json
         
         # 确保data是一个dict
         if not isinstance(data, dict):
-            print(f"请求数据不是字典: {data}")
             return jsonify({'success': False, 'message': '请求数据格式错误'}), 400
         
         company_names = data.get('company_names', [])
         
         # 确保company_names是一个列表
         if not isinstance(company_names, list):
-            print(f"company_names不是列表: {company_names}")
             return jsonify({'success': False, 'message': 'company_names必须是列表'}), 400
         
         if not company_names:
@@ -2013,13 +2007,11 @@ def check_duplicates():
         # 检查列表中的每个元素是否为字符串
         for i, name in enumerate(company_names):
             if not isinstance(name, str):
-                print(f"company_names中的元素[{i}]不是字符串: {name}")
                 # 尝试转换为字符串
                 try:
                     company_names[i] = str(name)
                 except:
                     # 如果转换失败，则移除该元素
-                    print(f"无法将元素[{i}]转换为字符串，已移除")
                     company_names[i] = ""
         
         # 过滤掉空字符串
@@ -2028,7 +2020,6 @@ def check_duplicates():
         if not company_names:
             return jsonify({'success': False, 'message': '没有有效的企业名称'}), 400
         
-        print(f"过滤后的企业名称列表: {company_names}")
         
         # 获取所有现有企业名称
         existing_companies = Company.query.with_entities(Company.id, Company.company_name).filter(Company.is_deleted == False).all()
@@ -2120,9 +2111,6 @@ def check_duplicates():
                                   (prefix_match and similarity > 0.65)
                     
                     if is_conflict:
-                        print(f"发现潜在冲突: '{import_name}' vs '{existing_name}', " 
-                              f"相似度={similarity:.2f}, 连续匹配长度={longest_match_size}, "
-                              f"从左到右匹配={left_to_right_match}, 名称包含={name_contains}")
                         
                         conflicts.append({
                             'import_name': import_name,
@@ -2151,14 +2139,12 @@ def check_duplicates():
             'conflicts': list(filtered_conflicts.values())
         }
         
-        print(f"检查重复完成，返回结果: {len(filtered_conflicts)}条冲突")
         
         return jsonify(result)
     
     except Exception as e:
         import traceback
         traceback_str = traceback.format_exc()
-        print(f"检查重复出错: {str(e)}\n{traceback_str}")
         return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500
 
 @customer.route('/api/check-contact-duplicates', methods=['POST'])
@@ -2248,10 +2234,8 @@ def check_contact_duplicates():
         })
         
     except Exception as e:
-        print(f"检查联系人冲突出错: {str(e)}")
         import traceback
         traceback_str = traceback.format_exc()
-        print(traceback_str)
         return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500
 
 @customer.route('/api/import-contacts', methods=['POST'])
@@ -2262,18 +2246,15 @@ def import_contacts():
         if not current_user.role == 'admin':
             return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
         
-        print(f"收到联系人导入请求: {request.data}")
         
         # 检查请求是否包含JSON数据
         if not request.is_json:
-            print(f"请求不是JSON格式: {request.data}")
             return jsonify({'success': False, 'message': '请求必须是JSON格式'}), 400
             
         data = request.json
         
         # 确保data是一个dict
         if not isinstance(data, dict):
-            print(f"请求数据不是字典: {data}")
             return jsonify({'success': False, 'message': '请求数据格式错误'}), 400
             
         contacts = data.get('contacts', [])
@@ -2283,12 +2264,10 @@ def import_contacts():
         
         # 确保contacts是列表
         if not isinstance(contacts, list):
-            print(f"contacts不是列表: {contacts}")
             return jsonify({'success': False, 'message': 'contacts必须是列表'}), 400
         
         # 确保conflict_actions是字典
         if not isinstance(conflict_actions, dict):
-            print(f"conflict_actions不是字典: {conflict_actions}")
             return jsonify({'success': False, 'message': 'conflict_actions必须是字典'}), 400
         
         # 验证归属账户是否存在
@@ -2406,7 +2385,6 @@ def import_contacts():
                     'record': contact_data,
                     'reason': str(e)
                 })
-                print(f"导入联系人 {contact_name} 出错: {str(e)}")
                 
         # 同步导入行动记录
         action_success = 0
@@ -2512,7 +2490,6 @@ def import_contacts():
     except Exception as e:
         import traceback
         traceback_str = traceback.format_exc()
-        print(f"导入联系人数据出错: {str(e)}\n{traceback_str}")
         return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500
 
 @customer.route('/api/import', methods=['POST'])
@@ -2523,18 +2500,15 @@ def import_customers():
         if not current_user.role == 'admin':
             return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
         
-        print(f"收到导入请求: {request.data}")
         
         # 检查请求是否包含JSON数据
         if not request.is_json:
-            print(f"请求不是JSON格式: {request.data}")
             return jsonify({'success': False, 'message': '请求必须是JSON格式'}), 400
             
         data = request.json
         
         # 确保data是一个dict
         if not isinstance(data, dict):
-            print(f"请求数据不是字典: {data}")
             return jsonify({'success': False, 'message': '请求数据格式错误'}), 400
             
         customers = data.get('customers', [])
@@ -2543,12 +2517,10 @@ def import_customers():
         
         # 确保customers是列表
         if not isinstance(customers, list):
-            print(f"customers不是列表: {customers}")
             return jsonify({'success': False, 'message': 'customers必须是列表'}), 400
         
         # 确保conflict_actions是字典
         if not isinstance(conflict_actions, dict):
-            print(f"conflict_actions不是字典: {conflict_actions}")
             return jsonify({'success': False, 'message': 'conflict_actions必须是字典'}), 400
             
         # 对导入数据进行去重，确保每个公司名称只出现一次
@@ -2562,9 +2534,7 @@ def import_customers():
                     import_name_set.add(company_name)
                     unique_customers.append(customer)
                 else:
-                    print(f"忽略重复的企业名称: {company_name}")
-        
-        print(f"去重后的导入数据: {len(unique_customers)}/{len(customers)} 条记录")
+                    pass
         
         # 使用去重后的数据
         customers = unique_customers
@@ -2574,7 +2544,6 @@ def import_customers():
         invalid_customers = []  # 存储无效的客户数据及原因
         for i, customer in enumerate(customers):
             if not isinstance(customer, dict):
-                print(f"客户数据[{i}]不是字典: {customer}")
                 invalid_customers.append({
                     'record': {'index': i, 'data': str(customer)[:100]},  # 截取前100个字符避免过长
                     'reason': '数据格式错误，不是有效的对象'
@@ -2583,7 +2552,6 @@ def import_customers():
                 
             # 确保必要字段存在且类型正确
             if 'company_name' not in customer or not customer['company_name']:
-                print(f"客户数据[{i}]缺少company_name字段")
                 invalid_customers.append({
                     'record': customer,
                     'reason': '缺少企业名称字段或企业名称为空'
@@ -2611,7 +2579,6 @@ def import_customers():
             if 'created_at' in customer and customer['created_at']:
                 if isinstance(customer['created_at'], str):
                     try:
-                        print(f"尝试解析创建时间: {customer['created_at']}")
                         # 处理ISO 8601格式的日期字符串，去掉Z后添加时区信息
                         if customer['created_at'].endswith('Z'):
                             customer['created_at'] = customer['created_at'].replace('Z', '+00:00')
@@ -2619,7 +2586,6 @@ def import_customers():
                         # 尝试从ISO格式解析
                         try:
                             customer['created_at'] = datetime.fromisoformat(customer['created_at'])
-                            print(f"成功从ISO格式解析: {customer['created_at']}")
                         except ValueError:
                             # 如果fromisoformat失败，尝试strptime
                             formats = [
@@ -2634,35 +2600,30 @@ def import_customers():
                             for fmt in formats:
                                 try:
                                     customer['created_at'] = datetime.strptime(customer['created_at'], fmt)
-                                    print(f"使用格式 {fmt} 成功解析: {customer['created_at']}")
                                     parsed = True
                                     break
                                 except ValueError:
                                     continue
                             
                             if not parsed:
-                                print(f"无法解析创建时间: {customer['created_at']}，使用当前时间")
                                 customer['created_at'] = datetime.utcnow()
                                 invalid_customers.append({
                                     'record': {'company_name': customer.get('company_name', '未知')},
                                     'reason': '创建时间格式不正确'
                                 })
                     except Exception as e:
-                        print(f"创建时间解析异常: {e}")
                         customer['created_at'] = datetime.utcnow()
                         invalid_customers.append({
                             'record': {'company_name': customer.get('company_name', '未知')},
                             'reason': f'创建时间格式错误: {str(e)}'
                         })
                 elif not isinstance(customer['created_at'], datetime):
-                    print(f"创建时间不是字符串也不是datetime对象: {type(customer['created_at'])}")
                     customer['created_at'] = datetime.utcnow()
                     invalid_customers.append({
                         'record': {'company_name': customer.get('company_name', '未知')},
                         'reason': '创建时间格式不正确'
                     })
             else:
-                print("未提供创建时间，使用当前时间")
                 customer['created_at'] = datetime.utcnow()
                 
             valid_customers.append(customer)
@@ -2674,7 +2635,6 @@ def import_customers():
                 'data': {'error_details': invalid_customers}
             }), 400
             
-        print(f"有效客户数据: {len(valid_customers)}条")
         
         if not owner_id:
             return jsonify({
@@ -2723,7 +2683,6 @@ def import_customers():
                     if action == 'ignore':
                         # 忽略该条数据
                         skipped_count += 1
-                        print(f"忽略已存在的企业: {company_name}")
                         continue
                     elif action == 'override':
                         # 更新现有企业
@@ -2764,12 +2723,10 @@ def import_customers():
                         
                         # 保留原始创建时间（如果Excel中有指定且有效，则使用；否则保留数据库中现有的）
                         if 'created_at' in customer_data and customer_data['created_at'] and isinstance(customer_data['created_at'], datetime):
-                            print(f"覆盖记录 - 设置创建时间: {customer_data['created_at']}")
                             company.created_at = customer_data['created_at']
                         
                         # 更新时间设置为当前时间（导入时间）
                         company.updated_at = datetime.utcnow()
-                        print(f"覆盖记录 - 设置更新时间: {company.updated_at}")
                         
                         company.owner_id = owner_id  # 更新所有者
                         db.session.commit()
@@ -2781,7 +2738,6 @@ def import_customers():
                     else:  # action == 'keep'
                         # 克隆为新记录，但使用不同名称
                         company_name = f"{company_name}_导入_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
-                        print(f"发现同名企业，重命名为: {company_name}")
                 
                 # 创建新企业(action == 'keep'或不存在冲突)
                 company = Company(
@@ -2803,12 +2759,10 @@ def import_customers():
                 # 设置创建时间和更新时间
                 # 保留原始创建时间
                 if 'created_at' in customer_data and customer_data['created_at']:
-                    print(f"设置创建时间: {customer_data['created_at']}")
                     company.created_at = customer_data['created_at']
                 
                 # 更新时间设置为当前时间（导入时间）
                 company.updated_at = datetime.utcnow()
-                print(f"设置更新时间: {company.updated_at}")
                 
                 db.session.add(company)
                 db.session.commit()
@@ -2818,7 +2772,6 @@ def import_customers():
                 db.session.rollback()
                 error_count += 1
                 error_message = str(e)
-                print(f"导入企业 {company_name} 时出错: {error_message}")
                 error_details.append({
                     'record': {'company_name': company_name},
                     'reason': error_message
@@ -2857,7 +2810,6 @@ def import_customers():
     except Exception as e:
         import traceback
         traceback_str = traceback.format_exc()
-        print(f"导入客户数据出错: {str(e)}\n{traceback_str}")
         return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500
 
 @customer.route('/api/batch-delete', methods=['POST'])
@@ -3040,7 +2992,6 @@ def batch_delete_companies():
     except Exception as e:
         import traceback
         traceback_str = traceback.format_exc()
-        print(f"批量删除企业出错: {str(e)}\n{traceback_str}")
         return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500
 
 @customer.route('/api/actions/<int:action_id>/delete', methods=['POST'])

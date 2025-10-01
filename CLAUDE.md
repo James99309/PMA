@@ -7,8 +7,9 @@
 ### **📖 主要规则文档**
 - **CLAUDE.md** (本文件) - 核心原则和基础规范
 - **CLAUDE-I18N.md** - 翻译与国际化规范
-- **CLAUDE-COMPONENTS.md** - 组件和UI规范  
+- **CLAUDE-COMPONENTS.md** - 组件和UI规范
 - **CLAUDE-DATABASE.md** - 数据库备份和迁移规范
+- **CLAUDE-SCRIPTS.md** - 脚本创建与管理规范
 
 ### **📋 使用说明**
 - **Claude AI助手**: 需要时请主动读取相应的专门规范文件
@@ -213,11 +214,16 @@ total_amount = order.total_amount / 10000  # 转换为万元
 
 ### **启动方式**
 ```bash
-# 使用生产环境Supabase存储启动本地开发
-./run_with_supabase_prod.sh
+# 统一启动脚本（推荐）
+./start.sh
 
-# 或手动加载配置
-export $(cat .env.supabase.prod | grep -v '^#' | xargs)
+# 交互式选择:
+#  1. 自动检测数据库配置
+#  2. 选择文件存储方式（本地/云端）
+#  3. 显示完整配置摘要
+#  4. 确认后启动
+
+# 快速启动（使用默认配置：本地数据库 + 本地存储）
 python run.py
 ```
 
@@ -248,6 +254,218 @@ FORCE_CLOUD_UPLOAD=true
 - **网络依赖** - 本地开发需要稳定的网络连接访问Supabase
 - **安全配置** - 确保 `.env.supabase.prod` 在 `.gitignore` 中
 - **定期更新** - 定期更新密钥确保安全性
+
+---
+
+## 📁 文件组织规范
+
+### **根目录规则**
+
+**✅ 只允许以下类型的文件存在于根目录**：
+
+#### 1. **核心运维脚本** (.sh)
+- `start.sh` - 统一启动脚本（交互式选择数据库和存储配置）
+- `upgrade_*.sh` - 数据库升级脚本
+- `deploy_*.sh` - 部署相关脚本
+- `execute_*.sh` - 执行脚本
+
+#### 2. **环境配置文件**
+- `.env.*` - 环境变量配置
+- `alembic.ini` - 数据库迁移配置
+- `babel.cfg` - 翻译配置
+- `Procfile` - 部署进程配置
+- `gunicorn.conf.py` - Web服务器配置
+
+#### 3. **核心Python文件**
+- `run.py`, `config.py`, `wsgi.py` - 应用核心文件
+- `backup_cloud_pma_db.py` - SP8D数据库备份工具
+- `simple_ovs_backup.py` - OVS数据库备份工具
+- `standard_migration_upgrade.py` - SP8D迁移升级工具
+- `standard_migration_upgrade_ovs.py` - OVS迁移升级工具
+
+#### 4. **核心文档**
+- `CLAUDE-*.md` - 项目规范文档
+- `README.md` - 项目说明文档
+- `requirements.txt`, `package.json` - 依赖清单
+
+#### 5. **版本配置文件**
+- `app_version.json` - 应用版本信息
+
+### **❌ 不允许在根目录存放**
+
+**严格禁止以下文件存在于根目录**：
+
+- **临时脚本** → 必须放入 `scripts/temp/`
+- **测试脚本** → 必须放入 `tests/`
+- **日志文件** → 必须放入 `logs/` 或 `logs/archived/`
+- **数据导出** → 必须放入 `data/` 或 `data/archived/`
+- **临时文档** → 必须放入 `docs/temp/`
+- **迁移脚本** → 完成后移至 `scripts/archived/YYYY-QX/`
+
+### **自动分类指南（Claude AI使用）**
+
+#### **创建新脚本时**
+```python
+调试/检查/修复脚本 (debug_*, check_*, fix_*)
+  → scripts/temp/
+  → 完成后询问用户：删除或归档
+
+测试脚本 (test_*)
+  → tests/
+
+数据库备份工具 (backup_*, simple_*_backup.py)
+  → 保留在根目录
+
+数据库迁移工具 (standard_migration_upgrade*.py)
+  → 保留在根目录
+
+临时迁移脚本 (apply_*, migrate_*, migration_*, sp8d_*, ovs_*)
+  → 完成后移至 scripts/archived/YYYY-QX-migrations/
+
+部署脚本 (deploy_*.sh, upgrade_*.sh)
+  → 保留在根目录
+```
+
+#### **生成数据文件时**
+```
+临时导出/分析 (*.json, *_analysis_*.json)
+  → data/temp/
+  → 定期清理（保留30天）
+
+重要数据备份 (backup_*.sql, *.dump)
+  → data/backups/ 或 cloud_db_backups/
+
+配置数据 (app_version.json, user_module_version.json最新版)
+  → 保留在根目录或 data/config/
+```
+
+#### **生成日志时**
+```
+应用日志 (app.log, flask.log, pma.log)
+  → logs/
+  → 自动轮转（日志系统配置）
+
+历史日志 (*.log 旧文件)
+  → logs/archived/
+  → 按月归档
+```
+
+#### **生成文档时**
+```
+核心规范文档 (CLAUDE-*.md, README.md)
+  → 保留在根目录
+
+临时任务总结 (*_SUMMARY.md, *_FIX.md, *_REPORT.md)
+  → ❌ 禁止生成（除非用户明确要求）
+  → 如果必须生成 → docs/temp/
+
+有价值的文档 (guides/, references/)
+  → docs/guides/ 或 docs/references/
+```
+
+### **定期维护规则**
+
+**自动清理策略**：
+
+1. **每月维护**
+   - 清理 `scripts/temp/` 中30天前的脚本
+   - 归档 `logs/` 中30天前的日志到 `logs/archived/`
+   - 检查根目录是否有新增的临时文件
+
+2. **每季度维护**
+   - 清理 `data/temp/` 中90天前的数据
+   - 归档 `scripts/temp/` 中有价值的脚本到 `scripts/archived/YYYY-QX/`
+   - 压缩 `logs/archived/` 中超过90天的日志
+
+3. **手动审核**
+   - 根目录Python脚本数量超过20个时触发审核
+   - 根目录文档数量超过15个时触发审核
+   - 项目总大小超过1GB时触发全面清理
+
+### **目录结构规范**
+
+```
+PMA/
+├── app/                      # 应用核心代码
+├── migrations/               # 数据库迁移文件
+├── tests/                    # 测试脚本
+│   └── archived/            # 历史测试脚本
+├── scripts/                  # 脚本目录
+│   ├── temp/                # 临时脚本（30天清理）
+│   ├── active/              # 活跃工具脚本
+│   ├── tools/               # 可复用工具
+│   └── archived/            # 历史归档
+│       ├── 2025-Q2/        # 按季度归档
+│       ├── 2025-Q3/
+│       └── 2025-Q3-migrations/  # 迁移类脚本专用
+├── logs/                     # 日志目录
+│   └── archived/            # 历史日志
+├── data/                     # 数据目录
+│   ├── temp/                # 临时数据（90天清理）
+│   ├── backups/             # 数据备份
+│   ├── config/              # 配置数据
+│   └── archived/            # 历史数据
+├── docs/                     # 文档目录
+│   ├── temp/                # 临时文档
+│   ├── guides/              # 使用指南
+│   ├── references/          # 参考文档
+│   └── archived/            # 历史文档
+├── cloud_db_backups/         # 云端数据库备份
+├── venv/                     # Python虚拟环境
+├── run.py                    # ✅ 应用启动文件
+├── config.py                 # ✅ 配置文件
+├── wsgi.py                   # ✅ WSGI入口
+├── backup_cloud_pma_db.py    # ✅ SP8D备份工具
+├── simple_ovs_backup.py      # ✅ OVS备份工具
+├── standard_migration_upgrade.py      # ✅ SP8D迁移工具
+├── standard_migration_upgrade_ovs.py  # ✅ OVS迁移工具
+├── start.sh                  # ✅ 统一启动脚本
+├── CLAUDE.md                 # ✅ 核心规范文档
+├── CLAUDE-*.md               # ✅ 专项规范文档
+├── README.md                 # ✅ 项目说明
+├── requirements.txt          # ✅ Python依赖
+└── app_version.json          # ✅ 版本信息
+```
+
+### **违规检测**
+
+**Claude AI在每次会话开始时应检查**：
+
+```python
+# 伪代码示例
+root_files = list_files('.', exclude=['venv', 'app', 'migrations'])
+
+violations = []
+for file in root_files:
+    if file.endswith('.log'):
+        violations.append(f"日志文件 {file} 应移至 logs/")
+    elif file matches '*_SUMMARY.md' or '*_FIX.md':
+        violations.append(f"临时文档 {file} 应移至 docs/temp/ 或删除")
+    elif file matches 'test_*.py':
+        violations.append(f"测试脚本 {file} 应移至 tests/")
+    elif file matches 'debug_*.py' or 'check_*.py' or 'fix_*.py':
+        violations.append(f"临时脚本 {file} 应移至 scripts/temp/")
+    elif file matches '*_analysis_*.json' or '*_20250*.json':
+        violations.append(f"临时数据 {file} 应移至 data/temp/")
+
+if violations:
+    print("⚠️ 检测到违反文件组织规范的文件：")
+    for v in violations:
+        print(f"  - {v}")
+    prompt_user_to_clean()
+```
+
+### **清理确认流程**
+
+当检测到根目录文件过多时：
+
+1. **分析文件** - 识别文件类型和用途
+2. **生成报告** - 列出可移动文件清单
+3. **风险评估** - 标注关键文件（不可移动）
+4. **用户确认** - 展示清理方案并等待批准
+5. **创建备份** - 执行前创建tar.gz备份
+6. **执行清理** - 按分类移动文件
+7. **验证结果** - 确认关键文件完好
 
 ---
 
@@ -408,6 +626,49 @@ FORCE_CLOUD_UPLOAD=true
 - [ ] 权限检查完整
 - [ ] 错误处理完善
 - [ ] 代码注释清晰
+- [ ] 临时脚本已清理或归档（参见 CLAUDE-SCRIPTS.md）
+
+### **脚本管理规范**
+**详细规范请参阅**: [CLAUDE-SCRIPTS.md](./CLAUDE-SCRIPTS.md)
+
+#### **核心规则**
+- ❌ **禁止在根目录创建临时脚本**
+- ✅ **临时脚本放入 `scripts/temp/`**
+- ✅ **测试脚本放入 `tests/`**
+- ✅ **所有脚本必须包含路径修正代码**
+- ✅ **完成任务后询问删除或归档**
+
+#### **脚本存放位置**
+```
+tests/              # 测试脚本 (test_*.py)
+scripts/
+  ├── temp/         # 临时脚本 (debug_*.py, check_*.py, fix_*.py)
+  ├── active/       # 核心工具 (backup_*.py, 迁移工具等)
+  ├── tools/        # 可复用工具脚本
+  └── archived/     # 历史归档脚本
+```
+
+#### **标准脚本模板**
+所有新脚本必须包含：
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""脚本功能说明"""
+import sys, os
+
+# 路径修正 - 支持从任何位置运行
+def get_project_root():
+    current = os.path.dirname(os.path.abspath(__file__))
+    while current != '/':
+        if os.path.exists(os.path.join(current, 'app')) and \
+           os.path.exists(os.path.join(current, 'run.py')):
+            return current
+        current = os.path.dirname(current)
+    raise RuntimeError("无法找到项目根目录")
+
+sys.path.insert(0, get_project_root())
+from app import create_app, db
+```
 
 ---
 
@@ -434,22 +695,21 @@ FORCE_CLOUD_UPLOAD=true
 ## 📋 快速参考
 
 ### **文档查阅指南**
+- **核心规范** → 项目根目录 CLAUDE-*.md 文档
+- **完整文档索引** → 查阅 [docs/README.md](docs/README.md)
 - **翻译问题** → 查阅 [CLAUDE-I18N.md](./CLAUDE-I18N.md)
 - **组件使用** → 查阅 [CLAUDE-COMPONENTS.md](./CLAUDE-COMPONENTS.md)
 - **数据库操作** → 查阅 [CLAUDE-DATABASE.md](./CLAUDE-DATABASE.md)
+- **脚本管理** → 查阅 [CLAUDE-SCRIPTS.md](./CLAUDE-SCRIPTS.md)
 
 ### **常用命令**
 ```bash
 # 编译翻译文件
 pybabel compile -d app/translations
 
-# 运行开发服务器（推荐使用云端存储）
-./run_with_supabase_prod.sh           # 使用生产环境Supabase存储
-python run.py                         # 使用本地存储（不推荐）
-
-# 云端存储配置
-export $(cat .env.supabase.prod | grep -v '^#' | xargs)  # 手动加载配置
-python3 test_supabase_prod_connection.py                # 测试Supabase连接
+# 启动应用
+./start.sh                            # 统一启动脚本（推荐）
+python run.py                         # 快速启动（默认配置）
 
 # 数据库备份
 python3 backup_cloud_pma_db.py        # SP8D
@@ -490,6 +750,15 @@ def list_view():
 
 ## 📝 规则更新日志
 
+- **2025-09-30**: 📚 **完善文档索引系统**，创建docs/README.md统一文档入口，重命名前端规范目录为frontend-specs
+- **2025-09-30**: 📁 **添加完整文件组织规范**，包括根目录规则、自动分类指南、定期维护策略和违规检测机制
+- **2025-09-30**: 执行根目录数据和日志清理，移动17个JSON文件到data/archived/，移动25个日志文件到logs/archived/
+- **2025-09-30**: 执行根目录迁移脚本清理，移动27个迁移类脚本到scripts/archived/2025-Q3-migrations/
+- **2025-09-30**: 根目录Python脚本从160个减少到133个，总清理进度：658→133 (80%↓)
+- **2025-09-30**: 🚨 **禁止自动生成任务总结MD文档**，除非用户明确要求。Git commit已足够记录变更。
+- **2025-09-30**: 执行根目录文档大清理，移动423个临时文档到归档，根目录MD从435个减少到13个（97%↓）
+- **2025-09-30**: 添加脚本创建与管理规范（CLAUDE-SCRIPTS.md），包括脚本存放位置、命名规范、标准模板和生命周期管理
+- **2025-09-30**: 执行根目录脚本整理，移动498个历史脚本到归档目录，根目录从658个减少到160个（76%↓）
 - **2025-08-18**: 添加新版通用审批组件使用规范，包含从订单审批发展而来的`render_complete_approval_section`标准用法、迁移指南和注意事项
 - **2025-08-15**: 添加本地开发云端存储规范，包括生产环境Supabase配置、启动脚本和测试一致性要求
 - **2025-08-15**: 修复云端PDF下载问题，将重定向下载改为代理下载确保强制下载行为
@@ -500,8 +769,8 @@ def list_view():
 - **2025-08-01**: 添加OVS数据库迁移升级规范，包含完整的工具链和实战验证案例
 - **2025-07-30**: 添加云端数据库备份工具规范
 - **2025-07-20**: 创建初始规则文档
-- **版本**: 2.3.0
-- **最后更新**: 2025-08-18
+- **版本**: 2.5.0
+- **最后更新**: 2025-09-30
 
 ---
 
@@ -513,5 +782,48 @@ def list_view():
 3. 始终优先保证数据安全和代码一致性
 4. 完成任务后验证是否符合本规则要求
 5. 统一使用中文进行会话
+6. **❌ 不再自动生成任务总结MD文档**，除非用户明确要求
+
+### 📝 关于任务总结文档的规则
+
+**重要变更（2025-09-30）**：
+
+#### ❌ 禁止自动生成
+- 不再在任务完成后自动创建 *_SUMMARY.md, *_FIX.md, *_REPORT.md 等文档
+- 这些文档多数仅为一次性记录，实际价值有限
+- Git commit历史已足够记录修改内容
+
+#### ✅ 推荐做法
+```
+任务完成 → 简短口头总结 → 用户需要时再生成文档
+```
+
+**示例对话**：
+```
+用户：修复XXX问题
+助手：✅ 已修复XXX问题
+
+      修改内容：
+      - 文件A: 修复了YYY
+      - 文件B: 添加了ZZZ
+      - 测试：已通过验证
+
+      （不自动生成文档）
+      如需详细报告，请告诉我。
+```
+
+#### 📋 例外情况：仅在以下情况生成文档
+
+1. **用户明确要求** - "帮我修复XXX并生成报告"
+2. **重大架构变更** - 需要详细记录设计决策
+3. **复杂问题排查** - 过程复杂，需要文档化
+4. **知识沉淀需要** - 用户明确表示需要保留参考
+
+#### 📂 文档存放位置
+
+如果确需生成文档：
+- 临时记录 → `docs/temp/` （定期清理）
+- 有价值的文档 → `docs/guides/` 或 `docs/references/`
+- ❌ 不要放在项目根目录
 
 **本文档是活文档，应根据项目发展持续更新完善。**

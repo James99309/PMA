@@ -189,7 +189,19 @@
 {% endif %}
                                 </div>
                             </div>
-                            
+
+                            <!-- 创建人字段 -->
+                            <div class="row mb-2">
+                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'created_by')) }}：</strong></div>
+                                <div class="col-md-8">
+                                    {% if project.creator %}
+                                        {{ render_owner(project.creator) }}
+                                    {% else %}
+                                        <span class="text-muted">{{ _('未知') }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
                             <!-- 批价单徽章区域 -->
                             {% if has_quotations and has_pricing_orders %}
                             <div class="row mb-2">

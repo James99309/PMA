@@ -18,6 +18,7 @@ from decimal import Decimal
 import json
 from flask import current_app
 from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS, get_currency_type_options
+from app.services.exchange_rate_service import exchange_rate_service
 from app.utils.chinese_mapping_manager import mapping_manager
 from app.utils.notification_helpers import trigger_event_notification
 from app.services.event_dispatcher import notify_project_created, notify_project_status_updated
@@ -274,26 +275,47 @@ def list_quotations():
         # 计算统计数据
         stats_query = get_viewable_data(Quotation, current_user)
         total_stats_count = stats_query.count()
-        
-        # 计算金额统计（转换为万元）
-        total_amount_query = stats_query.with_entities(func.sum(Quotation.amount)).scalar()
-        total_stats_amount = round((total_amount_query or 0) / 10000, 2)
-        
+
+        # 获取当前语言环境的目标货币和显示配置
+        from app.utils.i18n import get_current_language, get_default_currency, get_currency_symbol
+        current_lang = get_current_language()
+        target_currency = 'USD' if current_lang == 'en' else 'CNY'
+
+        # 配置语言感知的显示单位和货币符号（复用项目管理的成功逻辑）
+        amount_unit = '万美元' if current_lang == 'en' else '万元'
+        default_currency = get_default_currency()
+        currency_symbol = get_currency_symbol(default_currency)
+
+        # 计算金额统计（转换为万元/万美元）
+        def calculate_converted_amount(quotations_query):
+            """计算转换后的金额总和"""
+            quotations = quotations_query.all()
+            total_converted = 0
+            for quotation in quotations:
+                original_amount = quotation.amount or 0
+                original_currency = quotation.currency or 'CNY'
+
+                if original_amount > 0:
+                    converted_amount = exchange_rate_service.convert_amount(
+                        original_amount, original_currency, target_currency
+                    )
+                    total_converted += converted_amount
+            return total_converted
+
+        total_stats_amount = round(calculate_converted_amount(stats_query) / 10000, 2)
+
         # 按状态统计
         approved_stats = stats_query.filter(Quotation.approval_status == 'approved')
         approved_count = approved_stats.count()
-        approved_amount_query = approved_stats.with_entities(func.sum(Quotation.amount)).scalar()
-        approved_amount = round((approved_amount_query or 0) / 10000, 2)
-        
+        approved_amount = round(calculate_converted_amount(approved_stats) / 10000, 2)
+
         pending_stats = stats_query.filter(Quotation.approval_status.in_(['pending', 'in_progress']))
         pending_count = pending_stats.count()
-        pending_amount_query = pending_stats.with_entities(func.sum(Quotation.amount)).scalar()
-        pending_amount = round((pending_amount_query or 0) / 10000, 2)
-        
+        pending_amount = round(calculate_converted_amount(pending_stats) / 10000, 2)
+
         draft_stats = stats_query.filter(Quotation.approval_status == 'draft')
         draft_count = draft_stats.count()
-        draft_amount_query = draft_stats.with_entities(func.sum(Quotation.amount)).scalar()
-        draft_amount = round((draft_amount_query or 0) / 10000, 2)
+        draft_amount = round(calculate_converted_amount(draft_stats) / 10000, 2)
         
         # 构建标准化筛选配置
         filter_config = {
@@ -374,7 +396,8 @@ def list_quotations():
                         'value': total_stats_count,
                         'amount': total_stats_amount,
                         'unit': _('份'),
-                        'amount_unit': _('万元'),
+                        'amount_unit': amount_unit,
+                        'currency_symbol': currency_symbol,
                         'color': 'primary',
                         'clickable': True,
                         'click_params': {},
@@ -387,7 +410,8 @@ def list_quotations():
                         'value': approved_count,
                         'amount': approved_amount,
                         'unit': _('份'),
-                        'amount_unit': _('万元'),
+                        'amount_unit': amount_unit,
+                        'currency_symbol': currency_symbol,
                         'color': 'success',
                         'clickable': True,
                         'click_params': {'approval_status': 'approved'},
@@ -400,7 +424,8 @@ def list_quotations():
                         'value': pending_count,
                         'amount': pending_amount,
                         'unit': _('份'),
-                        'amount_unit': _('万元'),
+                        'amount_unit': amount_unit,
+                        'currency_symbol': currency_symbol,
                         'color': 'warning',
                         'clickable': True,
                         'click_params': {'approval_status': 'pending'},
@@ -413,7 +438,8 @@ def list_quotations():
                         'value': draft_count,
                         'amount': draft_amount,
                         'unit': _('份'),
-                        'amount_unit': _('万元'),
+                        'amount_unit': amount_unit,
+                        'currency_symbol': currency_symbol,
                         'color': 'secondary',
                         'clickable': True,
                         'click_params': {'approval_status': 'draft'},
@@ -588,7 +614,8 @@ def list_quotations():
                         'value': 0,
                         'amount': 0,
                         'unit': _('份'),
-                        'amount_unit': _('万元'),
+                        'amount_unit': amount_unit,
+                        'currency_symbol': currency_symbol,
                         'color': 'primary',
                         'clickable': False,
                         'data_key': 'total'
@@ -861,23 +888,41 @@ def quotations_list_ajax():
                     stats_joined = True
                 stats_query = stats_query.filter(Project.current_stage == project_stage_filter)
             
+            # 获取当前语言环境的目标货币
+            from app.utils.i18n import get_current_language
+            current_lang = get_current_language()
+            target_currency = 'USD' if current_lang == 'en' else 'CNY'
+
+            # 货币转换函数
+            def calculate_converted_amount_ajax(quotations_query):
+                quotations = quotations_query.all()
+                total_converted = 0
+                for quotation in quotations:
+                    original_amount = quotation.amount or 0
+                    original_currency = quotation.currency or 'CNY'
+                    if original_amount > 0:
+                        converted_amount = exchange_rate_service.convert_amount(
+                            original_amount, original_currency, target_currency
+                        )
+                        total_converted += converted_amount
+                return total_converted
+
             # 基于筛选后的数据计算统计
             total_stats_count = stats_query.count()
-            total_amount_query = stats_query.with_entities(func.sum(Quotation.amount)).scalar()
-            total_stats_amount = round((total_amount_query or 0) / 10000, 2)
-            
+            total_stats_amount = round(calculate_converted_amount_ajax(stats_query) / 10000, 2)
+
             # 按审核状态统计 - 使用正确的字段名 approval_status
-            approved_count = stats_query.filter(Quotation.approval_status.in_(['discover_approved', 'embed_approved', 'pre_tender_approved', 'tendering_approved', 'awarded_approved', 'quoted_approved', 'signed_approved'])).count()
-            approved_amount_query = stats_query.filter(Quotation.approval_status.in_(['discover_approved', 'embed_approved', 'pre_tender_approved', 'tendering_approved', 'awarded_approved', 'quoted_approved', 'signed_approved'])).with_entities(func.sum(Quotation.amount)).scalar()
-            approved_amount = round((approved_amount_query or 0) / 10000, 2)
-            
-            pending_count = stats_query.filter(Quotation.approval_status == 'pending').count()
-            pending_amount_query = stats_query.filter(Quotation.approval_status == 'pending').with_entities(func.sum(Quotation.amount)).scalar()
-            pending_amount = round((pending_amount_query or 0) / 10000, 2)
-            
-            rejected_count = stats_query.filter(Quotation.approval_status == 'rejected').count()
-            rejected_amount_query = stats_query.filter(Quotation.approval_status == 'rejected').with_entities(func.sum(Quotation.amount)).scalar()
-            rejected_amount = round((rejected_amount_query or 0) / 10000, 2)
+            approved_filter = stats_query.filter(Quotation.approval_status.in_(['discover_approved', 'embed_approved', 'pre_tender_approved', 'tendering_approved', 'awarded_approved', 'quoted_approved', 'signed_approved']))
+            approved_count = approved_filter.count()
+            approved_amount = round(calculate_converted_amount_ajax(approved_filter) / 10000, 2)
+
+            pending_filter = stats_query.filter(Quotation.approval_status == 'pending')
+            pending_count = pending_filter.count()
+            pending_amount = round(calculate_converted_amount_ajax(pending_filter) / 10000, 2)
+
+            rejected_filter = stats_query.filter(Quotation.approval_status == 'rejected')
+            rejected_count = rejected_filter.count()
+            rejected_amount = round(calculate_converted_amount_ajax(rejected_filter) / 10000, 2)
             
             current_app.logger.info(f"筛选后统计数据: 总数={total_stats_count}, 总金额={total_stats_amount}万元")
             
@@ -890,6 +935,17 @@ def quotations_list_ajax():
             pending_count = pending_amount = 0
             rejected_count = rejected_amount = 0
         
+        # 获取货币配置信息（复用项目管理的成功逻辑）
+        from app.utils.i18n import get_current_language, get_default_currency, get_currency_symbol
+        current_lang = get_current_language()
+        default_currency = get_default_currency()
+        currency_symbol = get_currency_symbol(default_currency)
+
+        # 调试输出 API 货币信息
+        print(f"[调试] 报价单API返回 - 当前语言: {current_lang}")
+        print(f"[调试] 报价单API返回 - 默认货币: {default_currency}")
+        print(f"[调试] 报价单API返回 - 货币符号: {currency_symbol}")
+
         return jsonify({
             'success': True,
             'html': html,
@@ -905,7 +961,10 @@ def quotations_list_ajax():
                 'pending_amount': pending_amount,
                 'rejected': rejected_count,
                 'rejected_amount': rejected_amount
-            }
+            },
+            'currency_symbol': currency_symbol,  # 添加货币符号配置
+            'currency': default_currency,  # 添加货币类型配置
+            'language': current_lang  # 添加语言配置
         })
         
     except Exception as e:
