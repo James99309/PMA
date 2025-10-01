@@ -26,6 +26,7 @@ from flask_wtf.csrf import CSRFProtect
 from app.models.action import Action, ActionReply
 from app.models.projectpm_stage_history import ProjectStageHistory  # 导入阶段历史记录模型
 from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS, INDUSTRY_OPTIONS, get_industry_options, get_project_type_options, get_report_source_options, get_product_situation_options, get_project_stage_options, get_default_currency, get_currency_symbol, get_amount_unit_config
+from app.services.exchange_rate_service import exchange_rate_service
 from app.utils.chinese_mapping_manager import mapping_manager
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
@@ -119,13 +120,20 @@ def get_company_list_by_type(company_type):
 @project.route('/')
 @permission_required('project', 'view')
 def list_projects():
+    import time
+    start_time = time.time()
+    logger.info(f"⏱️ [性能] 开始加载项目列表")
+
     search = request.args.get('search', '')
     sort = request.args.get('sort', 'updated_at')
     order = request.args.get('order', 'desc')
     # my_projects和account_id参数处理已移除
     # 检查是否需要保持面板打开
     keep_panel = request.args.get('keep_panel', 'false') == 'true'
-    
+
+    t1 = time.time()
+    logger.info(f"⏱️ [性能] 参数解析: {(t1-start_time)*1000:.0f}ms")
+
     # 使用数据访问控制，预加载owner关系
     query = get_viewable_data(Project, current_user).options(joinedload(Project.owner))
     
@@ -261,45 +269,91 @@ def list_projects():
             else:
                 sort_column = sort_column.asc()
         
-        projects = query.order_by(sort_column).all()
+        # 关键优化：首次加载只获取前30个项目，其余通过滚动加载
+        initial_page_size = 30
+        projects = query.order_by(sort_column).limit(initial_page_size).all()
     except Exception as e:
         logger.warning(f"排序出错：{str(e)}，使用默认排序")
-        projects = query.order_by(Project.id.desc()).all()
-    
+        # 错误情况下也使用分页
+        initial_page_size = 30
+        projects = query.order_by(Project.id.desc()).limit(initial_page_size).all()
+
+    t2 = time.time()
+    logger.info(f"⏱️ [性能] 项目列表查询(前30条): {(t2-t1)*1000:.0f}ms")
+
     # 将筛选参数传递到模板
     filter_params = {key: value for key, value in request.args.items() if key.startswith('filter_')}
-    
+
     # 检查是否是AJAX请求
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest' and request.args.get('format') == 'json':
         # 返回JSON格式的项目列表HTML片段
         html = render_template('project/list_partial.html', projects=projects, search_term=search, Quotation=Quotation, filter_params=filter_params)
         return jsonify({'success': True, 'html': html})
-    
+
     # 构建通用组件配置
-    total_value = sum(p.quotation_customer or 0 for p in projects)
-    active_count = sum(1 for p in projects if p.is_active)
-    inactive_count = len(projects) - active_count
-    
-    # 按项目阶段统计数据
-    stage_stats = _calculate_project_stage_stats(projects)
-    
+    # 获取当前语言环境和目标货币
+    from app.utils.i18n import get_current_language
+    current_lang = get_current_language()
+    target_currency = 'USD' if current_lang == 'en' else 'CNY'
+
+    # 计算统计数据（使用高效的聚合查询，性能可接受）
+    try:
+        # 构建统计查询（应用与主查询相同的筛选条件，但不包含 current_stage 筛选）
+        stats_query = get_viewable_data(Project, current_user)
+
+        # 应用筛选条件（排除 current_stage 以显示各阶段统计）
+        stats_query = _apply_filters_to_query(stats_query, search, None, None,
+                                             None, None, None, None, None)
+
+        # 使用优化的聚合统计函数（仅2次数据库查询）
+        raw_statistics = get_full_project_stats(stats_query, target_currency)
+
+        # 提取统计数据
+        total_count = raw_statistics.get('total_count', 0)
+        active_count = raw_statistics.get('active_count', 0)
+        inactive_count = raw_statistics.get('inactive_count', 0)
+        total_value = raw_statistics.get('total_value', 0)
+        stage_stats = raw_statistics.get('stage_stats', {})
+    except Exception as e:
+        logger.error(f"计算统计数据失败: {str(e)}")
+        total_count = 0
+        active_count = 0
+        inactive_count = 0
+        total_value = 0
+        stage_stats = {}
+
+    t3 = time.time()
+    logger.info(f"⏱️ [性能] 统计数据计算: {(t3-t2)*1000:.0f}ms")
+
     # 获取系统货币符号
     default_currency = get_default_currency()
     currency_symbol = get_currency_symbol(default_currency)
-    
-    # 统计卡片配置（使用通用模组的语言感知功能）
+
+    # 统计卡片配置（使用实际统计数据）
+    amount_unit = '万美元' if current_lang == 'en' else '万元'
+
     stats_config = {
         'cards': [
             {
                 'id': 'total',
                 'title': _('全部项目'),
                 'icon': 'fas fa-project-diagram',
-                'value': len(projects),
-                'amount': round(total_value / 10000, 2),  # 转换为万元以兼容通用模组
+                'value': total_count,
+                'amount': round(total_value / 10000, 2),
                 'unit': _('个'),
-                'amount_unit': _('万元'),  # 将由通用模组自动处理语言感知
+                'amount_unit': amount_unit,
+                'currency_symbol': currency_symbol,
                 'color': 'primary',
                 'data_key': 'total'
+            },
+            {
+                'id': 'active',
+                'title': _('活跃项目'),
+                'icon': 'fas fa-chart-line',
+                'value': active_count,
+                'unit': _('个'),
+                'color': 'success',
+                'data_key': 'active'
             },
             _create_stage_card('discover', '发现', 'fas fa-search', stage_stats, currency_symbol, 'info'),
             _create_stage_card('embed', '植入', 'fas fa-seedling', stage_stats, currency_symbol, 'success'),
@@ -312,7 +366,8 @@ def list_projects():
             _create_stage_card('paused', '搁置', 'fas fa-pause-circle', stage_stats, currency_symbol, 'secondary')
         ]
     }
-    
+
+
     # 筛选搜索配置
     filter_config = {
         'action_url': url_for('project.list_projects'),
@@ -332,7 +387,13 @@ def list_projects():
                 'all_option_text': _('全部负责人'),
                 'current_value': request.args.get('owner_id', ''),
                 'col_width': 2,
-                'options': _get_project_owner_options(current_user)
+                'options': (lambda: (
+                    t4 := time.time(),
+                    owner_opts := _get_project_owner_options(current_user),
+                    t5 := time.time(),
+                    logger.info(f"⏱️ [性能] 项目拥有者选项查询: {(t5-t4)*1000:.0f}ms"),
+                    owner_opts
+                )[-1])()
             },
             {
                 'name': 'vendor_sales_manager_id',
@@ -340,7 +401,13 @@ def list_projects():
                 'all_option_text': _('全部厂商销售'),
                 'current_value': request.args.get('vendor_sales_manager_id', ''),
                 'col_width': 2,
-                'options': _get_vendor_manager_options(current_user)
+                'options': (lambda: (
+                    t6 := time.time(),
+                    vendor_opts := _get_vendor_manager_options(current_user),
+                    t7 := time.time(),
+                    logger.info(f"⏱️ [性能] 厂商负责人选项查询: {(t7-t6)*1000:.0f}ms"),
+                    vendor_opts
+                )[-1])()
             },
             {
                 'name': 'is_active',
@@ -545,7 +612,7 @@ def list_projects():
         'ajax_mode': True,  # 启用AJAX模式
         'ajax_endpoint': url_for('project.project_list_ajax'),  # AJAX端点
         
-        # 无限滚动配置
+        # 无限滚动配置 - 恢复正常无限滚动功能
         'infinite_scroll': {
             'enabled': True,
             'page_size': 30,
@@ -559,18 +626,27 @@ def list_projects():
     }
 
     # 传递keep_panel参数到模板
-    return render_template(
-        'project/list.html', 
-        projects=projects, 
-        search_term=search, 
-        Quotation=Quotation, 
-        filter_params=filter_params, 
+    t8 = time.time()
+    logger.info(f"⏱️ [性能] 配置构建完成: {(t8-t3)*1000:.0f}ms")
+
+    result = render_template(
+        'project/list.html',
+        projects=projects,
+        search_term=search,
+        Quotation=Quotation,
+        filter_params=filter_params,
         keep_panel=keep_panel,
         INDUSTRY_OPTIONS=get_industry_options(),
         PROJECT_TYPE_OPTIONS=get_project_type_options(),
         REPORT_SOURCE_OPTIONS=get_report_source_options(),
         list_config=list_config
     )
+
+    t9 = time.time()
+    logger.info(f"⏱️ [性能] 模板渲染: {(t9-t8)*1000:.0f}ms")
+    logger.info(f"⏱️ [性能] ===== 总耗时: {(t9-start_time)*1000:.0f}ms =====")
+
+    return result
 
 @project.route('/api/projects/filter', methods=['GET'])
 @login_required
@@ -784,19 +860,20 @@ def project_list_ajax():
             current_app.logger.error(f"标准组件模板渲染失败: {e}")
             html = f'<tr><td colspan="12" class="text-center text-muted">渲染失败: {str(e)}</td></tr>'
         
-        # 计算统计数据 - 应用相同的筛选条件（不包含current_stage筛选，以显示各阶段统计）
+        # 计算统计数据 - 使用高效的聚合查询算法
         try:
-            statistics = _calculate_project_stats_with_filters(
-                current_user=current_user,
-                search=search,
-                owner_id=owner_id,
-                vendor_sales_manager_id=vendor_sales_manager_id,
-                is_active=is_active,
-                industry=industry,
-                report_source=report_source,
-                project_type=project_type
-                # 注意：不传入current_stage，以便统计所有阶段
-            )
+            # 构建筛选查询（不包含current_stage筛选，以显示各阶段统计）
+            stats_query = get_viewable_data(Project, current_user)
+
+            # 应用筛选条件
+            stats_query = _apply_filters_to_query(stats_query, search, owner_id, vendor_sales_manager_id,
+                                                is_active, industry, report_source, project_type, None)
+
+            # 使用优化的聚合统计函数
+            raw_statistics = get_full_project_stats(stats_query, target_currency)
+
+            # 格式化统计数据
+            statistics = _format_stats_for_ajax(raw_statistics)
             
         except Exception as e:
             current_app.logger.error(f"计算统计数据失败: {e}")
@@ -814,14 +891,24 @@ def project_list_ajax():
                 'paused': 0
             }
         
-        # 返回JSON响应
+        # 获取货币配置信息
+        from app.utils.i18n import get_current_language, get_default_currency, get_currency_symbol
+        current_lang = get_current_language()
+        default_currency = get_default_currency()
+        currency_symbol = get_currency_symbol(default_currency)
+
+
+        # 返回JSON响应（包含货币配置）
         return jsonify({
             'success': True,
             'html': html,
             'has_more': (offset + limit) < total_count,
             'total_count': total_count,
             'loaded_count': offset + len(projects),
-            'statistics': statistics
+            'statistics': statistics,
+            'currency_symbol': currency_symbol,  # 添加货币符号配置
+            'currency': default_currency,  # 添加货币类型配置
+            'language': current_lang  # 添加语言配置
         })
         
     except Exception as e:
@@ -840,7 +927,11 @@ def view_project(project_id):
     
     # 使用统一的权限检查逻辑
     from app.utils.access_control import get_viewable_data
-    viewable_projects = get_viewable_data(Project, current_user)
+    viewable_projects = get_viewable_data(Project, current_user).options(
+        joinedload(Project.creator),              # 预加载创建人
+        joinedload(Project.owner),                # 预加载当前负责人
+        joinedload(Project.vendor_sales_manager)  # 预加载厂商销售负责人
+    )
     project = viewable_projects.filter_by(id=project_id).first()
 
     if not project:
@@ -1234,7 +1325,8 @@ def add_project():
                 project_type=project_type,
                 quotation_customer=quotation_customer,
                 industry=request.form.get('industry'),  # 添加行业字段
-                owner_id=current_user.id,  # 设置当前用户为所有者
+                created_by=current_user.id,  # 设置创建人（不可变）
+                owner_id=current_user.id,  # 设置当前负责人（可修改）
                 vendor_sales_manager_id=vendor_sales_manager_id  # 设置厂商销售负责人
             )
             
@@ -2738,16 +2830,37 @@ def change_project_owner(project_id):
         # 如果新拥有人是厂商企业账户，自动设置为厂商销售负责人
         vendor_sales_manager_id = new_owner_id
     
+    # 记录旧值用于ChangeLog
+    old_owner_id = project.owner_id
+    old_owner = User.query.get(old_owner_id) if old_owner_id else None
+
     # 更新项目拥有人和厂商销售负责人
     project.owner_id = new_owner_id
     project.vendor_sales_manager_id = vendor_sales_manager_id
-    
+
     # 同步更新该项目下所有报价单的owner_id为新拥有人
     from app.models.quotation import Quotation
     quotations = Quotation.query.filter_by(project_id=project.id).all()
     for quotation in quotations:
         quotation.owner_id = new_owner_id
-    
+
+    # 记录owner_id变更到ChangeLog
+    if old_owner_id != new_owner_id:
+        from app.models.change_log import ChangeLog
+        ChangeLog.log_update(
+            module_name='project',
+            table_name='projects',
+            record_id=project.id,
+            field_name='owner_id',
+            old_value=old_owner.real_name or old_owner.username if old_owner else '无',
+            new_value=new_owner.real_name or new_owner.username,
+            user_id=current_user.id,
+            user_name=current_user.real_name or current_user.username,
+            description=f'项目负责人从 {old_owner.real_name if old_owner else "无"} 变更为 {new_owner.real_name}',
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+
     db.session.commit()
     
     # 构建成功消息
@@ -2925,16 +3038,23 @@ def _format_currency_amount(amount, currency_symbol='¥'):
         return f"{currency_symbol}0.00"
 
 def _create_stage_card(stage_key, title, icon, stage_stats, currency_symbol, color):
-    """创建阶段统计卡片配置（简化版，依赖通用模组的语言感知功能）"""
+    """创建阶段统计卡片配置（使用传递的currency_symbol）"""
     stage_data = stage_stats.get(stage_key, {'count': 0, 'amount': 0})
+
+    # 根据当前语言环境确定单位显示
+    from app.utils.i18n import get_current_language
+    current_lang = get_current_language()
+    amount_unit = '万美元' if current_lang == 'en' else '万元'
+
     return {
         'id': stage_key,
         'title': _(title),
         'icon': icon,
         'value': stage_data['count'],
-        'amount': stage_data['amount'],  # stage_stats已经转换为万元，无需再次转换
+        'amount': round(stage_data['amount'] / 10000, 2),  # 转换为万元并保留2位小数
         'unit': _('个'),
-        'amount_unit': _('万元'),  # 将由通用模组自动处理语言感知
+        'amount_unit': amount_unit,  # 使用语言感知的单位
+        'currency_symbol': currency_symbol,  # 添加货币符号
         'color': color,
         'clickable': True,  # 启用点击筛选功能
         'click_params': {'current_stage': stage_key},  # 点击时筛选对应阶段
@@ -2969,118 +3089,169 @@ def _get_vendor_manager_options(current_user):
         current_app.logger.error(f"获取厂商负责人选项失败: {e}")
         return []
 
-def _calculate_project_stage_stats(projects):
-    """计算项目阶段统计数据（包含数量和金额）"""
+def _calculate_stage_stats_fast(projects):
+    """快速计算项目阶段统计（基于当前显示的项目）"""
     stage_stats = {}
-    
     # 定义所有可能的阶段
     all_stages = ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed', 'lost', 'paused']
-    
+
     # 初始化所有阶段计数和金额为0
     for stage in all_stages:
         stage_stats[stage] = {'count': 0, 'amount': 0}
-    
-    # 统计各阶段项目数量和金额
+
+    # 快速统计（无汇率转换）
     for project in projects:
         stage = project.current_stage
         if stage in stage_stats:
             stage_stats[stage]['count'] += 1
-            stage_stats[stage]['amount'] += (project.quotation_customer or 0)
-    
-    # 转换金额为万元并保留两位小数
-    for stage in all_stages:
-        stage_stats[stage]['amount'] = round(stage_stats[stage]['amount'] / 10000, 2)
-    
+            stage_stats[stage]['amount'] += project.quotation_customer or 0
+
     return stage_stats
 
-def _calculate_project_stats_with_filters(current_user, search=None, owner_id=None, vendor_sales_manager_id=None, 
-                                        is_active=None, industry=None, report_source=None, current_stage=None, 
-                                        project_type=None):
-    """计算带筛选条件的项目统计数据"""
-    try:
-        # 基础查询
-        query = get_viewable_data(Project, current_user)
-        
-        # 应用搜索条件
-        if search:
-            query = query.filter(
-                or_(
-                    Project.project_name.ilike(f'%{search}%'),
-                    Project.authorization_code.ilike(f'%{search}%')
-                )
+
+def _apply_filters_to_query(query, current_user, search=None, owner_id=None, vendor_sales_manager_id=None,
+                           is_active=None, industry=None, report_source=None, current_stage=None, project_type=None):
+    """将筛选条件应用到查询对象，复用现有筛选逻辑"""
+    from sqlalchemy import or_
+
+    # 应用搜索条件
+    if search:
+        query = query.filter(
+            or_(
+                Project.project_name.ilike(f'%{search}%'),
+                Project.authorization_code.ilike(f'%{search}%')
             )
-        
-        # 应用筛选条件
-        if owner_id:
-            query = query.filter(Project.owner_id == owner_id)
-        
-        if vendor_sales_manager_id:
-            query = query.filter(Project.vendor_sales_manager_id == vendor_sales_manager_id)
-        
-        if is_active:
-            is_active_value = is_active.lower() == 'true'
-            query = query.filter(Project.is_active == is_active_value)
-        
-        if industry:
-            query = query.filter(Project.industry == industry)
-        
-        if report_source:
-            query = query.filter(Project.report_source == report_source)
-        
-        if project_type:
-            query = query.filter(Project.project_type == project_type)
-        
-        # 不应用current_stage筛选到基础查询，因为我们需要统计所有阶段
-        base_projects = query.all()
-        
-        # 计算总体统计
-        total_count = len(base_projects)
-        total_amount = sum(p.quotation_customer or 0 for p in base_projects) / 10000
-        
-        # 计算各阶段统计
-        stage_stats = _calculate_project_stage_stats(base_projects)
-        
-        # 构建统计数据
-        statistics = {
-            'total': total_count,
-            'total_amount': round(total_amount, 2),
-            'discover': stage_stats.get('discover', {'count': 0, 'amount': 0})['count'],
-            'discover_amount': stage_stats.get('discover', {'count': 0, 'amount': 0})['amount'],
-            'embed': stage_stats.get('embed', {'count': 0, 'amount': 0})['count'],
-            'embed_amount': stage_stats.get('embed', {'count': 0, 'amount': 0})['amount'],
-            'pre_tender': stage_stats.get('pre_tender', {'count': 0, 'amount': 0})['count'],
-            'pre_tender_amount': stage_stats.get('pre_tender', {'count': 0, 'amount': 0})['amount'],
-            'tendering': stage_stats.get('tendering', {'count': 0, 'amount': 0})['count'],
-            'tendering_amount': stage_stats.get('tendering', {'count': 0, 'amount': 0})['amount'],
-            'awarded': stage_stats.get('awarded', {'count': 0, 'amount': 0})['count'],
-            'awarded_amount': stage_stats.get('awarded', {'count': 0, 'amount': 0})['amount'],
-            'quoted': stage_stats.get('quoted', {'count': 0, 'amount': 0})['count'],
-            'quoted_amount': stage_stats.get('quoted', {'count': 0, 'amount': 0})['amount'],
-            'signed': stage_stats.get('signed', {'count': 0, 'amount': 0})['count'],
-            'signed_amount': stage_stats.get('signed', {'count': 0, 'amount': 0})['amount'],
-            'lost': stage_stats.get('lost', {'count': 0, 'amount': 0})['count'],
-            'lost_amount': stage_stats.get('lost', {'count': 0, 'amount': 0})['amount'],
-            'paused': stage_stats.get('paused', {'count': 0, 'amount': 0})['count'],
-            'paused_amount': stage_stats.get('paused', {'count': 0, 'amount': 0})['amount']
+        )
+
+    # 应用筛选条件
+    if owner_id:
+        query = query.filter(Project.owner_id == owner_id)
+
+    if vendor_sales_manager_id:
+        query = query.filter(Project.vendor_sales_manager_id == vendor_sales_manager_id)
+
+    if is_active:
+        is_active_value = is_active.lower() == 'true'
+        query = query.filter(Project.is_active == is_active_value)
+
+    if industry:
+        query = query.filter(Project.industry == industry)
+
+    if report_source:
+        query = query.filter(Project.report_source == report_source)
+
+    if project_type:
+        query = query.filter(Project.project_type == project_type)
+
+    if current_stage:
+        query = query.filter(Project.current_stage == current_stage)
+
+    return query
+
+
+def get_full_project_stats(base_query, target_currency='CNY'):
+    """使用数据库聚合查询获取完整项目统计数据"""
+    from sqlalchemy import func, case
+    from app import db
+    from app.services.exchange_rate_service import exchange_rate_service
+
+
+    try:
+        # 1. 基础统计查询 - 使用数据库聚合函数
+        base_stats = base_query.with_entities(
+            func.count(Project.id).label('total_count'),
+            func.sum(Project.is_active.cast(db.Integer)).label('active_count'),
+            func.sum((~Project.is_active).cast(db.Integer)).label('inactive_count'),
+            func.sum(func.coalesce(Project.quotation_customer, 0)).label('total_amount')
+        ).first()
+
+
+        # 2. 阶段统计查询 - 按阶段分组聚合
+        stage_stats_raw = base_query.with_entities(
+            Project.current_stage,
+            func.count(Project.id).label('count'),
+            func.sum(func.coalesce(Project.quotation_customer, 0)).label('amount')
+        ).group_by(Project.current_stage).all()
+
+        # 3. 处理阶段统计数据
+        all_stages = ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed', 'lost', 'paused']
+        stage_stats = {}
+
+        # 初始化所有阶段
+        for stage in all_stages:
+            stage_stats[stage] = {'count': 0, 'amount': 0}
+
+        # 填充查询结果
+        total_cny_amount = 0
+        for stage, count, amount in stage_stats_raw:
+            if stage in stage_stats:
+                stage_stats[stage]['count'] = count or 0
+                stage_stats[stage]['amount'] = amount or 0
+                total_cny_amount += (amount or 0)
+
+        # 4. 汇率转换（如果需要）
+        total_converted_amount = base_stats.total_amount or 0
+        if target_currency == 'USD' and total_cny_amount > 0:
+            total_converted_amount = exchange_rate_service.convert_amount(total_cny_amount, 'CNY', 'USD')
+
+            # 按比例转换各阶段金额
+            if total_cny_amount > 0:
+                conversion_ratio = total_converted_amount / total_cny_amount
+                for stage in stage_stats:
+                    if stage_stats[stage]['amount'] > 0:
+                        stage_stats[stage]['amount'] *= conversion_ratio
+
+        result = {
+            'total_count': base_stats.total_count or 0,
+            'active_count': base_stats.active_count or 0,
+            'inactive_count': base_stats.inactive_count or 0,
+            'total_value': total_converted_amount,
+            'stage_stats': stage_stats
         }
-        
-        return statistics
-        
+
+        return result
+
     except Exception as e:
-        current_app.logger.error(f"计算项目统计数据失败: {e}")
-        return {
-            'total': 0,
-            'total_amount': 0,
-            'discover': 0,
-            'embed': 0,
-            'pre_tender': 0,
-            'tendering': 0,
-            'awarded': 0,
-            'quoted': 0,
-            'signed': 0,
-            'lost': 0,
-            'paused': 0
+        current_app.logger.error(f"获取完整项目统计失败: {str(e)}")
+        # 返回默认值避免页面错误
+        default_result = {
+            'total_count': 0,
+            'active_count': 0,
+            'inactive_count': 0,
+            'total_value': 0,
+            'stage_stats': {stage: {'count': 0, 'amount': 0} for stage in ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed', 'lost', 'paused']}
         }
+        return default_result
+
+def _format_stats_for_ajax(full_stats):
+    """将get_full_project_stats的输出格式化为AJAX接口需要的格式"""
+    stage_stats = full_stats.get('stage_stats', {})
+
+    return {
+        'total': full_stats.get('total_count', 0),
+        'total_amount': round(full_stats.get('total_value', 0) / 10000, 2),
+        'discover': stage_stats.get('discover', {'count': 0})['count'],
+        'discover_amount': round(stage_stats.get('discover', {'amount': 0})['amount'] / 10000, 2),
+        'embed': stage_stats.get('embed', {'count': 0})['count'],
+        'embed_amount': round(stage_stats.get('embed', {'amount': 0})['amount'] / 10000, 2),
+        'pre_tender': stage_stats.get('pre_tender', {'count': 0})['count'],
+        'pre_tender_amount': round(stage_stats.get('pre_tender', {'amount': 0})['amount'] / 10000, 2),
+        'tendering': stage_stats.get('tendering', {'count': 0})['count'],
+        'tendering_amount': round(stage_stats.get('tendering', {'amount': 0})['amount'] / 10000, 2),
+        'awarded': stage_stats.get('awarded', {'count': 0})['count'],
+        'awarded_amount': round(stage_stats.get('awarded', {'amount': 0})['amount'] / 10000, 2),
+        'quoted': stage_stats.get('quoted', {'count': 0})['count'],
+        'quoted_amount': round(stage_stats.get('quoted', {'amount': 0})['amount'] / 10000, 2),
+        'signed': stage_stats.get('signed', {'count': 0})['count'],
+        'signed_amount': round(stage_stats.get('signed', {'amount': 0})['amount'] / 10000, 2),
+        'lost': stage_stats.get('lost', {'count': 0})['count'],
+        'lost_amount': round(stage_stats.get('lost', {'amount': 0})['amount'] / 10000, 2),
+        'paused': stage_stats.get('paused', {'count': 0})['count'],
+        'paused_amount': round(stage_stats.get('paused', {'amount': 0})['amount'] / 10000, 2),
+    }
+
+
+
 
 @project.route('/update_project_sharing/<int:project_id>', methods=['POST'])
 @login_required
@@ -3117,11 +3288,6 @@ def update_project_sharing(project_id):
 @login_required
 def search_customers_temp():
     """搜索客户API - 优化版本，支持显示更多信息和排序（临时去掉权限检查）"""
-    # 添加认证调试信息
-    logger.info(f"搜索客户API被调用 - 用户: {current_user.username if current_user.is_authenticated else 'Anonymous'}")
-    logger.info(f"用户认证状态: {current_user.is_authenticated}")
-    if current_user.is_authenticated:
-        logger.info(f"用户详情: ID={current_user.id}, 用户名={current_user.username}, 角色={current_user.role}")
     
     # 临时权限检查：如果用户未认证，返回错误
     if not current_user.is_authenticated:
@@ -3161,10 +3327,6 @@ def search_customers_temp():
         
         logger.info(f"找到客户总数: {len(companies)} 个")
         
-        # 调试排序：记录前几个客户的拥有者信息
-        for i, company in enumerate(companies[:5]):
-            is_owner = company.owner_id == current_user.id if company.owner_id else False
-            logger.info(f"排序调试 #{i+1}: {company.company_name} - 拥有者: {company.owner.real_name if company.owner else 'None'} (ID: {company.owner_id}) - 是当前用户: {is_owner}")
         
         customers = []
         for company in companies:
