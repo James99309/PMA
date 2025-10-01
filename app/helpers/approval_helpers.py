@@ -3752,7 +3752,24 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
     
     if user_id is None:
         user_id = current_user.id
-    
+
+    # 🔧 预检查：验证current_step是否能在快照中找到（数据完整性检查）
+    instance_steps = instance.get_steps()
+    current_step_found = False
+    if isinstance(instance_steps, list):
+        for step in instance_steps:
+            step_id = step.get('step_id') if isinstance(step, dict) else getattr(step, 'id', None)
+            if step_id == instance.current_step:
+                current_step_found = True
+                break
+
+    if not current_step_found:
+        current_app.logger.error(
+            f"数据完整性错误: current_step={instance.current_step}在快照中找不到。"
+            f"这可能是current_step被错误地设置成了step_order值。"
+        )
+        current_app.logger.warning(f"继续尝试处理，但可能会失败")
+
     # 获取当前步骤 - 修复：使用模板快照
     current_step = instance.get_current_step_info()
     if not current_step:
@@ -3915,9 +3932,17 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
             # 🔥 注释掉：支付完成的报销单应该保持锁定，不应该解锁
             # unlock_expense(instance.object_id, user_id)
         else:
-            # 🔥 修复：使用快照数据获取下一步骤，需要先获取当前step_order
-            current_step_obj = ApprovalStep.query.filter_by(id=instance.current_step).first()
-            current_step_order = current_step_obj.step_order if current_step_obj else 1
+            # 🔥 修复：从快照中直接获取当前步骤的step_order，避免查询数据库导致的跨流程混淆
+            current_step_order = None
+            if isinstance(current_step, dict):
+                current_step_order = current_step.get('step_order')
+            else:
+                current_step_order = getattr(current_step, 'step_order', None)
+
+            if current_step_order is None:
+                current_app.logger.error(f"无法从当前步骤获取step_order，审批失败")
+                return False
+
             next_step_order = current_step_order + 1
             next_step = None
             
@@ -3966,16 +3991,6 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
             else:
                 # 🔥 修复：所有步骤已完成，但要先执行当前步骤的动作（如分支决策）
                 
-                # === 调试断点Level4: 执行动作判断 ===
-                print("\n🔥 === Level4调试断点: 执行动作判断 ===")
-                print("current_step_action_type:", repr(current_step_action_type))
-                print("action:", repr(action))
-                print("ApprovalAction.APPROVE:", repr(ApprovalAction.APPROVE))
-                print("条件结果:")
-                print("  action_type存在:", bool(current_step_action_type))
-                print("  action是APPROVE:", action == ApprovalAction.APPROVE)
-                print("  整体条件:", current_step_action_type and action == ApprovalAction.APPROVE)
-                # import pdb; pdb.set_trace()  # 暂时注释掉调试断点
                 
                 # 先执行当前步骤的动作（特别是分支决策步骤）
                 current_app.logger.info(f"🔍 [EXECUTE_ACTION_DEBUG] ===== 开始执行审批动作 =====")
@@ -4009,37 +4024,16 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
                             
                             current_app.logger.info(f"🔍 [EXECUTE_CALL_DEBUG] target_object: {target_object}")
                             if target_object:
-                                # === 调试断点Level5: execute_action调用前 ===
-                                print("\n🔥 === Level5调试断点: 即将调用execute_action ===")
-                                print("step_obj:", current_step_obj)
-                                print("step_id:", getattr(current_step_obj, 'id', 'None'))
-                                print("step_name:", getattr(current_step_obj, 'step_name', 'None'))
-                                print("action_type:", getattr(current_step_obj, 'action_type', 'None'))
-                                print("record:", record)
-                                print("target_object:", target_object)
-                                print("pricing_order_data存在:", bool(pricing_order_data))
-                                if pricing_order_data:
-                                    print("pricing_order_data:", pricing_order_data)
-                                print("是批价单:", instance.object_type == 'pricing_order')
-                                print("有数据:", bool(pricing_order_data))
-                                # import pdb; pdb.set_trace()  # 暂时注释掉调试断点
                                 
                                 current_app.logger.info(f"🔍 [EXECUTE_CALL_DEBUG] ✅ 目标对象存在，调用 execute_action")
                                 current_app.logger.info(f"🔍 [EXECUTE_CALL_DEBUG] current_step_obj: {current_step_obj}")
                                 current_app.logger.info(f"🔍 [EXECUTE_CALL_DEBUG] current_step_obj.action_type: {current_step_obj.action_type if current_step_obj else 'None'}")
                                 # 如果是批价单审批且有数据，传递批价单数据
                                 if instance.object_type == 'pricing_order' and pricing_order_data:
-                                    print(">>> 调用: execute_action(含数据)")
                                     result = current_step_obj.execute_action(record, target_object, pricing_order_data)
                                 else:
-                                    print(">>> 调用: execute_action(标准版)")
                                     result = current_step_obj.execute_action(record, target_object)
-                                    
-                                # === 调试断点Level5b: execute_action调用后 ===
-                                print("\n🔥 === Level5b调试断点: execute_action完成 ===")
-                                print("执行结果:", result)
-                                # import pdb; pdb.set_trace()  # 暂时注释掉调试断点
-                                
+
                                 current_app.logger.info(f"🔍 [EXECUTE_CALL_DEBUG] ✅ execute_action 执行完成，结果: {result}")
                             else:
                                 current_app.logger.info(f"🔍 [EXECUTE_CALL_DEBUG] ❌ 目标对象为空，跳过执行")
@@ -4198,17 +4192,6 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
     Returns:
         布尔值，表示操作是否成功
     """
-    # === 调试断点Level3: process_approval函数入口 ===
-    print("\n🔥 === Level3调试断点: process_approval()被调用 ===")
-    print("instance_id:", instance_id)
-    print("action:", action, "类型:", type(action))
-    print("comment:", comment)
-    print("user_id:", user_id)
-    print("project_type:", project_type)
-    print("pricing_order_data存在:", bool(pricing_order_data))
-    if pricing_order_data:
-        print("pricing_order_data:", pricing_order_data)
-    # import pdb; pdb.set_trace()  # 暂时注释掉调试断点
     
     # 🔍 添加函数入口调试信息
     current_app.logger.info(f"🔍 [FUNCTION_DEBUG] ===== process_approval函数被调用 =====")
@@ -4241,11 +4224,24 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
     if user_id is None:
         user_id = current_user.id
     
-    # 🔧 简化：预检查当前步骤的有效性
-    current_step_obj = ApprovalStep.query.filter_by(id=instance.current_step).first()
-    if current_step_obj and current_step_obj.process_id != instance.process_id:
-        current_app.logger.error(f"步骤{instance.current_step}不属于流程{instance.process_id}，审批失败")
-        return False
+    # 🔧 预检查：验证current_step是否能在快照中找到（数据完整性检查）
+    # 这可以提前发现current_step数据错误的问题
+    instance_steps = instance.get_steps()
+    current_step_found = False
+    if isinstance(instance_steps, list):
+        for step in instance_steps:
+            step_id = step.get('step_id') if isinstance(step, dict) else getattr(step, 'id', None)
+            if step_id == instance.current_step:
+                current_step_found = True
+                break
+
+    if not current_step_found:
+        current_app.logger.error(
+            f"数据完整性错误: current_step={instance.current_step}在快照中找不到。"
+            f"这可能是current_step被错误地设置成了step_order值。"
+        )
+        # 不直接返回False，让后续代码继续尝试处理
+        current_app.logger.warning(f"继续尝试处理，但可能会失败")
     
     # 获取当前步骤 - 修复：使用模板快照
     current_step = instance.get_current_step_info()
@@ -4379,9 +4375,17 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
             # 🔥 注释掉：支付完成的报销单应该保持锁定，不应该解锁
             # unlock_expense(instance.object_id, user_id)
         else:
-            # 🔥 修复：使用快照数据获取下一步骤，需要先获取当前step_order
-            current_step_obj = ApprovalStep.query.filter_by(id=instance.current_step).first()
-            current_step_order = current_step_obj.step_order if current_step_obj else 1
+            # 🔥 修复：从快照中直接获取当前步骤的step_order，避免查询数据库导致的跨流程混淆
+            current_step_order = None
+            if isinstance(current_step, dict):
+                current_step_order = current_step.get('step_order')
+            else:
+                current_step_order = getattr(current_step, 'step_order', None)
+
+            if current_step_order is None:
+                current_app.logger.error(f"无法从当前步骤获取step_order，审批失败")
+                return False
+
             next_step_order = current_step_order + 1
             next_step = None
             
@@ -4836,82 +4840,168 @@ def get_rejected_approval_history(object_type, object_id):
     ).order_by(ApprovalInstance.ended_at.desc()).first() 
 
 
-def get_pending_approval_count(user_id=None):
-    """获取待用户审批的数量 - 包含批价单审批
-    
+def get_pending_approval_count(user_id=None, force_refresh=False):
+    """获取待用户审批的数量 - 优化版本使用缓存
+
     Args:
         user_id: 用户ID，默认为当前登录用户
-        
+        force_refresh: 是否强制刷新缓存，默认False
+
     Returns:
         整数，表示待审批的数量
     """
     try:
-        # 确保数据库事务状态干净，多次尝试回滚
-        for i in range(3):  # 尝试3次
-            try:
-                db.session.rollback()
-                break
-            except Exception as e:
-                if i == 2:  # 最后一次尝试失败
-                    current_app.logger.error(f"get_pending_approval_count: 数据库回滚失败: {e}")
-                    return 0  # 返回默认值而不是抛出错误
-                continue
-        
         if user_id is None:
             # 检查用户是否已登录
             if not current_user.is_authenticated:
                 return 0
             user_id = current_user.id
-        
-        # 查询当前用户是审批人且处于当前审批步骤的所有实例数量（通用审批系统）
-        # 需要考虑模板快照和当前模板两种情况
-        
-        # 先获取所有待审批的实例 - 添加事务保护
-        base_instances = []
+
+        # 🔥 优化1: 使用session缓存，避免每次页面切换都重新计算
+        from flask import session
+        cache_key = f'pending_approval_count_{user_id}'
+
+        # 如果不强制刷新且缓存存在，直接返回缓存值
+        if not force_refresh and cache_key in session:
+            cached_count = session[cache_key]
+            if isinstance(cached_count, int):
+                return cached_count
+
+        # 🔥 优化2: 计算待审批数量（保持原有逻辑，但优化异常处理）
+        general_count = _calculate_pending_approval_count(user_id)
+
+        # 🔥 优化3: 缓存结果到session中
+        session[cache_key] = general_count
+
+        return general_count
+
+    except Exception as e:
+        # 最外层异常捕获，确保函数不会抛出错误导致模板渲染失败
+        current_app.logger.error(f"get_pending_approval_count: 完全失败: {e}")
+        return 0  # 返回默认值
+
+
+def _calculate_pending_approval_count(user_id):
+    """内部函数：实际计算待审批数量
+
+    Args:
+        user_id: 用户ID
+
+    Returns:
+        整数，表示待审批的数量
+    """
+    try:
+        # 确保数据库事务状态干净
         try:
-            base_instances = ApprovalInstance.query.filter(
-                ApprovalInstance.status == ApprovalStatus.PENDING
-            ).all()
-        except Exception as e:
-            current_app.logger.error(f"get_pending_approval_count: 查询审批实例失败: {e}")
-            # 尝试再次回滚并重试一次
-            try:
-                db.session.rollback()
-                base_instances = ApprovalInstance.query.filter(
-                    ApprovalInstance.status == ApprovalStatus.PENDING
-                ).all()
-            except Exception as e2:
-                current_app.logger.error(f"get_pending_approval_count: 重试查询审批实例仍然失败: {e2}")
-                return 0  # 返回默认值
-        
+            db.session.rollback()
+        except Exception:
+            pass
+
+        # 先获取所有待审批的实例
+        base_instances = ApprovalInstance.query.filter(
+            ApprovalInstance.status == ApprovalStatus.PENDING
+        ).all()
+
         # 筛选出当前用户是当前步骤审批人的实例
         general_count = 0
         for instance in base_instances:
             try:
                 current_step_info = instance.get_current_step_info()
                 if current_step_info:
-                    # 使用新的动态审批人确定函数
+                    # 使用动态审批人确定函数
                     actual_approver = get_step_actual_approver(current_step_info, instance)
-                    
+
                     if actual_approver and actual_approver.id == user_id:
                         general_count += 1
             except Exception as e:
-                current_app.logger.error(f"get_pending_approval_count: 处理审批实例 {instance.id} 失败: {e}")
+                current_app.logger.error(f"_calculate_pending_approval_count: 处理审批实例 {instance.id} 失败: {e}")
                 continue  # 跳过有问题的实例
-        
-        # 注意：批价单和订单审批现在都使用V2统一审批系统，已包含在 general_count 中
-        # 不需要单独计算，避免重复统计
-        
+
         return general_count
-        
+
     except Exception as e:
-        # 最外层异常捕获，确保函数不会抛出错误导致模板渲染失败
-        current_app.logger.error(f"get_pending_approval_count: 完全失败: {e}")
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
-        return 0  # 返回默认值
+        current_app.logger.error(f"_calculate_pending_approval_count: 计算失败: {e}")
+        return 0
+
+
+def clear_pending_approval_count_cache(user_id=None):
+    """清除待审批数量缓存
+
+    Args:
+        user_id: 用户ID，默认为当前用户。如果为None，清除所有缓存
+    """
+    try:
+        from flask import session
+
+        if user_id is None:
+            # 清除当前用户缓存
+            if current_user.is_authenticated:
+                user_id = current_user.id
+            else:
+                return
+
+        cache_key = f'pending_approval_count_{user_id}'
+        if cache_key in session:
+            del session[cache_key]
+            current_app.logger.info(f"已清除用户 {user_id} 的待审批数量缓存")
+
+    except Exception as e:
+        current_app.logger.error(f"清除待审批数量缓存失败: {e}")
+
+
+def clear_all_pending_approval_count_cache():
+    """清除所有用户的待审批数量缓存"""
+    try:
+        from flask import session
+
+        # 查找并删除所有相关缓存key
+        keys_to_delete = []
+        for key in session.keys():
+            if key.startswith('pending_approval_count_'):
+                keys_to_delete.append(key)
+
+        for key in keys_to_delete:
+            del session[key]
+
+        if keys_to_delete:
+            current_app.logger.info(f"已清除 {len(keys_to_delete)} 个待审批数量缓存")
+
+    except Exception as e:
+        current_app.logger.error(f"清除所有待审批数量缓存失败: {e}")
+
+
+def clear_approval_cache_after_operation(operation_name, user_id=None, object_type=None, object_id=None):
+    """审批操作后清理缓存的通用函数
+
+    Args:
+        operation_name: 操作名称（用于日志）
+        user_id: 操作用户ID，可选
+        object_type: 业务对象类型，可选
+        object_id: 业务对象ID，可选
+    """
+    try:
+        # 清除所有用户的待审批数量缓存
+        clear_all_pending_approval_count_cache()
+
+        log_msg = f"{operation_name}操作后已清除待审批数量缓存"
+        if object_type and object_id:
+            log_msg += f" (涉及{object_type}#{object_id})"
+        if user_id:
+            log_msg += f" (操作用户: {user_id})"
+
+        current_app.logger.info(log_msg)
+
+    except Exception as e:
+        current_app.logger.error(f"{operation_name}操作后清除缓存失败: {e}")
+
+
+def setup_approval_cache_hooks():
+    """设置审批缓存清理钩子函数
+
+    这个函数可以用来批量设置各种审批操作的缓存清理
+    """
+    # 这里可以添加更多的钩子设置，比如信号处理等
+    pass
 
 
 def get_workflow_steps(approval_instance, current_user_id=None):
@@ -6084,7 +6174,7 @@ def check_step_discount_violations(pricing_order, step_order, user_id):
         }
         
     except Exception as e:
-        print(f"检查折扣权限违规失败: {str(e)}")
+        current_app.logger.error(f"检查折扣权限违规失败: {str(e)}")
         return {'has_violation': False, 'violations': [], 'user_limits': {}}
 
 
@@ -6139,7 +6229,7 @@ def get_approval_step_discount_status(pricing_order):
         return step_statuses
         
     except Exception as e:
-        print(f"获取审批步骤权限状态失败: {str(e)}")
+        current_app.logger.error(f"获取审批步骤权限状态失败: {str(e)}")
         return {}
 
 def process_approval_stage(stage_id, action, comment=None, processed_by_id=None):
@@ -6736,7 +6826,10 @@ def recall_approval_process(object_type, object_id, user_id=None):
             unlock_customer(object_id, user_id)
         
         db.session.commit()
-        
+
+        # 🔥 召回审批后清除待审批数量缓存
+        clear_approval_cache_after_operation("召回审批", user_id, object_type, object_id)
+
         current_app.logger.info(f"用户 {user_id} 召回了 {object_type}#{object_id} 的审批流程")
         return True, "审批流程已成功召回"
         
