@@ -48,8 +48,14 @@ def get_current_language():
         
         # 5. 默认返回简体中文
         return 'zh'
-    except Exception:
-        # 如果出现任何异常，返回默认语言
+    except Exception as e:
+        # 如果出现任何异常，记录日志并返回默认语言
+        try:
+            from flask import current_app
+            current_app.logger.warning(f"语言检测异常: {e}")
+        except:
+            # 如果连日志都无法记录，静默处理
+            pass
         return 'zh'
 
 def set_current_language(language):
@@ -64,5 +70,33 @@ def force_locale(language):
     """强制设置语言上下文管理器，用于测试"""
     from flask_babel import Babel, force_locale as babel_force_locale
     return babel_force_locale(language)
+
+def get_default_currency():
+    """根据当前语言环境获取默认货币"""
+    current_lang = get_current_language()
+
+    # 根据语言环境返回相应的默认货币
+    if current_lang == 'en':
+        return 'USD'  # 英文环境默认美元
+    else:
+        return 'CNY'  # 中文环境默认人民币
+
+def get_currency_symbol(currency):
+    """获取货币符号"""
+    currency_symbols = {
+        'CNY': '¥',
+        'USD': '$',
+        'SGD': 'S$',
+        'MYR': 'RM',
+        'IDR': 'Rp',
+        'THB': '฿',
+        'EUR': '€',
+        'GBP': '£',
+        'JPY': '¥',
+        'HKD': 'HK$',
+        'AUD': 'A$',
+        'CAD': 'C$'
+    }
+    return currency_symbols.get(currency, '¤')  # ¤ 是通用货币符号
 
  
