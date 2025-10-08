@@ -221,56 +221,51 @@ def parse_approver_data(approver_string):
 
 def process_additional_fields(form_data):
     """处理附加字段数据
-    
+
     Args:
         form_data: 表单数据
-        
+
     Returns:
         dict: 处理后的附加字段数据
     """
-    # 🔍 调试：记录收到的表单数据
-    current_app.logger.info(f"🔍 [调试] process_additional_fields - 开始处理附加字段")
-    current_app.logger.info(f"🔍 [调试] 表单字段keys: {list(form_data.keys())}")
-    
-    send_email = form_data.get('send_email') == 'on'
-    
-    # 支持新格式的JSON字段数据
-    editable_fields_json = form_data.get('editable_fields_json')
+    # 支持创建模式和编辑模式的字段名
+    # 支持多种值格式：'on' (复选框), 'true' (JavaScript布尔), true (布尔值)
+    send_email_value = form_data.get('send_email') or form_data.get('edit_send_email')
+    send_email = send_email_value in ('on', 'true', True)
+
+    # 支持新格式的JSON字段数据（同时支持创建和编辑模式）
+    editable_fields_json = (form_data.get('editable_fields_json') or
+                            form_data.get('edit_editable_fields_json'))
     if editable_fields_json:
-        current_app.logger.info(f"🔍 [调试] 发现JSON格式可编辑字段: {editable_fields_json}")
         try:
             editable_fields = json.loads(editable_fields_json)
-            current_app.logger.info(f"🔍 [调试] JSON解析成功，字段数量: {len(editable_fields)}")
-        except (json.JSONDecodeError, TypeError) as e:
-            current_app.logger.error(f"🔍 [调试] JSON解析失败: {e}")
+        except (json.JSONDecodeError, TypeError):
             editable_fields = []
     else:
-        # 兼容传统格式和隐藏字段
-        editable_fields_list = form_data.getlist('editable_fields')
-        editable_fields_single = form_data.get('editable_fields')
-        
-        current_app.logger.info(f"🔍 [调试] getlist('editable_fields'): {editable_fields_list}")
-        current_app.logger.info(f"🔍 [调试] get('editable_fields'): {editable_fields_single}")
-        
+        # 兼容传统格式和隐藏字段（同时支持创建和编辑模式）
+        editable_fields_list = (form_data.getlist('editable_fields') or
+                               form_data.getlist('edit_editable_fields'))
+        editable_fields_single = (form_data.get('editable_fields') or
+                                 form_data.get('edit_editable_fields'))
+
         # 如果单个字段是JSON格式，尝试解析
         if editable_fields_single and (editable_fields_single.startswith('[') or editable_fields_single.startswith('{')):
             try:
                 editable_fields = json.loads(editable_fields_single)
-                current_app.logger.info(f"🔍 [调试] 解析隐藏字段JSON成功，字段数量: {len(editable_fields)}")
-            except (json.JSONDecodeError, TypeError) as e:
-                current_app.logger.error(f"🔍 [调试] 解析隐藏字段JSON失败: {e}")
+            except (json.JSONDecodeError, TypeError):
                 editable_fields = editable_fields_list
         else:
             editable_fields = editable_fields_list
-        
-        current_app.logger.info(f"🔍 [调试] 使用传统格式，最终字段数量: {len(editable_fields)}")
-        
-    # 记录最终的可编辑字段结果
-    current_app.logger.info(f"🔍 [调试] 最终可编辑字段: {editable_fields}")
-    
-    cc_users = form_data.getlist('cc_users')
-    cc_enabled = form_data.get('cc_enabled') == 'on'
-    
+
+    # 支持创建模式和编辑模式的抄送字段
+    cc_users_create = form_data.getlist('cc_users')
+    cc_users_edit = form_data.getlist('edit_cc_users')
+    cc_users = cc_users_create if cc_users_create else cc_users_edit
+
+    # 支持多种值格式：'on' (复选框), 'true' (JavaScript布尔), true (布尔值)
+    cc_enabled_value = form_data.get('cc_enabled') or form_data.get('edit_cc_enabled')
+    cc_enabled = cc_enabled_value in ('on', 'true', True)
+
     # 处理cc_users，确保都是有效的整数
     processed_cc_users = []
     for user_id in cc_users:
@@ -278,19 +273,13 @@ def process_additional_fields(form_data):
             processed_cc_users.append(int(user_id))
         elif isinstance(user_id, int):
             processed_cc_users.append(user_id)
-    
-    result = {
+
+    return {
         'send_email': send_email,
         'editable_fields': editable_fields,
         'cc_users': processed_cc_users,
         'cc_enabled': cc_enabled
     }
-    
-    # 🔍 调试：记录处理结果
-    current_app.logger.info(f"🔍 [调试] process_additional_fields - 处理完成")
-    current_app.logger.info(f"🔍 [调试] 返回结果: {result}")
-    
-    return result
 
 
 def validate_approver_configuration(approver_type, approver_id, step_type, action_type):

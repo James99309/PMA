@@ -22,7 +22,7 @@ class ApprovalEmailService:
 
         Args:
             instance: 审批实例
-            step: 当前审批步骤
+            step: 当前审批步骤（字典格式，来自模板快照）
             action: 审批动作 ('approve', 'reject', None表示待审批)
             comment: 审批意见
             custom_context: 自定义上下文数据，用于不同业务模块的特殊信息
@@ -31,15 +31,19 @@ class ApprovalEmailService:
             bool: 是否发送成功
         """
         try:
-            # 检查是否需要发送邮件
-            if not step or not step.send_email:
-                logger.info(f"步骤 {step.step_name if step else 'None'} 不需要发送邮件通知")
+            # 检查是否需要发送邮件 - 支持字典格式
+            send_email_flag = step.get('send_email') if isinstance(step, dict) else getattr(step, 'send_email', False)
+            if not step or not send_email_flag:
+                step_name = step.get('step_name') if isinstance(step, dict) else getattr(step, 'step_name', 'None')
+                logger.info(f"步骤 {step_name if step else 'None'} 不需要发送邮件通知")
                 return True
 
-            # 获取审批人信息
-            approver = User.query.get(step.approver_user_id) if step.approver_user_id else None
+            # 获取审批人信息 - 支持字典格式
+            approver_user_id = step.get('approver_user_id') if isinstance(step, dict) else getattr(step, 'approver_user_id', None)
+            approver = User.query.get(approver_user_id) if approver_user_id else None
             if not approver or not approver.email:
-                logger.warning(f"审批人未设置或没有邮箱地址: step_id={step.id}")
+                step_id = step.get('step_id') or step.get('id') if isinstance(step, dict) else getattr(step, 'id', None)
+                logger.warning(f"审批人未设置或没有邮箱地址: step_id={step_id}")
                 return False
 
             # 发送主通知邮件
@@ -50,8 +54,10 @@ class ApprovalEmailService:
             if not success:
                 return False
 
-            # 处理抄送
-            if step.cc_enabled and step.cc_users:
+            # 处理抄送 - 支持字典格式
+            cc_enabled = step.get('cc_enabled') if isinstance(step, dict) else getattr(step, 'cc_enabled', False)
+            cc_users = step.get('cc_users') if isinstance(step, dict) else getattr(step, 'cc_users', None)
+            if cc_enabled and cc_users:
                 ApprovalEmailService._handle_cc_notifications(
                     instance, step, action, comment, custom_context
                 )
@@ -114,13 +120,15 @@ class ApprovalEmailService:
 
         Args:
             instance: 审批实例
-            step: 审批步骤
+            step: 审批步骤（字典格式）
             action: 审批动作
             comment: 审批意见
             custom_context: 自定义上下文
         """
         try:
-            cc_user_ids = step.cc_users if isinstance(step.cc_users, list) else []
+            # 支持字典格式获取cc_users
+            cc_users_data = step.get('cc_users') if isinstance(step, dict) else getattr(step, 'cc_users', None)
+            cc_user_ids = cc_users_data if isinstance(cc_users_data, list) else []
 
             for user_id in cc_user_ids:
                 cc_user = User.query.get(user_id)
@@ -179,7 +187,7 @@ class ApprovalEmailService:
 
         Args:
             instance: 审批实例
-            step: 审批步骤
+            step: 审批步骤（字典格式）
             recipient: 收件人
             action: 审批动作
             comment: 审批意见
@@ -202,6 +210,9 @@ class ApprovalEmailService:
         action_text = ApprovalEmailService._get_action_text(action)
         action_color = ApprovalEmailService._get_action_color(action)
         object_name = ApprovalEmailService._get_object_name(instance.object_type)
+
+        # 获取步骤名称 - 支持字典格式
+        step_name = step.get('step_name') if isinstance(step, dict) else getattr(step, 'step_name', '未知步骤')
 
         # 构建自定义信息部分
         custom_info = ""
@@ -251,7 +262,7 @@ class ApprovalEmailService:
                         </div>
                         <div class="info-row">
                             <span class="label">当前步骤：</span>
-                            <span class="value">{step.step_name}</span>
+                            <span class="value">{step_name}</span>
                         </div>
                         <div class="info-row">
                             <span class="label">审批状态：</span>

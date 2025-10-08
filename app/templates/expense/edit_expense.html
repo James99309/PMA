@@ -1026,11 +1026,25 @@ document.addEventListener('DOMContentLoaded', function() {
     // 这个会在表格初始化后执行
     setTimeout(function() {
         console.log('[DEBUG] 控制报销明细字段状态');
-        
-        // 控制各种明细字段
-        const detailFields = ['expense_category', 'expense_date', 'description', 'document_count', 'invoice_amount', 'exchange_rate'];
-        
-        detailFields.forEach(fieldType => {
+
+        // 🔥 动态获取所有可编辑的明细字段（不再硬编码）
+        // 从列配置中提取所有可能的编辑字段
+        const allDetailFields = [
+            'expense_category',   // 报销科目
+            'expense_date',       // 发生日期
+            'description',        // 费用描述
+            'document_count',     // 单据数量
+            'currency',           // 发票货币
+            'invoice_amount',     // 发票金额
+            'exchange_rate',      // 汇率
+            'current_amount'      // 报销金额（虽然是display类型，但可能需要控制）
+        ];
+
+        console.log('[DEBUG] 所有明细字段:', allDetailFields);
+        console.log('[DEBUG] 可编辑字段:', editableFields);
+
+        // 统一控制所有明细字段
+        allDetailFields.forEach(fieldType => {
             const inputs = document.querySelectorAll(`[name*="${fieldType}"], input[data-field="${fieldType}"], select[data-field="${fieldType}"]`);
             inputs.forEach(input => {
                 if (!editableFields.includes(fieldType)) {
@@ -1044,23 +1058,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     // 如果字段可编辑，添加高亮提示
                     input.style.backgroundColor = '#fff3cd';
-                    input.title = window.i18nTexts.editableInCurrentStage;
+                    input.title = window.i18nTexts.editableInCurrentStage || '此字段在当前审批阶段可编辑';
                 }
             });
-        });
-        
-        // 特别处理汇率字段
-        const exchangeRateInputs = document.querySelectorAll('input[name*="exchange_rate"], .exchange-rate-input');
-        exchangeRateInputs.forEach(input => {
-            if (!editableFields.includes('exchange_rate')) {
-                input.readOnly = true;
-                input.style.backgroundColor = '#f8f9fa';
-                input.title = '审核阶段此字段不可编辑';
-            } else {
-                // 如果可以编辑汇率，添加特殊提示
-                input.style.backgroundColor = '#fff3cd';
-                input.title = window.i18nTexts.editableExchangeRate;
-            }
         });
         
         // 控制操作按钮（编辑、删除、上传发票等）

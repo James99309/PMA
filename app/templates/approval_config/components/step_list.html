@@ -227,10 +227,7 @@
                   <strong>可编辑字段：</strong>
                   <div id="step_{{ step.id }}_editable_fields" class="editable-fields-display">
                     {# JavaScript将在这里渲染字段徽章 #}
-                    {% for field_code in step.editable_fields %}
-                      {% set field_display_name = get_field_display_name(template.object_type, field_code) %}
-                      <span class="badge bg-info text-white me-1">{{ field_display_name or field_code }}</span>
-                    {% endfor %}
+                    <span class="text-muted">加载中...</span>
                   </div>
                   {# 调试信息：可编辑字段数据 #}
                   <small class="text-muted d-block" style="font-size: 0.7em;">

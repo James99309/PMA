@@ -1154,12 +1154,7 @@ def get_step_data(step_id):
     """获取步骤数据 - 用于编辑步骤表单"""
     try:
         step = ApprovalStep.query.get_or_404(step_id)
-        
-        # 🔍 调试：记录原始步骤数据
-        current_app.logger.info(f"🔍 [API-step_data] 步骤ID: {step_id}")
-        current_app.logger.info(f"🔍 [API-step_data] 可编辑字段类型: {type(step.editable_fields)}")
-        current_app.logger.info(f"🔍 [API-step_data] 可编辑字段值: {step.editable_fields}")
-        
+
         step_data = {
             'id': step.id,
             'step_name': step.step_name,
@@ -1171,9 +1166,6 @@ def get_step_data(step_id):
             'approver_type': step.approver_type or 'user',
             'action_type': step.action_type or ''
         }
-        
-        # 🔍 调试：记录返回的数据
-        current_app.logger.info(f"🔍 [API-step_data] 返回数据: {step_data}")
         
         return jsonify({
             'success': True,

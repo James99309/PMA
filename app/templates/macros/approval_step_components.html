@@ -214,9 +214,10 @@
     'data-approver-selection': step.approver_selection or '',
     'data-approver-type': step.approver_type or '',
     'data-action-type': step.action_type or 'approve',
+    'data-send-email': step.send_email|tojson|safe,
     'data-editable-fields': (step.editable_fields or [])|tojson|safe,
     'data-cc-users': (step.cc_users or [])|tojson|safe,
-    'data-cc-enabled': step.cc_enabled
+    'data-cc-enabled': step.cc_enabled|tojson|safe
   } %}
   
   {% if not can_modify %}

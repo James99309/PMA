@@ -198,25 +198,25 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window.approvalConfig && typeof window.approvalConfig.renderFieldBadgesFromCodes === 'function') {
             // 查找所有包含可编辑字段的步骤
             const editableFieldsContainers = document.querySelectorAll('.editable-fields-display');
-            
+
             editableFieldsContainers.forEach(container => {
                 const stepId = container.id.match(/step_(\d+)_editable_fields/);
                 if (stepId && stepId[1]) {
                     // 从全局变量获取字段代码
                     const stepFieldsData = window.stepFieldsData && window.stepFieldsData[stepId[1]];
-                    
+
                     if (stepFieldsData && Array.isArray(stepFieldsData)) {
                         const templateId = '{{ template.id }}';
                         window.approvalConfig.renderFieldBadgesFromCodes(
-                            stepFieldsData, 
-                            container.id, 
+                            stepFieldsData,
+                            container.id,
                             templateId
                         );
                     }
                 }
             });
         }
-    }, 500);
+    }, 100);
 });
 </script>
 {% endblock %} 

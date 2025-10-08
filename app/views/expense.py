@@ -1332,7 +1332,40 @@ def edit_expense(id):
                 # 审核编辑模式：只更新允许编辑的字段
                 logger.info(f"审核编辑模式：可编辑字段 {approval_edit_info['editable_fields']}")
                 editable_fields = approval_edit_info['editable_fields']
-                
+
+                # 🔒 安全检查1：验证主表字段提交是否合法
+                main_field_names = ['title', 'description', 'customer_id', 'contact_id', 'project_id', 'currency']
+                submitted_changed_fields = set()
+
+                for field_name in main_field_names:
+                    form_value = request.form.get(field_name)
+                    if form_value is not None:  # 字段被提交
+                        # 获取当前值进行比较
+                        current_value = getattr(expense_obj, field_name, None)
+                        # 统一转换为字符串比较（处理None和类型差异）
+                        form_value_str = str(form_value).strip() if form_value else ''
+                        current_value_str = str(current_value).strip() if current_value else ''
+
+                        if form_value_str != current_value_str:
+                            submitted_changed_fields.add(field_name)
+
+                # 检查是否有未授权的字段修改
+                unauthorized_fields = submitted_changed_fields - set(editable_fields)
+                if unauthorized_fields:
+                    logger.warning(f"[安全警告] 用户 {current_user.id} 尝试在审核阶段修改不可编辑的主表字段: {unauthorized_fields}")
+                    return jsonify({
+                        'success': False,
+                        'message': f'字段 {", ".join(unauthorized_fields)} 在当前审核阶段不可编辑'
+                    }), 403
+
+                # 🔒 安全检查2：严格禁止文件上传
+                if file_data:
+                    logger.warning(f"[安全警告] 用户 {current_user.id} 尝试在审核阶段上传文件，已拒绝")
+                    return jsonify({
+                        'success': False,
+                        'message': '审核阶段不允许上传新的发票文件'
+                    }), 403
+
                 # 基本信息字段的有条件更新
                 if 'title' in editable_fields:
                     title = request.form.get('title', '').strip()
@@ -1469,33 +1502,141 @@ def edit_expense(id):
             if not detail_data:
                 return jsonify({'success': False, 'message': '请至少保留一条报销明细'}), 400
             
-            if approval_edit_mode and 'exchange_rate' in approval_edit_info['editable_fields']:
-                # 审核编辑模式：只更新汇率字段，不删除重建明细
-                logger.info("审核编辑模式：只更新汇率字段")
+            if approval_edit_mode and approval_edit_info['editable_fields']:
+                # 🔥 审核编辑模式：动态更新允许编辑的明细字段
+                editable_fields = approval_edit_info['editable_fields']
+                logger.info(f"审核编辑模式：可编辑明细字段 {editable_fields}")
+
+                # 🔒 安全检查3：验证明细字段提交是否合法
+                # 定义所有可能的明细字段（用于验证）
+                all_detail_field_names = [
+                    'expense_category', 'expense_date', 'description', 'document_count',
+                    'currency', 'invoice_amount', 'exchange_rate', 'current_amount'
+                ]
+
                 existing_details = ExpenseDetail.query.filter_by(expense_id=expense_obj.id).order_by(ExpenseDetail.id).all()
+
+                # 验证每条明细提交的字段
+                for index, detail in detail_data.items():
+                    if index >= len(existing_details):
+                        # 审核阶段不允许新增明细
+                        logger.warning(f"[安全警告] 用户 {current_user.id} 尝试在审核阶段新增明细 {index}")
+                        return jsonify({
+                            'success': False,
+                            'message': f'审核阶段不允许新增明细条目'
+                        }), 403
+
+                    # 获取现有明细对象
+                    detail_obj = existing_details[index]
+
+                    # 检查提交的字段是否有未授权的修改
+                    submitted_detail_fields = set()
+                    for field_name in all_detail_field_names:
+                        if field_name in detail:
+                            # 获取当前值
+                            current_value = getattr(detail_obj, field_name, None)
+                            submitted_value = detail[field_name]
+
+                            # 统一类型进行比较
+                            if field_name == 'expense_date':
+                                # 日期字段特殊处理
+                                current_date_str = current_value.strftime('%Y-%m-%d') if current_value else ''
+                                if submitted_value != current_date_str:
+                                    submitted_detail_fields.add(field_name)
+                            elif field_name in ['invoice_amount', 'exchange_rate', 'current_amount']:
+                                # 数值字段特殊处理
+                                try:
+                                    current_val = float(current_value) if current_value else 0.0
+                                    submitted_val = float(submitted_value) if submitted_value else 0.0
+                                    if abs(current_val - submitted_val) > 0.01:  # 容差比较
+                                        submitted_detail_fields.add(field_name)
+                                except (ValueError, TypeError):
+                                    submitted_detail_fields.add(field_name)
+                            elif field_name == 'document_count':
+                                # 整数字段
+                                current_val = int(current_value) if current_value else 1
+                                submitted_val = int(submitted_value) if submitted_value else 1
+                                if current_val != submitted_val:
+                                    submitted_detail_fields.add(field_name)
+                            else:
+                                # 字符串字段
+                                current_str = str(current_value).strip() if current_value else ''
+                                submitted_str = str(submitted_value).strip() if submitted_value else ''
+                                if current_str != submitted_str:
+                                    submitted_detail_fields.add(field_name)
+
+                    # 检查未授权字段
+                    unauthorized_detail_fields = submitted_detail_fields - set(editable_fields)
+                    if unauthorized_detail_fields:
+                        logger.warning(f"[安全警告] 用户 {current_user.id} 尝试在审核阶段修改明细 {index} 的不可编辑字段: {unauthorized_detail_fields}")
+                        return jsonify({
+                            'success': False,
+                            'message': f'第{index+1}条明细的字段 {", ".join(unauthorized_detail_fields)} 在当前审核阶段不可编辑'
+                        }), 403
+
+                # 检查是否有明细被删除
+                if len(detail_data) < len(existing_details):
+                    logger.warning(f"[安全警告] 用户 {current_user.id} 尝试在审核阶段删除明细")
+                    return jsonify({
+                        'success': False,
+                        'message': '审核阶段不允许删除明细条目'
+                    }), 403
+
                 total_amount = 0.0
-                
+
                 for index, detail_obj in enumerate(existing_details):
                     if index in detail_data:
                         detail = detail_data[index]
-                        # 只更新汇率相关字段
-                        if 'exchange_rate' in detail:
+
+                        # 🔥 动态更新可编辑的字段
+                        if 'expense_category' in editable_fields and 'expense_category' in detail:
+                            detail_obj.expense_category = detail['expense_category']
+                            logger.info(f"更新明细 {detail_obj.id} 科目: {detail['expense_category']}")
+
+                        if 'expense_date' in editable_fields and 'expense_date' in detail:
+                            detail_obj.expense_date = datetime.strptime(detail['expense_date'], '%Y-%m-%d').date()
+                            logger.info(f"更新明细 {detail_obj.id} 日期: {detail['expense_date']}")
+
+                        if 'description' in editable_fields and 'description' in detail:
+                            detail_obj.description = detail['description'].strip()
+                            logger.info(f"更新明细 {detail_obj.id} 描述: {detail['description']}")
+
+                        if 'document_count' in editable_fields and 'document_count' in detail:
+                            detail_obj.document_count = int(detail.get('document_count', 1))
+                            logger.info(f"更新明细 {detail_obj.id} 单据数量: {detail['document_count']}")
+
+                        if 'currency' in editable_fields and 'currency' in detail:
+                            detail_obj.currency = detail['currency']
+                            logger.info(f"更新明细 {detail_obj.id} 货币: {detail['currency']}")
+
+                        if 'invoice_amount' in editable_fields and 'invoice_amount' in detail:
+                            invoice_amount = float(detail['invoice_amount'])
+                            detail_obj.invoice_amount = invoice_amount
+                            # 重新计算转换后的金额
+                            exchange_rate = detail_obj.exchange_rate or 1.0
+                            detail_obj.current_amount = invoice_amount * exchange_rate
+                            detail_obj.amount = detail_obj.current_amount  # 向后兼容
+                            logger.info(f"更新明细 {detail_obj.id} 发票金额: {invoice_amount}")
+
+                        if 'exchange_rate' in editable_fields and 'exchange_rate' in detail:
                             exchange_rate = float(detail.get('exchange_rate', 1.0))
                             detail_obj.exchange_rate = exchange_rate
-                            
                             # 重新计算转换后的金额
                             invoice_amount = detail_obj.invoice_amount or 0
-                            current_amount = invoice_amount * exchange_rate
-                            detail_obj.current_amount = current_amount
-                            detail_obj.amount = current_amount  # 向后兼容
-                            
-                            logger.info(f"更新明细 {detail_obj.id} 汇率: {exchange_rate}, 转换金额: {current_amount}")
-                    
+                            detail_obj.current_amount = invoice_amount * exchange_rate
+                            detail_obj.amount = detail_obj.current_amount  # 向后兼容
+                            logger.info(f"更新明细 {detail_obj.id} 汇率: {exchange_rate}, 转换金额: {detail_obj.current_amount}")
+
+                        # 🔒 安全检查4：审核模式下强制保留现有图片，禁止修改
+                        # 不更新 invoice_images 字段，确保发票图片在审核阶段不被篡改
+                        logger.info(f"审核编辑模式：明细 {detail_obj.id} 的发票图片已锁定，不允许修改")
+
                     total_amount += detail_obj.current_amount or detail_obj.amount or 0
-                
+
                 # 更新报销单总金额
                 expense_obj.total_amount = total_amount
-                
+                logger.info(f"审核编辑模式完成，更新总金额: {total_amount}")
+
             else:
                 # 新的简单编辑模式：智能增量更新，无需删除重建
                 logger.info("简单编辑模式：智能增量更新明细")

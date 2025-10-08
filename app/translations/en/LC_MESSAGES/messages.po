@@ -1002,6 +1002,116 @@ msgstr "Rejected"
 
 
 
+msgid "已召回"
+msgstr "Recalled"
+
+
+
+msgid "待支付"
+msgstr "Awaiting Payment"
+
+
+
+msgid "已支付"
+msgstr "Paid"
+
+
+
+msgid "重新提交"
+msgstr "Resubmit"
+
+
+
+msgid "适应"
+msgstr "Fit"
+
+
+
+msgid "创建完成，可以提交审批流程。"
+msgstr "Created successfully, ready to submit for approval."
+
+
+
+msgid "提交后将进入审批流程，无法直接修改。"
+msgstr "After submission, it will enter the approval process and cannot be directly modified."
+
+
+
+msgid "审批流程进行中，您可以召回流程。"
+msgstr "Approval process in progress, you can recall it."
+
+
+
+msgid "召回后流程将停止，状态将回到草稿状态。"
+msgstr "After recall, the process will stop and status will return to draft."
+
+
+
+msgid "审批流程被拒绝"
+msgstr "Approval process was rejected"
+
+
+
+msgid "审批流程被召回"
+msgstr "Approval process was recalled"
+
+
+
+msgid "您可以重新提交。"
+msgstr "You can resubmit."
+
+
+
+msgid "重新提交将重置审批历史，重新开始审批流程。"
+msgstr "Resubmitting will reset approval history and restart the process."
+
+
+
+msgid "审批流程已完成。"
+msgstr "Approval process completed."
+
+
+
+msgid "审批流程进行中，已有人员审批，无法召回。"
+msgstr "Approval in progress with approvals already made, cannot recall."
+
+
+
+msgid "请等待审批完成或联系相关审批人员。"
+msgstr "Please wait for completion or contact relevant approvers."
+
+
+
+msgid "请确认您的审批决定，审批后将自动进入下一阶段或完成审批流程。"
+msgstr "Please confirm your approval decision. After approval, it will automatically proceed to the next stage or complete the process."
+
+
+
+msgid "召回审批流程"
+msgstr "Recall Approval Process"
+
+
+
+msgid "注意："
+msgstr "Note:"
+
+
+
+msgid "召回后审批流程将停止，状态将回到草稿状态。"
+msgstr "After recall, the approval process will stop and status will return to draft."
+
+
+
+msgid "确定要重新提交审批吗？重新提交后将重置所有审批历史，重新开始审批流程。"
+msgstr "Are you sure you want to resubmit for approval? This will reset all approval history and restart the process."
+
+
+
+msgid "将使用审批流程："
+msgstr "Will use approval process:"
+
+
+
 msgid "未申请"
 msgstr "Not Applied"
 

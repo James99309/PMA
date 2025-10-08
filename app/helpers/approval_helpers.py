@@ -3874,7 +3874,12 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
     )
     
     db.session.add(record)
-    
+
+    # 🔥 修复：从快照创建临时ApprovalStep对象用于execute_action调用
+    # 在10月1日重构中，从数据库查询改为模板快照，但忘记创建current_step_obj
+    from app.models.approval import ApprovalStep
+    current_step_obj = ApprovalStep.from_snapshot(current_step, instance.process_id)
+
     # 【已移除】处理授权编号逻辑 - 授权逻辑已移至分支决策动作中执行
     # authorization_result = None
     #
@@ -3882,7 +3887,7 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
     #     authorization_result = _handle_project_authorization(instance, project_type, preview_only=False, branch_action=branch_action)
     # else:
     #     pass  # 其他情况暂不处理
-    
+
     # 如果拒绝，直接结束流程
     if action == ApprovalAction.REJECT:
         instance.status = ApprovalStatus.REJECTED
@@ -4074,15 +4079,17 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
         
         db.session.commit()
         current_app.logger.info(f"审批操作成功提交: 实例{instance_id}, 当前步骤{instance.current_step}")
-        
-        # 如果设置了发送邮件，则发送邮件通知
-        if current_step.get('send_email', True):
-            try:
-                _send_approval_notification(instance, current_step, action, comment)
-            except Exception as e:
-                # 记录日志但不影响主流程
-                current_app.logger.error(f"发送审批邮件失败: {str(e)}")
-        
+
+        # 发送邮件通知（邮件服务内部会检查send_email标志）
+        try:
+            from app.services.approval_email_service import ApprovalEmailService
+            ApprovalEmailService.send_approval_notification(
+                instance, current_step, action, comment, custom_context=None
+            )
+        except Exception as e:
+            # 记录日志但不影响主流程
+            current_app.logger.error(f"发送审批邮件失败: {str(e)}", exc_info=True)
+
         return True
     except Exception as e:
         db.session.rollback()
@@ -4449,54 +4456,20 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
                     unlock_expense(instance.object_id, user_id)
     
     db.session.commit()
-    
-    # 如果设置了发送邮件，则发送邮件通知
-    if current_step.get('send_email', True):
-        try:
-            _send_approval_notification(instance, current_step, action, comment)
-        except Exception as e:
-            # 记录日志但不影响主流程
-            current_app.logger.error(f"发送审批邮件失败: {str(e)}")
-    
+
+    # 发送邮件通知（邮件服务内部会检查send_email标志）
+    try:
+        from app.services.approval_email_service import ApprovalEmailService
+        ApprovalEmailService.send_approval_notification(
+            instance, current_step, action, comment, custom_context=None
+        )
+    except Exception as e:
+        # 记录日志但不影响主流程
+        current_app.logger.error(f"发送审批邮件失败: {str(e)}", exc_info=True)
+
     return True
 
 
-
-
-def _send_approval_notification(instance, step, action, comment):
-    """发送审批通知邮件（内部函数）
-
-    Args:
-        instance: 审批实例
-        step: 当前步骤
-        action: 审批动作
-        comment: 审批意见
-    """
-    # 使用通用的审批邮件服务
-    from app.services.approval_email_service import ApprovalEmailService
-
-    try:
-        # 可以根据不同的对象类型添加自定义上下文
-        custom_context = {}
-
-        # 根据对象类型获取额外信息
-        if instance.object_type == 'quotation':
-            # 可以添加报价单特定信息
-            custom_context['project_stage'] = '项目阶段信息'
-        elif instance.object_type == 'expense':
-            # 可以添加报销单特定信息
-            custom_context['expense_type'] = '报销类型'
-
-        # 调用通用服务发送邮件
-        ApprovalEmailService.send_approval_notification(
-            instance=instance,
-            step=step,
-            action=action,
-            comment=comment,
-            custom_context=custom_context
-        )
-    except Exception as e:
-        current_app.logger.error(f"调用审批邮件服务失败: {str(e)}") 
 
 
 def delete_approval_instance(instance_id):

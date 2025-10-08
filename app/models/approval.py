@@ -150,6 +150,40 @@ class ApprovalStep(db.Model):
     def __repr__(self):
         return f"<ApprovalStep {self.step_name}>"
 
+    @classmethod
+    def from_snapshot(cls, snapshot_data, process_id=None):
+        """从模板快照数据创建临时ApprovalStep对象
+
+        Args:
+            snapshot_data: 快照数据字典或ApprovalStep对象
+            process_id: 流程模板ID（可选）
+
+        Returns:
+            ApprovalStep临时对象，用于调用execute_action等方法
+        """
+        if isinstance(snapshot_data, cls):
+            # 已经是ApprovalStep对象，直接返回
+            return snapshot_data
+
+        if not isinstance(snapshot_data, dict):
+            # 既不是字典也不是对象，返回None
+            return None
+
+        # 从快照字典创建临时对象
+        step = cls()
+        step.id = snapshot_data.get('step_id')
+        step.step_name = snapshot_data.get('step_name', '')
+        step.step_order = snapshot_data.get('step_order', 0)
+        step.action_type = snapshot_data.get('action_type')
+        step.approver_type = snapshot_data.get('approver_type', 'user')
+        step.approver_user_id = snapshot_data.get('approver_user_id')
+        step.step_type = snapshot_data.get('step_type', 'normal')
+        step.branch_condition = snapshot_data.get('branch_condition')
+        step.action_params = snapshot_data.get('action_params')
+        step.process_id = process_id or snapshot_data.get('process_id')
+
+        return step
+
     def is_branch_step(self):
         """判断是否为分支步骤"""
         return self.step_type == 'branch'

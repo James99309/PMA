@@ -1285,20 +1285,10 @@ class ApprovalConfigManager {
         this.loadStepData(stepData.stepId)
             .then(apiData => {
                 console.log('📡 [编辑调试] API调用成功，返回数据:', apiData);
-                console.log('🔧 [编辑调试] 准备填充表单（不包括可编辑字段）...');
-                this.populateEditFormFromAPI(modal, apiData.step, false); // false = 暂时跳过可编辑字段
+                console.log('🔧 [编辑调试] 准备填充表单（包括所有字段）...');
+                this.populateEditFormFromAPI(modal, apiData.step, true); // true = 一次性完成所有填充
                 console.log('🔧 [编辑调试] 准备显示模态框...');
                 this.showModal(modal);
-                console.log('🔧 [编辑调试] 模态框显示后，延迟处理可编辑字段...');
-                // 使用Bootstrap模态框事件确保DOM完全可用
-                $(modal).one('shown.bs.modal', () => {
-                    console.log('🔧 [编辑调试] 模态框已完全显示，现在填充可编辑字段...');
-                    
-                    // 验证模态框DOM结构
-                    validateModalDOMStructure(true);
-                    
-                    this.populateEditableFieldsAfterModalShown(apiData.step);
-                });
                 console.log('✅ [编辑调试] 编辑步骤处理完成');
             })
             .catch(error => {
@@ -1425,9 +1415,34 @@ class ApprovalConfigManager {
      * 提取步骤数据 - 简化版本，只提取基本信息
      */
     extractStepData(button) {
+        // 辅助函数：解析JSON字符串
+        const parseJSON = (str, defaultValue = []) => {
+            if (!str) return defaultValue;
+            try {
+                return JSON.parse(str);
+            } catch (e) {
+                return defaultValue;
+            }
+        };
+
+        // 辅助函数：解析布尔值
+        const parseBool = (value) => {
+            if (typeof value === 'boolean') return value;
+            if (typeof value === 'string') return value === 'true' || value === '1';
+            return Boolean(value);
+        };
+
         return {
             stepId: button.dataset.stepId,
-            stepName: button.dataset.stepName
+            stepName: button.dataset.stepName,
+            stepType: button.dataset.stepType,
+            approverSelection: button.dataset.approverSelection,
+            approverType: button.dataset.approverType,
+            actionType: button.dataset.actionType,
+            send_email: parseBool(button.dataset.sendEmail),
+            cc_enabled: parseBool(button.dataset.ccEnabled),
+            cc_users: parseJSON(button.dataset.ccUsers, []),
+            editable_fields: parseJSON(button.dataset.editableFields, [])
         };
     }
 
@@ -1435,35 +1450,13 @@ class ApprovalConfigManager {
      * 填充编辑表单 - 使用API数据（优化版：统一加载逻辑）
      */
     populateEditFormFromAPI(modal, stepData, includeEditableFields = true) {
-        console.log('🔧 [优化] 统一填充编辑表单 - 开始');
-        console.log('🔧 [优化] 接收到的步骤数据:', stepData);
-        
-        // 🔍 [DOM调试] 检查模态框和核心DOM元素的渲染状态
-        const modalVisible = modal && modal.offsetParent !== null;
-        const editFieldsSelect = document.getElementById('edit_editable_fields_select');
-        const editSelectedFields = document.getElementById('edit_selected_fields');
-        const editFieldsInput = document.getElementById('edit_editable_fields_input');
-        
-        console.log('🔍 [DOM调试] 模态框渲染状态检查:', {
-            模态框存在: !!modal,
-            模态框可见: modalVisible,
-            模态框ID: modal ? modal.id : null,
-            字段选择器存在: !!editFieldsSelect,
-            字段容器存在: !!editSelectedFields,
-            隐藏输入存在: !!editFieldsInput,
-            DOM准备就绪: document.readyState
-        });
-        
-        // 先执行完整重置，确保从干净状态开始（解决模态框状态残留问题）
+        // 先执行完整重置，确保从干净状态开始
         this.resetEditStepModal();
-        
-        console.log('📋 [优化] 开始填充编辑表单数据');
-        
+
         // 设置表单action
         const form = modal.querySelector('#editStepForm');
         if (form && stepData.id) {
             form.action = `/admin/approval/step/${stepData.id}/edit`;
-            console.log('🔧 [优化] 设置表单action:', form.action);
         }
 
         // 填充基础字段
@@ -1471,10 +1464,9 @@ class ApprovalConfigManager {
             'edit_step_name': stepData.step_name,
             'edit_approver_selection': stepData.approver_type === 'next_level' ? 'next_level' : `user_${stepData.approver_user_id}`,
             'edit_action_type': stepData.action_type,
-            'edit_send_email': stepData.send_email
+            'edit_send_email': stepData.send_email,
+            'edit_cc_enabled': stepData.cc_enabled
         };
-        
-        console.log('🔧 [优化] 基础字段数据:', fields);
 
         Object.entries(fields).forEach(([fieldId, value]) => {
             const field = modal.querySelector(`#${fieldId}`);
@@ -1487,33 +1479,20 @@ class ApprovalConfigManager {
             }
         });
 
-        // 填充可编辑字段 - 根据参数决定是否执行
+        // 如果cc_enabled为true，显示CC用户选择区域
+        if (stepData.cc_enabled === true || stepData.cc_enabled === 'true') {
+            const editCcUsersSection = modal.querySelector('#edit_ccUsersSection');
+            if (editCcUsersSection) {
+                editCcUsersSection.style.display = 'block';
+            }
+        }
+
+        // 填充可编辑字段
         if (includeEditableFields && stepData.editable_fields && Array.isArray(stepData.editable_fields) && stepData.editable_fields.length > 0) {
-            // 🔍 [DOM调试] 可编辑字段加载前的状态检查
-            console.log('🔍 [DOM调试] 准备直接加载可编辑字段（移除延迟）:', {
-                字段数据: stepData.editable_fields,
-                字段数量: stepData.editable_fields.length,
-                模态框状态: {
-                    模态框存在: !!modal,
-                    字段选择器可用: !!document.getElementById('edit_editable_fields_select'),
-                    字段容器可用: !!document.getElementById('edit_selected_fields'),
-                    隐藏输入可用: !!document.getElementById('edit_editable_fields_input')
-                },
-                当前时间: new Date().toISOString()
-            });
-            
-            // 直接执行，移除延迟调用
             this.populateEditableFields(stepData.editable_fields, true);
         } else if (!includeEditableFields) {
-            console.log('🔧 [编辑调试] 跳过可编辑字段填充，将在模态框显示后处理');
+            // 跳过可编辑字段填充，将在模态框显示后处理
         } else {
-            // 🔍 [DOM调试] 无可编辑字段的情况
-            console.log('🔍 [DOM调试] 无可编辑字段数据:', {
-                stepData_editable_fields: stepData.editable_fields,
-                是否为数组: Array.isArray(stepData.editable_fields),
-                数组长度: stepData.editable_fields ? stepData.editable_fields.length : 'N/A'
-            });
-            
             this.editSelectedFields = [];
             const container = modal.querySelector('#edit_selected_fields');
             if (container) {
@@ -1521,22 +1500,16 @@ class ApprovalConfigManager {
             }
         }
 
-        // 处理抄送相关字段
-        if (stepData.cc_enabled === true || stepData.cc_enabled === 'true') {
-            const ccCheckbox = modal.querySelector('#edit_cc_enabled');
-            if (ccCheckbox) {
-                ccCheckbox.checked = true;
-            }
-            
-            // 设置抄送用户
-            if (stepData.cc_users && stepData.cc_users.length > 0) {
-                const ccUsersSelect = modal.querySelector('#edit_cc_users');
-                if (ccUsersSelect && ccUsersSelect.multiple) {
-                    Array.from(ccUsersSelect.options).forEach(option => {
-                        option.selected = stepData.cc_users.includes(parseInt(option.value));
-                    });
+        // 处理抄送用户 - 设置复选框选中状态
+        if (stepData.cc_users && stepData.cc_users.length > 0) {
+            stepData.cc_users.forEach(userId => {
+                const checkbox = modal.querySelector(`#edit_cc_user_${userId}`);
+                if (checkbox) {
+                    checkbox.checked = true;
                 }
-            }
+            });
+            // 调用更新徽章函数显示已选用户
+            this.updateCcUserBadges('edit_');
         }
     }
 

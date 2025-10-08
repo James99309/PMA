@@ -35,9 +35,12 @@ Thumbs.db
 
 # 个人开发临时文件
 *.bak
+*.bak[0-9]
+*.bak[0-9][0-9]
 *.swp
 *.tmp
 *.backup
+*.backup_*
 *_backup.py
 
 # 测试文件和缓存
@@ -111,6 +114,16 @@ check_db_connection.py
 check_render_data.py
 verify_admin_login.py
 reset_admin_password.py
+
+# tests目录下的临时脚本（根据CLAUDE-SCRIPTS.md规范）
+tests/batch_*.py
+tests/check_*.py
+tests/fix_*.py
+tests/debug_*.py
+tests/diagnose_*.py
+tests/compare_*.py
+tests/verify_*.py
+tests/analyze_*.py
 
 # 迁移/导出中间产物
 db_export*.json
