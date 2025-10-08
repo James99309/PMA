@@ -2932,6 +2932,11 @@ msgstr "Login"
 
 
 
+msgid "退出登录"
+msgstr "Logout"
+
+
+
 msgid "忘记密码?"
 msgstr "Forgot password?"
 

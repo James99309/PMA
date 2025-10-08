@@ -652,15 +652,9 @@ def get_viewable_data(model_class, user, special_filters=None):
             logger.error(f"获取可查看公司数据时出错: {e}")
             viewable_company_ids = []
         
-        # 管理员和系统管理员可以查看所有记录
+        # 管理员和系统管理员可以查看所有Action记录（不受company_id限制）
         if user.role in ['admin', 'system_admin']:
-            if viewable_company_ids:
-                return model_class.query.filter(
-                    model_class.company_id.in_(viewable_company_ids),
-                    *special_filters
-                )
-            else:
-                return model_class.query.filter(False)
+            return model_class.query.filter(*special_filters)
         
         # 构建查询条件：
         # - 共享记录：按原有客户权限逻辑

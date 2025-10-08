@@ -323,13 +323,13 @@
                         <table class="table table-hover mb-0">
                             <thead class="table-light" style="font-size: 0.9rem;">
                                 <tr>
-                                    <th width="12%">{{ _('行动日期') }}</th>
-                                    <th width="10%">{{ _('拥有人') }}</th>
-                                    <th width="10.5%">{{ _('客户') }}</th>
-                                    <th width="8.5%">{{ _('联系人') }}</th>
-                                    <th width="12.5%">{{ _('关联项目') }}</th>
-                                    <th width="41.5%">{{ _('行动记录') }}</th>
-                                    <th width="5%">{{ _('回复状态') }}</th>
+                                    <th width="10%">{{ _('行动日期') }}</th>
+                                    <th width="8%">{{ _('拥有人') }}</th>
+                                    <th width="12%" style="word-wrap: break-word; white-space: normal;">{{ _('客户') }}</th>
+                                    <th width="8%">{{ _('联系人') }}</th>
+                                    <th width="12%" style="word-wrap: break-word; white-space: normal;">{{ _('关联项目') }}</th>
+                                    <th width="42%">{{ _('行动记录') }}</th>
+                                    <th width="8%">{{ _('回复状态') }}</th>
                                 </tr>
                             </thead>
                             <tbody id="recordsTableBody">
@@ -680,22 +680,22 @@ function renderTableRecords(records) {
             <td style="white-space: nowrap; font-size: 0.9rem;">
                 ${record.owner_badge_html || '<span class="badge bg-secondary">无</span>'}
             </td>
-            <td style="white-space: nowrap; font-size: 0.9rem;">
-                ${record.customer_name && record.customer_id ? 
+            <td style="word-wrap: break-word; white-space: normal; font-size: 0.9rem;">
+                ${record.customer_name && record.customer_id ?
                     `<a href="/customer/${record.customer_id}/view" class="text-decoration-none text-primary">
                         ${record.customer_name}
-                    </a>` : 
+                    </a>` :
                     '<span class="text-muted">-</span>'
                 }
             </td>
             <td style="white-space: nowrap; font-size: 0.9rem;">
                 <span>${record.contact_name || '-'}</span>
             </td>
-            <td style="white-space: nowrap; font-size: 0.9rem;">
-                ${record.project_name ? 
+            <td style="word-wrap: break-word; white-space: normal; font-size: 0.9rem;">
+                ${record.project_name ?
                     `<a href="/project/view/${record.project_id}" class="text-decoration-none">
-                        ${truncateText(record.project_name, 20)}
-                    </a>` : 
+                        ${record.project_name}
+                    </a>` :
                     '<span class="text-muted">-</span>'
                 }
             </td>

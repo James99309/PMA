@@ -183,19 +183,20 @@ def get_recent_work_records():
         
         # 计算N天前的日期
         start_date = datetime.now().date() - timedelta(days=days-1)  # days-1是因为包含今天
-        
-        # 基础查询 - 获取最近N天的记录（按行动日期或创建时间）
+
+        # 使用权限系统获取可查看的Action记录（包含时间过滤）
         from sqlalchemy import func, or_
-        base_query = Action.query.filter(
+        time_filters = [
             or_(
                 Action.date >= start_date,  # 行动发生在最近N天内
                 func.date(Action.created_at) >= start_date  # 或者记录创建在最近N天内
             )
-        )
-        
-        # 账户筛选逻辑
+        ]
+        base_query = get_viewable_data(Action, current_user, time_filters)
+
+        # 账户筛选逻辑（在权限系统基础上额外过滤）
         if account_id:
-            # 如果指定了account_id，检查权限后只显示该账户的记录
+            # 检查是否有权查看指定账户的记录
             if is_admin_or_ceo():
                 # 管理员和CEO可以查看任何账户的记录
                 base_query = base_query.filter(Action.owner_id == account_id)
@@ -222,21 +223,6 @@ def get_recent_work_records():
                         'message': '无权限查看该账户的记录'
                     })
                 base_query = base_query.filter(Action.owner_id == current_user.id)
-        else:
-            # 如果没有指定account_id，按照原有权限逻辑显示
-            if is_admin_or_ceo():
-                # 管理员和CEO可以查看所有记录
-                pass
-            elif current_user.role in ['sales_director', 'service_manager', 'sales_manager']:
-                # 总监级别可以查看自己和下属的记录（如果是部门负责人）
-                if current_user.is_department_manager:
-                    subordinate_ids = [user.id for user in User.query.filter_by(department=current_user.department).all()]
-                else:
-                    subordinate_ids = [current_user.id]
-                base_query = base_query.filter(Action.owner_id.in_(subordinate_ids))
-            else:
-                # 其他角色只能查看自己的记录
-                base_query = base_query.filter(Action.owner_id == current_user.id)
         
         # 加载关联数据并按时间倒序排列（不包括replies，因为它是动态关系）
         records = base_query.options(
@@ -249,21 +235,9 @@ def get_recent_work_records():
         # 如果指定时间范围内没有记录，且没有指定account_id，显示用户最近的5条记录
         fallback_message = None
         if not records and not account_id:
-            # 获取当前用户权限范围内的最近5条记录（不限时间）
-            fallback_query = Action.query
-            
-            # 应用相同的权限逻辑，但不限制时间
-            if is_admin_or_ceo():
-                pass
-            elif current_user.role in ['sales_director', 'service_manager', 'sales_manager']:
-                if current_user.is_department_manager:
-                    subordinate_ids = [user.id for user in User.query.filter_by(department=current_user.department).all()]
-                else:
-                    subordinate_ids = [current_user.id]
-                fallback_query = fallback_query.filter(Action.owner_id.in_(subordinate_ids))
-            else:
-                fallback_query = fallback_query.filter(Action.owner_id == current_user.id)
-            
+            # 使用权限系统获取可查看的Action记录（不限时间）
+            fallback_query = get_viewable_data(Action, current_user)
+
             # 获取最近5条记录
             fallback_records = fallback_query.options(
                 joinedload(Action.company),
