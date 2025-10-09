@@ -1,0 +1,17 @@
+# 云端Supabase数据库备份摘要
+备份时间: Wed Oct  8 11:51:37 +08 2025
+数据库: aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
+当前迁移版本: d43fb253b20c
+
+## 备份文件
+- projects_backup_*.csv (629条记录, 425KB)
+- users_backup_*.csv (33条记录)
+- alembic_version_backup_*.csv (1条记录)
+
+## 待执行迁移
+- add_project_created_by_field (添加projects.created_by字段)
+
+## 恢复说明
+如需恢复，使用以下命令：
+\COPY public.projects FROM 'projects_backup_xxx.csv' WITH CSV HEADER
+

@@ -1737,10 +1737,18 @@ def delete_project(project_id):
         except Exception:
             # 如果评分系统模块处理失败，跳过
             logger.info("旧版评分系统模块处理失败，跳过")
-        
+
+        # 8. 删除项目-客户关联记录
+        from app.models.project_customer_association import ProjectCustomerAssociation
+        associations = ProjectCustomerAssociation.query.filter_by(project_id=project_id).all()
+        if associations:
+            for association in associations:
+                db.session.delete(association)
+            logger.info(f"删除项目 {project_id} 前，已删除关联的 {len(associations)} 个客户关联")
+
         # === 关联数据清理结束 ===
-        
-        # 8. 最后删除项目
+
+        # 9. 最后删除项目
         # 记录删除历史（在实际删除前记录）
         try:
             ChangeTracker.log_delete(project)
@@ -2147,7 +2155,14 @@ def batch_delete_projects():
                 except Exception:
                     # 如果评分系统模块处理失败，跳过
                     pass
-                
+
+                # 删除项目-客户关联记录
+                from app.models.project_customer_association import ProjectCustomerAssociation
+                associations = ProjectCustomerAssociation.query.filter_by(project_id=project_id).all()
+                if associations:
+                    for association in associations:
+                        db.session.delete(association)
+
                 # 最后删除项目
                 # 记录删除历史（在实际删除前记录）
                 try:
