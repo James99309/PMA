@@ -747,25 +747,6 @@
   {% endif %}
 {% endmacro %}
 
-{% macro render_user_role_badge(user, role_dict=none) %}
-  {% if role_dict and user.role in role_dict %}
-    {% set role_display = role_dict[user.role] %}
-  {% else %}
-    {% set role_display = user.role or '未设置' %}
-  {% endif %}
-  
-  {# 根据角色类型选择颜色样式 #}
-  {% if user.role in ['admin', 'business_admin', 'finance_director', 'sales_director'] %}
-    <span class="badge badge-pill badge-transparent product-status-admin">{{ role_display }}</span>
-  {% elif user.role in ['vendor'] %}
-    <span class="badge badge-pill badge-transparent product-status-vendor">{{ role_display }}</span>
-  {% elif user.role %}
-    <span class="badge badge-pill badge-transparent product-status-user">{{ role_display }}</span>
-  {% else %}
-    <span class="badge badge-pill badge-muted">未设置</span>
-  {% endif %}
-{% endmacro %}
-
 {% macro render_stock_status_badge(status) %}
   {% if status is none %}
     <span class="badge badge-pill badge-muted">-</span>
@@ -2637,11 +2618,7 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
             {% if column.render == 'render_user_status_badge' %}
                 {{ render_user_status_badge(value) }}
             {% elif column.render == 'render_user_role_badge' %}
-                {% if column.get('role_dict') %}
-                    {{ render_user_role_badge(value, column.role_dict) }}
-                {% else %}
-                    {{ render_user_role_badge(value) }}
-                {% endif %}
+                {{ render_user_role_badge(value.role if value.__class__.__name__ == 'User' else value) }}
             {% elif column.render == 'render_order_status_badge' %}
                 {{ render_order_status_badge(value) }}
             {% elif column.render == 'render_inventory_status_badge' %}
@@ -2685,11 +2662,7 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
                 {% elif column.render == 'render_user_status_badge' %}
                     {{ render_user_status_badge(value) }}
                 {% elif column.render == 'render_user_role_badge' %}
-                    {% if column.get('role_dict') %}
-                        {{ render_user_role_badge(value, column.role_dict) }}
-                    {% else %}
-                        {{ render_user_role_badge(value) }}
-                    {% endif %}
+                    {{ render_user_role_badge(value.role if value.__class__.__name__ == 'User' else value) }}
                 {% else %}
                     {{ caller(value, column.render) if caller else value }}
                 {% endif %}
@@ -2737,7 +2710,7 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
         {% elif column.render == 'render_user_status_badge' %}
             {{ render_user_status_badge(value) }}
         {% elif column.render == 'render_user_role_badge' %}
-            {{ render_user_role_badge(value) }}
+            {{ render_user_role_badge(value.role if value.__class__.__name__ == 'User' else value) }}
         {% elif column.render == 'render_owner' %}
             {{ render_owner(value) }}
         {% elif column.render == 'render_status_badge' %}
