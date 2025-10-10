@@ -1221,7 +1221,26 @@ def view_project(project_id):
     # 检查用户是否可以添加客户关联（基于查看权限）
     # 只要能查看项目，就可以添加客户关联
     can_edit_project_data = True  # 如果能执行到这里，说明已经通过了查看权限检查
-    
+    # 检查是否可以提交审批（管理员、拥有者、厂商负责人）
+    can_submit_approval = (current_user.role == 'admin' or project.owner_id == current_user.id or
+                          (project.vendor_sales_manager_id and project.vendor_sales_manager_id == current_user.id))
+    # 检查是否可以编辑项目按钮（考虑状态、锁定等条件）
+    can_edit_project_button = (
+        current_stage_key != 'signed' and
+        current_user.has_permission('project', 'edit') and
+        can_submit_approval and
+        project.status not in ['pending'] and
+        (not project.is_locked or current_user.role == 'admin')
+    )
+    # 检查是否可以删除项目按钮
+    can_delete_project_button = (
+        current_stage_key != 'signed' and
+        current_user.has_permission('project', 'delete') and
+        can_submit_approval and
+        project.status not in ['pending'] and
+        (not project.is_locked or current_user.role == 'admin')
+    )
+
     return render_template("project/detail.html", 
                          project=project, 
                          Quotation=Quotation, 
@@ -1250,6 +1269,9 @@ def view_project(project_id):
                          shareable_users_tree=shareable_users_tree,
                          # 数据权限
                          can_edit_project_data=can_edit_project_data,
+                         can_submit_approval=can_submit_approval,
+                         can_edit_project_button=can_edit_project_button,
+                         can_delete_project_button=can_delete_project_button,
                          # 中文映射管理器
                          mapping_manager=mapping_manager)
 
@@ -4184,18 +4206,18 @@ def recall_project_approval(project_id):
             }), 400
         
         # 执行召回
-        from app.helpers.approval_helpers import recall_approval
-        result = recall_approval('project', project_id, current_user.id)
-        
-        if result['success']:
+        from app.helpers.approval_helpers import recall_approval_process
+        success, message = recall_approval_process('project', project_id, current_user.id)
+
+        if success:
             return jsonify({
                 'success': True,
-                'message': result['message']
+                'message': message
             })
         else:
             return jsonify({
                 'success': False,
-                'message': result['message']
+                'message': message
             }), 500
     except Exception as e:
         db.session.rollback()

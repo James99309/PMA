@@ -5210,19 +5210,16 @@ def recall_order_approval_standard(object_id):
     """召回订单审批流程"""
     try:
         # 导入召回函数
-        from app.helpers.approval_helpers import recall_approval
-        
-        # 获取召回原因
-        data = request.get_json() or {}
-        reason = data.get('reason', '')
-        
+        from app.helpers.approval_helpers import recall_approval_process
+
         # 执行召回
-        result = recall_approval('purchase_order', object_id, current_user.id, reason)
-        
-        if result['success']:
+        success, message = recall_approval_process('purchase_order', object_id, current_user.id)
+
+        if success:
             logger.info(f"用户 {current_user.username} 召回订单 #{object_id} 审批流程")
-        
-        return jsonify(result)
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'success': False, 'message': message})
         
     except Exception as e:
         logger.error(f"召回订单审批失败：{str(e)}")

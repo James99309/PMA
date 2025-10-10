@@ -6790,11 +6790,14 @@ def recall_approval_process(object_type, object_id, user_id=None):
                 expense.is_locked = False
                 current_app.logger.info(f"报销单已解锁并状态重置: {object_id}")
         elif object_type == 'project':
+            update_business_object_status('project', object_id, 'draft')
             unlock_project(object_id, user_id)
         elif object_type == 'quotation':
+            update_business_object_status('quotation', object_id, 'draft')
             from app.helpers.quotation_helpers import unlock_quotation
             unlock_quotation(object_id, user_id)
         elif object_type == 'customer':
+            update_business_object_status('customer', object_id, 'draft')
             from app.helpers.customer_helpers import unlock_customer
             unlock_customer(object_id, user_id)
         

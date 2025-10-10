@@ -80,7 +80,7 @@
                     {{ ui.render_button(_('返回列表'), href=url_for('project.list_projects'), color='secondary') }}
                     
                     <!-- 审批操作按钮 -->
-                    {% if current_user.id == project.owner_id %}
+                    {% if can_submit_approval %}
                         {% if project.status == 'draft' %}
                             {{ ui.render_button(_('提交审批'), type='button', color='success', attrs='onclick="submitProjectApproval(' ~ project.id ~ ')"', icon='fas fa-paper-plane') }}
                         {% elif project.status == 'pending' %}
@@ -90,10 +90,10 @@
                         {% endif %}
                     {% endif %}
                     
-                    {% if current_stage_key != 'signed' and current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) and project.status not in ['pending'] and (not project.is_locked or current_user.role == 'admin') %}
+                    {% if can_edit_project_button %}
                         {{ ui.render_button(_('编辑项目'), href=url_for('project.edit_project', project_id=project.id), color='primary') }}
                     {% endif %}
-                    {% if current_stage_key != 'signed' and current_user.has_permission('project', 'delete') and (current_user.role == 'admin' or current_user.id == project.owner_id) and project.status not in ['pending'] and (not project.is_locked or current_user.role == 'admin') %}
+                    {% if can_delete_project_button %}
                         {{ ui.render_button(_('删除项目'), type='button', color='danger', attrs='onclick="confirmDeleteProject(' ~ project.id ~ ')"') }}
                     {% endif %}
                 </div>
@@ -230,8 +230,8 @@
                             </div>
                             {% endif %}
                             
-                            <!-- 创建批价单按钮 - 在报价和签约阶段都显示 -->
-                            {% if has_quotations and current_stage_key in ['quoted', 'signed'] %}
+                            <!-- 创建批价单按钮 - 仅在签约阶段显示，用于补充新批价单 -->
+                            {% if has_quotations and current_stage_key == 'signed' %}
                             <div class="row mb-2">
                                 <div class="col-md-4"></div>
                                 <div class="col-md-8">
@@ -582,6 +582,32 @@
 <script src="/static/js/project_action_reply.js"></script>
 
 <script>
+    // 国际化文本
+    window.i18nTexts = window.i18nTexts || {};
+    Object.assign(window.i18nTexts, {
+        // 提交审批相关
+        submitApprovalTitle: '{{ _("提交审批确认") }}',
+        submitApprovalMessage: '{{ _("确定要提交项目授权审批吗？提交后项目将进入审批流程。") }}',
+        submitApprovalButton: '{{ _("提交审批") }}',
+        submitApprovalSuccess: '{{ _("项目审批已提交，正在刷新页面...") }}',
+        submitApprovalFailed: '{{ _("提交审批失败：") }}',
+        submitApprovalError: '{{ _("提交审批时发生错误：") }}',
+        // 召回审批相关
+        recallApprovalTitle: '{{ _("召回审批确认") }}',
+        recallApprovalMessage: '{{ _("确定要召回项目审批吗？召回后可以重新提交审批。") }}',
+        recallApprovalButton: '{{ _("召回审批") }}',
+        recallSuccess: '{{ _("项目审批已召回，正在刷新页面...") }}',
+        recallFailed: '{{ _("召回审批失败：") }}',
+        recallError: '{{ _("召回审批时发生错误：") }}',
+        // 重新提交审批相关
+        resubmitApprovalTitle: '{{ _("重新提交审批确认") }}',
+        resubmitApprovalMessage: '{{ _("确定要重新提交项目审批吗？") }}',
+        resubmitApprovalButton: '{{ _("重新提交") }}',
+        // 通用
+        cancel: '{{ _("取消") }}',
+        unknownError: '{{ _("未知错误") }}'
+    });
+
     $(document).ready(function() {
         // 格式化项目说明，按日期分行
         function formatDescription() {
@@ -964,11 +990,11 @@
     // 项目审批相关函数
     function submitProjectApproval(projectId) {
         showConfirmDialog({
-            title: '提交审批确认',
-            message: '确定要提交项目授权审批吗？提交后项目将进入审批流程。',
+            title: window.i18nTexts.submitApprovalTitle,
+            message: window.i18nTexts.submitApprovalMessage,
             type: 'info',
-            confirmText: '提交审批',
-            cancelText: '取消',
+            confirmText: window.i18nTexts.submitApprovalButton,
+            cancelText: window.i18nTexts.cancel,
             dialogId: 'approvalActionDialog',
             onConfirm: () => {
                 fetch(`/project/api/approval/${projectId}/submit`, {
@@ -982,17 +1008,17 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        showTopNotification('项目审批已提交，正在刷新页面...', 'success', 1500, 'approvalNotification');
+                        showTopNotification(window.i18nTexts.submitApprovalSuccess, 'success', 1500, 'approvalNotification');
                         setTimeout(() => {
                             location.reload();
                         }, 1500);
                     } else {
-                        showTopNotification('提交审批失败：' + (data.message || '未知错误'), 'error', 5000, 'approvalNotification');
+                        showTopNotification(window.i18nTexts.submitApprovalFailed + (data.message || window.i18nTexts.unknownError), 'error', 5000, 'approvalNotification');
                     }
                 })
                 .catch(error => {
                     console.error('提交审批错误:', error);
-                    showTopNotification('提交审批时发生错误：' + error.message, 'error', 5000, 'approvalNotification');
+                    showTopNotification(window.i18nTexts.submitApprovalError + error.message, 'error', 5000, 'approvalNotification');
                 });
             }
         });
@@ -1000,11 +1026,11 @@
 
     function recallProjectApproval(projectId) {
         showConfirmDialog({
-            title: '召回审批确认',
-            message: '确定要召回项目审批吗？召回后可以重新提交审批。',
+            title: window.i18nTexts.recallApprovalTitle,
+            message: window.i18nTexts.recallApprovalMessage,
             type: 'warning',
-            confirmText: '召回审批',
-            cancelText: '取消',
+            confirmText: window.i18nTexts.recallApprovalButton,
+            cancelText: window.i18nTexts.cancel,
             dialogId: 'approvalActionDialog',
             onConfirm: () => {
                 fetch(`/project/api/approval/${projectId}/recall`, {
@@ -1017,17 +1043,17 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        showTopNotification('项目审批已召回，正在刷新页面...', 'success', 1500, 'approvalNotification');
+                        showTopNotification(window.i18nTexts.recallSuccess, 'success', 1500, 'approvalNotification');
                         setTimeout(() => {
                             location.reload();
                         }, 1500);
                     } else {
-                        showTopNotification('召回审批失败：' + (data.message || '未知错误'), 'error', 5000, 'approvalNotification');
+                        showTopNotification(window.i18nTexts.recallFailed + (data.message || window.i18nTexts.unknownError), 'error', 5000, 'approvalNotification');
                     }
                 })
                 .catch(error => {
                     console.error('召回审批错误:', error);
-                    showTopNotification('召回审批时发生错误：' + error.message, 'error', 5000, 'approvalNotification');
+                    showTopNotification(window.i18nTexts.recallError + error.message, 'error', 5000, 'approvalNotification');
                 });
             }
         });
@@ -1035,11 +1061,11 @@
 
     function resubmitProjectApproval(projectId) {
         showConfirmDialog({
-            title: '重新提交审批确认',
-            message: '确定要重新提交项目审批吗？',
+            title: window.i18nTexts.resubmitApprovalTitle,
+            message: window.i18nTexts.resubmitApprovalMessage,
             type: 'info',
-            confirmText: '重新提交',
-            cancelText: '取消',
+            confirmText: window.i18nTexts.resubmitApprovalButton,
+            cancelText: window.i18nTexts.cancel,
             dialogId: 'approvalActionDialog',
             onConfirm: () => {
                 submitProjectApproval(projectId);

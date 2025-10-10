@@ -6295,3 +6295,54 @@ msgstr "Vendor Sales"
 
 msgid "活跃度"
 msgstr "Activity Status"
+
+msgid "活跃项目"
+msgstr "Active Projects"
+
+msgid "提交审批确认"
+msgstr "Submit Approval Confirmation"
+
+msgid "确定要提交项目授权审批吗？提交后项目将进入审批流程。"
+msgstr "Are you sure you want to submit the project authorization for approval? The project will enter the approval process after submission."
+
+msgid "提交审批"
+msgstr "Submit for Approval"
+
+msgid "项目审批已提交，正在刷新页面..."
+msgstr "Project approval submitted, refreshing page..."
+
+msgid "提交审批失败："
+msgstr "Submit approval failed: "
+
+msgid "提交审批时发生错误："
+msgstr "Error occurred while submitting approval: "
+
+msgid "召回审批确认"
+msgstr "Recall Approval Confirmation"
+
+msgid "确定要召回项目审批吗？召回后可以重新提交审批。"
+msgstr "Are you sure you want to recall the project approval? You can resubmit after recall."
+
+msgid "召回审批"
+msgstr "Recall Approval"
+
+msgid "项目审批已召回，正在刷新页面..."
+msgstr "Project approval recalled, refreshing page..."
+
+msgid "召回审批失败："
+msgstr "Recall approval failed: "
+
+msgid "召回审批时发生错误："
+msgstr "Error occurred while recalling approval: "
+
+msgid "重新提交审批确认"
+msgstr "Resubmit Approval Confirmation"
+
+msgid "确定要重新提交项目审批吗？"
+msgstr "Are you sure you want to resubmit the project approval?"
+
+msgid "重新提交"
+msgstr "Resubmit"
+
+msgid "未知错误"
+msgstr "Unknown error"
