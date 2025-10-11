@@ -14,10 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class PerformanceService:
-    """绩效统计服务"""
-    
-    # 配置：是否启用实时统计（True=实时，False=缓存）
-    ENABLE_REALTIME_STATS = True
+    """绩效统计服务 - 使用实时统计模式"""
     
     @staticmethod
     def calculate_implant_amount(user_id, year, month):
@@ -198,7 +195,11 @@ class PerformanceService:
     
     @staticmethod
     def calculate_monthly_statistics(user_id, year, month):
-        """计算用户指定月份的绩效统计"""
+        """计算并保存用户指定月份的绩效统计到数据库（可选功能，主要用于手动刷新缓存）
+
+        注意：此函数将结果保存到performance_statistics表，但系统默认使用实时统计，
+        不依赖此缓存数据。仅在需要手动刷新历史缓存时使用。
+        """
         try:
             # 计算各项指标
             implant_amount = PerformanceService.calculate_implant_amount(user_id, year, month)
@@ -235,48 +236,23 @@ class PerformanceService:
     
     @staticmethod
     def get_yearly_statistics(user_id, year):
-        """获取用户年度统计数据 - 支持实时/缓存模式切换"""
+        """获取用户年度统计数据 - 实时计算模式"""
         try:
-            if PerformanceService.ENABLE_REALTIME_STATS:
-                # 实时计算模式
-                logger.info(f"使用实时统计模式计算用户{user_id}的{year}年度数据")
-                monthly_stats = []
-                
-                for month in range(1, 13):
-                    try:
-                        # 直接实时计算，不使用缓存
-                        stats = PerformanceService.calculate_monthly_statistics_realtime(user_id, year, month)
-                        monthly_stats.append(stats)
-                    except Exception as month_error:
-                        logger.warning(f"实时计算第{month}月统计失败: {month_error}")
-                        monthly_stats.append(PerformanceService._create_empty_stats())
-                
-                logger.info(f"实时计算用户{user_id}年度{year}统计完成")
-                return monthly_stats
-            else:
-                # 缓存模式（原有逻辑）
-                logger.info(f"使用缓存统计模式计算用户{user_id}的{year}年度数据")
-                db.session.rollback()
-                
-                monthly_stats = []
-                for month in range(1, 13):
-                    try:
-                        stats = PerformanceStatistics.query.filter_by(
-                            user_id=user_id, year=year, month=month
-                        ).first()
-                        
-                        if not stats:
-                            # 如果没有缓存数据，实时计算并保存
-                            stats = PerformanceService.calculate_monthly_statistics(user_id, year, month)
-                        
-                        monthly_stats.append(stats)
-                    except Exception as month_error:
-                        logger.warning(f"缓存模式计算第{month}月统计失败: {month_error}")
-                        monthly_stats.append(None)
-                        db.session.rollback()
-                
-                return monthly_stats
-            
+            logger.info(f"实时计算用户{user_id}的{year}年度绩效数据")
+            monthly_stats = []
+
+            for month in range(1, 13):
+                try:
+                    # 直接实时计算，不使用缓存
+                    stats = PerformanceService.calculate_monthly_statistics_realtime(user_id, year, month)
+                    monthly_stats.append(stats)
+                except Exception as month_error:
+                    logger.warning(f"实时计算第{month}月统计失败: {month_error}")
+                    monthly_stats.append(PerformanceService._create_empty_stats())
+
+            logger.info(f"实时计算用户{user_id}年度{year}统计完成，共{len(monthly_stats)}个月")
+            return monthly_stats
+
         except Exception as e:
             logger.error(f"获取年度统计失败: {e}")
             return []
@@ -432,7 +408,11 @@ class PerformanceService:
 
     @staticmethod
     def refresh_all_statistics(user_id, year):
-        """刷新用户年度所有统计数据"""
+        """刷新用户年度所有统计数据到缓存表（可选功能）
+
+        注意：系统默认使用实时统计，此函数仅用于特殊需求（如离线分析）。
+        正常业务流程不需要调用此函数。
+        """
         try:
             for month in range(1, 13):
                 PerformanceService.calculate_monthly_statistics(user_id, year, month)
