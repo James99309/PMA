@@ -344,7 +344,55 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeFormFromUrl(performanceFilterConfig);
     
     setupFilterSearch(performanceFilterConfig);
-    
+
+    /**
+     * 动态更新标签链接，使其包含当前筛选条件
+     */
+    function updateTabLinks() {
+        // 获取当前筛选表单的值
+        const userId = document.getElementById('user_id')?.value || '';
+        const year = document.getElementById('year')?.value || '';
+
+        // 获取所有标签链接
+        const tabLinks = document.querySelectorAll('.nav-tabs .nav-link, .nav-pills .nav-link');
+
+        tabLinks.forEach(link => {
+            const href = link.getAttribute('href');
+            if (!href || href === '#' || link.classList.contains('disabled')) {
+                return;
+            }
+
+            try {
+                const url = new URL(href, window.location.origin);
+
+                // 更新URL参数
+                if (userId) url.searchParams.set('user_id', userId);
+                if (year) url.searchParams.set('year', year);
+
+                // 更新链接
+                link.setAttribute('href', url.pathname + url.search);
+            } catch (e) {
+                console.error('更新标签链接失败:', e);
+            }
+        });
+
+        console.log('✅ 标签链接已更新，包含最新筛选条件');
+    }
+
+    // 监听筛选器变化，动态更新标签链接
+    const userIdSelect = document.getElementById('user_id');
+    const yearSelect = document.getElementById('year');
+
+    if (userIdSelect) {
+        userIdSelect.addEventListener('change', updateTabLinks);
+    }
+    if (yearSelect) {
+        yearSelect.addEventListener('change', updateTabLinks);
+    }
+
+    // 页面加载时也更新一次标签链接
+    updateTabLinks();
+
     // 手动触发初始数据加载，包含当前tab参数
     {% if list_config.ajax_mode %}
     function performManualSubmit(form, currentTab) {

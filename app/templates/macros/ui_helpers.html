@@ -2061,7 +2061,7 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
                             data-sort-type="{{ column.sort_type|default('string') }}"
                             style="cursor: pointer; user-select: none;{% if column.width %} width: {{ column.width }};{% endif %}"
                             {% endif %}>
-                            <div class="d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center {% if column.align == 'end' %}justify-content-end{% elif column.align == 'center' %}justify-content-center{% else %}justify-content-between{% endif %}">
                                 <span class="column-title">
                                     {% if table_config.table_name and column.field and get_field_display_name %}
                                         {# 使用动态映射 #}

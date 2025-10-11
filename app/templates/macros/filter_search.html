@@ -449,15 +449,17 @@
 function toggleMobileFilters() {
     const panel = document.getElementById('mobileFiltersPanel');
     const toggle = document.querySelector('.mobile-filter-toggle');
-    
+
     if (panel.style.display === 'none') {
         panel.style.display = 'block';
         toggle.classList.add('active');
         toggle.setAttribute('aria-expanded', 'true');
+        localStorage.setItem('mobileFiltersPanelExpanded', 'true');
     } else {
         panel.style.display = 'none';
         toggle.classList.remove('active');
         toggle.setAttribute('aria-expanded', 'false');
+        localStorage.setItem('mobileFiltersPanelExpanded', 'false');
     }
 }
 
@@ -510,15 +512,17 @@ function resetMobileFilters(resetUrl) {
 function toggleDesktopFilters() {
     const panel = document.getElementById('desktopFiltersPanel');
     const toggle = document.querySelector('.desktop-filter-toggle');
-    
+
     if (panel.style.display === 'none') {
         panel.style.display = 'block';
         toggle.classList.add('active');
         toggle.setAttribute('aria-expanded', 'true');
+        localStorage.setItem('desktopFiltersPanelExpanded', 'true');
     } else {
         panel.style.display = 'none';
         toggle.classList.remove('active');
         toggle.setAttribute('aria-expanded', 'false');
+        localStorage.setItem('desktopFiltersPanelExpanded', 'false');
     }
 }
 
@@ -620,9 +624,33 @@ function enhanceMobileDetection() {
 
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', function() {
+    // 恢复桌面端筛选面板状态
+    const desktopPanelExpanded = localStorage.getItem('desktopFiltersPanelExpanded') === 'true';
+    if (desktopPanelExpanded) {
+        const desktopPanel = document.getElementById('desktopFiltersPanel');
+        const desktopToggle = document.querySelector('.desktop-filter-toggle');
+        if (desktopPanel && desktopToggle) {
+            desktopPanel.style.display = 'block';
+            desktopToggle.classList.add('active');
+            desktopToggle.setAttribute('aria-expanded', 'true');
+        }
+    }
+
+    // 恢复移动端筛选面板状态
+    const mobilePanelExpanded = localStorage.getItem('mobileFiltersPanelExpanded') === 'true';
+    if (mobilePanelExpanded) {
+        const mobilePanel = document.getElementById('mobileFiltersPanel');
+        const mobileToggle = document.querySelector('.mobile-filter-toggle');
+        if (mobilePanel && mobileToggle) {
+            mobilePanel.style.display = 'block';
+            mobileToggle.classList.add('active');
+            mobileToggle.setAttribute('aria-expanded', 'true');
+        }
+    }
+
     // 增强移动端检测
     enhanceMobileDetection();
-    
+
     // 初始化筛选器计数（移动端和桌面端）
     updateFilterCount();
     updateDesktopFilterCount();
