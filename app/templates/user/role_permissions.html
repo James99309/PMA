@@ -737,8 +737,8 @@
 
         // 保存权限设置
         function savePermissions() {
-            // 直接从下拉菜单获取选中的角色key
-            const selectedRole = roleSelect.value;
+            // 直接从下拉菜单获取选中的角色key，并清理空白字符
+            const selectedRole = roleSelect.value.trim();
             if (!selectedRole) {
                 showTopNotification('请先选择一个角色', 'warning', 3000);
                 return;

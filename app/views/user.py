@@ -1363,6 +1363,9 @@ def manage_role_permissions():
             data = request.get_json()
             logger.warning(f"[DEBUG] manage_role_permissions 被调用，收到请求: {data}")
             role = data.get('role')
+            # 清理角色名称中的空白字符
+            if role:
+                role = role.strip()
             permissions = data.get('permissions', [])
             logger.warning(f"[DEBUG] 写入 role_permissions 表，role={role}, permissions={permissions}")
             if not role or not permissions:
@@ -1423,7 +1426,8 @@ def manage_role_permissions():
         dict_roles = Dictionary.query.filter_by(type='role', is_active=True).order_by(Dictionary.sort_order).all()
         roles = []
         for role_dict in dict_roles:
-            roles.append({'key': role_dict.key, 'value': role_dict.value})
+            # 清理key和value中的空白字符
+            roles.append({'key': role_dict.key.strip(), 'value': role_dict.value.strip()})
         modules = get_default_modules()
         modules = [dict(module) for module in modules]
         roles = [dict(role) for role in roles]
