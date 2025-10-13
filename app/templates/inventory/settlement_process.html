@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_button, render_item_count_badge %}
+{% from 'macros/customer_search.html' import render_customer_search, init_customer_search_scripts %}
 
 {% block title %}结算处理 - {{ settlement_order.order_number }}{% endblock %}
 
@@ -181,28 +182,42 @@
                 </div>
             {% else %}
                 <div class="row align-items-center">
-                    <div class="col-md-8">
-                        <select class="form-select form-select-lg" id="selectedCompanyId" onchange="handleCompanyChange()">
-                            <option value="">请选择要结算的库存公司</option>
-                            {% for company in companies %}
-                            <option value="{{ company.id }}" 
-                                    data-original="{% if settlement_order.distributor_id == company.id or settlement_order.dealer_id == company.id %}true{% else %}false{% endif %}"
-                                    {% if selected_company_id and selected_company_id|string == company.id|string %}selected
-                                    {% elif not selected_company_id and (settlement_order.distributor_id == company.id or settlement_order.dealer_id == company.id) %}selected{% endif %}>
-                                {{ company.company_name }}
-                                {% if settlement_order.distributor_id == company.id %}
-                                    <span class="text-muted">(结算单分销商)</span>
-                                {% elif settlement_order.dealer_id == company.id %}
-                                    <span class="text-muted">(结算单经销商)</span>
-                                {% endif %}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-4 text-end">
-                        <button class="btn btn-light btn-lg" onclick="refreshInventory()" id="refreshBtn" disabled>
-                            <i class="fas fa-sync-alt me-2"></i>刷新库存
-                        </button>
+                    <div class="col-md-12">
+                        {{ render_customer_search(
+                            config={
+                                'input_id': 'settlementCompanySearch',
+                                'input_name': 'company_search',
+                                'dropdown_id': 'settlementCompanyDropdown',
+                                'clear_button_id': 'clearSettlementCompany',
+                                'customer_id_field': 'selectedCompanyId',
+                                'customer_id_name': 'company_id',
+                                'data_element_id': 'settlementCompanySearchConfig',
+                                'label': '选择结算库存公司',
+                                'placeholder': '输入公司名称搜索有库存的公司...',
+                                'api_endpoints': {
+                                    'search': '/api/export-helpers/customers/search'
+                                },
+                                'search_config': {
+                                    'min_length': 0,
+                                    'delay': 300,
+                                    'limit': 20,
+                                    'company_type': 'dealer',
+                                    'has_inventory': true
+                                },
+                                'display_config': {
+                                    'show_contact': false,
+                                    'show_industry': false,
+                                    'show_owner': false
+                                },
+                                'validation': {
+                                    'required': false,
+                                    'validate_on_submit': false
+                                }
+                            },
+                            selected_customer=None,
+                            readonly=false,
+                            required=false
+                        ) }}
                     </div>
                 </div>
             {% endif %}
@@ -306,6 +321,7 @@
 
 {% block scripts %}
 {{ super() }}
+{{ init_customer_search_scripts() }}
 <script>
 let currentCompanyId = null;
 let inventoryData = {};
@@ -320,16 +336,31 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('结算单已完全结算，跳过库存加载');
         return;
     }
-    
-    const companySelect = document.getElementById('selectedCompanyId');
-    if (companySelect) {
-        const defaultCompanyId = companySelect.value;
-        if (defaultCompanyId) {
-            originalCompanyId = defaultCompanyId;
+
+    // 监听客户搜索组件的选择事件
+    const container = document.querySelector('.customer-search-container');
+    if (container) {
+        // 客户选择事件
+        container.addEventListener('customerSelected', function(e) {
+            const selectedCompany = e.detail.customer;
+            console.log('选择了结算公司:', selectedCompany);
+
+            currentCompanyId = selectedCompany.id;
+            if (!originalCompanyId) {
+                originalCompanyId = currentCompanyId;
+            }
             loadCompanyInventory();
-        }
+        });
+
+        // 客户清除事件
+        container.addEventListener('customerCleared', function(e) {
+            console.log('清除了结算公司选择');
+
+            currentCompanyId = null;
+            resetInventoryDisplay();
+        });
     }
-    
+
     // 初始化完成
     setTimeout(() => {
         isFirstLoad = false;
@@ -347,67 +378,22 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-function handleCompanyChange() {
-    // 如果已完全结算，不允许更改公司
-    if (isFullySettled) {
-        return;
-    }
-    
-    const companySelect = document.getElementById('selectedCompanyId');
-    const selectedCompanyId = companySelect.value;
-    
-    // 如果是首次加载，直接加载库存
-    if (isFirstLoad) {
-        loadCompanyInventory();
-        return;
-    }
-    
-    // 如果没有选择公司，直接处理
-    if (!selectedCompanyId) {
-        loadCompanyInventory();
-        return;
-    }
-    
-    // 检查是否选择了与结算单不同的公司
-    const selectedOption = companySelect.options[companySelect.selectedIndex];
-    const isOriginalCompany = selectedOption.getAttribute('data-original') === 'true';
-    
-    if (!isOriginalCompany && originalCompanyId) {
-        // 显示警告提示
-        const result = confirm(
-            '⚠️ 注意：您正在更改结算库存公司！\n\n' +
-            '当前结算单将结算到新选择的库存公司下，而不是原始的结算公司。\n\n' +
-            '这意味着：\n' +
-            '• 库存将从新公司扣减\n' +
-            '• 结算记录将关联到新公司\n' +
-            '• 此操作会影响结算数据的归属\n\n' +
-            '确定要继续更改吗？'
-        );
-        
-        if (!result) {
-            // 用户取消，恢复原来的选择
-            companySelect.value = originalCompanyId || '';
-            return;
-        }
-    }
-    
-    // 继续加载新公司的库存
-    loadCompanyInventory();
-}
-
 function loadCompanyInventory() {
-    const companyId = document.getElementById('selectedCompanyId').value;
-    const refreshBtn = document.getElementById('refreshBtn');
-    
+    const companyIdInput = document.getElementById('selectedCompanyId');
+    if (!companyIdInput) {
+        console.error('未找到公司ID输入框');
+        return;
+    }
+
+    const companyId = companyIdInput.value;
+
     if (!companyId) {
         currentCompanyId = null;
         resetInventoryDisplay();
-        refreshBtn.disabled = true;
         return;
     }
-    
+
     currentCompanyId = companyId;
-    refreshBtn.disabled = false;
     
     // 显示加载状态
     showLoadingState();

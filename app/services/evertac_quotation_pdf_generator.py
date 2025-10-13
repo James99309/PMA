@@ -265,7 +265,9 @@ class EvertacQuotationPDFGenerator(PDFGenerator):
                     logger.info(f"✅ 从 quotation_customer 获取公司名称: {customer}")
                     return customer
                 
-        # 尝试从end_user获取  
+        # 【向后兼容】仅作为后备方案：尝试从旧的项目字段获取
+        # 注意：这些旧字段已废弃，主要通过 export_info 中的 customer 或 ProjectCustomerAssociation 获取
+        # 保留此逻辑仅为确保历史数据和迁移期的兼容性
         if hasattr(project, 'end_user') and project.end_user is not None:
             end_user_raw = project.end_user
             if isinstance(end_user_raw, (int, float)):
@@ -273,10 +275,9 @@ class EvertacQuotationPDFGenerator(PDFGenerator):
             else:
                 end_user = str(end_user_raw).strip()
                 if end_user and end_user != "" and end_user.lower() != "none":
-                    logger.info(f"✅ 从 end_user 获取公司名称: {end_user}")
+                    logger.info(f"✅ 【后备方案】从 end_user 获取公司名称: {end_user}")
                     return end_user
-                
-        # 尝试从contractor获取
+
         if hasattr(project, 'contractor') and project.contractor is not None:
             contractor_raw = project.contractor
             if isinstance(contractor_raw, (int, float)):
@@ -284,7 +285,7 @@ class EvertacQuotationPDFGenerator(PDFGenerator):
             else:
                 contractor = str(contractor_raw).strip()
                 if contractor and contractor != "" and contractor.lower() != "none":
-                    logger.info(f"✅ 从 contractor 获取公司名称: {contractor}")
+                    logger.info(f"✅ 【后备方案】从 contractor 获取公司名称: {contractor}")
                     return contractor
                 
         # 如果都没有有效值，返回空字符串

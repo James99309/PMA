@@ -44,9 +44,9 @@
                         <!-- 报销主题 -->
                         <div class="col-md-6 mb-3">
                             <label for="title" class="form-label">{{ _('报销主题') }}</label>
-                            <input type="text" class="form-control" 
-                                   id="title" name="title" 
-                                   placeholder="{{ _('默认客户名称-账号-YYDDHHS') }}"
+                            <input type="text" class="form-control"
+                                   id="title" name="title"
+                                   placeholder="{{ _('默认客户名称-姓名-YYDDHHS') }}"
                                    value="{{ request.form.get('title', '') }}">
                         </div>
 
@@ -593,8 +593,8 @@ window.CURRENCY_OPTIONS = [
 // 国际化文本定义
 window.i18nTexts = {
     saving: '{{ _("保存中...") }}',
-    defaultTitleFormat: '{{ _("默认：{customerName}-{account}-{time}") }}',
-    defaultTitlePlaceholder: '{{ _("默认客户名称-账号-YYDDHHS") }}',
+    defaultTitleFormat: '{{ _("默认：{customerName}-{name}-{time}") }}',
+    defaultTitlePlaceholder: '{{ _("默认客户名称-姓名-YYDDHHS") }}',
     pleaseSelectCustomer: '{{ _("请选择关联客户") }}',
     pleaseSelectContact: '{{ _("请选择联系人") }}',
     pleaseSelectCategory: '{{ _("请选择科目") }}',
@@ -674,10 +674,10 @@ $(document).ready(function() {
             const titleInput = document.getElementById('title');
             const today = new Date();
             const timeStr = `${String(today.getFullYear()).slice(-2)}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}${String(today.getHours()).padStart(2, '0')}${String(today.getSeconds()).padStart(2, '0')}`;
-            
-            // 获取当前用户账户信息（假设在页面中有用户信息）
-            const currentUserAccount = '{{ current_user.username if current_user else "" }}';
-            titleInput.placeholder = window.i18nTexts.defaultTitleFormat.replace('{customerName}', customer.company_name || customer.name).replace('{account}', currentUserAccount).replace('{time}', timeStr);
+
+            // 获取当前用户姓名信息（使用真实姓名）
+            const currentUserName = '{{ current_user.real_name if current_user else "" }}';
+            titleInput.placeholder = window.i18nTexts.defaultTitleFormat.replace('{customerName}', customer.company_name || customer.name).replace('{name}', currentUserName).replace('{time}', timeStr);
             
             // 加载该客户的联系人
             console.log('准备加载客户联系人，客户ID:', customer.id);
@@ -712,12 +712,12 @@ const submitBtn = document.getElementById('submit-btn');
 
 // 生成不关联客户模式的标题
 function generateNoCustomerTitle(description) {
-    const currentUserAccount = '{{ current_user.username if current_user else "" }}';
+    const currentUserName = '{{ current_user.real_name if current_user else "" }}';
     const prefix = description.substring(0, 6); // 取前6个字
     const today = new Date();
     const timeStr = `${String(today.getFullYear()).slice(-2)}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}${String(today.getHours()).padStart(2, '0')}${String(today.getSeconds()).padStart(2, '0')}`;
-    
-    const title = `${prefix}-${currentUserAccount}-${timeStr}`;
+
+    const title = `${prefix}-${currentUserName}-${timeStr}`;
     document.getElementById('title').value = title;
 }
 
@@ -768,7 +768,7 @@ document.getElementById('noCustomerMode').addEventListener('change', function() 
         descriptionField.addEventListener('blur', descriptionField._noCustomerBlurHandler);
         
         // 更新标题提示
-        titleField.placeholder = '{{ _("将自动生成：报销说明前6字-账号-YYMMDDHHS") }}';
+        titleField.placeholder = '{{ _("将自动生成：报销说明前6字-姓名-YYMMDDHHS") }}';
         titleField.readOnly = true;
         titleField.value = ''; // 清空当前值
         
@@ -797,7 +797,7 @@ document.getElementById('noCustomerMode').addEventListener('change', function() 
         }
         
         // 恢复标题提示
-        titleField.placeholder = '{{ _("默认客户名称-账号-YYDDHHS") }}';
+        titleField.placeholder = '{{ _("默认客户名称-姓名-YYDDHHS") }}';
         titleField.readOnly = false;
         titleField.value = '';
     }

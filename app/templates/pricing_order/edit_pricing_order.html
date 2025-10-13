@@ -1,6 +1,7 @@
 w{% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_button, render_pricing_order_number, render_project_type, render_confirm_dialog %}
 {% from 'macros/approval_flow.html' import render_complete_approval_section %}
+{% from 'macros/customer_search.html' import render_customer_search, init_customer_search_scripts %}
 
 {% block title %}批价单编辑 - {{ pricing_order.order_number }}{% endblock %}
 
@@ -9,8 +10,8 @@ w{% extends "base.html" %}
 <!-- 标准审批流程样式和脚本 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/approval_flow.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
-<script src="{{ url_for('static', filename='js/approval_flow.js') }}"></script>
-<script src="{{ url_for('static', filename='js/approval_flow_utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/approval_flow.js') }}?v=20251011"></script>
+<script src="{{ url_for('static', filename='js/approval_flow_utils.js') }}?v=20251011"></script>
 
 <!-- 折扣权限检查样式 -->
 <style>
@@ -50,82 +51,6 @@ w{% extends "base.html" %}
     color: #6c757d;
     font-size: 0.875rem;
     margin-top: 0.5rem;
-}
-
-/* 搜索下拉框样式 */
-.searchable-select-wrapper {
-    position: relative;
-}
-
-.searchable-select-input {
-    cursor: pointer;
-}
-
-.searchable-select-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    z-index: 1000;
-    background: white;
-    border: 1px solid #ced4da;
-    border-top: none;
-    border-radius: 0 0 0.375rem 0.375rem;
-    max-height: 200px;
-    overflow-y: auto;
-    display: none;
-}
-
-.searchable-select-wrapper.open .searchable-select-dropdown {
-    display: block;
-}
-
-.searchable-select-option {
-    padding: 8px 12px;
-    cursor: pointer;
-    border-bottom: 1px solid #f1f3f4;
-}
-
-.searchable-select-option:hover {
-    background-color: #f8f9fa;
-}
-
-.searchable-select-option.selected {
-    background-color: #007bff;
-    color: white;
-}
-
-.searchable-select-option.readonly {
-    color: #6c757d;
-    font-style: italic;
-}
-
-.searchable-select-loading {
-    padding: 8px 12px;
-    text-align: center;
-    color: #6c757d;
-}
-
-.searchable-select-no-results {
-    padding: 8px 12px;
-    text-align: center;
-    color: #6c757d;
-    font-style: italic;
-}
-
-.searchable-select-wrapper.open .searchable-select-input {
-    border-radius: 0.375rem 0.375rem 0 0;
-}
-
-/* 禁用状态样式 */
-.searchable-select-wrapper.disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.searchable-select-wrapper.disabled .searchable-select-input {
-    background-color: #e9ecef;
-    cursor: not-allowed;
 }
 </style>
 {% endblock %}
@@ -240,20 +165,40 @@ w{% extends "base.html" %}
                 <div class="row">
                     <div class="col-md-6">
                         <div class="form-group mb-3">
-                            <label for="dealerSelect">经销商</label>
-                            <div class="searchable-select-wrapper" data-type="dealer" data-name="dealer_id" id="dealerSelectWrapper" data-can-edit="{% if can_edit_basic_info %}true{% else %}false{% endif %}">
-                                <input type="text" class="form-control searchable-select-input" id="dealerSelectInput" placeholder="请选择或搜索经销商" autocomplete="off" 
-                                       {% if not can_edit_basic_info %}disabled{% endif %}
-                                       value="{% if pricing_order.dealer and pricing_order.dealer.company_name %}{{ pricing_order.dealer.company_name }}{% endif %}">
-                                <input type="hidden" name="dealer_id" class="searchable-select-value" id="dealerSelect" 
-                                       value="{% if pricing_order.dealer_id %}{{ pricing_order.dealer_id }}{% endif %}">
-                                <div class="searchable-select-dropdown">
-                                    <div class="searchable-select-loading">加载中...</div>
-                                </div>
-                                {% if not can_edit_basic_info %}
-                                <div class="searchable-select-disabled-overlay"></div>
-                                {% endif %}
-                            </div>
+                            {{ render_customer_search(
+                                config={
+                                    'input_id': 'dealerSearch',
+                                    'input_name': 'dealer_search',
+                                    'dropdown_id': 'dealerDropdown',
+                                    'clear_button_id': 'clearDealer',
+                                    'customer_id_field': 'dealerId',
+                                    'customer_id_name': 'dealer_id',
+                                    'data_element_id': 'dealerSearchConfig',
+                                    'label': '经销商',
+                                    'placeholder': '输入公司名称搜索经销商...',
+                                    'api_endpoints': {
+                                        'search': '/api/export-helpers/customers/search'
+                                    },
+                                    'search_config': {
+                                        'min_length': 1,
+                                        'delay': 300,
+                                        'limit': 10,
+                                        'company_type': 'dealer'
+                                    },
+                                    'display_config': {
+                                        'show_contact': true,
+                                        'show_industry': false,
+                                        'show_owner': true
+                                    },
+                                    'validation': {
+                                        'required': false,
+                                        'validate_on_submit': false
+                                    }
+                                },
+                                selected_customer=pricing_order.dealer if pricing_order.dealer_id else None,
+                                readonly=not can_edit_basic_info,
+                                required=False
+                            ) }}
                         </div>
                         
                         <!-- 厂商直签开关 -->
@@ -271,20 +216,40 @@ w{% extends "base.html" %}
                     </div>
                     <div class="col-md-6">
                         <div class="form-group mb-3">
-                            <label for="distributorSelect">分销商</label>
-                            <div class="searchable-select-wrapper" data-type="distributor" data-name="distributor_id" id="distributorSelectWrapper" data-can-edit="{% if can_edit_basic_info %}true{% else %}false{% endif %}">
-                                <input type="text" class="form-control searchable-select-input" id="distributorSelectInput" placeholder="请选择或搜索分销商" autocomplete="off" 
-                                       {% if not can_edit_basic_info %}disabled{% endif %}
-                                       value="{% if pricing_order.distributor and pricing_order.distributor.company_name %}{{ pricing_order.distributor.company_name }}{% endif %}">
-                                <input type="hidden" name="distributor_id" class="searchable-select-value" id="distributorSelect" 
-                                       value="{% if pricing_order.distributor_id %}{{ pricing_order.distributor_id }}{% endif %}">
-                                <div class="searchable-select-dropdown">
-                                    <div class="searchable-select-loading">加载中...</div>
-                                </div>
-                                {% if not can_edit_basic_info %}
-                                <div class="searchable-select-disabled-overlay"></div>
-                                {% endif %}
-                            </div>
+                            {{ render_customer_search(
+                                config={
+                                    'input_id': 'distributorSearch',
+                                    'input_name': 'distributor_search',
+                                    'dropdown_id': 'distributorDropdown',
+                                    'clear_button_id': 'clearDistributor',
+                                    'customer_id_field': 'distributorId',
+                                    'customer_id_name': 'distributor_id',
+                                    'data_element_id': 'distributorSearchConfig',
+                                    'label': '分销商',
+                                    'placeholder': '输入公司名称搜索分销商...',
+                                    'api_endpoints': {
+                                        'search': '/api/export-helpers/customers/search'
+                                    },
+                                    'search_config': {
+                                        'min_length': 1,
+                                        'delay': 300,
+                                        'limit': 10,
+                                        'company_type': 'distributor'
+                                    },
+                                    'display_config': {
+                                        'show_contact': true,
+                                        'show_industry': false,
+                                        'show_owner': true
+                                    },
+                                    'validation': {
+                                        'required': false,
+                                        'validate_on_submit': false
+                                    }
+                                },
+                                selected_customer=pricing_order.distributor if pricing_order.distributor_id else None,
+                                readonly=not can_edit_basic_info,
+                                required=False
+                            ) }}
                         </div>
                         
                         <!-- 厂家提货开关 -->
@@ -1775,6 +1740,9 @@ input[type="number"].discount-rate {
 {% endblock %}
 
 {% block scripts %}
+<!-- 引入客户搜索组件JS -->
+<script src="{{ url_for('static', filename='js/customer-search.js') }}"></script>
+
 <script>
 // 设置全局变量
 const PRICING_ORDER_ID = "{{ pricing_order.id }}";
@@ -1831,29 +1799,31 @@ function toggleDirectContractSwitch() {
 function toggleDirectContract() {
     const directContractSwitch = document.getElementById('directContractSwitch');
     const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
-    
-    // 获取SearchableSelect实例
-    const dealerSelect = window.searchableSelects?.dealer_id;
-    const distributorSelect = window.searchableSelects?.distributor_id;
-    
+
+    // 获取CustomerSearchComponent实例
+    const dealerSearch = window.customerSearchComponents?.dealerSearch;
+    const distributorSearch = window.customerSearchComponents?.distributorSearch;
+
     console.log('厂商直签开关状态:', directContractSwitch.checked);
-    console.log('SearchableSelect实例:', {dealerSelect, distributorSelect});
-    
+    console.log('CustomerSearchComponent实例:', {dealerSearch, distributorSearch});
+
     if (directContractSwitch.checked) {
         // 厂商直签开启：禁用经销商和分销商选择，清空内容
-        if (dealerSelect) {
-            dealerSelect.disable();
-            dealerSelect.clear(true); // 抑制change事件
+        if (dealerSearch) {
+            dealerSearch.searchInput.disabled = true;
+            if (dealerSearch.clearBtn) dealerSearch.clearBtn.disabled = true;
+            dealerSearch.clearSelection();
         }
-        if (distributorSelect) {
-            distributorSelect.disable();
-            distributorSelect.clear(true); // 抑制change事件
+        if (distributorSearch) {
+            distributorSearch.searchInput.disabled = true;
+            if (distributorSearch.clearBtn) distributorSearch.clearBtn.disabled = true;
+            distributorSearch.clearSelection();
         }
-        
+
         // 同时禁用厂家提货开关
         factoryPickupSwitch.disabled = true;
         factoryPickupSwitch.checked = false;
-        
+
         // 更新缓存
         updateBasicInfo('dealer_id', '');
         updateBasicInfo('distributor_id', '');
@@ -1861,24 +1831,26 @@ function toggleDirectContract() {
         updateBasicInfo('is_factory_pickup', false);
     } else {
         // 厂商直签关闭：启用经销商和分销商选择（需检查权限）
-        if (dealerSelect && canEditBasicInfo()) {
-            dealerSelect.enable();
-            dealerSelect.clear(true); // 抑制change事件，避免触发updateSwitchesBasedOnDealer
+        if (dealerSearch && canEditBasicInfo()) {
+            dealerSearch.searchInput.disabled = false;
+            if (dealerSearch.clearBtn) dealerSearch.clearBtn.disabled = false;
+            dealerSearch.clearSelection();
         }
-        if (distributorSelect && canEditBasicInfo()) {
-            distributorSelect.enable(); // 明确启用分销商输入框
-            distributorSelect.clear(true); // 抑制change事件
+        if (distributorSearch && canEditBasicInfo()) {
+            distributorSearch.searchInput.disabled = false;
+            if (distributorSearch.clearBtn) distributorSearch.clearBtn.disabled = false;
+            distributorSearch.clearSelection();
         }
-        
+
         // 启用厂家提货开关（需检查权限）
         if (canEditBasicInfo()) {
             factoryPickupSwitch.disabled = false;
         }
-        
+
         updateBasicInfo('dealer_id', '');
         updateBasicInfo('distributor_id', '');
         updateBasicInfo('is_direct_contract', false);
-        
+
         console.log('厂商直签关闭：已启用经销商和分销商输入框，启用厂家提货开关');
     }
 }
@@ -1902,40 +1874,42 @@ function toggleFactoryPickupSwitch() {
 // 厂家提货开关处理
 function toggleFactoryPickup() {
     const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
-    
-    // 获取SearchableSelect实例
-    const distributorSelect = window.searchableSelects?.distributor_id;
-    
+
+    // 获取CustomerSearchComponent实例
+    const distributorSearch = window.customerSearchComponents?.distributorSearch;
+
     console.log('厂家提货开关状态:', factoryPickupSwitch.checked);
-    console.log('DistributorSelect实例:', distributorSelect);
-    
+    console.log('DistributorSearch实例:', distributorSearch);
+
     if (factoryPickupSwitch.checked) {
         // 厂家提货开启：禁用分销商选择，清空内容
-        if (distributorSelect) {
-            distributorSelect.disable();
-            distributorSelect.clear(true); // 抑制change事件
+        if (distributorSearch) {
+            distributorSearch.searchInput.disabled = true;
+            if (distributorSearch.clearBtn) distributorSearch.clearBtn.disabled = true;
+            distributorSearch.clearSelection();
         }
-        
+
         updateBasicInfo('distributor_id', '');
         updateBasicInfo('is_factory_pickup', true);
     } else {
         // 厂家提货关闭：启用分销商选择
-        if (distributorSelect) {
-            distributorSelect.enable();
+        if (distributorSearch) {
+            distributorSearch.searchInput.disabled = false;
+            if (distributorSearch.clearBtn) distributorSearch.clearBtn.disabled = false;
         }
-        
+
         updateBasicInfo('is_factory_pickup', false);
     }
 }
 
 // 经销商选择变化时的处理
 function onDealerChange() {
-    const dealerSelect = window.searchableSelects?.dealer_id;
-    
-    if (dealerSelect) {
+    const dealerSearch = window.customerSearchComponents?.dealerSearch;
+
+    if (dealerSearch) {
         // 更新缓存
-        updateBasicInfo('dealer_id', dealerSelect.hiddenInput.value);
-        
+        updateBasicInfo('dealer_id', dealerSearch.hiddenInput.value);
+
         // 检查是否在厂商直签模式
         const directContractSwitch = document.getElementById('directContractSwitch');
         if (!directContractSwitch.checked) {
@@ -1947,12 +1921,12 @@ function onDealerChange() {
 
 // 分销商选择变化时的处理
 function onDistributorChange() {
-    const distributorSelect = window.searchableSelects?.distributor_id;
-    
-    if (distributorSelect) {
+    const distributorSearch = window.customerSearchComponents?.distributorSearch;
+
+    if (distributorSearch) {
         // 更新缓存
-        updateBasicInfo('distributor_id', distributorSelect.hiddenInput.value);
-        
+        updateBasicInfo('distributor_id', distributorSearch.hiddenInput.value);
+
         // 更新厂家提货开关状态
         updateFactoryPickupSwitchState();
     }
@@ -1962,59 +1936,61 @@ function onDistributorChange() {
 function initializeSwitches() {
     const directContractSwitch = document.getElementById('directContractSwitch');
     const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
-    
-    // 等待SearchableSelect实例初始化完成
+
+    // 等待CustomerSearchComponent实例初始化完成
     setTimeout(() => {
-        
+
         // 初始化厂商直签状态
         if (directContractSwitch.checked) {
             toggleDirectContract();
         }
-        
+
         // 根据经销商输入框内容控制开关状态
         updateSwitchesBasedOnDealer();
-        
+
         // 初始化厂家提货状态
         if (factoryPickupSwitch.checked) {
             toggleFactoryPickup();
         }
-    }, 1000); // 延迟1秒确保SearchableSelect实例已创建
+    }, 500); // 延迟500ms确保CustomerSearchComponent实例已创建
 }
 
 // 根据经销商输入框内容更新开关状态
 function updateSwitchesBasedOnDealer() {
-    const dealerSelect = window.searchableSelects?.dealer_id;
-    const distributorSelect = window.searchableSelects?.distributor_id;
+    const dealerSearch = window.customerSearchComponents?.dealerSearch;
+    const distributorSearch = window.customerSearchComponents?.distributorSearch;
     const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
     const directContractSwitch = document.getElementById('directContractSwitch');
-    
-    const hasDealer = dealerSelect && dealerSelect.hiddenInput.value && dealerSelect.hiddenInput.value.trim() !== '';
+
+    const hasDealer = dealerSearch && dealerSearch.hiddenInput.value && dealerSearch.hiddenInput.value.trim() !== '';
     const isDirectContract = directContractSwitch.checked;
-    
-    console.log('经销商选择状态:', hasDealer, '经销商值:', dealerSelect?.hiddenInput.value, '厂商直签:', isDirectContract);
-    
+
+    console.log('经销商选择状态:', hasDealer, '经销商值:', dealerSearch?.hiddenInput.value, '厂商直签:', isDirectContract);
+
     // 如果是厂商直签模式，不执行任何操作
     if (isDirectContract) {
         console.log('厂商直签模式下，跳过经销商状态更新');
         return;
     }
-    
+
     if (!hasDealer) {
         // 没有经销商时：厂家提货开关应该被禁用
         factoryPickupSwitch.disabled = true;
         factoryPickupSwitch.checked = false;
-        
+
         // 分销商输入框在非直签模式下保持启用
-        if (distributorSelect && canEditBasicInfo()) {
-            distributorSelect.enable();
+        if (distributorSearch && canEditBasicInfo()) {
+            distributorSearch.searchInput.disabled = false;
+            if (distributorSearch.clearBtn) distributorSearch.clearBtn.disabled = false;
         }
-        
+
         // 更新缓存
         updateBasicInfo('is_factory_pickup', false);
     } else {
         // 有经销商时：启用分销商选择框和厂家提货开关
-        if (distributorSelect && canEditBasicInfo()) {
-            distributorSelect.enable();
+        if (distributorSearch && canEditBasicInfo()) {
+            distributorSearch.searchInput.disabled = false;
+            if (distributorSearch.clearBtn) distributorSearch.clearBtn.disabled = false;
         }
         // 厂家提货开关根据分销商内容决定是否启用
         updateFactoryPickupSwitchState();
@@ -2023,13 +1999,13 @@ function updateSwitchesBasedOnDealer() {
 
 // 更新厂家提货开关状态
 function updateFactoryPickupSwitchState() {
-    const distributorSelect = window.searchableSelects?.distributor_id;
+    const distributorSearch = window.customerSearchComponents?.distributorSearch;
     const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
-    const dealerSelect = window.searchableSelects?.dealer_id;
-    
-    const hasDealer = dealerSelect && dealerSelect.hiddenInput.value && dealerSelect.hiddenInput.value.trim() !== '';
-    const hasDistributor = distributorSelect && distributorSelect.hiddenInput.value && distributorSelect.hiddenInput.value.trim() !== '';
-    
+    const dealerSearch = window.customerSearchComponents?.dealerSearch;
+
+    const hasDealer = dealerSearch && dealerSearch.hiddenInput.value && dealerSearch.hiddenInput.value.trim() !== '';
+    const hasDistributor = distributorSearch && distributorSearch.hiddenInput.value && distributorSearch.hiddenInput.value.trim() !== '';
+
     if (hasDealer) {
         // 有经销商时，厂家提货开关可以启用（但需检查权限）
         if (canEditBasicInfo()) {
@@ -2047,13 +2023,13 @@ function updateFactoryPickupSwitchState() {
 function validateChannelInfo() {
     const directContractSwitch = document.getElementById('directContractSwitch');
     const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
-    const dealerSelect = window.searchableSelects?.dealer_id;
-    const distributorSelect = window.searchableSelects?.distributor_id;
-    
+    const dealerSearch = window.customerSearchComponents?.dealerSearch;
+    const distributorSearch = window.customerSearchComponents?.distributorSearch;
+
     const isDirectContract = directContractSwitch.checked;
     const isFactoryPickup = factoryPickupSwitch.checked;
-    const hasDealer = dealerSelect && dealerSelect.hiddenInput.value && dealerSelect.hiddenInput.value.trim() !== '';
-    const hasDistributor = distributorSelect && distributorSelect.hiddenInput.value && distributorSelect.hiddenInput.value.trim() !== '';
+    const hasDealer = dealerSearch && dealerSearch.hiddenInput.value && dealerSearch.hiddenInput.value.trim() !== '';
+    const hasDistributor = distributorSearch && distributorSearch.hiddenInput.value && distributorSearch.hiddenInput.value.trim() !== '';
     
     // 构建条件检查列表
     const conditions = [
@@ -3145,36 +3121,54 @@ $(document).ready(function() {
                 console.log('🔍 [DEBUG] 厂家提货 (从表单获取):', currentFormData.is_factory_pickup);
             }
             
-            // 获取批价单总折扣率 - 只收集INPUT元素
+            // 获取批价单总折扣率 - 兼容INPUT和SPAN元素
             const pricingTotalDiscountElement = document.getElementById('pricingTotalDiscount');
-            if (pricingTotalDiscountElement && pricingTotalDiscountElement.tagName === 'INPUT') {
-                const discountValue = parseFloat(pricingTotalDiscountElement.value);
+            if (pricingTotalDiscountElement) {
+                let discountValue;
+                if (pricingTotalDiscountElement.tagName === 'INPUT') {
+                    // INPUT元素：直接读取value
+                    discountValue = parseFloat(pricingTotalDiscountElement.value);
+                    console.log('🔍 [DEBUG] 批价单总折扣率收集 (INPUT):', pricingTotalDiscountElement.value);
+                } else if (pricingTotalDiscountElement.tagName === 'SPAN') {
+                    // SPAN元素：读取textContent并去除百分号
+                    const textValue = pricingTotalDiscountElement.textContent.trim().replace('%', '');
+                    discountValue = parseFloat(textValue);
+                    console.log('🔍 [DEBUG] 批价单总折扣率收集 (SPAN):', textValue);
+                }
+
                 if (!isNaN(discountValue)) {
                     // 转换为小数形式（数据库存储格式）
                     currentFormData.pricing_total_discount_rate = discountValue / 100;
-                    console.log('🔍 [DEBUG] 批价单总折扣率收集成功 (INPUT):', pricingTotalDiscountElement.value + '% => ' + currentFormData.pricing_total_discount_rate);
+                    console.log('🔍 [DEBUG] 批价单总折扣率收集成功:', discountValue + '% => ' + currentFormData.pricing_total_discount_rate);
                 } else {
-                    console.log('🔍 [DEBUG] 批价单总折扣率解析失败 (INPUT):', pricingTotalDiscountElement.value);
+                    console.log('🔍 [DEBUG] 批价单总折扣率解析失败:', discountValue);
                 }
-            } else if (pricingTotalDiscountElement) {
-                console.log('🔍 [DEBUG] 批价单总折扣率跳过收集 (元素类型: ' + pricingTotalDiscountElement.tagName + ', 非INPUT元素)');
             } else {
                 console.log('🔍 [DEBUG] 未找到批价单总折扣率元素');
             }
             
-            // 获取结算单总折扣率 - 只收集INPUT元素
+            // 获取结算单总折扣率 - 兼容INPUT和SPAN元素
             const settlementTotalDiscountElement = document.getElementById('settlementTotalDiscount');
-            if (settlementTotalDiscountElement && settlementTotalDiscountElement.tagName === 'INPUT') {
-                const discountValue = parseFloat(settlementTotalDiscountElement.value);
+            if (settlementTotalDiscountElement) {
+                let discountValue;
+                if (settlementTotalDiscountElement.tagName === 'INPUT') {
+                    // INPUT元素：直接读取value
+                    discountValue = parseFloat(settlementTotalDiscountElement.value);
+                    console.log('🔍 [DEBUG] 结算单总折扣率收集 (INPUT):', settlementTotalDiscountElement.value);
+                } else if (settlementTotalDiscountElement.tagName === 'SPAN') {
+                    // SPAN元素：读取textContent并去除百分号
+                    const textValue = settlementTotalDiscountElement.textContent.trim().replace('%', '');
+                    discountValue = parseFloat(textValue);
+                    console.log('🔍 [DEBUG] 结算单总折扣率收集 (SPAN):', textValue);
+                }
+
                 if (!isNaN(discountValue)) {
                     // 转换为小数形式（数据库存储格式）
                     currentFormData.settlement_total_discount_rate = discountValue / 100;
-                    console.log('🔍 [DEBUG] 结算单总折扣率收集成功 (INPUT):', settlementTotalDiscountElement.value + '% => ' + currentFormData.settlement_total_discount_rate);
+                    console.log('🔍 [DEBUG] 结算单总折扣率收集成功:', discountValue + '% => ' + currentFormData.settlement_total_discount_rate);
                 } else {
-                    console.log('🔍 [DEBUG] 结算单总折扣率解析失败 (INPUT):', settlementTotalDiscountElement.value);
+                    console.log('🔍 [DEBUG] 结算单总折扣率解析失败:', discountValue);
                 }
-            } else if (settlementTotalDiscountElement) {
-                console.log('🔍 [DEBUG] 结算单总折扣率跳过收集 (元素类型: ' + settlementTotalDiscountElement.tagName + ', 非INPUT元素)');
             } else {
                 console.log('🔍 [DEBUG] 未找到结算单总折扣率元素');
             }
@@ -4453,12 +4447,23 @@ function executeDeletePricingOrder() {
     if (typeof showStandardAlert === 'function') {
         showStandardAlert('info', '正在删除批价单...', false);
     }
-    
+
+    // 获取CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]');
+    const headers = {
+        'Content-Type': 'application/json',
+    };
+
+    if (csrfToken) {
+        headers['X-CSRFToken'] = csrfToken.content;
+        console.log('🔍 [DEBUG] 删除批价单 - CSRF token 已添加:', csrfToken.content);
+    } else {
+        console.warn('🔍 [DEBUG] 删除批价单 - 未找到 CSRF token');
+    }
+
     fetch(`/pricing_order/${PRICING_ORDER_ID}/delete`, {
         method: 'DELETE',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: headers,
         body: JSON.stringify({
             reason: '用户主动删除'
         })
@@ -4472,7 +4477,7 @@ function executeDeletePricingOrder() {
             // 跳转到项目详情页面
             setTimeout(() => {
                 if (data.project_id) {
-                    window.location.href = `/project/${data.project_id}`;
+                    window.location.href = `/project/view/${data.project_id}`;
                 } else {
                     // 如果没有项目ID，则跳转到批价单列表
                     window.location.href = '/pricing_order/list';
@@ -4828,12 +4833,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 初始化批量操作功能
     initializeBatchOperations();
-    
+
     // 确保批量操作按钮初始状态为隐藏
     updateBatchActionButtons();
-    
-    // 初始化搜索下拉框
-    initializeSearchableSelects();
 });
 
 // 初始化批量操作功能
@@ -5209,264 +5211,7 @@ function matchesSearch(text, searchTerm) {
     return false;
 }
 
-// 搜索下拉框类
-class SearchableSelect {
-    constructor(wrapper) {
-        console.log('🔧 SearchableSelect 构造函数被调用:', wrapper);
-        
-        this.wrapper = wrapper;
-        this.input = wrapper.querySelector('.searchable-select-input');
-        this.hiddenInput = wrapper.querySelector('.searchable-select-value');
-        this.dropdown = wrapper.querySelector('.searchable-select-dropdown');
-        this.type = wrapper.dataset.type;
-        this.name = wrapper.dataset.name;
-        this.isOpen = false;
-        this.options = [];
-        
-        if (!this.input || !this.hiddenInput || !this.dropdown) {
-            console.error('❌ SearchableSelect 初始化失败：缺少必要的DOM元素');
-            return;
-        }
-        
-        this.bindEvents();
-        this.loadOptions();
-    }
-    
-    bindEvents() {
-        console.log('🔗 开始绑定事件:', this.type);
-        
-        // 检查是否可以编辑
-        const canEdit = this.wrapper.dataset.canEdit === 'true';
-        console.log('📝 编辑权限检查:', {
-            canEdit: canEdit,
-            inputDisabled: this.input.disabled,
-            inputReadonly: this.input.readOnly
-        });
-        
-        if (!canEdit) {
-            console.log('⚠️ 用户无编辑权限，但仍绑定查看事件');
-            // 即使无编辑权限，也绑定点击事件以显示选项（只读模式）
-        } else {
-            console.log('✅ 用户有编辑权限，绑定完整功能');
-        }
-        
-        // 点击显示输入框时展开下拉框
-        this.input.addEventListener('click', (e) => {
-            console.log('🖱️ 输入框被点击:', this.type, 'isOpen:', this.isOpen, 'options数量:', this.options.length);
-            // 如果输入框被禁用，不响应点击
-            if (this.input.disabled || this.input.readOnly) {
-                console.log('输入框已禁用，忽略点击事件');
-                e.preventDefault();
-                return;
-            }
-            e.preventDefault();
-            this.toggle();
-        });
-        
-        // 聚焦时展开下拉框
-        this.input.addEventListener('focus', () => {
-            if (!this.input.disabled) {
-                this.open();
-            }
-        });
-        
-        // 输入时过滤选项
-        this.input.addEventListener('input', () => {
-            if (!this.input.disabled) {
-                this.filterOptions();
-            }
-        });
-        
-        // 键盘事件
-        this.input.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && !this.input.disabled) {
-                this.close();
-            }
-        });
-        
-        // 点击外部关闭
-        document.addEventListener('click', (e) => {
-            if (!this.wrapper.contains(e.target)) {
-                this.close();
-            }
-        });
-    }
-    
-    toggle() {
-        console.log('🔄 toggle方法被调用, 当前isOpen:', this.isOpen, 'type:', this.type);
-        if (this.isOpen) {
-            this.close();
-        } else {
-            this.open();
-        }
-    }
-    
-    open() {
-        console.log(`📂 打开 ${this.type} 下拉框, 当前options数量:`, this.options.length);
-        this.isOpen = true;
-        this.wrapper.classList.add('open');
-        if (this.options.length === 0) {
-            this.loadOptions();
-        }
-    }
-    
-    close() {
-        this.isOpen = false;
-        this.wrapper.classList.remove('open');
-    }
-    
-    filterOptions() {
-        const searchTerm = this.input.value;
-        const filteredOptions = this.options.filter(option => 
-            matchesSearch(option.name + (option.owner_name ? ' | ' + option.owner_name : ''), searchTerm)
-        );
-        this.renderOptions(filteredOptions);
-    }
-    
-    renderOptions(options) {
-        if (options.length === 0) {
-            this.dropdown.innerHTML = '<div class="searchable-select-no-results">未找到匹配的选项</div>';
-            return;
-        }
-        
-        this.dropdown.innerHTML = '';
-        options.forEach(option => {
-            const optionEl = document.createElement('div');
-            optionEl.className = 'searchable-select-option';
-            
-            // 构建显示文本
-            let displayText = option.name;
-            if (option.owner_name) {
-                displayText += ' | ' + option.owner_name;
-            }
-            // 修正逻辑：is_readable为false时才是只读，需要显示[只读]标记
-            if (!option.is_readable) {
-                displayText += ' [只读]';
-                optionEl.classList.add('readonly');
-            }
-            
-            optionEl.textContent = displayText;
-            optionEl.dataset.value = option.id;
-            optionEl.dataset.name = option.name;
-            
-            optionEl.addEventListener('click', () => {
-                this.selectOption(option);
-            });
-            
-            this.dropdown.appendChild(optionEl);
-        });
-    }
-    
-    selectOption(option) {
-        // 设置显示文本
-        let displayText = option.name;
-        if (option.owner_name) {
-            displayText += ' | ' + option.owner_name;
-        }
-        // 修正逻辑：is_readable为false时才是只读，需要显示[只读]标记
-        if (!option.is_readable) {
-            displayText += ' [只读]';
-        }
-        
-        this.input.value = displayText;
-        this.hiddenInput.value = option.id;
-        
-        this.close();
-        
-        // 触发change事件以兼容原有逻辑
-        this.triggerChangeEvent();
-    }
-    
-    triggerChangeEvent() {
-        // 根据不同类型触发不同的change事件
-        if (this.type === 'dealer') {
-            if (typeof onDealerChange === 'function') {
-                onDealerChange();
-            }
-        } else if (this.type === 'distributor') {
-            if (typeof onDistributorChange === 'function') {
-                onDistributorChange();
-            }
-        }
-        
-        // 触发原生change事件
-        const event = new Event('change', { bubbles: true });
-        this.hiddenInput.dispatchEvent(event);
-    }
-    
-    // 启用输入框
-    enable() {
-        this.input.disabled = false;
-        this.input.readOnly = false;
-        this.wrapper.classList.remove('disabled');
-        console.log(`${this.type} 输入框已启用`);
-    }
-    
-    // 禁用输入框
-    disable() {
-        this.input.disabled = true;
-        this.input.readOnly = true;
-        this.wrapper.classList.add('disabled');
-        this.close(); // 关闭下拉框
-        console.log(`${this.type} 输入框已禁用`);
-    }
-    
-    // 清空输入框内容
-    clear(suppressChangeEvent = false) {
-        this.input.value = '';
-        this.hiddenInput.value = '';
-        console.log(`${this.type} 输入框内容已清空`);
-        
-        // 根据参数决定是否触发change事件
-        if (!suppressChangeEvent) {
-            this.triggerChangeEvent();
-        }
-    }
-    
-    loadOptions() {
-        this.dropdown.innerHTML = '<div class="searchable-select-loading">加载中...</div>';
-        
-        // 分销商使用经销商的API端点
-        const apiType = this.type === 'distributor' ? 'dealer' : this.type;
-        const apiUrl = `/pricing_order/api/companies/${apiType}`;
-        console.log(`API URL: ${apiUrl}`);
-        
-        fetch(apiUrl)
-            .then(response => {
-                console.log(`API响应状态 (${this.type}):`, response.status);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log(`${this.type} 数据:`, data);
-                this.options = Array.isArray(data) ? data : [];
-                this.renderOptions(this.options);
-            })
-            .catch(error => {
-                console.error(`加载 ${this.type} 选项失败:`, error);
-                this.dropdown.innerHTML = '<div class="searchable-select-no-results">加载失败</div>';
-            });
-    }
-}
-
-// 全局变量存储SearchableSelect实例
-window.searchableSelects = {};
-
-// 初始化所有搜索下拉框
-function initializeSearchableSelects() {
-    const wrappers = document.querySelectorAll('.searchable-select-wrapper');
-    wrappers.forEach(wrapper => {
-        const instance = new SearchableSelect(wrapper);
-        const name = wrapper.dataset.name;
-        if (name) {
-            window.searchableSelects[name] = instance;
-            console.log(`已存储 ${name} 的SearchableSelect实例`);
-        }
-    });
-}
-
-// 在现有的DOMContentLoaded事件中添加搜索下拉框初始化
+// 标准客户搜索组件初始化
+{{ init_customer_search_scripts() }}
 </script>
 {% endblock %}

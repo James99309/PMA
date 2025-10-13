@@ -186,12 +186,7 @@ function setupDataList(config) {
     
     // 自动初始化无限滚动功能（如果启用）
     const infiniteScrollConfig = config.table && config.table.infinite_scroll ? config.table.infinite_scroll : config.infinite_scroll;
-    console.log('🔍 检查无限滚动配置:', {
-        ajax_mode: config.ajax_mode,
-        infinite_scroll: infiniteScrollConfig,
-        enabled: infiniteScrollConfig && infiniteScrollConfig.enabled
-    });
-    
+
     if (config.ajax_mode && infiniteScrollConfig && infiniteScrollConfig.enabled) {
         console.log('🔄 自动初始化无限滚动功能');
         // 将无限滚动配置传递给setupInfiniteScroll函数
@@ -641,19 +636,7 @@ function setupInfiniteScroll(config) {
     
     // 移动端使用按钮加载模式
     const useMobileButtonMode = isWindowMobile && scrollConfig.mobile_button_mode !== false;
-    
-    // 详细的设备检测调试信息
-    console.log('🔍 设备检测详情:', {
-        isMobile: isMobile,
-        isWindowMobile: isWindowMobile,
-        useMobileButtonMode: useMobileButtonMode,
-        userAgent: navigator.userAgent,
-        baseThreshold: baseThreshold,
-        scrollThreshold: scrollThreshold,
-        windowInnerHeight: window.innerHeight,
-        windowInnerWidth: window.innerWidth
-    });
-    
+
     const containerSelector = scrollConfig.container_selector || '.table-responsive';
     const scrollMode = scrollConfig.scroll_mode || 'window'; // 'window' 或 'container'
     

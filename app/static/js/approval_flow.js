@@ -746,24 +746,35 @@ class ApprovalFlow {
             
             // 批价单特殊处理：收集页面数据传递给后端审批路由
             if (this.objectType === 'pricing_order') {
-                debugger; // 🔍 断点4：检查批价单数据处理
-                // 收集批价单页面数据
+
+                // 收集批价单页面数据（包含基本信息和明细数据）
                 if (typeof window.pricingOrderDataCollection === 'function') {
-                    const pricingData = window.pricingOrderDataCollection();
-                    debugger; // 🔍 断点5：检查收集到的数据
-                    
-                    // 将基本信息数据添加到formData中
-                    if (pricingData.basic_info) {
-                        Object.keys(pricingData.basic_info).forEach(key => {
-                            if (pricingData.basic_info[key] !== null && pricingData.basic_info[key] !== undefined) {
-                                formData.append(key, pricingData.basic_info[key]);
-                            }
-                        });
+                    try {
+                        const pricingData = window.pricingOrderDataCollection();
+
+                        // 将完整数据（包括明细）作为JSON字符串传递
+                        const jsonData = JSON.stringify(pricingData);
+                        formData.append('pricing_order_data', jsonData);
+                    } catch (error) {
+                        console.error('❌ [DATA_COLLECT] 数据收集函数执行失败:', error);
+                        console.error('❌ [DATA_COLLECT] 错误堆栈:', error.stack);
                     }
-                    
                 } else {
-                    console.warn('批价单审批：pricingOrderDataCollection function not found');
+                    console.warn('❌ [DATA_COLLECT] pricingOrderDataCollection 函数不存在');
+
+                    // 后备方案：使用缓存数据
+                    if (window.pricingOrderCache) {
+                        const fallbackData = {
+                            basic_info: window.pricingOrderCache || {},
+                            pricing_details: [],
+                            settlement_details: []
+                        };
+                        formData.append('pricing_order_data', JSON.stringify(fallbackData));
+                    } else {
+                        console.error('❌ [DATA_COLLECT] 无可用数据源，数据收集失败');
+                    }
                 }
+            } else {
             }
             
             // 如果是项目审批，添加项目类型参数以启用授权功能
@@ -788,18 +799,10 @@ class ApprovalFlow {
             debugger; // 🔍 断点7：检查服务器响应
             
             // 添加详细的响应调试
-            console.log('🔍 [DEBUG] ========== 响应详情 ==========');
-            console.log('🔍 [DEBUG] Response Status:', response.status);
-            console.log('🔍 [DEBUG] Response OK:', response.ok);
-            console.log('🔍 [DEBUG] Response URL:', response.url);
-            console.log('🔍 [DEBUG] Response Type:', response.type);
-            console.log('🔍 [DEBUG] Response Headers:', Object.fromEntries(response.headers.entries()));
 
             // 克隆响应以便多次读取
             const responseClone = response.clone();
             const responseText = await responseClone.text();
-            console.log('🔍 [DEBUG] 原始响应文本:', responseText);
-            console.log('🔍 [DEBUG] 响应长度:', responseText.length, '字节');
 
             // 解析JSON
             const data = await response.json();
@@ -807,13 +810,6 @@ class ApprovalFlow {
             debugger; // 🔍 断点8：检查响应数据内容
             
             // 添加详细的数据调试
-            console.log('🔍 [DEBUG] ========== 解析后的数据 ==========');
-            console.log('🔍 [DEBUG] 响应数据:', data);
-            console.log('🔍 [DEBUG] 响应数据类型:', typeof data);
-            console.log('🔍 [DEBUG] 响应数据字段:', Object.keys(data));
-            console.log('🔍 [DEBUG] success字段:', data.success);
-            console.log('🔍 [DEBUG] message字段:', data.message);
-            console.log('🔍 [DEBUG] 完整JSON:', JSON.stringify(data, null, 2));
             
             if (data.success) {
                 // 在重新加载流程图之前显示气泡

@@ -86,9 +86,19 @@
            value="{{ selected_customer.id if selected_customer else '' }}">
     
     <!-- 数据属性：用于JavaScript初始化 -->
-    <div id="{{ config.data_element_id | default('customerSearchConfig') }}" 
+    {% set customer_data = {} %}
+    {% if selected_customer %}
+        {% set customer_data = {
+            'id': selected_customer.id,
+            'company_name': selected_customer.company_name,
+            'contact_name': selected_customer.contact_name if selected_customer.contact_name else None,
+            'phone': selected_customer.phone if selected_customer.phone else None,
+            'owner_name': selected_customer.owner.username if selected_customer.owner else None
+        } %}
+    {% endif %}
+    <div id="{{ config.data_element_id | default('customerSearchConfig') }}"
          data-config='{{ config | tojson }}'
-         data-selected-customer='{{ selected_customer | tojson if selected_customer else "{}" }}'
+         data-selected-customer='{{ customer_data | tojson }}'
          data-readonly="{{ readonly | lower }}"
          data-required="{{ required | lower }}"
          style="display: none;"></div>
@@ -434,16 +444,24 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // 初始化客户搜索组件
             const searcher = new CustomerSearchComponent(config, container);
-            
+
             // 设置已选中客户
             if (selectedCustomer && selectedCustomer.id) {
                 searcher.setSelectedCustomer(selectedCustomer);
             }
-            
+
             // 保存到全局对象，方便外部访问
-            window.customerSearcher = searcher;
-            
-            console.log('客户搜索组件初始化完成:', config.input_id);
+            // 初始化全局命名空间（如果不存在）
+            if (!window.customerSearchComponents) {
+                window.customerSearchComponents = {};
+            }
+
+            // 根据input_id自动生成实例名称
+            // 例如：dealerSearch -> dealerSearch, distributorSearch -> distributorSearch
+            const instanceName = config.input_id;
+            window.customerSearchComponents[instanceName] = searcher;
+
+            console.log('✅ 客户搜索组件初始化完成:', config.input_id, '-> window.customerSearchComponents.' + instanceName);
             
         } catch (error) {
             console.error('客户搜索组件初始化失败:', error);

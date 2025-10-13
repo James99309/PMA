@@ -831,7 +831,6 @@ class ProductSelector {
      * 选择产品
      */
     async selectProduct(menu, category, productName) {
-        console.log('🔍 选择产品:', { category, productName });
         
         // 高亮当前产品
         menu.querySelectorAll('.product-list .menu-item').forEach(item => {
@@ -899,18 +898,7 @@ class ProductSelector {
                                      (product.status && product.status.toLowerCase().includes('discontin'));
                 const priceText = marketPrice ? `¥${parseFloat(marketPrice).toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '价格面议';
                 const priceClass = isDiscontinued ? 'product-price-discontinued' : 'product-price';
-                
-                // 🐛 调试日志
-                console.log('🔍 产品选择调试:', {
-                    name: product.product_name,
-                    model: product.model || product.product_model,
-                    status: product.status,
-                    product_status: product.product_status,
-                    isDiscontinued: isDiscontinued,
-                    priceClass: priceClass,
-                    marketPrice: marketPrice
-                });
-                
+
                 // 处理长规格文本，超过30字符换行 - 修复字段映射
                 const specText = product.specification || product.product_spec || product.product_desc || product.spec || '';
                 const formattedSpec = specText.length > 30 ? 
@@ -1917,7 +1905,6 @@ class ProductSelector {
         }
         
         try {
-            console.log('🔍 加载临时产品名称:', { category });
             
             // 同时获取常规产品和临时产品
             const [regularProducts, tempProducts] = await Promise.all([
@@ -1932,7 +1919,6 @@ class ProductSelector {
             }
             
             if (!tempProductList || !Array.isArray(tempProductList) || tempProductList.length === 0) {
-                console.log('🔍 该类别下没有临时产品');
                 return;
             }
             
@@ -1964,7 +1950,6 @@ class ProductSelector {
                 }
             });
             
-            console.log('🔍 临时产品独有的产品名称:', Object.keys(tempProductGroups));
             
             // 添加分隔线（如果有临时产品）
             if (Object.keys(tempProductGroups).length > 0) {
@@ -2177,7 +2162,6 @@ class ProductSelector {
         }
         
         try {
-            console.log('🔍 加载临时产品:', { category, productName, endpoint: this.config.apiEndpoints.tempProductsByCategory });
             
             const tempProducts = await this.fetchData('tempProductsByCategory', { 
                 category, 

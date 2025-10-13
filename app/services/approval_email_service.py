@@ -16,7 +16,7 @@ class ApprovalEmailService:
     """审批邮件服务类"""
 
     @staticmethod
-    def send_approval_notification(instance, step, action=None, comment=None, custom_context=None):
+    def send_approval_notification(instance, step, action=None, comment=None, custom_context=None, notify_submitter=False, actual_approver=None):
         """
         发送审批通知邮件
 
@@ -26,43 +26,66 @@ class ApprovalEmailService:
             action: 审批动作 ('approve', 'reject', None表示待审批)
             comment: 审批意见
             custom_context: 自定义上下文数据，用于不同业务模块的特殊信息
+            notify_submitter: 是否发送给提交人（默认False，发送给审批人）
+            actual_approver: 动态计算的审批人对象（优先使用，None时从快照读取）
 
         Returns:
             bool: 是否发送成功
         """
         try:
-            # 检查是否需要发送邮件 - 支持字典格式
-            send_email_flag = step.get('send_email') if isinstance(step, dict) else getattr(step, 'send_email', False)
-            if not step or not send_email_flag:
-                step_name = step.get('step_name') if isinstance(step, dict) else getattr(step, 'step_name', 'None')
-                logger.info(f"步骤 {step_name if step else 'None'} 不需要发送邮件通知")
-                return True
+            # 确定收件人
+            if notify_submitter:
+                # 发送给提交人
+                submitter = User.query.get(instance.created_by)
+                if not submitter or not submitter.email:
+                    logger.warning(f"提交人未设置邮箱: instance_id={instance.id}")
+                    return False
+                recipient = submitter
+            else:
+                # 发送给审批人（原有逻辑）
+                # 检查是否需要发送邮件 - 支持字典格式
+                send_email_flag = step.get('send_email') if isinstance(step, dict) else getattr(step, 'send_email', False)
+                if not step or not send_email_flag:
+                    step_name = step.get('step_name') if isinstance(step, dict) else getattr(step, 'step_name', 'None')
+                    logger.info(f"步骤 {step_name if step else 'None'} 不需要发送邮件通知")
+                    return True
 
-            # 获取审批人信息 - 支持字典格式
-            approver_user_id = step.get('approver_user_id') if isinstance(step, dict) else getattr(step, 'approver_user_id', None)
-            approver = User.query.get(approver_user_id) if approver_user_id else None
-            if not approver or not approver.email:
-                step_id = step.get('step_id') or step.get('id') if isinstance(step, dict) else getattr(step, 'id', None)
-                logger.warning(f"审批人未设置或没有邮箱地址: step_id={step_id}")
-                return False
+                # 获取审批人信息 - 优先使用动态审批人，其次从快照读取
+                if actual_approver:
+                    # 优先使用传入的动态审批人
+                    recipient = actual_approver
+                    logger.info(f"使用动态审批人: {recipient.username} ({recipient.real_name})")
+                else:
+                    # 降级：从快照读取（兼容固定审批人）
+                    approver_user_id = step.get('approver_user_id') if isinstance(step, dict) else getattr(step, 'approver_user_id', None)
+                    recipient = User.query.get(approver_user_id) if approver_user_id else None
+                    if recipient:
+                        logger.info(f"从快照读取审批人: {recipient.username} ({recipient.real_name})")
 
-            # 发送主通知邮件
-            success = ApprovalEmailService._send_single_notification(
-                instance, step, approver, action, comment, custom_context
-            )
+                if not recipient or not recipient.email:
+                    step_id = step.get('step_id') or step.get('id') if isinstance(step, dict) else getattr(step, 'id', None)
+                    logger.warning(f"审批人未设置或没有邮箱地址: step_id={step_id}")
+                    # 不要直接返回False，继续处理抄送
+                    recipient = None
 
-            if not success:
-                return False
-
-            # 处理抄送 - 支持字典格式
-            cc_enabled = step.get('cc_enabled') if isinstance(step, dict) else getattr(step, 'cc_enabled', False)
-            cc_users = step.get('cc_users') if isinstance(step, dict) else getattr(step, 'cc_users', None)
-            if cc_enabled and cc_users:
-                ApprovalEmailService._handle_cc_notifications(
-                    instance, step, action, comment, custom_context
+            # 发送主通知邮件（如果有有效收件人）
+            success = False
+            if recipient and recipient.email:
+                success = ApprovalEmailService._send_single_notification(
+                    instance, step, recipient, action, comment, custom_context
                 )
 
-            return True
+            # 处理抄送（即使审批人邮件失败也要发送抄送）
+            if not notify_submitter:
+                cc_enabled = step.get('cc_enabled') if isinstance(step, dict) else getattr(step, 'cc_enabled', False)
+                cc_users = step.get('cc_users') if isinstance(step, dict) else getattr(step, 'cc_users', None)
+                if cc_enabled and cc_users:
+                    logger.info(f"处理抄送，抄送人数: {len(cc_users) if isinstance(cc_users, list) else 0}")
+                    ApprovalEmailService._handle_cc_notifications(
+                        instance, step, action, comment, custom_context
+                    )
+
+            return success
 
         except Exception as e:
             logger.error(f"发送审批通知邮件失败: {str(e)}", exc_info=True)
@@ -92,7 +115,14 @@ class ApprovalEmailService:
             # 构建邮件主题
             action_text = ApprovalEmailService._get_action_text(action)
             object_name = ApprovalEmailService._get_object_name(instance.object_type)
-            subject = f"[PMA系统] 审批通知 - {object_name} #{instance.object_id} {action_text}"
+
+            # 使用业务编号（如果提供）代替数据库ID
+            if custom_context and 'business_number' in custom_context:
+                object_identifier = custom_context['business_number']
+            else:
+                object_identifier = f"#{instance.object_id}"
+
+            subject = f"[PMA系统] 审批通知 - {object_name} {object_identifier} {action_text}"
 
             # 构建邮件内容
             html_content = ApprovalEmailService._build_email_content(
@@ -162,7 +192,14 @@ class ApprovalEmailService:
             # 构建邮件主题
             action_text = ApprovalEmailService._get_action_text(action)
             object_name = ApprovalEmailService._get_object_name(instance.object_type)
-            subject = f"[PMA系统] 审批通知(抄送) - {object_name} #{instance.object_id}"
+
+            # 使用业务编号（如果提供）代替数据库ID
+            if custom_context and 'business_number' in custom_context:
+                object_identifier = custom_context['business_number']
+            else:
+                object_identifier = f"#{instance.object_id}"
+
+            subject = f"[PMA系统] 审批通知(抄送) - {object_name} {object_identifier}"
 
             # 构建邮件内容（标记为抄送）
             html_content = ApprovalEmailService._build_email_content(
@@ -258,8 +295,9 @@ class ApprovalEmailService:
                         </div>
                         <div class="info-row">
                             <span class="label">审批编号：</span>
-                            <span class="value">#{instance.object_id}</span>
+                            <span class="value">{custom_context.get('business_number', f'#{instance.object_id}') if custom_context else f'#{instance.object_id}'}</span>
                         </div>
+                        {f'<div class="info-row"><span class="label">报销主题：</span><span class="value">{custom_context.get("object_title")}</span></div>' if custom_context and custom_context.get('object_title') else ''}
                         <div class="info-row">
                             <span class="label">当前步骤：</span>
                             <span class="value">{step_name}</span>
@@ -274,7 +312,7 @@ class ApprovalEmailService:
                         </div>
                         <div class="info-row">
                             <span class="label">提交时间：</span>
-                            <span class="value">{instance.created_at.strftime('%Y-%m-%d %H:%M:%S') if instance.created_at else '未知'}</span>
+                            <span class="value">{instance.started_at.strftime('%Y-%m-%d %H:%M:%S') if instance.started_at else '未知'}</span>
                         </div>
                     </div>
 
@@ -331,24 +369,28 @@ class ApprovalEmailService:
     @staticmethod
     def _get_action_text(action):
         """获取动作文本"""
+        # 如果是枚举对象，提取其值
+        action_value = action.value if hasattr(action, 'value') else action
         action_map = {
             'approve': '已批准',
             'reject': '已拒绝',
             'recall': '已召回',
             None: '待审批'
         }
-        return action_map.get(action, '处理中')
+        return action_map.get(action_value, '处理中')
 
     @staticmethod
     def _get_action_color(action):
         """获取动作对应的颜色"""
+        # 如果是枚举对象，提取其值
+        action_value = action.value if hasattr(action, 'value') else action
         color_map = {
             'approve': '#28a745',
             'reject': '#dc3545',
             'recall': '#6c757d',
             None: '#ffc107'
         }
-        return color_map.get(action, '#17a2b8')
+        return color_map.get(action_value, '#17a2b8')
 
     @staticmethod
     def _get_object_name(object_type):

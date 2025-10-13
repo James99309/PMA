@@ -59,7 +59,6 @@ class ApprovalConfigManager {
         }
         
         // 调试信息：记录所有表单提交
-        console.log('🔍 === AJAX表单提交开始 ===');
         console.log('📤 表单ID:', form.id);
         console.log('📤 表单目标URL:', form.action);
         console.log('📤 表单方法:', form.method);
@@ -87,7 +86,6 @@ class ApprovalConfigManager {
             const formData = new FormData(form);
             
             // 🔍 调试：详细记录表单数据
-            console.log('🔍 === 表单数据调试 ===');
             console.log('📋 表单元素数量:', form.elements.length);
             
             // 记录所有表单字段
@@ -115,47 +113,22 @@ class ApprovalConfigManager {
                 const isEditMode = editableFieldsInput.id.includes('edit_');
                 const currentFields = isEditMode ? this.editSelectedFields : this.selectedFields;
                 const expectedValue = JSON.stringify(currentFields);
-                
-                console.log('🔍 [提交前验证] 可编辑字段同步检查:', {
-                    id: editableFieldsInput.id,
-                    name: editableFieldsInput.name,
-                    currentValue: editableFieldsInput.value,
-                    expectedValue: expectedValue,
-                    isSync: editableFieldsInput.value === expectedValue,
-                    isEditMode: isEditMode,
-                    fieldsArray: currentFields
-                });
-                
+
                 // 如果不同步，更新隐藏字段值
                 if (editableFieldsInput.value !== expectedValue) {
                     console.warn('⚠️ [提交前修复] 隐藏字段值不同步，正在更新');
                     editableFieldsInput.value = expectedValue;
                     console.log('✅ [提交前修复] 隐藏字段已更新为:', expectedValue);
                 }
-                
-                console.log('🔍 [提交前验证] 最终可编辑字段数据:', {
-                    id: editableFieldsInput.id,
-                    name: editableFieldsInput.name,
-                    value: editableFieldsInput.value,
-                    isJSON: editableFieldsInput.value.startsWith('[') || editableFieldsInput.value.startsWith('{')
-                });
             } else {
                 console.warn('⚠️ [提交前验证] 未找到可编辑字段隐藏输入框');
             }
             
             // 特别关注动作类型
-            const actionTypeInput = form.querySelector('select[name="action_type"]') || 
+            const actionTypeInput = form.querySelector('select[name="action_type"]') ||
                                    form.querySelector('#action_type') ||
                                    form.querySelector('#edit_action_type');
-            if (actionTypeInput) {
-                console.log('🔍 执行动作类型:', {
-                    id: actionTypeInput.id,
-                    name: actionTypeInput.name,
-                    value: actionTypeInput.value,
-                    selectedText: actionTypeInput.selectedOptions[0]?.text
-                });
-            }
-            
+
             // 发送AJAX请求
             const response = await fetch(form.action, {
                 method: form.method || 'POST',
@@ -279,15 +252,6 @@ class ApprovalConfigManager {
      * 统一的点击事件处理
      */
     handleClick(event) {
-        console.log('🔍 [调试] 点击事件触发:', {
-            target: event.target.tagName + (event.target.className ? '.' + event.target.className.split(' ').join('.') : ''),
-            targetText: event.target.textContent?.trim().substring(0, 50),
-            targetDataset: event.target.dataset,
-            hasAddStepText: event.target.textContent?.includes('添加步骤'),
-            hasBsTarget: !!event.target.dataset.bsTarget,
-            bsTargetValue: event.target.dataset.bsTarget
-        });
-
         // 首先检查添加分支条件按钮
         if (event.target.closest('.branch-add-button')) {
             const button = event.target.closest('.branch-add-button');
@@ -337,17 +301,9 @@ class ApprovalConfigManager {
 
         // 添加步骤按钮 - 只拦截模态框触发按钮，不拦截表单提交按钮
         if (target.dataset.bsTarget === '#addStepModal' ||
-            (target.textContent && target.textContent.includes('添加步骤') && 
+            (target.textContent && target.textContent.includes('添加步骤') &&
              target.type !== 'submit' && !target.closest('.modal'))) {
-            
-            console.log('🔍 [调试] 拦截添加步骤按钮，当前模态框状态:', {
-                modalExists: !!document.getElementById('addStepModal'),
-                modalVisible: document.getElementById('addStepModal')?.style.display,
-                modalClasses: document.getElementById('addStepModal')?.className,
-                existingBackdrops: document.querySelectorAll('.modal-backdrop').length,
-                bodyHasModalOpen: document.body.classList.contains('modal-open')
-            });
-            
+
             event.preventDefault();
             console.log('🔧 拦截添加步骤按钮，使用自定义处理');
             
@@ -527,7 +483,6 @@ class ApprovalConfigManager {
             .then(statsData => {
                 // 计算新条件的索引（基于现有条件数量）
                 const conditionIndex = statsData.conditions_count;
-                console.log(`🔍 [调试] 准备添加第${conditionIndex + 1}个分支条件`);
                 
                 // 获取步骤数据以便预填充其他字段
                 return this.loadStepData(stepId).then(stepApiData => {
@@ -558,12 +513,6 @@ class ApprovalConfigManager {
      * 显示添加分支条件模态框
      */
     showAddBranchConditionModal(modal, stepId, stepData, statsData, conditionIndex) {
-        console.log(`🔍 [调试] 显示添加分支条件模态框: 步骤${stepId}, 条件索引${conditionIndex}`, {
-            hasStatsData: !!statsData,
-            conditionsCount: statsData?.conditions_count,
-            unifiedField: statsData?.unified_field
-        });
-        
         // 重置表单
         this.resetEditForm(modal);
         
@@ -634,7 +583,6 @@ class ApprovalConfigManager {
         const shouldLock = conditionIndex > 0; // 非第一个条件需要锁定
         const unifiedField = statsData?.unified_field;
 
-        console.log(`🔍 [调试] 条件字段锁定判断: 条件索引=${conditionIndex}, 需要锁定=${shouldLock}, 统一字段=${unifiedField}`);
 
         if (shouldLock && unifiedField) {
             // 锁定字段并预填充
@@ -682,7 +630,6 @@ class ApprovalConfigManager {
                 throw new Error(data.message || '获取分支统计失败');
             }
             
-            console.log(`🔍 [调试] 步骤${stepId}分支统计:`, data);
             return data;
             
         } catch (error) {
@@ -714,7 +661,6 @@ class ApprovalConfigManager {
                 throw new Error(data.message || '获取锁定状态失败');
             }
             
-            console.log(`🔍 [调试] 步骤${stepId}条件${conditionIndex}锁定状态:`, data);
             return data;
             
         } catch (error) {
@@ -759,7 +705,6 @@ class ApprovalConfigManager {
      */
     async applyBranchFieldLockingForEdit(branchField, stepId, conditionIndex) {
         try {
-            console.log(`🔍 [调试] 应用编辑模式字段锁定: 步骤${stepId}, 条件索引${conditionIndex}`);
             
             // 获取锁定状态
             const lockData = await this.loadBranchFieldLockStatus(stepId, conditionIndex);
@@ -804,16 +749,10 @@ class ApprovalConfigManager {
      * 复用添加/编辑步骤的成熟机制
      */
     ensureTemplateFields(modal, form) {
-        console.log('🔍 [调试] ensureTemplateFields 开始');
 
         // 尝试从页面获取模板信息
         const templateId = this.getTemplateIdFromPage();
         const objectType = this.getObjectTypeFromPage();
-
-        console.log('🔍 [调试] 获取的模板信息:', {
-            templateId: templateId,
-            objectType: objectType
-        });
 
         if (!templateId || !objectType) {
             console.warn('⚠️ [调试] 无法获取模板信息，可能影响字段值加载');
@@ -1046,17 +985,6 @@ class ApprovalConfigManager {
      * 填充分支条件表单数据
      */
     populateBranchConditionForm(modal, apiData, stepId, conditionIndex, conditionId) {
-        console.log('🔍 [调试] DOM元素存在性检查:', {
-            modal: !!modal,
-            branchField: !!modal.querySelector('#edit_branch_field'),
-            branchOperator: !!modal.querySelector('#edit_branch_operator'), 
-            branchValue: !!modal.querySelector('#edit_branch_value'),
-            editableFieldsSelect: !!modal.querySelector('#edit_editable_fields_select'),
-            selectedFieldsContainer: !!modal.querySelector('#edit_selected_fields'),
-            sendEmail: !!modal.querySelector('#edit_send_email'),
-            ccEnabled: !!modal.querySelector('#edit_cc_enabled')
-        });
-        
         // 从API数据中提取condition和step
         const conditionData = apiData.condition;
         const stepData = apiData.step;
@@ -1123,15 +1051,7 @@ class ApprovalConfigManager {
                     value: opt.value,
                     text: opt.textContent
                 }));
-                
-                console.log('🔍 [调试] 条件字段赋值分析:', {
-                    targetValue: conditionData.field,
-                    availableOptions: availableOptions,
-                    optionCount: branchField.options.length,
-                    matchFound: !!branchField.querySelector(`option[value="${conditionData.field}"]`),
-                    currentValue: branchField.value
-                });
-                
+
                 branchField.value = conditionData.field;
                 
                 // 验证赋值是否成功
@@ -1196,7 +1116,6 @@ class ApprovalConfigManager {
                 
                 // 处理复选框回显（针对从字段列表选择的情况）
                 if (branchOperator && branchOperator.value === 'from_field_list') {
-                    console.log('🔍 检测到字段列表选择，准备回显复选框');
                     this.loadEditConditionValues(conditionData, 'edit_');
                 }
             }
@@ -1330,15 +1249,6 @@ class ApprovalConfigManager {
      * 统一的模态框显示方法 - 使用jQuery方式避免冲突
      */
     showModal(modal) {
-        console.log('🔍 [调试] 显示模态框前状态:', {
-            modalId: modal.id,
-            modalDisplay: modal.style.display,
-            modalClasses: modal.className,
-            existingBackdrops: document.querySelectorAll('.modal-backdrop').length,
-            bodyClasses: document.body.className.split(' '),
-            jQueryAvailable: typeof $ !== 'undefined'
-        });
-        
         console.log('📋 显示模态框:', modal.id);
         
         try {
@@ -1356,13 +1266,7 @@ class ApprovalConfigManager {
             
             // 显示后状态检查
             setTimeout(() => {
-                console.log('🔍 [调试] 显示模态框后状态:', {
-                    modalDisplay: modal.style.display,
-                    modalClasses: modal.className,
-                    newBackdrops: document.querySelectorAll('.modal-backdrop').length,
-                    visibleModals: document.querySelectorAll('.modal.show').length,
-                    bodyClasses: document.body.className.split(' ')
-                });
+                // 模态框状态检查
             }, 100);
             
         } catch (error) {
@@ -1683,19 +1587,11 @@ class ApprovalConfigManager {
      * 设置模态框隐藏事件监听器
      */
     setupModalHiddenEvents() {
-        console.log('🔍 [调试] 设置模态框事件监听器开始');
         
         const addStepModal = document.getElementById('addStepModal');
         const editStepModal = document.getElementById('editStepModal');
 
-        console.log('🔍 [调试] 模态框元素检查:', {
-            addStepModalExists: !!addStepModal,
-            editStepModalExists: !!editStepModal,
-            jQueryAvailable: typeof $ !== 'undefined'
-        });
-
         if (addStepModal) {
-            console.log('🔍 [调试] 设置添加步骤模态框事件监听器');
             // 先解绑旧事件，避免重复绑定
             $(addStepModal).off('hidden.bs.modal');
             $(addStepModal).on('hidden.bs.modal', () => {
@@ -1706,7 +1602,6 @@ class ApprovalConfigManager {
             // 添加显示事件监听
             $(addStepModal).off('shown.bs.modal');
             $(addStepModal).on('shown.bs.modal', () => {
-                console.log('🔍 [调试] 添加步骤模态框已显示');
             });
         }
 
@@ -1719,7 +1614,6 @@ class ApprovalConfigManager {
             });
         }
 
-        console.log('🔍 [调试] 模态框事件监听器设置完成');
     }
 
     /**
@@ -1728,24 +1622,11 @@ class ApprovalConfigManager {
     handleApproverSelection(event) {
         const select = event.target;
         const value = select.value;
-        
-        // 调试信息：记录审批人选择触发
-        console.log('🔍 [调试] handleApproverSelection 触发:', {
-            selectId: select.id,
-            selectName: select.name,
-            selectedValue: value,
-            event: event
-        });
-        
+
         // 确定是添加还是编辑模式
         const isEditMode = select.id.includes('edit_');
         const infoSectionId = isEditMode ? 'edit_next_level_info_section' : 'next_level_info_section';
-        
-        console.log('🔍 [调试] 模式检测:', {
-            isEditMode: isEditMode,
-            infoSectionId: infoSectionId
-        });
-        
+
         // 显示/隐藏上级领导说明
         const infoSection = document.getElementById(infoSectionId);
         if (infoSection) {
@@ -1753,9 +1634,7 @@ class ApprovalConfigManager {
         }
 
         // 更新隐藏字段
-        console.log('🔍 [调试] 即将调用 updateHiddenApproverFields');
         this.updateHiddenApproverFields(select.closest('.modal, form'), value, isEditMode);
-        console.log('🔍 [调试] handleApproverSelection 完成');
     }
 
     /**
@@ -1920,42 +1799,21 @@ class ApprovalConfigManager {
      * 处理分支字段选择变化
      */
     handleBranchFieldChange(event) {
-        console.log('🔍 [调试] handleBranchFieldChange 开始:', {
-            event: event,
-            target: event.target,
-            targetId: event.target.id,
-            targetValue: event.target.value
-        });
-
         const select = event.target;
         const fieldName = select.value;
         const modal = select.closest('.modal');
-        
-        console.log('🔍 [调试] 字段选择详情:', {
-            fieldName: fieldName,
-            selectElement: select,
-            modalElement: modal,
-            modalId: modal ? modal.id : 'null'
-        });
 
         try {
             // 根据字段类型更新操作符选项
-            console.log('🔍 [调试] 开始更新操作符选项...');
             this.updateOperatorOptions(modal, fieldName);
             console.log('✅ [调试] 操作符选项更新完成');
             
             // 清空值输入框
             const fieldSelect = event.target;
             const prefix = fieldSelect.id.includes('edit_') ? 'edit_' : '';
-            console.log('🔍 [调试] 字段前缀:', prefix);
-            
+
             const valueInput = modal.querySelector(`#${prefix}branch_value`);
-            console.log('🔍 [调试] 值输入框:', {
-                selector: `#${prefix}branch_value`,
-                element: valueInput,
-                currentValue: valueInput ? valueInput.value : 'null'
-            });
-            
+
             if (valueInput) {
                 valueInput.value = '';
                 console.log('✅ [调试] 值输入框已清空');
@@ -1993,31 +1851,12 @@ class ApprovalConfigManager {
      * 更新操作符选项
      */
     updateOperatorOptions(modal, fieldName) {
-        console.log('🔍 [调试] updateOperatorOptions 开始:', {
-            fieldName: fieldName,
-            modal: modal,
-            timestamp: new Date().toLocaleTimeString()
-        });
-
         const fieldSelect = modal.querySelector('#branch_field, #edit_branch_field');
-        console.log('🔍 [调试] 字段选择器查找结果:', {
-            fieldSelect: fieldSelect,
-            fieldSelectId: fieldSelect ? fieldSelect.id : null
-        });
 
         const prefix = fieldSelect && fieldSelect.id.includes('edit_') ? 'edit_' : '';
-        console.log('🔍 [调试] 确定前缀:', {
-            prefix: prefix,
-            isEditMode: fieldSelect ? fieldSelect.id.includes('edit_') : false
-        });
 
         const operatorSelectId = `#${prefix}branch_operator`;
         const operatorSelect = modal.querySelector(operatorSelectId);
-        console.log('🔍 [调试] 操作符选择器查找结果:', {
-            operatorSelectId: operatorSelectId,
-            operatorSelect: operatorSelect,
-            operatorSelectExists: !!operatorSelect
-        });
 
         if (!operatorSelect) {
             console.error('❌ [调试] 操作符选择器未找到');
@@ -2043,7 +1882,6 @@ class ApprovalConfigManager {
                 ['greater_equal', '大于等于'],
                 ['less_equal', '小于等于']
             ];
-            console.log('🔍 [调试] 识别为数值字段');
         } else if (fieldName === 'project_type' || fieldName === 'status' || fieldName === 'approval_status' || 
                    fieldName === 'currency' || fieldName === 'project_stage' || fieldName === 'expense_category' ||
                    fieldName === 'brand' || fieldName === 'unit') {
@@ -2055,7 +1893,6 @@ class ApprovalConfigManager {
                 ['not_in_list', '不属于'],
                 ['from_field_list', '从字段列表选择']
             ];
-            console.log('🔍 [调试] 识别为枚举字段 (project_type等)');
         } else if (fieldName === 'created_at' || fieldName === 'updated_at' || fieldName === 'expense_date') {
             // 日期字段
             operators = [
@@ -2066,7 +1903,6 @@ class ApprovalConfigManager {
                 ['greater_equal', '不早于'],
                 ['less_equal', '不晚于']
             ];
-            console.log('🔍 [调试] 识别为日期字段');
         } else {
             // 文本字段
             operators = [
@@ -2078,14 +1914,8 @@ class ApprovalConfigManager {
                 ['ends_with', '以...结尾'],
                 ['from_field_list', '从字段列表选择']
             ];
-            console.log('🔍 [调试] 识别为文本字段');
         }
-        
-        console.log('🔍 [调试] 可用操作符列表:', {
-            operators: operators,
-            operatorCount: operators.length
-        });
-        
+
         // 添加选项
         operators.forEach(([value, text]) => {
             const option = document.createElement('option');
@@ -2165,14 +1995,12 @@ class ApprovalConfigManager {
         // 获取选中的复选框
         const fieldValuesContainer = document.querySelector(`#${prefix}field_values_container`);
         if (!fieldValuesContainer) {
-            console.log('🔍 determineOperatorBySelection: 未找到字段值容器');
             return 'equals'; // 默认精确匹配
         }
         
         const checkedBoxes = fieldValuesContainer.querySelectorAll('input[type="checkbox"]:checked');
         const selectedCount = checkedBoxes.length;
         
-        console.log('🔍 determineOperatorBySelection: 选中数量 =', selectedCount);
         
         if (selectedCount === 1) {
             console.log('✅ 单选 → 使用 equals 操作符');
@@ -2198,7 +2026,6 @@ class ApprovalConfigManager {
         const checkedBoxes = fieldValuesContainer.querySelectorAll('input[type="checkbox"]:checked');
         const selectedValues = Array.from(checkedBoxes).map(checkbox => checkbox.value);
         
-        console.log('🔍 getSelectedFieldValues: 选中的值 =', selectedValues);
         return selectedValues;
     }
 
@@ -2208,13 +2035,11 @@ class ApprovalConfigManager {
     setCheckboxSelection(selectedValues, prefix = '') {
         const fieldValuesContainer = document.querySelector(`#${prefix}field_values_container`);
         if (!fieldValuesContainer) {
-            console.log('🔍 setCheckboxSelection: 未找到字段值容器');
             return;
         }
         
         // 确保selectedValues是数组
         const valuesArray = Array.isArray(selectedValues) ? selectedValues : [selectedValues];
-        console.log('🔍 setCheckboxSelection: 要选中的值 =', valuesArray);
         
         // 清除所有选中状态
         const allCheckboxes = fieldValuesContainer.querySelectorAll('input[type="checkbox"]');
@@ -2237,7 +2062,6 @@ class ApprovalConfigManager {
         const hiddenInput = document.querySelector(`#${prefix}branch_value`);
         if (hiddenInput) {
             hiddenInput.value = valuesArray.join(',');
-            console.log('🔍 setCheckboxSelection: 更新隐藏字段值 =', hiddenInput.value);
         }
     }
 
@@ -2246,15 +2070,9 @@ class ApprovalConfigManager {
      */
     loadEditConditionValues(conditionData, prefix = '') {
         if (!conditionData.value) {
-            console.log('🔍 loadEditConditionValues: 无值需要回显');
             return;
         }
-        
-        console.log('🔍 loadEditConditionValues: 开始回显', {
-            operator: conditionData.operator,
-            value: conditionData.value
-        });
-        
+
         // 等待复选框加载完成
         setTimeout(() => {
             if (conditionData.operator === 'equals') {
@@ -2276,16 +2094,7 @@ class ApprovalConfigManager {
      * 加载字段值选项（用于从字段列表选择）
      */
     loadFieldValues(prefix = '') {
-        console.log('🔍 [调试] loadFieldValues 开始:', {
-            prefix: prefix,
-            timestamp: new Date().toLocaleTimeString()
-        });
-
         const modal = document.querySelector('.modal.show') || document.querySelector('.modal');
-        console.log('🔍 [调试] 查找模态框:', {
-            modal: modal,
-            modalClassList: modal ? Array.from(modal.classList) : null
-        });
 
         if (!modal) {
             console.warn('⚠️ [调试] 未找到打开的模态框');
@@ -2294,14 +2103,7 @@ class ApprovalConfigManager {
         
         const fieldSelect = modal.querySelector(`#${prefix}branch_field`);
         const fieldName = fieldSelect ? fieldSelect.value : '';
-        
-        console.log('🔍 [调试] 字段选择元素状态:', {
-            fieldSelectId: `#${prefix}branch_field`,
-            fieldSelect: fieldSelect,
-            fieldName: fieldName,
-            fieldSelectValue: fieldSelect ? fieldSelect.value : 'N/A'
-        });
-        
+
         if (!fieldName) {
             console.warn('⚠️ [调试] 字段名为空，显示错误消息');
             this.showFieldValuesError(prefix, '请先选择条件字段');
@@ -2309,11 +2111,6 @@ class ApprovalConfigManager {
         }
         
         const container = modal.querySelector(`#${prefix}field_values_container`);
-        console.log('🔍 [调试] 字段值容器:', {
-            containerId: `#${prefix}field_values_container`,
-            container: container,
-            containerExists: !!container
-        });
 
         if (!container) {
             console.warn('⚠️ [调试] 字段值容器未找到');
@@ -2331,13 +2128,7 @@ class ApprovalConfigManager {
         // 获取模板信息
         const templateIdInput = modal.querySelector('input[name="template_id"]');
         const templateId = templateIdInput ? templateIdInput.value : '';
-        
-        console.log('🔍 [调试] 模板信息:', {
-            templateIdInput: templateIdInput,
-            templateId: templateId,
-            templateInputExists: !!templateIdInput
-        });
-        
+
         if (!templateId) {
             console.warn('⚠️ [调试] 模板ID为空');
             this.showFieldValuesError(prefix, '无法获取模板信息');
@@ -2345,13 +2136,7 @@ class ApprovalConfigManager {
         }
         
         const apiUrl = `/admin/approval/field-values?template_id=${templateId}&field_name=${fieldName}`;
-        console.log('🔍 [调试] 准备发起API请求 (使用成熟的字段值获取API):', {
-            url: apiUrl,
-            templateId: templateId,
-            fieldName: fieldName,
-            note: '复用现有的成熟API，已支持project_type等枚举字段'
-        });
-        
+
         // 调用API获取字段值（使用成熟的字段值获取API）
         fetch(apiUrl, {
             method: 'GET',
@@ -2361,22 +2146,9 @@ class ApprovalConfigManager {
             }
         })
         .then(response => {
-            console.log('🔍 [调试] API响应状态:', {
-                status: response.status,
-                statusText: response.statusText,
-                ok: response.ok
-            });
             return response.json();
         })
         .then(data => {
-            console.log('🔍 [调试] API响应数据:', {
-                data: data,
-                success: data.success,
-                values: data.values,
-                valuesLength: data.values ? data.values.length : 0,
-                message: data.message
-            });
-
             if (data.success && data.values) {
                 console.log('✅ [调试] API请求成功，准备渲染字段值');
                 this.renderFieldValuesCheckboxes(prefix, data.values, fieldName);
@@ -2399,20 +2171,7 @@ class ApprovalConfigManager {
      * 渲染字段值复选框
      */
     renderFieldValuesCheckboxes(prefix, values, fieldName) {
-        console.log('🔍 [调试] renderFieldValuesCheckboxes 开始:', {
-            prefix: prefix,
-            values: values,
-            fieldName: fieldName,
-            valuesType: typeof values,
-            valuesLength: values ? values.length : 0
-        });
-
         const container = document.querySelector(`#${prefix}field_values_container`);
-        console.log('🔍 [调试] 渲染容器状态:', {
-            containerId: `#${prefix}field_values_container`,
-            container: container,
-            containerExists: !!container
-        });
 
         if (!container) {
             console.error('❌ [调试] 渲染容器未找到');
@@ -2430,7 +2189,6 @@ class ApprovalConfigManager {
         }
         
         let html = ``;
-        console.log('🔍 [调试] 开始生成复选框HTML...');
         
         values.forEach((value, index) => {
             const checkboxId = `${prefix}field_value_${index}`;
@@ -2448,8 +2206,6 @@ class ApprovalConfigManager {
             `;
         });
         
-        console.log('🔍 [调试] 生成的HTML长度:', html.length);
-        console.log('🔍 [调试] 准备设置容器HTML内容...');
         
         container.innerHTML = html;
         
@@ -2463,17 +2219,7 @@ class ApprovalConfigManager {
      * 显示字段值加载错误
      */
     showFieldValuesError(prefix, message) {
-        console.log('🔍 [调试] showFieldValuesError 调用:', {
-            prefix: prefix,
-            message: message
-        });
-
         const container = document.querySelector(`#${prefix}field_values_container`);
-        console.log('🔍 [调试] 错误显示容器:', {
-            containerId: `#${prefix}field_values_container`,
-            container: container,
-            containerExists: !!container
-        });
 
         if (container) {
             container.innerHTML = `
@@ -2491,39 +2237,14 @@ class ApprovalConfigManager {
      * 更新选中的字段值
      */
     updateSelectedFieldValues(prefix) {
-        console.log('🔍 [调试] updateSelectedFieldValues 开始:', {
-            prefix: prefix,
-            timestamp: new Date().toLocaleTimeString()
-        });
-
         const checkboxesSelector = `#${prefix}field_values_container .field-value-checkbox:checked`;
-        console.log('🔍 [调试] 复选框选择器:', checkboxesSelector);
 
         const checkboxes = document.querySelectorAll(checkboxesSelector);
-        console.log('🔍 [调试] 选中的复选框:', {
-            selector: checkboxesSelector,
-            checkboxes: checkboxes,
-            checkboxCount: checkboxes.length,
-            checkboxList: Array.from(checkboxes).map(cb => ({
-                id: cb.id,
-                value: cb.value,
-                checked: cb.checked
-            }))
-        });
 
         const selectedValues = Array.from(checkboxes).map(cb => cb.value);
-        console.log('🔍 [调试] 提取的选中值:', {
-            selectedValues: selectedValues,
-            valuesCount: selectedValues.length
-        });
-        
+
         const hiddenInputSelector = `#${prefix}branch_value`;
         const hiddenInput = document.querySelector(hiddenInputSelector);
-        console.log('🔍 [调试] 隐藏输入字段:', {
-            selector: hiddenInputSelector,
-            hiddenInput: hiddenInput,
-            hiddenInputExists: !!hiddenInput
-        });
 
         if (hiddenInput) {
             const joinedValue = selectedValues.join(',');
@@ -2570,28 +2291,11 @@ class ApprovalConfigManager {
      * 添加字段徽章（添加步骤）
      */
     addFieldBadge() {
-        // 🔍 [对比调试] 添加模式 - 字段徽章添加开始
-        console.log('🔍 [对比调试] 添加模式字段徽章添加:', {
-            函数: 'addFieldBadge()',
-            模式: '添加步骤',
-            时间: new Date().toISOString()
-        });
-        
         // 支持新版组件化模态框的ID
         const selector = document.getElementById('editable_fields_select') || document.getElementById('field_selector');
         const container = document.getElementById('selected_fields') || document.getElementById('selected_fields_container');
         const hiddenInput = document.getElementById('editable_fields_input');
-        
-        // 🔍 [对比调试] 添加模式 - DOM元素状态
-        console.log('🔍 [对比调试] 添加模式DOM检查:', {
-            选择器存在: !!selector,
-            选择器ID: selector ? selector.id : null,
-            选择器选项数量: selector ? selector.options.length : 0,
-            容器存在: !!container,
-            隐藏输入存在: !!hiddenInput,
-            选择器当前值: selector ? selector.value : null
-        });
-        
+
         if (!selector || !selector.value) return;
         
         const fieldCode = selector.value;
@@ -2628,14 +2332,6 @@ class ApprovalConfigManager {
         // 更新隐藏字段
         if (hiddenInput) {
             hiddenInput.value = JSON.stringify(this.selectedFields);
-            
-            // 🔍 调试：记录字段添加操作
-            console.log('🔍 [添加字段] 已添加字段:', {
-                fieldCode: fieldCode,
-                fieldName: fieldName,
-                currentFields: [...this.selectedFields],
-                hiddenInputValue: hiddenInput.value
-            });
         }
         
         // 重置选择器
@@ -2674,35 +2370,11 @@ class ApprovalConfigManager {
      * 添加字段徽章（编辑步骤）
      */
     addEditFieldBadge() {
-        // 🔍 [对比调试] 编辑模式 - 字段徽章添加开始
-        console.log('🔍 [对比调试] 编辑模式字段徽章添加:', {
-            函数: 'addEditFieldBadge()',
-            模式: '编辑步骤',
-            时间: new Date().toISOString()
-        });
-        
         // 支持新版组件化模态框的ID
         const selector = document.getElementById('edit_editable_fields_select') || document.getElementById('edit_field_selector');
         const container = document.getElementById('edit_selected_fields') || document.getElementById('edit_selected_fields_container');
         const hiddenInput = document.getElementById('edit_editable_fields_input');
-        
-        // 🔍 [对比调试] 编辑模式 - DOM元素状态
-        const allOptions = selector ? Array.from(selector.options || []) : [];
-        console.log('🔍 [对比调试] 编辑模式DOM检查:', {
-            选择器存在: !!selector,
-            选择器ID: selector ? selector.id : null,
-            选择器选项数量: selector ? selector.options.length : 0,
-            所有选项详情: allOptions.map(opt => ({
-                value: opt.value,
-                text: opt.textContent,
-                group: opt.getAttribute('data-group')
-            })),
-            容器存在: !!container,
-            隐藏输入存在: !!hiddenInput,
-            选择器当前值: selector ? selector.value : null,
-            当前已选字段: [...(this.editSelectedFields || [])]
-        });
-        
+
         if (!selector || !selector.value) return;
         
         const fieldCode = selector.value;
@@ -2739,14 +2411,6 @@ class ApprovalConfigManager {
         // 更新隐藏字段
         if (hiddenInput) {
             hiddenInput.value = JSON.stringify(this.editSelectedFields);
-            
-            // 🔍 调试：记录编辑字段添加操作
-            console.log('🔍 [编辑-添加字段] 已添加字段:', {
-                fieldCode: fieldCode,
-                fieldName: fieldName,
-                currentFields: [...this.editSelectedFields],
-                hiddenInputValue: hiddenInput.value
-            });
         }
         
         // 重置选择器
@@ -2793,27 +2457,7 @@ class ApprovalConfigManager {
         const modalElement = document.getElementById('editStepModal');
         const allHiddenInputsInModal = modalElement ? modalElement.querySelectorAll('input[type="hidden"]') : [];
         const debugComment = modalElement ? modalElement.innerHTML.includes('DEBUG: is_edit=') : false;
-        
-        console.log('🔍 [DOM调试] populateEditableFields DOM元素检查:', {
-            isEdit: isEdit,
-            selectorId: isEdit ? 'edit_editable_fields_select' : 'editable_fields_select',
-            containerId: isEdit ? 'edit_selected_fields' : 'selected_fields',
-            hiddenInputId: isEdit ? 'edit_editable_fields_input' : 'editable_fields_input',
-            hasSelector: !!selector,
-            hasContainer: !!container,
-            hasHiddenInput: !!hiddenInput,
-            // 🔍 新增：模态框完整性检查
-            modalExists: !!modalElement,
-            modalVisible: modalElement ? modalElement.offsetParent !== null : false,
-            modalDisplay: modalElement ? modalElement.style.display : 'unknown',
-            modalClasses: modalElement ? modalElement.className : 'unknown',
-            allHiddenInputsCount: allHiddenInputsInModal.length,
-            allHiddenInputsIds: Array.from(allHiddenInputsInModal).map(input => input.id),
-            // 🔍 详细查找特定ID
-            directQueryResult: !!document.querySelector('#edit_editable_fields_input'),
-            querySelectorAllResult: document.querySelectorAll('input[id="edit_editable_fields_input"]').length
-        });
-        
+
         if (!selector || !container || !hiddenInput) {
             console.error('❌ populateEditableFields: 缺少必要的DOM元素，详细检查:', {
                 selector_exists: !!selector,
@@ -2886,18 +2530,6 @@ class ApprovalConfigManager {
             }
         }
         
-        // 🔍 [DOM调试] 记录下拉框中所有可用的选项
-        const allOptions = Array.from(selector.options || []);
-        console.log('🔍 [DOM调试] 下拉框中所有可用选项:', {
-            totalOptions: allOptions.length,
-            options: allOptions.map(option => ({
-                value: option.value,
-                text: option.textContent,
-                group: option.getAttribute('data-group'),
-                parentLabel: option.parentElement.label || 'no-group'
-            }))
-        });
-        
         // 数据验证和清理
         let cleanFieldCodes = [];
         if (Array.isArray(fieldCodes)) {
@@ -2920,13 +2552,7 @@ class ApprovalConfigManager {
             console.error('❌ 无效的字段代码格式:', fieldCodes);
             return;
         }
-        
-        console.log('🔍 [调试] populateEditableFields 处理字段:', {
-            original: fieldCodes,
-            cleaned: cleanFieldCodes,
-            isEdit: isEdit
-        });
-        
+
         // 清空容器并重置数组
         container.innerHTML = '';
         if (isEdit) {
@@ -2937,50 +2563,18 @@ class ApprovalConfigManager {
         
         // 为每个字段代码创建徽章
         cleanFieldCodes.forEach((fieldCode, index) => {
-            // 🔍 [字段调试] 开始处理单个字段代码
-            console.log(`🔍 [字段调试] 处理字段 ${index + 1}/${cleanFieldCodes.length}:`, {
-                fieldCode: fieldCode,
-                type: typeof fieldCode,
-                length: fieldCode.length
-            });
-            
             // 使用更安全的选择器查询方式
             try {
                 // 转义特殊字符以防止CSS选择器错误
                 const escapedFieldCode = CSS.escape(fieldCode);
                 const selectorString = `option[value="${escapedFieldCode}"]`;
-                
-                // 🔍 [字段调试] 记录查找过程
-                console.log(`🔍 [字段调试] 查找选项元素:`, {
-                    原始字段代码: fieldCode,
-                    转义后字段代码: escapedFieldCode,
-                    CSS选择器: selectorString,
-                    下拉框元素: !!selector
-                });
-                
+
                 const option = selector.querySelector(selectorString);
-                
-                // 🔍 [字段调试] 记录查找结果
-                console.log(`🔍 [字段调试] 选项查找结果:`, {
-                    fieldCode: fieldCode,
-                    找到选项: !!option,
-                    选项文本: option ? option.textContent : null,
-                    选项值: option ? option.value : null,
-                    选项分组: option ? option.getAttribute('data-group') : null
-                });
-                
+
                 if (option) {
                     const fieldName = option.textContent;
                     const group = option.getAttribute('data-group') || 'master';
-                    
-                    // 🔍 [字段调试] 成功找到字段选项
-                    console.log(`🔍 [字段调试] 成功创建字段徽章:`, {
-                        fieldCode: fieldCode,
-                        fieldName: fieldName,
-                        group: group,
-                        isEdit: isEdit
-                    });
-                    
+
                     // 添加到数组
                     if (isEdit) {
                         this.editSelectedFields.push(fieldCode);
@@ -3008,32 +2602,11 @@ class ApprovalConfigManager {
                 console.error('❌ 处理字段代码时出错:', fieldCode, e);
             }
         });
-        
-        // 🔍 [字段调试] 最终结果汇总
+
         const finalSelectedFields = isEdit ? this.editSelectedFields : this.selectedFields;
-        console.log('🔍 [字段调试] 字段填充完成汇总:', {
-            isEdit: isEdit,
-            原始字段: fieldCodes,
-            清理后字段: cleanFieldCodes,
-            成功加载字段: finalSelectedFields,
-            成功率: `${finalSelectedFields.length}/${cleanFieldCodes.length}`,
-            隐藏字段值: JSON.stringify(finalSelectedFields)
-        });
-        
+
         // 更新隐藏字段
         hiddenInput.value = JSON.stringify(finalSelectedFields);
-        
-        // 🔍 [字段调试] 验证隐藏输入字段值设置
-        console.log('🔍 [字段调试] 隐藏输入字段验证:', {
-            hiddenInput_element: hiddenInput,
-            hiddenInput_id: hiddenInput.id,
-            hiddenInput_name: hiddenInput.name,
-            设置前的值: hiddenInput.getAttribute('value'),
-            设置后的值: hiddenInput.value,
-            设置后的getAttribute: hiddenInput.getAttribute('value'),
-            DOM中实际值: document.getElementById(hiddenInput.id)?.value,
-            字段数组长度: finalSelectedFields.length
-        });
     }
 
     /**
@@ -3043,19 +2616,7 @@ class ApprovalConfigManager {
         console.log('🔧 [模态框后调试] 开始在模态框显示后填充可编辑字段');
         
         if (stepData.editable_fields && Array.isArray(stepData.editable_fields) && stepData.editable_fields.length > 0) {
-            // 🔍 [DOM调试] 模态框显示后的状态检查
-            console.log('🔍 [模态框后调试] 模态框显示后的DOM状态:', {
-                字段数据: stepData.editable_fields,
-                字段数量: stepData.editable_fields.length,
-                模态框完全显示: true,
-                DOM状态: {
-                    字段选择器存在: !!document.getElementById('edit_editable_fields_select'),
-                    字段容器存在: !!document.getElementById('edit_selected_fields'),
-                    隐藏输入存在: !!document.getElementById('edit_editable_fields_input')
-                },
-                当前时间: new Date().toISOString()
-            });
-            
+
             // 在模态框完全显示后调用
             this.populateEditableFields(stepData.editable_fields, true);
             console.log('✅ [模态框后调试] 模态框显示后字段填充完成');
@@ -3298,63 +2859,29 @@ class ApprovalConfigManager {
         const approverIdField = container.querySelector(`#${prefix}approver_id`) || 
                                container.querySelector('[name="approver_id"]');
 
-        // 调试信息：记录映射过程
-        console.log('🔍 [调试] updateHiddenApproverFields 开始:', {
-            value: value,
-            isEditMode: isEditMode,
-            prefix: prefix,
-            container: container,
-            containerId: container ? container.id : 'no container',
-            approverTypeField: approverTypeField,
-            approverIdField: approverIdField,
-            approverTypeFieldFound: !!approverTypeField,
-            approverIdFieldFound: !!approverIdField
-        });
-
         // 详细调试：查找字段的过程
-        console.log('🔍 [调试] 字段查找详情:');
         console.log('  查找ID:', `#${prefix}approver_type`, '结果:', container.querySelector(`#${prefix}approver_type`));
         console.log('  查找name:', '[name="approver_type"]', '结果:', container.querySelector('[name="approver_type"]'));
         console.log('  查找ID:', `#${prefix}approver_id`, '结果:', container.querySelector(`#${prefix}approver_id`));
         console.log('  查找name:', '[name="approver_id"]', '结果:', container.querySelector('[name="approver_id"]'));
         
-        // 检查容器内所有input元素
-        const allInputs = container.querySelectorAll('input');
-        console.log('🔍 [调试] 容器内所有input元素:', Array.from(allInputs).map(input => ({
-            id: input.id,
-            name: input.name,
-            type: input.type,
-            value: input.value
-        })));
-
         if (value === 'next_level') {
             if (approverTypeField) {
                 approverTypeField.value = 'next_level';
-                console.log('🔍 [调试] 设置 approver_type = next_level');
             }
             if (approverIdField) {
                 approverIdField.value = '';
-                console.log('🔍 [调试] 设置 approver_id = ""');
             }
         } else if (value.startsWith('user_')) {
             const userId = value.replace('user_', '');
-            console.log('🔍 [调试] 解析用户ID:', userId);
             
             if (approverTypeField) {
                 approverTypeField.value = 'user';
-                console.log('🔍 [调试] 设置 approver_type = user');
             }
             if (approverIdField) {
                 approverIdField.value = userId;
-                console.log('🔍 [调试] 设置 approver_id =', userId);
             }
         }
-
-        // 调试信息：记录映射结果
-        console.log('🔍 [调试] updateHiddenApproverFields 完成:', {
-            approver_type_final: approverTypeField ? approverTypeField.value : 'field not found',
-            approver_id_final: approverIdField ? approverIdField.value : 'field not found'
-        });
     }
 
     /**
@@ -3374,23 +2901,12 @@ class ApprovalConfigManager {
      * 重置添加步骤模态框
      */
     resetAddStepModal() {
-        console.log('🔍 [调试] 重置添加步骤模态框 - 开始');
         
         const modal = document.getElementById('addStepModal');
         if (!modal) {
             console.warn('⚠️ 找不到添加步骤模态框');
             return;
         }
-
-        console.log('🔍 [调试] 重置前模态框状态:', {
-            exists: !!modal,
-            display: modal.style.display,
-            classes: modal.className,
-            formElementsCount: modal.querySelectorAll('input, select, textarea').length,
-            selectedFieldsArrayLength: this.selectedFields.length,
-            branchConfigVisible: modal.querySelector('#branchConfigSection')?.style.display,
-            ccSectionVisible: modal.querySelector('#ccUsersSection')?.style.display
-        });
 
         // 重置基本表单字段
         const form = modal.querySelector('form');
@@ -3479,18 +2995,6 @@ class ApprovalConfigManager {
         if (ccUsersSelect) {
             ccUsersSelect.selectedIndex = -1; // 清空所有选择
         }
-
-        console.log('🔍 [调试] 重置后模态框状态:', {
-            display: modal.style.display,
-            classes: modal.className,
-            selectedFieldsArrayLength: this.selectedFields.length,
-            branchConfigVisible: modal.querySelector('#branchConfigSection')?.style.display,
-            ccSectionVisible: modal.querySelector('#ccUsersSection')?.style.display,
-            stepTypeValue: modal.querySelector('#step_type')?.value,
-            approverSelectionValue: modal.querySelector('#approver_selection')?.value
-        });
-
-        console.log('🔍 [调试] 重置添加步骤模态框 - 完成');
     }
 
     /**
@@ -3504,20 +3008,6 @@ class ApprovalConfigManager {
             console.warn('⚠️ [编辑调试] 找不到编辑步骤模态框');
             return;
         }
-
-        // 详细记录重置前状态
-        const editableFieldsInput = modal.querySelector('#edit_editable_fields_input');
-        console.log('🔍 [编辑调试] 重置前编辑模态框状态:', {
-            exists: !!modal,
-            display: modal.style.display,
-            classes: modal.className,
-            formElementsCount: modal.querySelectorAll('input, select, textarea').length,
-            editSelectedFieldsArrayLength: this.editSelectedFields?.length || 0,
-            editSelectedFieldsArray: [...(this.editSelectedFields || [])],
-            hiddenInputValue: editableFieldsInput?.value || '',
-            branchConfigVisible: modal.querySelector('#edit_branchConfigSection')?.style.display,
-            ccSectionVisible: modal.querySelector('#edit_ccUsersSection')?.style.display
-        });
 
         // 重置基本表单字段
         const form = modal.querySelector('form');
@@ -3624,15 +3114,6 @@ class ApprovalConfigManager {
         }
 
         console.log('✅ 编辑步骤模态框已完全重置（复用完善的重置逻辑）');
-        
-        console.log('🔍 [调试] 重置后编辑模态框状态:', {
-            display: modal.style.display,
-            classes: modal.className,
-            editSelectedFieldsArrayLength: this.editSelectedFields.length,
-            branchConfigVisible: modal.querySelector('#edit_branchConfigSection')?.style.display,
-            ccSectionVisible: modal.querySelector('#edit_ccUsersSection')?.style.display,
-            fieldValuesContent: modal.querySelector('#edit_field_values_container')?.innerHTML.substring(0, 50) + '...'
-        });
     }
 
     /**
@@ -3657,7 +3138,6 @@ class ApprovalConfigManager {
             
             const data = await response.json();
             
-            console.log('🔍 [调试] 条件验证结果:', data);
             return data;
             
         } catch (error) {
@@ -3728,7 +3208,6 @@ class ApprovalConfigManager {
      * @param {HTMLFormElement} form - 表单元素
      */
     async preSubmitValidation(form) {
-        console.log('🔍 [调试] 开始预提交验证');
         
         // 检查是否是分支条件相关的表单
         const isBranchForm = form.querySelector('#edit_is_branch_condition')?.value === 'true' ||
@@ -3902,12 +3381,6 @@ window.loadFieldValues = function(prefix = '') {
 
 // 全局更新选中字段值函数
 window.updateSelectedFieldValues = function(prefix) {
-    console.log('🔍 [调试] 全局 updateSelectedFieldValues 调用:', {
-        prefix: prefix,
-        approvalConfigExists: !!window.approvalConfig,
-        timestamp: new Date().toLocaleTimeString()
-    });
-
     if (window.approvalConfig) {
         console.log('✅ [调试] 调用类实例的 updateSelectedFieldValues 方法');
         window.approvalConfig.updateSelectedFieldValues(prefix);
@@ -3962,7 +3435,6 @@ function validateModalDOMStructure(isEdit) {
         return false;
     }
     
-    console.log(`🔍 [DOM验证] 开始验证 ${modalId} 结构完整性`);
     
     // 检查关键表单元素
     const formId = isEdit ? 'editStepForm' : 'addStepForm';

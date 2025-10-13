@@ -926,22 +926,22 @@ def create_expense():
             
             # 如果没有填写报销主题，则自动生成
             if not title:
-                # 获取当前用户账户
-                current_user_account = current_user.username if current_user else ''
-                
+                # 获取当前用户真实姓名
+                current_user_name = current_user.real_name if current_user else ''
+
                 # 生成时间戳 YYDDHHS（年年月月日日时时秒秒）
                 now = datetime.now()
                 time_str = now.strftime('%y%m%d%H%S')
-                
+
                 if no_customer_mode:
-                    # 不关联客户模式：不关联（报销说明前6个字）-账号-序号
+                    # 不关联客户模式：不关联（报销说明前6个字）-真实姓名-序号
                     description_prefix = description[:6] if description else '报销'
-                    title = f"不关联（{description_prefix}）-{current_user_account}-{time_str}"
+                    title = f"不关联（{description_prefix}）-{current_user_name}-{time_str}"
                 else:
-                    # 常规模式：客户名称-用户账户-YYDDHHS
+                    # 常规模式：客户名称-真实姓名-YYDDHHS
                     customer = Company.query.get(customer_id)
                     customer_name = customer.company_name if customer else '未知客户'
-                    title = f"{customer_name}-{current_user_account}-{time_str}"
+                    title = f"{customer_name}-{current_user_name}-{time_str}"
             
             # 创建报销单（主表）
             expense_obj = Expense(

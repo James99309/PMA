@@ -107,10 +107,10 @@
                     <div class="btn-group" role="group">
                         {{ render_button(_('返回列表'), url_for('quotation.list_quotations'), color='secondary') }}
                         {{ render_button(_('导出'), '#', color='auxiliary', type='button', onclick='showExportInfoModal("quotationExportModal")') }}
-                        {% if can_delete_this_quotation %}
+                        {% if can_delete_this_quotation and not quotation.is_locked %}
                             {{ render_button(_('删除'), color='danger', type='button', attrs='onclick="deleteQuotation(' ~ quotation.id ~ ')"') }}
                         {% endif %}
-                        {% if can_edit_this_quotation %}
+                        {% if can_edit_this_quotation and not quotation.is_locked %}
                             {{ render_button(_('编辑'), href=url_for('quotation.edit_quotation', id=quotation.id), color='primary') }}
                         {% endif %}
                     </div>

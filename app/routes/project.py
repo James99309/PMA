@@ -62,14 +62,10 @@ def edit_project(id):
             project.project_name = form_data.get('project_name')
             project.report_source = form_data.get('report_source')
             # 编辑时保留原始项目类型，不进行更新
-            # project.project_type = form_data.get('project_type') 
+            # project.project_type = form_data.get('project_type')
             project.product_situation = form_data.get('product_situation')
             project.current_stage = form_data.get('current_stage')
-            project.end_user = form_data.get('end_user')
-            project.design_issues = form_data.get('design_issues')
-            project.contractor = form_data.get('contractor')
-            project.system_integrator = form_data.get('system_integrator')
-            project.dealer = form_data.get('dealer')
+            # 旧的客户字段已废弃，使用 ProjectCustomerAssociation 关联表管理
             project.stage_description = form_data.get('stage_description')
             
             # 3. 处理特殊字段            

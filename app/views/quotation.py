@@ -2105,84 +2105,46 @@ def batch_delete_quotations():
 
 @quotation.route('/get_project_customers/<int:project_id>')
 def get_project_customers(project_id):
+    """从ProjectCustomerAssociation关联表获取项目的客户列表"""
     try:
         print(f"开始获取项目 {project_id} 的客户列表...")
-        
+
         # 获取项目
         project = Project.query.get_or_404(project_id)
         print(f"找到项目: {project.project_name}")
-        
-        # 获取与项目相关的公司
+
+        # 从ProjectCustomerAssociation关联表获取客户
+        from app.models.project_customer_association import ProjectCustomerAssociation
+
+        associations = ProjectCustomerAssociation.query.filter_by(project_id=project_id).all()
+
+        # 客户类型中英文映射
+        customer_type_labels = {
+            'end_user': '直接用户',
+            'design_issues': '设计院',
+            'contractor': '总承包单位',
+            'system_integrator': '系统集成商',
+            'dealer': '经销商'
+        }
+
+        # 构建客户列表
         companies = []
-        
-        # 添加直接用户公司（如果存在）
-        if project.end_user:
-            print(f"查找直接用户: {project.end_user}")
-            end_user_company = Company.query.filter_by(company_name=project.end_user, is_deleted=False).first()
-            if end_user_company:
+        company_ids = set()  # 用于去重
+
+        for assoc in associations:
+            company = Company.query.filter_by(id=assoc.company_id, is_deleted=False).first()
+            if company and company.id not in company_ids:
                 companies.append({
-                    'id': end_user_company.id,
-                    'name': end_user_company.company_name,
-                    'type': '直接用户'
+                    'id': company.id,
+                    'name': company.company_name,
+                    'type': customer_type_labels.get(assoc.customer_type, assoc.customer_type)
                 })
-        
-        # 添加设计院公司（如果存在）
-        if project.design_issues:
-            print(f"查找设计院: {project.design_issues}")
-            design_company = Company.query.filter_by(company_name=project.design_issues, is_deleted=False).first()
-            if design_company:
-                companies.append({
-                    'id': design_company.id,
-                    'name': design_company.company_name,
-                    'type': '设计院'
-                })
-        
-        # 添加总承包单位（如果存在）
-        if project.contractor:
-            print(f"查找总承包单位: {project.contractor}")
-            contractor_company = Company.query.filter_by(company_name=project.contractor, is_deleted=False).first()
-            if contractor_company:
-                companies.append({
-                    'id': contractor_company.id,
-                    'name': contractor_company.company_name,
-                    'type': '总承包单位'
-                })
-        
-        # 添加系统集成商（如果存在）
-        if project.system_integrator:
-            print(f"查找系统集成商: {project.system_integrator}")
-            si_company = Company.query.filter_by(company_name=project.system_integrator, is_deleted=False).first()
-            if si_company:
-                companies.append({
-                    'id': si_company.id,
-                    'name': si_company.company_name,
-                    'type': '系统集成商'
-                })
-        
-        # 添加经销商（如果存在）
-        if project.dealer:
-            print(f"查找经销商: {project.dealer}")
-            dealer_company = Company.query.filter_by(company_name=project.dealer, is_deleted=False).first()
-            if dealer_company:
-                companies.append({
-                    'id': dealer_company.id,
-                    'name': dealer_company.company_name,
-                    'type': '经销商'
-                })
-        
-        # 去除重复项
-        unique_companies = []
-        company_ids = set()
-        for company in companies:
-            if company['id'] not in company_ids:
-                unique_companies.append(company)
-                company_ids.add(company['id'])
-        
-        print(f"找到 {len(unique_companies)} 个唯一客户")
-        for company in unique_companies:
-            print(f"- {company['name']} ({company['type']})")
-        
-        return jsonify({'customers': unique_companies})
+                company_ids.add(company.id)
+                print(f"- {company.company_name} ({customer_type_labels.get(assoc.customer_type, assoc.customer_type)})")
+
+        print(f"找到 {len(companies)} 个唯一客户")
+
+        return jsonify({'customers': companies})
     except Exception as e:
         print(f"获取项目客户列表时出错: {str(e)}")
         import traceback

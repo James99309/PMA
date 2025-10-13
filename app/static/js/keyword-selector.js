@@ -189,14 +189,6 @@ class KeywordSelector {
                 ...this.config.filters
             });
             
-            // 调试信息
-            const requestUrl = `${this.config.searchEndpoint}?${params}`;
-            console.log('🔍 KeywordSelector 搜索请求:', {
-                endpoint: this.config.searchEndpoint,
-                params: Object.fromEntries(params),
-                fullUrl: requestUrl
-            });
-            
             // 执行搜索请求
             const controller = new AbortController();
             this.currentRequest = controller;

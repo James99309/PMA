@@ -234,24 +234,7 @@ def edit_pricing_order(order_id):
         
         # 分销商下拉框显示的也是经销商类型的公司（因为系统中没有单独的分销商类型）
         distributors = dealers
-        
-        # 获取项目关联的经销商客户
-        project_dealers = []
-        if pricing_order.project:
-            # 根据项目中的经销商字段查找对应的公司
-            if pricing_order.project.dealer:
-                dealer_company = get_viewable_data(Company, current_user, [
-                    Company.company_name == pricing_order.project.dealer,
-                    Company.company_type.in_(['经销商', 'dealer'])
-                ]).first()
-                if dealer_company:
-                    project_dealers.append(dealer_company)
-            
-            # 添加其他有权限查看的经销商
-            for dealer in dealers:
-                if dealer not in project_dealers:
-                    project_dealers.append(dealer)
-        
+
         # 获取当前审批步骤信息（V2统一审批系统）
         current_approval_step = None
         editable_fields = []
@@ -296,7 +279,6 @@ def edit_pricing_order(order_id):
                              can_edit_basic_info=can_edit_basic_info,
                              distributors=distributors,
                              dealers=dealers,
-                             project_dealers=project_dealers,
                              current_approval_record=current_approval_record,
                              current_approval_step=current_approval_step,
                              editable_fields=editable_fields,
@@ -699,37 +681,31 @@ def evaluate_branch_condition_for_display(branch_condition, pricing_order):
         conditions = branch_condition.get('conditions', [])
         default_branch = branch_condition.get('default_branch')
         
-        logger.info(f"🔍 [显示评估] 开始评估分支条件: field={field}, conditions={len(conditions)}个")
         
         # 获取对象字段值（实现特殊处理逻辑）
         field_value = None
         
         # 特殊处理：批价单的 project_type 字段
         if field == 'project_type' and hasattr(pricing_order, 'quotation'):
-            logger.info(f"🔍 [显示评估] 检测到批价单的 project_type 字段访问，尝试从报价单获取")
             if pricing_order.quotation and hasattr(pricing_order.quotation, 'project_type'):
                 field_value = pricing_order.quotation.project_type
-                logger.info(f"🔍 [显示评估] ✅ 批价单项目类型通过报价单获取: {field_value}")
             elif hasattr(pricing_order, 'project') and pricing_order.project and hasattr(pricing_order.project, 'project_type'):
                 # 后备方案：如果没有报价单，从关联项目获取
                 field_value = pricing_order.project.project_type
-                logger.info(f"🔍 [显示评估] ✅ 批价单项目类型通过关联项目获取: {field_value}")
             else:
-                logger.info(f"🔍 [显示评估] ❌ 批价单既没有关联报价单也没有关联项目的 project_type 字段")
+                pass
         
         # 通用字段获取
         if field_value is None:
             try:
                 # 支持点分隔的嵌套字段访问，如 project.project_type
                 if '.' in field:
-                    logger.info(f"🔍 [显示评估] 处理嵌套字段访问: {field}")
                     parts = field.split('.')
                     value = pricing_order
                     for part in parts:
                         if hasattr(value, part):
                             value = getattr(value, part)
                         else:
-                            logger.info(f"🔍 [显示评估] 字段路径中断: {part}")
                             value = None
                             break
                     field_value = value
@@ -738,18 +714,16 @@ def evaluate_branch_condition_for_display(branch_condition, pricing_order):
                     if hasattr(pricing_order, field):
                         field_value = getattr(pricing_order, field)
                     else:
-                        logger.info(f"🔍 [显示评估] 对象没有字段: {field}")
+                        pass
             except Exception as e:
                 logger.error(f"🔍 [显示评估] 获取字段值失败: field={field}, error={str(e)}")
         
-        logger.info(f"🔍 [显示评估] 获取字段值: field={field}, value={field_value}")
         
         # 查找匹配的条件
         for condition in conditions:
             condition_value = condition.get('value')
             operator = condition.get('operator', 'equals')
             
-            logger.info(f"🔍 [显示评估] 检查条件: operator={operator}, condition_value={condition_value}")
             
             # 实现条件评估逻辑
             match = False
@@ -777,14 +751,12 @@ def evaluate_branch_condition_for_display(branch_condition, pricing_order):
                     match = cond_str.lower() not in obj_str.lower()
                 # 可以根据需要添加更多操作符
             
-            logger.info(f"🔍 [显示评估] 条件匹配结果: {match}")
             
             if match:
                 approver_id = condition.get('approver_id')
                 if approver_id:
                     user = User.query.get(approver_id)
                     if user:
-                        logger.info(f"🔍 [显示评估] ✅ 匹配成功，确定审批人: {user.real_name} (ID: {approver_id})")
                         return {
                             'user_id': approver_id,
                             'username': user.username,
@@ -797,14 +769,12 @@ def evaluate_branch_condition_for_display(branch_condition, pricing_order):
             approver_id = default_branch.get('approver_id')
             user = User.query.get(approver_id)
             if user:
-                logger.info(f"🔍 [显示评估] 使用默认分支审批人: {user.real_name} (ID: {approver_id})")
                 return {
                     'user_id': approver_id,
                     'username': user.username,
                     'real_name': user.real_name
                 }
         
-        logger.info(f"🔍 [显示评估] ❌ 未能确定具体审批人")
         return None
         
     except Exception as e:
@@ -835,9 +805,9 @@ def get_pricing_order_approval_flow(order_id):
         
         # 🔍 调试：打印找到的审批实例信息
         if approval_instance:
-            logger.info(f"🔍 找到审批实例: id={approval_instance.id}, status={approval_instance.status}, process_id={approval_instance.process_id}, current_step={approval_instance.current_step}")
+            pass
         else:
-            logger.info(f"🔍 未找到审批实例，order_id={order_id}")
+            pass
         
         if not approval_instance:
             # 如果使用新系统但未找到实例，尝试检查旧系统
@@ -877,7 +847,6 @@ def get_pricing_order_approval_flow(order_id):
             # 从快照中获取步骤，转换为统一格式
             snapshot_steps = approval_instance.template_snapshot.get('steps', [])
             template_steps = []
-            logger.info(f"🔍 使用快照数据，共{len(snapshot_steps)}个步骤")
             for i, step in enumerate(snapshot_steps):
                 step_data = {
                     'id': step.get('step_id'),
@@ -889,8 +858,7 @@ def get_pricing_order_approval_flow(order_id):
                 template_steps.append(step_data)
                 # 🔍 调试：特别关注第一步
                 if i == 0:
-                    logger.info(f"🔍 快照第一步: step_name={step.get('step_name')}, approver_user_id={step.get('approver_user_id')}, approver_username={step.get('approver_username')}")
-                    logger.info(f"🔍 快照第一步原始数据: {step}")
+                    pass
         else:
             # 回退到实际模板
             from app.models.approval import ApprovalProcessTemplate
@@ -925,13 +893,11 @@ def get_pricing_order_approval_flow(order_id):
             }
             
             # 🔍 调试：打印步骤信息
-            logger.info(f"🔍 构建审批步骤: step_order={step['step_order']}, step_name={step['step_name']}, approver_user_id={step.get('approver_user_id')}")
             
             # 查找对应的审批记录
             step_record = next((r for r in approval_records if r.step_id == step['id']), None)
             if step_record:
                 # 🔍 调试：检查审批记录
-                logger.info(f"🔍 找到审批记录: step_id={step_record.step_id}, action={step_record.action}, approver_id={step_record.approver_id}")
                 
                 step_data.update({
                     'status': 'approved' if step_record.action == 'approve' else 'rejected' if step_record.action == 'reject' else 'pending',
@@ -958,7 +924,6 @@ def get_pricing_order_approval_flow(order_id):
                 if approver and not step_data['approver_name']:
                     step_data['approver_name'] = approver.real_name or approver.username
                     # 🔍 调试：打印审批人信息
-                    logger.info(f"🔍 设置审批人: approver_id={step_data['approver_id']}, username={approver.username}, real_name={approver.real_name}, final_name={step_data['approver_name']}")
             else:
                 # 对于分支决策等特殊步骤，尝试通过分支条件确定具体审批人
                 if step.get('action_type') == 'branch_decision':
@@ -970,7 +935,6 @@ def get_pricing_order_approval_flow(order_id):
                     
                     if snapshot_step and snapshot_step.get('branch_condition'):
                         try:
-                            logger.info(f"🔍 开始为分支决策步骤 {step['step_name']} 评估具体审批人")
                             # 调用分支条件评估逻辑确定审批人
                             determined_approver = evaluate_branch_condition_for_display(
                                 snapshot_step['branch_condition'], 
@@ -979,16 +943,13 @@ def get_pricing_order_approval_flow(order_id):
                             if determined_approver:
                                 step_data['approver_name'] = determined_approver['real_name']
                                 step_data['approver_id'] = determined_approver['user_id']
-                                logger.info(f"🔍 ✅ 分支决策步骤确定审批人: {determined_approver['real_name']} (ID: {determined_approver['user_id']})")
                             else:
                                 step_data['approver_name'] = '分支决策'
-                                logger.info(f"🔍 ❌ 无法确定分支决策步骤的具体审批人，显示'分支决策'")
                         except Exception as e:
                             logger.error(f"🔍 分支条件评估失败: {e}")
                             step_data['approver_name'] = '分支决策'
                     else:
                         step_data['approver_name'] = '分支决策'
-                        logger.info(f"🔍 无分支条件配置，显示'分支决策'")
             
             flow_data.append(step_data)
         
@@ -1009,13 +970,11 @@ def get_pricing_order_approval_flow(order_id):
         flow_status = pricing_order.status
         
         # 🔍 调试：打印状态比较信息
-        logger.info(f"🔍 状态比较: approval_instance.status={approval_instance.status}, str()={str(approval_instance.status)}, type={type(approval_instance.status)}")
         
         # 使用枚举值比较而不是字符串比较
         from app.models.approval import ApprovalStatus
         if approval_instance.status == ApprovalStatus.RECALLED:
             flow_status = 'recalled'
-            logger.info(f"🔍 检测到召回状态，设置flow_status=recalled")
         elif approval_instance.status == ApprovalStatus.APPROVED:
             flow_status = 'approved'
         elif approval_instance.status == ApprovalStatus.REJECTED:
@@ -1023,7 +982,6 @@ def get_pricing_order_approval_flow(order_id):
         elif approval_instance.status == ApprovalStatus.PENDING:
             flow_status = 'pending'
         
-        logger.info(f"🔍 最终flow_status={flow_status}")
         
         return jsonify({
             'success': True,
@@ -1184,10 +1142,14 @@ def add_product_to_pricing(order_id):
         
         db.session.add(pricing_detail)
         db.session.flush()
-        
+
+        # 获取关联的结算单
+        settlement_order = pricing_order.settlement_orders[0] if pricing_order.settlement_orders else None
+
         # 同时创建结算单明细
         settlement_detail = SettlementOrderDetail(
             pricing_order_id=order_id,
+            settlement_order_id=settlement_order.id if settlement_order else None,
             product_name=pricing_detail.product_name,
             product_model=pricing_detail.product_model,
             product_desc=pricing_detail.product_desc,
@@ -1408,10 +1370,14 @@ def save_pricing_details(order_id):
             pricing_detail.calculate_prices()
             db.session.add(pricing_detail)
             db.session.flush()  # 获取ID
-            
+
+            # 获取关联的结算单
+            settlement_order = pricing_order.settlement_orders[0] if pricing_order.settlement_orders else None
+
             # 同时创建结算单明细
             settlement_detail = SettlementOrderDetail(
                 pricing_order_id=order_id,
+                settlement_order_id=settlement_order.id if settlement_order else None,
                 product_name=pricing_detail.product_name,
                 product_model=pricing_detail.product_model,
                 product_desc=pricing_detail.product_desc,
@@ -1466,63 +1432,39 @@ def test_pricing():
 def save_all_pricing_data(order_id):
     """保存批价单所有数据（基本信息和明细）"""
     try:
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] ============= 开始保存批价单数据 =============")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] 批价单ID: {order_id}")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] 当前用户: {current_user.username} (ID: {current_user.id})")
         
         pricing_order = PricingOrder.query.get_or_404(order_id)
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] 批价单信息:")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 订单号: {pricing_order.order_number}")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 状态: {pricing_order.status}")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 创建者: {pricing_order.created_by}")
         
         # 记录当前项目阶段状态用于调试
         project_stage_before = pricing_order.project.current_stage if pricing_order.project else None
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] 项目阶段: {project_stage_before}")
         
         # 权限检查 - 使用统一的权限检查函数
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] 开始权限检查...")
         (can_edit_pricing, can_edit_settlement, is_approval_context,
          can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
         
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] 权限检查结果:")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 可编辑批价: {can_edit_pricing}")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 可编辑结算: {can_edit_settlement}")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 审批上下文: {is_approval_context}")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 可编辑数量: {can_edit_quantity}")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 可编辑折扣价格: {can_edit_discount_price}")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 可编辑基本信息: {can_edit_basic_info}")
         
         if not can_edit_pricing:
-            logger.info(f"🔥 [SAVE_ALL_DEBUG] ❌ 权限检查失败，返回错误")
             return jsonify({
                 'success': False,
                 'message': '您没有权限编辑该批价单'
             })
         
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] ✅ 权限检查通过，开始处理数据")
         
         # 获取请求数据
         data = request.get_json()
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] 接收到的完整数据:")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] {json.dumps(data, indent=2, ensure_ascii=False, default=str)}")
         basic_info = data.get('basic_info', {})
         pricing_details = data.get('pricing_details', [])
         settlement_details = data.get('settlement_details', [])
         
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] 数据结构分析:")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - basic_info 字段数量: {len(basic_info)}")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - pricing_details 条目数量: {len(pricing_details)}")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - settlement_details 条目数量: {len(settlement_details)}")
         
         if basic_info:
-            logger.info(f"🔥 [SAVE_ALL_DEBUG] basic_info 内容: {basic_info}")
+            pass
         
         if pricing_details:
-            logger.info(f"🔥 [SAVE_ALL_DEBUG] pricing_details 第一条: {pricing_details[0] if pricing_details else None}")
+            pass
         
         if settlement_details:
-            logger.info(f"🔥 [SAVE_ALL_DEBUG] settlement_details 第一条: {settlement_details[0] if settlement_details else None}")
+            pass
         
         # 更新基本信息
         # 处理厂商直签和厂家提货字段
@@ -1661,9 +1603,13 @@ def save_all_pricing_data(order_id):
                     settlement_discount_rate = discount_rate
                     settlement_unit_price = unit_price
                     logger.info(f"未找到对应结算单明细，使用批价单数据作为默认值 - 产品: {detail_data['product_name']}")
-                
+
+                # 获取关联的结算单
+                settlement_order = pricing_order.settlement_orders[0] if pricing_order.settlement_orders else None
+
                 settlement_detail = SettlementOrderDetail(
                     pricing_order_id=order_id,
+                    settlement_order_id=settlement_order.id if settlement_order else None,
                     product_name=pricing_detail.product_name,
                     product_model=pricing_detail.product_model,
                     product_desc=pricing_detail.product_desc,
@@ -1698,24 +1644,14 @@ def save_all_pricing_data(order_id):
                         settlement_detail.unit_price = float(detail_data['unit_price'])
                     settlement_detail.calculate_prices()
         
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] ============= 开始保存数据到数据库 =============")
         
         # 重新计算总额和总折扣率（基于明细数据）
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] 重新计算批价单总额和总折扣率...")
         pricing_order.calculate_pricing_totals(recalculate_discount_rate=True)
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] 重新计算结算单总额和总折扣率...")
         pricing_order.calculate_settlement_totals(recalculate_discount_rate=True)
         
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] 计算完成后的状态:")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 批价单总金额: {pricing_order.pricing_total_amount}")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 批价单总折扣率: {pricing_order.pricing_total_discount_rate}")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 结算单总金额: {pricing_order.settlement_total_amount}")
-        logger.info(f"🔥 [SAVE_ALL_DEBUG]   - 结算单总折扣率: {pricing_order.settlement_total_discount_rate}")
         
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] 准备提交数据库事务...")
         try:
             db.session.commit()
-            logger.info(f"🔥 [SAVE_ALL_DEBUG] ✅ 数据库事务提交成功")
         except Exception as e:
             logger.error(f"🔥 [SAVE_ALL_DEBUG] ❌ 数据库事务提交失败: {str(e)}")
             raise
@@ -1727,7 +1663,6 @@ def save_all_pricing_data(order_id):
         else:
             logger.info(f"保存批价单 {pricing_order.order_number} 数据后，项目阶段保持不变: {project_stage_after}")
         
-        logger.info(f"🔥 [SAVE_ALL_DEBUG] ✅ 批价单保存完全成功")
         return jsonify({
             'success': True,
             'message': '批价单保存成功'
@@ -1741,7 +1676,6 @@ def save_all_pricing_data(order_id):
         
         try:
             db.session.rollback()
-            logger.info(f"🔥 [SAVE_ALL_DEBUG] 数据库事务已回滚")
         except Exception as rollback_e:
             logger.error(f"🔥 [SAVE_ALL_DEBUG] 数据库回滚失败: {str(rollback_e)}")
         
@@ -1772,111 +1706,73 @@ def save_and_submit_pricing_order(order_id):
         settlement_details = data.get('settlement_details', [])
         
         # 🔍 添加详细的数据接收调试信息
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] ============= 开始处理批价单保存和提交 =============")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] 批价单ID: {order_id}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] 当前用户: {current_user.username} (ID: {current_user.id})")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] 完整请求数据: {data}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] basic_info 内容: {basic_info}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] basic_info 中的关键字段:")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - dealer_id: {basic_info.get('dealer_id', '字段不存在')}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - distributor_id: {basic_info.get('distributor_id', '字段不存在')}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - is_direct_contract: {basic_info.get('is_direct_contract', '字段不存在')}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - is_factory_pickup: {basic_info.get('is_factory_pickup', '字段不存在')}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] pricing_details 数量: {len(pricing_details)}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] settlement_details 数量: {len(settlement_details)}")
         
         # 记录提交前的数据库状态
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] 提交前数据库状态:")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - dealer_id: {pricing_order.dealer_id}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - distributor_id: {pricing_order.distributor_id}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - pricing_total_discount_rate: {pricing_order.pricing_total_discount_rate}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - is_direct_contract: {pricing_order.is_direct_contract}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - is_factory_pickup: {pricing_order.is_factory_pickup}")
         
         # 更新基本信息
         # 处理厂商直签和厂家提货字段
         is_direct_contract = basic_info.get('is_direct_contract', False)
         is_factory_pickup = basic_info.get('is_factory_pickup', False)
         
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] 基本信息处理:")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - is_direct_contract: {is_direct_contract} (类型: {type(is_direct_contract)})")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT]   - is_factory_pickup: {is_factory_pickup} (类型: {type(is_factory_pickup)})")
         
         pricing_order.is_direct_contract = is_direct_contract
         pricing_order.is_factory_pickup = is_factory_pickup
         
         # 根据厂商直签状态处理经销商和分销商
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] ============= 经销商分销商处理逻辑 =============")
         if is_direct_contract:
             # 厂商直签时，清空经销商和分销商
-            logger.info(f"🔍 [SAVE_AND_SUBMIT] 🚨 进入厂商直签模式，将清空经销商和分销商")
-            logger.info(f"🔍 [SAVE_AND_SUBMIT] 🚨 清空前: dealer_id={pricing_order.dealer_id}, distributor_id={pricing_order.distributor_id}")
             pricing_order.dealer_id = None
             pricing_order.distributor_id = None
-            logger.info(f"🔍 [SAVE_AND_SUBMIT] 🚨 清空后: dealer_id={pricing_order.dealer_id}, distributor_id={pricing_order.distributor_id}")
         else:
             # 非厂商直签时，正常处理经销商和分销商
-            logger.info(f"🔍 [SAVE_AND_SUBMIT] ✅ 进入非厂商直签模式，正常处理经销商和分销商")
             
             if 'dealer_id' in basic_info:
                 dealer_id = basic_info['dealer_id']
-                logger.info(f"🔍 [SAVE_AND_SUBMIT] 经销商处理 - 原始值: {dealer_id} (类型: {type(dealer_id)})")
                 
                 if dealer_id and str(dealer_id).strip():
                     try:
                         old_dealer_id = pricing_order.dealer_id
                         pricing_order.dealer_id = int(dealer_id)
-                        logger.info(f"🔍 [SAVE_AND_SUBMIT] ✅ 经销商ID已设置: {old_dealer_id} -> {pricing_order.dealer_id}")
                     except (ValueError, TypeError) as e:
                         pricing_order.dealer_id = None
-                        logger.info(f"🔍 [SAVE_AND_SUBMIT] ❌ 经销商ID转换失败: {e}")
                 else:
                     old_dealer_id = pricing_order.dealer_id
                     pricing_order.dealer_id = None
-                    logger.info(f"🔍 [SAVE_AND_SUBMIT] ⚠️ 经销商ID为空或无效: {old_dealer_id} -> {pricing_order.dealer_id}")
             else:
-                logger.info(f"🔍 [SAVE_AND_SUBMIT] ❌ basic_info 中没有 dealer_id 字段")
+                pass
             
             # 处理分销商：如果厂家提货开启，清空分销商
             if is_factory_pickup:
-                logger.info(f"🔍 [SAVE_AND_SUBMIT] 🚨 厂家提货模式，清空分销商")
                 old_distributor_id = pricing_order.distributor_id
                 pricing_order.distributor_id = None
-                logger.info(f"🔍 [SAVE_AND_SUBMIT] 🚨 分销商清空: {old_distributor_id} -> {pricing_order.distributor_id}")
             elif 'distributor_id' in basic_info:
                 distributor_id = basic_info['distributor_id']
-                logger.info(f"🔍 [SAVE_AND_SUBMIT] 分销商处理 - 原始值: {distributor_id} (类型: {type(distributor_id)})")
                 
                 if distributor_id and str(distributor_id).strip():
                     try:
                         old_distributor_id = pricing_order.distributor_id
                         pricing_order.distributor_id = int(distributor_id)
-                        logger.info(f"🔍 [SAVE_AND_SUBMIT] ✅ 分销商ID已设置: {old_distributor_id} -> {pricing_order.distributor_id}")
                     except (ValueError, TypeError) as e:
                         pricing_order.distributor_id = None
-                        logger.info(f"🔍 [SAVE_AND_SUBMIT] ❌ 分销商ID转换失败: {e}")
                 else:
                     old_distributor_id = pricing_order.distributor_id
                     pricing_order.distributor_id = None
-                    logger.info(f"🔍 [SAVE_AND_SUBMIT] ⚠️ 分销商ID为空或无效: {old_distributor_id} -> {pricing_order.distributor_id}")
             else:
-                logger.info(f"🔍 [SAVE_AND_SUBMIT] ❌ basic_info 中没有 distributor_id 字段")
+                pass
         
         # 处理总折扣率
         if 'pricing_total_discount_rate' in basic_info:
             pricing_total_discount_rate = basic_info['pricing_total_discount_rate']
-            logger.info(f"🔍 [DEBUG] 总折扣率处理 - 原始值: {pricing_total_discount_rate} (类型: {type(pricing_total_discount_rate)})")
             
             if pricing_total_discount_rate is not None:
                 try:
                     pricing_order.pricing_total_discount_rate = float(pricing_total_discount_rate)
-                    logger.info(f"🔍 [DEBUG] 总折扣率已设置: {pricing_order.pricing_total_discount_rate}")
                 except (ValueError, TypeError) as e:
-                    logger.info(f"🔍 [DEBUG] 总折扣率转换失败: {e}")
+                    pass
             else:
-                logger.info(f"🔍 [DEBUG] 总折扣率为空")
+                pass
         else:
-            logger.info(f"🔍 [DEBUG] basic_info 中没有 pricing_total_discount_rate 字段")
+            pass
         
         # 保存明细（如果提供）
         if pricing_details:
@@ -1959,9 +1855,13 @@ def save_and_submit_pricing_order(order_id):
                     settlement_discount_rate = discount_rate
                     settlement_unit_price = unit_price
                     logger.info(f"未找到对应结算单明细，使用批价单数据 - 产品: {detail_data['product_name']}")
-                
+
+                # 获取关联的结算单
+                settlement_order = pricing_order.settlement_orders[0] if pricing_order.settlement_orders else None
+
                 settlement_detail = SettlementOrderDetail(
                     pricing_order_id=order_id,
+                    settlement_order_id=settlement_order.id if settlement_order else None,
                     product_name=pricing_detail.product_name,
                     product_model=pricing_detail.product_model,
                     product_desc=pricing_detail.product_desc,
@@ -1983,50 +1883,28 @@ def save_and_submit_pricing_order(order_id):
         pricing_order.calculate_settlement_totals(recalculate_discount_rate=True)
         
         # 记录数据处理完成后的状态
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] ============= 数据处理完成后状态 =============")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] - dealer_id: {pricing_order.dealer_id}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] - distributor_id: {pricing_order.distributor_id}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] - pricing_total_discount_rate: {pricing_order.pricing_total_discount_rate}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] - is_direct_contract: {pricing_order.is_direct_contract}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] - is_factory_pickup: {pricing_order.is_factory_pickup}")
         
         # 在审批提交前强制保存数据到数据库
         db.session.commit()
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] ✅ 审批提交前已强制保存数据到数据库")
         
         # 提交审批
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] ============= 开始提交审批 =============")
         success, error = PricingOrderService.submit_for_approval(order_id, current_user.id)
         
         if not success:
             logger.error(f"🔍 [SAVE_AND_SUBMIT] ❌ 提交审批失败: {error}")
             db.session.rollback()
-            logger.info(f"🔍 [SAVE_AND_SUBMIT] 🔄 数据库事务已回滚")
             return jsonify({
                 'success': False,
                 'message': error
             })
         
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] ✅ 提交审批成功，准备提交数据库事务...")
         
         # 提交前再次记录状态
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] 提交事务前最后状态:")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] - dealer_id: {pricing_order.dealer_id}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] - distributor_id: {pricing_order.distributor_id}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] - pricing_total_discount_rate: {pricing_order.pricing_total_discount_rate}")
         
         db.session.commit()
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] ✅ 数据库事务已提交")
         
         # 记录最终数据库状态（重新查询确认）
         updated_pricing_order = PricingOrder.query.get(order_id)
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] ============= 最终数据库状态（重新查询确认） =============")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] - dealer_id: {updated_pricing_order.dealer_id}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] - distributor_id: {updated_pricing_order.distributor_id}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] - pricing_total_discount_rate: {updated_pricing_order.pricing_total_discount_rate}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] - is_direct_contract: {updated_pricing_order.is_direct_contract}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] - is_factory_pickup: {updated_pricing_order.is_factory_pickup}")
-        logger.info(f"🔍 [SAVE_AND_SUBMIT] ============= /save_and_submit 处理完成 =============")
         
         return jsonify({
             'success': True,
@@ -2229,14 +2107,11 @@ def admin_rollback_pricing_order(order_id):
 @login_required
 def get_pricing_order_status(order_id):
     """获取批价单状态信息 - 用于审批后页面状态更新"""
-    logger.info(f"🔍 [状态API] 用户 {current_user.username} 请求批价单 {order_id} 状态")
     try:
         from app.utils.access_control import get_viewable_data
         
         # 获取批价单信息
-        logger.debug(f"🔍 [状态API] 开始获取可查看的批价单数据...")
         viewable_orders = get_viewable_data(PricingOrder, current_user)
-        logger.debug(f"🔍 [状态API] 可查看数据过滤器创建成功")
         
         pricing_order = viewable_orders.filter(PricingOrder.id == order_id).first()
         if not pricing_order:
@@ -2249,7 +2124,6 @@ def get_pricing_order_status(order_id):
         logger.debug(f"✅ [状态API] 成功获取批价单: ID={pricing_order.id}, 状态={pricing_order.status}")
         
         # 检查权限 - 统一权限检查
-        logger.debug(f"🔍 [状态API] 开始检查用户权限...")
         try:
             (can_edit_pricing, can_edit_settlement, is_approval_context,
              can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)

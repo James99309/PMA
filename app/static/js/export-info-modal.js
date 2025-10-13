@@ -416,7 +416,6 @@ class ExportInfoModal {
     
     confirmExport() {
         console.log('🎯 confirmExport 被调用');
-        console.log('🔍 当前selectedData状态:', this.selectedData);
         
         // 验证输入
         const errors = this.validate();

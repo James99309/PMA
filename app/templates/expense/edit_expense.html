@@ -64,9 +64,9 @@
                         <!-- 报销主题 -->
                         <div class="col-md-6 mb-3">
                             <label for="title" class="form-label">{{ _('报销主题') }}</label>
-                            <input type="text" class="form-control" 
-                                   id="title" name="title" 
-                                   placeholder="{{ _('默认客户名称-账号-YYDDHHS') }}"
+                            <input type="text" class="form-control"
+                                   id="title" name="title"
+                                   placeholder="{{ _('默认客户名称-姓名-YYDDHHS') }}"
                                    value="{{ request.form.get('title', expense.title or '') }}"
                                    {% if approval_edit_mode and approval_edit_info and 'title' not in approval_edit_info.editable_fields %}readonly{% endif %}>
                         </div>

@@ -10,6 +10,7 @@
 - **CLAUDE-COMPONENTS.md** - 组件和UI规范
 - **CLAUDE-DATABASE.md** - 数据库备份和迁移规范
 - **CLAUDE-SCRIPTS.md** - 脚本创建与管理规范
+- **CLAUDE-CODE-QUALITY.md** - 代码质量与重构规范
 
 ### **📋 使用说明**
 - **Claude AI助手**: 需要时请主动读取相应的专门规范文件
@@ -701,6 +702,7 @@ from app import create_app, db
 - **组件使用** → 查阅 [CLAUDE-COMPONENTS.md](./CLAUDE-COMPONENTS.md)
 - **数据库操作** → 查阅 [CLAUDE-DATABASE.md](./CLAUDE-DATABASE.md)
 - **脚本管理** → 查阅 [CLAUDE-SCRIPTS.md](./CLAUDE-SCRIPTS.md)
+- **代码质量** → 查阅 [CLAUDE-CODE-QUALITY.md](./CLAUDE-CODE-QUALITY.md)
 
 ### **常用命令**
 ```bash
@@ -750,6 +752,12 @@ def list_view():
 
 ## 📝 规则更新日志
 
+- **2025-10-12**: 📚 **添加代码质量与重构规范**（CLAUDE-CODE-QUALITY.md），基于审批流程重构案例总结
+  - 定义DRY原则和逻辑先行原则
+  - 制定文件大小控制标准（Python 1500行、JS 1200行、HTML 800行警告阈值）
+  - 建立重复代码识别标准（2次重复或15行以上）
+  - 详细记录审批流程重构实战案例（68行→34行，消除47行重复）
+  - 创建代码提交前检查清单
 - **2025-09-30**: 📚 **完善文档索引系统**，创建docs/README.md统一文档入口，重命名前端规范目录为frontend-specs
 - **2025-09-30**: 📁 **添加完整文件组织规范**，包括根目录规则、自动分类指南、定期维护策略和违规检测机制
 - **2025-09-30**: 执行根目录数据和日志清理，移动17个JSON文件到data/archived/，移动25个日志文件到logs/archived/

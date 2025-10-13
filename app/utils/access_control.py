@@ -1298,27 +1298,22 @@ def can_view_project(user, project):
     
     # 🔥 关键修复：如果用户拥有与项目关联的任一客户，则可以查看该项目
     try:
-        # 构建项目关联的客户名称列表
-        related_company_names = []
-        if project.end_user:
-            related_company_names.append(project.end_user)
-        if project.dealer:
-            related_company_names.append(project.dealer)
-        if project.contractor:
-            related_company_names.append(project.contractor)
-        if project.system_integrator:
-            related_company_names.append(project.system_integrator)
-        # design_issues 可能包含多个客户名称，这里简化处理
-        if project.design_issues:
-            related_company_names.append(project.design_issues)
-        
-        # 检查用户是否拥有任一关联客户
-        if related_company_names:
+        # 从 ProjectCustomerAssociation 获取项目关联的客户
+        from app.models.project_customer_association import ProjectCustomerAssociation
+
+        associations = ProjectCustomerAssociation.query.filter_by(project_id=project.id).all()
+
+        if associations:
+            # 获取关联的客户ID列表
+            related_company_ids = [assoc.company_id for assoc in associations]
+
+            # 检查用户是否拥有任一关联客户
             owned_companies = Company.query.filter(
-                Company.company_name.in_(related_company_names),
+                Company.id.in_(related_company_ids),
                 Company.owner_id == user.id,
                 Company.is_deleted == False
             ).first()
+
             if owned_companies:
                 return True
     except Exception as e:

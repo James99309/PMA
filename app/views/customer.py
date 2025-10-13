@@ -3877,14 +3877,30 @@ def execute_merge():
                 # 保持行动记录的原有所有者不变
                 merge_summary['merged_actions'] += 1
         
-        # 3. 更新项目的end_user字段
+        # 3. 更新项目关联表中的客户ID（从ProjectCustomerAssociation）
+        from app.models.project_customer_association import ProjectCustomerAssociation
+
         for source_company in source_companies:
-            projects = db.session.query(Project).filter(
-                Project.end_user == source_company.company_name
+            # 将源客户在关联表中的记录更新为目标客户
+            associations = ProjectCustomerAssociation.query.filter_by(
+                company_id=source_company.id
             ).all()
-            for project in projects:
-                project.end_user = target_company.company_name
-                # 项目的归属不变，只更新end_user字段
+
+            for assoc in associations:
+                # 检查目标客户是否已经有相同类型的关联
+                existing_assoc = ProjectCustomerAssociation.query.filter_by(
+                    project_id=assoc.project_id,
+                    company_id=target_company_id,
+                    customer_type=assoc.customer_type
+                ).first()
+
+                if existing_assoc:
+                    # 如果目标客户已经有相同类型的关联，删除源客户的关联（避免重复）
+                    db.session.delete(assoc)
+                else:
+                    # 否则，将源客户的关联转移到目标客户
+                    assoc.company_id = target_company_id
+
                 merge_summary['updated_projects'] += 1
         
         # 4. 合并共享信息，确保被合并客户的所有者能访问目标客户
@@ -3917,14 +3933,8 @@ def execute_merge():
         
         # 6. 更新目标公司名称（如果提供了新名称）
         if final_company_name and final_company_name.strip():
-            old_name = target_company.company_name
             target_company.company_name = final_company_name.strip()
-            # 同时更新项目中的end_user字段
-            projects_to_update_name = db.session.query(Project).filter(
-                Project.end_user == old_name
-            ).all()
-            for project in projects_to_update_name:
-                project.end_user = final_company_name.strip()
+            # 注意：ProjectCustomerAssociation 使用 company_id，所以公司名称变更无需更新关联表
         
         # 7. 更新目标公司的更新时间
         target_company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)

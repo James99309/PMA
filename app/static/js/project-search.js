@@ -136,14 +136,10 @@ class ProjectSearchComponent {
      * 初始化元素引用
      */
     initializeElements() {
-        console.log('🔍 初始化元素引用，配置:', this.config);
-        console.log('🔍 容器元素:', this.container);
         
         this.input = this.container.querySelector(`#${this.config.input_id}`);
-        console.log(`🔍 查找输入框: #${this.config.input_id}，找到:`, this.input);
         
         this.dropdown = this.container.querySelector(`#${this.config.dropdown_id}`);
-        console.log(`🔍 查找下拉框: #${this.config.dropdown_id}，找到:`, this.dropdown);
         
         this.clearBtn = this.container.querySelector(`#${this.config.clear_button_id}`);
         // 移除 selectedInfo 引用，不再显示选中项目信息
@@ -383,16 +379,22 @@ class ProjectSearchComponent {
             console.error('未找到项目列表容器 .project-list');
             return;
         }
-        
+
         // 清空现有项目
         projectList.innerHTML = '';
-        
+
+        // 检查是否有结果
+        if (sortedProjects.length === 0) {
+            this.showNoResults();
+            return;
+        }
+
         // 添加所有项目到统一列表
         sortedProjects.forEach(project => {
             const projectItem = this.createProjectItem(project, this.getProjectPermissionType(project));
             projectList.appendChild(projectItem);
         });
-        
+
         // 显示结果
         this.showDropdown();
         this.hideNoResults();

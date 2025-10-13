@@ -1220,7 +1220,6 @@ class ExpenseDetailManager {
         // 或者可以打开一个编辑模态框
         
         // 方案1：滚动到对应行并高亮显示
-        console.log('🔍 查找表格行，rowIndex:', rowIndex);
         
         // 尝试多种选择器找到表格行
         const selectors = [
@@ -1233,7 +1232,6 @@ class ExpenseDetailManager {
         let tableRow = null;
         for (let selector of selectors) {
             tableRow = document.querySelector(selector);
-            console.log(`🔍 选择器 "${selector}" 找到元素:`, tableRow);
             if (tableRow) break;
         }
         
@@ -1272,7 +1270,6 @@ class ExpenseDetailManager {
             
             // 聚焦到第一个可编辑字段
             const firstInput = tableRow.querySelector('input, select, textarea');
-            console.log('🔍 找到的第一个输入字段:', firstInput);
             if (firstInput) {
                 setTimeout(() => {
                     firstInput.focus();
@@ -1291,8 +1288,6 @@ class ExpenseDetailManager {
             }
         } else {
             console.warn('❌ 未找到对应的表格行，rowIndex:', rowIndex);
-            console.log('🔍 页面中所有带data-row-index的元素:', 
-                document.querySelectorAll('[data-row-index]'));
         }
         
         // 🔥 检查是否为移动端视图
@@ -1300,7 +1295,6 @@ class ExpenseDetailManager {
         
         if (isMobileView && !tableRow) {
             // 移动端且找不到表格行，说明是纯卡片视图
-            console.log('🔥 移动端卡片视图，切换为内联编辑模式');
             this.enableInlineEditForMobile(rowIndex);
         } else {
             // 桌面端或混合视图，显示提示消息
@@ -1316,7 +1310,6 @@ class ExpenseDetailManager {
      * 🔥 移动端内联编辑模式
      */
     enableInlineEditForMobile(rowIndex) {
-        console.log('🔥 启用移动端内联编辑，rowIndex:', rowIndex);
         
         const rowData = this.rows[rowIndex];
         if (!rowData) {
@@ -1416,7 +1409,6 @@ class ExpenseDetailManager {
         
         // 保存按钮
         saveBtn.addEventListener('click', () => {
-            console.log('🔥 移动端保存编辑');
             
             // 收集表单数据
             const formData = {};
@@ -1424,7 +1416,6 @@ class ExpenseDetailManager {
                 formData[input.dataset.field] = input.value;
             });
             
-            console.log('🔥 收集的表单数据:', formData);
             
             // 更新行数据
             Object.assign(this.rows[rowIndex], formData);
@@ -1440,7 +1431,6 @@ class ExpenseDetailManager {
         
         // 取消按钮
         cancelBtn.addEventListener('click', () => {
-            console.log('🔥 移动端取消编辑');
             
             // 重新渲染恢复原状
             this.renderTable();
@@ -1710,7 +1700,6 @@ class ExpenseDetailManager {
                 const field = e.target.dataset.field;
                 const value = e.target.value;
                 
-                console.log(`🔥 移动端字段变化: ${field} = ${value}`);
                 
                 // 更新行数据
                 if (this.rows[index]) {
@@ -1729,7 +1718,6 @@ class ExpenseDetailManager {
                     
                     // 🔥 货币字段由专门的事件监听器处理，这里跳过避免重复处理
                     if (field === 'currency') {
-                        console.log('🔥 货币字段由专门的事件监听器处理，跳过通用处理');
                         return;
                     }
                 }
@@ -1779,7 +1767,6 @@ class ExpenseDetailManager {
             }
         }
         
-        console.log(`🔥 移动端计算报销金额: ${invoiceAmount} × ${exchangeRate} = ${currentAmount.toFixed(2)}`);
     }
     
     /**
@@ -1798,7 +1785,6 @@ class ExpenseDetailManager {
         
         // 移动端不需要更新币种符号显示，因为没有顶部金额显示区域
         // 但保持函数接口一致性
-        console.log(`🔥 移动端更新币种: ${rowData.currency}`);
     }
     
     /**
@@ -1958,7 +1944,6 @@ class ExpenseDetailManager {
             // 🔥 卡片创建后立即更新发票图标显示
             setTimeout(() => {
                 if (rowData.invoice_images && rowData.invoice_images.length > 0) {
-                    console.log(`🔥 移动端渲染后更新发票显示 行${index}:`, rowData.invoice_images);
                     this.updateInvoiceDisplay(index, rowData.invoice_images);
                 }
             }, 50); // 稍长的延时确保DOM已完全渲染
@@ -2248,7 +2233,6 @@ class ExpenseDetailManager {
         const currencySelect = card.querySelector('.currency-select');
         if (currencySelect) {
             currencySelect.addEventListener('change', (e) => {
-                console.log(`🔥 移动端货币变更触发: ${e.target.value}`);
                 this.handleCurrencyChange(index, e.target.value);
             });
         }
@@ -2256,7 +2240,6 @@ class ExpenseDetailManager {
         // 🔥 创建卡片后立即更新发票图标显示
         setTimeout(() => {
             if (rowData.invoice_images && rowData.invoice_images.length > 0) {
-                console.log(`🔥 移动端卡片创建后更新发票显示:`, rowData.invoice_images);
                 this.updateInvoiceDisplay(index, rowData.invoice_images);
             }
         }, 10);
@@ -2477,15 +2460,6 @@ class ExpenseDetailManager {
                     
                     // 获取规范化文件名（用于预览显示）
                     let displayFilename = file.name; // 默认使用原始文件名
-                    console.log('🔍 开始处理文件预览:', {
-                        originalFilename: file.name,
-                        mimeType: file.type,
-                        fileSize: file.size,
-                        lastModified: new Date(file.lastModified).toLocaleString(),
-                        rowIndex: rowIndex,
-                        rowId: row.id,
-                        hasRowId: !!row.id
-                    });
                     
                     // 详细的文件信息调试
                     console.log('📁 用户选择的文件详细信息:');
@@ -2520,9 +2494,7 @@ class ExpenseDetailManager {
                         });
 
                         // 使用FileReader检测文件实际内容格式
-                        console.log('🔍 [DEBUG] 开始检测文件真实格式...');
                         const actualFormat = await this.detectFileFormat(file);
-                        console.log('🔍 [DEBUG] 格式检测结果:', actualFormat);
 
                         if (actualFormat) {
                             console.info(`✅ [DEBUG] 检测到Safari文件的真实格式: ${actualFormat}`);
@@ -2545,7 +2517,6 @@ class ExpenseDetailManager {
                     
                     try {
                         if (row.id) {
-                            console.log('📞 [DEBUG] 调用预览API:', `/expense/api/preview_invoice_filename/${row.id}`);
 
                             // 如果有detail_id，调用预览API获取规范化文件名
                             // 如果检测到Safari错误转换，传递修正后的信息
@@ -2554,14 +2525,6 @@ class ExpenseDetailManager {
                             const apiMimeType = forcedExtension ?
                                 `image/${actualUserExtension === 'jpg' ? 'jpeg' : actualUserExtension}` : (file.type || '');
 
-                            console.log('📤 [DEBUG] 传递给预览API的参数:', {
-                                original: { filename: file.name, mimeType: file.type },
-                                corrected: { filename: apiFilename, mimeType: apiMimeType },
-                                forcedExtension: forcedExtension,
-                                actualUserExtension: actualUserExtension,
-                                expectedExtension: expectedExtension
-                            });
-                            
                             const previewResponse = await fetch(`/expense/api/preview_invoice_filename/${row.id}`, {
                                 method: 'POST',
                                 headers: {
@@ -2602,13 +2565,6 @@ class ExpenseDetailManager {
                             
                             // 根据文件的MIME类型确定正确的扩展名
                             let extension = 'jpg'; // 默认扩展名
-                            
-                            console.log('🔍 文件类型检测开始:', {
-                                fileName: file.name,
-                                mimeType: file.type,
-                                fileSize: file.size
-                            });
-                            console.log('📊 检测到的MIME类型:', file.type || '无MIME类型');
                             
                             // 如果有强制扩展名（防Safari错误转换），直接使用
                             if (forcedExtension) {
@@ -2859,11 +2815,9 @@ class ExpenseDetailManager {
         if (previewIcon) {
             previewIcon.addEventListener('click', (e) => {
                 const images = JSON.parse(e.target.dataset.images || '[]');
-                console.log('🔥 旧的预览逻辑被调用，传递的images:', images);
                 
                 if (images && images.length > 0) {
                     const firstImage = images[0];
-                    console.log('🔥 第一个图片对象:', firstImage);
                     
                     // 🔥 根据图片状态决定URL - 和第3144行逻辑一致
                     let imageUrl;
@@ -2873,19 +2827,9 @@ class ExpenseDetailManager {
                         // 待上传的文件：创建本地预览URL
                         imageUrl = URL.createObjectURL(firstImage.file);
                         isPending = true;
-                        console.log('🔥 旧逻辑-创建本地预览URL（blob）:', imageUrl);
                     } else {
                         // 已上传的文件：使用服务器URL
                         imageUrl = firstImage.url || firstImage.image_url || firstImage.path || firstImage.file_url;
-                        console.log('🔥 旧逻辑-使用服务器URL:', imageUrl);
-                        console.log('🔥 旧逻辑-发票对象调试:', {
-                            pending: firstImage.pending,
-                            hasFile: !!firstImage.file,
-                            url: firstImage.url,
-                            image_url: firstImage.image_url,
-                            path: firstImage.path,
-                            file_url: firstImage.file_url
-                        });
                     }
                     
                     const title = isPending 
@@ -2909,15 +2853,6 @@ class ExpenseDetailManager {
      * 显示发票预览
      */
     showInvoicePreview(imageUrl, title, deleteInfo = null) {
-        console.log('🔥🔥🔥 showInvoicePreview 被调用，参数:', {
-            imageUrl: imageUrl,
-            title: title,
-            deleteInfo: deleteInfo,
-            imageUrlType: typeof imageUrl,
-            isBlob: imageUrl && imageUrl.startsWith('blob:')
-        });
-        console.trace('🔥 调用栈追踪:');
-        
         if (!imageUrl) {
             console.warn('发票URL为空，无法预览');
             return;
@@ -2933,7 +2868,6 @@ class ExpenseDetailManager {
      * 创建发票预览模态框 - 🔥 使用通用预览组件
      */
     createInvoiceModal(imageUrl, title, deleteInfo = null) {
-        console.log('🔥 createInvoiceModal 调用通用预览组件:', imageUrl, title);
         
         // 🔥 优先使用通用预览组件
         if (typeof showInvoicePreviewDialog === 'function') {
@@ -2959,14 +2893,11 @@ class ExpenseDetailManager {
             const isTempFile = imageUrl && (imageUrl.includes('/temp/') || imageUrl.includes('temp'));
             
             if (isBlobUrl || isTempFile) {
-                console.log('🔍🔍🔍 检测到临时文件，跳过专门下载路由:', { isBlobUrl, isTempFile, imageUrl });
                 // 对于临时文件，不设置detail_id，这样会使用备用下载方案
             } else {
                 // 方法1：从URL中提取detail_id（如果URL包含 /invoices/{detail_id}/ 模式）
                 if (imageUrl && imageUrl.includes('/invoices/')) {
-                    console.log('🔍🔍🔍 URL包含/invoices/，尝试提取detail_id，URL:', imageUrl);
                     const matches = imageUrl.match(/\/invoices\/(\d+)\//);
-                    console.log('🔍🔍🔍 正则匹配结果:', matches);
                     if (matches) {
                         detailId = matches[1];
                         // 对于编辑页面，通常预览第一个发票，所以index为0
@@ -2982,7 +2913,6 @@ class ExpenseDetailManager {
                 // 方法2：从页面URL中获取expense_id作为detail_id
                 if (!detailId) {
                     const currentUrl = window.location.href;
-                    console.log('🔍🔍🔍 尝试从页面URL提取expense_id:', currentUrl);
                     
                     // 匹配编辑页面URL格式：/expense/edit/{expense_id}
                     const urlMatches = currentUrl.match(/\/expense\/edit\/(\d+)/);
@@ -4398,34 +4328,28 @@ class ExpenseDetailManager {
      * 更新发票显示
      */
     updateInvoiceDisplay(rowIndex, invoiceImages = []) {
-        console.log('🔍 updateInvoiceDisplay调用:', {rowIndex, invoiceImages});
         
         // 根据当前视图模式选择容器
         const isMobile = this.isMobileView();
-        console.log('🔍 当前视图模式:', isMobile ? '移动端' : 'PC端');
         
         let container;
         
         if (isMobile) {
             // 移动端：只查找移动端容器
             container = document.querySelector(`[data-row-index="${rowIndex}"] .mobile-invoice-display`);
-            console.log('🔍 移动端容器查找:', `[data-row-index="${rowIndex}"] .mobile-invoice-display`, container);
         } else {
             // PC端：查找PC端容器
             container = document.querySelector(`[data-row-index="${rowIndex}"] .invoice-display-column`);
-            console.log('🔍 PC端容器查找:', `[data-row-index="${rowIndex}"] .invoice-display-column`, container);
             
             if (!container) {
                 // 备选选择器
                 container = document.querySelector(`#expenseTable tbody tr:nth-child(${rowIndex + 1}) .invoice-display-column`);
-                console.log('🔍 PC端备选容器:', container);
             }
             if (!container) {
                 // 另一种备选选择器
                 const allRows = document.querySelectorAll('#expenseTable tbody tr');
                 if (allRows[rowIndex]) {
                     container = allRows[rowIndex].querySelector('.invoice-display-column');
-                    console.log('🔍 PC端表格行容器:', container);
                 }
             }
         }
@@ -4483,7 +4407,6 @@ class ExpenseDetailManager {
                 // 待上传的文件：创建本地预览URL
                 imageUrl = URL.createObjectURL(invoice.file);
                 isPending = true;
-                console.log('🔥 创建本地预览URL（blob）:', imageUrl);
             } else {
                 // 已上传的文件：使用服务器URL
                 let urlCandidate = invoice.url || invoice.image_url || invoice.path || invoice.file_url;
@@ -4514,18 +4437,7 @@ class ExpenseDetailManager {
                     console.warn('🚨 无法解析URL数据:', {urlCandidate, invoice});
                     imageUrl = null;
                 }
-                console.log('🔥 最终使用的URL:', imageUrl);
-                console.log('🔥 发票对象调试:', {
-                    pending: invoice.pending,
-                    hasFile: !!invoice.file,
-                    urlCandidate: urlCandidate,
-                    urlType: typeof urlCandidate,
-                    extractedUrl: imageUrl,
-                    temp_id: invoice.temp_id,
-                    is_temp: invoice.is_temp,
-                    filename: invoice.filename
-                });
-                
+
                 // 🔥 云端上传调试：检查URL是否为Supabase格式
                 if (imageUrl && imageUrl.includes('supabase')) {
                     console.log('🌐 检测到Supabase云端URL:', imageUrl);
@@ -4804,11 +4716,6 @@ class ExpenseDetailManager {
                     const arrayBuffer = e.target.result;
                     const bytes = new Uint8Array(arrayBuffer);
 
-                    console.log('🔬 [DEBUG] 文件头检测:', {
-                        bytesLength: bytes.length,
-                        firstBytes: Array.from(bytes.slice(0, 16)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ')
-                    });
-
                     if (bytes.length < 4) {
                         console.warn('⚠️ [DEBUG] 文件太小，无法检测格式');
                         resolve(null);
@@ -4817,7 +4724,6 @@ class ExpenseDetailManager {
 
                     // JPEG: FF D8 FF
                     if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
-                        console.log('✅ [DEBUG] 检测到JPEG格式 (FF D8 FF)');
                         resolve('jpg');
                         return;
                     }
@@ -4828,7 +4734,6 @@ class ExpenseDetailManager {
                         bytes[2] === 0x4E && bytes[3] === 0x47 &&
                         bytes[4] === 0x0D && bytes[5] === 0x0A &&
                         bytes[6] === 0x1A && bytes[7] === 0x0A) {
-                        console.log('✅ [DEBUG] 检测到PNG格式 (89 50 4E 47...)');
                         resolve('png');
                         return;
                     }

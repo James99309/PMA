@@ -241,17 +241,13 @@ class StageAnalyticsComponent {
         }
         
         // 过滤有效数据
-        console.log('🔍 原始数据:', data);
-        console.log('🔍 当前指标:', this.currentMetric);
         
         const validData = data.filter(item => {
             const isValid = (this.currentMetric === 'quantity' && item.quantity > 0) || 
                            (this.currentMetric === 'amount' && item.amount > 0);
-            console.log(`🔍 检查项目 ${item.stage} (${item.name}): quantity=${item.quantity}, amount=${item.amount}, isValid=${isValid}`);
             return isValid;
         });
         
-        console.log('🔍 过滤后的有效数据:', validData);
         
         if (!validData.length) {
             console.log('⚠️ 没有有效数据，显示无数据提示');

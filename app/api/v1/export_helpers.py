@@ -28,24 +28,59 @@ def search_customers():
     """
     搜索客户列表
     支持关键词搜索公司名称、地址等字段
+    支持按company_type过滤（可选）
+    支持按has_inventory过滤（可选）
     """
     try:
         # 获取搜索参数
         search_query = request.args.get('search', '').strip()
         limit = min(int(request.args.get('limit', 20)), 50)  # 最大50条
         customer_id = request.args.get('customer_id', '')  # 可选的客户ID过滤
-        
+        company_type = request.args.get('company_type', '').strip()  # 可选的公司类型过滤
+        has_inventory = request.args.get('has_inventory', '').strip().lower()  # 可选的库存过滤
+
         if not search_query and not customer_id:
-            return jsonify({
-                'success': True,
-                'results': [],
-                'total': 0,
-                'message': '请输入搜索关键词'
-            })
-        
+            # 如果有过滤条件（company_type 或 has_inventory），允许空搜索返回所有符合条件的结果
+            # 这样可以支持"点击展开所有，输入过滤"的交互体验
+            if not company_type and has_inventory != 'true':
+                return jsonify({
+                    'success': True,
+                    'results': [],
+                    'total': 0,
+                    'message': '请输入搜索关键词'
+                })
+            # 有过滤条件时，继续执行后续逻辑，返回所有符合过滤条件的公司
+
         # 构建基础查询
         query = get_viewable_data(Company, current_user)
-        
+
+        # 应用公司类型过滤
+        if company_type:
+            # 支持多个类型，用逗号分隔
+            types = [t.strip() for t in company_type.split(',') if t.strip()]
+            if types:
+                # 特殊映射：distributor 和 contractor 映射到 dealer 和 integrator
+                mapped_types = []
+                for t in types:
+                    if t == 'distributor':
+                        mapped_types.append('dealer')  # 代理商映射为经销商
+                    elif t == 'contractor':
+                        mapped_types.append('integrator')  # 总承包映射为系统集成商
+                    else:
+                        mapped_types.append(t)
+                query = query.filter(Company.company_type.in_(mapped_types))
+
+        # 应用库存过滤
+        if has_inventory == 'true':
+            from app.models.inventory import Inventory
+            from app import db
+            # 查询有库存（quantity > 0）的公司ID
+            company_ids_with_inventory = db.session.query(Inventory.company_id)\
+                .filter(Inventory.quantity > 0)\
+                .distinct()\
+                .subquery()
+            query = query.filter(Company.id.in_(company_ids_with_inventory))
+
         # 应用搜索条件
         if search_query:
             search_conditions = or_(
@@ -54,7 +89,7 @@ def search_customers():
                 Company.address.ilike(f'%{search_query}%')
             )
             query = query.filter(search_conditions)
-        
+
         # 如果指定了客户ID，直接查找该客户
         if customer_id:
             query = query.filter(Company.id == customer_id)

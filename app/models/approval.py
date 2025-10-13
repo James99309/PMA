@@ -807,11 +807,11 @@ class ApprovalStep(db.Model):
                 # 使用成熟的核心保存逻辑 - 修复函数签名
                 service = PricingOrderService()
                 from flask_login import current_user
-                success = service.save_pricing_order_core_data(pricing_order.id, pricing_order_data, current_user)
-                
-                
+                success, message = service.save_pricing_order_core_data(pricing_order.id, pricing_order_data, current_user)
+
+
                 if not success:
-                    current_app.logger.error("批结算审批 - 保存批价单数据失败")
+                    current_app.logger.error(f"批结算审批 - 保存批价单数据失败: {message}")
                     return False
                     
                 current_app.logger.info("批结算审批 - 批价单数据保存成功")

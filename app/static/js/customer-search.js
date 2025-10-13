@@ -30,30 +30,32 @@ class CustomerSearchComponent {
             customer_id_field: 'customerId',
             customer_id_name: 'customer_id',
             data_element_id: 'customerSearchConfig',
-            
+
             // 标签和占位符
             label: '选择客户',
             placeholder: '输入公司名称进行搜索...',
-            
+
             // API配置
             api_endpoints: {
                 search: '/api/export-helpers/customers/search'
             },
-            
+
             // 搜索配置
             search_config: {
                 min_length: 1,
                 delay: 300,
-                limit: 10
+                limit: 10,
+                company_type: '',  // 可选的公司类型过滤，如 'dealer', 'user', 'designer', 'integrator' 等
+                has_inventory: false  // 可选的库存过滤，true表示只显示有库存的公司
             },
-            
+
             // 显示配置
             display_config: {
                 show_contact: true,
                 show_industry: true,
                 show_owner: true
             },
-            
+
             // 验证配置
             validation: {
                 required: true,
@@ -147,7 +149,17 @@ class CustomerSearchComponent {
      */
     handleInputFocus(e) {
         const query = e.target.value.trim();
-        if (query && query.length >= this.config.search_config.min_length) {
+
+        // 检查是否配置了过滤条件（company_type 或 has_inventory）
+        const hasFilters = this.config.search_config.company_type ||
+                          this.config.search_config.has_inventory;
+
+        if (hasFilters && !query) {
+            // 有过滤条件但输入为空时，自动触发空搜索显示所有符合条件的结果
+            // 这样可以实现"点击展开所有，输入过滤"的良好用户体验
+            this.performSearch('');
+        } else if (query && query.length >= this.config.search_config.min_length) {
+            // 有输入内容且符合最小长度要求，显示之前的搜索结果
             this.showDropdown();
         }
     }
@@ -220,16 +232,32 @@ class CustomerSearchComponent {
      */
     async performSearch(query) {
         if (this.isLoading) return;
-        
+
         this.isLoading = true;
         this.showDropdown();
         this.showLoading();
-        
+
         try {
             const url = new URL(this.config.api_endpoints.search, window.location.origin);
-            url.searchParams.append('search', query);
+
+            // 只在有查询词的情况下才添加search参数
+            // 这样可以支持空搜索（当有过滤条件时）
+            if (query) {
+                url.searchParams.append('search', query);
+            }
+
             url.searchParams.append('limit', this.config.search_config.limit);
-            
+
+            // 添加company_type过滤参数（如果配置了）
+            if (this.config.search_config.company_type) {
+                url.searchParams.append('company_type', this.config.search_config.company_type);
+            }
+
+            // 添加has_inventory过滤参数（如果配置了）
+            if (this.config.search_config.has_inventory) {
+                url.searchParams.append('has_inventory', 'true');
+            }
+
             const response = await fetch(url, {
                 method: 'GET',
                 headers: {
@@ -238,20 +266,20 @@ class CustomerSearchComponent {
                 },
                 credentials: 'same-origin'
             });
-            
+
             if (!response.ok) {
                 throw new Error(`搜索请求失败: ${response.status}`);
             }
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 this.renderResults(data.results);
             } else {
                 console.error('客户搜索失败:', data.error);
                 this.showNoResults();
             }
-            
+
         } catch (error) {
             console.error('客户搜索请求失败:', error);
             this.showNoResults();

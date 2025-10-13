@@ -937,56 +937,6 @@ def view_project(project_id):
         logger.warning(f"用户 {current_user.username} (ID: {current_user.id}, 角色: {current_user.role}) 尝试查看无权限的项目: {project_id}")
         flash('您没有权限查看此项目', 'danger')
         return redirect(url_for('project.list_projects'))
-    
-    # 查询相关单位对应的企业ID并检查访问权限
-    from app.utils.access_control import can_view_company
-    related_companies = {}
-    
-    # 查询直接用户
-    if project.end_user:
-        end_user_company = Company.query.filter_by(company_name=project.end_user, is_deleted=False).first()
-        if end_user_company:
-            can_view = can_view_company(current_user, end_user_company)
-            logger.debug(f"权限检查 - 用户 {current_user.username} (ID: {current_user.id}) 访问企业 '{end_user_company.company_name}' (ID: {end_user_company.id}, 拥有者: {end_user_company.owner_id}): {can_view}")
-            if can_view:
-                related_companies['end_user'] = end_user_company.id
-            else:
-                related_companies['end_user'] = None
-        else:
-            related_companies['end_user'] = None
-    
-    # 查询设计院及顾问
-    if project.design_issues:
-        design_company = Company.query.filter_by(company_name=project.design_issues, is_deleted=False).first()
-        if design_company and can_view_company(current_user, design_company):
-            related_companies['design_issues'] = design_company.id
-        else:
-            related_companies['design_issues'] = None
-    
-    # 查询经销商
-    if project.dealer:
-        dealer_company = Company.query.filter_by(company_name=project.dealer, is_deleted=False).first()
-        if dealer_company and can_view_company(current_user, dealer_company):
-            related_companies['dealer'] = dealer_company.id
-        else:
-            related_companies['dealer'] = None
-    
-    # 查询总承包单位
-    if project.contractor:
-        contractor_company = Company.query.filter_by(company_name=project.contractor, is_deleted=False).first()
-        if contractor_company and can_view_company(current_user, contractor_company):
-            related_companies['contractor'] = contractor_company.id
-        else:
-            related_companies['contractor'] = None
-    
-    # 查询系统集成商
-    if project.system_integrator:
-        integrator_company = Company.query.filter_by(company_name=project.system_integrator, is_deleted=False).first()
-        if integrator_company and can_view_company(current_user, integrator_company):
-            related_companies['system_integrator'] = integrator_company.id
-        else:
-            related_companies['system_integrator'] = None
-    
     # 解析阶段变更历史，生成stageHistory结构
     # 优先使用project_stage_history表中的数据，如果没有则从stage_description解析
     from app.models.projectpm_stage_history import ProjectStageHistory
@@ -1241,10 +1191,9 @@ def view_project(project_id):
         (not project.is_locked or current_user.role == 'admin')
     )
 
-    return render_template("project/detail.html", 
-                         project=project, 
-                         Quotation=Quotation, 
-                         related_companies=related_companies, 
+    return render_template("project/detail.html",
+                         project=project,
+                         Quotation=Quotation,
                          stageHistory=stage_history, 
                          project_actions=project_actions, 
                          current_stage_key=current_stage_key, 
@@ -1334,13 +1283,8 @@ def add_project():
                 report_time=report_time,
                 report_source=request.form.get('report_source'),
                 product_situation=request.form.get('product_situation'),
-                design_issues=request.form.get('design_issues'),
                 delivery_forecast=delivery_forecast,
                 current_stage='discover',  # 默认从发现阶段开始
-                dealer=request.form.get('dealer'),
-                end_user=request.form.get('end_user'),
-                contractor=request.form.get('contractor'),
-                system_integrator=request.form.get('system_integrator'),
                 stage_description=request.form.get('stage_description'),
                 authorization_code=authorization_code,
                 project_type=project_type,
@@ -1395,27 +1339,7 @@ def add_project():
                 
             except Exception as notify_err:
                 logger.warning(f"启动异步项目创建通知失败: {str(notify_err)}")
-            
-            # 更新相关客户的活跃状态
-            # 查找与项目相关的所有企业名称
-            related_companies = []
-            if project.end_user:
-                related_companies.append(project.end_user)
-            if project.design_issues:
-                related_companies.append(project.design_issues)
-            if project.contractor:
-                related_companies.append(project.contractor)
-            if project.system_integrator:
-                related_companies.append(project.system_integrator)
-            if project.dealer:
-                related_companies.append(project.dealer)
-                
-            # 查找匹配的企业ID并更新活跃状态
-            for company_name in set(related_companies):
-                company = Company.query.filter_by(company_name=company_name, is_deleted=False).first()
-                if company:
-                    check_company_activity(company_id=company.id)
-            
+
             flash('项目添加成功！', 'success')
             return redirect(url_for('project.view_project', project_id=project.id))
         except Exception as e:
@@ -1476,16 +1400,7 @@ def edit_project(project_id):
         # 在修改前捕获旧值用于变更跟踪
         from app.utils.change_tracker import ChangeTracker
         old_values = ChangeTracker.capture_old_values(project)
-        
-        # 记录修改前的客户关联信息，用于判断是否有新增关联
-        old_customer_relations = {
-            'end_user': project.end_user,
-            'design_issues': project.design_issues,
-            'contractor': project.contractor,
-            'system_integrator': project.system_integrator,
-            'dealer': project.dealer
-        }
-        
+
         try:
             # 必填项校验
             if not request.form.get('project_name'):
@@ -1596,33 +1511,7 @@ def edit_project(project_id):
                     
                 except Exception as notify_err:
                     current_app.logger.warning(f"启动异步项目阶段变更通知失败: {str(notify_err)}")
-            
-            # 只更新新增关联的客户活跃状态
-            # 获取当前的客户关联信息
-            current_customer_relations = {
-                'end_user': project.end_user,
-                'design_issues': project.design_issues,
-                'contractor': project.contractor,
-                'system_integrator': project.system_integrator,
-                'dealer': project.dealer
-            }
-            
-            # 找出新增的客户关联（之前为空或不同，现在有值）
-            new_related_companies = []
-            for field, current_value in current_customer_relations.items():
-                old_value = old_customer_relations.get(field)
-                # 如果当前有值且与之前不同（新增或修改了关联）
-                if current_value and current_value != old_value:
-                    new_related_companies.append(current_value)
-                    current_app.logger.debug(f"检测到客户关联变更: {field} 从 '{old_value}' 变为 '{current_value}'")
-            
-            # 只更新新增关联的客户活跃状态
-            for company_name in set(new_related_companies):
-                company = Company.query.filter_by(company_name=company_name, is_deleted=False).first()
-                if company:
-                    check_company_activity(company_id=company.id)
-                    current_app.logger.debug(f"更新新关联客户 '{company_name}' 的活跃度")
-            
+
             flash('项目信息已更新！', 'success')
             return redirect(url_for('project.view_project', project_id=project.id))
         except Exception as e:
@@ -2659,39 +2548,25 @@ def add_action_for_project(project_id):
     """为项目添加行动记录"""
     project = Project.query.get_or_404(project_id)
     
-    # 查找项目相关的所有企业
+    # 从关联表查找项目相关的所有企业
+    from app.models.project_customer_association import ProjectCustomerAssociation
+
+    associations = ProjectCustomerAssociation.query.filter_by(project_id=project_id).all()
     related_companies = []
     related_companies_dict = {}
-    
-    if project.end_user:
-        company = Company.query.filter_by(company_name=project.end_user, is_deleted=False).first()
-        if company:
-            related_companies.append(company)
-            related_companies_dict[company.id] = company
-    
-    if project.design_issues:
-        company = Company.query.filter_by(company_name=project.design_issues, is_deleted=False).first()
-        if company and company.id not in related_companies_dict:
-            related_companies.append(company)
-            related_companies_dict[company.id] = company
-    
-    if project.contractor:
-        company = Company.query.filter_by(company_name=project.contractor, is_deleted=False).first()
-        if company and company.id not in related_companies_dict:
-            related_companies.append(company)
-            related_companies_dict[company.id] = company
-    
-    if project.system_integrator:
-        company = Company.query.filter_by(company_name=project.system_integrator, is_deleted=False).first()
-        if company and company.id not in related_companies_dict:
-            related_companies.append(company)
-            related_companies_dict[company.id] = company
-    
-    if project.dealer:
-        company = Company.query.filter_by(company_name=project.dealer, is_deleted=False).first()
-        if company and company.id not in related_companies_dict:
-            related_companies.append(company)
-            related_companies_dict[company.id] = company
+    customer_associations = []  # 包含类型信息的关联列表
+
+    for assoc in associations:
+        company = db.session.get(Company, assoc.company_id)
+        if company and not company.is_deleted:
+            if company.id not in related_companies_dict:
+                related_companies.append(company)
+                related_companies_dict[company.id] = company
+            # 添加到包含类型信息的列表（可能有重复公司但不同角色）
+            customer_associations.append({
+                'company': company,
+                'customer_type': assoc.customer_type
+            })
     
     # 获取默认选择的企业ID和锁定状态
     default_company_id = request.args.get('company_id')
@@ -2739,9 +2614,10 @@ def add_action_for_project(project_id):
             flash('行动记录添加成功！', 'success')
             return redirect(url_for('project.view_project', project_id=project_id))
     
-    return render_template('project/add_action.html', 
-                           project=project, 
+    return render_template('project/add_action.html',
+                           project=project,
                            related_companies=related_companies,
+                           customer_associations=customer_associations,
                            selected_company=selected_company,
                            company_contacts=company_contacts,
                            locked_company=locked_company)

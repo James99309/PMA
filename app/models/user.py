@@ -120,12 +120,10 @@ class User(db.Model, UserMixin):
             bool: 是否拥有该权限
         """
         # 调试日志
-        print(f"[DEBUG][has_permission] user_id={self.id}, username={self.username}, role={self.role}, module={module}, action={action}")
         
         try:
             # 管理员默认拥有所有权限
             if self.role == 'admin':
-                print(f"[DEBUG][has_permission] admin权限直接返回True")
                 return True
             
             # 1. 获取角色权限（基础权限）
@@ -161,24 +159,7 @@ class User(db.Model, UserMixin):
             
             # 3. 合并权限：角色权限 OR 个人权限
             final_permission = role_has_permission or personal_has_permission
-            
-            # 调试输出
-            print(f"[DEBUG][has_permission] 角色权限: {role_has_permission}")
-            print(f"[DEBUG][has_permission] 个人权限: {personal_has_permission}")
-            print(f"[DEBUG][has_permission] 最终权限: {final_permission}")
-            
-            if role_permission:
-                print(f"[DEBUG][has_permission] 角色权限详情: role={self.role}, module={module}")
-                print(f"[DEBUG][has_permission] role_permissions: view={role_permission.can_view}, create={role_permission.can_create}, edit={role_permission.can_edit}, delete={role_permission.can_delete}")
-                print(f"[DEBUG][has_permission] permission_level={role_permission.permission_level}")
-            else:
-                print(f"[DEBUG][has_permission] 未找到角色权限配置")
-                
-            if permission:
-                print(f"[DEBUG][has_permission] 个人权限详情: view={permission.can_view}, create={permission.can_create}, edit={permission.can_edit}, delete={permission.can_delete}")
-            else:
-                print(f"[DEBUG][has_permission] 未找到个人权限配置")
-            
+
             return final_permission
             
         except Exception as e:
@@ -187,14 +168,12 @@ class User(db.Model, UserMixin):
             try:
                 from app import db
                 db.session.rollback()
-                print("[DEBUG][has_permission] Transaction rolled back")
             except Exception as rollback_error:
                 print(f"[ERROR][has_permission] Rollback failed: {str(rollback_error)}")
             
             # 对于权限检查失败，默认返回False（安全策略）
             # 但对于管理员，即使数据库出错也应该有权限
             if self.role == 'admin':
-                print("[DEBUG][has_permission] Admin fallback, return True")
                 return True
             
             return False
@@ -255,10 +234,6 @@ class User(db.Model, UserMixin):
             else:
                 final_level = 'personal'
             
-            print(f"[DEBUG][get_permission_level] user={self.username}, module={module}")
-            print(f"[DEBUG][get_permission_level] 角色权限级别: {role_level}")
-            print(f"[DEBUG][get_permission_level] 用户有权限: {user_has_permission}")
-            print(f"[DEBUG][get_permission_level] 最终权限级别: {final_level}")
             
             return final_level
             

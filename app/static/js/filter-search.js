@@ -222,7 +222,6 @@ function setupFilterSearch(config) {
         if (searchButton) {
             searchButton.addEventListener('click', function(e) {
                 e.preventDefault(); // 阻止默认的表单提交
-                console.log('🔍 搜索按钮点击，使用AJAX模式');
                 
                 if (config.ajax_callback && typeof config.ajax_callback === 'function') {
                     config.ajax_callback();
@@ -241,7 +240,6 @@ function setupFilterSearch(config) {
         if (searchInput) {
             console.log(`📋 为搜索框 ${config.search_field_id} 添加输入监听器`);
             searchInput.addEventListener('input', function() {
-                console.log(`🔍 搜索框输入变化: "${this.value}"`);
                 if (this.value.trim() !== '') {
                     showResetButton(config);
                 } else {
@@ -390,7 +388,6 @@ function checkActiveFilters(config) {
     
     // 首先检查URL参数作为后备
     const urlParams = new URLSearchParams(window.location.search);
-    console.log('🔍 当前URL参数:', Object.fromEntries(urlParams.entries()));
     
     // 检查搜索框
     if (config.search_field_id) {
@@ -398,10 +395,8 @@ function checkActiveFilters(config) {
         const searchValue = searchInput ? searchInput.value.trim() : '';
         const urlSearchValue = urlParams.get('search') || '';
         
-        console.log(`🔍 搜索框检查: 表单="${searchValue}", URL="${urlSearchValue}"`);
         
         if (searchValue !== '' || urlSearchValue !== '') {
-            console.log(`🔍 发现搜索条件: 表单="${searchValue}", URL="${urlSearchValue}"`);
             return true;
         }
     }
