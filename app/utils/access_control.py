@@ -95,15 +95,6 @@ def get_personal_viewable_user_ids(user):
         ).all()
         viewable_user_ids.extend([u.id for u in dept_users])
 
-    # 商务助理特殊权限：具备部门所有账户的查看权限
-    user_role = user.role.strip() if user.role else ''
-    if user_role == 'business_admin' and user.department and user.company_name:
-        dept_users = User.query.filter(
-            User.department == user.department,
-            User.company_name == user.company_name
-        ).all()
-        viewable_user_ids.extend([u.id for u in dept_users])
-
     return list(set(viewable_user_ids))
 
 def apply_content_filters(query, model_class, module_name, user):
@@ -493,40 +484,7 @@ def get_viewable_data(model_class, user, special_filters=None):
                 business_opportunity_project_ids = [p.id for p in business_opportunity_projects]
                 business_quotations = model_class.query.filter(model_class.project_id.in_(business_opportunity_project_ids)).with_entities(model_class.id).all()
                 accessible_quotation_ids.update([q.id for q in business_quotations])
-        
-        # 商务助理特殊处理：可以查看同部门用户和归属关系授权用户的项目报价单
-        elif user_role == 'business_admin':
-            viewable_user_ids = [user.id]  # 自己的项目
-            
-            # 1. 添加同部门用户
-            if user.department and user.company_name:
-                dept_users = User.query.filter(
-                    User.department == user.department,
-                    User.company_name == user.company_name
-                ).all()
-                viewable_user_ids.extend([u.id for u in dept_users])
-            
-            # 2. 添加归属关系授权的用户
-            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-            for affiliation in affiliations:
-                viewable_user_ids.append(affiliation.owner_id)
-            
-            # 去重
-            viewable_user_ids = list(set(viewable_user_ids))
-            
-            # 获取这些用户拥有的或担任厂商销售的项目
-            authorized_projects = Project.query.filter(
-                db.or_(
-                    Project.owner_id.in_(viewable_user_ids),
-                    Project.vendor_sales_manager_id.in_(viewable_user_ids)
-                )
-            ).with_entities(Project.id).all()
-            
-            if authorized_projects:
-                authorized_project_ids = [p.id for p in authorized_projects]
-                business_admin_quotations = model_class.query.filter(model_class.project_id.in_(authorized_project_ids)).with_entities(model_class.id).all()
-                accessible_quotation_ids.update([q.id for q in business_admin_quotations])
-        
+
         # 返回基于ID列表的查询
         if accessible_quotation_ids:
             return model_class.query.filter(model_class.id.in_(accessible_quotation_ids)).filter(*special_filters if special_filters else [])
@@ -1173,23 +1131,11 @@ def can_edit_company_info(user, company):
         return True
     if user.id == company.owner_id:
         return True
-    
-    # 商务助理：可以编辑同部门用户和归属关系授权用户的客户信息
-    user_role = user.role.strip() if user.role else ''
-    if user_role == 'business_admin':
-        # 检查是否是同部门用户的客户
-        if user.department and user.company_name:
-            company_owner = User.query.get(company.owner_id)
-            if (company_owner and 
-                company_owner.department == user.department and 
-                company_owner.company_name == user.company_name):
-                return True
-        
-        # 检查是否是归属关系授权的用户的客户
-        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-        if company.owner_id in [aff.owner_id for aff in affiliations]:
-            return True
-    
+
+    affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+    if company.owner_id in [aff.owner_id for aff in affiliations]:
+        return True
+
     return False
 
 def can_edit_company_sharing(user, company):
@@ -1199,31 +1145,16 @@ def can_edit_company_sharing(user, company):
     - 管理员
     - 拥有者
     - 通过Affiliation归属关系（viewer_id为当前用户，owner_id为客户owner）
-    - 商务助理：可以编辑同部门用户和归属关系授权用户的客户归属
     """
     if user.role == 'admin':
         return True
     if user.id == company.owner_id:
         return True
-    
+
     affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
     if company.owner_id in [aff.owner_id for aff in affiliations]:
         return True
-    
-    # 商务助理：可以编辑同部门用户和归属关系授权用户的客户归属
-    user_role = user.role.strip() if user.role else ''
-    if user_role == 'business_admin':
-        # 检查是否是同部门用户的客户
-        if user.department and user.company_name:
-            company_owner = User.query.get(company.owner_id)
-            if (company_owner and 
-                company_owner.department == user.department and 
-                company_owner.company_name == user.company_name):
-                return True
-        
-        # 归属关系授权的用户的客户（已在上面检查）
-        # 这里不需要重复检查
-    
+
     return False
 
 def can_delete_company(user, company):
@@ -1240,28 +1171,12 @@ def can_view_contact(user, contact):
         return True
     if user.id == contact.owner_id:
         return True
-    
+
     # 🔥 关键修复：如果用户拥有该联系人所属的客户，则可以查看该联系人
     company = contact.company
     if company and company.owner_id == user.id:
         return True
-    
-    # 商务助理：可以查看同部门用户和归属关系授权用户的联系人
-    user_role = user.role.strip() if user.role else ''
-    if user_role == 'business_admin':
-        # 检查是否是同部门用户的联系人
-        if user.department and user.company_name:
-            contact_owner = User.query.get(contact.owner_id)
-            if (contact_owner and 
-                contact_owner.department == user.department and 
-                contact_owner.company_name == user.company_name):
-                return True
-        
-        # 检查是否是归属关系授权的用户的联系人
-        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-        if contact.owner_id in [aff.owner_id for aff in affiliations]:
-            return True
-    
+
     # 判断是否有指定的联系人归属
     if hasattr(contact, 'assigned_to') and contact.assigned_to == user.id:
         return True
@@ -1278,8 +1193,7 @@ def can_view_contact(user, contact):
     affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
     if contact.owner_id in [affiliation.owner_id for affiliation in affiliations]:
         return True
-    
-    
+
     return False
 
 def can_edit_contact(user, contact):
@@ -1290,25 +1204,14 @@ def can_edit_contact(user, contact):
         return True
     if user.id == contact.owner_id:
         return True
-    
-    # 商务助理：可以编辑同部门用户和归属关系授权用户的联系人
-    user_role = user.role.strip() if user.role else ''
-    if user_role == 'business_admin':
-        # 检查是否是同部门用户的联系人
-        if user.department and user.company_name:
-            contact_owner = User.query.get(contact.owner_id)
-            if (contact_owner and 
-                contact_owner.department == user.department and 
-                contact_owner.company_name == user.company_name):
-                return True
-        
-        # 检查是否是归属关系授权的用户的联系人
-        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-        if contact.owner_id in [aff.owner_id for aff in affiliations]:
-            return True
-    
+
+    # 判断是否通过归属关系获得编辑权限
+    affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+    if contact.owner_id in [aff.owner_id for aff in affiliations]:
+        return True
+
     # 共享联系人只能查看，不能编辑
-    # 只有联系人创建者、管理员、商务助理或通过归属关系授权的用户才能编辑
+    # 只有联系人创建者、管理员或通过归属关系授权的用户才能编辑
     return False
 
 def can_delete_contact(user, contact):
