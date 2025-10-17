@@ -135,9 +135,9 @@ class PMACloudDBSync:
         info_file = os.path.join(self.backup_dir, f'backup_info_{self.timestamp}.md')
         
         try:
-            # 使用pg_dump备份数据库 (SQL格式)
+            # 使用pg_dump备份数据库 (SQL格式) - 使用PostgreSQL 17版本
             cmd_sql = [
-                'pg_dump',
+                '/opt/homebrew/opt/postgresql@17/bin/pg_dump',
                 '-h', cloud_params['host'],
                 '-p', str(cloud_params['port']),
                 '-U', cloud_params['user'],

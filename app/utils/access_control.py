@@ -26,6 +26,171 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 logger = logging.getLogger(__name__)
 
+# ============================================================================
+# 权限过滤辅助函数 - 用于消除 get_viewable_data() 中的代码重复
+# ============================================================================
+
+def get_company_user_ids(user, include_affiliations=True):
+    """
+    获取公司级可查看的用户ID列表
+
+    参数:
+        user: 用户对象
+        include_affiliations: 是否包含归属关系授权的用户（默认True）
+
+    返回:
+        list: 用户ID列表（已去重）
+    """
+    user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
+
+    if include_affiliations:
+        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+        user_ids.extend([aff.owner_id for aff in affiliations])
+
+    return list(set(user_ids))
+
+def get_department_user_ids(user, include_affiliations=True):
+    """
+    获取部门级可查看的用户ID列表
+
+    参数:
+        user: 用户对象
+        include_affiliations: 是否包含归属关系授权的用户（默认True）
+
+    返回:
+        list: 用户ID列表（已去重）
+    """
+    user_ids = [u.id for u in User.query.filter(
+        User.department == user.department,
+        User.company_name == user.company_name
+    ).all()]
+
+    if include_affiliations:
+        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+        user_ids.extend([aff.owner_id for aff in affiliations])
+
+    return list(set(user_ids))
+
+def get_personal_viewable_user_ids(user):
+    """
+    获取个人级可查看的用户ID列表（含归属关系和部门负责人权限）
+
+    参数:
+        user: 用户对象
+
+    返回:
+        list: 用户ID列表（已去重）
+    """
+    viewable_user_ids = [user.id]
+
+    # 归属关系授权
+    affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+    viewable_user_ids.extend([aff.owner_id for aff in affiliations])
+
+    # 部门负责人权限
+    if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+        dept_users = User.query.filter_by(
+            department=user.department,
+            company_name=user.company_name
+        ).all()
+        viewable_user_ids.extend([u.id for u in dept_users])
+
+    # 商务助理特殊权限：具备部门所有账户的查看权限
+    user_role = user.role.strip() if user.role else ''
+    if user_role == 'business_admin' and user.department and user.company_name:
+        dept_users = User.query.filter(
+            User.department == user.department,
+            User.company_name == user.company_name
+        ).all()
+        viewable_user_ids.extend([u.id for u in dept_users])
+
+    return list(set(viewable_user_ids))
+
+def apply_content_filters(query, model_class, module_name, user):
+    """
+    应用内容过滤器（content_filters）到查询
+
+    参数:
+        query: 已经应用了权限级别过滤的Query对象
+        model_class: 数据模型类
+        module_name: 模块名称
+        user: 用户对象
+
+    返回:
+        应用了内容过滤后的Query对象
+    """
+    try:
+        # 获取用户的权限数据（包含content_filters）
+        from app.models.user import Permission
+        user_permission = Permission.query.filter_by(
+            user_id=user.id,
+            module=module_name
+        ).first()
+
+        if not user_permission or not user_permission.content_filters:
+            return query
+
+        content_filters = user_permission.content_filters
+        logger.debug(f"应用 {module_name} 模块的内容过滤: {content_filters}")
+
+        # 根据模块类型应用不同的过滤规则
+        if module_name == 'project' and model_class.__name__ == 'Project':
+            # 项目类型过滤
+            if 'project_type' in content_filters and content_filters['project_type']:
+                allowed_types = content_filters['project_type']
+                if isinstance(allowed_types, list) and allowed_types:
+                    query = query.filter(model_class.project_type.in_(allowed_types))
+                    logger.debug(f"应用项目类型过滤: {allowed_types}")
+
+            # 业务类型过滤
+            if 'business_type' in content_filters and content_filters['business_type']:
+                allowed_business_types = content_filters['business_type']
+                if isinstance(allowed_business_types, list) and allowed_business_types:
+                    query = query.filter(model_class.business_type.in_(allowed_business_types))
+                    logger.debug(f"应用业务类型过滤: {allowed_business_types}")
+
+            # 项目状态过滤
+            if 'project_status' in content_filters and content_filters['project_status']:
+                allowed_statuses = content_filters['project_status']
+                if isinstance(allowed_statuses, list) and allowed_statuses:
+                    query = query.filter(model_class.status.in_(allowed_statuses))
+                    logger.debug(f"应用项目状态过滤: {allowed_statuses}")
+
+        elif module_name == 'customer' and model_class.__name__ == 'Company':
+            # 行业过滤
+            if 'industry' in content_filters and content_filters['industry']:
+                allowed_industries = content_filters['industry']
+                if isinstance(allowed_industries, list) and allowed_industries:
+                    query = query.filter(model_class.industry.in_(allowed_industries))
+                    logger.debug(f"应用行业过滤: {allowed_industries}")
+
+            # 地区过滤
+            if 'region' in content_filters and content_filters['region']:
+                allowed_regions = content_filters['region']
+                if isinstance(allowed_regions, list) and allowed_regions:
+                    query = query.filter(model_class.region.in_(allowed_regions))
+                    logger.debug(f"应用地区过滤: {allowed_regions}")
+
+        elif module_name == 'quotation' and model_class.__name__ == 'Quotation':
+            # 报价单状态过滤
+            if 'quotation_status' in content_filters and content_filters['quotation_status']:
+                allowed_statuses = content_filters['quotation_status']
+                if isinstance(allowed_statuses, list) and allowed_statuses:
+                    query = query.filter(model_class.status.in_(allowed_statuses))
+                    logger.debug(f"应用报价单状态过滤: {allowed_statuses}")
+
+        # 其他模块可以在这里继续扩展
+
+        return query
+
+    except Exception as e:
+        logger.error(f"应用内容过滤时出错: {e}")
+        return query  # 出错时返回原查询，不影响基本功能
+
+# ============================================================================
+# 权限检查函数
+# ============================================================================
+
 def has_approval_permission(user, model_obj):
     """
     检查用户是否对指定对象有审批权限
@@ -129,9 +294,10 @@ def get_viewable_data(model_class, user, special_filters=None):
     # User 模型特殊处理 - User 没有 owner_id 字段
     if model_class.__name__ == 'User':
         # 管理员已经在前面处理
-        # 使用统一的用户访问权限控制
-        from app.utils.permissions import get_accessible_users
-        accessible_users = get_accessible_users(user)
+        # 使用纯权限版本的访问控制（不包含数据归属）
+        # 账户管理是非业务数据，不应受业务数据归属关系影响
+        from app.utils.permissions import get_accessible_users_by_permission_only
+        accessible_users = get_accessible_users_by_permission_only(user, 'user_management')
         accessible_user_ids = [u.id for u in accessible_users]
         return model_class.query.filter(model_class.id.in_(accessible_user_ids), *special_filters)
     
@@ -139,75 +305,58 @@ def get_viewable_data(model_class, user, special_filters=None):
     if model_class.__name__ == 'Product':
         return model_class.query.filter(*special_filters)
     
-    # 订单数据访问控制 - 使用统一权限系统
+    # 订单数据访问控制 - 使用统一权限系统（重构版）
     if model_class.__name__ == 'PurchaseOrder':
         # 检查用户是否有订单模块的查看权限
         if not user.has_permission('order', 'view'):
             return model_class.query.filter(False)
-        
+
         # 获取用户在订单模块的权限级别
         permission_level = user.get_permission_level('order')
-        
+
+        # 使用统一的权限级别过滤逻辑
         if permission_level == 'system':
-            # 系统级权限：可以查看所有订单
-            return model_class.query.filter(*special_filters if special_filters else [])
+            query = model_class.query.filter(*special_filters if special_filters else [])
         elif permission_level == 'company' and user.company_name:
-            # 企业级权限：可以查看企业下所有订单
-            company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
-            return model_class.query.filter(
+            company_user_ids = get_company_user_ids(user)
+            query = model_class.query.filter(
                 model_class.created_by_id.in_(company_user_ids),
                 *special_filters
             )
         elif permission_level == 'department' and user.department:
-            # 部门级权限：可以查看部门下所有订单
-            dept_user_ids = [u.id for u in User.query.filter_by(department=user.department, company_name=user.company_name).all()]
-            return model_class.query.filter(
+            dept_user_ids = get_department_user_ids(user)
+            query = model_class.query.filter(
                 model_class.created_by_id.in_(dept_user_ids),
                 *special_filters
             )
-        else:
-            # 个人级权限：自己创建的订单 + 归属关系授权的订单
-            viewable_user_ids = [user.id]
-            
-            # 获取通过归属关系可以查看的数据
-            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-            for affiliation in affiliations:
-                viewable_user_ids.append(affiliation.owner_id)
-            
-            return model_class.query.filter(
+        else:  # personal
+            viewable_user_ids = get_personal_viewable_user_ids(user)
+            query = model_class.query.filter(
                 model_class.created_by_id.in_(viewable_user_ids),
                 *special_filters
             )
+
+        # 应用内容过滤
+        query = apply_content_filters(query, model_class, 'order', user)
+
+        return query
     
-    # 处理特殊角色权限 - Project模型 - 基于四级权限管理系统
+    # 处理特殊角色权限 - Project模型 - 基于四级权限管理系统（重构版）
     if model_class.__name__ == 'Project':
         # 检查用户是否有项目模块的查看权限
         if not user.has_permission('project', 'view'):
-            # 如果没有项目查看权限，返回空查询
             return model_class.query.filter(False)
-        
+
         # 获取用户在项目模块的权限级别
         permission_level = user.get_permission_level('project')
-        
-        # 临时调试信息
         logger.info(f"🔍 [ACCESS_CONTROL] 用户 {user.username} (角色: {user.role}) 项目权限级别: {permission_level}")
-        
+
+        # 使用统一的权限级别过滤逻辑
         if permission_level == 'system':
-            # 系统级权限：可以查看所有项目
-            return model_class.query.filter(*special_filters)
+            query = model_class.query.filter(*special_filters)
         elif permission_level == 'company' and user.company_name:
-            # 企业级权限：可以查看企业下所有项目
-            company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
-            
-            # 添加归属关系授权的用户（数据归属权限）
-            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-            for affiliation in affiliations:
-                company_user_ids.append(affiliation.owner_id)
-            
-            # 去重
-            company_user_ids = list(set(company_user_ids))
-            
-            return model_class.query.filter(
+            company_user_ids = get_company_user_ids(user)
+            query = model_class.query.filter(
                 db.or_(
                     model_class.owner_id.in_(company_user_ids),
                     model_class.vendor_sales_manager_id == user.id
@@ -215,64 +364,38 @@ def get_viewable_data(model_class, user, special_filters=None):
                 *special_filters
             )
         elif permission_level == 'department' and user.department and user.company_name:
-            # 部门级权限：可以查看部门下所有项目
-            dept_user_ids = [u.id for u in User.query.filter(
-                User.department == user.department,
-                User.company_name == user.company_name
-            ).all()]
-            
-            # 添加归属关系授权的用户（数据归属权限）
-            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-            for affiliation in affiliations:
-                dept_user_ids.append(affiliation.owner_id)
-            
-            # 去重
-            dept_user_ids = list(set(dept_user_ids))
-            
-            return model_class.query.filter(
+            dept_user_ids = get_department_user_ids(user)
+            query = model_class.query.filter(
                 db.or_(
                     model_class.owner_id.in_(dept_user_ids),
                     model_class.vendor_sales_manager_id == user.id
                 ),
                 *special_filters
             )
-        else:
-            # 个人级权限：基础权限控制
-            viewable_user_ids = [user.id]
-            
-            # 添加归属关系授权的用户（数据归属权限）
-            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-            for affiliation in affiliations:
-                viewable_user_ids.append(affiliation.owner_id)
-            
-            # 部门负责人权限：可以查看本公司本部门所有用户的数据
-            if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
-                dept_users = User.query.filter_by(
-                    department=user.department,
-                    company_name=user.company_name
-                ).all()
-                viewable_user_ids.extend([u.id for u in dept_users])
-            
-            # 去重
-            viewable_user_ids = list(set(viewable_user_ids))
-            
-            # 构建基础权限条件
+        else:  # personal
+            viewable_user_ids = get_personal_viewable_user_ids(user)
+
+            # 构建基础权限条件（Project特有：厂商销售负责人 + 共享机制）
             basic_permission_conditions = [
                 model_class.owner_id.in_(viewable_user_ids),
-                model_class.vendor_sales_manager_id == user.id  # 作为厂商销售负责人的项目
+                model_class.vendor_sales_manager_id == user.id
             ]
-            
-            # 添加通用共享机制的项目访问权限
+
+            # 添加通用共享机制
             from app.utils.sharing import SharingService
             project_sharing_condition = SharingService.get_sharing_query_condition(model_class, user.id)
             if project_sharing_condition is not None:
                 basic_permission_conditions.append(project_sharing_condition)
-            
-            # 基于权限管理系统的数据访问控制
-            return model_class.query.filter(
+
+            query = model_class.query.filter(
                 db.or_(*basic_permission_conditions),
                 *special_filters
             )
+
+        # 应用内容过滤
+        query = apply_content_filters(query, model_class, 'project', user)
+
+        return query
 
     # 报价单特殊权限
     if model_class.__name__ == 'Quotation':
@@ -411,188 +534,104 @@ def get_viewable_data(model_class, user, special_filters=None):
             # 如果没有可访问的报价单，返回空查询
             return model_class.query.filter(model_class.id == -1)
     
-    # 客户特殊权限处理 - 基于权限管理系统
+    # 客户特殊权限处理 - 基于权限管理系统（重构版）
     if model_class.__name__ in ['Company', 'Contact']:
-        # 管理员已经在前面处理过，不应该进入这个逻辑
-        # 但为了防止意外，再次检查管理员权限
+        # 管理员已经在前面处理过，但为了防止意外，再次检查
         if user.role == 'admin':
-            # 为所有支持软删除的模型添加is_deleted过滤条件
             base_filters = []
             if hasattr(model_class, 'is_deleted'):
                 base_filters.append(model_class.is_deleted == False)
             all_filters = base_filters + (special_filters if special_filters else [])
             return model_class.query.filter(*all_filters)
-        
+
         # 检查用户是否有客户模块的查看权限
         if not user.has_permission('customer', 'view'):
-            # 如果没有客户查看权限，返回空查询
             return model_class.query.filter(False)
-        
-        # 基于四级权限系统的数据访问控制
+
+        # 获取用户在客户模块的权限级别
         permission_level = user.get_permission_level('customer')
-        
-        # 临时调试信息
         logger.info(f"🔍 [ACCESS_CONTROL] 用户 {user.username} (角色: {user.role}) 客户权限级别: {permission_level}")
-        
+
         # 为Company模型添加is_deleted过滤条件
         base_filters = []
         if model_class.__name__ == 'Company':
             base_filters.append(model_class.is_deleted == False)
-        
+
+        # 使用统一的权限级别过滤逻辑
         if permission_level == 'system':
-            # 系统级权限：可以查看所有客户数据
-            all_filters = base_filters + (special_filters if special_filters else [])
-            return model_class.query.filter(*all_filters)
+            query = model_class.query.filter(*(base_filters + (special_filters if special_filters else [])))
         elif permission_level == 'company' and user.company_name:
-            # 企业级权限：可以查看企业下所有客户数据
-            company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
-            
-            # 添加归属关系授权的用户（数据归属权限）
-            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-            for affiliation in affiliations:
-                company_user_ids.append(affiliation.owner_id)
-            
-            # 去重
-            company_user_ids = list(set(company_user_ids))
-            
+            company_user_ids = get_company_user_ids(user)
             all_filters = base_filters + [model_class.owner_id.in_(company_user_ids)] + (special_filters if special_filters else [])
-            return model_class.query.filter(*all_filters)
+            query = model_class.query.filter(*all_filters)
         elif permission_level == 'department' and user.department and user.company_name:
-            # 部门级权限：可以查看部门下所有客户数据
-            dept_user_ids = [u.id for u in User.query.filter(
-                User.department == user.department,
-                User.company_name == user.company_name
-            ).all()]
-            
-            # 添加归属关系授权的用户（数据归属权限）
-            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-            for affiliation in affiliations:
-                dept_user_ids.append(affiliation.owner_id)
-            
-            # 去重
-            dept_user_ids = list(set(dept_user_ids))
-            
+            dept_user_ids = get_department_user_ids(user)
             all_filters = base_filters + [model_class.owner_id.in_(dept_user_ids)] + (special_filters if special_filters else [])
-            return model_class.query.filter(*all_filters)
-        
-        # 个人级权限或其他情况：基础权限控制
-        viewable_user_ids = [user.id]
-        
-        # 添加归属关系授权的用户（数据归属权限）
-        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-        for affiliation in affiliations:
-            viewable_user_ids.append(affiliation.owner_id)
-        
-        # 部门负责人权限：可以查看本公司本部门所有用户的数据
-        if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
-            dept_users = User.query.filter_by(
-                department=user.department,
-                company_name=user.company_name
-            ).all()
-            viewable_user_ids.extend([u.id for u in dept_users])
-        
-        # 商务助理特殊权限：具备部门所有账户的查看权限
-        user_role = user.role.strip() if user.role else ''
-        if user_role == 'business_admin' and user.department and user.company_name:
-            dept_users = User.query.filter(
-                User.department == user.department,
-                User.company_name == user.company_name
-            ).all()
-            viewable_user_ids.extend([u.id for u in dept_users])
-        
-        # 去重
-        viewable_user_ids = list(set(viewable_user_ids))
-        
-        # 构建权限查询条件
-        permission_conditions = []
-        
-        # 1. 基于owner_id的权限
-        permission_conditions.append(model_class.owner_id.in_(viewable_user_ids))
-        
-        # 2. 基于通用共享机制的权限（适用于Company模型）
-        if model_class.__name__ == 'Company':
-            # 添加通用共享权限
-            from app.utils.sharing import SharingService
-            company_sharing_condition = SharingService.get_sharing_query_condition(model_class, user.id)
-            if company_sharing_condition is not None:
-                permission_conditions.append(company_sharing_condition)
-        
-        # 使用OR条件组合所有权限
-        from sqlalchemy import or_
-        combined_permission_condition = or_(*permission_conditions)
-        
-        # 基于权限管理系统的数据访问控制
-        all_filters = base_filters + [combined_permission_condition] + (special_filters if special_filters else [])
-        return model_class.query.filter(*all_filters)
+            query = model_class.query.filter(*all_filters)
+        else:  # personal
+            viewable_user_ids = get_personal_viewable_user_ids(user)
+
+            # 构建权限查询条件（Customer特有：共享机制）
+            permission_conditions = [model_class.owner_id.in_(viewable_user_ids)]
+
+            # Company模型添加通用共享机制
+            if model_class.__name__ == 'Company':
+                from app.utils.sharing import SharingService
+                company_sharing_condition = SharingService.get_sharing_query_condition(model_class, user.id)
+                if company_sharing_condition is not None:
+                    permission_conditions.append(company_sharing_condition)
+
+            # 使用OR条件组合所有权限
+            from sqlalchemy import or_
+            combined_permission_condition = or_(*permission_conditions)
+
+            all_filters = base_filters + [combined_permission_condition] + (special_filters if special_filters else [])
+            query = model_class.query.filter(*all_filters)
+
+        # 应用内容过滤
+        query = apply_content_filters(query, model_class, 'customer', user)
+
+        return query
     
-    # 报销单特殊权限处理 - 基于权限管理系统
+    # 报销单特殊权限处理 - 基于权限管理系统（重构版）
     if model_class.__name__ == 'Expense':
         # 检查用户是否有报销单模块的查看权限
         if not user.has_permission('expense', 'view'):
-            # 如果没有报销单查看权限，返回空查询
             return model_class.query.filter(False)
-        
+
         # 统一处理角色字符串，去除空格
         user_role = user.role.strip() if user.role else ''
-        
-        # 财务总监可以查看所有报销单（只读权限）
-        if user_role in ['finance_director', 'finace_director']:
-            base_filters = [model_class.is_deleted == False] if hasattr(model_class, 'is_deleted') else []
-            return model_class.query.filter(*(base_filters + (special_filters if special_filters else [])))
-        
-        # 基于四级权限系统的数据访问控制
-        permission_level = user.get_permission_level('expense')
-        
+
         # 基础过滤条件：排除已删除的报销单
         base_filters = [model_class.is_deleted == False] if hasattr(model_class, 'is_deleted') else []
-        
-        if permission_level == 'system':
-            # 系统级权限：可以查看所有报销单
+
+        # 财务总监可以查看所有报销单（特殊角色权限）
+        if user_role in ['finance_director', 'finace_director']:
             return model_class.query.filter(*(base_filters + (special_filters if special_filters else [])))
+
+        # 获取用户在报销单模块的权限级别
+        permission_level = user.get_permission_level('expense')
+
+        # 使用统一的权限级别过滤逻辑
+        if permission_level == 'system':
+            query = model_class.query.filter(*(base_filters + (special_filters if special_filters else [])))
         elif permission_level == 'company' and user.company_name:
-            # 企业级权限：可以查看企业下所有报销单
-            company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
+            company_user_ids = get_company_user_ids(user, include_affiliations=False)
             all_filters = base_filters + [model_class.owner_id.in_(company_user_ids)] + (special_filters if special_filters else [])
-            return model_class.query.filter(*all_filters)
+            query = model_class.query.filter(*all_filters)
         elif permission_level == 'department' and user.department and user.company_name:
-            # 部门级权限：可以查看部门下所有报销单
-            dept_user_ids = [u.id for u in User.query.filter(
-                User.department == user.department,
-                User.company_name == user.company_name
-            ).all()]
+            dept_user_ids = get_department_user_ids(user, include_affiliations=False)
             all_filters = base_filters + [model_class.owner_id.in_(dept_user_ids)] + (special_filters if special_filters else [])
-            return model_class.query.filter(*all_filters)
-        
-        # 个人级权限或其他情况：基础权限控制
-        viewable_user_ids = [user.id]
-        
-        # 添加归属关系授权的用户（数据归属权限）
-        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-        for affiliation in affiliations:
-            viewable_user_ids.append(affiliation.owner_id)
-        
-        # 部门负责人权限：可以查看本公司本部门所有用户的报销单
-        if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
-            dept_users = User.query.filter_by(
-                department=user.department,
-                company_name=user.company_name
-            ).all()
-            viewable_user_ids.extend([u.id for u in dept_users])
-        
-        # 商务助理特殊权限：具备部门所有账户的查看权限
-        if user_role == 'business_admin' and user.department and user.company_name:
-            dept_users = User.query.filter(
-                User.department == user.department,
-                User.company_name == user.company_name
-            ).all()
-            viewable_user_ids.extend([u.id for u in dept_users])
-        
-        # 去重
-        viewable_user_ids = list(set(viewable_user_ids))
-        
-        # 基于权限管理系统的数据访问控制
-        all_filters = base_filters + [model_class.owner_id.in_(viewable_user_ids)] + (special_filters if special_filters else [])
-        return model_class.query.filter(*all_filters)
+            query = model_class.query.filter(*all_filters)
+        else:  # personal
+            viewable_user_ids = get_personal_viewable_user_ids(user)
+            all_filters = base_filters + [model_class.owner_id.in_(viewable_user_ids)] + (special_filters if special_filters else [])
+            query = model_class.query.filter(*all_filters)
+
+        # 应用内容过滤
+        query = apply_content_filters(query, model_class, 'expense', user)
+
+        return query
     
     # 行动记录的特殊处理
     if model_class.__name__ == 'Action':
@@ -714,61 +753,40 @@ def get_viewable_data(model_class, user, special_filters=None):
         
         return model_class.query.filter(*action_filters, *special_filters)
     
-    # 批价单的特殊处理 - PricingOrder 使用 created_by 字段而不是 owner_id
+    # 批价单的特殊处理 - PricingOrder 使用 created_by 字段而不是 owner_id（重构版）
     if model_class.__name__ == 'PricingOrder':
         # 检查用户是否有批价单模块的查看权限
         if not user.has_permission('pricing_order', 'view'):
             return model_class.query.filter(False)
-        
+
         # 获取用户在批价单模块的权限级别
         permission_level = user.get_permission_level('pricing_order')
-        
+
         # 为软删除模型添加is_deleted过滤条件
         base_filters = []
         if hasattr(model_class, 'is_deleted'):
             base_filters.append(model_class.is_deleted == False)
-        
+
+        # 使用统一的权限级别过滤逻辑
         if permission_level == 'system':
-            # 系统级权限：可以查看所有批价单
-            all_filters = base_filters + (special_filters if special_filters else [])
-            return model_class.query.filter(*all_filters)
+            query = model_class.query.filter(*(base_filters + (special_filters if special_filters else [])))
         elif permission_level == 'company' and user.company_name:
-            # 企业级权限：可以查看企业下所有批价单
-            company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
+            company_user_ids = get_company_user_ids(user, include_affiliations=False)
             all_filters = base_filters + [model_class.created_by.in_(company_user_ids)] + (special_filters if special_filters else [])
-            return model_class.query.filter(*all_filters)
+            query = model_class.query.filter(*all_filters)
         elif permission_level == 'department' and user.department and user.company_name:
-            # 部门级权限：可以查看部门下所有批价单
-            dept_user_ids = [u.id for u in User.query.filter(
-                User.department == user.department,
-                User.company_name == user.company_name
-            ).all()]
+            dept_user_ids = get_department_user_ids(user, include_affiliations=False)
             all_filters = base_filters + [model_class.created_by.in_(dept_user_ids)] + (special_filters if special_filters else [])
-            return model_class.query.filter(*all_filters)
-        
-        # 个人级权限或其他情况：基础权限控制
-        viewable_user_ids = [user.id]
-        
-        # 归属关系：可以查看下级创建的批价单
-        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-        for affiliation in affiliations:
-            viewable_user_ids.append(affiliation.owner_id)
-        
-        # 部门负责人权限：可以查看本公司本部门所有用户的批价单
-        if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
-            dept_users = User.query.filter_by(
-                department=user.department,
-                company_name=user.company_name
-            ).all()
-            dept_user_ids = [u.id for u in dept_users]
-            viewable_user_ids.extend(dept_user_ids)
-        
-        # 去重
-        viewable_user_ids = list(set(viewable_user_ids))
-        
-        # 基于权限管理系统的数据访问控制，使用 created_by 字段
-        all_filters = base_filters + [model_class.created_by.in_(viewable_user_ids)] + (special_filters if special_filters else [])
-        return model_class.query.filter(*all_filters)
+            query = model_class.query.filter(*all_filters)
+        else:  # personal
+            viewable_user_ids = get_personal_viewable_user_ids(user)
+            all_filters = base_filters + [model_class.created_by.in_(viewable_user_ids)] + (special_filters if special_filters else [])
+            query = model_class.query.filter(*all_filters)
+
+        # 应用内容过滤
+        query = apply_content_filters(query, model_class, 'pricing_order', user)
+
+        return query
     
     # 标准数据访问控制：自己的数据 + 归属关系授权的数据
     viewable_user_ids = [user.id]
@@ -785,14 +803,43 @@ def get_viewable_data(model_class, user, special_filters=None):
         *special_filters
     )
 
-def can_edit_data(model_obj, user):
+def _has_basic_edit_permission(model_obj, user):
     """
-    检查用户是否有权限编辑指定的数据对象
-    
+    基本权限保障：检查用户是否对自己的数据拥有编辑权限
+
+    这是一个辅助函数，用于实现"个人数据保底权限"规则：
+    无论权限配置如何，用户始终拥有对自己创建数据的完整编辑权限。
+
     参数:
         model_obj: 数据对象
         user: 用户对象
-    
+
+    返回:
+        True - 用户是数据拥有者，直接允许编辑
+        False - 需要继续检查其他权限
+    """
+    # 标准owner_id字段检查（大部分模块使用）
+    if hasattr(model_obj, 'owner_id') and model_obj.owner_id == user.id:
+        return True
+
+    # 特殊created_by字段检查（用于订单类模块）
+    if hasattr(model_obj, 'created_by') and model_obj.created_by == user.id:
+        return True
+
+    # 特殊created_by_id字段检查
+    if hasattr(model_obj, 'created_by_id') and model_obj.created_by_id == user.id:
+        return True
+
+    return False
+
+def can_edit_data(model_obj, user):
+    """
+    检查用户是否有权限编辑指定的数据对象
+
+    参数:
+        model_obj: 数据对象
+        user: 用户对象
+
     返回:
         bool: 是否有编辑权限
     """
@@ -853,13 +900,21 @@ def can_edit_data(model_obj, user):
     
     # 项目特殊处理：基于权限级别的编辑权限控制
     if model_name == 'Project':
-        # 检查用户是否有项目模块的编辑权限
+        # 🆕 基本权限保障 - 用户始终可以编辑自己创建的项目
+        if _has_basic_edit_permission(model_obj, user):
+            return True
+
+        # 厂商负责人特殊权限（独立于权限系统）
+        if hasattr(model_obj, 'vendor_sales_manager_id') and model_obj.vendor_sales_manager_id == user.id:
+            return True
+
+        # 检查用户是否有项目模块的编辑权限（用于编辑他人数据）
         if not user.has_permission('project', 'edit'):
             return False
-        
-        # 检查权限级别
+
+        # 检查权限级别（决定可以编辑哪些他人的数据）
         permission_level = user.get_permission_level('project')
-        
+
         if permission_level == 'system':
             # 系统级权限：可以编辑所有项目
             return True
@@ -870,26 +925,25 @@ def can_edit_data(model_obj, user):
         elif permission_level == 'department' and user.department and user.company_name:
             # 部门级权限：可以编辑部门下所有项目
             data_owner = User.query.get(model_obj.owner_id)
-            return (data_owner and data_owner.department == user.department and 
+            return (data_owner and data_owner.department == user.department and
                    data_owner.company_name == user.company_name)
-        else:
-            # 个人级权限：只能编辑自己的项目或厂商负责的项目
-            if model_obj.owner_id == user.id:
-                return True
-            # 厂商负责人可以编辑
-            if hasattr(model_obj, 'vendor_sales_manager_id') and model_obj.vendor_sales_manager_id == user.id:
-                return True
-            return False
+
+        # personal级别：已在基本权限保障中处理，这里返回False
+        return False
     
     # 客户特殊处理：基于权限级别的编辑权限控制
     if model_name == 'Company':
-        # 检查用户是否有客户模块的编辑权限
+        # 🆕 基本权限保障 - 用户始终可以编辑自己创建的客户
+        if _has_basic_edit_permission(model_obj, user):
+            return True
+
+        # 检查用户是否有客户模块的编辑权限（用于编辑他人数据）
         if not user.has_permission('customer', 'edit'):
             return False
-        
-        # 检查权限级别
+
+        # 检查权限级别（决定可以编辑哪些他人的数据）
         permission_level = user.get_permission_level('customer')
-        
+
         if permission_level == 'system':
             # 系统级权限：可以编辑所有客户
             return True
@@ -900,52 +954,51 @@ def can_edit_data(model_obj, user):
         elif permission_level == 'department' and user.department and user.company_name:
             # 部门级权限：可以编辑部门下所有客户
             data_owner = User.query.get(model_obj.owner_id)
-            return (data_owner and data_owner.department == user.department and 
+            return (data_owner and data_owner.department == user.department and
                    data_owner.company_name == user.company_name)
-        else:
-            # 个人级权限：只能编辑自己创建的客户
-            return model_obj.owner_id == user.id
+
+        # personal级别：已在基本权限保障中处理，这里返回False
+        return False
     
     # 报价单特殊处理：项目的厂商负责人可以编辑相关报价单
     if model_name == 'Quotation':
-        # 报价单拥有人可以编辑
-        if model_obj.owner_id == user.id:
+        # 🆕 基本权限保障 - 用户始终可以编辑自己创建的报价单
+        if _has_basic_edit_permission(model_obj, user):
             return True
-        # 项目的厂商负责人可以编辑相关报价单
-        if (hasattr(model_obj, 'project') and model_obj.project and 
-            hasattr(model_obj.project, 'vendor_sales_manager_id') and 
+
+        # 项目的厂商负责人可以编辑相关报价单（独立于权限系统）
+        if (hasattr(model_obj, 'project') and model_obj.project and
+            hasattr(model_obj.project, 'vendor_sales_manager_id') and
             model_obj.project.vendor_sales_manager_id == user.id):
             return True
-        # 解决方案经理可以编辑所有报价单
+
+        # 解决方案经理可以编辑所有报价单（特殊角色权限）
         if user_role in ['solution_manager', 'solution']:
             return True
+
         return False
     
     # 报销单特殊处理：支持审批权限
     if model_name == 'Expense':
-        # 报销单拥有人可以编辑
-        if model_obj.owner_id == user.id:
+        # 🆕 基本权限保障 - 用户始终可以编辑自己创建的报销单
+        if _has_basic_edit_permission(model_obj, user):
             return True
-        
-        # 检查用户是否有审批权限 - 如果有审批权限，绕过基础权限检查
+
+        # 审批权限特殊处理：审批人在审批过程中可以编辑
         if has_approval_permission(user, model_obj):
             return True
-        
-        # 基于权限系统的编辑权限控制 - 检查用户是否有基础的查看权限
-        if not user.has_permission('expense', 'view'):
-            return False
-        
-        # 检查用户是否有编辑权限
+
+        # 检查用户是否有报销单模块的编辑权限（用于编辑他人数据）
         if not user.has_permission('expense', 'edit'):
             return False
-        
-        # 财务总监可以编辑所有报销单
+
+        # 财务总监特殊权限：可以编辑所有报销单
         if user_role in ['finance_director', 'finace_director']:
             return True
-        
-        # 基于四级权限系统的编辑权限控制
+
+        # 基于四级权限系统的编辑权限控制（决定可以编辑哪些他人的数据）
         permission_level = user.get_permission_level('expense')
-        
+
         if permission_level == 'system':
             return True
         elif permission_level == 'company' and user.company_name:
@@ -958,39 +1011,40 @@ def can_edit_data(model_obj, user):
         elif permission_level == 'department' and user.department and user.company_name:
             # 部门级权限：可以编辑部门下所有报销单
             if hasattr(model_obj, 'owner') and model_obj.owner:
-                return (model_obj.owner.department == user.department and 
+                return (model_obj.owner.department == user.department and
                        model_obj.owner.company_name == user.company_name)
             else:
                 owner = User.query.get(model_obj.owner_id)
-                return (owner and owner.department == user.department and 
+                return (owner and owner.department == user.department and
                        owner.company_name == user.company_name)
-        
-        # 部门负责人权限：可以编辑本公司本部门所有用户的报销单
+
+        # 部门负责人特殊权限：可以编辑本公司本部门所有用户的报销单
         if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
             if hasattr(model_obj, 'owner') and model_obj.owner:
-                return (model_obj.owner.department == user.department and 
+                return (model_obj.owner.department == user.department and
                        model_obj.owner.company_name == user.company_name)
             else:
                 owner = User.query.get(model_obj.owner_id)
-                return (owner and owner.department == user.department and 
+                return (owner and owner.department == user.department and
                        owner.company_name == user.company_name)
-        
+
+        # personal级别：已在基本权限保障中处理，这里返回False
         return False
     
     # 营销总监只能编辑自己的数据
     if user_role == 'sales_director':
-        return model_obj.owner_id == user.id
-    
+        return _has_basic_edit_permission(model_obj, user)
+
     # 渠道经理只能编辑自己的数据
     if user_role == 'channel_manager':
-        return model_obj.owner_id == user.id
-    
+        return _has_basic_edit_permission(model_obj, user)
+
     # 销售角色只能编辑自己的数据
     if user_role in ['sales', 'sales_manager']:
-        return model_obj.owner_id == user.id
-    
-    # 其他角色的编辑权限逻辑保持不变
-    return model_obj.owner_id == user.id
+        return _has_basic_edit_permission(model_obj, user)
+
+    # 其他角色的编辑权限逻辑：默认使用基本权限保障
+    return _has_basic_edit_permission(model_obj, user)
 
 def get_accessible_data(model_class, user, special_filters=None):
     """

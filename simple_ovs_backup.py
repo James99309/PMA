@@ -104,8 +104,9 @@ class SimpleOVSBackup:
         
         try:
             # 使用 subprocess.run - 与 sp8d 备份工具相同的方式
+            # 使用PostgreSQL 17版本的pg_dump
             cmd = [
-                'pg_dump',
+                '/opt/homebrew/opt/postgresql@17/bin/pg_dump',
                 '-h', cloud_params['host'],
                 '-p', str(cloud_params['port']),
                 '-U', cloud_params['user'],

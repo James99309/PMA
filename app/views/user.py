@@ -6,7 +6,18 @@ from app import db
 import logging
 import json
 from datetime import datetime
-from app.utils.dictionary_helpers import get_role_display_name
+from app.utils.dictionary_helpers import (
+    get_role_display_name,
+    get_project_type_options,
+    get_project_stage_options,
+    get_report_source_options,
+    get_industry_options,
+    get_company_type_options,
+    get_status_options,
+    get_business_type_options,
+    PRODUCT_TYPE_OPTIONS,
+    PRODUCT_STATUS_OPTIONS
+)
 from app.models.dictionary import Dictionary
 from app.models.project import Project
 from app.models.customer import Company
@@ -20,6 +31,70 @@ user_bp = Blueprint('user', __name__)
 
 # API基础URL
 API_BASE_URL = "/api/v1"
+
+# ==================== 权限字典辅助函数 ====================
+def build_permission_dict(perm_obj):
+    """将权限对象转换为标准字典格式
+
+    Args:
+        perm_obj: RolePermission 或 Permission 对象
+
+    Returns:
+        dict: 包含所有权限字段的标准字典
+    """
+    return {
+        'can_view': getattr(perm_obj, 'can_view', False),
+        'can_create': getattr(perm_obj, 'can_create', False),
+        'can_edit': getattr(perm_obj, 'can_edit', False),
+        'can_delete': getattr(perm_obj, 'can_delete', False),
+        'can_change_owner': getattr(perm_obj, 'can_change_owner', False),
+        'permission_level': getattr(perm_obj, 'permission_level', 'personal'),
+        'permission_level_description': getattr(perm_obj, 'permission_level_description', None),
+        'pricing_discount_limit': getattr(perm_obj, 'pricing_discount_limit', None),
+        'settlement_discount_limit': getattr(perm_obj, 'settlement_discount_limit', None),
+        'content_filters': getattr(perm_obj, 'content_filters', None)
+    }
+
+def get_default_permission_dict():
+    """返回默认权限字典（所有权限为False/None）
+
+    Returns:
+        dict: 默认权限字典
+    """
+    return {
+        'can_view': False,
+        'can_create': False,
+        'can_edit': False,
+        'can_delete': False,
+        'can_change_owner': False,
+        'permission_level': 'personal',
+        'pricing_discount_limit': None,
+        'settlement_discount_limit': None,
+        'content_filters': None
+    }
+
+def merge_permission_dicts(role_perm, personal_perm):
+    """合并角色权限和个人权限（个人权限优先）
+
+    Args:
+        role_perm: 角色权限字典
+        personal_perm: 个人权限字典
+
+    Returns:
+        dict: 合并后的权限字典
+    """
+    return {
+        'can_view': role_perm['can_view'] or personal_perm['can_view'],
+        'can_create': role_perm['can_create'] or personal_perm['can_create'],
+        'can_edit': role_perm['can_edit'] or personal_perm['can_edit'],
+        'can_delete': role_perm['can_delete'] or personal_perm['can_delete'],
+        'can_change_owner': role_perm['can_change_owner'] or personal_perm['can_change_owner'],
+        'permission_level': personal_perm.get('permission_level') if personal_perm.get('permission_level') != 'personal' else role_perm.get('permission_level', 'personal'),
+        'pricing_discount_limit': personal_perm.get('pricing_discount_limit') if personal_perm.get('pricing_discount_limit') is not None else role_perm.get('pricing_discount_limit'),
+        'settlement_discount_limit': personal_perm.get('settlement_discount_limit') if personal_perm.get('settlement_discount_limit') is not None else role_perm.get('settlement_discount_limit'),
+        'content_filters': personal_perm.get('content_filters') if personal_perm.get('content_filters') is not None else role_perm.get('content_filters')
+    }
+# ==================== 权限字典辅助函数结束 ====================
 
 def get_auth_headers():
     """获取认证头部信息"""
@@ -1056,8 +1131,79 @@ def manage_permissions(user_id):
                 'settlement_discount_limit': effective_settlement_limit
             }
         
+        # 准备内容筛选配置（配置驱动，支持国际化）
+        filter_configs = {
+            'project': {
+                'project_type': {
+                    'label': '项目类型',
+                    'options': get_project_type_options()
+                },
+                'current_stage': {
+                    'label': '项目阶段',
+                    'options': get_project_stage_options()
+                },
+                'report_source': {
+                    'label': '报备来源',
+                    'options': get_report_source_options()
+                },
+                'industry': {
+                    'label': '行业分类',
+                    'options': get_industry_options()
+                }
+            },
+            'customer': {
+                'company_type': {
+                    'label': '企业类型',
+                    'options': get_company_type_options()
+                },
+                'status': {
+                    'label': '客户状态',
+                    'options': get_status_options()
+                },
+                'industry': {
+                    'label': '行业分类',
+                    'options': get_industry_options()  # 复用行业选项
+                }
+            },
+            'product': {
+                'type': {
+                    'label': '产品类型',
+                    'options': PRODUCT_TYPE_OPTIONS
+                },
+                'status': {
+                    'label': '产品状态',
+                    'options': PRODUCT_STATUS_OPTIONS
+                }
+            },
+            'quotation': {
+                'project_type': {
+                    'label': '项目类型',
+                    'options': get_project_type_options()
+                }
+            },
+            'pricing_order': {
+                'business_type': {
+                    'label': '业务类型',
+                    'options': get_business_type_options()
+                }
+            },
+            'settlement_order': {
+                'business_type': {
+                    'label': '业务类型',
+                    'options': get_business_type_options()
+                }
+            }
+        }
+
         ROLE_DICT = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
-        return render_template('user/permissions.html', user=user_data, modules=modules, permissions=permissions_dict, role_dict=ROLE_DICT, role_permissions=role_permissions)
+        return render_template('user/permissions.html',
+                             user=user_data,
+                             modules=modules,
+                             permissions=list(permissions_dict.values()),
+                             role_dict=ROLE_DICT,
+                             role_permissions=role_permissions,
+                             personal_permissions=personal_permissions,
+                             filter_configs=filter_configs)
     # POST请求 - 保存权限设置
     if request.method == 'POST':
         try:
@@ -1085,64 +1231,48 @@ def manage_permissions(user_id):
             permissions = []
             modules = form_data.getlist('module')
             for module in modules:
-                # 获取角色权限
-                role_perm = role_permissions_dict.get(module, {
-                    'can_view': False,
-                    'can_create': False,
-                    'can_edit': False,
-                    'can_delete': False,
-                    'can_change_owner': False
-                })
-                
-                # 检查用户想要设置的权限
+                # 从前端获取用户想要设置的完整权限状态
                 wants_view = f"view_{module}" in form_data
                 wants_create = f"create_{module}" in form_data
                 wants_edit = f"edit_{module}" in form_data
                 wants_delete = f"delete_{module}" in form_data
                 wants_change_owner = f"change_owner_{module}" in form_data
-                
-                # 构建个人权限记录，但只包含角色权限为False且用户想要为True的权限
-                personal_permissions = {}
-                
-                # 对于每个权限，只有在角色权限为False且用户想要True时，才设置个人权限
-                if not role_perm['can_view'] and wants_view:
-                    personal_permissions['can_view'] = True
-                if not role_perm['can_create'] and wants_create:
-                    personal_permissions['can_create'] = True
-                if not role_perm['can_edit'] and wants_edit:
-                    personal_permissions['can_edit'] = True
-                if not role_perm['can_delete'] and wants_delete:
-                    personal_permissions['can_delete'] = True
-                if not role_perm['can_change_owner'] and wants_change_owner:
-                    personal_permissions['can_change_owner'] = True
-                
+
                 # 获取权限级别设置
                 permission_level = form_data.get(f"permission_level_{module}", 'personal')
-                
-                # 只有当至少有一个权限需要设置时，才创建个人权限记录
-                if personal_permissions:
-                    # 确保如果模块没有任何权限，权限级别强制设置为personal
-                    has_any_perm = any(personal_permissions.values())
-                    if not has_any_perm:
-                        permission_level = 'personal'
-                    
-                    permission = {
-                        "module": module,
-                        "can_view": personal_permissions.get('can_view', False),
-                        "can_create": personal_permissions.get('can_create', False),
-                        "can_edit": personal_permissions.get('can_edit', False),
-                        "can_delete": personal_permissions.get('can_delete', False),
-                        "can_change_owner": personal_permissions.get('can_change_owner', False),
-                        "permission_level": permission_level
-                    }
-                    permissions.append(permission)
+
+                # 获取折扣限制
+                pricing_limit_str = form_data.get(f"pricing_discount_limit_{module}", '').strip()
+                settlement_limit_str = form_data.get(f"settlement_discount_limit_{module}", '').strip()
+
+                pricing_limit = float(pricing_limit_str) if pricing_limit_str else None
+                settlement_limit = float(settlement_limit_str) if settlement_limit_str else None
+
+                # 获取内容筛选
+                content_filters_str = form_data.get(f"content_filters_{module}", '')
+                content_filters = content_filters_str if content_filters_str else None
+
+                # 构建完整的个人权限记录（不做差异过滤，保存完整状态）
+                permission = {
+                    "module": module,
+                    "can_view": wants_view,
+                    "can_create": wants_create,
+                    "can_edit": wants_edit,
+                    "can_delete": wants_delete,
+                    "can_change_owner": wants_change_owner,
+                    "permission_level": permission_level,
+                    "pricing_discount_limit": pricing_limit,
+                    "settlement_discount_limit": settlement_limit,
+                    "content_filters": content_filters
+                }
+                permissions.append(permission)
             
             logger.warning(f"[DEBUG] 写入 permissions 表，user_id={user_id}, permissions={permissions}")
             
             # 删除现有个人权限
             Permission.query.filter_by(user_id=user_id).delete()
-            
-            # 只保存需要的个人权限
+
+            # 保存完整的个人权限状态（不过滤，保存所有模块的完整配置）
             for perm in permissions:
                 module = perm.get('module')
                 permission = Permission(
@@ -1153,7 +1283,10 @@ def manage_permissions(user_id):
                     can_edit=bool(perm.get('can_edit', False)),
                     can_delete=bool(perm.get('can_delete', False)),
                     can_change_owner=bool(perm.get('can_change_owner', False)),
-                    permission_level=perm.get('permission_level', 'personal')
+                    permission_level=perm.get('permission_level', 'personal'),
+                    pricing_discount_limit=perm.get('pricing_discount_limit'),
+                    settlement_discount_limit=perm.get('settlement_discount_limit'),
+                    content_filters=perm.get('content_filters')
                 )
                 db.session.add(permission)
                 
@@ -1409,7 +1542,8 @@ def manage_role_permissions():
                     permission_level=permission_level,
                     permission_level_description=perm.get('permission_level_description'),
                     pricing_discount_limit=perm.get('pricing_discount_limit'),
-                    settlement_discount_limit=perm.get('settlement_discount_limit')
+                    settlement_discount_limit=perm.get('settlement_discount_limit'),
+                    content_filters=perm.get('content_filters')
                 )
                 db.session.add(rp)
             db.session.commit()
@@ -1434,8 +1568,76 @@ def manage_role_permissions():
         
         # 如果URL中指定了role参数，设置默认选中的角色
         selected_role = request.args.get('role', '')
-        
-        return render_template('user/role_permissions.html', roles=roles, modules=modules, selected_role=selected_role)
+
+        # 准备内容筛选配置（配置驱动，支持国际化）
+        filter_configs = {
+            'project': {
+                'project_type': {
+                    'label': '项目类型',
+                    'options': get_project_type_options()
+                },
+                'current_stage': {
+                    'label': '项目阶段',
+                    'options': get_project_stage_options()
+                },
+                'report_source': {
+                    'label': '报备来源',
+                    'options': get_report_source_options()
+                },
+                'industry': {
+                    'label': '行业分类',
+                    'options': get_industry_options()
+                }
+            },
+            'customer': {
+                'company_type': {
+                    'label': '企业类型',
+                    'options': get_company_type_options()
+                },
+                'status': {
+                    'label': '客户状态',
+                    'options': get_status_options()
+                },
+                'industry': {
+                    'label': '行业分类',
+                    'options': get_industry_options()  # 复用行业选项
+                }
+            },
+            'product': {
+                'type': {
+                    'label': '产品类型',
+                    'options': PRODUCT_TYPE_OPTIONS
+                },
+                'status': {
+                    'label': '产品状态',
+                    'options': PRODUCT_STATUS_OPTIONS
+                }
+            },
+            'quotation': {
+                'project_type': {
+                    'label': '项目类型',
+                    'options': get_project_type_options()
+                }
+            },
+            'pricing_order': {
+                'business_type': {
+                    'label': '业务类型',
+                    'options': get_business_type_options()
+                }
+            },
+            'settlement_order': {
+                'business_type': {
+                    'label': '业务类型',
+                    'options': get_business_type_options()
+                }
+            }
+        }
+
+        return render_template('user/role_permissions.html',
+                             roles=roles,
+                             modules=modules,
+                             selected_role=selected_role,
+                             filter_configs=filter_configs)
     except Exception as e:
         logger.error(f"加载角色权限设置页面时出错: {str(e)}")
         flash('加载角色权限设置页面时出错，请稍后重试', 'danger')
@@ -1537,51 +1739,29 @@ def user_detail(user_id):
     # 获取用户的角色权限
     from app.models.role_permissions import RolePermission
     role_perms = RolePermission.query.filter_by(role=user.role).all()
+
+    # 使用辅助函数构建角色权限字典
     role_permissions = {}
     for perm in role_perms:
-        role_permissions[perm.module] = {
-            'can_view': perm.can_view,
-            'can_create': perm.can_create,
-            'can_edit': perm.can_edit,
-            'can_delete': perm.can_delete
-        }
-    
-    # 获取用户的个人权限
+        role_permissions[perm.module] = build_permission_dict(perm)
+
+    # 获取用户的个人权限，使用辅助函数构建字典
     personal_perms = list(user.permissions) if hasattr(user, 'permissions') else []
     personal_permissions = {}
     for permission in personal_perms:
-        personal_permissions[permission.module] = {
-            'can_view': permission.can_view,
-            'can_create': permission.can_create,
-            'can_edit': permission.can_edit,
-            'can_delete': permission.can_delete
-        }
-    
+        personal_permissions[permission.module] = build_permission_dict(permission)
+
     # 合并权限：个人权限可以增强角色权限，生成完整的权限列表
     permissions = []
     for module in modules:
         module_id = module['id']
-        role_perm = role_permissions.get(module_id, {
-            'can_view': False,
-            'can_create': False,
-            'can_edit': False,
-            'can_delete': False
-        })
-        personal_perm = personal_permissions.get(module_id, {
-            'can_view': False,
-            'can_create': False,
-            'can_edit': False,
-            'can_delete': False
-        })
-        
-        # 合并权限（个人权限可以增强角色权限）
-        final_perm = {
-            'module': module_id,
-            'can_view': role_perm['can_view'] or personal_perm['can_view'],
-            'can_create': role_perm['can_create'] or personal_perm['can_create'],
-            'can_edit': role_perm['can_edit'] or personal_perm['can_edit'],
-            'can_delete': role_perm['can_delete'] or personal_perm['can_delete']
-        }
+        # 使用辅助函数获取默认值和合并权限
+        role_perm = role_permissions.get(module_id, get_default_permission_dict())
+        personal_perm = personal_permissions.get(module_id, get_default_permission_dict())
+
+        # 使用辅助函数合并权限并添加module字段
+        final_perm = merge_permission_dicts(role_perm, personal_perm)
+        final_perm['module'] = module_id
         permissions.append(final_perm)
     affiliation_users = []
     aff_qs = Affiliation.query.filter_by(viewer_id=user.id).all()
@@ -1604,28 +1784,95 @@ def user_detail(user_id):
         'affiliation_count': len(affiliation_users)
     }
     
+    # 准备内容筛选配置（配置驱动，支持国际化）
+    filter_configs = {
+        'project': {
+            'project_type': {
+                'label': '项目类型',
+                'options': get_project_type_options()
+            },
+            'current_stage': {
+                'label': '项目阶段',
+                'options': get_project_stage_options()
+            },
+            'report_source': {
+                'label': '报备来源',
+                'options': get_report_source_options()
+            },
+            'industry': {
+                'label': '行业分类',
+                'options': get_industry_options()
+            }
+        },
+        'customer': {
+            'company_type': {
+                'label': '企业类型',
+                'options': get_company_type_options()
+            },
+            'status': {
+                'label': '客户状态',
+                'options': get_status_options()
+            },
+            'industry': {
+                'label': '行业分类',
+                'options': get_industry_options()  # 复用行业选项
+            }
+        },
+        'product': {
+            'type': {
+                'label': '产品类型',
+                'options': PRODUCT_TYPE_OPTIONS
+            },
+            'status': {
+                'label': '产品状态',
+                'options': PRODUCT_STATUS_OPTIONS
+            }
+        },
+        'quotation': {
+            'project_type': {
+                'label': '项目类型',
+                'options': get_project_type_options()
+            }
+        },
+        'pricing_order': {
+            'business_type': {
+                'label': '业务类型',
+                'options': get_business_type_options()
+            }
+        },
+        'settlement_order': {
+            'business_type': {
+                'label': '业务类型',
+                'options': get_business_type_options()
+            }
+        }
+    }
+
     role_dict = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
-    
+
     # 计算绩效管理权限
     from app.utils.permissions import get_accessible_users
     accessible_users = get_accessible_users(current_user, 'performance_management')
-    
+
     # 绩效查看权限：有performance_management的view权限且用户在可访问范围内
     can_view_performance = (
-        current_user.role == 'admin' or 
+        current_user.role == 'admin' or
         (current_user.has_permission('performance_management', 'view') and user.id in [u.id for u in accessible_users])
     )
-    
-    # 绩效编辑权限：有performance_management的edit权限且用户在可访问范围内  
+
+    # 绩效编辑权限：有performance_management的edit权限且用户在可访问范围内
     can_edit_performance = (
-        current_user.role == 'admin' or 
+        current_user.role == 'admin' or
         (current_user.has_permission('performance_management', 'edit') and user.id in [u.id for u in accessible_users])
     )
-    
+
     return render_template(
         'user/detail.html',
         user=user,
         permissions=permissions,
+        role_permissions=role_permissions,
+        personal_permissions=personal_permissions,
+        filter_configs=filter_configs,
         affiliations=affiliations,
         role_dict=role_dict,
         modules=modules,

@@ -1,7 +1,12 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button, render_top_notification %}
+{% from 'macros/ui_helpers.html' import render_button, render_three_choice_dialog, render_top_notification %}
 
 {% block title %}{{ _('权限管理') }} - {{ _('项目管理系统') }}{% endblock %}
+
+{% block head %}
+<!-- 引入权限面板通用样式组件 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/permission_panel.css') }}">
+{% endblock %}
 
 {% block content %}
 <!-- 标准化顶部提示组件 -->
@@ -49,14 +54,13 @@
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <!-- 角色权限说明 -->
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0">{{ _('权限说明') }}</h6>
-                            </div>
-                            <div class="card-body">
-                                <p class="text-muted mb-0">{{ _('基于统一权限模块系统，所有角色权限通过权限管理配置，不再依赖角色特殊权限。') }}</p>
-                            </div>
+                        <!-- 🆕 权限规则说明 -->
+                        <div class="alert alert-info mb-0">
+                            <h6 class="alert-heading"><i class="fas fa-info-circle"></i> 权限规则说明</h6>
+                            <p class="mb-1"><strong>数据范围：</strong>决定可以<u>查看</u>哪些数据（本人/本部门/全公司/系统级）</p>
+                            <p class="mb-1"><strong>基础权限：</strong>决定对<u>他人数据</u>的操作权限（查看/创建/编辑/删除）</p>
+                            <hr class="my-2">
+                            <p class="mb-0"><i class="fas fa-shield-alt text-primary"></i> <strong>保底规则：</strong>无论如何配置，用户始终对<u>自己创建的数据</u>拥有完整管理权限</p>
                         </div>
                     </div>
                 </div>
@@ -108,93 +112,41 @@
                     </div>
                 </div>
 
-                <!-- 权限矩阵表 -->
+                <!-- 权限配置区域 - 左右分栏布局 -->
                 <div id="permissionsContainer" class="d-none">
-                    <!-- 折扣权限设置区域 -->
-                    <div class="card mb-4" id="discountLimitsCard">
-                        <div class="card-header">
-                            <h5><i class="fas fa-percentage"></i> 折扣权限设置</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label for="pricingDiscountLimit" class="form-label">批价折扣下限 (%)</label>
-                                        <input type="number" class="form-control" id="pricingDiscountLimit" 
-                                               placeholder="输入批价折扣下限" min="0" max="100" step="0.1" readonly>
-                                        <div class="form-text">设置批价单的最低折扣率，低于此值需要更高权限审批</div>
-                                    </div>
+                    <div class="row">
+                        <!-- 左侧：模块列表 -->
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">模块列表</h6>
                                 </div>
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label for="settlementDiscountLimit" class="form-label">结算折扣下限 (%)</label>
-                                        <input type="number" class="form-control" id="settlementDiscountLimit" 
-                                               placeholder="输入结算折扣下限" min="0" max="100" step="0.1" readonly>
-                                        <div class="form-text">设置结算单的最低折扣率，低于此值需要更高权限审批</div>
-                                    </div>
+                                <div class="list-group list-group-flush" id="moduleList">
+                                    <!-- 模块列表将通过JS动态生成 -->
                                 </div>
-                            </div>
-                            <div class="mt-3">
-                                <small class="text-muted">
-                                    <i class="fas fa-info-circle"></i> 
-                                    折扣下限仅对批价单和结算单模块有效。设置为0表示无限制，留空表示继承上级权限。
-                                </small>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- 权限表格 -->
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-hover" id="permissionsTable">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>模块</th>
-                                    <th class="text-center">权限级别</th>
-                                    <th class="text-center">查看</th>
-                                    <th class="text-center">创建</th>
-                                    <th class="text-center">编辑</th>
-                                    <th class="text-center">删除</th>
-                                    <th class="text-center">修改拥有人</th>
-                                    <th class="text-center">全选模块</th>
-                                </tr>
-                            </thead>
-                            <tbody id="permissionsTableBody">
-                                <!-- 权限数据将通过JS动态加载 -->
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="mt-4">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="btn-group" role="group" id="batchButtons" style="display:none;">
-                                    {{ render_button('全选', '#', color='primary', type='button', attrs='id="selectAll"') }}
-                                    {{ render_button('清空', '#', color='secondary', type='button', attrs='id="selectNone"') }}
-                                    {{ render_button('仅查看', '#', color='info', type='button', attrs='id="selectView"') }}
-                                </div>
+                        <!-- 右侧：权限配置面板 -->
+                        <div class="col-md-9">
+                            <!-- 操作按钮 -->
+                            <div class="d-flex justify-content-end mb-3">
+                                {{ render_button(
+                                    text='保存权限设置',
+                                    color='primary',
+                                    icon='fas fa-save',
+                                    type='button',
+                                    attrs='id="savePermissions"'
+                                ) }}
                             </div>
-                            <div class="col-md-6 text-end">
-                                <div class="btn-group" role="group">
-                                    {{ render_button(
-                                        text='编辑',
-                                        color='success',
-                                        icon='fas fa-edit',
-                                        type='button',
-                                        attrs='id="editPermissions"'
-                                    ) }}
-                                    {{ render_button(
-                                        text='保存权限设置',
-                                        color='primary',
-                                        icon='fas fa-save',
-                                        type='button',
-                                        attrs='id="savePermissions" style="display:none;"'
-                                    ) }}
-                                    {{ render_button(
-                                        text='返回列表',
-                                        href=url_for('user.list_users'),
-                                        color='secondary',
-                                        icon='fas fa-arrow-left'
-                                    ) }}
+
+                            <!-- 权限配置内容 -->
+                            <div id="permissionConfigPanel">
+                                <!-- 选中模块的配置内容将通过JS动态生成 -->
+                                <div id="noModuleSelected" class="text-center py-5">
+                                    <i class="fas fa-hand-pointer fa-3x text-muted mb-3"></i>
+                                    <h5>请从左侧选择一个模块</h5>
+                                    <p class="text-muted">点击模块名称以查看和编辑其权限设置</p>
                                 </div>
                             </div>
                         </div>
@@ -226,170 +178,77 @@
             </div>
         </div>
     </div>
+
+    <!-- 未保存提醒对话框 - 使用通用三选择组件 -->
+    {{ render_three_choice_dialog(
+        'unsavedChangesModal',
+        '未保存的修改',
+        '您有未保存的权限修改，是否保存？',
+        'fas fa-exclamation-triangle',
+        [
+            {'text': '保存修改', 'color': 'primary', 'icon': 'fas fa-save', 'action': 'handleSaveChanges'},
+            {'text': '放弃修改', 'color': 'danger', 'icon': 'fas fa-trash', 'action': 'handleDiscardChanges'},
+            {'text': '取消', 'color': 'secondary', 'icon': 'fas fa-times', 'action': 'handleCancelChanges'}
+        ]
+    ) }}
 </div>
 {% endblock %}
 
-{% block styles %}
-<style>
-    #permissionsTable th, #permissionsTable td {
-        vertical-align: middle;
-    }
-
-    .checkbox-wrapper {
-        display: flex;
-        justify-content: center;
-    }
-
-    .form-check-input {
-        cursor: pointer;
-        width: 1.2em;
-        height: 1.2em;
-    }
-
-    /* 模块全选复选框样式 */
-    .module-select-all {
-        width: 1.3em;
-        height: 1.3em;
-        border-color: #0d6efd;
-    }
-
-    /* 全选模块列的样式 */
-    #permissionsTable th:last-child,
-    #permissionsTable td:last-child {
-        background-color: rgba(13, 110, 253, 0.05);
-    }
-
-    #savePermissions:disabled {
-        cursor: not-allowed;
-    }
-
-    #roleSelect {
-        max-width: 300px;
-    }
-</style>
-{% endblock %}
-
 {% block scripts %}
+<!-- 引入通用权限面板组件 -->
+<script src="{{ url_for('static', filename='js/permission_panel_logic.js') }}"></script>
+
 <script>
-    // 定义全局变量
-    let currentRole = null;
-    let currentPermissions = [];
-    let editMode = false;
-
-    // 安全地解析模块和角色数据
-    let MODULES = [];
+    // 页面特有变量
+    let pendingRoleSwitch = null;  // 待切换的角色
+    let currentRole = null;        // 当前角色
     let ROLES = [];
+    let MODULES = [];
+    let CONTENT_FILTER_OPTIONS = {};
 
+    // 准备组件配置数据容器
+    window.permissionPanelConfig = window.permissionPanelConfig || {};
+
+    // 加载数据
     try {
-        // 直接使用Jinja2渲染的JSON数据
-        MODULES = {{ modules|tojson|safe }};
         ROLES = {{ roles|tojson|safe }};
-        console.log('数据加载成功');
+        MODULES = {{ modules|tojson|safe }};
+        CONTENT_FILTER_OPTIONS = {{ filter_configs|tojson|safe }};
     } catch (e) {
         console.error('数据解析错误:', e);
-        if (document.getElementById('errorMessage')) {
-            document.getElementById('errorMessage').classList.remove('d-none');
-            document.getElementById('errorMessage').innerHTML = '加载数据时出错: ' + e.message;
-        }
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-        // DOM 元素
         const roleSelect = document.getElementById('roleSelect');
         const permissionsContainer = document.getElementById('permissionsContainer');
-        const permissionsTableBody = document.getElementById('permissionsTableBody');
         const loadingState = document.getElementById('loadingState');
-        const errorMessage = document.getElementById('errorMessage');
         const emptyState = document.getElementById('emptyState');
-        const saveButton = document.getElementById('savePermissions');
-        const selectAllBtn = document.getElementById('selectAll');
-        const selectNoneBtn = document.getElementById('selectNone');
-        const selectViewBtn = document.getElementById('selectView');
-        const editPermissionsBtn = document.getElementById('editPermissions');
-
-        // 初始化页面
-        loadRoleOptions();
-        setEditMode(false); // 初始只读
-
-        // 角色选择事件
-        if (roleSelect) {
-            roleSelect.addEventListener('change', function() {
-                const selectedRole = this.value;
-                if (selectedRole) {
-                    loadRolePermissions(selectedRole);
-                } else {
-                    showEmptyState();
-                }
-            });
-        }
-
-        // 编辑按钮事件
-        if (editPermissionsBtn) {
-            editPermissionsBtn.addEventListener('click', function() {
-                setEditMode(true);
-            });
-        }
-
-        // 保存按钮事件
-        if (saveButton) {
-            saveButton.addEventListener('click', function() {
-                savePermissions();
-                setEditMode(false);
-            });
-        }
-
-        // 快速选择按钮事件
-        if (selectAllBtn) {
-            selectAllBtn.addEventListener('click', function() {
-                toggleAllCheckboxes(true);
-            });
-        }
-
-        if (selectNoneBtn) {
-            selectNoneBtn.addEventListener('click', function() {
-                toggleAllCheckboxes(false);
-            });
-        }
-
-        if (selectViewBtn) {
-            selectViewBtn.addEventListener('click', function() {
-                selectOnlyViewPermissions();
-            });
-        }
 
         // 加载角色选项
         function loadRoleOptions() {
             if (!roleSelect || !ROLES || !Array.isArray(ROLES)) {
                 console.error('角色数据加载失败');
-                showErrorMessage();
+                showTopNotification('角色数据加载失败', 'error', 5000);
                 return;
             }
 
-            // 清空现有选项
             roleSelect.innerHTML = '<option value="">--请选择角色--</option>';
-
-            // 添加角色选项
             ROLES.forEach(role => {
                 if (role && role.key && role.value) {
                     const option = document.createElement('option');
                     option.value = role.key;
-                    option.textContent = role.value; // 只显示中文名称
+                    option.textContent = role.value;
                     roleSelect.appendChild(option);
                 }
             });
 
-            // 如果有预选角色参数，自动选中并加载权限
             const selectedRole = '{{ selected_role }}';
             if (selectedRole && roleSelect) {
                 roleSelect.value = selectedRole;
-                if (roleSelect.value) { // 确保选中成功
+                if (roleSelect.value) {
                     console.log('自动选中角色:', selectedRole);
                     loadRolePermissions(selectedRole);
-                } else {
-                    showEmptyState();
                 }
-            } else {
-                showEmptyState();
             }
         }
 
@@ -398,18 +257,9 @@
             if (!role) return;
 
             currentRole = role;
-
-            // 显示加载状态
-            hideAll();
             loadingState.classList.remove('d-none');
-            
 
-            // 构建API请求URL
-            const apiUrl = `/api/v1/permissions/roles/${role}`;
-            console.log('加载权限数据:', apiUrl);
-
-            // 发送API请求
-            fetch(apiUrl, {
+            fetch(`/api/v1/permissions/roles/${role}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -417,591 +267,110 @@
                 },
                 credentials: 'same-origin'
             })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP错误 ${response.status}`);
-                }
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
-                console.log('权限数据响应:', data);
                 if (data.success) {
-                    // 保存获取的权限数据
-                    currentPermissions = data.data.permissions || [];
-                    
-                    // 渲染权限表格
-                    renderPermissionsTable();
-                    
-                    // 加载和显示折扣权限
-                    loadDiscountLimits();
-                    
-                    // 显示权限容器
-                    hideAll();
-                    permissionsContainer.classList.remove('d-none');
+                    // 准备组件配置数据
+                    const configKey = `role_${role}`;
+                    window.permissionPanelConfig[configKey] = {
+                        contextType: 'role',
+                        contextId: role,
+                        modules: MODULES,
+                        permissions: data.data.permissions || [],
+                        filterConfigs: CONTENT_FILTER_OPTIONS,
+                        csrfToken: '{{ csrf_token() }}'
+                    };
+
+                    // 使用通用组件初始化
+                    PermissionPanel.init(configKey);
+
+                    // 重置未保存状态（新加载的角色，没有修改）
+                    if (PermissionPanel.resetUnsavedState) {
+                        PermissionPanel.resetUnsavedState();
+                    }
+
+                    loadingState.classList.add('d-none');
                 } else {
                     console.error('加载权限数据失败:', data.message);
-                    hideAll();
-                    errorMessage.classList.remove('d-none');
+                    loadingState.classList.add('d-none');
+                    showTopNotification(`加载权限数据失败: ${data.message}`, 'error', 5000);
                 }
             })
             .catch(error => {
                 console.error('加载权限数据时出错:', error);
-                hideAll();
-                errorMessage.classList.remove('d-none');
+                loadingState.classList.add('d-none');
+                showTopNotification('加载权限数据时发生错误', 'error', 5000);
             });
         }
-        
 
-        // 隐藏所有状态容器
-        function hideAll() {
-            loadingState.classList.add('d-none');
-            permissionsContainer.classList.add('d-none');
-            emptyState.classList.add('d-none');
-            errorMessage.classList.add('d-none');
-        }
+        // 页面初始化
+        loadRoleOptions();
+        permissionsContainer.classList.remove('d-none');
+        emptyState.classList.add('d-none');
+        loadingState.classList.add('d-none');
 
-        // 渲染权限表格
-        function renderPermissionsTable() {
-            if (!permissionsTableBody || !MODULES || !Array.isArray(MODULES)) {
-                console.error('无法渲染权限表格');
-                return;
-            }
-            
-            // 清空表格
-            permissionsTableBody.innerHTML = '';
-            
-            // 添加模块行
-            MODULES.forEach(module => {
-                if (!module || !module.id) return;
-                
-                // 查找当前模块的权限
-                const modulePermission = currentPermissions.find(p => p.module === module.id) || {
-                    module: module.id,
-                    can_view: false,
-                    can_create: false,
-                    can_edit: false,
-                    can_delete: false
-                };
-                
-                // 创建表格行
-                const row = document.createElement('tr');
-                row.dataset.module = module.id;
-                
-                // 模块名称列
-                const moduleCell = document.createElement('td');
-                moduleCell.innerHTML = `
-                    <strong>${module.name || module.id}</strong>
-                    ${module.description ? `<small class="text-muted d-block">${module.description}</small>` : ''}
-                `;
-                row.appendChild(moduleCell);
-                
-                // 权限级别列
-                const permissionLevel = modulePermission.permission_level || 'personal';
-                const levelCell = document.createElement('td');
-                levelCell.className = 'text-center';
-                
-                // 检查是否有任何权限
-                const hasAnyPermission = module.type === 'switch' 
-                    ? modulePermission.can_create === true
-                    : (modulePermission.can_view || modulePermission.can_create || modulePermission.can_edit || modulePermission.can_delete || modulePermission.can_change_owner);
-                
-                if (hasAnyPermission) {
-                    levelCell.innerHTML = `
-                        <select class="form-select form-select-sm permission-level-select" 
-                            data-module="${module.id}" 
-                            disabled>
-                            <option value="personal" ${permissionLevel === 'personal' ? 'selected' : ''}>个人级</option>
-                            <option value="department" ${permissionLevel === 'department' ? 'selected' : ''}>部门级</option>
-                            <option value="company" ${permissionLevel === 'company' ? 'selected' : ''}>企业级</option>
-                            <option value="system" ${permissionLevel === 'system' ? 'selected' : ''}>系统级</option>
-                        </select>
-                    `;
-                } else {
-                    levelCell.innerHTML = `<span class="text-muted">-</span>`;
+        // 角色选择事件
+        if (roleSelect) {
+            roleSelect.addEventListener('change', function(e) {
+                const selectedRole = this.value;
+
+                // 检查是否有未保存的修改（使用组件API）
+                if (currentRole && PermissionPanel.getHasUnsavedChanges && PermissionPanel.getHasUnsavedChanges()) {
+                    // 有未保存修改，询问用户
+                    e.preventDefault();
+                    pendingRoleSwitch = selectedRole;
+                    const modal = new bootstrap.Modal(document.getElementById('unsavedChangesModal'));
+                    modal.show();
+                    this.value = currentRole || '';
+                    return;
                 }
-                row.appendChild(levelCell);
-                
-                // 检查是否为开关式权限模块（如项目评分）
-                if (module.type === 'switch') {
-                    // 开关式权限：只显示一个开关，跨越所有权限列
-                    const switchCell = document.createElement('td');
-                    switchCell.className = 'text-center';
-                    switchCell.colSpan = 6; // 跨越查看、创建、编辑、删除、修改拥有人、全选列
-                    
-                    const isEnabled = modulePermission.can_create === true; // 使用create权限作为开关状态
-                    switchCell.innerHTML = `
-                        <div class="form-check form-switch d-flex justify-content-center">
-                            <input class="form-check-input switch-permission" type="checkbox" 
-                                id="switch_${module.id}"
-                                data-module="${module.id}"
-                                ${isEnabled ? 'checked' : ''}
-                                disabled>
-                            <label class="form-check-label ms-2" for="switch_${module.id}">
-                                ${isEnabled ? '已启用' : '已禁用'}
-                            </label>
-                        </div>
-                    `;
-                    row.appendChild(switchCell);
-                } else {
-                    // 定义支持修改拥有人功能的模块
-                    const modulesWithOwnerChange = ['project', 'customer', 'quotation'];
-                    
-                    // 普通权限：显示查看、创建、编辑、删除复选框
-                    const basicPermissions = ['view', 'create', 'edit', 'delete'];
-                    basicPermissions.forEach(action => {
-                        const permKey = `can_${action}`;
-                        const isChecked = modulePermission[permKey] === true;
-                        const cell = document.createElement('td');
-                        cell.className = 'text-center';
-                        cell.innerHTML = `
-                            <div class="checkbox-wrapper">
-                                <input type="checkbox" class="form-check-input permission-checkbox"
-                                    id="${action}_${module.id}"
-                                    data-module="${module.id}"
-                                    data-action="${action}"
-                                    ${isChecked ? 'checked' : ''}
-                                    disabled>
-                            </div>
-                        `;
-                        row.appendChild(cell);
-                    });
-                    
-                    // 修改拥有人权限：只在支持的模块显示
-                    const changeOwnerCell = document.createElement('td');
-                    changeOwnerCell.className = 'text-center';
-                    
-                    if (modulesWithOwnerChange.includes(module.id)) {
-                        const isChecked = modulePermission.can_change_owner === true;
-                        changeOwnerCell.innerHTML = `
-                            <div class="checkbox-wrapper">
-                                <input type="checkbox" class="form-check-input permission-checkbox"
-                                    id="change_owner_${module.id}"
-                                    data-module="${module.id}"
-                                    data-action="change_owner"
-                                    ${isChecked ? 'checked' : ''}
-                                    disabled>
-                            </div>
-                        `;
-                    } else {
-                        // 不支持的模块显示为空
-                        changeOwnerCell.innerHTML = '<span class="text-muted">-</span>';
-                    }
-                    row.appendChild(changeOwnerCell);
-                    
-                    // 添加模块全选复选框
-                    const allPermissions = modulesWithOwnerChange.includes(module.id) 
-                        ? ['view', 'create', 'edit', 'delete', 'change_owner']
-                        : ['view', 'create', 'edit', 'delete'];
-                    const allChecked = allPermissions.every(action => modulePermission[`can_${action}`] === true);
-                    const selectAllCell = document.createElement('td');
-                    selectAllCell.className = 'text-center';
-                    selectAllCell.innerHTML = `
-                        <div class="checkbox-wrapper">
-                            <input type="checkbox" class="form-check-input module-select-all"
-                                id="selectAll_${module.id}"
-                                data-module="${module.id}"
-                                ${allChecked ? 'checked' : ''}
-                                disabled>
-                        </div>
-                    `;
-                    row.appendChild(selectAllCell);
-                }
-                
-                // 添加行到表格
-                permissionsTableBody.appendChild(row);
-            });
-            
-            // 为复选框添加事件
-            setupCheckboxEvents();
-            
-            // 初始化所有模块的权限级别显示状态
-            MODULES.forEach(module => {
-                updatePermissionLevelVisibility(module.id);
-            });
-            
-            // 设置编辑模式
-            setEditMode(editMode);
-        }
 
-        // 为复选框添加事件
-        function setupCheckboxEvents() {
-            // 为每个模块的全选复选框添加事件监听
-            document.querySelectorAll('.module-select-all').forEach(checkbox => {
-                checkbox.addEventListener('change', function() {
-                    const moduleId = this.dataset.module;
-                    toggleModulePermissions(moduleId, this.checked);
-                    updatePermissionLevelVisibility(moduleId);
-                });
-            });
-            
-            // 为每个权限复选框添加事件监听，更新全选状态和权限级别显示
-            document.querySelectorAll('.permission-checkbox').forEach(checkbox => {
-                checkbox.addEventListener('change', function() {
-                    updateModuleSelectAllState(this.dataset.module);
-                    updatePermissionLevelVisibility(this.dataset.module);
-                });
-            });
-            
-            // 为开关式权限添加事件监听
-            document.querySelectorAll('.switch-permission').forEach(switchInput => {
-                switchInput.addEventListener('change', function() {
-                    const label = this.nextElementSibling;
-                    if (label) {
-                        label.textContent = this.checked ? '已启用' : '已禁用';
-                    }
-                    updatePermissionLevelVisibility(this.dataset.module);
-                });
-            });
-        }
-
-        // 切换模块所有权限
-        function toggleModulePermissions(moduleId, checked) {
-            if (!moduleId) return;
-            
-            const checkboxes = document.querySelectorAll(`input[data-module="${moduleId}"].permission-checkbox`);
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = checked;
-            });
-            
-            // 更新权限级别显示状态
-            updatePermissionLevelVisibility(moduleId);
-        }
-
-        // 更新模块全选复选框状态
-        function updateModuleSelectAllState(moduleId) {
-            if (!moduleId) return;
-            
-            const checkboxes = document.querySelectorAll(`input[data-module="${moduleId}"].permission-checkbox`);
-            const selectAllCheckbox = document.getElementById(`selectAll_${moduleId}`);
-            
-            if (selectAllCheckbox) {
-                // 如果所有权限都已选中，则全选复选框也选中
-                const allChecked = Array.from(checkboxes).every(checkbox => checkbox.checked);
-                selectAllCheckbox.checked = allChecked;
-            }
-        }
-
-        // 更新权限级别选择框的显示状态
-        function updatePermissionLevelVisibility(moduleId) {
-            if (!moduleId) return;
-            
-            const checkboxes = document.querySelectorAll(`input[data-module="${moduleId}"].permission-checkbox`);
-            const switchInput = document.getElementById(`switch_${moduleId}`);
-            const levelSelect = document.querySelector(`select[data-module="${moduleId}"].permission-level-select`);
-            
-            // 查找权限级别单元格 - 先尝试从选择框找，如果没有就通过表格行查找
-            let levelCell = levelSelect ? levelSelect.parentElement : null;
-            if (!levelCell) {
-                // 通过模块行找到权限级别单元格（第二个td）
-                const moduleRow = document.querySelector(`tr[data-module="${moduleId}"]`);
-                if (moduleRow) {
-                    const cells = moduleRow.querySelectorAll('td');
-                    if (cells.length > 1) {
-                        levelCell = cells[1]; // 权限级别是第二列
-                    }
-                }
-            }
-            
-            if (!levelCell) return;
-            
-            // 检查是否有任何权限
-            let hasAnyPermission = false;
-            if (switchInput) {
-                // 开关式权限
-                hasAnyPermission = switchInput.checked;
-            } else {
-                // 普通权限
-                hasAnyPermission = Array.from(checkboxes).some(checkbox => checkbox.checked);
-            }
-            
-            // 根据权限状态显示或隐藏权限级别选择框
-            if (hasAnyPermission) {
-                if (!levelSelect) {
-                    // 如果没有选择框，创建一个
-                    levelCell.innerHTML = `
-                        <select class="form-select form-select-sm permission-level-select" 
-                            data-module="${moduleId}" 
-                            ${editMode ? '' : 'disabled'}>
-                            <option value="personal" selected>个人级</option>
-                            <option value="department">部门级</option>
-                            <option value="company">企业级</option>
-                            <option value="system">系统级</option>
-                        </select>
-                    `;
-                }
-            } else {
-                // 没有权限时显示占位符
-                levelCell.innerHTML = `<span class="text-muted">-</span>`;
-            }
-        }
-
-        // 保存权限设置
-        function savePermissions() {
-            // 直接从下拉菜单获取选中的角色key，并清理空白字符
-            const selectedRole = roleSelect.value.trim();
-            if (!selectedRole) {
-                showTopNotification('请先选择一个角色', 'warning', 3000);
-                return;
-            }
-            
-            // 禁用保存按钮
-            if (saveButton) {
-                saveButton.disabled = true;
-                saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 保存中...';
-            }
-            
-            // 收集权限数据
-            const permissions = [];
-            const moduleRows = document.querySelectorAll('#permissionsTableBody tr');
-            
-            // 获取折扣限制数据
-            const pricingDiscountLimit = document.getElementById('pricingDiscountLimit');
-            const settlementDiscountLimit = document.getElementById('settlementDiscountLimit');
-            const pricingLimit = pricingDiscountLimit ? (pricingDiscountLimit.value ? parseFloat(pricingDiscountLimit.value) : null) : null;
-            const settlementLimit = settlementDiscountLimit ? (settlementDiscountLimit.value ? parseFloat(settlementDiscountLimit.value) : null) : null;
-            
-            moduleRows.forEach(row => {
-                const moduleId = row.dataset.module;
-                if (!moduleId) return;
-                
-                // 检查是否为开关式权限模块
-                const switchInput = document.getElementById(`switch_${moduleId}`);
-                if (switchInput) {
-                    const hasPermission = switchInput.checked;
-                    
-                    // 获取权限级别（只有在有权限时才设置）
-                    const levelSelect = document.querySelector(`select[data-module="${moduleId}"].permission-level-select`);
-                    const permissionLevel = hasPermission && levelSelect ? levelSelect.value : 'personal';
-                    
-                    // 开关式权限：将开关状态保存为create权限
-                    permissions.push({
-                        module: moduleId,
-                        can_view: false,
-                        can_create: hasPermission,
-                        can_edit: false,
-                        can_delete: false,
-                        can_change_owner: false,
-                        permission_level: permissionLevel,
-                        pricing_discount_limit: (moduleId === 'pricing_order' || moduleId === 'settlement_order') ? pricingLimit : null,
-                        settlement_discount_limit: (moduleId === 'pricing_order' || moduleId === 'settlement_order') ? settlementLimit : null
-                    });
-                } else {
-                    // 普通权限：收集所有权限复选框的状态
-                    const viewCheckbox = document.getElementById(`view_${moduleId}`);
-                    const createCheckbox = document.getElementById(`create_${moduleId}`);
-                    const editCheckbox = document.getElementById(`edit_${moduleId}`);
-                    const deleteCheckbox = document.getElementById(`delete_${moduleId}`);
-                    const changeOwnerCheckbox = document.getElementById(`change_owner_${moduleId}`);
-                    
-                    const canView = viewCheckbox ? viewCheckbox.checked : false;
-                    const canCreate = createCheckbox ? createCheckbox.checked : false;
-                    const canEdit = editCheckbox ? editCheckbox.checked : false;
-                    const canDelete = deleteCheckbox ? deleteCheckbox.checked : false;
-                    const canChangeOwner = changeOwnerCheckbox ? changeOwnerCheckbox.checked : false;
-                    
-                    // 检查是否有任何权限
-                    const hasAnyPermission = canView || canCreate || canEdit || canDelete || canChangeOwner;
-                    
-                    // 获取权限级别（只有在有权限时才设置）
-                    const levelSelect = document.querySelector(`select[data-module="${moduleId}"].permission-level-select`);
-                    const permissionLevel = hasAnyPermission && levelSelect ? levelSelect.value : 'personal';
-                    
-                    permissions.push({
-                        module: moduleId,
-                        can_view: canView,
-                        can_create: canCreate,
-                        can_edit: canEdit,
-                        can_delete: canDelete,
-                        can_change_owner: canChangeOwner,
-                        permission_level: permissionLevel,
-                        pricing_discount_limit: (moduleId === 'pricing_order' || moduleId === 'settlement_order') ? pricingLimit : null,
-                        settlement_discount_limit: (moduleId === 'pricing_order' || moduleId === 'settlement_order') ? settlementLimit : null
-                    });
-                }
-            });
-            
-            // 准备请求数据
-            const requestData = {
-                role: selectedRole, // 用下拉菜单选中的key
-                permissions: permissions
-            };
-            
-            // 获取CSRF令牌
-            const csrfToken = '{{ csrf_token() }}';
-            
-            // 发送API请求 - 使用路由的POST方法而不是直接调用API
-            fetch('/user/manage-permissions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify(requestData)
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP错误 ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.success) {
-                    // 显示成功消息
-                    showTopNotification('权限设置已成功保存！', 'success', 3000);
-                    
-                    // 重新加载权限数据
+                // 没有未保存修改，正常切换
+                if (selectedRole) {
                     loadRolePermissions(selectedRole);
-                } else {
-                    console.error('保存权限失败:', data.message);
-                    showTopNotification(`保存权限失败: ${data.message || '未知错误'}`, 'error', 5000);
-                }
-            })
-            .catch(error => {
-                console.error('保存权限时出错:', error);
-                showTopNotification('保存权限时发生错误，请稍后再试', 'error', 5000);
-            })
-            .finally(() => {
-                // 恢复保存按钮状态
-                if (saveButton) {
-                    saveButton.disabled = false;
-                    saveButton.innerHTML = '<i class="fas fa-save me-1"></i> 保存权限设置';
                 }
             });
         }
 
-        // 选中或取消选中所有复选框
-        function toggleAllCheckboxes(checked) {
-            // 更新所有权限复选框
-            const checkboxes = document.querySelectorAll('#permissionsTableBody input.permission-checkbox');
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = checked;
-            });
-            
-            // 同时更新所有模块全选复选框
-            const moduleSelectAllCheckboxes = document.querySelectorAll('#permissionsTableBody input.module-select-all');
-            moduleSelectAllCheckboxes.forEach(checkbox => {
-                checkbox.checked = checked;
-            });
-            
-            // 同时更新所有开关式权限
-            const switchInputs = document.querySelectorAll('#permissionsTableBody input.switch-permission');
-            switchInputs.forEach(switchInput => {
-                switchInput.checked = checked;
-                const label = switchInput.nextElementSibling;
-                if (label) {
-                    label.textContent = switchInput.checked ? '已启用' : '已禁用';
-                }
-            });
-            
-            // 更新所有模块的权限级别显示状态
-            const moduleIds = new Set();
-            checkboxes.forEach(checkbox => {
-                moduleIds.add(checkbox.dataset.module);
-            });
-            switchInputs.forEach(switchInput => {
-                moduleIds.add(switchInput.dataset.module);
-            });
-            
-            moduleIds.forEach(moduleId => {
-                updatePermissionLevelVisibility(moduleId);
-            });
-        }
+        // 通用组件对话框按钮回调函数
+        window.handleSaveChanges = function() {
+            console.log('💾 用户选择：保存修改');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('unsavedChangesModal'));
+            if (modal) modal.hide();
 
-        // 仅选中"查看"权限
-        function selectOnlyViewPermissions() {
-            // 更新权限复选框 - 只选中查看权限
-            const checkboxes = document.querySelectorAll('#permissionsTableBody input.permission-checkbox');
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = checkbox.dataset.action === 'view';
-            });
-            
-            // 清空所有开关式权限
-            const switchInputs = document.querySelectorAll('#permissionsTableBody input.switch-permission');
-            switchInputs.forEach(switchInput => {
-                switchInput.checked = false;
-                const label = switchInput.nextElementSibling;
-                if (label) {
-                    label.textContent = '已禁用';
-                }
-            });
-            
-            // 更新所有模块的全选复选框状态和权限级别显示
-            const moduleIds = new Set();
-            checkboxes.forEach(checkbox => {
-                moduleIds.add(checkbox.dataset.module);
-            });
-            switchInputs.forEach(switchInput => {
-                moduleIds.add(switchInput.dataset.module);
-            });
-            
-            moduleIds.forEach(moduleId => {
-                updateModuleSelectAllState(moduleId);
-                updatePermissionLevelVisibility(moduleId);
-            });
-        }
-
-        // 显示空状态
-        function showEmptyState() {
-            hideAll();
-            emptyState.classList.remove('d-none');
-        }
-
-        // 设置编辑模式
-        function setEditMode(enable) {
-            editMode = enable;
-            
-            // 控制复选框和开关
-            document.querySelectorAll('#permissionsTableBody input[type=checkbox]').forEach(cb => {
-                cb.disabled = !enable;
-            });
-            
-            // 控制权限级别选择框
-            document.querySelectorAll('#permissionsTableBody select.permission-level-select').forEach(select => {
-                select.disabled = !enable;
-            });
-            
-            // 控制折扣权限输入框
-            const pricingDiscountLimit = document.getElementById('pricingDiscountLimit');
-            const settlementDiscountLimit = document.getElementById('settlementDiscountLimit');
-            if (pricingDiscountLimit) pricingDiscountLimit.readOnly = !enable;
-            if (settlementDiscountLimit) settlementDiscountLimit.readOnly = !enable;
-            
-            // 控制按钮
-            if (editPermissionsBtn) editPermissionsBtn.style.display = enable ? 'none' : '';
-            if (saveButton) saveButton.style.display = enable ? '' : 'none';
-            if (document.getElementById('batchButtons')) document.getElementById('batchButtons').style.display = enable ? '' : 'none';
-        }
-
-        // 加载折扣权限
-        function loadDiscountLimits() {
-            if (!currentRole) return;
-            
-            // 查找批价单和结算单权限
-            const pricingPermission = currentPermissions.find(p => p.module === 'pricing_order');
-            const settlementPermission = currentPermissions.find(p => p.module === 'settlement_order');
-            
-            // 设置批价折扣下限
-            const pricingDiscountLimit = document.getElementById('pricingDiscountLimit');
-            if (pricingDiscountLimit && pricingPermission) {
-                if (pricingPermission.pricing_discount_limit !== null && pricingPermission.pricing_discount_limit !== undefined) {
-                    pricingDiscountLimit.value = pricingPermission.pricing_discount_limit;
-                } else {
-                    pricingDiscountLimit.value = '';
-                }
+            // 调用组件保存方法
+            if (PermissionPanel && PermissionPanel.savePermissions) {
+                PermissionPanel.savePermissions();
+                // 保存成功后切换角色（在保存回调中处理）
+                setTimeout(() => {
+                    if (pendingRoleSwitch) {
+                        roleSelect.value = pendingRoleSwitch;
+                        loadRolePermissions(pendingRoleSwitch);
+                        pendingRoleSwitch = null;
+                    }
+                }, 1000);
             }
-            
-            // 设置结算折扣下限
-            const settlementDiscountLimit = document.getElementById('settlementDiscountLimit');
-            if (settlementDiscountLimit && settlementPermission) {
-                if (settlementPermission.settlement_discount_limit !== null && settlementPermission.settlement_discount_limit !== undefined) {
-                    settlementDiscountLimit.value = settlementPermission.settlement_discount_limit;
-                } else {
-                    settlementDiscountLimit.value = '';
-                }
+        };
+
+        window.handleDiscardChanges = function() {
+            console.log('🗑️ 用户选择：放弃修改');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('unsavedChangesModal'));
+            if (modal) modal.hide();
+
+            // 执行角色切换
+            if (pendingRoleSwitch) {
+                roleSelect.value = pendingRoleSwitch;
+                loadRolePermissions(pendingRoleSwitch);
+                pendingRoleSwitch = null;
             }
-        }
+        };
+
+        window.handleCancelChanges = function() {
+            console.log('❌ 用户选择：取消');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('unsavedChangesModal'));
+            if (modal) modal.hide();
+            pendingRoleSwitch = null;
+        };
     });
 </script>
 {% endblock %}

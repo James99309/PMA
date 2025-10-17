@@ -9,11 +9,16 @@ def get_local_time():
 class ProjectCustomerAssociation(db.Model):
     """项目-客户关联模型"""
     __tablename__ = 'project_customer_associations'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
     company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
-    customer_type = db.Column(db.String(50), nullable=False)  # end_user, design_issues, contractor, system_integrator, dealer
+
+    # DEPRECATED: customer_type 字段已废弃，前端显示使用 company.company_type
+    # 该字段冗余存储且经常不准确，计划在未来迁移时删除
+    # 目前保留以向后兼容，但新记录可以设置为 NULL
+    customer_type = db.Column(db.String(50), nullable=True)  # DEPRECATED
+
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # 创建者ID
     created_at = db.Column(db.DateTime, default=get_local_time)
     updated_at = db.Column(db.DateTime, default=get_local_time, onupdate=get_local_time)

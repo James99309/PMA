@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # 权限管理相关路由
 @api_v1_bp.route('/users/<int:user_id>/permissions', methods=['GET'])
-@jwt_required_with_permission('permission_management', 'view')
+@flexible_auth
 def get_user_permissions(user_id):
     """
     获取用户权限（优先查个人权限，无则查角色模板）
@@ -53,7 +53,7 @@ def get_user_permissions(user_id):
     )
 
 @api_v1_bp.route('/users/<int:user_id>/permissions', methods=['PUT'])
-@jwt_required_with_permission('permission_management', 'edit')
+@flexible_auth
 def update_user_permissions(user_id):
     """
     更新用户权限
@@ -88,7 +88,7 @@ def update_user_permissions(user_id):
     try:
         # 清除现有权限
         Permission.query.filter_by(user_id=user_id).delete()
-        
+
         # 添加新权限
         for perm_data in permissions_data:
             module = perm_data.get('module')
@@ -96,22 +96,47 @@ def update_user_permissions(user_id):
             can_create = perm_data.get('can_create', False)
             can_edit = perm_data.get('can_edit', False)
             can_delete = perm_data.get('can_delete', False)
-            
+            can_change_owner = perm_data.get('can_change_owner', False)
+
+            # 提取扩展字段
+            permission_level = perm_data.get('permission_level', 'personal')
+            permission_level_description = perm_data.get('permission_level_description')
+            pricing_discount_limit = perm_data.get('pricing_discount_limit')
+            settlement_discount_limit = perm_data.get('settlement_discount_limit')
+            content_filters = perm_data.get('content_filters')
+
             if not module:
                 continue
-                
+
+            # 数据一致性验证：如果permission_level为'none'，强制所有权限为False
+            if permission_level == 'none':
+                can_view = False
+                can_create = False
+                can_edit = False
+                can_delete = False
+                can_change_owner = False
+                logger.info(f"✅ 数据一致性保护：模块 {module} level='none'，已强制清空所有权限")
+
             permission = Permission(
                 user_id=user_id,
                 module=module,
                 can_view=can_view,
                 can_create=can_create,
                 can_edit=can_edit,
-                can_delete=can_delete
+                can_delete=can_delete,
+                can_change_owner=can_change_owner,
+                permission_level=permission_level,
+                permission_level_description=permission_level_description,
+                pricing_discount_limit=pricing_discount_limit,
+                settlement_discount_limit=settlement_discount_limit,
+                content_filters=content_filters
             )
             db.session.add(permission)
-        
+
         db.session.commit()
-        
+
+        logger.info(f"成功更新用户 {user_id} 的个人权限，共 {len(permissions_data)} 个模块")
+
         return api_response(
             success=True,
             message="权限更新成功"
@@ -129,51 +154,44 @@ def update_user_permissions(user_id):
 @flexible_auth
 def get_modules():
     """
-    获取系统模块列表
+    获取系统模块列表（从配置文件读取）
     """
-    # 这里可以从数据库获取，也可以硬编码
+    from app.utils.module_metadata import MODULE_METADATA
+
+    # 从配置文件生成模块列表
     modules = [
         {
-            "id": "project",
-            "name": "项目管理",
-            "description": "管理销售项目和跟进"
-        },
-        {
-            "id": "customer",
-            "name": "客户管理",
-            "description": "管理客户信息和联系人"
-        },
-        {
-            "id": "quotation",
-            "name": "报价管理",
-            "description": "管理产品报价"
-        },
-        {
-            "id": "product",
-            "name": "产品管理",
-            "description": "管理产品信息和价格"
-        },
-        {
-            "id": "product_code",
-            "name": "产品编码",
-            "description": "管理产品编码系统"
-        },
-        {
-            "id": "user",
-            "name": "用户管理",
-            "description": "管理系统用户"
-        },
-        {
-            "id": "permission",
-            "name": "权限管理",
-            "description": "管理用户权限"
+            "id": module_id,
+            "name": meta['name'],
+            "description": meta.get('description', f"管理{meta['name']}")
         }
+        for module_id, meta in MODULE_METADATA.items()
     ]
-    
+
+    # 按模块名称排序
+    modules.sort(key=lambda x: x['name'])
+
     return api_response(
         success=True,
         message="获取成功",
         data=modules
+    )
+
+@api_v1_bp.route('/permissions/module-metadata', methods=['GET'])
+@flexible_auth
+def get_module_metadata():
+    """
+    获取模块完整元数据（包括图标、特殊权限能力、权限级别定义）
+    """
+    from app.utils.module_metadata import MODULE_METADATA, PERMISSION_LEVELS
+
+    return api_response(
+        success=True,
+        message="获取成功",
+        data={
+            'modules': MODULE_METADATA,
+            'levels': PERMISSION_LEVELS
+        }
     )
 
 @api_v1_bp.route('/permissions/roles', methods=['GET'])
@@ -278,7 +296,8 @@ def get_role_permissions(role):
                 'permission_level': perm.permission_level,
                 'permission_level_description': perm.permission_level_description,
                 'pricing_discount_limit': perm.pricing_discount_limit,
-                'settlement_discount_limit': perm.settlement_discount_limit
+                'settlement_discount_limit': perm.settlement_discount_limit,
+                'content_filters': perm.content_filters
             })
         return api_response(
             success=True,
@@ -414,16 +433,50 @@ def update_role_permissions():
                 can_create = bool(perm.get('can_create', False))
                 can_edit = bool(perm.get('can_edit', False))
                 can_delete = bool(perm.get('can_delete', False))
-                
+                permission_level = perm.get('permission_level', 'personal')
+
+                # 🆕 数据一致性验证：如果permission_level为'none'，强制所有权限为False
+                if permission_level == 'none':
+                    can_view = False
+                    can_create = False
+                    can_edit = False
+                    can_delete = False
+                    logger.info(f"✅ 数据一致性保护：模块 {module} level='none'，已强制清空所有权限")
+                    # level='none'时跳过其他智能修正逻辑
+                elif permission_level == 'personal' and can_create is False:
+                    # 🆕 智能修正逻辑1：仅个人级别需要创建权限保底
+                    can_create = True
+                    logger.info(f"✅ 智能修正：模块 {module} 个人级别创建权限已自动设置为True（保底规则）")
+
+                # 🆕 智能修正逻辑2：个人级别自动开启所有权限（保底规则）
+                if permission_level == 'personal':
+                    # 个人级别的含义：只能查看自己的数据，但对自己的数据拥有完整管理权
+                    # 因此确保所有权限都开启
+                    corrected = []
+                    if not can_view:
+                        can_view = True
+                        corrected.append('查看')
+                    if not can_create:
+                        can_create = True
+                        corrected.append('创建')
+                    if not can_edit:
+                        can_edit = True
+                        corrected.append('编辑')
+                    if not can_delete:
+                        can_delete = True
+                        corrected.append('删除')
+
+                    if corrected:
+                        logger.info(f"✅ 智能修正：模块 {module} 个人级别权限已自动补全 [{', '.join(corrected)}]")
+
                 # 检查是否有任何权限
                 has_any_permission = can_view or can_create or can_edit or can_delete
-                
-                # 如果没有任何权限，权限级别强制设置为personal
-                permission_level = perm.get('permission_level', 'personal')
-                if not has_any_permission:
+
+                # 如果没有任何权限，权限级别强制设置为personal（但不覆盖none级别）
+                if not has_any_permission and permission_level != 'none':
                     permission_level = 'personal'
-                    logger.info(f"模块 {module} 没有任何权限，权限级别重置为 personal")
-                
+                    logger.info(f"⚠️ 模块 {module} 没有任何权限，权限级别重置为 personal")
+
                 # 创建新的角色权限记录
                 role_permission = RolePermission(
                     role=role,
@@ -432,10 +485,12 @@ def update_role_permissions():
                     can_create=can_create,
                     can_edit=can_edit,
                     can_delete=can_delete,
+                    can_change_owner=perm.get('can_change_owner', False),
                     permission_level=permission_level,
                     permission_level_description=perm.get('permission_level_description'),
                     pricing_discount_limit=perm.get('pricing_discount_limit'),
-                    settlement_discount_limit=perm.get('settlement_discount_limit')
+                    settlement_discount_limit=perm.get('settlement_discount_limit'),
+                    content_filters=perm.get('content_filters')
                 )
                 db.session.add(role_permission)
             

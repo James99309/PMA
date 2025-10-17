@@ -326,21 +326,101 @@ def clear_user_permissions_cache(user_id=None):
         return False
 
 
+def get_accessible_users_by_permission_only(current_user, context_module=None):
+    """
+    获取当前用户可访问的用户列表（仅基于权限级别，不包含数据归属）
+
+    用于非业务数据模块（如账户管理、权限管理），这些模块不应受业务数据归属关系影响。
+
+    权限优先级（从高到低）：
+    1. admin 管理员特权：可访问所有用户
+    2. 权限模块数据权限：system > company > department > personal
+
+    参数:
+        current_user: 当前登录用户
+        context_module: 上下文模块名称，如 'user_management', 'permission_management' 等
+
+    返回:
+        list: 可访问的用户列表
+    """
+    try:
+        if not current_user or not current_user.is_authenticated:
+            return []
+
+        # 1. admin 管理员特权：可以查看所有用户（最高优先级）
+        if current_user.role == 'admin':
+            return User.query.filter(User._is_active == True).all()
+
+        # 2. 权限模块数据权限（第二优先级）
+        # 根据上下文模块检查相应的权限
+        permission_modules_to_check = []
+        if context_module:
+            permission_modules_to_check.append(context_module)
+        else:
+            # 如果没有指定上下文模块，检查常见的用户访问相关权限
+            permission_modules_to_check = ['user_management', 'permission_management', 'user']
+
+        highest_permission_level = 'personal'
+
+        for module in permission_modules_to_check:
+            if current_user.has_permission(module, 'view'):
+                module_permission_level = current_user.get_permission_level(module)
+
+                # 选择最高的权限级别
+                if module_permission_level == 'system':
+                    highest_permission_level = 'system'
+                    break  # 系统级是最高权限，无需继续检查
+                elif module_permission_level == 'company' and highest_permission_level in ['personal', 'department']:
+                    highest_permission_level = 'company'
+                elif module_permission_level == 'department' and highest_permission_level == 'personal':
+                    highest_permission_level = 'department'
+
+        # 根据最高权限级别确定可访问范围
+        if highest_permission_level == 'system':
+            # 系统级权限：可以查看所有用户
+            return User.query.filter(User._is_active == True).all()
+        elif highest_permission_level == 'company' and current_user.company_name:
+            # 企业级权限：可以查看企业下所有用户
+            accessible_users = User.query.filter(
+                User.company_name == current_user.company_name,
+                User._is_active == True
+            ).order_by(User.real_name, User.username).all()
+            logger.info(f"用户 {current_user.username} 通过模块 {context_module or '默认'} 的 company 级权限可访问 {len(accessible_users)} 个用户")
+            return accessible_users
+        elif highest_permission_level == 'department' and current_user.department and current_user.company_name:
+            # 部门级权限：可以查看部门下所有用户
+            accessible_users = User.query.filter(
+                User.department == current_user.department,
+                User.company_name == current_user.company_name,
+                User._is_active == True
+            ).order_by(User.real_name, User.username).all()
+            logger.info(f"用户 {current_user.username} 通过模块 {context_module or '默认'} 的 department 级权限可访问 {len(accessible_users)} 个用户")
+            return accessible_users
+        else:  # personal
+            # 个人级权限：只能查看自己
+            logger.info(f"用户 {current_user.username} 通过模块 {context_module or '默认'} 的 personal 级权限只能访问自己")
+            return [current_user]
+
+    except Exception as e:
+        logger.error(f"获取可访问用户列表失败: {str(e)}")
+        return [current_user] if current_user and current_user.is_authenticated else []
+
+
 def get_accessible_users(current_user, context_module=None):
     """
     获取当前用户可访问的用户列表（用于绩效统计、用户管理等功能）
     统一基于权限模块、部门负责人权限和数据归属关系控制用户访问范围
-    
+
     权限优先级（从高到低）：
     1. admin 管理员特权：可访问所有用户
     2. 权限模块数据权限：system > company > department > personal
     3. 部门负责人权限：可访问本部门用户
     4. 数据归属设置：基于Affiliation模型的明确授权
-    
+
     参数:
         current_user: 当前登录用户
         context_module: 上下文模块名称，如 'user_management', 'performance_management' 等
-        
+
     返回:
         list: 可访问的用户列表
     """
@@ -399,25 +479,35 @@ def get_accessible_users(current_user, context_module=None):
             ).all()
             accessible_user_ids.update([u.id for u in dept_users])
         
-        # 3. 部门负责人权限（第三优先级）
-        if (hasattr(current_user, 'is_department_manager') and current_user.is_department_manager 
-              and current_user.department):
-            dept_users = User.query.filter(
-                User.department == current_user.department,
-                User._is_active == True
-            ).all()
-            accessible_user_ids.update([u.id for u in dept_users])
-        
-        # 4. 数据归属设置（第四优先级）
-        from app.models.user import Affiliation
-        affiliations = Affiliation.query.filter_by(viewer_id=current_user.id).all()
-        for affiliation in affiliations:
-            affiliated_user = User.query.filter(
-                User.id == affiliation.owner_id,
-                User._is_active == True
-            ).first()
-            if affiliated_user:
-                accessible_user_ids.add(affiliated_user.id)
+        # 3. 检查模块是否支持数据归属
+        # 只有业务数据模块才应用部门负责人权限和数据归属
+        from app.utils.module_metadata import module_supports_affiliation
+        module_supports_aff = module_supports_affiliation(context_module) if context_module else True
+
+        if module_supports_aff:
+            # 3a. 部门负责人权限（仅业务数据模块）
+            if (hasattr(current_user, 'is_department_manager') and current_user.is_department_manager
+                  and current_user.department):
+                dept_users = User.query.filter(
+                    User.department == current_user.department,
+                    User._is_active == True
+                ).all()
+                accessible_user_ids.update([u.id for u in dept_users])
+
+            # 3b. 数据归属设置（仅业务数据模块）
+            from app.models.user import Affiliation
+            affiliations = Affiliation.query.filter_by(viewer_id=current_user.id).all()
+            for affiliation in affiliations:
+                affiliated_user = User.query.filter(
+                    User.id == affiliation.owner_id,
+                    User._is_active == True
+                ).first()
+                if affiliated_user:
+                    accessible_user_ids.add(affiliated_user.id)
+
+            logger.debug(f"模块 {context_module} 支持数据归属，已应用部门负责人和Affiliation权限")
+        else:
+            logger.debug(f"模块 {context_module} 不支持数据归属，跳过部门负责人和Affiliation权限")
         
         # 5. 根据收集到的用户ID获取用户对象
         accessible_users = User.query.filter(

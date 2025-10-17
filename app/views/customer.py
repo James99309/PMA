@@ -1068,17 +1068,17 @@ def view_company(company_id):
     if hasattr(company, 'actions') and company.actions:
         company.actions.sort(key=lambda x: x.date, reverse=True)
     
-    # 查询与该企业相关的所有项目
-    projects = Project.query.filter(
-        or_(
-            Project.end_user == company.company_name,
-            Project.design_issues.like(f'%{company.company_name}%'),
-            Project.contractor == company.company_name,
-            Project.system_integrator == company.company_name,
-            Project.dealer == company.company_name
-        )
+    # 查询与该企业关联的所有项目（使用关系表）
+    from app.models.project_customer_association import ProjectCustomerAssociation
+
+    # 通过关联表查询所有关联的项目
+    project_associations = ProjectCustomerAssociation.query.filter_by(
+        company_id=company_id
     ).all()
-    
+
+    # 提取项目对象（排除已删除的项目）
+    projects = [assoc.project for assoc in project_associations if assoc.project]
+
     # 筛选用户有权限查看的项目
     viewable_project_ids = [p.id for p in get_viewable_data(Project, current_user).all()]
     viewable_projects = [p for p in projects if p.id in viewable_project_ids]

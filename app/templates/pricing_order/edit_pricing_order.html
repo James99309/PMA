@@ -1707,6 +1707,9 @@ input[type="number"].discount-rate {
   border-radius: 50%;
   transition: .4s;
 }
+.toggle-switch input:checked + .toggle-slider {
+  background-color: #28a745;  /* Bootstrap success 绿色 - ON状态 */
+}
 .toggle-switch input:checked + .toggle-slider::after {
   transform: translateX(30px);
 }
@@ -2981,21 +2984,31 @@ $(document).ready(function() {
     
 
     
-    // 调试：显示绑定成功信息
-    console.log('批价单事件绑定完成 - 使用改进的联动逻辑');
+    // 监听经销商和分销商搜索组件的事件（标准实现）
+    setTimeout(() => {
+        // 经销商容器
+        const dealerContainer = document.querySelector('#dealerSearchConfig')?.closest('.customer-search-container');
+        if (dealerContainer) {
+            dealerContainer.addEventListener('customerSelected', function(e) {
+                onDealerChange();
+            });
+            dealerContainer.addEventListener('customerCleared', function() {
+                onDealerChange();
+            });
+        }
 
-    // 绑定分销商和经销商选择事件（前端缓存）
-    $('#distributorSelect').on('change', function() {
-        const value = $(this).val();
-        updateBasicInfo('distributor_id', value || null);
-    });
-    
-    // 经销商选择
-    $('#dealerSelect').on('change', function() {
-        const value = $(this).val();
-        updateBasicInfo('dealer_id', value || null);
-    });
-    
+        // 分销商容器
+        const distributorContainer = document.querySelector('#distributorSearchConfig')?.closest('.customer-search-container');
+        if (distributorContainer) {
+            distributorContainer.addEventListener('customerSelected', function(e) {
+                onDistributorChange();
+            });
+            distributorContainer.addEventListener('customerCleared', function() {
+                onDistributorChange();
+            });
+        }
+    }, 600); // 确保在CustomerSearchComponent初始化之后
+
     // 初始化前端缓存
     window.pricingOrderCache = {};
     
@@ -3062,9 +3075,6 @@ $(document).ready(function() {
     
     // 配置批价单特有的数据收集函数（总是定义，不依赖于审批流程脚本）
     window.pricingOrderDataCollection = function() {
-            debugger; // 🔍 断点1：检查数据收集函数是否被调用
-            console.log('🔍 [DEBUG] 前端数据收集开始...');
-            
             // 收集当前表单的实时数据
             const currentFormData = {
                 dealer_id: null,
@@ -3073,52 +3083,59 @@ $(document).ready(function() {
                 is_factory_pickup: false,
                 pricing_total_discount_rate: null
             };
-            
-            // 获取经销商ID - 检查多个可能的来源
-            const dealerHiddenInput = document.getElementById('dealerSelect');
-            if (dealerHiddenInput && dealerHiddenInput.value) {
-                currentFormData.dealer_id = dealerHiddenInput.value;
-                console.log('🔍 [DEBUG] 经销商ID (从hidden input获取):', currentFormData.dealer_id);
-            } else {
-                // 尝试从服务器端渲染的值获取
-                const dealerFromServer = "{% if pricing_order.dealer_id %}{{ pricing_order.dealer_id }}{% endif %}";
-                if (dealerFromServer) {
-                    currentFormData.dealer_id = dealerFromServer;
-                    console.log('🔍 [DEBUG] 经销商ID (从服务器端获取):', currentFormData.dealer_id);
-                } else {
-                    currentFormData.dealer_id = null;
-                    console.log('🔍 [DEBUG] 经销商ID 为空');
+
+            // 策略1: 优先从缓存获取（最可靠，由事件监听器维护）
+            if (window.pricingOrderCache) {
+                if (window.pricingOrderCache.dealer_id !== undefined) {
+                    currentFormData.dealer_id = window.pricingOrderCache.dealer_id;
+                }
+                if (window.pricingOrderCache.distributor_id !== undefined) {
+                    currentFormData.distributor_id = window.pricingOrderCache.distributor_id;
+                }
+                if (window.pricingOrderCache.is_direct_contract !== undefined) {
+                    currentFormData.is_direct_contract = window.pricingOrderCache.is_direct_contract;
+                }
+                if (window.pricingOrderCache.is_factory_pickup !== undefined) {
+                    currentFormData.is_factory_pickup = window.pricingOrderCache.is_factory_pickup;
                 }
             }
-            
-            // 获取分销商ID - 检查多个可能的来源
-            const distributorHiddenInput = document.getElementById('distributorSelect');
-            if (distributorHiddenInput && distributorHiddenInput.value) {
-                currentFormData.distributor_id = distributorHiddenInput.value;
-                console.log('🔍 [DEBUG] 分销商ID (从hidden input获取):', currentFormData.distributor_id);
-            } else {
-                // 尝试从服务器端渲染的值获取
-                const distributorFromServer = "{% if pricing_order.distributor_id %}{{ pricing_order.distributor_id }}{% endif %}";
-                if (distributorFromServer) {
-                    currentFormData.distributor_id = distributorFromServer;
-                    console.log('🔍 [DEBUG] 分销商ID (从服务器端获取):', currentFormData.distributor_id);
+
+            // 策略2: DOM Fallback（当缓存中没有数据时）
+            // 获取经销商ID
+            if (currentFormData.dealer_id === null || currentFormData.dealer_id === undefined) {
+                const dealerHiddenInput = document.getElementById('dealerId');
+                if (dealerHiddenInput && dealerHiddenInput.value) {
+                    currentFormData.dealer_id = dealerHiddenInput.value;
                 } else {
-                    currentFormData.distributor_id = null;
-                    console.log('🔍 [DEBUG] 分销商ID 为空');
+                    const dealerFromServer = "{% if pricing_order.dealer_id %}{{ pricing_order.dealer_id }}{% endif %}";
+                    if (dealerFromServer) {
+                        currentFormData.dealer_id = dealerFromServer;
+                    }
                 }
             }
-            
+
+            // 获取分销商ID
+            if (currentFormData.distributor_id === null || currentFormData.distributor_id === undefined) {
+                const distributorHiddenInput = document.getElementById('distributorId');
+                if (distributorHiddenInput && distributorHiddenInput.value) {
+                    currentFormData.distributor_id = distributorHiddenInput.value;
+                } else {
+                    const distributorFromServer = "{% if pricing_order.distributor_id %}{{ pricing_order.distributor_id }}{% endif %}";
+                    if (distributorFromServer) {
+                        currentFormData.distributor_id = distributorFromServer;
+                    }
+                }
+            }
+
             // 获取开关状态
             const directContractSwitch = document.getElementById('directContractSwitch');
             if (directContractSwitch) {
                 currentFormData.is_direct_contract = directContractSwitch.checked;
-                console.log('🔍 [DEBUG] 厂商直签 (从表单获取):', currentFormData.is_direct_contract);
             }
-            
+
             const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
             if (factoryPickupSwitch) {
                 currentFormData.is_factory_pickup = factoryPickupSwitch.checked;
-                console.log('🔍 [DEBUG] 厂家提货 (从表单获取):', currentFormData.is_factory_pickup);
             }
             
             // 获取批价单总折扣率 - 兼容INPUT和SPAN元素
@@ -3126,25 +3143,15 @@ $(document).ready(function() {
             if (pricingTotalDiscountElement) {
                 let discountValue;
                 if (pricingTotalDiscountElement.tagName === 'INPUT') {
-                    // INPUT元素：直接读取value
                     discountValue = parseFloat(pricingTotalDiscountElement.value);
-                    console.log('🔍 [DEBUG] 批价单总折扣率收集 (INPUT):', pricingTotalDiscountElement.value);
                 } else if (pricingTotalDiscountElement.tagName === 'SPAN') {
-                    // SPAN元素：读取textContent并去除百分号
                     const textValue = pricingTotalDiscountElement.textContent.trim().replace('%', '');
                     discountValue = parseFloat(textValue);
-                    console.log('🔍 [DEBUG] 批价单总折扣率收集 (SPAN):', textValue);
                 }
 
                 if (!isNaN(discountValue)) {
-                    // 转换为小数形式（数据库存储格式）
                     currentFormData.pricing_total_discount_rate = discountValue / 100;
-                    console.log('🔍 [DEBUG] 批价单总折扣率收集成功:', discountValue + '% => ' + currentFormData.pricing_total_discount_rate);
-                } else {
-                    console.log('🔍 [DEBUG] 批价单总折扣率解析失败:', discountValue);
                 }
-            } else {
-                console.log('🔍 [DEBUG] 未找到批价单总折扣率元素');
             }
             
             // 获取结算单总折扣率 - 兼容INPUT和SPAN元素
@@ -3152,51 +3159,25 @@ $(document).ready(function() {
             if (settlementTotalDiscountElement) {
                 let discountValue;
                 if (settlementTotalDiscountElement.tagName === 'INPUT') {
-                    // INPUT元素：直接读取value
                     discountValue = parseFloat(settlementTotalDiscountElement.value);
-                    console.log('🔍 [DEBUG] 结算单总折扣率收集 (INPUT):', settlementTotalDiscountElement.value);
                 } else if (settlementTotalDiscountElement.tagName === 'SPAN') {
-                    // SPAN元素：读取textContent并去除百分号
                     const textValue = settlementTotalDiscountElement.textContent.trim().replace('%', '');
                     discountValue = parseFloat(textValue);
-                    console.log('🔍 [DEBUG] 结算单总折扣率收集 (SPAN):', textValue);
                 }
 
                 if (!isNaN(discountValue)) {
-                    // 转换为小数形式（数据库存储格式）
                     currentFormData.settlement_total_discount_rate = discountValue / 100;
-                    console.log('🔍 [DEBUG] 结算单总折扣率收集成功:', discountValue + '% => ' + currentFormData.settlement_total_discount_rate);
-                } else {
-                    console.log('🔍 [DEBUG] 结算单总折扣率解析失败:', discountValue);
                 }
-            } else {
-                console.log('🔍 [DEBUG] 未找到结算单总折扣率元素');
             }
             
             // 合并缓存数据和当前表单数据
             const basicInfo = Object.assign({}, window.pricingOrderCache || {}, currentFormData);
-            
-            console.log('🔍 [DEBUG] 缓存数据:', window.pricingOrderCache);
-            console.log('🔍 [DEBUG] 当前表单数据:', currentFormData);
-            console.log('🔍 [DEBUG] 合并后的基本信息:', basicInfo);
-            
-            // 显示关键字段收集情况
-            console.log('🔍 [DEBUG] === 关键字段收集汇总 ===');
-            console.log('🔍 [DEBUG] 批价总折扣率:', basicInfo.pricing_total_discount_rate !== undefined ? basicInfo.pricing_total_discount_rate : 'null');
-            console.log('🔍 [DEBUG] 结算总折扣率:', basicInfo.settlement_total_discount_rate !== undefined ? basicInfo.settlement_total_discount_rate : 'null');
-            console.log('🔍 [DEBUG] 分销商ID:', basicInfo.distributor_id !== undefined ? basicInfo.distributor_id : 'null');
-            console.log('🔍 [DEBUG] 经销商ID:', basicInfo.dealer_id !== undefined ? basicInfo.dealer_id : 'null');
-            console.log('🔍 [DEBUG] 厂家提货:', basicInfo.is_factory_pickup !== undefined ? basicInfo.is_factory_pickup : 'null');
-            console.log('🔍 [DEBUG] ========================');
-            
-            const result = {
+
+            return {
                 basic_info: basicInfo,
                 pricing_details: collectPricingDetails(),
                 settlement_details: collectSettlementDetails()
             };
-            
-            console.log('🔍 [DEBUG] 最终收集的数据:', result);
-            return result;
         };
         
     // 初始化标准审批流程
@@ -4139,8 +4120,7 @@ function collectSettlementDetails() {
             unit_price: unitPrice
         });
     });
-    
-    console.log('收集到的结算单明细:', details);
+
     return details;
 }
 
@@ -4171,15 +4151,11 @@ async function submitForApproval() {
         }
     }
     
-    console.log('开始提交审批...');
-    
     // 收集所有数据
     const submitData = {
         basic_info: window.pricingOrderCache || {},
         pricing_details: collectPricingDetails()
     };
-    
-    console.log('提交数据:', submitData);
     
     // 简单验证
     if (submitData.pricing_details.length === 0) {
@@ -4250,15 +4226,11 @@ async function resubmitForApproval() {
         }
     }
     
-    console.log('开始重新发起审批...');
-    
     // 收集所有数据
     const submitData = {
         basic_info: window.pricingOrderCache || {},
         pricing_details: collectPricingDetails()
     };
-    
-    console.log('重新提交数据:', submitData);
     
     // 简单验证
     if (submitData.pricing_details.length === 0) {

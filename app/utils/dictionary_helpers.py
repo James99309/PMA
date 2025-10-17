@@ -47,7 +47,6 @@ COMPANY_TYPE_LABELS = {
     'contractor': {'zh': '总承包单位', 'en': 'Main Contractor'},
     'direct_customer': {'zh': '直接客户', 'en': 'Direct Customer'},
     'partner': {'zh': '合作伙伴', 'en': 'Partner'},
-    'system_integrator': {'zh': '系统集成商', 'en': 'System Integrator'},
     'design_institute': {'zh': '设计院', 'en': 'Design Institute'},
     'consultant': {'zh': '顾问', 'en': 'Consultant'},
     'general_contractor': {'zh': '总承包商', 'en': 'General Contractor'},
@@ -64,7 +63,6 @@ COMPANY_TYPE_COLORS = {
     'contractor': '#dc3545',
     'direct_customer': '#17a2b8',
     'partner': '#20c997',
-    'system_integrator': '#fd7e14',
     'design_institute': '#6f42c1',
     'consultant': '#6f42c1',
     'general_contractor': '#dc3545',
@@ -650,5 +648,29 @@ def get_role_display_name_from_dict(role_key, roles_dict=None):
     
     # 否则使用原有的数据库查询方法
     return get_role_display_name(role_key)
+
+# 业务类型映射（批价单和结算单）
+BUSINESS_TYPE_LABELS = {
+    'direct_contract': {'zh': '厂商直签', 'en': 'Direct Contract'},
+    'factory_pickup': {'zh': '厂家提货', 'en': 'Factory Pickup'},
+    'channel': {'zh': '常规渠道', 'en': 'Channel'}
+}
+
+def business_type_label(key, lang='zh'):
+    """获取业务类型标签"""
+    return BUSINESS_TYPE_LABELS.get(key, {}).get(lang, key)
+
+def get_business_type_options():
+    """获取语言感知的业务类型选项"""
+    try:
+        from app.utils.i18n import get_current_language
+        lang_code = get_current_language()
+        return [(k, v[lang_code]) for k, v in BUSINESS_TYPE_LABELS.items()]
+    except Exception as e:
+        import logging
+        logging.warning(f"get_business_type_options 获取语言失败: {e}")
+        return [(k, v['zh']) for k, v in BUSINESS_TYPE_LABELS.items()]
+
+BUSINESS_TYPE_OPTIONS = [(k, v['zh']) for k, v in BUSINESS_TYPE_LABELS.items()]
 
 # TODO: 可扩展更多字典类型的获取方法 

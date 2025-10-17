@@ -1,7 +1,12 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button, render_top_notification, render_user_role_badge %}
+{% from 'macros/ui_helpers.html' import render_button, render_top_notification, render_user_role_badge, render_three_choice_dialog %}
 
 {% block title %}{{ _('用户详情') }} - {{ _('项目管理系统') }}{% endblock %}
+
+{% block head %}
+<!-- 引入权限面板通用样式组件 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/permission_panel.css') }}">
+{% endblock %}
 
 {% block styles %}
 <style>
@@ -69,23 +74,23 @@
     .numeric-header {
         font-weight: 500;
     }
-    
+
     /* 响应式优化 */
     @media (max-width: 768px) {
         .nav-tabs-custom .nav-link {
             padding: 0.75rem 1rem;
             font-size: 0.9rem;
         }
-        
+
         .nav-tabs-custom .nav-link i {
             display: none;
         }
-        
+
         .page-header-with-actions .btn-toolbar {
             flex-wrap: wrap;
             gap: 0.5rem;
         }
-        
+
         .page-header-with-actions .btn {
             margin: 0;
         }
@@ -122,15 +127,6 @@
                         icon='fas fa-edit',
                         extra_class='d-none',
                         attrs='id="editBaseBtn" title="编辑基本信息"'
-                    ) }}
-                    {{ render_button(
-                        text=_('编辑权限'),
-                        href=url_for('user.manage_permissions', user_id=user.id),
-                        color='outline-primary',
-                        size='sm',
-                        icon='fas fa-shield-alt',
-                        extra_class='d-none',
-                        attrs='id="editPermBtn" title="编辑权限"'
                     ) }}
                     {{ render_button(
                         text=_('编辑归属'),
@@ -249,46 +245,56 @@
     </div>
     <!-- 权限 -->
     <div class="tab-pane fade" id="perm" role="tabpanel" aria-labelledby="perm-tab">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">{{ _('当前权限') }}</h5>
+        <div class="alert alert-info mb-3">
+            <h6 class="alert-heading"><i class="fas fa-info-circle"></i> 权限规则说明</h6>
+            <p class="mb-1"><strong>当前角色：</strong>{{ role_dict.get(user.role, user.role or '-') }}</p>
+            <p class="mb-1"><strong>显示内容：</strong>当前显示的是<u>个人权限 + 角色权限</u>的合并结果（个人权限优先）</p>
+            <p class="mb-1"><strong>保存机制：</strong>保存时会将完整配置保存到个人权限表，之后以个人权限为准</p>
+            <p class="mb-1"><strong>数据范围：</strong>决定可以<u>查看</u>哪些数据（本人/本部门/全公司/系统级）</p>
+            <p class="mb-1"><strong>基础权限：</strong>决定对<u>他人数据</u>的操作权限（查看/创建/编辑/删除）</p>
+            <hr class="my-2">
+            <p class="mb-0"><i class="fas fa-shield-alt text-primary"></i> <strong>保底规则：</strong>无论如何配置，用户始终对<u>自己创建的数据</u>拥有完整管理权限</p>
         </div>
-        <div class="table-responsive">
-            <table class="table table-bordered table-hover permission-matrix">
-                <thead class="table-light">
-                    <tr>
-                        <th>{{ _('模块') }}</th>
-                        <th class="text-center">{{ _('查看') }}</th>
-                        <th class="text-center">{{ _('创建') }}</th>
-                        <th class="text-center">{{ _('编辑') }}</th>
-                        <th class="text-center">{{ _('删除') }}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                {% if modules and modules|length > 0 %}
-                    {% set permission_map = {} %}
-                    {% for perm in permissions %}
-                        {% set _ = permission_map.update({perm.module: perm}) %}
-                    {% endfor %}
-                    {% for module in modules %}
-                        {% set perm = permission_map.get(module.id, {'can_view': false, 'can_create': false, 'can_edit': false, 'can_delete': false}) %}
-                    <tr>
-                        <td>
-                            {{ module_name_map.get(module.id, module.id) }}
-                            {% if module_desc_map.get(module.id) %}
-                                <small class="text-muted d-block">{{ module_desc_map.get(module.id) }}</small>
-                            {% endif %}
-                        </td>
-                        <td class="text-center">{% if perm.can_view %}<i class="fas fa-check text-success"></i>{% else %}<i class="fas fa-times text-danger"></i>{% endif %}</td>
-                        <td class="text-center">{% if perm.can_create %}<i class="fas fa-check text-success"></i>{% else %}<i class="fas fa-times text-danger"></i>{% endif %}</td>
-                        <td class="text-center">{% if perm.can_edit %}<i class="fas fa-check text-success"></i>{% else %}<i class="fas fa-times text-danger"></i>{% endif %}</td>
-                        <td class="text-center">{% if perm.can_delete %}<i class="fas fa-check text-success"></i>{% else %}<i class="fas fa-times text-danger"></i>{% endif %}</td>
-                    </tr>
-                    {% endfor %}
-                {% else %}
-                    <tr><td colspan="5" class="text-muted text-center">{{ _('暂无权限模块') }}</td></tr>
-                {% endif %}
-                </tbody>
-            </table>
+
+        <!-- 权限配置区域 - 左右分栏布局 -->
+        <div id="permissionsContainer">
+            <div class="row">
+                <!-- 左侧：模块列表 -->
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">模块列表</h6>
+                        </div>
+                        <div class="list-group list-group-flush" id="moduleList">
+                            <!-- 模块列表将通过JS动态生成 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧：权限配置面板 -->
+                <div class="col-md-9">
+                    <!-- 操作按钮 -->
+                    <div class="d-flex justify-content-end mb-3">
+                        {{ render_button(
+                            text='保存个人权限',
+                            color='primary',
+                            icon='fas fa-save',
+                            type='button',
+                            attrs='id="savePermissions"'
+                        ) }}
+                    </div>
+
+                    <!-- 权限配置内容 -->
+                    <div id="permissionConfigPanel">
+                        <!-- 选中模块的配置内容将通过JS动态生成 -->
+                        <div id="noModuleSelected" class="text-center py-5">
+                            <i class="fas fa-hand-pointer fa-3x text-muted mb-3"></i>
+                            <h5>请从左侧选择一个模块</h5>
+                            <p class="text-muted">点击模块名称以查看和编辑其权限设置</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     <!-- 归属关系 -->
@@ -396,61 +402,129 @@
             </div>
         </div>
     </div>
+
+    <!-- 未保存提醒对话框 - 使用通用三选择组件 -->
+    {{ render_three_choice_dialog(
+        'unsavedChangesModal',
+        '未保存的修改',
+        '您有未保存的权限修改，是否保存？',
+        'fas fa-exclamation-triangle',
+        [
+            {'text': '保存修改', 'color': 'primary', 'icon': 'fas fa-save', 'action': 'handleSaveChanges'},
+            {'text': '放弃修改', 'color': 'danger', 'icon': 'fas fa-trash', 'action': 'handleDiscardChanges'},
+            {'text': '取消', 'color': 'secondary', 'icon': 'fas fa-times', 'action': 'handleCancelChanges'}
+        ]
+    ) }}
 </div>
 {% endblock %}
 
 {% block scripts %}
+<!-- 引入权限面板组件 -->
+<script src="{{ url_for('static', filename='js/permission_panel_logic.js') }}"></script>
+
 <script>
+    // 准备权限组件配置数据
+    window.permissionPanelConfig = window.permissionPanelConfig || {};
+    const configKey = 'user_{{ user.id }}';
+    window.permissionPanelConfig[configKey] = {
+        contextType: 'user',
+        contextId: '{{ user.id }}',
+        modules: {{ modules|tojson|safe }},
+        permissions: {{ permissions|tojson|safe }},
+        rolePermissions: {{ (role_permissions or {})|tojson|safe }},
+        personalPermissions: {{ (personal_permissions or {})|tojson|safe }},
+        filterConfigs: {{ (filter_configs or {})|tojson|safe }},
+        csrfToken: '{{ csrf_token() }}'
+    };
+
     // 保持tab切换状态，并切换编辑按钮
     document.addEventListener('DOMContentLoaded', function() {
         var triggerTabList = [].slice.call(document.querySelectorAll('#userDetailTab button'));
         var editBaseBtn = document.getElementById('editBaseBtn');
-        var editPermBtn = document.getElementById('editPermBtn');
         var editAffBtn = document.getElementById('editAffBtn');
         var viewPerfBtn = document.getElementById('viewPerfBtn'); // 可能为null，基于查看权限
         var editPerfBtn = document.getElementById('editPerfBtn'); // 可能为null，基于编辑权限
+        var permissionPanelInitialized = false; // 权限组件初始化标志
+        var pendingTabSwitch = null; // 待切换的标签页
+
         function showEditBtn(tabId) {
             editBaseBtn.classList.add('d-none');
-            editPermBtn.classList.add('d-none');
             editAffBtn.classList.add('d-none');
             if (viewPerfBtn) viewPerfBtn.classList.add('d-none');
             if (editPerfBtn) editPerfBtn.classList.add('d-none');
-            
+
             if(tabId === 'base-tab') editBaseBtn.classList.remove('d-none');
-            if(tabId === 'perm-tab') editPermBtn.classList.remove('d-none');
+            // 权限标签页不显示编辑按钮，因为可以直接在页面中编辑
             if(tabId === 'aff-tab') editAffBtn.classList.remove('d-none');
             if(tabId === 'performance-tab') {
                 if (viewPerfBtn) viewPerfBtn.classList.remove('d-none');
                 if (editPerfBtn) editPerfBtn.classList.remove('d-none');
             }
         }
+
+        // 监听标签页切换 - 检查未保存修改
         triggerTabList.forEach(function(triggerEl) {
+            triggerEl.addEventListener('show.bs.tab', function (event) {
+                // 如果权限组件已初始化且有未保存修改，显示对话框
+                if (permissionPanelInitialized &&
+                    PermissionPanel.getHasUnsavedChanges &&
+                    PermissionPanel.getHasUnsavedChanges()) {
+                    event.preventDefault();
+                    pendingTabSwitch = event.target;
+                    const modal = new bootstrap.Modal(document.getElementById('unsavedChangesModal'));
+                    modal.show();
+                    return false;
+                }
+            });
+
             triggerEl.addEventListener('shown.bs.tab', function (event) {
                 localStorage.setItem('userDetailActiveTab', event.target.id);
                 showEditBtn(event.target.id);
+
+                // 当切换到权限标签页时，初始化权限组件（仅一次）
+                if (event.target.id === 'perm-tab' && !permissionPanelInitialized) {
+                    PermissionPanel.init(configKey);
+                    permissionPanelInitialized = true;
+                    console.log('权限组件已初始化');
+                }
             });
         });
+
         var activeTab = localStorage.getItem('userDetailActiveTab') || 'base-tab';
         // 支持通过URL hash直接定位tab
         if (window.location.hash === '#aff') {
             activeTab = 'aff-tab';
+        } else if (window.location.hash === '#perm') {
+            activeTab = 'perm-tab';
         }
         var tab = document.getElementById(activeTab);
         if (tab) {
             new bootstrap.Tab(tab).show();
             showEditBtn(activeTab);
+
+            // 如果默认显示权限标签页，立即初始化组件
+            if (activeTab === 'perm-tab') {
+                setTimeout(function() {
+                    PermissionPanel.init(configKey);
+                    permissionPanelInitialized = true;
+                    console.log('权限组件已初始化（默认显示）');
+                }, 100);
+            }
         } else {
             showEditBtn('base-tab');
         }
-        
+
         // 当绩效页签被激活时，加载绩效数据
-        document.getElementById('performance-tab').addEventListener('shown.bs.tab', function() {
-            loadPerformanceData();
-        });
-        
-        // 如果默认显示绩效页签，立即加载数据
-        if (activeTab === 'performance-tab') {
-            setTimeout(loadPerformanceData, 100);
+        var perfTab = document.getElementById('performance-tab');
+        if (perfTab) {
+            perfTab.addEventListener('shown.bs.tab', function() {
+                loadPerformanceData();
+            });
+
+            // 如果默认显示绩效页签，立即加载数据
+            if (activeTab === 'performance-tab') {
+                setTimeout(loadPerformanceData, 100);
+            }
         }
     });
     
@@ -509,5 +583,43 @@
         document.getElementById('performanceTableWrapper').style.display = 'none';
         document.getElementById('performanceNoDataState').style.display = 'block';
     }
+
+    // 通用组件对话框按钮回调函数
+    window.handleSaveChanges = function() {
+        console.log('💾 用户选择：保存修改');
+        const modal = bootstrap.Modal.getInstance(document.getElementById('unsavedChangesModal'));
+        if (modal) modal.hide();
+
+        // 调用组件保存方法
+        if (PermissionPanel && PermissionPanel.savePermissions) {
+            PermissionPanel.savePermissions();
+            // 保存成功后切换标签页（在保存回调中处理）
+            setTimeout(() => {
+                if (pendingTabSwitch) {
+                    new bootstrap.Tab(pendingTabSwitch).show();
+                    pendingTabSwitch = null;
+                }
+            }, 1000);
+        }
+    };
+
+    window.handleDiscardChanges = function() {
+        console.log('🗑️ 用户选择：放弃修改');
+        const modal = bootstrap.Modal.getInstance(document.getElementById('unsavedChangesModal'));
+        if (modal) modal.hide();
+
+        // 执行标签页切换
+        if (pendingTabSwitch) {
+            new bootstrap.Tab(pendingTabSwitch).show();
+            pendingTabSwitch = null;
+        }
+    };
+
+    window.handleCancelChanges = function() {
+        console.log('❌ 用户选择：取消');
+        const modal = bootstrap.Modal.getInstance(document.getElementById('unsavedChangesModal'));
+        if (modal) modal.hide();
+        pendingTabSwitch = null;
+    };
 </script>
 {% endblock %} 

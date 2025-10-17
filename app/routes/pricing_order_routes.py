@@ -386,7 +386,10 @@ def update_basic_info(order_id):
                 else:
                     pricing_order.distributor_id = None
                     logger.info("清空分销商ID")
-        
+
+        # 同步业务类型到结算单
+        PricingOrderService.sync_business_type_to_settlements(pricing_order)
+
         db.session.commit()
         logger.info(f"成功更新批价单 {order_id} 基本信息")
         
@@ -1648,8 +1651,10 @@ def save_all_pricing_data(order_id):
         # 重新计算总额和总折扣率（基于明细数据）
         pricing_order.calculate_pricing_totals(recalculate_discount_rate=True)
         pricing_order.calculate_settlement_totals(recalculate_discount_rate=True)
-        
-        
+
+        # 同步业务类型到结算单
+        PricingOrderService.sync_business_type_to_settlements(pricing_order)
+
         try:
             db.session.commit()
         except Exception as e:
@@ -1704,20 +1709,15 @@ def save_and_submit_pricing_order(order_id):
         basic_info = data.get('basic_info', {})
         pricing_details = data.get('pricing_details', [])
         settlement_details = data.get('settlement_details', [])
-        
-        # 🔍 添加详细的数据接收调试信息
-        
-        # 记录提交前的数据库状态
-        
+
         # 更新基本信息
         # 处理厂商直签和厂家提货字段
         is_direct_contract = basic_info.get('is_direct_contract', False)
         is_factory_pickup = basic_info.get('is_factory_pickup', False)
-        
-        
+
         pricing_order.is_direct_contract = is_direct_contract
         pricing_order.is_factory_pickup = is_factory_pickup
-        
+
         # 根据厂商直签状态处理经销商和分销商
         if is_direct_contract:
             # 厂商直签时，清空经销商和分销商
@@ -1725,40 +1725,29 @@ def save_and_submit_pricing_order(order_id):
             pricing_order.distributor_id = None
         else:
             # 非厂商直签时，正常处理经销商和分销商
-            
             if 'dealer_id' in basic_info:
                 dealer_id = basic_info['dealer_id']
-                
                 if dealer_id and str(dealer_id).strip():
                     try:
-                        old_dealer_id = pricing_order.dealer_id
                         pricing_order.dealer_id = int(dealer_id)
                     except (ValueError, TypeError) as e:
                         pricing_order.dealer_id = None
+                        logger.error(f"dealer_id转换失败: {e}")
                 else:
-                    old_dealer_id = pricing_order.dealer_id
                     pricing_order.dealer_id = None
-            else:
-                pass
-            
+
             # 处理分销商：如果厂家提货开启，清空分销商
             if is_factory_pickup:
-                old_distributor_id = pricing_order.distributor_id
                 pricing_order.distributor_id = None
             elif 'distributor_id' in basic_info:
                 distributor_id = basic_info['distributor_id']
-                
                 if distributor_id and str(distributor_id).strip():
                     try:
-                        old_distributor_id = pricing_order.distributor_id
                         pricing_order.distributor_id = int(distributor_id)
                     except (ValueError, TypeError) as e:
                         pricing_order.distributor_id = None
                 else:
-                    old_distributor_id = pricing_order.distributor_id
                     pricing_order.distributor_id = None
-            else:
-                pass
         
         # 处理总折扣率
         if 'pricing_total_discount_rate' in basic_info:
@@ -1881,30 +1870,24 @@ def save_and_submit_pricing_order(order_id):
         # 重新计算总额和总折扣率（基于明细数据）
         pricing_order.calculate_pricing_totals(recalculate_discount_rate=True)
         pricing_order.calculate_settlement_totals(recalculate_discount_rate=True)
-        
-        # 记录数据处理完成后的状态
-        
+
+        # 同步业务类型到结算单
+        PricingOrderService.sync_business_type_to_settlements(pricing_order)
+
         # 在审批提交前强制保存数据到数据库
         db.session.commit()
-        
+
         # 提交审批
         success, error = PricingOrderService.submit_for_approval(order_id, current_user.id)
-        
+
         if not success:
-            logger.error(f"🔍 [SAVE_AND_SUBMIT] ❌ 提交审批失败: {error}")
             db.session.rollback()
             return jsonify({
                 'success': False,
                 'message': error
             })
-        
-        
-        # 提交前再次记录状态
-        
+
         db.session.commit()
-        
-        # 记录最终数据库状态（重新查询确认）
-        updated_pricing_order = PricingOrder.query.get(order_id)
         
         return jsonify({
             'success': True,

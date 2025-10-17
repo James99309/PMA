@@ -1,0 +1,352 @@
+{#
+    通用权限配置面板组件
+
+    功能：提供可复用的权限配置UI，支持角色权限管理和个人权限管理两种模式
+
+    参数：
+    - context_type: 上下文类型 ('role' 或 'user')
+    - context_id: 上下文ID (角色名称或用户ID)
+    - modules: 模块列表
+    - permissions: 权限数据列表（已合并）
+    - role_permissions: 角色权限数据（仅user模式需要，用于来源标记）
+    - personal_permissions: 个人权限数据（仅user模式需要，用于来源标记）
+    - filter_configs: 内容筛选配置
+    - csrf_token: CSRF令牌
+#}
+
+{% macro render_permission_panel(context_type, context_id, modules, permissions, role_permissions=None, personal_permissions=None, filter_configs=None, csrf_token='') %}
+<div class="permission-panel-container" data-context-type="{{ context_type }}" data-context-id="{{ context_id }}">
+    <!-- 权限配置区域 - 左右分栏布局 -->
+    <div id="permissionsContainer">
+        <div class="row">
+            <!-- 左侧：模块列表 -->
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">模块列表</h6>
+                    </div>
+                    <div class="list-group list-group-flush" id="moduleList">
+                        <!-- 模块列表将通过JS动态生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：权限配置面板 -->
+            <div class="col-md-9">
+                <!-- 操作按钮 -->
+                <div class="d-flex justify-content-end mb-3">
+                    {% if context_type == 'role' %}
+                        {{ render_button(
+                            text='保存权限设置',
+                            color='primary',
+                            icon='fas fa-save',
+                            type='button',
+                            attrs='id="savePermissions"'
+                        ) }}
+                    {% else %}
+                        {{ render_button(
+                            text='保存个人权限',
+                            color='primary',
+                            icon='fas fa-save',
+                            type='button',
+                            attrs='id="savePermissions"'
+                        ) }}
+                    {% endif %}
+                </div>
+
+                <!-- 权限配置内容 -->
+                <div id="permissionConfigPanel">
+                    <!-- 选中模块的配置内容将通过JS动态生成 -->
+                    <div id="noModuleSelected" class="text-center py-5">
+                        <i class="fas fa-hand-pointer fa-3x text-muted mb-3"></i>
+                        <h5>请从左侧选择一个模块</h5>
+                        <p class="text-muted">点击模块名称以查看和编辑其权限设置</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 配置数据（传递给JavaScript） -->
+    <script>
+        // 配置数据注入
+        window.permissionPanelConfig = window.permissionPanelConfig || {};
+        window.permissionPanelConfig['{{ context_type }}_{{ context_id }}'] = {
+            contextType: '{{ context_type }}',
+            contextId: '{{ context_id }}',
+            modules: {{ modules|tojson|safe }},
+            permissions: {{ permissions|tojson|safe }},
+            {% if context_type == 'user' %}
+            rolePermissions: {{ role_permissions|tojson|safe }},
+            personalPermissions: {{ personal_permissions|tojson|safe }},
+            {% endif %}
+            filterConfigs: {{ filter_configs|tojson|safe }},
+            csrfToken: '{{ csrf_token }}'
+        };
+    </script>
+</div>
+{% endmacro %}
+
+{#
+    权限面板样式
+    注意：这些样式应该被包含在使用该组件的页面中
+#}
+{% macro render_permission_panel_styles() %}
+<style>
+    /* 模块列表样式 */
+    #moduleList {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    #moduleList .list-group-item {
+        cursor: pointer;
+        transition: all 0.2s;
+        border-left: 3px solid transparent;
+    }
+
+    #moduleList .list-group-item:hover {
+        background-color: #f8f9fa;
+    }
+
+    #moduleList .list-group-item.active {
+        background-color: #e7f1ff;
+        border-left-color: #0d6efd;
+        color: #0d6efd;
+        font-weight: 500;
+    }
+
+    #moduleList .module-icon {
+        width: 20px;
+        text-align: center;
+        margin-right: 8px;
+    }
+
+    /* 权限配置面板样式 */
+    .permission-section {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .permission-section h6 {
+        color: #495057;
+        font-weight: 600;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    /* 带全选的标题样式 */
+    .section-header-with-select-all {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .section-header-with-select-all h6 {
+        margin: 0;
+        padding: 0;
+        border: none;
+        color: #495057;
+        font-weight: 600;
+    }
+
+    /* 全选控件样式（加强优先级以覆盖Bootstrap默认样式） */
+    .section-header-with-select-all .select-all-control {
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px;
+        flex-shrink: 0;
+        font-size: 0.9rem;
+    }
+
+    /* 确保所有子元素正确显示 */
+    .section-header-with-select-all .select-all-control > * {
+        display: inline-flex !important;
+        margin: 0 !important;
+    }
+
+    .section-header-with-select-all .select-all-control input[type="checkbox"] {
+        width: 1.2em;
+        height: 1.2em;
+        cursor: pointer;
+    }
+
+    .section-header-with-select-all .select-all-control label {
+        cursor: pointer;
+        user-select: none;
+        color: #6c757d;
+        padding: 0 !important;
+        line-height: 1.2em;
+    }
+
+    /* 复选框横向布局 */
+    .checkbox-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        align-items: center;
+    }
+
+    .checkbox-grid .form-check {
+        display: inline-flex !important;  /* 覆盖Bootstrap的block默认值 */
+        align-items: center;
+        gap: 8px;
+        flex: 0 0 auto;
+        margin: 0;
+        min-width: 100px;
+    }
+
+    .form-check-input {
+        cursor: pointer;
+        width: 1.2em;
+        height: 1.2em;
+    }
+
+    /* 单选按钮组横向布局 */
+    .radio-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .radio-group .form-check {
+        display: inline-flex !important;  /* 覆盖Bootstrap的block默认值 */
+        align-items: center;
+        gap: 8px;
+        flex: 0 0 auto;
+        padding: 0;
+        margin: 0;
+        min-width: 80px;
+    }
+
+    .radio-group .form-check-input:checked ~ .form-check-label {
+        font-weight: 600;
+        color: #0d6efd;
+    }
+
+    /* 内容筛选样式 */
+    .content-filter-section {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .content-filter-section h6 {
+        color: #495057;
+        font-weight: 600;
+        margin-bottom: 15px;
+    }
+
+    /* 内容筛选分类标题样式 */
+    .filter-category .category-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .filter-category .category-header .form-label {
+        margin: 0;
+    }
+
+    /* 内容筛选区域的全选控件样式（加强优先级） */
+    .filter-category .category-header .select-all-control {
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px;
+        flex-shrink: 0;
+        font-size: 0.85rem;
+    }
+
+    /* 确保所有子元素正确显示 */
+    .filter-category .category-header .select-all-control > * {
+        display: inline-flex !important;
+        margin: 0 !important;
+    }
+
+    .filter-category .category-header .select-all-control input[type="checkbox"] {
+        width: 1.1em;
+        height: 1.1em;
+        cursor: pointer;
+    }
+
+    .filter-category .category-header .select-all-control label {
+        cursor: pointer;
+        user-select: none;
+        color: #6c757d;
+        padding: 0 !important;
+        line-height: 1.1em;
+    }
+
+    .filter-options {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
+    }
+
+    /* 折扣权限卡片样式 */
+    .discount-section {
+        background: #e7f5ff;
+        border: 1px solid #b3d9ff;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .discount-section h6 {
+        color: #0056b3;
+        font-weight: 600;
+        margin-bottom: 15px;
+    }
+
+    /* 保存按钮激活状态样式 - 利用通用按钮悬浮效果 */
+    #savePermissions.active-state {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+        background-color: #0C7CD0 !important;
+        color: white !important;
+        border-color: #0C7CD0 !important;
+    }
+
+    /* 权限来源标签样式（仅个人权限模式） */
+    .permission-source-badge {
+        display: inline-block;
+        margin-left: 8px;
+        font-size: 0.75rem;
+        padding: 2px 6px;
+        border-radius: 3px;
+        background-color: #e7f3ff;
+        color: #0056b3;
+    }
+
+    .permission-source-badge.role-source {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+
+    .permission-source-badge.personal-source {
+        background-color: #d1ecf1;
+        color: #0c5460;
+    }
+
+    /* 响应式调整 */
+    @media (max-width: 768px) {
+        #moduleList {
+            max-height: 300px;
+        }
+
+        .checkbox-grid {
+            gap: 15px;
+        }
+    }
+</style>
+{% endmacro %}

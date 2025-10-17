@@ -3,6 +3,99 @@
 
 {% block title %}{{ _('权限管理') }} - {{ _('项目管理系统') }}{% endblock %}
 
+{% block head %}
+<!-- 引入权限面板通用样式组件 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/permission_panel.css') }}">
+
+<style>
+    /* 页面专用样式 - 用户信息卡片 */
+    .avatar-box {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        font-weight: bold;
+    }
+
+    /* 用户状态徽章样式 */
+    .user-status-active {
+        --badge-bg-opacity: 0.4;
+        --badge-text-opacity: 0.8;
+        --badge-border-opacity: 0.6;
+        background-color: rgba(40, 167, 69, var(--badge-bg-opacity));
+        color: rgba(21, 87, 36, var(--badge-text-opacity));
+        border: 1px solid rgba(40, 167, 69, var(--badge-border-opacity));
+    }
+
+    .user-status-inactive {
+        --badge-bg-opacity: 0.4;
+        --badge-text-opacity: 0.8;
+        --badge-border-opacity: 0.6;
+        background-color: rgba(255, 193, 7, var(--badge-bg-opacity));
+        color: rgba(133, 100, 4, var(--badge-text-opacity));
+        border: 1px solid rgba(255, 193, 7, var(--badge-border-opacity));
+    }
+
+    /* 用户角色徽章样式 */
+    .user-role-admin {
+        --badge-bg-opacity: 0.4;
+        --badge-text-opacity: 0.8;
+        --badge-border-opacity: 0.6;
+        background-color: rgba(220, 53, 69, var(--badge-bg-opacity));
+        color: rgba(114, 28, 36, var(--badge-text-opacity));
+        border: 1px solid rgba(220, 53, 69, var(--badge-border-opacity));
+    }
+
+    .user-role-sales {
+        --badge-bg-opacity: 0.4;
+        --badge-text-opacity: 0.8;
+        --badge-border-opacity: 0.6;
+        background-color: rgba(0, 123, 255, var(--badge-bg-opacity));
+        color: rgba(0, 53, 110, var(--badge-text-opacity));
+        border: 1px solid rgba(0, 123, 255, var(--badge-border-opacity));
+    }
+
+    .user-role-product {
+        --badge-bg-opacity: 0.4;
+        --badge-text-opacity: 0.8;
+        --badge-border-opacity: 0.6;
+        background-color: rgba(23, 162, 184, var(--badge-bg-opacity));
+        color: rgba(12, 84, 96, var(--badge-text-opacity));
+        border: 1px solid rgba(23, 162, 184, var(--badge-border-opacity));
+    }
+
+    .user-role-service {
+        --badge-bg-opacity: 0.4;
+        --badge-text-opacity: 0.8;
+        --badge-border-opacity: 0.6;
+        background-color: rgba(40, 167, 69, var(--badge-bg-opacity));
+        color: rgba(21, 87, 36, var(--badge-text-opacity));
+        border: 1px solid rgba(40, 167, 69, var(--badge-border-opacity));
+    }
+
+    .user-role-vendor {
+        --badge-bg-opacity: 0.4;
+        --badge-text-opacity: 0.8;
+        --badge-border-opacity: 0.6;
+        background-color: rgba(111, 66, 193, var(--badge-bg-opacity));
+        color: rgba(58, 35, 101, var(--badge-text-opacity));
+        border: 1px solid rgba(111, 66, 193, var(--badge-border-opacity));
+    }
+
+    .user-role-client {
+        --badge-bg-opacity: 0.4;
+        --badge-text-opacity: 0.8;
+        --badge-border-opacity: 0.6;
+        background-color: rgba(253, 126, 20, var(--badge-bg-opacity));
+        color: rgba(133, 67, 11, var(--badge-text-opacity));
+        border: 1px solid rgba(253, 126, 20, var(--badge-border-opacity));
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- 标准化顶部提示组件 -->
 {{ render_top_notification() }}
@@ -71,413 +164,87 @@
                 </div>
 
                 <div class="alert alert-info mb-3">
-                    <strong>说明：</strong> 角色权限已分配的模块权限不可在此单独修改，仅可补充角色未分配的权限。若需调整角色权限，请前往角色权限管理。
+                    <h6 class="alert-heading"><i class="fas fa-info-circle"></i> 权限规则说明</h6>
+                    <p class="mb-1"><strong>显示内容：</strong>当前显示的是<u>个人权限 + 角色权限</u>的合并结果（个人权限优先）</p>
+                    <p class="mb-1"><strong>保存机制：</strong>保存时会将完整配置保存到个人权限表，之后以个人权限为准</p>
+                    <p class="mb-1"><strong>数据范围：</strong>决定可以<u>查看</u>哪些数据（本人/本部门/全公司/系统级）</p>
+                    <p class="mb-1"><strong>基础权限：</strong>决定对<u>他人数据</u>的操作权限（查看/创建/编辑/删除）</p>
+                    <hr class="my-2">
+                    <p class="mb-0"><i class="fas fa-shield-alt text-primary"></i> <strong>保底规则：</strong>无论如何配置，用户始终对<u>自己创建的数据</u>拥有完整管理权限</p>
                 </div>
 
                 <hr>
 
-                <!-- 权限矩阵表单 -->
-                <form method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-hover permission-matrix">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>模块</th>
-                                    <th class="text-center">查看</th>
-                                    <th class="text-center">创建</th>
-                                    <th class="text-center">编辑</th>
-                                    <th class="text-center">删除</th>
-                                    <th class="text-center">修改拥有人</th>
-                                    <th class="text-center">全部</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% set module_name_map = {} %}
-                                {% set module_desc_map = {} %}
-                                {% for m in modules %}
-                                    {% set _ = module_name_map.update({m.id: m.name}) %}
-                                    {% set _ = module_desc_map.update({m.id: m.description}) %}
-                                {% endfor %}
-                                {% for module in modules %}
-                                <tr>
-                                    <input type="hidden" name="module" value="{{ module.id }}">
-                                    <td>
-                                        <strong>{{ module_name_map.get(module.id, module.id) }}</strong>
-                                        {% if module_desc_map.get(module.id) %}
-                                            <small class="text-muted d-block">{{ module_desc_map.get(module.id) }}</small>
-                                        {% endif %}
-                                    </td>
-                                    {% set modules_with_owner_change = ['project', 'customer', 'quotation'] %}
-                                    {% for action in ['view', 'create', 'edit', 'delete'] %}
-                                    <td class="text-center">
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input perm-checkbox" type="checkbox"
-                                                   id="{{ action }}_{{ module.id }}" name="{{ action }}_{{ module.id }}" data-module="{{ module.id }}" data-action="{{ action }}"
-                                                   {% if module.id in permissions and permissions[module.id]['can_' + action] %}checked{% endif %}>
-                                            <label class="form-check-label" for="{{ action }}_{{ module.id }}"></label>
-                                            <span class="role-perm-tip" style="display:none;color:#888;font-size:12px;">(角色权限)</span>
-                                        </div>
-                                    </td>
-                                    {% endfor %}
-                                    <td class="text-center">
-                                        {% if module.id in modules_with_owner_change %}
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input perm-checkbox" type="checkbox"
-                                                   id="change_owner_{{ module.id }}" name="change_owner_{{ module.id }}" data-module="{{ module.id }}" data-action="change_owner"
-                                                   {% if module.id in permissions and permissions[module.id]['can_change_owner'] %}checked{% endif %}>
-                                            <label class="form-check-label" for="change_owner_{{ module.id }}"></label>
-                                            <span class="role-perm-tip" style="display:none;color:#888;font-size:12px;">(角色权限)</span>
-                                        </div>
-                                        {% else %}
-                                        <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-center">
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input perm-all-checkbox" type="checkbox" id="all_{{ module.id }}" data-module="{{ module.id }}">
-                                            <label class="form-check-label" for="all_{{ module.id }}">全部</label>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="mt-4">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="btn-group" role="group">
-                                    {{ render_button(
-                                        text='全选',
-                                        color='outline-primary',
-                                        onclick='selectAllPermissions()',
-                                        size='sm'
-                                    ) }}
-                                    {{ render_button(
-                                        text='清空',
-                                        color='outline-secondary', 
-                                        onclick='selectNonePermissions()',
-                                        size='sm'
-                                    ) }}
-                                    {{ render_button(
-                                        text='仅查看',
-                                        color='outline-info',
-                                        onclick='selectViewPermissions()',
-                                        size='sm'
-                                    ) }}
+                <!-- 权限配置区域 - 左右分栏布局 -->
+                <div id="permissionsContainer">
+                    <div class="row">
+                        <!-- 左侧：模块列表 -->
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">模块列表</h6>
+                                </div>
+                                <div class="list-group list-group-flush" id="moduleList">
+                                    <!-- 模块列表将通过JS动态生成 -->
                                 </div>
                             </div>
-                            <div class="col-md-6 text-end">
-                                <div class="btn-group" role="group">
-                                    {{ render_button(
-                                        text='返回列表',
-                                        href=url_for('user.list_users'),
-                                        color='secondary',
-                                        icon='fas fa-arrow-left'
-                                    ) }}
-                                    {{ render_button(
-                                        text='保存权限设置',
-                                        type='submit',
-                                        color='primary',
-                                        icon='fas fa-save',
-                                        onclick='savePermissions(event)'
-                                    ) }}
+                        </div>
+
+                        <!-- 右侧：权限配置面板 -->
+                        <div class="col-md-9">
+                            <!-- 操作按钮 -->
+                            <div class="d-flex justify-content-end mb-3">
+                                {{ render_button(
+                                    text='保存个人权限',
+                                    color='primary',
+                                    icon='fas fa-save',
+                                    type='button',
+                                    attrs='id="savePermissions"'
+                                ) }}
+                            </div>
+
+                            <!-- 权限配置内容 -->
+                            <div id="permissionConfigPanel">
+                                <!-- 选中模块的配置内容将通过JS动态生成 -->
+                                <div id="noModuleSelected" class="text-center py-5">
+                                    <i class="fas fa-hand-pointer fa-3x text-muted mb-3"></i>
+                                    <h5>请从左侧选择一个模块</h5>
+                                    <p class="text-muted">点击模块名称以查看和编辑其权限设置</p>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     </div>
 </div>
 {% endblock %}
 
-{% block styles %}
-<style>
-    .avatar-box {
-        width: 48px;
-        height: 48px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 20px;
-        font-weight: bold;
-    }
-    
-    /* 用户状态徽章样式 */
-    .user-status-active {
-        --badge-bg-opacity: 0.4;
-        --badge-text-opacity: 0.8;
-        --badge-border-opacity: 0.6;
-        background-color: rgba(40, 167, 69, var(--badge-bg-opacity));
-        color: rgba(21, 87, 36, var(--badge-text-opacity));
-        border: 1px solid rgba(40, 167, 69, var(--badge-border-opacity));
-    }
-    
-    .user-status-inactive {
-        --badge-bg-opacity: 0.4;
-        --badge-text-opacity: 0.8;
-        --badge-border-opacity: 0.6;
-        background-color: rgba(255, 193, 7, var(--badge-bg-opacity));
-        color: rgba(133, 100, 4, var(--badge-text-opacity));
-        border: 1px solid rgba(255, 193, 7, var(--badge-border-opacity));
-    }
-    
-    /* 用户角色徽章样式 */
-    .user-role-admin {
-        --badge-bg-opacity: 0.4;
-        --badge-text-opacity: 0.8;
-        --badge-border-opacity: 0.6;
-        background-color: rgba(220, 53, 69, var(--badge-bg-opacity));
-        color: rgba(114, 28, 36, var(--badge-text-opacity));
-        border: 1px solid rgba(220, 53, 69, var(--badge-border-opacity));
-    }
-    
-    .user-role-sales {
-        --badge-bg-opacity: 0.4;
-        --badge-text-opacity: 0.8;
-        --badge-border-opacity: 0.6;
-        background-color: rgba(0, 123, 255, var(--badge-bg-opacity));
-        color: rgba(0, 53, 110, var(--badge-text-opacity));
-        border: 1px solid rgba(0, 123, 255, var(--badge-border-opacity));
-    }
-    
-    .user-role-product {
-        --badge-bg-opacity: 0.4;
-        --badge-text-opacity: 0.8;
-        --badge-border-opacity: 0.6;
-        background-color: rgba(23, 162, 184, var(--badge-bg-opacity));
-        color: rgba(12, 84, 96, var(--badge-text-opacity));
-        border: 1px solid rgba(23, 162, 184, var(--badge-border-opacity));
-    }
-    
-    .user-role-service {
-        --badge-bg-opacity: 0.4;
-        --badge-text-opacity: 0.8;
-        --badge-border-opacity: 0.6;
-        background-color: rgba(40, 167, 69, var(--badge-bg-opacity));
-        color: rgba(21, 87, 36, var(--badge-text-opacity));
-        border: 1px solid rgba(40, 167, 69, var(--badge-border-opacity));
-    }
-    
-    .user-role-vendor {
-        --badge-bg-opacity: 0.4;
-        --badge-text-opacity: 0.8;
-        --badge-border-opacity: 0.6;
-        background-color: rgba(111, 66, 193, var(--badge-bg-opacity));
-        color: rgba(58, 35, 101, var(--badge-text-opacity));
-        border: 1px solid rgba(111, 66, 193, var(--badge-border-opacity));
-    }
-    
-    .user-role-client {
-        --badge-bg-opacity: 0.4;
-        --badge-text-opacity: 0.8;
-        --badge-border-opacity: 0.6;
-        background-color: rgba(253, 126, 20, var(--badge-bg-opacity));
-        color: rgba(133, 67, 11, var(--badge-text-opacity));
-        border: 1px solid rgba(253, 126, 20, var(--badge-border-opacity));
-    }
-
-    /* 权限矩阵表格样式优化 */
-    .permission-matrix {
-        font-size: 0.9rem;
-    }
-    
-    .permission-matrix label {
-        cursor: pointer;
-        margin-bottom: 0;
-    }
-
-    .permission-matrix .form-check-input {
-        width: 1.2em;
-        height: 1.2em;
-        cursor: pointer;
-    }
-    
-    .permission-matrix .form-check-input:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-    
-    .permission-matrix td {
-        vertical-align: middle;
-        padding: 12px 8px;
-    }
-    
-    .permission-matrix th {
-        background-color: #f8f9fa;
-        font-weight: 600;
-        text-align: center;
-        vertical-align: middle;
-        border-color: #dee2e6;
-    }
-    
-    .permission-matrix tbody tr:hover {
-        background-color: #f8f9fa;
-    }
-    
-    .role-perm-tip {
-        font-size: 0.75rem;
-        color: #6c757d !important;
-        font-style: italic;
-        margin-left: 5px;
-    }
-    
-    /* 按钮组间距优化 */
-    .btn-group .btn {
-        margin-right: 0;
-    }
-    
-    .btn-group .btn + .btn {
-        margin-left: -1px;
-    }
-</style>
-{% endblock %}
-
 {% block scripts %}
+<!-- 引入通用权限面板组件 -->
+<script src="{{ url_for('static', filename='js/permission_panel_logic.js') }}"></script>
+
 <script>
+    // 准备组件配置数据容器
+    window.permissionPanelConfig = window.permissionPanelConfig || {};
+
+    // 准备组件配置数据 (user模式)
+    const configKey = 'user_{{ user.id if user else 0 }}';
+    window.permissionPanelConfig[configKey] = {
+        contextType: 'user',
+        contextId: '{{ user.id if user else 0 }}',
+        modules: {{ modules|tojson|safe }},
+        permissions: {{ permissions|tojson|safe }},
+        rolePermissions: {{ (role_permissions or {})|tojson|safe }},
+        personalPermissions: {{ (personal_permissions or {})|tojson|safe }},
+        filterConfigs: {{ (filter_configs or {})|tojson|safe }},
+        csrfToken: '{{ csrf_token() }}'
+    };
+
     document.addEventListener('DOMContentLoaded', function() {
-        // 快速选择按钮函数将在全局作用域中定义
-
-        // 行内"全部"复选框联动
-        document.querySelectorAll('.perm-all-checkbox').forEach(function(allCb) {
-            allCb.addEventListener('change', function() {
-                const moduleId = this.getAttribute('data-module');
-                document.querySelectorAll('.perm-checkbox[data-module="' + moduleId + '"]').forEach(function(cb) {
-                    if (!cb.disabled) {
-                        cb.checked = allCb.checked;
-                    }
-                });
-            });
-        });
-        // 单个权限变动时自动同步"全部"状态
-        document.querySelectorAll('.perm-checkbox').forEach(function(cb) {
-            cb.addEventListener('change', function() {
-                const moduleId = this.getAttribute('data-module');
-                const allCbs = document.querySelectorAll('.perm-checkbox[data-module="' + moduleId + '"]');
-                const allChecked = Array.from(allCbs).filter(x => !x.disabled).every(x => x.checked);
-                document.querySelector('.perm-all-checkbox[data-module="' + moduleId + '"]').checked = allChecked;
-            });
-        });
-        // 页面加载时初始化"全部"状态
-        document.querySelectorAll('.perm-all-checkbox').forEach(function(allCb) {
-            const moduleId = allCb.getAttribute('data-module');
-            const allCbs = document.querySelectorAll('.perm-checkbox[data-module="' + moduleId + '"]');
-            const allChecked = Array.from(allCbs).filter(x => !x.disabled).every(x => x.checked);
-            allCb.checked = allChecked;
-        });
-
-        // 禁用角色权限已有的复选框
-        var rolePermissions = {{ (role_permissions or {})|tojson|safe }};
-        if (rolePermissions && typeof rolePermissions === 'object') {
-            document.querySelectorAll('.perm-checkbox').forEach(function(cb) {
-                var module = cb.getAttribute('data-module');
-                var action = cb.getAttribute('data-action');
-                if (rolePermissions[module] && rolePermissions[module]['can_' + action]) {
-                    cb.disabled = true;
-                    var tip = cb.parentNode.querySelector('.role-perm-tip');
-                    if (tip) tip.style.display = 'inline';
-                }
-            });
-        }
+        // 使用通用组件初始化
+        PermissionPanel.init(configKey);
     });
-    
-    // 全局函数定义，供按钮调用
-    window.selectAllPermissions = function() {
-        const checkboxes = document.querySelectorAll('.permission-matrix .perm-checkbox');
-        checkboxes.forEach(checkbox => {
-            if (!checkbox.disabled) {
-                checkbox.checked = true;
-            }
-        });
-        updateAllCheckboxes();
-        showTopNotification('已全选所有可用权限', 'info', 2000);
-    };
-    
-    window.selectNonePermissions = function() {
-        const checkboxes = document.querySelectorAll('.permission-matrix .perm-checkbox');
-        checkboxes.forEach(checkbox => {
-            if (!checkbox.disabled) {
-                checkbox.checked = false;
-            }
-        });
-        updateAllCheckboxes();
-        showTopNotification('已清空所有权限选择', 'info', 2000);
-    };
-    
-    window.selectViewPermissions = function() {
-        const checkboxes = document.querySelectorAll('.permission-matrix .perm-checkbox');
-        checkboxes.forEach(checkbox => {
-            if (!checkbox.disabled) {
-                checkbox.checked = checkbox.id.startsWith('view_');
-            }
-        });
-        updateAllCheckboxes();
-        showTopNotification('已设置仅查看权限', 'info', 2000);
-    };
-    
-    window.savePermissions = function(event) {
-        event.preventDefault();
-        
-        const form = event.target.closest('form');
-        const formData = new FormData(form);
-        
-        // 显示保存中状态
-        const saveButton = event.target;
-        const originalText = saveButton.innerHTML;
-        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 保存中...';
-        saveButton.disabled = true;
-        
-        // 获取CSRF token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
-                          document.querySelector('input[name="csrf_token"]')?.value;
-        
-        const requestData = {
-            method: 'POST',
-            body: formData
-        };
-        
-        if (csrfToken) {
-            requestData.headers = {
-                'X-CSRFToken': csrfToken
-            };
-        }
-        
-        fetch(window.location.href, requestData)
-            .then(response => {
-                if (response.ok) {
-                    showTopNotification('权限设置已保存成功！', 'success', 3000);
-                    return response.text();
-                } else {
-                    throw new Error('保存失败，状态码: ' + response.status);
-                }
-            })
-            .then(data => {
-                // 如果响应是JSON，可以进一步处理
-                console.log('权限保存成功');
-            })
-            .catch(error => {
-                console.error('保存错误:', error);
-                showTopNotification('保存失败，请稍后重试', 'error', 5000);
-            })
-            .finally(() => {
-                saveButton.innerHTML = originalText;
-                saveButton.disabled = false;
-            });
-    };
-    
-    // 更新“全部”复选框状态的辅助函数
-    function updateAllCheckboxes() {
-        document.querySelectorAll('.perm-all-checkbox').forEach(function(allCb) {
-            const moduleId = allCb.getAttribute('data-module');
-            const allCbs = document.querySelectorAll('.perm-checkbox[data-module="' + moduleId + '"]');
-            const allChecked = Array.from(allCbs).filter(x => !x.disabled).every(x => x.checked);
-            allCb.checked = allChecked;
-        });
-    }
 </script>
 {% endblock %}

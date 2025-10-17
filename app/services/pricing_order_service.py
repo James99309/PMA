@@ -542,39 +542,83 @@ class PricingOrderService:
     
     @staticmethod
     def create_settlement_order(pricing_order, current_user_id):
-        """创建结算单"""
-        # 如果没有分销商，使用经销商作为分销商（结算单主要面向分销商）
-        distributor_id = pricing_order.distributor_id or pricing_order.dealer_id
-        
-        # 如果仍然没有，需要从项目中获取客户公司作为分销商
-        if not distributor_id and pricing_order.project:
-            # 使用项目的客户公司作为分销商
-            distributor_id = getattr(pricing_order.project, 'company_id', None)
-        
-        # 如果还是没有，创建一个默认的分销商记录或者报错
-        if not distributor_id:
-            # 查找一个默认的公司记录，或者使用第一个公司
-            from app.models.customer import Company
-            default_company = Company.query.first()
-            if default_company:
-                distributor_id = default_company.id
-            else:
-                raise ValueError("无法创建结算单：缺少分销商信息")
-        
+        """创建结算单
+
+        根据批价单的业务类型设置结算单的客户ID：
+        1. 厂商直签 (is_direct_contract=True): dealer_id=NULL, distributor_id=NULL
+        2. 厂家提货 (is_factory_pickup=True): dealer_id=批价单dealer_id, distributor_id=NULL
+        3. 常规渠道: dealer_id=批价单dealer_id, distributor_id=批价单distributor_id
+        """
+        # 根据批价单的业务类型设置结算单的客户ID
+        if pricing_order.is_direct_contract:
+            # 厂商直签：dealer_id和distributor_id都为NULL
+            dealer_id = None
+            distributor_id = None
+        elif pricing_order.is_factory_pickup:
+            # 厂家提货：有dealer_id，distributor_id为NULL
+            dealer_id = pricing_order.dealer_id
+            distributor_id = None
+        else:
+            # 常规渠道：从批价单同步dealer_id和distributor_id
+            dealer_id = pricing_order.dealer_id
+            distributor_id = pricing_order.distributor_id
+
+        # 创建结算单，同步业务类型标记
         settlement_order = SettlementOrder(
             pricing_order_id=pricing_order.id,
             project_id=pricing_order.project_id,
             quotation_id=pricing_order.quotation_id,
             distributor_id=distributor_id,
-            dealer_id=pricing_order.dealer_id,
+            dealer_id=dealer_id,
+            is_direct_contract=pricing_order.is_direct_contract,  # 同步业务类型标记
+            is_factory_pickup=pricing_order.is_factory_pickup,    # 同步业务类型标记
             created_by=current_user_id
         )
-        
+
         db.session.add(settlement_order)
         db.session.flush()  # 获取ID
-        
+
         return settlement_order
-    
+
+    @staticmethod
+    def sync_business_type_to_settlements(pricing_order):
+        """将批价单的业务类型同步到所有关联的结算单
+
+        当批价单的业务类型字段被修改后调用此函数，确保结算单数据一致性。
+
+        同步内容：
+        1. is_direct_contract（厂商直签）
+        2. is_factory_pickup（厂家提货）
+        3. 根据业务类型规则同步客户ID（dealer_id 和 distributor_id）
+
+        业务规则：
+        - 厂商直签：dealer_id=NULL, distributor_id=NULL
+        - 厂家提货：dealer_id=批价单dealer_id, distributor_id=NULL
+        - 常规渠道：dealer_id=批价单dealer_id, distributor_id=批价单distributor_id
+        """
+        settlement_orders = SettlementOrder.query.filter_by(
+            pricing_order_id=pricing_order.id
+        ).all()
+
+        for settlement_order in settlement_orders:
+            # 同步业务类型标记
+            settlement_order.is_direct_contract = pricing_order.is_direct_contract
+            settlement_order.is_factory_pickup = pricing_order.is_factory_pickup
+
+            # 根据业务类型更新客户ID
+            if pricing_order.is_direct_contract:
+                # 厂商直签：清空客户ID
+                settlement_order.dealer_id = None
+                settlement_order.distributor_id = None
+            elif pricing_order.is_factory_pickup:
+                # 厂家提货：有dealer_id，无distributor_id
+                settlement_order.dealer_id = pricing_order.dealer_id
+                settlement_order.distributor_id = None
+            else:
+                # 常规渠道：同步批价单的客户ID
+                settlement_order.dealer_id = pricing_order.dealer_id
+                settlement_order.distributor_id = pricing_order.distributor_id
+
     @staticmethod
     def copy_quotation_details_to_pricing(quotation, pricing_order):
         """从报价单复制产品明细到批价单"""

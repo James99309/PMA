@@ -3388,9 +3388,9 @@ def add_customer_association():
         data = request.get_json()
         project_id = data.get('project_id')
         company_id = data.get('company_id')
-        customer_type = data.get('customer_type')
-        
-        if not all([project_id, company_id, customer_type]):
+        customer_type = data.get('customer_type', None)  # DEPRECATED: 该字段已废弃，允许为空
+
+        if not all([project_id, company_id]):  # customer_type 不再是必需参数
             return jsonify({
                 'success': False,
                 'message': '缺少必要参数'
@@ -3404,8 +3404,8 @@ def add_customer_association():
                 'message': '没有权限访问此项目'
             }), 403
         
-        # 验证客户类型
-        valid_types = ['end_user', 'design_issues', 'contractor', 'system_integrator', 'dealer']
+        # 验证客户类型（DEPRECATED: 该字段已废弃，但保留验证以向后兼容）
+        valid_types = ['end_user', 'design_issues', 'contractor', 'system_integrator', 'dealer', None]
         if customer_type not in valid_types:
             return jsonify({
                 'success': False,

@@ -590,12 +590,15 @@ def create_app(config_class=Config):
                 if is_admin_or_ceo():
                     return True
                     
-                # 获取角色权限
+                # 1. 获取角色权限（基础权限）
                 from app.models.role_permissions import RolePermission
                 role_permission = RolePermission.query.filter_by(role=current_user.role, module=module).first()
                 role_has_permission = False
                 if role_permission:
-                    if action == 'view':
+                    # 检查角色权限级别
+                    if getattr(role_permission, 'permission_level', None) == 'none':
+                        role_has_permission = False
+                    elif action == 'view':
                         role_has_permission = role_permission.can_view
                     elif action == 'create':
                         role_has_permission = role_permission.can_create
@@ -603,13 +606,19 @@ def create_app(config_class=Config):
                         role_has_permission = role_permission.can_edit
                     elif action == 'delete':
                         role_has_permission = role_permission.can_delete
-                    
-                # 获取个人权限
+
+                # 2. 获取用户个人权限（覆盖权限）
                 from app.models.user import Permission
                 permission = Permission.query.filter_by(user_id=current_user.id, module=module).first()
-                personal_has_permission = False
+
+                # 3. 权限优先级：个人权限完全覆盖角色权限
                 if permission:
-                    if action == 'view':
+                    # 如果设置了个人权限，使用个人权限（可以扩展或限制角色权限）
+                    personal_has_permission = False
+                    # 检查个人权限级别
+                    if getattr(permission, 'permission_level', None) == 'none':
+                        personal_has_permission = False
+                    elif action == 'view':
                         personal_has_permission = permission.can_view
                     elif action == 'create':
                         personal_has_permission = permission.can_create
@@ -617,13 +626,11 @@ def create_app(config_class=Config):
                         personal_has_permission = permission.can_edit
                     elif action == 'delete':
                         personal_has_permission = permission.can_delete
-                
-                # 最终权限 = 角色权限 OR 个人权限
-                final_permission = role_has_permission or personal_has_permission
-                
-                # Role permission found, will be used in final calculation
-                
-                return final_permission
+
+                    return personal_has_permission  # 直接返回个人权限结果
+                else:
+                    # 如果没有个人权限，使用角色权限
+                    return role_has_permission
                 
             except Exception as e:
                 # 发生数据库错误时，回滚事务并记录错误

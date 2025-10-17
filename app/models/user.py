@@ -106,32 +106,35 @@ class User(db.Model, UserMixin):
     def has_permission(self, module, action):
         """
         检查用户是否具有指定模块和动作的权限
-        
+
         权限合并逻辑：
-        1. 角色权限作为基础权限
-        2. 用户个人权限作为补充权限
-        3. 最终权限 = 角色权限 OR 个人权限（取并集）
-        
+        1. 如果设置了个人权限，使用个人权限（完全覆盖角色权限）
+        2. 如果没有个人权限，使用角色权限（继承默认权限）
+        3. 如果权限级别为 'none'，则拒绝所有权限
+
         参数:
             module: 权限模块名称
             action: 权限动作 ('view', 'create', 'edit', 'delete')
-            
+
         返回:
             bool: 是否拥有该权限
         """
         # 调试日志
-        
+
         try:
             # 管理员默认拥有所有权限
             if self.role == 'admin':
                 return True
-            
+
             # 1. 获取角色权限（基础权限）
             from app.models.role_permissions import RolePermission
             role_permission = RolePermission.query.filter_by(role=self.role, module=module).first()
             role_has_permission = False
             if role_permission:
-                if action == 'view':
+                # 检查角色权限级别是否为 'none'
+                if getattr(role_permission, 'permission_level', None) == 'none':
+                    role_has_permission = False
+                elif action == 'view':
                     role_has_permission = role_permission.can_view
                 elif action == 'create':
                     role_has_permission = role_permission.can_create
@@ -141,12 +144,18 @@ class User(db.Model, UserMixin):
                     role_has_permission = role_permission.can_delete
                 elif action == 'change_owner':
                     role_has_permission = getattr(role_permission, 'can_change_owner', False)
-                    
-            # 2. 获取用户个人权限（补充权限）
+
+            # 2. 获取用户个人权限（覆盖权限）
             permission = Permission.query.filter_by(user_id=self.id, module=module).first()
-            personal_has_permission = False
+
+            # 3. 权限优先级：个人权限完全覆盖角色权限
             if permission:
-                if action == 'view':
+                # 如果设置了个人权限，使用个人权限（可以扩展或限制角色权限）
+                personal_has_permission = False
+                # 检查个人权限级别是否为 'none'
+                if getattr(permission, 'permission_level', None) == 'none':
+                    personal_has_permission = False
+                elif action == 'view':
                     personal_has_permission = permission.can_view
                 elif action == 'create':
                     personal_has_permission = permission.can_create
@@ -156,12 +165,12 @@ class User(db.Model, UserMixin):
                     personal_has_permission = permission.can_delete
                 elif action == 'change_owner':
                     personal_has_permission = getattr(permission, 'can_change_owner', False)
-            
-            # 3. 合并权限：角色权限 OR 个人权限
-            final_permission = role_has_permission or personal_has_permission
 
-            return final_permission
-            
+                return personal_has_permission
+            else:
+                # 如果没有个人权限，使用角色权限
+                return role_has_permission
+
         except Exception as e:
             # 发生数据库错误时，回滚事务并记录错误
             print(f"[ERROR][has_permission] Database error: {str(e)}")
@@ -170,12 +179,12 @@ class User(db.Model, UserMixin):
                 db.session.rollback()
             except Exception as rollback_error:
                 print(f"[ERROR][has_permission] Rollback failed: {str(rollback_error)}")
-            
+
             # 对于权限检查失败，默认返回False（安全策略）
             # 但对于管理员，即使数据库出错也应该有权限
             if self.role == 'admin':
                 return True
-            
+
             return False
     
     def get_permission_level(self, module):
@@ -240,7 +249,52 @@ class User(db.Model, UserMixin):
         except Exception as e:
             print(f"[ERROR][get_permission_level] Database error: {str(e)}")
             return 'personal'
-        
+
+    def is_module_enabled(self, module_name):
+        """
+        检查用户是否启用了指定模块（即是否有任何有效权限）
+
+        模块被视为"启用"的条件：
+        - 至少有一个基础权限（can_view, can_create, can_edit, can_delete）为 True
+
+        参数:
+            module_name: 模块名称
+
+        返回:
+            bool: 模块是否启用
+        """
+        from app.utils.permission_helpers import is_module_enabled
+        from app.models.role_permissions import RolePermission
+
+        try:
+            # 管理员所有模块默认启用
+            if self.role == 'admin':
+                return True
+
+            # 1. 先查个人权限
+            personal_permission = Permission.query.filter_by(
+                user_id=self.id,
+                module=module_name
+            ).first()
+
+            if personal_permission and is_module_enabled(personal_permission):
+                return True
+
+            # 2. 回退到角色权限
+            role_permission = RolePermission.query.filter_by(
+                role=self.role,
+                module=module_name
+            ).first()
+
+            return is_module_enabled(role_permission)
+
+        except Exception as e:
+            print(f"[ERROR][is_module_enabled] Database error: {str(e)}")
+            # 管理员即使出错也返回True
+            if self.role == 'admin':
+                return True
+            return False
+
     def get_permissions(self):
         """获取用户的所有权限，转换为字典格式"""
         permissions_dict = {}
@@ -394,7 +448,8 @@ class Permission(db.Model):
     permission_level_description = db.Column(db.Text)  # 权限级别说明
     pricing_discount_limit = db.Column(db.Float, nullable=True)  # 批价折扣下限（百分比形式）
     settlement_discount_limit = db.Column(db.Float, nullable=True)  # 结算折扣下限（百分比形式）
-    
+    content_filters = db.Column(db.JSON, nullable=True)  # 内容筛选配置，存储格式：{"project_type": ["type1", "type2"], "industry": ["ind1"]}
+
     __table_args__ = (
         db.UniqueConstraint('user_id', 'module', name='uix_user_module'),
     )
@@ -411,7 +466,8 @@ class Permission(db.Model):
             'permission_level': self.permission_level,
             'permission_level_description': self.permission_level_description,
             'pricing_discount_limit': self.pricing_discount_limit,
-            'settlement_discount_limit': self.settlement_discount_limit
+            'settlement_discount_limit': self.settlement_discount_limit,
+            'content_filters': self.content_filters
         }
     
     def __repr__(self):

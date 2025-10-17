@@ -18,7 +18,10 @@ class RolePermission(db.Model):
     # 四级权限控制字段
     permission_level = db.Column(db.String(20), default='personal')  # 权限级别：system, company, department, personal
     permission_level_description = db.Column(db.Text)  # 权限级别说明
-    
+
+    # 内容筛选字段
+    content_filters = db.Column(db.JSON, nullable=True)  # 内容筛选配置，存储格式：{"project_type": ["type1", "type2"], "industry": ["ind1"]}
+
     __table_args__ = (db.UniqueConstraint('role', 'module', name='uix_role_module'),)
     
     def to_dict(self):
@@ -35,5 +38,6 @@ class RolePermission(db.Model):
             'pricing_discount_limit': self.pricing_discount_limit,
             'settlement_discount_limit': self.settlement_discount_limit,
             'permission_level': self.permission_level,
-            'permission_level_description': self.permission_level_description
+            'permission_level_description': self.permission_level_description,
+            'content_filters': self.content_filters
         } 

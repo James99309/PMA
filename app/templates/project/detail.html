@@ -1786,7 +1786,7 @@ async function confirmAddCustomer() {
             body: JSON.stringify({
                 project_id: projectId,
                 company_id: customer.id,
-                customer_type: 'end_user'  // 默认客户类型
+                customer_type: null  // DEPRECATED: 该字段已废弃，前端使用 company.company_type
             })
         });
         

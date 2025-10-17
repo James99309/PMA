@@ -204,9 +204,13 @@ class SettlementOrder(db.Model):
     quotation_id = Column(Integer, ForeignKey('quotations.id'), nullable=False, comment='报价单ID')
     
     # 分销商信息（结算单主要面向分销商）
-    distributor_id = Column(Integer, ForeignKey('companies.id'), nullable=False, comment='分销商ID')
+    distributor_id = Column(Integer, ForeignKey('companies.id'), nullable=True, comment='分销商ID（厂商直签和厂家提货时为NULL）')
     dealer_id = Column(Integer, ForeignKey('companies.id'), nullable=True, comment='经销商ID（辅助信息）')
-    
+
+    # 业务类型标记（从批价单同步）
+    is_direct_contract = Column(Boolean, default=False, comment='厂商直签（同步自批价单）')
+    is_factory_pickup = Column(Boolean, default=False, comment='厂家提货（同步自批价单）')
+
     # 结算信息
     total_amount = Column(Float, default=0.0, comment='结算总金额')
     total_discount_rate = Column(Float, default=1.0, comment='结算总折扣率')
