@@ -357,8 +357,8 @@ def update_role_permissions():
                 message="请求数据为空"
             )
         
-        # 获取角色和权限
-        role = data.get('role', '')
+        # 获取角色和权限 (清理role参数,防止制表符等空白字符)
+        role = data.get('role', '').strip()
         permissions = data.get('permissions', [])
         
         logger.info(f"角色: {role}, 权限数量: {len(permissions)}")

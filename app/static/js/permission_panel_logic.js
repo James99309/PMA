@@ -426,12 +426,27 @@ const PermissionPanel = (function() {
         const deleteCheckbox = document.getElementById(`delete_${moduleId}`);
         const changeOwnerCheckbox = document.getElementById(`change_owner_${moduleId}`);
         const basicPermissionsSection = document.querySelector(`#permissionConfigPanel .permission-section:has(#selectAll_basic_${moduleId})`);
+        const contentFilterSection = document.querySelector('#permissionConfigPanel .content-filter-section');
+        const discountSection = document.querySelector('#permissionConfigPanel .discount-section');
 
         if (level === 'none') {
-            // 未启用级别：对所有模式都生效 - 隐藏基础权限区域，强制清空所有权限
+            // 未启用级别：对所有模式都生效 - 隐藏所有权限区域，强制清空所有权限和扩展配置
+
+            // 隐藏基础权限区域
             if (basicPermissionsSection) {
                 basicPermissionsSection.style.display = 'none';
             }
+
+            // 隐藏内容筛选区域
+            if (contentFilterSection) {
+                contentFilterSection.style.display = 'none';
+            }
+
+            // 隐藏折扣权限区域
+            if (discountSection) {
+                discountSection.style.display = 'none';
+            }
+
             // 关键：强制清空所有权限复选框，防止保存时出现矛盾数据
             if (viewCheckbox) viewCheckbox.checked = false;
             if (createCheckbox) createCheckbox.checked = false;
@@ -439,13 +454,31 @@ const PermissionPanel = (function() {
             if (deleteCheckbox) deleteCheckbox.checked = false;
             if (changeOwnerCheckbox) changeOwnerCheckbox.checked = false;
 
-            console.log(`✅ 模块 ${moduleId} 未启用级别 - 已隐藏基础权限并强制清空所有权限`);
+            // 清空所有内容筛选复选框
+            const contentFilterCheckboxes = document.querySelectorAll(
+                `#permissionConfigPanel input.content-filter-checkbox[data-module="${moduleId}"]`
+            );
+            contentFilterCheckboxes.forEach(cb => cb.checked = false);
+
+            // 清空折扣输入框
+            const pricingInput = document.getElementById(`pricingDiscountLimit_${moduleId}`);
+            const settlementInput = document.getElementById(`settlementDiscountLimit_${moduleId}`);
+            if (pricingInput) pricingInput.value = '';
+            if (settlementInput) settlementInput.value = '';
+
+            console.log(`✅ 模块 ${moduleId} 未启用级别 - 已隐藏并清空所有权限配置`);
             return; // 处理完直接返回
         }
 
-        // 显示基础权限区域（对 personal 和其他级别都需要）
+        // 显示所有区域（对 personal 和其他级别都需要）
         if (basicPermissionsSection) {
             basicPermissionsSection.style.display = '';
+        }
+        if (contentFilterSection) {
+            contentFilterSection.style.display = '';
+        }
+        if (discountSection) {
+            discountSection.style.display = '';
         }
 
         // 只在角色权限模式下应用保底规则和禁用逻辑
@@ -755,6 +788,24 @@ const PermissionPanel = (function() {
 
         const levelRadio = document.querySelector(`input[name="permission_level_${moduleId}"]:checked`);
         const permissionLevel = levelRadio ? levelRadio.value : 'personal';
+
+        // 关键：如果level='none'，强制清空所有扩展字段，确保数据一致性
+        if (permissionLevel === 'none') {
+            return {
+                module: moduleId,
+                can_view: false,
+                can_create: false,
+                can_edit: false,
+                can_delete: false,
+                can_change_owner: false,
+                permission_level: 'none',
+                pricing_discount_limit: null,
+                settlement_discount_limit: null,
+                content_filters: null
+            };
+        }
+
+        // 非none级别：正常收集所有配置
         const { pricingLimit, settlementLimit } = extractDiscountLimits(moduleId);
         const contentFilters = extractContentFilters(moduleId);
 

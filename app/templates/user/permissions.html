@@ -165,12 +165,7 @@
 
                 <div class="alert alert-info mb-3">
                     <h6 class="alert-heading"><i class="fas fa-info-circle"></i> 权限规则说明</h6>
-                    <p class="mb-1"><strong>显示内容：</strong>当前显示的是<u>个人权限 + 角色权限</u>的合并结果（个人权限优先）</p>
-                    <p class="mb-1"><strong>保存机制：</strong>保存时会将完整配置保存到个人权限表，之后以个人权限为准</p>
-                    <p class="mb-1"><strong>数据范围：</strong>决定可以<u>查看</u>哪些数据（本人/本部门/全公司/系统级）</p>
-                    <p class="mb-1"><strong>基础权限：</strong>决定对<u>他人数据</u>的操作权限（查看/创建/编辑/删除）</p>
-                    <hr class="my-2">
-                    <p class="mb-0"><i class="fas fa-shield-alt text-primary"></i> <strong>保底规则：</strong>无论如何配置，用户始终对<u>自己创建的数据</u>拥有完整管理权限</p>
+                    <p class="mb-0"><strong>当前角色：</strong>{{ render_user_role_badge(user.role if user else None) }}</p>
                 </div>
 
                 <hr>
