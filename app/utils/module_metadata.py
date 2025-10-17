@@ -33,7 +33,7 @@ MODULE_METADATA = {
         'icon': 'fas fa-receipt',
         'supports_discount': False,
         'supports_owner_change': False,
-        'supports_affiliation': True,  # 业务数据，支持数据归属
+        'supports_affiliation': False,  # 非业务数据，不支持数据归属
         'description': '管理员工报销申请'
     },
     'inventory': {
@@ -49,7 +49,7 @@ MODULE_METADATA = {
         'icon': 'fas fa-shopping-cart',
         'supports_discount': False,
         'supports_owner_change': False,
-        'supports_affiliation': True,  # 业务数据，支持数据归属
+        'supports_affiliation': False,  # 非业务数据，不支持数据归属
         'description': '管理销售订单'
     },
     'performance_management': {
@@ -73,7 +73,7 @@ MODULE_METADATA = {
         'icon': 'fas fa-tags',
         'supports_discount': True,  # 支持折扣下限权限
         'supports_owner_change': False,
-        'supports_affiliation': True,  # 业务数据，支持数据归属
+        'supports_affiliation': False,  # 非业务数据，不支持数据归属
         'description': '管理批价单'
     },
     'product': {
@@ -129,7 +129,7 @@ MODULE_METADATA = {
         'icon': 'fas fa-credit-card',
         'supports_discount': True,  # 支持折扣下限权限
         'supports_owner_change': False,
-        'supports_affiliation': True,  # 业务数据，支持数据归属
+        'supports_affiliation': False,  # 非业务数据，不支持数据归属
         'description': '管理结算单'
     },
     'user_management': {

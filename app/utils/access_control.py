@@ -1082,16 +1082,7 @@ def can_view_company(user, company):
                 company_owner.company_name == user.company_name):
                 logger.debug(f"[权限检查] 部门级权限 - 同部门客户 - 允许访问")
                 return True
-    
-    # 补充部门权限检查：即使是个人级权限，也应该能查看同部门同事的客户（根据业务需求）
-    if user.department and user.company_name:
-        company_owner = User.query.get(company.owner_id)
-        if (company_owner and 
-            company_owner.department == user.department and 
-            company_owner.company_name == user.company_name):
-            logger.debug(f"[权限检查] 同部门权限检查 - 允许访问")
-            return True
-    
+
     # 判断是否通过共享获得权限
     if hasattr(company, 'shared_with_users') and company.shared_with_users:
         if user.id in company.shared_with_users:
