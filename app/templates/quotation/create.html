@@ -120,8 +120,10 @@
                         <div class="row mb-3">
                             <!-- 客户选择器（左） -->
                             <div class="col-md-6">
-                                <label for="customerId" class="form-label">{{ _('关联客户') }}</label>
-                                <select class="form-select" id="customerId" name="customer_id" disabled>
+                                <label for="customerId" class="form-label">
+                                    {{ _('关联客户') }} <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="customerId" name="customer_id" required disabled>
                                     <option value="">-- {{ _('请先选择项目') }} --</option>
                                     {% if preset_customers %}
                                         {% for customer in preset_customers %}
@@ -716,10 +718,17 @@ function submitQuotationAsJson(productDetails) {
         // 获取总金额
         const grandTotalInput = document.querySelector('#grandTotal');
         const totalAmount = parseFloat(grandTotalInput?.dataset.rawValue || grandTotalInput?.value.replace(/,/g, '')) || 0;
-        
+
         // 获取客户ID和联系人ID
         const customerId = $('#customerId').val();
         const contactId = $('#contact_id').val();
+
+        // 验证客户必填
+        if (!customerId) {
+            alert('{{ _("请选择客户") }}');
+            $('#customerId').focus();
+            return;
+        }
 
         // 准备JSON数据
         const jsonData = {

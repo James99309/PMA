@@ -243,29 +243,6 @@
                 </div>
             </div>
 
-            <!-- 报价单卡片 -->
-            <div class="card mb-3">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">{{ _('报价单') }}</h5>
-                    {% if can_view_project %}
-                        <form action="{{ url_for('quotation.create_quotation') }}" method="GET" style="display:inline;">
-                            <input type="hidden" name="project_id" value="{{ project.id }}">
-                            <input type="hidden" name="return_to" value="{{ url_for('project.view_project', project_id=project.id) }}">
-                            {{ ui.render_button(_('添加报价单'), type='submit', color='primary', size='sm') }}
-                        </form>
-                    {% endif %}
-                </div>
-                <div class="card-body">
-                    <div id="quotationsList">
-                        <!-- 报价单列表将在这里动态加载 -->
-                        <div class="text-muted text-center py-3">
-                            <i class="fas fa-file-invoice-dollar me-2"></i>
-                            {{ _('暂无报价单，点击上方"添加报价单"按钮添加') }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- 关联客户卡片 -->
             <div class="card mb-3">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
@@ -280,6 +257,29 @@
                         <div class="text-muted text-center py-3">
                             <i class="fas fa-users me-2"></i>
                             {{ _('暂无关联客户，点击上方"添加客户"按钮添加') }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 报价单卡片 -->
+            <div class="card mb-3">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">{{ _('报价单') }}</h5>
+                    {% if can_view_project %}
+                        <form id="addQuotationForm" action="{{ url_for('quotation.create_quotation') }}" method="GET" style="display:inline;">
+                            <input type="hidden" name="project_id" value="{{ project.id }}">
+                            <input type="hidden" name="return_to" value="{{ url_for('project.view_project', project_id=project.id) }}">
+                            {{ ui.render_button(_('添加报价单'), type='submit', color='primary', size='sm') }}
+                        </form>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <div id="quotationsList">
+                        <!-- 报价单列表将在这里动态加载 -->
+                        <div class="text-muted text-center py-3">
+                            <i class="fas fa-file-invoice-dollar me-2"></i>
+                            {{ _('暂无报价单，点击上方"添加报价单"按钮添加') }}
                         </div>
                     </div>
                 </div>
@@ -1729,6 +1729,7 @@ async function loadCustomerAssociations() {
                     </div>
                 `;
                 container.innerHTML = html;
+                document.getElementById('addQuotationForm').style.display = 'inline';
             } else {
                 container.innerHTML = `
                     <div class="text-muted text-center py-4">
@@ -1736,6 +1737,7 @@ async function loadCustomerAssociations() {
                         <p class="mb-0">暂无关联客户，点击上方"添加客户"按钮添加</p>
                     </div>
                 `;
+                document.getElementById('addQuotationForm').style.display = 'none';
             }
         } else {
             container.innerHTML = `
