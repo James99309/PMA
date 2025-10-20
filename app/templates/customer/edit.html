@@ -74,6 +74,16 @@
                         </div>
 
                         <div class="mb-3">
+                            <label for="source" class="form-label">{{ _('来源') }}</label>
+                            <select class="form-select" id="source" name="source" required>
+                                <option value="">{{ _('请选择来源') }}</option>
+                                {% for value, label in REPORT_SOURCE_OPTIONS %}
+                                <option value="{{ value }}" {% if company.source == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
                             <label for="notes" class="form-label">{{ _('备注') }}</label>
                             <textarea class="form-control" id="notes" name="notes" rows="3">{{ company.notes }}</textarea>
                         </div>

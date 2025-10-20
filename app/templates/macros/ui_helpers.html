@@ -28,7 +28,9 @@
 #}
 
 {% macro render_pricing_order_number(order_number) %}
-    <span class="badge rounded-pill" style="background-color: #ff8c00; color: white; font-weight: 500;">{{ order_number }}</span>
+    <span class="badge badge-pill badge-transparent quotation-number-badge" style="background-color: #ff8c00 !important;">
+        {{ order_number }}
+    </span>
 {% endmacro %}
 
 {% macro render_owner(owner) %}

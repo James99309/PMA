@@ -163,32 +163,6 @@
                                     {% endif %}
                                 </div>
                             </div>
-                            <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'quotation_customer')) }}：</strong></div>
-                                <div class="col-md-8">
-{% if has_quotations %}
-    {% set latest_quotation = project.quotations.order_by(Quotation.created_at.desc()).first() %}
-    <div>
-        <!-- 报价总额和确认状态 -->
-        <div class="mb-2">
-            <a href="{{ url_for('quotation.view_quotation', id=latest_quotation.id) }}"
-               class="quotation-link" title="查看报价单详情">
-                {{ render_currency_with_symbol(project.quotation_customer, latest_quotation.currency if latest_quotation.currency else 'CNY') }}
-            </a>
-            {{ render_confirmation_badge(latest_quotation, "报价单产品明细已确认") }}
-        </div>
-    </div>
-{% else %}
-    {% if current_stage_key != 'signed' and current_user.has_permission('quotation', 'create') %}
-    <form action="{{ url_for('quotation.create_quotation') }}" method="GET" style="display:inline;">
-        <input type="hidden" name="project_id" value="{{ project.id }}">
-        <input type="hidden" name="return_to" value="{{ url_for('project.view_project', project_id=project.id) }}">
-        <button type="submit" class="btn btn-link p-0">{{ _('添加报价') }}</button>
-    </form>
-    {% endif %}
-{% endif %}
-                                </div>
-                            </div>
 
                             <!-- 创建人字段 -->
                             <div class="row mb-2">
@@ -201,44 +175,6 @@
                                     {% endif %}
                                 </div>
                             </div>
-
-                            <!-- 批价单徽章区域 -->
-                            {% if has_quotations and has_pricing_orders %}
-                            <div class="row mb-2">
-                                <div class="col-md-4"></div>
-                                <div class="col-md-8">
-                                    <div class="d-flex flex-wrap align-items-center">
-                                        {% for pricing_order in pricing_orders_list %}
-                                        <a href="{{ url_for('pricing_order.edit_pricing_order', order_id=pricing_order.id) }}" 
-                                           class="text-decoration-none me-2 mb-1" title="查看批价单详情：{{ pricing_order.status_label.zh }}">
-                                            {% if pricing_order.status == 'approved' %}
-                                                {% set badge_color = 'success' %}
-                                            {% elif pricing_order.status == 'pending' %}
-                                                {% set badge_color = 'warning' %}
-                                            {% elif pricing_order.status == 'rejected' %}
-                                                {% set badge_color = 'danger' %}
-                                            {% else %}
-                                                {% set badge_color = 'secondary' %}
-                                            {% endif %}
-                                            <span class="badge rounded-pill bg-{{ badge_color }} d-inline-flex align-items-center px-3 py-2">
-                                                {{ pricing_order.order_number }}
-                                            </span>
-                                        </a>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                            </div>
-                            {% endif %}
-                            
-                            <!-- 创建批价单按钮 - 仅在签约阶段显示，用于补充新批价单 -->
-                            {% if has_quotations and current_stage_key == 'signed' %}
-                            <div class="row mb-2">
-                                <div class="col-md-4"></div>
-                                <div class="col-md-8">
-                                    {{ ui.render_button(_('创建批价单'), type='button', color='warning', icon='fas fa-plus', size='sm', onclick='confirmCreatePricingOrder()') }}
-                                </div>
-                            </div>
-                            {% endif %}
 
                         </div>
                         <div class="col-md-6">
@@ -307,11 +243,34 @@
                 </div>
             </div>
 
+            <!-- 报价单卡片 -->
+            <div class="card mb-3">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">{{ _('报价单') }}</h5>
+                    {% if can_view_project %}
+                        <form action="{{ url_for('quotation.create_quotation') }}" method="GET" style="display:inline;">
+                            <input type="hidden" name="project_id" value="{{ project.id }}">
+                            <input type="hidden" name="return_to" value="{{ url_for('project.view_project', project_id=project.id) }}">
+                            {{ ui.render_button(_('添加报价单'), type='submit', color='primary', size='sm') }}
+                        </form>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <div id="quotationsList">
+                        <!-- 报价单列表将在这里动态加载 -->
+                        <div class="text-muted text-center py-3">
+                            <i class="fas fa-file-invoice-dollar me-2"></i>
+                            {{ _('暂无报价单，点击上方"添加报价单"按钮添加') }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- 关联客户卡片 -->
             <div class="card mb-3">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">{{ _('关联客户') }}</h5>
-                    {% if can_edit_project_data and (not project.is_locked or current_user.role == 'admin') %}
+                    {% if can_edit_project_data %}
                         {{ ui.render_button(_('添加客户'), type='button', color='primary', size='sm', attrs='onclick="showAddCustomerDialog()"') }}
                     {% endif %}
                 </div>
@@ -322,6 +281,18 @@
                             <i class="fas fa-users me-2"></i>
                             {{ _('暂无关联客户，点击上方"添加客户"按钮添加') }}
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 批价单卡片 -->
+            <div class="card mb-3" id="pricingOrdersCard" style="display: none;">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">{{ _('批价单') }}</h5>
+                </div>
+                <div class="card-body">
+                    <div id="pricingOrdersList">
+                        <!-- 批价单列表将在这里动态加载 -->
                     </div>
                 </div>
             </div>
@@ -563,6 +534,9 @@
 <!-- 标准确认对话框 -->
 {{ render_confirm_dialog('customerManagementDialog') }}
 
+<!-- 报价单管理确认对话框 -->
+{{ render_confirm_dialog('quotationManagementDialog') }}
+
 <!-- 审批操作确认对话框 -->
 {{ render_confirm_dialog('approvalActionDialog') }}
 
@@ -603,6 +577,17 @@
         resubmitApprovalTitle: '{{ _("重新提交审批确认") }}',
         resubmitApprovalMessage: '{{ _("确定要重新提交项目审批吗？") }}',
         resubmitApprovalButton: '{{ _("重新提交") }}',
+        // 行动记录回复相关
+        collapse: '{{ _("收起") }}',
+        expand: '{{ _("展开") }}',
+        delete: '{{ _("删除") }}',
+        reply: '{{ _("回复") }}',
+        submit: '{{ _("提交") }}',
+        inputReplyContent: '{{ _("输入回复内容...") }}',
+        submitReplyFailed: '{{ _("提交回复失败") }}',
+        loadRepliesFailed: '{{ _("加载回复失败") }}',
+        confirmDeleteReply: '{{ _("确定要删除这条回复吗？") }}',
+        deleteFailedRetry: '{{ _("删除失败，请重试") }}',
         // 通用
         cancel: '{{ _("取消") }}',
         unknownError: '{{ _("未知错误") }}'
@@ -737,21 +722,13 @@
             confirmAdvanceMiddle: {{ _("阶段推进到")|tojson }},
             confirmAdvanceSuffix: {{ _("阶段吗")|tojson }} + '？',
             operationNote: {{ _("此操作将更新项目的当前阶段状态，不可回退")|tojson }} + '。',
-            createPricingOrder: {{ _("创建批价单")|tojson }},
-            viewPricingOrder: {{ _("查看批价单")|tojson }},
-            creatingPricingOrder: {{ _("正在创建批价单")|tojson }} + '...',
-            createPricingOrderFailed: {{ _("创建批价单失败")|tojson }} + '：',
             unknownError: {{ _("未知错误")|tojson }},
-            createPricingOrderError: {{ _("创建批价单错误")|tojson }} + ':',
-            createPricingOrderErrorOccurred: {{ _("创建批价单时发生错误")|tojson }} + '：',
             confirmAdvanceTitle: {{ _("确认推进项目阶段")|tojson }},
             confirmAdvanceButton: {{ _("确认推进")|tojson }},
             confirmDeleteAction: {{ _("确定要删除这条行动记录吗？")|tojson }},
             deleteFailed: {{ _("删除失败")|tojson }} + ': ',
             deleteFailedRetry: {{ _("删除失败，请重试！")|tojson }},
-            confirmDeleteProject: {{ _("确定要删除这个项目吗？删除后将无法恢复，请谨慎操作！")|tojson }},
-            noQuotationForPricing: {{ _("项目没有关联的报价单，无法创建批价单")|tojson }},
-            confirmCreatePricing: {{ _("确定要为此项目创建新的批价单吗？\n\n这将基于最新的报价单信息创建批价单。")|tojson }}
+            confirmDeleteProject: {{ _("确定要删除这个项目吗？删除后将无法恢复，请谨慎操作！")|tojson }}
         };
         
         // 初始化项目阶段进度条
@@ -836,156 +813,6 @@
         }
     }
 
-    // 为已签约项目创建批价单
-    function createPricingOrderForSigned() {
-        // 显示加载指示器
-        const loadingHtml = `
-            <div id="createPricingOrderLoading" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-                 background-color: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;">
-                <div style="background: white; padding: 20px; border-radius: 8px; text-align: center;">
-                    <div class="spinner-border text-primary mb-2" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <div>正在创建批价单...</div>
-                </div>
-            </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', loadingHtml);
-        
-        // 获取最新报价单ID
-        const projectId = {{ project.id }};
-        {% if has_quotations %}
-        {% set latest_quotation = project.quotations.order_by(Quotation.created_at.desc()).first() %}
-        const quotationId = {{ latest_quotation.id }};
-        {% else %}
-        const quotationId = null;
-        {% endif %}
-        
-        if (!quotationId) {
-            // 移除加载指示器
-            const loading = document.getElementById('createPricingOrderLoading');
-            if (loading) loading.remove();
-            alert(window.stageI18nTexts.noQuotationForPricing);
-            return;
-        }
-        
-        // 调用创建批价单API
-        fetch(`/pricing_order/project/${projectId}/start_pricing_process`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token() }}'
-            },
-            body: JSON.stringify({
-                quotation_id: quotationId
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            // 移除加载指示器
-            const loading = document.getElementById('createPricingOrderLoading');
-            if (loading) loading.remove();
-            
-            if (data.success) {
-                // 成功创建，直接跳转到批价单编辑页面
-                if (data.redirect_url) {
-                    window.location.href = data.redirect_url;
-                } else {
-                    // 如果没有返回redirect_url，刷新页面
-                    window.location.reload();
-                }
-            } else {
-                alert(window.stageI18nTexts.createPricingOrderFailed + (data.message || window.stageI18nTexts.unknownError));
-            }
-        })
-        .catch(error => {
-            // 移除加载指示器
-            const loading = document.getElementById('createPricingOrderLoading');
-            if (loading) loading.remove();
-            
-            console.error('创建批价单错误:', error);
-            alert(window.stageI18nTexts.createPricingOrderErrorOccurred + error.message);
-        });
-    }
-
-    // 确认创建批价单对话框
-    function confirmCreatePricingOrder() {
-        if (confirm(window.stageI18nTexts.confirmCreatePricing)) {
-            createPricingOrderForAll();
-        }
-    }
-
-    // 通用的创建批价单函数，适用于所有阶段
-    function createPricingOrderForAll() {
-        // 显示加载指示器
-        const loadingHtml = `
-            <div id="createPricingOrderLoading" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-                 background-color: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;">
-                <div style="background: white; padding: 20px; border-radius: 8px; text-align: center;">
-                    <div class="spinner-border text-primary mb-2" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <div>正在创建批价单...</div>
-                </div>
-            </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', loadingHtml);
-        
-        // 获取最新报价单ID
-        const projectId = {{ project.id }};
-        {% if has_quotations %}
-        {% set latest_quotation = project.quotations.order_by(Quotation.created_at.desc()).first() %}
-        const quotationId = {{ latest_quotation.id }};
-        {% else %}
-        const quotationId = null;
-        {% endif %}
-        
-        if (!quotationId) {
-            // 移除加载指示器
-            const loading = document.getElementById('createPricingOrderLoading');
-            if (loading) loading.remove();
-            alert(window.stageI18nTexts.noQuotationForPricing);
-            return;
-        }
-        
-        // 调用创建批价单API
-        fetch(`/pricing_order/project/${projectId}/start_pricing_process`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token() }}'
-            },
-            body: JSON.stringify({
-                quotation_id: quotationId
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            // 移除加载指示器
-            const loading = document.getElementById('createPricingOrderLoading');
-            if (loading) loading.remove();
-            
-            if (data.success) {
-                // 成功创建，直接跳转到批价单编辑页面
-                if (data.redirect_url) {
-                    window.location.href = data.redirect_url;
-                } else {
-                    // 如果没有返回redirect_url，刷新页面
-                    window.location.reload();
-                }
-            } else {
-                alert(window.stageI18nTexts.createPricingOrderFailed + (data.message || window.stageI18nTexts.unknownError));
-            }
-        })
-        .catch(error => {
-            // 移除加载指示器
-            const loading = document.getElementById('createPricingOrderLoading');
-            if (loading) loading.remove();
-            
-            console.error('创建批价单错误:', error);
-            alert(window.stageI18nTexts.createPricingOrderErrorOccurred + error.message);
-        });
-    }
 
     // 项目审批相关函数
     function submitProjectApproval(projectId) {
@@ -1866,9 +1693,12 @@ async function loadCustomerAssociations() {
                                 }
                             </td>
                             <td>
-                                <span class="badge bg-light text-dark" style="font-size: 0.7rem;">
-                                    ${association.created_by_name || '未知'}
-                                </span>
+                                ${association.created_by_name ?
+                                    (association.created_by_is_vendor ?
+                                        `<span class="badge badge-user vendor rounded-pill">${association.created_by_name}</span>` :
+                                        `<span class="badge badge-user regular">${association.created_by_name}</span>`) :
+                                    '<span class="text-muted">未知</span>'
+                                }
                             </td>
                             <td>
                                 <div class="btn-group" role="group">
@@ -1958,6 +1788,264 @@ function removeCustomerAssociation(associationId, companyName) {
     });
 }
 
+// ==================== 报价单管理函数 ====================
+
+// 加载报价单列表
+async function loadQuotationsList() {
+    const container = document.getElementById('quotationsList');
+
+    try {
+        const response = await fetch(`/project/api/quotations/{{ project.id }}`);
+        const data = await response.json();
+
+        if (data.success) {
+            if (data.quotations.length > 0) {
+                let html = `
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle table-sm">
+                            <thead class="table-light">
+                                <tr class="small">
+                                    <th width="15%">报价单号</th>
+                                    <th width="25%">关联客户</th>
+                                    <th width="15%">金额</th>
+                                    <th width="15%">创建者</th>
+                                    <th width="20%">更新时间</th>
+                                    <th width="10%" class="text-center">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                data.quotations.forEach(quotation => {
+                    // 创建者徽章HTML
+                    let ownerBadgeHtml = '';
+                    if (quotation.owner_name) {
+                        if (quotation.is_vendor) {
+                            // 厂商账户使用胶囊造型徽章
+                            ownerBadgeHtml = `<span class="badge badge-user vendor rounded-pill">${quotation.owner_name}</span>`;
+                        } else {
+                            // 普通账户使用默认造型徽章
+                            ownerBadgeHtml = `<span class="badge badge-user regular">${quotation.owner_name}</span>`;
+                        }
+                    } else {
+                        ownerBadgeHtml = '<span class="text-muted">未知</span>';
+                    }
+
+                    // 格式化金额显示（直接显示金额，不做单位转换）
+                    const amountDisplay = quotation.currency === 'USD'
+                        ? `$${quotation.amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+                        : `¥${quotation.amount.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+                    // 操作按钮
+                    const actionButton = quotation.can_delete
+                        ? `<button type="button" class="btn btn-sm btn-outline-danger"
+                                   onclick="removeQuotation(${quotation.id})"
+                                   title="删除报价单">
+                               <i class="fas fa-times"></i>
+                           </button>`
+                        : '<span class="text-muted">-</span>';
+
+                    html += `
+                        <tr class="small">
+                            <td>
+                                <a href="/quotation/${quotation.id}/detail" class="text-decoration-none">
+                                    <span class="badge badge-pill badge-transparent quotation-number-badge">
+                                        ${quotation.quotation_number}
+                                    </span>
+                                </a>
+                            </td>
+                            <td>
+                                ${quotation.company_id
+                                    ? `<a href="/customer/${quotation.company_id}/view" class="text-primary text-decoration-underline">${quotation.customer_name}</a>`
+                                    : `<span class="text-muted">${quotation.customer_name}</span>`
+                                }
+                            </td>
+                            <td>
+                                ${quotation.confirmation_badge_status === 'confirmed'
+                                    ? '<span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background-color: #28a745; color: #fff; font-size: 10px; line-height: 1; vertical-align: middle; margin-right: 6px;" title="产品明细已确认"><i class="fas fa-check" style="font-size: 10px;"></i></span>'
+                                    : ''}
+                                ${amountDisplay}
+                            </td>
+                            <td>${ownerBadgeHtml}</td>
+                            <td class="text-muted">${quotation.updated_at}</td>
+                            <td class="text-center">${actionButton}</td>
+                        </tr>
+                    `;
+                });
+
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = `
+                    <div class="text-muted text-center py-4">
+                        <i class="fas fa-file-invoice-dollar fs-3 mb-2 d-block"></i>
+                        <p class="mb-0">暂无报价单，点击上方"添加报价单"按钮添加</p>
+                    </div>
+                `;
+            }
+        } else {
+            container.innerHTML = `
+                <div class="text-danger text-center py-4">
+                    <i class="fas fa-exclamation-triangle fs-3 mb-2 d-block"></i>
+                    <p class="mb-0">加载报价单列表失败</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('加载报价单列表失败:', error);
+        container.innerHTML = `
+            <div class="text-danger text-center py-4">
+                <i class="fas fa-exclamation-triangle fs-3 mb-2 d-block"></i>
+                <p class="mb-0">加载报价单列表失败，请重试</p>
+            </div>
+        `;
+    }
+}
+
+// 加载批价单列表
+async function loadPricingOrdersList() {
+    console.log('🔄 开始加载批价单列表...');
+    const container = document.getElementById('pricingOrdersList');
+    const card = document.getElementById('pricingOrdersCard');
+
+    console.log('📦 容器元素:', container);
+    console.log('📦 卡片元素:', card);
+
+    try {
+        const url = `/project/api/pricing_orders/{{ project.id }}`;
+        console.log('🌐 请求URL:', url);
+
+        const response = await fetch(url);
+        console.log('📡 响应状态:', response.status);
+
+        const data = await response.json();
+        console.log('📊 响应数据:', data);
+
+        if (data.success && data.pricing_orders.length > 0) {
+            console.log('✅ 找到批价单:', data.pricing_orders.length, '个');
+            // 有数据，显示卡片
+            card.style.display = 'block';
+
+            let html = `
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle table-sm">
+                        <thead class="table-light">
+                            <tr class="small">
+                                <th width="15%">批价单号</th>
+                                <th width="20%">经销商</th>
+                                <th width="15%">金额</th>
+                                <th width="15%">创建人</th>
+                                <th width="15%">状态</th>
+                                <th width="20%">创建日期</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            data.pricing_orders.forEach(po => {
+                // 格式化金额显示
+                const amountDisplay = po.currency === 'USD'
+                    ? `$${po.pricing_total_amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+                    : `¥${po.pricing_total_amount.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+                // 创建人徽章HTML（复用报价单逻辑）
+                let creatorBadgeHtml = '';
+                if (po.creator_name) {
+                    if (po.is_vendor) {
+                        // 厂商账户使用胶囊造型徽章
+                        creatorBadgeHtml = `<span class="badge badge-user vendor rounded-pill">${po.creator_name}</span>`;
+                    } else {
+                        // 普通账户使用默认造型徽章
+                        creatorBadgeHtml = `<span class="badge badge-user regular">${po.creator_name}</span>`;
+                    }
+                } else {
+                    creatorBadgeHtml = '<span class="text-muted">未知</span>';
+                }
+
+                // 状态徽章（使用通用审批徽章样式）
+                const statusBadge = `<span class="badge badge-pill badge-transparent approval-status-${po.status}">${po.status_label.zh}</span>`;
+
+                html += `
+                    <tr class="small">
+                        <td>
+                            <a href="/pricing_order/${po.id}" class="text-decoration-none">
+                                <span class="badge badge-pill badge-transparent quotation-number-badge" style="background-color: #ff8c00 !important;">
+                                    ${po.order_number}
+                                </span>
+                            </a>
+                        </td>
+                        <td>
+                            ${po.dealer_id
+                                ? `<a href="/customer/${po.dealer_id}/view" class="text-primary text-decoration-underline">${po.dealer_name}</a>`
+                                : `<span class="text-muted">${po.dealer_name}</span>`
+                            }
+                        </td>
+                        <td>${amountDisplay}</td>
+                        <td>${creatorBadgeHtml}</td>
+                        <td>${statusBadge}</td>
+                        <td class="text-muted">${po.created_at}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            container.innerHTML = html;
+        } else {
+            console.log('⚠️ 无批价单数据或请求失败');
+            // 无数据，隐藏卡片
+            card.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('❌ 加载批价单列表失败:', error);
+        // 出错时也隐藏卡片
+        card.style.display = 'none';
+    }
+}
+
+// 删除报价单
+function removeQuotation(quotationId) {
+    showConfirmDialog({
+        title: '确认删除',
+        message: '确定要删除这个报价单吗？删除后将无法恢复！',
+        confirmText: '确认删除',
+        cancelText: '取消',
+        confirmClass: 'btn-danger',
+        dialogId: 'quotationManagementDialog',
+        onConfirm: async function() {
+            try {
+                const response = await fetch(`/project/api/remove_quotation/${quotationId}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage('报价单删除成功', 'success');
+                    loadQuotationsList();  // 刷新列表
+                } else {
+                    showMessage(data.message || '删除失败', 'danger');
+                }
+            } catch (error) {
+                console.error('删除报价单失败:', error);
+                showMessage('删除时发生错误', 'danger');
+            }
+        }
+    });
+}
+
 // 页面加载后初始化
 document.addEventListener('DOMContentLoaded', function() {
     console.log('=== 项目详情页面加载完成，开始初始化客户搜索 ===');
@@ -2016,10 +2104,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }, 2000); // 增加延迟确保组件完全初始化
-    
+
     // 初始化客户关联列表
     loadCustomerAssociations();
-    
+
+    // 初始化报价单列表
+    loadQuotationsList();
+
+    // 初始化批价单列表
+    loadPricingOrdersList();
+
     // 确保全局函数可用
     window.showAddCustomerDialog = showAddCustomerDialog;
     window.removeCustomerAssociation = removeCustomerAssociation;

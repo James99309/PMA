@@ -28,9 +28,9 @@ class ProjectCustomerAssociation(db.Model):
     company = db.relationship('Company', backref=db.backref('project_associations', lazy='dynamic'))
     creator = db.relationship('User', foreign_keys=[created_by], backref=db.backref('created_associations', lazy='dynamic'), lazy='select')
     
-    # 唯一约束，确保同一个项目不会重复关联同一个客户和同一种类型
+    # 唯一约束，确保同一个项目不会重复关联同一个客户
     __table_args__ = (
-        db.UniqueConstraint('project_id', 'company_id', 'customer_type', name='unique_project_company_type'),
+        db.UniqueConstraint('project_id', 'company_id', name='unique_project_company'),
     )
     
     def __repr__(self):
@@ -61,34 +61,32 @@ class ProjectCustomerAssociation(db.Model):
         ).all()
     
     @classmethod
-    def add_association(cls, project_id, company_id, customer_type, created_by=None):
-        """添加项目-客户关联"""
-        # 检查是否已存在相同的关联
+    def add_association(cls, project_id, company_id, customer_type=None, created_by=None):
+        """添加项目-客户关联
+
+        Args:
+            project_id: 项目ID
+            company_id: 客户公司ID
+            customer_type: DEPRECATED - 该参数已废弃，保留仅为向后兼容
+            created_by: 创建者用户ID
+        """
+        # 检查是否已存在相同的关联（只检查 project_id + company_id）
         existing = cls.query.filter_by(
             project_id=project_id,
-            company_id=company_id,
-            customer_type=customer_type
+            company_id=company_id
         ).first()
-        
+
         if existing:
-            return False, "该客户已经作为此类型关联到项目中"
-        
-        # 创建新关联
-        try:
-            association = cls(
-                project_id=project_id,
-                company_id=company_id,
-                customer_type=customer_type,
-                created_by=created_by
-            )
-        except Exception as e:
-            # 如果created_by字段不存在，则不使用该字段
-            association = cls(
-                project_id=project_id,
-                company_id=company_id,
-                customer_type=customer_type
-            )
-        
+            return False, "该客户已经关联到此项目中"
+
+        # 创建新关联（customer_type 始终为 None，已废弃）
+        association = cls(
+            project_id=project_id,
+            company_id=company_id,
+            customer_type=None,  # DEPRECATED: 始终为 None
+            created_by=created_by
+        )
+
         db.session.add(association)
         return True, association
     

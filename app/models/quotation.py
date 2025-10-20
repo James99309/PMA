@@ -65,7 +65,8 @@ class Quotation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     quotation_number = db.Column(db.String(20), unique=True, nullable=False)
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
-    contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))
+    customer_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)  # 客户必填
+    contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))  # 联系人可选
     amount = db.Column(db.Float)
     project_stage = db.Column(db.String(20))  # 项目阶段：发现、品牌植入、招标前、招标中、中标、失败
     project_type = db.Column(db.String(20))   # 项目类型：销售重点、渠道跟进
@@ -109,8 +110,9 @@ class Quotation(db.Model):
     
     # 关联关系
     project = db.relationship('Project', back_populates='quotations')
-    contact = db.relationship('Contact', backref='quotations')
-    details = db.relationship('QuotationDetail', backref='quotation', cascade='all, delete-orphan', 
+    customer = db.relationship('Company', backref='quotations')  # 客户关系
+    contact = db.relationship('Contact', backref='quotations')  # 联系人关系
+    details = db.relationship('QuotationDetail', backref='quotation', cascade='all, delete-orphan',
                              order_by='QuotationDetail.id')  # 按明细ID排序，保持添加顺序
 
     def __init__(self, **kwargs):
@@ -350,43 +352,47 @@ class Quotation(db.Model):
 @event.listens_for(Quotation, 'after_insert')
 @event.listens_for(Quotation, 'after_update')
 def update_project_quotation(mapper, connection, target):
-    """在报价单保存或更新后自动更新项目报价总额和更新时间（北京时间）"""
+    """在报价单保存或更新后自动更新项目为最新报价单金额和更新时间（北京时间）"""
     try:
         if target.project_id:
             now = datetime.now(ZoneInfo('Asia/Shanghai'))
             sql = text("""
-                UPDATE projects 
+                UPDATE projects
                 SET quotation_customer = (
-                    SELECT COALESCE(SUM(amount), 0.0) 
-                    FROM quotations 
+                    SELECT COALESCE(amount, 0.0)
+                    FROM quotations
                     WHERE project_id = :project_id
+                    ORDER BY created_at DESC
+                    LIMIT 1
                 ),
                 updated_at = :now
                 WHERE id = :project_id
             """)
             connection.execute(sql, {"project_id": target.project_id, "now": now})
     except Exception as e:
-        print(f"更新项目报价总额时发生错误: {str(e)}")
+        print(f"更新项目最新报价金额时发生错误: {str(e)}")
 
 @event.listens_for(Quotation, 'after_delete')
 def update_project_quotation_on_delete(mapper, connection, target):
-    """在报价单删除后自动更新项目报价总额和更新时间（北京时间）"""
+    """在报价单删除后自动更新项目为最新报价单金额和更新时间（北京时间）"""
     try:
         if target.project_id:
             now = datetime.now(ZoneInfo('Asia/Shanghai'))
             sql = text("""
-                UPDATE projects 
+                UPDATE projects
                 SET quotation_customer = (
-                    SELECT COALESCE(SUM(amount), 0.0) 
-                    FROM quotations 
+                    SELECT COALESCE(amount, 0.0)
+                    FROM quotations
                     WHERE project_id = :project_id
+                    ORDER BY created_at DESC
+                    LIMIT 1
                 ),
                 updated_at = :now
                 WHERE id = :project_id
             """)
             connection.execute(sql, {"project_id": target.project_id, "now": now})
     except Exception as e:
-        print(f"删除报价单后更新项目报价总额时发生错误: {str(e)}")
+        print(f"删除报价单后更新项目最新报价金额时发生错误: {str(e)}")
 
 class QuotationDetail(db.Model):
     __tablename__ = 'quotation_details'

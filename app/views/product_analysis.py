@@ -21,6 +21,22 @@ logger = logging.getLogger(__name__)
 
 product_analysis = Blueprint('product_analysis', __name__)
 
+def _get_latest_quotation_subquery():
+    """
+    创建最新报价单子查询
+
+    返回每个项目的最新报价单ID（基于报价单创建时间）
+    这确保了当一个项目有多个报价单时，只统计最新的那一个
+
+    返回: 包含 project_id 和 latest_quotation_id 的子查询
+    """
+    latest_quotation_subq = db.session.query(
+        Quotation.project_id,
+        func.max(Quotation.id).label('latest_quotation_id')
+    ).group_by(Quotation.project_id).subquery()
+
+    return latest_quotation_subq
+
 def _calculate_product_analysis_stats(base_query, current_month=None):
     """
     模组化的产品分析统计计算函数
@@ -247,8 +263,12 @@ def create_stage_analytics_component():
 @login_required
 @permission_required('quotation', 'view')
 def analysis():
-    """产品分析主页面"""
+    """产品分析主页面 - 只统计每个项目的最新报价单"""
+    # 获取最新报价单子查询
+    latest_quotation_subq = _get_latest_quotation_subquery()
+
     # 获取基础查询，应用权限过滤
+    # 重要：只查询最新报价单的产品明细
     base_query = db.session.query(
         QuotationDetail.product_name,
         QuotationDetail.product_model,
@@ -256,11 +276,17 @@ def analysis():
     ).join(
         Quotation, QuotationDetail.quotation_id == Quotation.id
     ).join(
+        latest_quotation_subq,
+        and_(
+            Quotation.project_id == latest_quotation_subq.c.project_id,
+            Quotation.id == latest_quotation_subq.c.latest_quotation_id
+        )
+    ).join(
         Project, Quotation.project_id == Project.id
     ).join(
         User, Quotation.owner_id == User.id
     )
-    
+
     # 应用权限过滤（与主查询保持一致）
     base_query = apply_permission_based_filters(base_query, current_user)
     
@@ -304,16 +330,23 @@ def analysis():
     # 使用模组化函数计算初始统计数据
     from datetime import datetime
     current_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    
+
     # 创建基础查询用于统计计算
+    # 重要：只统计最新报价单的产品明细
     base_stats_query = db.session.query(QuotationDetail).join(
         Quotation, QuotationDetail.quotation_id == Quotation.id
+    ).join(
+        latest_quotation_subq,
+        and_(
+            Quotation.project_id == latest_quotation_subq.c.project_id,
+            Quotation.id == latest_quotation_subq.c.latest_quotation_id
+        )
     ).join(
         Project, Quotation.project_id == Project.id
     ).join(
         User, Quotation.owner_id == User.id
     )
-    
+
     # 应用权限过滤
     base_stats_query = apply_permission_based_filters(base_stats_query, current_user)
     
@@ -539,19 +572,23 @@ def get_filter_options():
 @login_required
 @permission_required('quotation', 'view')
 def get_analysis_data():
-    """获取产品分析数据 - 性能优化版本"""
+    """获取产品分析数据 - 性能优化版本，只统计每个项目的最新报价单"""
     try:
         # 获取筛选参数
         category = request.args.get('category')
         product_name = request.args.get('product_name')
         product_model = request.args.get('product_model')
-        
+
         # 获取分页参数
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 50))  # 默认每页50条
-        
+
+        # 获取最新报价单子查询
+        latest_quotation_subq = _get_latest_quotation_subquery()
+
         # 性能优化：直接在主查询中处理权限逻辑，避免先查询所有可见报价单
         # 构建基础查询 - 避免因Product表重复记录导致的重复统计
+        # 重要：只查询最新报价单的产品明细
         query = db.session.query(
             QuotationDetail.id,
             QuotationDetail.product_name,
@@ -572,6 +609,12 @@ def get_analysis_data():
             QuotationDetail.created_at
         ).join(
             Quotation, QuotationDetail.quotation_id == Quotation.id
+        ).join(
+            latest_quotation_subq,
+            and_(
+                Quotation.project_id == latest_quotation_subq.c.project_id,
+                Quotation.id == latest_quotation_subq.c.latest_quotation_id
+            )
         ).join(
             Project, Quotation.project_id == Project.id
         ).join(
@@ -709,23 +752,27 @@ stage_analytics_component.create_api_endpoint(
 @login_required
 @permission_required('quotation', 'view')
 def products_list_ajax():
-    """植入产品分析AJAX筛选端点"""
+    """植入产品分析AJAX筛选端点 - 只统计每个项目的最新报价单"""
     try:
         # 获取筛选参数
         search = request.args.get('search', '').strip()
         category = request.args.get('category', '').strip()
         product_name = request.args.get('product_name', '').strip()
         product_model = request.args.get('product_model', '').strip()
-        
+
         # 获取分页参数
         offset = request.args.get('offset', 0, type=int)
         limit = request.args.get('limit', 50, type=int)
-        
+
         # 排序参数
         sort_field = request.args.get('sort_field', '')
         sort_direction = request.args.get('sort_direction', 'asc')
-        
+
+        # 获取最新报价单子查询
+        latest_quotation_subq = _get_latest_quotation_subquery()
+
         # 构建基础查询 - 避免因Product表重复记录导致的重复统计
+        # 重要：只查询最新报价单的产品明细
         query = db.session.query(
             QuotationDetail.id,
             QuotationDetail.product_name,
@@ -746,6 +793,12 @@ def products_list_ajax():
             QuotationDetail.created_at
         ).join(
             Quotation, QuotationDetail.quotation_id == Quotation.id
+        ).join(
+            latest_quotation_subq,
+            and_(
+                Quotation.project_id == latest_quotation_subq.c.project_id,
+                Quotation.id == latest_quotation_subq.c.latest_quotation_id
+            )
         ).join(
             Project, Quotation.project_id == Project.id
         ).join(

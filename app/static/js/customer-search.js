@@ -150,15 +150,12 @@ class CustomerSearchComponent {
     handleInputFocus(e) {
         const query = e.target.value.trim();
 
-        // 检查是否配置了过滤条件（company_type 或 has_inventory）
-        const hasFilters = this.config.search_config.company_type ||
-                          this.config.search_config.has_inventory;
-
-        if (hasFilters && !query) {
-            // 有过滤条件但输入为空时，自动触发空搜索显示所有符合条件的结果
-            // 这样可以实现"点击展开所有，输入过滤"的良好用户体验
+        // 所有选择器点击时都自动展开，提供一致的用户体验
+        if (!query) {
+            // 输入为空时，自动触发搜索显示结果
+            // 实现"点击展开，输入过滤"的用户体验
             this.performSearch('');
-        } else if (query && query.length >= this.config.search_config.min_length) {
+        } else if (query.length >= this.config.search_config.min_length) {
             // 有输入内容且符合最小长度要求，显示之前的搜索结果
             this.showDropdown();
         }
@@ -316,20 +313,27 @@ class CustomerSearchComponent {
         item.className = 'customer-item';
         item.dataset.customerId = customer.id;
         item.dataset.customerData = JSON.stringify(customer);
-        
+
         // 构建显示内容
         const metaItems = [];
-        
+
+        // 公司类型徽章 - 使用API返回的徽章信息（复用通用系统）
+        let companyTypeBadge = '';
+        if (customer.company_type && customer.company_type_label && customer.company_type_color) {
+            // 使用与 render_company_type_badge() 相同的徽章样式
+            companyTypeBadge = `<span class="badge rounded-pill me-2" style="background-color: ${customer.company_type_color}; color: #fff; font-size: 0.75rem; padding: 0.35em 0.65em;">${customer.company_type_label}</span>`;
+        }
+
         // 联系人信息
         if (this.config.display_config.show_contact && customer.contact_person) {
             metaItems.push(`<span class="meta-item"><span class="meta-label">联系人:</span><span class="meta-value">${customer.contact_person}</span></span>`);
         }
-        
+
         // 行业信息
         if (this.config.display_config.show_industry && customer.industry) {
             metaItems.push(`<span class="meta-item"><span class="meta-label">行业:</span><span class="meta-value">${customer.industry}</span></span>`);
         }
-        
+
         // 拥有者信息
         let ownerInfo = '';
         if (this.config.display_config.show_owner && customer.owner) {
@@ -337,11 +341,11 @@ class CustomerSearchComponent {
             const ownerName = customer.owner.real_name || customer.owner.username;
             ownerInfo = `<div class="owner-info"><span class="badge ${ownerClass}">${ownerName}</span></div>`;
         }
-        
+
         item.innerHTML = `
             <div class="customer-single-line">
                 <div class="customer-main-section">
-                    <div class="customer-name">${customer.company_name || '未知公司'}</div>
+                    <div class="customer-name">${companyTypeBadge}${customer.company_name || '未知公司'}</div>
                     <div class="customer-meta-info">
                         ${metaItems.join('<span class="meta-divider"></span>')}
                     </div>
@@ -349,7 +353,7 @@ class CustomerSearchComponent {
                 ${ownerInfo}
             </div>
         `;
-        
+
         return item;
     }
     

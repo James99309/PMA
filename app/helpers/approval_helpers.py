@@ -38,6 +38,204 @@ from app.models.project import Project
 from app.models.quotation import Quotation
 from app.models.customer import Company
 
+
+# ============================================================================
+# 审批包装器类 - 将业务对象包装为统一的审批实例接口
+# ============================================================================
+# 这些类用于将不同的业务对象（报销单、批价单、订单）包装成统一的接口
+# 使其可以在审批中心以一致的方式显示和处理
+# ============================================================================
+
+class ExpenseApprovalWrapper:
+    """报销单审批包装器 - 将Expense对象包装为类似ApprovalInstance的接口"""
+
+    def __init__(self, expense):
+        # 🔥 修复：只有已发起审批的报销单才应该显示在审批中心
+        # 草稿状态的报销单不应该显示审批编号
+        self.real_approval_instance_id = None
+        self.should_display = False  # 标记是否应该在审批中心显示
+
+        if expense.status in ['pending', 'approved', 'rejected', 'recalled']:
+            from app.models.approval import ApprovalInstance
+            approval_instance = ApprovalInstance.query.filter_by(
+                object_type='expense',
+                object_id=expense.id
+            ).order_by(ApprovalInstance.id.desc()).first()
+            if approval_instance:
+                self.real_approval_instance_id = approval_instance.id
+                # 🔥 修改显示逻辑：无论什么状态，只要有审批实例就可以显示
+                # 具体的状态过滤由调用方的查询条件控制
+                self.should_display = True
+                # 使用真实审批实例ID作为主ID
+                self.id = approval_instance.id
+                # 设置审批流程的开始时间为审批实例的开始时间
+                self.started_at = approval_instance.started_at
+                # 设置结束时间
+                if approval_instance.ended_at:
+                    self.ended_at = approval_instance.ended_at
+                elif expense.status == 'approved':
+                    self.ended_at = expense.approved_at
+                else:
+                    self.ended_at = None
+            else:
+                # 状态不是draft但没有审批实例，可能是数据不一致
+                self.should_display = False
+                self.id = f"expense_{expense.id}"
+                self.started_at = expense.created_at
+                self.ended_at = None
+        else:
+            # draft状态，不应该在审批中心显示
+            self.should_display = False
+            self.id = f"expense_{expense.id}"
+            self.started_at = expense.created_at
+            self.ended_at = None
+
+        self.object_id = expense.id
+        self.object_type = 'expense'
+        self.created_by = expense.owner_id
+        self.creator = expense.owner
+        self.expense = expense
+
+        # 状态映射 - 确保所有状态都有对应的显示
+        if expense.status == 'pending':
+            self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
+        elif expense.status == 'approved':
+            self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
+        elif expense.status == 'rejected':
+            self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
+        elif expense.status == 'recalled':
+            self.status = type('Status', (), {'name': 'RECALLED', 'value': 'recalled'})()
+        else:  # draft 或其他状态
+            self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
+
+        # 虚拟流程对象
+        self.process = type('Process', (), {
+            'name': '报销单审批流程',
+            'id': 'expense_approval'
+        })()
+
+    def get_current_step_info(self):
+        """获取当前审批步骤信息 - 修复"待分配"显示问题的关键方法"""
+        if self.real_approval_instance_id:
+            from app.models.approval import ApprovalInstance
+            approval = ApprovalInstance.query.get(self.real_approval_instance_id)
+            if approval:
+                return approval.get_current_step_info()
+        return None
+
+
+class PricingOrderApprovalWrapper:
+    """批价单审批包装器 - 将PricingOrder对象包装为类似ApprovalInstance的接口"""
+
+    def __init__(self, pricing_order):
+        self.id = f"po_{pricing_order.id}"
+        self.pricing_order = pricing_order
+        self.object_type = 'pricing_order'
+        self._object_id = pricing_order.id
+        self.started_at = pricing_order.created_at
+        self.ended_at = pricing_order.approved_at
+        self.creator_id = pricing_order.created_by
+
+        # 状态映射
+        status_map = {
+            'draft': type('Status', (), {'name': 'DRAFT', 'value': 'draft'})(),
+            'pending': type('Status', (), {'name': 'PENDING', 'value': 'pending'})(),
+            'approved': type('Status', (), {'name': 'APPROVED', 'value': 'approved'})(),
+            'rejected': type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
+        }
+        self.status = status_map.get(pricing_order.status,
+                                   type('Status', (), {'name': 'UNKNOWN', 'value': pricing_order.status})())
+
+        # 创建人信息
+        from app.models.user import User
+        creator = User.query.get(pricing_order.created_by)
+        self.creator = creator
+        self.created_by = pricing_order.created_by
+
+        # 虚拟流程对象
+        flow_type_labels = {
+            'channel_follow': '渠道跟进类',
+            'sales_key': '销售重点类',
+            'sales_opportunity': '销售机会类'
+        }
+        flow_type_name = flow_type_labels.get(pricing_order.approval_flow_type, pricing_order.approval_flow_type)
+        self.process = type('Process', (), {
+            'name': f'批价单审批流程 - {flow_type_name}',
+            'id': f'pricing_{pricing_order.approval_flow_type}'
+        })()
+
+        # 当前步骤信息
+        self.current_step = pricing_order.current_approval_step
+
+        # 业务对象信息
+        self.business_object = pricing_order
+        self.business_object_name = pricing_order.order_number
+
+    def get_detail_url(self):
+        """获取详情页URL"""
+        from flask import url_for
+        return url_for('pricing_order.edit_pricing_order', order_id=self.pricing_order.id)
+
+    @property
+    def object_id(self):
+        """兼容性属性：返回批价单ID"""
+        return self._object_id
+
+    def get_current_step_info(self):
+        """获取当前审批步骤信息 - 修复"待分配"显示问题的关键方法"""
+        # 批价单使用独立的审批流程，需要通过ApprovalInstance查询
+        from app.models.approval import ApprovalInstance
+        approval = ApprovalInstance.query.filter_by(
+            object_type='pricing_order',
+            object_id=self.pricing_order.id
+        ).order_by(ApprovalInstance.id.desc()).first()
+        if approval:
+            return approval.get_current_step_info()
+        return None
+
+
+class OrderApprovalWrapper:
+    """订单审批包装器 - 将Order对象包装为类似ApprovalInstance的接口"""
+
+    def __init__(self, order):
+        self.id = f"order_{order.id}"
+        self.object_id = order.id
+        self.object_type = 'purchase_order'
+        self.started_at = order.created_at
+        self.ended_at = order.approved_at if order.status == 'approved' else None
+        self.created_by = order.created_by_id
+        self.creator = order.created_by
+        self.order = order
+
+        # 状态映射
+        if order.status == 'pending':
+            self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
+        elif order.status == 'approved':
+            self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
+        elif order.status == 'rejected':
+            self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
+        else:  # draft 或其他状态
+            self.status = type('Status', (), {'name': 'DRAFT', 'value': order.status})()
+
+        # 虚拟流程对象
+        self.process = type('Process', (), {
+            'name': '订单审批流程',
+            'id': 'purchase_order_approval'
+        })()
+
+    def get_current_step_info(self):
+        """获取当前审批步骤信息 - 修复"待分配"显示问题的关键方法"""
+        # 订单使用独立的审批流程，需要通过ApprovalInstance查询
+        from app.models.approval import ApprovalInstance
+        approval = ApprovalInstance.query.filter_by(
+            object_type='purchase_order',
+            object_id=self.order.id
+        ).order_by(ApprovalInstance.id.desc()).first()
+        if approval:
+            return approval.get_current_step_info()
+        return None
+
+
 # 项目类型到角色的映射
 PROJECT_TYPE_ROLE_MAPPING = {
     'channel_follow': 'channel_manager',      # 渠道跟进 -> 渠道经理
@@ -537,39 +735,39 @@ def create_or_get_unified_authorization_template():
 
 def get_user_created_approvals(user_id=None, object_type=None, status=None, page=1, per_page=20):
     """获取指定用户发起的审批列表 - 改进版，包含批价单审批，只返回关联业务对象存在的审批
-    
+
     Args:
         user_id: 用户ID，默认为当前登录用户
         object_type: 过滤特定类型的审批对象
         status: 过滤特定状态的审批，默认为'pending'（只显示审批中的记录）
         page: 页码
         per_page: 每页数量
-        
+
     Returns:
         分页对象，包含审批实例列表
     """
     if user_id is None:
         user_id = current_user.id
-    
+
     # 🔥 默认只显示审批中的记录（pending状态），除非明确指定其他状态
     if status is None:
         status = 'pending'
-    
+
     # 获取当前查询用户的信息，检查是否为商务助理
     from app.models.user import User
     query_user = User.query.get(user_id)
     if not query_user:
         return None
-    
+
     # "我发起的"页签：只查看自己发起的审批（保持原有功能）
     user_ids_to_query = [user_id]
-    
+
     # 如果专门查询批价单，使用批价单的独立审批系统
     if object_type == 'pricing_order':
         from app.models.pricing_order import PricingOrder
-        
+
         query = PricingOrder.query.filter(PricingOrder.created_by.in_(user_ids_to_query))
-        
+
         # 状态映射 - 修复状态筛选逻辑
         if status:
             if status == ApprovalStatus.PENDING:
@@ -588,10 +786,10 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
                     query = query.filter(PricingOrder.status == 'approved')
                 elif status.lower() == 'rejected':
                     query = query.filter(PricingOrder.status == 'rejected')
-        
+
         # 按创建时间倒序排列
         query = query.order_by(PricingOrder.created_at.desc())
-        
+
         # 返回分页结果，需要包装成类似审批实例的格式
         try:
             pricing_orders = query.paginate(page=page, per_page=per_page, error_out=False)
@@ -602,48 +800,19 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
             except ImportError:
                 from flask_sqlalchemy.pagination import Pagination
             pricing_orders = Pagination(query=query, page=page, per_page=per_page, total=0, items=[])
-        
-        # 创建虚拟审批实例对象，用于在审批中心显示
-        class PricingOrderApprovalWrapper:
-            def __init__(self, pricing_order):
-                self.id = f"po_{pricing_order.id}"
-                self.object_id = pricing_order.id
-                self.object_type = 'pricing_order'
-                self.started_at = pricing_order.created_at
-                self.ended_at = pricing_order.approved_at if pricing_order.status == 'approved' else None
-                self.created_by = pricing_order.created_by
-                self.creator = pricing_order.creator
-                self.pricing_order = pricing_order
-                
-                # 状态映射 - 确保所有状态都有对应的显示
-                if pricing_order.status == 'pending':
-                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
-                elif pricing_order.status == 'approved':
-                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
-                elif pricing_order.status == 'rejected':
-                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
-                else:  # draft 或其他状态
-                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
-                
-                # 虚拟流程对象
-                flow_type_name = pricing_order.flow_type_label if hasattr(pricing_order, 'flow_type_label') else pricing_order.approval_flow_type
-                self.process = type('Process', (), {
-                    'name': f'批价单审批流程 - {flow_type_name}',
-                    'id': f'pricing_{pricing_order.approval_flow_type}'
-                })()
-        
-        # 包装分页对象
+
+        # 包装分页对象（使用顶部定义的统一PricingOrderApprovalWrapper类）
         wrapped_items = [PricingOrderApprovalWrapper(po) for po in pricing_orders.items]
         pricing_orders.items = wrapped_items
-        
+
         return pricing_orders
-        
+
     # 如果专门查询报销单，使用报销单的独立审批系统
     if object_type == 'expense':
         from app.models.expense import Expense
-        
+
         query = Expense.query.filter(Expense.owner_id.in_(user_ids_to_query))
-        
+
         # 状态映射 - 修复状态筛选逻辑，优先处理字符串状态
         if status:
             # 如果传入的是字符串状态，直接匹配
@@ -663,10 +832,10 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
                 query = query.filter(Expense.status == 'approved')
             elif status == ApprovalStatus.REJECTED:
                 query = query.filter(Expense.status == 'rejected')
-        
+
         # 按创建时间倒序排列
         query = query.order_by(Expense.created_at.desc())
-        
+
         # 返回分页结果，需要包装成类似审批实例的格式
         try:
             expenses = query.paginate(page=page, per_page=per_page, error_out=False)
@@ -677,75 +846,8 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
             except ImportError:
                 from flask_sqlalchemy.pagination import Pagination
             expenses = Pagination(query=query, page=page, per_page=per_page, total=0, items=[])
-        
-        # 创建虚拟审批实例对象，用于在审批中心显示
-        class ExpenseApprovalWrapper:
-            def __init__(self, expense):
-                # 🔥 修复：只有已发起审批的报销单才应该显示在审批中心
-                # 草稿状态的报销单不应该显示审批编号
-                self.real_approval_instance_id = None
-                self.should_display = False  # 标记是否应该在审批中心显示
-                
-                if expense.status in ['pending', 'approved', 'rejected', 'recalled']:
-                    from app.models.approval import ApprovalInstance
-                    approval_instance = ApprovalInstance.query.filter_by(
-                        object_type='expense',
-                        object_id=expense.id
-                    ).order_by(ApprovalInstance.id.desc()).first()
-                    if approval_instance:
-                        self.real_approval_instance_id = approval_instance.id
-                        # 🔥 修改显示逻辑：无论什么状态，只要有审批实例就可以显示
-                        # 具体的状态过滤由调用方的查询条件控制
-                        self.should_display = True
-                        # 使用真实审批实例ID作为主ID
-                        self.id = approval_instance.id
-                        # 设置审批流程的开始时间为审批实例的开始时间
-                        self.started_at = approval_instance.started_at
-                        # 设置结束时间
-                        if approval_instance.ended_at:
-                            self.ended_at = approval_instance.ended_at
-                        elif expense.status == 'approved':
-                            self.ended_at = expense.approved_at
-                        else:
-                            self.ended_at = None
-                    else:
-                        # 状态不是draft但没有审批实例，可能是数据不一致
-                        self.should_display = False
-                        self.id = f"expense_{expense.id}"
-                        self.started_at = expense.created_at
-                        self.ended_at = None
-                else:
-                    # draft状态，不应该在审批中心显示
-                    self.should_display = False
-                    self.id = f"expense_{expense.id}"
-                    self.started_at = expense.created_at
-                    self.ended_at = None
-                
-                self.object_id = expense.id
-                self.object_type = 'expense'
-                self.created_by = expense.owner_id
-                self.creator = expense.owner
-                self.expense = expense
-                
-                # 状态映射 - 确保所有状态都有对应的显示
-                if expense.status == 'pending':
-                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
-                elif expense.status == 'approved':
-                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
-                elif expense.status == 'rejected':
-                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
-                elif expense.status == 'recalled':
-                    self.status = type('Status', (), {'name': 'RECALLED', 'value': 'recalled'})()
-                else:  # draft 或其他状态
-                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
-                
-                # 虚拟流程对象
-                self.process = type('Process', (), {
-                    'name': '报销单审批流程',
-                    'id': 'expense_approval'
-                })()
-        
-        # 包装分页对象，只包含应该显示的项目
+
+        # 包装分页对象，只包含应该显示的项目（使用顶部定义的统一ExpenseApprovalWrapper类）
         wrapped_items = []
         for expense in expenses.items:
             wrapper = ExpenseApprovalWrapper(expense)
@@ -900,34 +1002,6 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
         all_pricing_orders = pricing_query.order_by(PricingOrder.created_at.desc()).all()
         
         # 创建批价单包装器
-        class PricingOrderApprovalWrapper:
-            def __init__(self, pricing_order):
-                self.id = f"po_{pricing_order.id}"
-                self.object_id = pricing_order.id
-                self.object_type = 'pricing_order'
-                self.started_at = pricing_order.created_at
-                self.ended_at = pricing_order.approved_at if pricing_order.status == 'approved' else None
-                self.created_by = pricing_order.created_by
-                self.creator = pricing_order.creator
-                self.pricing_order = pricing_order
-                
-                # 状态映射
-                if pricing_order.status == 'pending':
-                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
-                elif pricing_order.status == 'approved':
-                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
-                elif pricing_order.status == 'rejected':
-                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
-                else:  # draft 或其他状态
-                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
-                
-                # 虚拟流程对象
-                flow_type_name = pricing_order.flow_type_label if hasattr(pricing_order, 'flow_type_label') else pricing_order.approval_flow_type
-                self.process = type('Process', (), {
-                    'name': f'批价单审批流程 - {flow_type_name}',
-                    'id': f'pricing_{pricing_order.approval_flow_type}'
-                })()
-        
         # 包装批价单为审批实例
         wrapped_pricing_orders = [PricingOrderApprovalWrapper(po) for po in all_pricing_orders]
         
@@ -955,33 +1029,6 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
         all_orders = order_query.order_by(PurchaseOrder.created_at.desc()).all()
         
         # 创建订单包装器
-        class OrderApprovalWrapper:
-            def __init__(self, order):
-                self.id = f"order_{order.id}"
-                self.object_id = order.id
-                self.object_type = 'purchase_order'
-                self.started_at = order.created_at
-                self.ended_at = order.approved_at if order.status == 'approved' else None
-                self.created_by = order.created_by_id
-                self.creator = order.created_by
-                self.order = order
-                
-                # 状态映射
-                if order.status == 'pending':
-                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
-                elif order.status == 'approved':
-                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
-                elif order.status == 'rejected':
-                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
-                else:  # draft 或其他状态
-                    self.status = type('Status', (), {'name': 'DRAFT', 'value': order.status})()
-                
-                # 虚拟流程对象
-                self.process = type('Process', (), {
-                    'name': '订单审批流程',
-                    'id': 'purchase_order_approval'
-                })()
-        
         # 包装订单为审批实例
         wrapped_orders = [OrderApprovalWrapper(order) for order in all_orders]
         
@@ -1013,71 +1060,6 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
         all_expenses = expense_query.order_by(Expense.created_at.desc()).all()
         
         # 创建报销单包装器
-        class ExpenseApprovalWrapper:
-            def __init__(self, expense):
-                # 🔥 修复：统一使用真实审批实例ID和显示控制逻辑
-                self.real_approval_instance_id = None
-                self.should_display = False  # 标记是否应该在审批中心显示
-                
-                if expense.status in ['pending', 'approved', 'rejected', 'recalled']:
-                    from app.models.approval import ApprovalInstance
-                    approval_instance = ApprovalInstance.query.filter_by(
-                        object_type='expense',
-                        object_id=expense.id
-                    ).order_by(ApprovalInstance.id.desc()).first()
-                    if approval_instance:
-                        self.real_approval_instance_id = approval_instance.id
-                        # 🔥 修改显示逻辑：无论什么状态，只要有审批实例就可以显示
-                        # 具体的状态过滤由调用方的查询条件控制
-                        self.should_display = True
-                        # 使用真实审批实例ID作为主ID
-                        self.id = approval_instance.id
-                        # 设置审批流程的开始时间为审批实例的开始时间
-                        self.started_at = approval_instance.started_at
-                        # 设置结束时间
-                        if approval_instance.ended_at:
-                            self.ended_at = approval_instance.ended_at
-                        elif expense.status == 'approved':
-                            self.ended_at = expense.approved_at
-                        else:
-                            self.ended_at = None
-                    else:
-                        # 状态不是draft但没有审批实例，可能是数据不一致
-                        self.should_display = False
-                        self.id = f"expense_{expense.id}"
-                        self.started_at = expense.created_at
-                        self.ended_at = None
-                else:
-                    # draft状态，不应该在审批中心显示
-                    self.should_display = False
-                    self.id = f"expense_{expense.id}"
-                    self.started_at = expense.created_at
-                    self.ended_at = None
-                
-                self.object_id = expense.id
-                self.object_type = 'expense'
-                self.created_by = expense.owner_id
-                self.creator = expense.owner
-                self.expense = expense
-                
-                # 状态映射 - 确保所有状态都有对应的显示
-                if expense.status == 'pending':
-                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
-                elif expense.status == 'approved':
-                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
-                elif expense.status == 'rejected':
-                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
-                elif expense.status == 'recalled':
-                    self.status = type('Status', (), {'name': 'RECALLED', 'value': 'recalled'})()
-                else:  # draft 或其他状态
-                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
-                
-                # 虚拟流程对象
-                self.process = type('Process', (), {
-                    'name': '报销单审批流程',
-                    'id': 'expense_approval'
-                })()
-        
         # 包装报销单为审批实例，只包含应该显示的项目
         wrapped_expenses = []
         for expense in all_expenses:
@@ -1219,34 +1201,6 @@ def get_user_department_approvals(user_id=None, object_type=None, status=None, p
             pricing_orders = Pagination(query=query, page=page, per_page=per_page, total=0, items=[])
         
         # 创建虚拟审批实例对象，用于在审批中心显示
-        class PricingOrderApprovalWrapper:
-            def __init__(self, pricing_order):
-                self.id = f"po_{pricing_order.id}"
-                self.object_id = pricing_order.id
-                self.object_type = 'pricing_order'
-                self.started_at = pricing_order.created_at
-                self.ended_at = pricing_order.approved_at if pricing_order.status == 'approved' else None
-                self.created_by = pricing_order.created_by
-                self.creator = pricing_order.creator
-                self.pricing_order = pricing_order
-                
-                # 状态映射 - 确保所有状态都有对应的显示
-                if pricing_order.status == 'pending':
-                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
-                elif pricing_order.status == 'approved':
-                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
-                elif pricing_order.status == 'rejected':
-                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
-                else:  # draft 或其他状态
-                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
-                
-                # 虚拟流程对象
-                flow_type_name = pricing_order.flow_type_label if hasattr(pricing_order, 'flow_type_label') else pricing_order.approval_flow_type
-                self.process = type('Process', (), {
-                    'name': f'批价单审批流程 - {flow_type_name}',
-                    'id': f'pricing_{pricing_order.approval_flow_type}'
-                })()
-        
         # 包装分页对象
         wrapped_items = [PricingOrderApprovalWrapper(po) for po in pricing_orders.items]
         pricing_orders.items = wrapped_items
@@ -1294,72 +1248,6 @@ def get_user_department_approvals(user_id=None, object_type=None, status=None, p
             expenses = Pagination(query=query, page=page, per_page=per_page, total=0, items=[])
         
         # 创建虚拟审批实例对象，用于在审批中心显示
-        class ExpenseApprovalWrapper:
-            def __init__(self, expense):
-                # 🔥 修复：只有已发起审批的报销单才应该显示在审批中心
-                # 草稿状态的报销单不应该显示审批编号
-                self.real_approval_instance_id = None
-                self.should_display = False  # 标记是否应该在审批中心显示
-                
-                if expense.status in ['pending', 'approved', 'rejected', 'recalled']:
-                    from app.models.approval import ApprovalInstance
-                    approval_instance = ApprovalInstance.query.filter_by(
-                        object_type='expense',
-                        object_id=expense.id
-                    ).order_by(ApprovalInstance.id.desc()).first()
-                    if approval_instance:
-                        self.real_approval_instance_id = approval_instance.id
-                        # 🔥 修改显示逻辑：无论什么状态，只要有审批实例就可以显示
-                        # 具体的状态过滤由调用方的查询条件控制
-                        self.should_display = True
-                        # 使用真实审批实例ID作为主ID
-                        self.id = approval_instance.id
-                        # 设置审批流程的开始时间为审批实例的开始时间
-                        self.started_at = approval_instance.started_at
-                        # 设置结束时间
-                        if approval_instance.ended_at:
-                            self.ended_at = approval_instance.ended_at
-                        elif expense.status == 'approved':
-                            self.ended_at = expense.approved_at
-                        else:
-                            self.ended_at = None
-                    else:
-                        # 状态不是draft但没有审批实例，可能是数据不一致
-                        self.should_display = False
-                        self.id = f"expense_{expense.id}"
-                        self.started_at = expense.created_at
-                        self.ended_at = None
-                else:
-                    # draft状态，不应该在审批中心显示
-                    self.should_display = False
-                    self.id = f"expense_{expense.id}"
-                    self.started_at = expense.created_at
-                    self.ended_at = None
-                
-                self.object_id = expense.id
-                self.object_type = 'expense'
-                self.created_by = expense.owner_id
-                self.creator = expense.owner
-                self.expense = expense
-                
-                # 状态映射 - 确保所有状态都有对应的显示
-                if expense.status == 'pending':
-                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
-                elif expense.status == 'approved':
-                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
-                elif expense.status == 'rejected':
-                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
-                elif expense.status == 'recalled':
-                    self.status = type('Status', (), {'name': 'RECALLED', 'value': 'recalled'})()
-                else:  # draft 或其他状态
-                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
-                
-                # 虚拟流程对象
-                self.process = type('Process', (), {
-                    'name': '报销单审批流程',
-                    'id': 'expense_approval'
-                })()
-        
         # 包装分页对象，只包含应该显示的项目
         wrapped_items = []
         for expense in expenses.items:
@@ -1514,34 +1402,6 @@ def get_user_department_approvals(user_id=None, object_type=None, status=None, p
         all_pricing_orders = pricing_query.order_by(PricingOrder.created_at.desc()).all()
         
         # 创建批价单包装器
-        class PricingOrderApprovalWrapper:
-            def __init__(self, pricing_order):
-                self.id = f"po_{pricing_order.id}"
-                self.object_id = pricing_order.id
-                self.object_type = 'pricing_order'
-                self.started_at = pricing_order.created_at
-                self.ended_at = pricing_order.approved_at if pricing_order.status == 'approved' else None
-                self.created_by = pricing_order.created_by
-                self.creator = pricing_order.creator
-                self.pricing_order = pricing_order
-                
-                # 状态映射
-                if pricing_order.status == 'pending':
-                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
-                elif pricing_order.status == 'approved':
-                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
-                elif pricing_order.status == 'rejected':
-                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
-                else:  # draft 或其他状态
-                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
-                
-                # 虚拟流程对象
-                flow_type_name = pricing_order.flow_type_label if hasattr(pricing_order, 'flow_type_label') else pricing_order.approval_flow_type
-                self.process = type('Process', (), {
-                    'name': f'批价单审批流程 - {flow_type_name}',
-                    'id': f'pricing_{pricing_order.approval_flow_type}'
-                })()
-        
         # 包装批价单为审批实例
         wrapped_pricing_orders = [PricingOrderApprovalWrapper(po) for po in all_pricing_orders]
         
@@ -1569,33 +1429,6 @@ def get_user_department_approvals(user_id=None, object_type=None, status=None, p
         all_orders = order_query.order_by(PurchaseOrder.created_at.desc()).all()
         
         # 创建订单包装器
-        class OrderApprovalWrapper:
-            def __init__(self, order):
-                self.id = f"order_{order.id}"
-                self.object_id = order.id
-                self.object_type = 'purchase_order'
-                self.started_at = order.created_at
-                self.ended_at = order.approved_at if order.status == 'approved' else None
-                self.created_by = order.created_by_id
-                self.creator = order.created_by
-                self.order = order
-                
-                # 状态映射
-                if order.status == 'pending':
-                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
-                elif order.status == 'approved':
-                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
-                elif order.status == 'rejected':
-                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
-                else:  # draft 或其他状态
-                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
-                
-                # 虚拟流程对象
-                self.process = type('Process', (), {
-                    'name': '订单审批流程',
-                    'id': 'purchase_order_approval'
-                })()
-        
         # 包装订单为审批实例
         wrapped_orders = [OrderApprovalWrapper(order) for order in all_orders]
         
@@ -1823,34 +1656,6 @@ def get_all_approvals(object_type=None, status=None, page=1, per_page=20):
             pricing_orders = Pagination(query=query, page=page, per_page=per_page, total=0, items=[])
         
         # 创建虚拟审批实例对象，用于在审批中心显示
-        class PricingOrderApprovalWrapper:
-            def __init__(self, pricing_order):
-                self.id = f"po_{pricing_order.id}"
-                self.object_id = pricing_order.id
-                self.object_type = 'pricing_order'
-                self.started_at = pricing_order.created_at
-                self.ended_at = pricing_order.approved_at if pricing_order.status == 'approved' else None
-                self.created_by = pricing_order.created_by
-                self.creator = pricing_order.creator
-                self.pricing_order = pricing_order
-                
-                # 状态映射 - 确保所有状态都有对应的显示
-                if pricing_order.status == 'pending':
-                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
-                elif pricing_order.status == 'approved':
-                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
-                elif pricing_order.status == 'rejected':
-                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
-                else:  # draft 或其他状态
-                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
-                
-                # 虚拟流程对象
-                flow_type_name = pricing_order.flow_type_label if hasattr(pricing_order, 'flow_type_label') else pricing_order.approval_flow_type
-                self.process = type('Process', (), {
-                    'name': f'批价单审批流程 - {flow_type_name}',
-                    'id': f'pricing_{pricing_order.approval_flow_type}'
-                })()
-        
         # 包装分页对象
         wrapped_items = [PricingOrderApprovalWrapper(po) for po in pricing_orders.items]
         pricing_orders.items = wrapped_items
@@ -2013,34 +1818,6 @@ def get_all_approvals(object_type=None, status=None, page=1, per_page=20):
             all_pricing_orders = []
         
         # 创建批价单包装对象
-        class PricingOrderApprovalWrapper:
-            def __init__(self, pricing_order):
-                self.id = f"po_{pricing_order.id}"
-                self.object_id = pricing_order.id
-                self.object_type = 'pricing_order'
-                self.started_at = pricing_order.created_at
-                self.ended_at = pricing_order.approved_at if pricing_order.status == 'approved' else None
-                self.created_by = pricing_order.created_by
-                self.creator = pricing_order.creator
-                self.pricing_order = pricing_order
-                
-                # 状态映射
-                if pricing_order.status == 'pending':
-                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
-                elif pricing_order.status == 'approved':
-                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
-                elif pricing_order.status == 'rejected':
-                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
-                else:  # draft
-                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
-                
-                # 虚拟流程对象
-                flow_type_name = pricing_order.flow_type_label if hasattr(pricing_order, 'flow_type_label') else pricing_order.approval_flow_type
-                self.process = type('Process', (), {
-                    'name': f'批价单审批流程 - {flow_type_name}',
-                    'id': f'pricing_{pricing_order.approval_flow_type}'
-                })()
-        
         # 包装批价单数据
         wrapped_pricing_orders = [PricingOrderApprovalWrapper(po) for po in all_pricing_orders]
         
@@ -2075,33 +1852,6 @@ def get_all_approvals(object_type=None, status=None, page=1, per_page=20):
             all_orders = []
         
         # 创建订单包装对象
-        class OrderApprovalWrapper:
-            def __init__(self, order):
-                self.id = f"order_{order.id}"
-                self.object_id = order.id
-                self.object_type = 'purchase_order'
-                self.started_at = order.created_at
-                self.ended_at = order.approved_at if order.status == 'approved' else None
-                self.created_by = order.created_by_id
-                self.creator = order.created_by
-                self.order = order
-                
-                # 状态映射
-                if order.status == 'pending':
-                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
-                elif order.status == 'approved':
-                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
-                elif order.status == 'rejected':
-                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
-                else:  # draft 或其他状态
-                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
-                
-                # 虚拟流程对象
-                self.process = type('Process', (), {
-                    'name': '订单审批流程',
-                    'id': 'purchase_order_approval'
-                })()
-        
         # 包装订单数据
         wrapped_orders = [OrderApprovalWrapper(order) for order in all_orders]
         
@@ -5158,12 +4908,17 @@ def _update_generic_object_status(instance, action, user_id, comment):
             if instance.status == ApprovalStatus.APPROVED:
                 # 流程完全通过
                 business_object.status = 'approved'
-                
+
                 # 动态设置时间戳字段
                 if hasattr(business_object, 'approved_at'):
                     business_object.approved_at = datetime.now()
                 if hasattr(business_object, 'approved_by'):
                     business_object.approved_by = user_id
+
+                # 针对批价单，执行审批完成后的额外操作（推进项目状态等）
+                if instance.object_type == 'pricing_order':
+                    from app.services.pricing_order_service import PricingOrderService
+                    PricingOrderService.complete_approval(business_object)
             else:
                 # 还在审批中
                 business_object.status = 'pending'

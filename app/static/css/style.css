@@ -3260,16 +3260,15 @@ div.table-responsive.fixed-height-scroll {
 /* 订单状态徽章现在统一使用 badge-transparent 类和 CSS 变量透明度系统 */
 /* 库存状态徽章同样使用统一的透明度系统 */
 
-/* 报价单编号徽章样式 - 灰色边框胶囊形 */
+/* 报价单编号徽章样式 - 深灰底白字加粗 */
 .data-list-table .badge.badge-transparent.quotation-number-badge,
 .badge.badge-transparent.quotation-number-badge {
-    background-color: rgba(248, 249, 250, var(--badge-bg-opacity)) !important; 
-    color: rgba(73, 80, 87, var(--badge-text-opacity)) !important; 
-    border-color: rgba(222, 226, 230, var(--badge-border-opacity)) !important;
+    background-color: #495057 !important;
+    color: #ffffff !important;
+    border: none !important;
     font-family: 'Helvetica Neue', sans-serif;
-    font-weight: 500;
+    font-weight: 600 !important;
     border-radius: 50rem !important;
-    border: 1px solid !important;
     padding: 0.35em 0.65em !important;
     font-size: 0.75rem !important;
 }
@@ -3277,12 +3276,19 @@ div.table-responsive.fixed-height-scroll {
 /* 链接内的报价单编号徽章 - 确保链接样式不覆盖徽章样式 */
 .data-list-table a .badge.badge-transparent.quotation-number-badge,
 a .badge.badge-transparent.quotation-number-badge,
-a:hover .badge.badge-transparent.quotation-number-badge,
 a:visited .badge.badge-transparent.quotation-number-badge,
 a:focus .badge.badge-transparent.quotation-number-badge {
-    background-color: rgba(248, 249, 250, var(--badge-bg-opacity)) !important; 
-    color: rgba(73, 80, 87, var(--badge-text-opacity)) !important; 
-    border-color: rgba(222, 226, 230, var(--badge-border-opacity)) !important;
+    background-color: #495057 !important;
+    color: #ffffff !important;
+    border: none !important;
+    text-decoration: none !important;
+}
+
+/* hover效果 - 背景色加深 */
+a:hover .badge.badge-transparent.quotation-number-badge {
+    background-color: #343a40 !important;
+    color: #ffffff !important;
+    border: none !important;
     text-decoration: none !important;
 }
 

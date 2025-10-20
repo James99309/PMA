@@ -80,23 +80,35 @@ class PricingOrderService:
         if not vendor_sales_manager:
             errors.append("项目设置的厂家销售负责人不存在，请重新设置")
             return False, errors, warnings
-        
-        # 4. 检查厂商直签的有效性
+
+        # 4. 检查报价单确认标签（确保批价单基于已确认的报价单数据）
+        quotation = pricing_order.quotation
+        if quotation:
+            # 检查报价单是否有确认徽章
+            if quotation.confirmation_badge_status != 'confirmed':
+                errors.append(f"报价单 {quotation.quotation_number} 产品明细尚未确认，无法提交批价单。请先在报价单页面确认产品明细。")
+                return False, errors, warnings
+        else:
+            # 如果没有关联报价单，也是错误
+            errors.append("批价单必须关联报价单才能提交审批")
+            return False, errors, warnings
+
+        # 5. 检查厂商直签的有效性
         if pricing_order.is_direct_contract and not current_user.is_vendor_user():
             warnings.append("非厂家账户无法使用厂商直签功能，该选项将被忽略")
-        
-        # 5. 检查是否能找到必要的审批人角色
+
+        # 6. 检查是否能找到必要的审批人角色
         admin_id = PricingOrderService.get_role_user_id_v2('admin')
         if not admin_id:
             errors.append("系统缺少管理员角色，无法发起审批流程")
             return False, errors, warnings
-        
-        # 6. 检查部门负责人（非致命错误，但需要警告）
+
+        # 7. 检查部门负责人（非致命错误，但需要警告）
         dept_manager = PricingOrderService.get_department_manager(current_user.id)
         if not dept_manager:
             warnings.append("您没有设置部门负责人，部门审批环节将被跳过")
-        
-        # 7. 检查渠道经理（非致命错误）
+
+        # 8. 检查渠道经理（非致命错误）
         channel_manager_id = PricingOrderService.get_role_user_id_v2('channel_manager')
         if not channel_manager_id:
             warnings.append("系统缺少渠道经理角色，渠道审批环节将被跳过")
@@ -1077,9 +1089,10 @@ class PricingOrderService:
     @staticmethod
     def complete_approval(pricing_order):
         """完成审批后的操作"""
+        from app import current_app
+
         # 严格检查：只有在批价单状态为approved时才执行项目阶段更新
         if pricing_order.status != 'approved':
-            from app import current_app
             current_app.logger.warning(f"批价单 {pricing_order.order_number} 状态为 {pricing_order.status}，不应调用complete_approval")
             return
         
@@ -1088,13 +1101,10 @@ class PricingOrderService:
         if project:
             old_stage = project.current_stage
             project.current_stage = 'signed'
-            project.is_locked = True  # 保持锁定状态
-            project.locked_reason = "项目已签约，锁定编辑"
-            
+
             # 记录日志
-            from app import current_app
             current_app.logger.info(f"批价单 {pricing_order.order_number} 审批通过，项目 {project.project_name} 阶段从 {old_stage} 更新为 signed")
-            
+
             # 创建项目阶段历史记录
             from app.models.projectpm_stage_history import ProjectStageHistory
             ProjectStageHistory.add_history_record(
@@ -1110,9 +1120,7 @@ class PricingOrderService:
         quotation = pricing_order.quotation
         if quotation:
             quotation.approval_status = 'quoted_approved'
-            quotation.is_locked = True  # 保持锁定状态
-            quotation.lock_reason = "报价单已批价，锁定编辑"
-        
+
         # 更新结算单状态为已批准（修复：使用独立结算单模型）
         from app.models.pricing_order import SettlementOrder
         settlement_order = SettlementOrder.query.filter_by(pricing_order_id=pricing_order.id).first()
@@ -1122,28 +1130,58 @@ class PricingOrderService:
             settlement_order.approved_at = pricing_order.approved_at
             # 确保结算单总金额是最新的
             settlement_order.calculate_totals()
-            from app import current_app
             current_app.logger.info(f"更新独立结算单 {settlement_order.order_number} 状态为已批准，总金额: {settlement_order.total_amount:,.2f}")
         else:
-            from app import current_app
             current_app.logger.warning(f"批价单 {pricing_order.order_number} 没有对应的独立结算单")
+
+        # 智能解锁相关对象（检查是否还有其他待审批批价单）
+        PricingOrderService.unlock_related_objects(pricing_order)
     
     @staticmethod
     def unlock_related_objects(pricing_order):
-        """解锁相关对象"""
+        """智能解锁相关对象（仅当没有其他待审批批价单时才解锁）"""
+        from app import current_app
+        from app.models.pricing_order import PricingOrder
+
+        # 智能解锁项目
         project = pricing_order.project
         if project:
-            project.is_locked = False
-            project.locked_reason = None
-            project.locked_by = None
-            project.locked_at = None
-        
+            # 检查该项目下是否还有其他待审批的批价单
+            pending_count = PricingOrder.query.filter_by(
+                project_id=project.id,
+                status='pending'
+            ).count()
+
+            if pending_count == 0:
+                # 没有待审批的批价单，解锁项目
+                project.is_locked = False
+                project.locked_reason = None
+                project.locked_by = None
+                project.locked_at = None
+                current_app.logger.info(f"项目 {project.project_name} 已解锁（无待审批批价单）")
+            else:
+                # 还有其他批价单在审批中，保持锁定
+                current_app.logger.info(f"项目 {project.project_name} 保持锁定（还有 {pending_count} 个待审批批价单）")
+
+        # 智能解锁报价单
         quotation = pricing_order.quotation
         if quotation:
-            quotation.is_locked = False
-            quotation.lock_reason = None
-            quotation.locked_by = None
-            quotation.locked_at = None
+            # 检查该报价单下是否还有其他待审批的批价单
+            pending_count = PricingOrder.query.filter_by(
+                quotation_id=quotation.id,
+                status='pending'
+            ).count()
+
+            if pending_count == 0:
+                # 没有待审批的批价单，解锁报价单
+                quotation.is_locked = False
+                quotation.lock_reason = None
+                quotation.locked_by = None
+                quotation.locked_at = None
+                current_app.logger.info(f"报价单 {quotation.quotation_number} 已解锁（无待审批批价单）")
+            else:
+                # 还有其他批价单在审批中，保持锁定
+                current_app.logger.info(f"报价单 {quotation.quotation_number} 保持锁定（还有 {pending_count} 个待审批批价单）")
     
     @staticmethod
     def send_completion_notifications(pricing_order, current_approval_record):

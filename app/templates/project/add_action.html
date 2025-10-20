@@ -100,34 +100,6 @@
                         <h5 class="me-2">{{ project.project_name }}</h5>
                         {{ render_project_stage(project.current_stage|project_stage_label('zh')) }}
                     </div>
-                    
-                    <div class="mb-2">
-                        <strong>{{ _('相关单位:') }}</strong>
-                        {% if customer_associations %}
-                        <ul class="list-unstyled mt-2">
-                            {% for assoc in customer_associations %}
-                            <li class="mb-1">
-                                {% if assoc.customer_type == 'end_user' %}
-                                <i class="fas fa-building me-1 text-primary"></i> {{ _('直接用户:') }}
-                                {% elif assoc.customer_type == 'design_issues' %}
-                                <i class="fas fa-drafting-compass me-1 text-primary"></i> {{ _('设计院:') }}
-                                {% elif assoc.customer_type == 'contractor' %}
-                                <i class="fas fa-hard-hat me-1 text-primary"></i> {{ _('总承包:') }}
-                                {% elif assoc.customer_type == 'system_integrator' %}
-                                <i class="fas fa-cogs me-1 text-primary"></i> {{ _('系统集成:') }}
-                                {% elif assoc.customer_type == 'dealer' %}
-                                <i class="fas fa-store me-1 text-primary"></i> {{ _('经销商:') }}
-                                {% else %}
-                                <i class="fas fa-users me-1 text-primary"></i> {{ _('其他:') }}
-                                {% endif %}
-                                {{ assoc.company.company_name }}
-                            </li>
-                            {% endfor %}
-                        </ul>
-                        {% else %}
-                        <p class="text-muted mt-2">{{ _('暂无相关单位') }}</p>
-                        {% endif %}
-                    </div>
                 </div>
             </div>
         </div>

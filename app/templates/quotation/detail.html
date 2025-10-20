@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_quotation_number, render_currency, render_currency_with_symbol, render_project_stage, render_button, render_confirm_cancel, render_confirmation_badge, render_product_status_badge %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_quotation_number, render_currency, render_currency_with_symbol, render_project_stage, render_button, render_confirm_cancel, render_confirmation_badge, render_product_status_badge, render_confirm_dialog %}
 {% from 'macros/ui_modals.html' import render_change_owner_modal %}
 {% from 'macros/export_info_modal.html' import render_export_info_modal %}
 
@@ -106,12 +106,19 @@
                 <div class="btn-toolbar justify-content-end" role="toolbar">
                     <div class="btn-group" role="group">
                         {{ render_button(_('返回列表'), url_for('quotation.list_quotations'), color='secondary') }}
-                        {{ render_button(_('导出'), '#', color='auxiliary', type='button', onclick='showExportInfoModal("quotationExportModal")') }}
-                        {% if can_delete_this_quotation and not quotation.is_locked %}
-                            {{ render_button(_('删除'), color='danger', type='button', attrs='onclick="deleteQuotation(' ~ quotation.id ~ ')"') }}
+
+                        {# 提交批价按钮：仅在报价单有审核标记且项目在批价/签约阶段时显示 #}
+                        {% set has_approval = (quotation.approval_status and quotation.approval_status not in ['pending', 'rejected'] and quotation.approved_stages) or quotation.confirmation_badge_status == 'confirmed' %}
+                        {% if has_approval and quotation.project and quotation.project.current_stage in ['quoted', 'signed'] %}
+                            {{ render_button(_('提交批价'), color='success', type='button', attrs='onclick="submitPricing(' ~ quotation.id ~ ')"') }}
                         {% endif %}
+
+                        {{ render_button(_('导出'), '#', color='auxiliary', type='button', onclick='showExportInfoModal("quotationExportModal")') }}
                         {% if can_edit_this_quotation and not quotation.is_locked %}
                             {{ render_button(_('编辑'), href=url_for('quotation.edit_quotation', id=quotation.id), color='primary') }}
+                        {% endif %}
+                        {% if can_delete_this_quotation and not quotation.is_locked %}
+                            {{ render_button(_('删除'), color='danger', type='button', attrs='onclick="deleteQuotation(' ~ quotation.id ~ ')"') }}
                         {% endif %}
                     </div>
                 </div>
@@ -135,20 +142,10 @@
                                     <td class="text-break" style="max-width: 300px; word-wrap: break-word;">{{ quotation.project.project_name if quotation.project else _('无') }}</td>
                                 </tr>
                                 <tr>
-                                    <th class="bg-light">{{ _('项目阶段') }}</th>
+                                    <th class="bg-light">{{ _('关联客户') }}</th>
                                     <td>
-                                        {% if quotation.project and quotation.project.current_stage %}
-                                            <span class="badge badge-pill badge-transparent project-stage-{{ quotation.project.current_stage.lower().replace(' ', '-') }}">{{ quotation.project.current_stage|project_stage_label('zh') }}</span>
-                                        {% else %}
-                                            <span class="text-muted">{{ _('无') }}</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <th class="bg-light">{{ _('项目类型') }}</th>
-                                    <td>
-                                        {% if quotation.project and quotation.project.project_type %}
-                                            <span class="badge badge-pill badge-transparent project-type-{{ quotation.project.project_type.lower().replace(' ', '-') }}">{{ quotation.project.project_type|project_type_label('zh') }}</span>
+                                        {% if quotation.customer %}
+                                            {{ quotation.customer.company_name }}
                                         {% else %}
                                             <span class="text-muted">{{ _('无') }}</span>
                                         {% endif %}
@@ -157,6 +154,26 @@
                                 <tr>
                                     <th class="bg-light">{{ _('联系人') }}</th>
                                     <td>{{ quotation.contact.name if quotation.contact else _('无') }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">{{ _('报价阶段') }}</th>
+                                    <td>
+                                        {% if quotation.project_stage %}
+                                            {{ render_project_stage(quotation.project_stage) }}
+                                        {% else %}
+                                            <span class="text-muted">{{ _('无') }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">{{ _('项目类型') }}</th>
+                                    <td>
+                                        {% if quotation.project_type %}
+                                            {{ render_project_type(quotation.project_type) }}
+                                        {% else %}
+                                            <span class="text-muted">{{ _('无') }}</span>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                             </table>
                         </div>
@@ -346,11 +363,14 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
 <!-- 用户配置数据 -->
-<div id="user-config" 
+<div id="user-config"
      data-role="{{ current_user.role|e }}"
      data-can-confirm="{% if current_user.role in ['solution_manager', 'admin'] %}true{% else %}false{% endif %}"
      data-is-product-role="{% if current_user.role in ['product_manager', 'product'] %}true{% else %}false{% endif %}"
      style="display: none;"></div>
+
+<!-- 标准确认对话框 -->
+{{ render_confirm_dialog() }}
 {% endblock %}
 
 {% block scripts %}
@@ -426,7 +446,7 @@ function deleteQuotation(id) {
     if (confirm('{{ _("确定要删除这个报价单吗？") }}')) {
         // 获取CSRF token
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-        
+
         fetch(`/quotation/${id}/delete`, {
             method: 'POST',
             headers: {
@@ -447,6 +467,93 @@ function deleteQuotation(id) {
             alert('{{ _("删除请求出错，请重试") }}');
         });
     }
+}
+
+// 提交批价流程
+function submitPricing(quotationId) {
+    // 前端验证：检查报价单产品明细确认状态
+    const confirmationStatus = '{{ quotation.confirmation_badge_status }}';
+
+    if (confirmationStatus !== 'confirmed') {
+        // 显示错误提示：产品明细未确认
+        if (typeof window.showConfirmDialog === 'function') {
+            window.showConfirmDialog({
+                title: '{{ _("无法提交批价") }}',
+                message: '{{ _("报价单产品明细尚未确认，无法提交批价单。") }}\n\n{{ _("请先由解决方案经理或管理员在产品明细区域点击确认徽章，确认产品明细后再提交批价流程。") }}',
+                type: 'warning',
+                confirmText: '{{ _("知道了") }}',
+                cancelText: '{{ _("取消") }}',
+                onConfirm: () => {}
+            });
+        } else {
+            showMessage('{{ _("报价单产品明细尚未确认，无法提交批价单。请先确认产品明细。") }}', 'error');
+        }
+        return;
+    }
+
+    // 获取报价单关联的项目ID
+    const projectId = {{ quotation.project.id if quotation.project else 'null' }};
+
+    if (!projectId) {
+        showMessage('{{ _("报价单未关联项目") }}', 'error');
+        return;
+    }
+
+    // 使用通用确认对话框
+    if (typeof window.showConfirmDialog === 'function') {
+        window.showConfirmDialog({
+            title: '{{ _("确认提交批价流程") }}',
+            message: '{{ _("确定要基于此报价单发起批价流程吗？") }}\n\n{{ _("批价单将基于已确认的产品明细创建，提交后将进入审批流程。") }}',
+            type: 'info',
+            confirmText: '{{ _("确认提交") }}',
+            cancelText: '{{ _("取消") }}',
+            onConfirm: () => {
+                // 执行批价单创建
+                executePricingOrderCreation(quotationId, projectId);
+            }
+        });
+    } else {
+        // 降级处理：使用原生confirm
+        if (confirm('{{ _("确定要发起批价流程吗？") }}')) {
+            executePricingOrderCreation(quotationId, projectId);
+        }
+    }
+}
+
+// 执行批价单创建
+function executePricingOrderCreation(quotationId, projectId) {
+    // 获取CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+    // 显示加载提示
+    showMessage('{{ _("正在创建批价单") }}...', 'info');
+
+    fetch(`/pricing_order/project/${projectId}/start_pricing_process`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            quotation_id: quotationId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage('{{ _("批价单创建成功，正在跳转") }}...', 'success');
+            // 跳转到批价单编辑页面
+            setTimeout(() => {
+                window.location.href = data.redirect_url;
+            }, 1000);
+        } else {
+            showMessage(data.message || '{{ _("创建批价单失败") }}', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('创建批价单时出错:', error);
+        showMessage('{{ _("创建批价单时出错，请重试") }}', 'error');
+    });
 }
 
 // 产品明细确认徽章初始化

@@ -133,9 +133,30 @@
                                 
                                 <!-- 兼容性隐藏字段：保留项目ID -->
                                 <input type="hidden" id="project_id" name="project_id" value="{% if quotation and quotation.project_id %}{{ quotation.project_id }}{% endif %}">
-                                
+
                                 <!-- 产品明细数据隐藏字段 -->
                                 <input type="hidden" id="productDetailsData" name="product_details" value="">
+                            </div>
+                        </div>
+
+                        <!-- 客户和联系人选择器 -->
+                        <div class="row mb-4">
+                            <!-- 客户选择器（左） -->
+                            <div class="col-md-6">
+                                <label for="customerId" class="form-label">
+                                    {{ _('关联客户') }} <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="customerId" name="customer_id" required>
+                                    <option value="">-- {{ _('请选择客户') }} --</option>
+                                </select>
+                            </div>
+
+                            <!-- 联系人选择器（右） -->
+                            <div class="col-md-6">
+                                <label for="contact_id" class="form-label">{{ _('选择联系人') }}</label>
+                                <select class="form-select" id="contact_id" name="contact_id">
+                                    <option value="">-- {{ _('可选') }} --</option>
+                                </select>
                             </div>
                         </div>
                         
@@ -371,56 +392,172 @@
 {{ init_project_search_scripts() }}
 
 <script>
+// 客户和联系人相关函数
+async function loadProjectCustomers(projectId) {
+    console.log('加载项目关联的客户，项目ID:', projectId);
+    const customerSelect = document.getElementById('customerId');
+
+    if (!customerSelect) return;
+
+    try {
+        customerSelect.innerHTML = '<option value="">{{ _("加载中...") }}</option>';
+        customerSelect.disabled = true;
+
+        const response = await fetch(`/project/api/customer_associations/${projectId}/search`);
+        if (!response.ok) throw new Error('加载失败');
+
+        const data = await response.json();
+        customerSelect.innerHTML = '<option value="">-- {{ _("请选择客户") }} --</option>';
+
+        if (data.results && data.results.length > 0) {
+            data.results.forEach(customer => {
+                const option = document.createElement('option');
+                option.value = customer.id;
+                option.textContent = customer.company_name;
+                // 不再拼接联系人，客户下拉框只显示公司名称
+                customerSelect.appendChild(option);
+            });
+            customerSelect.disabled = false;
+        } else {
+            customerSelect.disabled = true;
+        }
+    } catch (error) {
+        console.error('加载客户失败:', error);
+        customerSelect.innerHTML = '<option value="">-- {{ _("加载失败") }} --</option>';
+    }
+}
+
+async function loadCustomerContacts(customerId) {
+    console.log('加载客户联系人，客户ID:', customerId);
+    const contactSelect = document.getElementById('contact_id');
+
+    if (!contactSelect) return;
+
+    try {
+        contactSelect.innerHTML = '<option value="">{{ _("加载中...") }}</option>';
+        contactSelect.disabled = true;
+
+        const response = await fetch(`/api/customers/${customerId}/contacts`);
+        if (!response.ok) throw new Error('加载失败');
+
+        const data = await response.json();
+        contactSelect.innerHTML = '<option value="">-- {{ _("可选") }} --</option>';
+
+        if (data.contacts && data.contacts.length > 0) {
+            data.contacts.forEach(contact => {
+                const option = document.createElement('option');
+                option.value = contact.id;
+                option.textContent = contact.name;
+                // 不再拼接岗位，联系人下拉框只显示姓名
+                contactSelect.appendChild(option);
+            });
+            contactSelect.disabled = false;
+        }
+    } catch (error) {
+        console.error('加载联系人失败:', error);
+        contactSelect.innerHTML = '<option value="">-- {{ _("加载失败") }} --</option>';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('报价单编辑页面加载完成');
-    
+
     // 监听项目搜索组件的选择事件
     $(document).on('projectSelected', function(e) {
         const project = e.detail.project;
         console.log('项目已选择:', project);
-        
+
         // 更新项目ID隐藏字段
         $('#project_id').val(project.id);
     });
-    
-    
+
+    // 监听客户选择变化
+    $('#customerId').on('change', function() {
+        const customerId = $(this).val();
+        if (customerId) {
+            loadCustomerContacts(customerId);
+        } else {
+            $('#contact_id').html('<option value="">-- {{ _("可选") }} --</option>').prop('disabled', true);
+        }
+    });
+
+    // 初始化客户和联系人数据（编辑模式）
+    {% if quotation and quotation.project_id %}
+    const projectId = {{ quotation.project_id }};
+    const savedCustomerId = {{ quotation.customer_id if quotation.customer_id else 'null' }};
+    const savedContactId = {{ quotation.contact_id if quotation.contact_id else 'null' }};
+
+    console.log('编辑模式：初始化客户和联系人数据', {projectId, savedCustomerId, savedContactId});
+
+    // 加载项目关联的客户
+    loadProjectCustomers(projectId).then(() => {
+        console.log('项目关联客户加载完成');
+
+        // 如果有已保存的客户，选中它
+        if (savedCustomerId) {
+            console.log('设置已保存的客户ID:', savedCustomerId);
+            $('#customerId').val(savedCustomerId);
+
+            // 如果有已保存的联系人，加载联系人后选中
+            if (savedContactId) {
+                console.log('开始加载客户联系人以设置已保存的联系人');
+                loadCustomerContacts(savedCustomerId).then(() => {
+                    console.log('联系人加载完成，设置已保存的联系人ID:', savedContactId);
+                    $('#contact_id').val(savedContactId);
+                }).catch(err => {
+                    console.error('加载联系人失败:', err);
+                });
+            }
+        }
+    }).catch(err => {
+        console.error('加载客户失败:', err);
+    });
+    {% endif %}
+
     // 表单提交处理
     document.getElementById('quotationForm').addEventListener('submit', function(e) {
         e.preventDefault();
-        
+
+        // 验证客户必填
+        const customerId = $('#customerId').val();
+        if (!customerId) {
+            alert('{{ _("请选择客户") }}');
+            return;
+        }
+
         if (!window.productDetailManager) {
             alert('{{ _("产品明细管理器未初始化") }}');
             return;
         }
-        
+
         // 验证产品明细
         const errors = window.productDetailManager.validateAll();
         if (errors.length > 0) {
             alert('{{ _("请检查产品明细") }}:\n' + errors.map(e => e.message).join('\n'));
             return;
         }
-        
+
         // 获取产品明细数据
         const productDetails = window.productDetailManager.getAllData();
-        
+
         if (productDetails.length === 0) {
             alert('{{ _("请至少添加一个产品明细") }}');
             return;
         }
-        
+
         // 设置隐藏字段
         document.getElementById('productDetailsData').value = JSON.stringify(productDetails);
-        
+
         // 显示加载状态
         const submitBtn = document.getElementById('submit-btn');
         const originalText = submitBtn.textContent;
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 保存中...';
-        
+
         // 提交表单
         this.submit();
     });
-    
+
     // 编辑模式初始化完成
     console.log('报价单编辑页面初始化完成，数据已通过组件参数直接传递');
 });

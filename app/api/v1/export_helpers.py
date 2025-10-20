@@ -12,6 +12,7 @@ from app.models.customer import Company, Contact
 from app.models.user import User
 from app.decorators import permission_required
 from app.utils.access_control import get_viewable_data
+from app.utils.dictionary_helpers import company_type_label, company_type_color
 from flask_login import current_user
 import logging
 
@@ -39,17 +40,8 @@ def search_customers():
         company_type = request.args.get('company_type', '').strip()  # 可选的公司类型过滤
         has_inventory = request.args.get('has_inventory', '').strip().lower()  # 可选的库存过滤
 
-        if not search_query and not customer_id:
-            # 如果有过滤条件（company_type 或 has_inventory），允许空搜索返回所有符合条件的结果
-            # 这样可以支持"点击展开所有，输入过滤"的交互体验
-            if not company_type and has_inventory != 'true':
-                return jsonify({
-                    'success': True,
-                    'results': [],
-                    'total': 0,
-                    'message': '请输入搜索关键词'
-                })
-            # 有过滤条件时，继续执行后续逻辑，返回所有符合过滤条件的公司
+        # 支持空搜索：点击时展开显示所有符合权限的客户（受limit限制）
+        # 无论是否有过滤条件，都允许空搜索，提供一致的用户体验
 
         # 构建基础查询
         query = get_viewable_data(Company, current_user)
@@ -115,6 +107,9 @@ def search_customers():
                 'contact_email': primary_contact.email if primary_contact else '',
                 'industry': customer.industry or '',
                 'company_type': customer.company_type or '',
+                # 使用通用函数返回徽章信息（复用系统标准）
+                'company_type_label': company_type_label(customer.company_type) if customer.company_type else '',
+                'company_type_color': company_type_color(customer.company_type) if customer.company_type else '#6c757d',
                 'created_at': customer.created_at.strftime('%Y-%m-%d') if customer.created_at else '',
                 # 添加拥有者信息
                 'owner': {

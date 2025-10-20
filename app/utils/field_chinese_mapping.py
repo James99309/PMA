@@ -185,6 +185,7 @@ COMPANY_FIELDS = {
     'company_name': '公司名称',
     'company_type': '企业类型',
     'company_code': '公司代码',
+    'source': '来源',
     'business_license': '营业执照',
     'tax_number': '税号',
     'registration_address': '注册地址',
@@ -347,6 +348,7 @@ FORM_FIELD_MAPPINGS = {
     'address': '详细地址',
     'industry': '行业',
     'company_type': '企业类型',
+    'source': '来源',
     'notes': '备注',
     
     # 项目管理表单字段
@@ -440,6 +442,8 @@ FORM_FIELD_MAPPINGS = {
     'currency': '货币',
     'exchange_rate': '汇率',
     'invoice_number': '发票号',
+    'invoice_amount': '发票金额',
+    'document_count': '单据数量',
     'vendor_name': '供应商名称',
     'business_purpose': '业务目的',
     'expense_description': '费用描述',
@@ -651,6 +655,7 @@ def get_form_fields_by_module():
             'address': '详细地址',
             'industry': '行业',
             'company_type': '企业类型',
+            'source': '来源',
             'notes': '备注',
         },
         'project': {
@@ -752,6 +757,8 @@ def get_form_fields_by_module():
             'amount': '金额',
             'exchange_rate': '汇率',
             'invoice_number': '发票号',
+            'invoice_amount': '发票金额',
+            'document_count': '单据数量',
             'vendor_name': '供应商名称',
             'business_purpose': '业务目的',
             'expense_description': '费用描述',

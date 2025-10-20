@@ -97,6 +97,41 @@ def get_personal_viewable_user_ids(user):
 
     return list(set(viewable_user_ids))
 
+def _check_permission_level_scope(user, target_owner_id, permission_level):
+    """
+    检查用户的权限级别是否覆盖目标数据拥有者
+
+    用于统一检查change_owner等权限操作中的权限级别范围。
+
+    参数:
+        user: 当前用户
+        target_owner_id: 目标数据拥有者ID
+        permission_level: 权限级别 (system/company/department/personal)
+
+    返回:
+        bool: 是否在权限范围内
+    """
+    if permission_level == 'system':
+        return True
+
+    if permission_level == 'personal':
+        # personal级别：只能操作自己的数据
+        return target_owner_id == user.id
+
+    from app.models.user import User
+    owner = User.query.get(target_owner_id)
+    if not owner:
+        return False
+
+    if permission_level == 'company' and user.company_name:
+        return owner.company_name == user.company_name
+
+    elif permission_level == 'department' and user.department and user.company_name:
+        return (owner.department == user.department and
+               owner.company_name == user.company_name)
+
+    return False
+
 def apply_content_filters(query, model_class, module_name, user):
     """
     应用内容过滤器（content_filters）到查询
@@ -918,7 +953,7 @@ def can_edit_data(model_obj, user):
         # personal级别：已在基本权限保障中处理，这里返回False
         return False
     
-    # 报价单特殊处理：项目的厂商负责人可以编辑相关报价单
+    # 报价单特殊处理：基于权限级别的编辑权限控制
     if model_name == 'Quotation':
         # 🆕 基本权限保障 - 用户始终可以编辑自己创建的报价单
         if _has_basic_edit_permission(model_obj, user):
@@ -934,6 +969,27 @@ def can_edit_data(model_obj, user):
         if user_role in ['solution_manager', 'solution']:
             return True
 
+        # 检查用户是否有报价单模块的编辑权限（用于编辑他人数据）
+        if not user.has_permission('quotation', 'edit'):
+            return False
+
+        # 检查权限级别（决定可以编辑哪些他人的数据）
+        permission_level = user.get_permission_level('quotation')
+
+        if permission_level == 'system':
+            # 系统级权限：可以编辑所有报价单
+            return True
+        elif permission_level == 'company' and user.company_name:
+            # 企业级权限：可以编辑企业下所有报价单
+            data_owner = User.query.get(model_obj.owner_id)
+            return data_owner and data_owner.company_name == user.company_name
+        elif permission_level == 'department' and user.department and user.company_name:
+            # 部门级权限：可以编辑部门下所有报价单
+            data_owner = User.query.get(model_obj.owner_id)
+            return (data_owner and data_owner.department == user.department and
+                   data_owner.company_name == user.company_name)
+
+        # personal级别：已在基本权限保障中处理，这里返回False
         return False
     
     # 报销单特殊处理：支持审批权限
@@ -1327,114 +1383,44 @@ def register_context_processors(app):
         )
 
 def can_change_company_owner(user, company):
-    """
-    判断用户是否有权修改客户的拥有人。
-    - 管理员可修改所有客户
-    - 部门负责人（is_department_manager为True或角色为sales_director）可修改本部门成员的客户
-    """
+    """判断用户是否有权修改客户的拥有人。"""
     if user.role == 'admin':
         return True
-    # 支持多种部门负责人角色
-    if getattr(user, 'is_department_manager', False) or user.role == 'sales_director':
-        owner = User.query.get(company.owner_id)
-        if not owner:
-            return False
-        # 只允许操作本部门成员
-        return hasattr(owner, 'department') and hasattr(user, 'department') and owner.department == user.department
+
+    # 检查用户是否具有客户模块的拥有人修改权限
+    if user.has_permission('customer', 'change_owner'):
+        permission_level = user.get_permission_level('customer')
+        return _check_permission_level_scope(user, company.owner_id, permission_level)
+
     return False
 
 def can_change_project_owner(user, project):
-    """
-    判断用户是否有权修改项目的拥有人。
-    基于权限系统的检查，不再硬编码角色名称。
-    
-    权限检查顺序：
-    1. 管理员可修改所有项目
-    2. 项目拥有人可以修改自己的项目
-    3. 厂商负责人可以修改相关项目  
-    4. 通过权限系统检查用户是否有project模块的change_owner权限
-    5. 部门负责人可以修改本公司本部门成员的项目
-    """
+    """判断用户是否有权修改项目的拥有人。"""
     if user.role == 'admin':
         return True
-    
-    # 项目拥有人可以修改自己的项目
-    if project.owner_id == user.id:
-        return True
-    
-    # 厂商负责人可以修改相关项目
+
+    # 厂商销售负责人特权（唯一无法用权限系统表达的业务关系）
     if hasattr(project, 'vendor_sales_manager_id') and project.vendor_sales_manager_id == user.id:
         return True
-    
+
     # 检查用户是否具有项目模块的拥有人修改权限
     if user.has_permission('project', 'change_owner'):
-        # 根据用户的权限级别决定可修改的范围
         permission_level = user.get_permission_level('project')
-        
-        if permission_level == 'system':
-            # 系统级权限：可以修改所有项目
-            return True
-        elif permission_level in ['company', 'department']:
-            # 企业级或部门级权限：需要验证项目拥有者是否在可管理范围内
-            from app.models.user import User
-            owner = User.query.get(project.owner_id)
-            if not owner:
-                return False
-            
-            if permission_level == 'company' and user.company_name:
-                return owner.company_name == user.company_name
-            elif permission_level == 'department' and user.department and user.company_name:
-                return (owner.department == user.department and 
-                       owner.company_name == user.company_name)
-        elif permission_level == 'personal':
-            # 个人级权限：只能修改自己的项目（已在上面检查过）
-            return False
-    
-    # 部门负责人特殊权限：可以修改本公司本部门成员的项目
-    if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
-        from app.models.user import User
-        owner = User.query.get(project.owner_id)
-        if not owner:
-            return False
-        return (owner.department == user.department and owner.company_name == user.company_name)
-    
+        return _check_permission_level_scope(user, project.owner_id, permission_level)
+
     return False
 
 def can_change_quotation_owner(user, quotation):
-    """
-    判断用户是否有权修改报价单的拥有人。
-    - 管理员可修改所有报价单
-    - 部门负责人可修改本部门成员的报价单
-    - 基于报价单模块的编辑权限和数据权限级别
-    """
+    """判断用户是否有权修改报价单的拥有人。"""
     if user.role == 'admin':
         return True
-    
+
     # 检查用户是否有报价单模块的编辑权限
-    if not user.has_permission('quotation', 'edit'):
-        return False
-    
-    # 获取用户在报价单模块的权限级别
-    permission_level = user.get_permission_level('quotation')
-    
-    if permission_level in ['system', 'company']:
-        return True
-    elif permission_level == 'department':
-        owner = User.query.get(quotation.owner_id)
-        if not owner:
-            return False
-        return (hasattr(owner, 'department') and hasattr(user, 'department') and 
-                owner.department == user.department and owner.company_name == user.company_name)
-    else:
-        # 个人级权限或部门负责人权限
-        if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
-            owner = User.query.get(quotation.owner_id)
-            if not owner:
-                return False
-            return (hasattr(owner, 'department') and hasattr(user, 'department') and 
-                    hasattr(owner, 'company_name') and hasattr(user, 'company_name') and
-                    owner.department == user.department and owner.company_name == user.company_name)
-        return False
+    if user.has_permission('quotation', 'edit'):
+        permission_level = user.get_permission_level('quotation')
+        return _check_permission_level_scope(user, quotation.owner_id, permission_level)
+
+    return False
 
 def can_delete_project(user, project):
     """

@@ -166,6 +166,11 @@ class Project(SharingMixin, db.Model):
         
         return f'<span class="badge bg-{color}">{name}</span>'
 
+    @property
+    def display_name(self):
+        """获取项目显示名称（用于搜索组件）"""
+        return self.project_name
+
     @staticmethod
     def generate_authorization_code(project_type):
         """生成授权编号

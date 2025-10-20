@@ -232,10 +232,12 @@ class User(db.Model, UserMixin):
             # 合并权限检查
             user_has_permission = role_has_any_permission or personal_has_any_permission
             
-            # 3. 权限级别优先级：个人权限设置 > 角色权限设置
+            # 3. 权限级别优先级：使用 permission_level 作为判断基准
+            #    - 如果 permission_level 有值（is not None）→ 使用个人权限级别
+            #    - 如果 permission_level 为 None 或记录不存在 → 使用角色权限级别
             if user_has_permission:
-                # 如果个人权限中有设置权限级别，使用个人权限级别
-                if permission and permission.permission_level:
+                # 判断个人权限级别是否为 None（使用 is not None 而不是 truthy 判断）
+                if permission and permission.permission_level is not None:
                     final_level = permission.permission_level
                 else:
                     # 否则使用角色权限级别

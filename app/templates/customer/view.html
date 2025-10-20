@@ -65,6 +65,7 @@
                         <div class="row g-1 small">
                             <div class="col-6">{{ _('企业类型') }}：{% if company.company_type %}{{ render_company_type_badge(company.company_type) }}{% else %}{{ _('未指定') }}{% endif %}</div>
                             <div class="col-6">{{ _('行业') }}：{% if company.industry %}{{ render_industry_badge(company.industry, get_current_language()) }}{% else %}{{ _('未指定') }}{% endif %}</div>
+                            <div class="col-6">{{ _('来源') }}：{% if company.source %}{{ render_report_source_badge(company.source) }}{% else %}{{ _('未指定') }}{% endif %}</div>
                             <div class="col-6">{{ _('国家/地区') }}：{{ country_code_to_name[company.country] if company.country in country_code_to_name else company.country or _('未指定') }}</div>
                             <div class="col-6">{{ _('省/州') }}：{{ company.region or _('未指定') }}</div>
                         </div>
@@ -111,20 +112,26 @@
                 <div class="card-body pt-2">
                     <!-- 基础信息 -->
                     <div class="mb-3 pb-2 border-bottom">
-                        <div class="row">
-                            <div class="col-md-3">
+                        <div class="row mb-2">
+                            <div class="col-md-4">
                                 <label class="info-label text-secondary">{{ _('企业类型') }}</label>
                                 <div>{% if company.company_type %}{{ render_company_type_badge(company.company_type) }}{% else %}{{ _('未指定') }}{% endif %}</div>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="info-label text-secondary">{{ _('行业') }}</label>
                                 <div>{% if company.industry %}{{ render_industry_badge(company.industry, get_current_language()) }}{% else %}{{ _('未指定') }}{% endif %}</div>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
+                                <label class="info-label text-secondary">{{ _('来源') }}</label>
+                                <div>{% if company.source %}{{ render_report_source_badge(company.source) }}{% else %}{{ _('未指定') }}{% endif %}</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
                                 <label class="info-label text-secondary">{{ _('国家/地区') }}</label>
                                 <div>{{ country_code_to_name[company.country] if company.country in country_code_to_name else company.country or _('未指定') }}</div>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-6">
                                 <label class="info-label text-secondary">{{ _('省/州') }}</label>
                                 <div>{{ company.region or _('未指定') }}</div>
                             </div>

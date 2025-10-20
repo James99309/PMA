@@ -73,28 +73,10 @@ def get_default_permission_dict():
         'content_filters': None
     }
 
-def merge_permission_dicts(role_perm, personal_perm):
-    """合并角色权限和个人权限（个人权限优先）
-
-    Args:
-        role_perm: 角色权限字典
-        personal_perm: 个人权限字典
-
-    Returns:
-        dict: 合并后的权限字典
-    """
-    return {
-        'can_view': role_perm['can_view'] or personal_perm['can_view'],
-        'can_create': role_perm['can_create'] or personal_perm['can_create'],
-        'can_edit': role_perm['can_edit'] or personal_perm['can_edit'],
-        'can_delete': role_perm['can_delete'] or personal_perm['can_delete'],
-        'can_change_owner': role_perm['can_change_owner'] or personal_perm['can_change_owner'],
-        'permission_level': personal_perm.get('permission_level') if personal_perm.get('permission_level') != 'personal' else role_perm.get('permission_level', 'personal'),
-        'pricing_discount_limit': personal_perm.get('pricing_discount_limit') if personal_perm.get('pricing_discount_limit') is not None else role_perm.get('pricing_discount_limit'),
-        'settlement_discount_limit': personal_perm.get('settlement_discount_limit') if personal_perm.get('settlement_discount_limit') is not None else role_perm.get('settlement_discount_limit'),
-        'content_filters': personal_perm.get('content_filters') if personal_perm.get('content_filters') is not None else role_perm.get('content_filters')
-    }
 # ==================== 权限字典辅助函数结束 ====================
+# 注意：merge_permission_dicts 函数已删除，现在使用 permission_level 作为判断基准
+# - 如果 permission_level 有值 → 使用个人权限
+# - 如果 permission_level 为 None → 使用角色权限
 
 def get_auth_headers():
     """获取认证头部信息"""
@@ -1707,6 +1689,7 @@ def get_default_modules():
         {"id": "customer", "name": "客户管理", "description": "管理客户信息和联系人"},
         {"id": "quotation", "name": "报价管理", "description": "管理产品报价"},
         {"id": "product", "name": "产品管理", "description": "管理产品信息和价格"},
+        {"id": "rd_product", "name": "研发产品库", "description": "管理研发产品信息和技术参数"},
         {"id": "product_code", "name": "产品编码", "description": "管理产品编码系统"},
         {"id": "inventory", "name": "库存管理", "description": "管理库存信息和出入库"},
         {"id": "settlement", "name": "结算管理", "description": "管理结算单和结算记录"},
@@ -1745,22 +1728,41 @@ def user_detail(user_id):
     for perm in role_perms:
         role_permissions[perm.module] = build_permission_dict(perm)
 
+    # 转换角色权限为数组格式（用于前端），确保包含所有模块
+    role_permissions_list = []
+    for module in modules:
+        module_id = module['id']
+        perm = role_permissions.get(module_id, get_default_permission_dict())
+        perm_copy = perm.copy()
+        perm_copy['module'] = module_id
+        role_permissions_list.append(perm_copy)
+
     # 获取用户的个人权限，使用辅助函数构建字典
     personal_perms = list(user.permissions) if hasattr(user, 'permissions') else []
     personal_permissions = {}
     for permission in personal_perms:
         personal_permissions[permission.module] = build_permission_dict(permission)
 
-    # 合并权限：个人权限可以增强角色权限，生成完整的权限列表
+    # 权限加载逻辑：使用 permission_level 作为判断基准
+    # - 如果 permission_level 有值 → 使用个人权限（完全覆盖角色权限）
+    # - 如果 permission_level 为 None 或记录不存在 → 使用角色权限
     permissions = []
     for module in modules:
         module_id = module['id']
-        # 使用辅助函数获取默认值和合并权限
+        # 获取角色权限和个人权限
         role_perm = role_permissions.get(module_id, get_default_permission_dict())
-        personal_perm = personal_permissions.get(module_id, get_default_permission_dict())
+        personal_perm = personal_permissions.get(module_id)  # 不存在时返回 None
 
-        # 使用辅助函数合并权限并添加module字段
-        final_perm = merge_permission_dicts(role_perm, personal_perm)
+        # 判断基准：permission_level 是否为 None
+        if personal_perm and personal_perm.get('permission_level') is not None:
+            # permission_level 有值 → 使用个人权限（完全覆盖）
+            final_perm = personal_perm.copy()
+            final_perm['is_using_role_default'] = False
+        else:
+            # permission_level 为 None 或记录不存在 → 使用角色权限
+            final_perm = role_perm.copy()
+            final_perm['is_using_role_default'] = True
+
         final_perm['module'] = module_id
         permissions.append(final_perm)
     affiliation_users = []
@@ -1866,11 +1868,14 @@ def user_detail(user_id):
         (current_user.has_permission('performance_management', 'edit') and user.id in [u.id for u in accessible_users])
     )
 
+    # 计算用户管理编辑权限
+    can_edit_user = current_user.has_permission('user_management', 'edit')
+
     return render_template(
         'user/detail.html',
         user=user,
         permissions=permissions,
-        role_permissions=role_permissions,
+        role_permissions=role_permissions_list,  # 传递数组格式给前端
         personal_permissions=personal_permissions,
         filter_configs=filter_configs,
         affiliations=affiliations,
@@ -1878,7 +1883,8 @@ def user_detail(user_id):
         modules=modules,
         is_vendor=is_vendor,
         can_view_performance=can_view_performance,
-        can_edit_performance=can_edit_performance
+        can_edit_performance=can_edit_performance,
+        can_edit_user=can_edit_user
     )
 
 @user_bp.route('/batch-delete', methods=['POST'])

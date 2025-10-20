@@ -54,6 +54,7 @@ class Company(SharingMixin, db.Model):
     address = db.Column(db.String(200))  # 详细地址
     industry = db.Column(db.String(50))  # 行业
     company_type = db.Column(db.String(20))  # 企业类型（用户/经销商/系统集成商/设计院及顾问/总承包单位）
+    source = db.Column(db.String(20))  # 来源（渠道报备/销售线索/市场拓展）
     status = db.Column(db.String(20))  # 状态
     created_at = db.Column(db.DateTime, default=get_local_time)
     updated_at = db.Column(db.DateTime, default=get_local_time)

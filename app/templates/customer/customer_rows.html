@@ -1,4 +1,4 @@
-{% from 'macros/ui_helpers.html' import render_owner, render_customer_status_badge, render_company_type_badge, render_industry_badge %}
+{% from 'macros/ui_helpers.html' import render_owner, render_customer_status_badge, render_company_type_badge, render_industry_badge, render_report_source_badge %}
 {% for company in items %}
 <tr>
     <td class="px-3">{{ render_owner(company.owner) if company.owner else '-' }}</td>
@@ -13,6 +13,7 @@
     </td>
     <td class="px-3">{{ render_company_type_badge(company.company_type) if company.company_type else '-' }}</td>
     <td class="px-3">{{ render_industry_badge(company.industry) if company.industry else '-' }}</td>
+    <td class="px-3">{{ render_report_source_badge(company.source) if company.source else '-' }}</td>
     <td class="px-3">{{ render_customer_status_badge(company.status) if company.status else '-' }}</td>
     <td class="px-3">
         {% if company.country %}

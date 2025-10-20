@@ -65,8 +65,8 @@
                         </div>
 
                         <div class="mb-3">
-                            <label for="address" class="form-label">{{ get_form_label('company', 'address', '详细地址', required=true) }}</label>
-                            <input type="text" class="form-control" id="address" name="address" placeholder="{{ _('示例：中国 北京市 朝阳区xx路') }}" required disabled>
+                            <label for="address" class="form-label">{{ get_form_label('company', 'address', '详细地址') }}</label>
+                            <input type="text" class="form-control" id="address" name="address" placeholder="{{ _('示例：中国 北京市 朝阳区xx路') }}" disabled>
                         </div>
 
                         <div class="row mb-3">
@@ -88,6 +88,16 @@
                                     {% endfor %}
                                 </select>
                             </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="source" class="form-label">{{ get_form_label('company', 'source', '来源', required=true) }}</label>
+                            <select class="form-select" id="source" name="source" required>
+                                <option value="">{{ _('请选择来源') }}</option>
+                                {% for value, label in REPORT_SOURCE_OPTIONS %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
 
                         <div class="mb-3">
@@ -159,6 +169,7 @@ window.i18nTexts = {
     detailedAddress: '{{ _("详细地址") }}',
     industry: '{{ _("行业") }}',
     companyType: '{{ _("企业类型") }}',
+    source: '{{ _("来源") }}',
     requiredField: '{{ _("此字段为必填项") }}',
     pleaseComplete: '{{ _("请填写以下必填字段：") }}'
 };
@@ -230,11 +241,11 @@ $(document).ready(function() {
     // 添加启用/禁用表单字段的函数
     function toggleFormFields(enable) {
         const formFields = [
-            '#country', '#region', '#address', '#industry', '#company_type', '#notes',
+            '#country', '#region', '#address', '#industry', '#company_type', '#source', '#notes',
             '#contact_name', '#contact_department', '#contact_position', '#contact_phone', '#contact_email', '#contact_notes',
             'button[type="submit"]'
         ];
-        
+
         formFields.forEach(selector => {
             $(selector).prop('disabled', !enable);
         });
@@ -430,9 +441,9 @@ $(document).ready(function() {
             { selector: '#company_name', name: window.i18nTexts.companyName },
             { selector: '#country', name: window.i18nTexts.countryRegion },
             { selector: '#region', name: window.i18nTexts.provinceState },
-            { selector: '#address', name: window.i18nTexts.detailedAddress },
             { selector: '#industry', name: window.i18nTexts.industry },
-            { selector: '#company_type', name: window.i18nTexts.companyType }
+            { selector: '#company_type', name: window.i18nTexts.companyType },
+            { selector: '#source', name: window.i18nTexts.source }
         ];
         
         let missingFields = [];

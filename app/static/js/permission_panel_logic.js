@@ -1017,6 +1017,52 @@ const PermissionPanel = (function() {
     }
 
     /**
+     * 恢复角色设置
+     */
+    function resetAllModulesToRole() {
+        showConfirmDialog({
+            title: '恢复角色设置',
+            message: '此操作将清除所有个人权限修改，恢复为角色默认设置。\n您仍需点击"保存"按钮来应用更改。\n\n是否继续？',
+            type: 'warning',
+            confirmText: '确认恢复',
+            cancelText: '取消',
+            confirmColor: 'warning',
+            onConfirm: function() {
+                // 清空缓存
+                modulePermissionsCache = {};
+
+                // 使用角色权限替换当前权限（深拷贝避免引用问题）
+                // 防御性检查：确保 rolePermissions 是数组
+                if (Array.isArray(config.rolePermissions)) {
+                    currentPermissions = JSON.parse(JSON.stringify(config.rolePermissions));
+                } else {
+                    console.error('❌ 角色权限数据格式错误，应为数组:', config.rolePermissions);
+                    showTopNotification('恢复失败：角色权限数据格式错误', 'error', 3000);
+                    return;
+                }
+
+                // 显示提示
+                const notice = document.getElementById('roleDefaultNotice');
+                if (notice) {
+                    notice.style.display = 'block';
+                }
+
+                // 标记未保存
+                hasUnsavedChanges = true;
+                updateSaveButtonState();
+
+                // 刷新UI
+                renderModuleList();
+                if (currentSelectedModule) {
+                    renderConfigPanel(currentSelectedModule);
+                }
+
+                console.log('✅ 已恢复为角色默认设置');
+            }
+        });
+    }
+
+    /**
      * 更新保存按钮状态
      */
     function updateSaveButtonState() {
@@ -1065,6 +1111,12 @@ const PermissionPanel = (function() {
             saveButton.addEventListener('click', savePermissions);
         }
 
+        // 恢复角色设置按钮事件
+        const resetButton = document.getElementById('resetAllToRole');
+        if (resetButton) {
+            resetButton.addEventListener('click', resetAllModulesToRole);
+        }
+
         // 表单变化监听
         const permissionConfigPanel = document.getElementById('permissionConfigPanel');
         if (permissionConfigPanel) {
@@ -1072,6 +1124,12 @@ const PermissionPanel = (function() {
                 hasUnsavedChanges = true;
                 updateSaveButtonState();
                 console.log('检测到表单变化，标记为未保存');
+
+                // 隐藏角色默认提示
+                const notice = document.getElementById('roleDefaultNotice');
+                if (notice && notice.style.display !== 'none') {
+                    notice.style.display = 'none';
+                }
 
                 // 实时更新模块列表中当前模块的状态
                 if (currentSelectedModule) {

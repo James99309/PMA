@@ -88,12 +88,7 @@
                                         "validate_on_submit": true
                                     }
                                 } %}
-                                {% set selected_project = None %}
-                                {% if preset_project_id %}
-                                    {# 如果有预设项目ID，这里可以加载项目信息 #}
-                                    {% set selected_project = {'id': preset_project_id} %}
-                                {% endif %}
-                                
+
                                 {{ render_project_search(
                                     config=project_search_config,
                                     selected_project=selected_project,
@@ -118,6 +113,35 @@
                                     {% endfor %}
                                 </div>
                                 {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- 客户和联系人选择器 -->
+                        <div class="row mb-3">
+                            <!-- 客户选择器（左） -->
+                            <div class="col-md-6">
+                                <label for="customerId" class="form-label">{{ _('关联客户') }}</label>
+                                <select class="form-select" id="customerId" name="customer_id" disabled>
+                                    <option value="">-- {{ _('请先选择项目') }} --</option>
+                                    {% if preset_customers %}
+                                        {% for customer in preset_customers %}
+                                            <option value="{{ customer.id }}">
+                                                {{ customer.company_name }}
+                                                {% if customer.contact_person %}
+                                                    - {{ customer.contact_person }}
+                                                {% endif %}
+                                            </option>
+                                        {% endfor %}
+                                    {% endif %}
+                                </select>
+                            </div>
+
+                            <!-- 联系人选择器（右） -->
+                            <div class="col-md-6">
+                                <label for="contact_id" class="form-label">{{ _('选择联系人') }}</label>
+                                <select class="form-select" id="contact_id" name="contact_id" disabled>
+                                    <option value="">-- {{ _('请先选择客户') }} --</option>
+                                </select>
                             </div>
                         </div>
 
@@ -327,15 +351,184 @@
 
 <!-- 初始化项目搜索组件 -->
 {{ init_project_search_scripts() }}
+
 <script>
 // 设置页面类型标志 - 这是创建页面
 var isCreatePage = true;
 var isEditPage = false;
 
+// 国际化文本定义
+window.i18nTexts = window.i18nTexts || {};
+Object.assign(window.i18nTexts, {
+    loading: '{{ _("加载中...") }}',
+    pleaseSelectContact: '{{ _("请选择联系人") }}',
+    noContactsForCustomer: '{{ _("该客户暂无联系人") }}',
+    loadContactsFailed: '{{ _("加载联系人失败") }}',
+    pleaseSelectCustomerFirst: '{{ _("请先选择客户") }}',
+    pleaseSelectProject: '{{ _("请先选择项目") }}',
+    apiRequestFailed: '{{ _("API请求失败: {status}") }}'
+});
+
 // 移除项目阶段和类型翻译函数，因为这些信息在保存时从项目表获取
 
 // 旧的项目列表加载逻辑已移除，现在由通用项目搜索组件处理
 
+// ========================================
+// 联系人选择器相关函数
+// ========================================
+
+/**
+ * 加载客户联系人
+ * @param {number} customerId - 客户ID
+ */
+async function loadCustomerContacts(customerId) {
+    console.log('开始加载客户联系人，客户ID:', customerId);
+    const contactSelect = document.getElementById('contact_id');
+
+    if (!contactSelect) {
+        console.error('联系人选择框元素未找到');
+        return;
+    }
+
+    try {
+        // 清空当前选项并显示加载状态
+        contactSelect.innerHTML = '<option value="">' + window.i18nTexts.loading + '</option>';
+        contactSelect.disabled = true;
+
+        // 获取客户联系人
+        console.log('发送API请求:', `/api/customers/${customerId}/contacts`);
+        const response = await fetch(`/api/customers/${customerId}/contacts`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.querySelector('input[name="csrf_token"]')?.value || ''
+            },
+            credentials: 'same-origin'
+        });
+
+        if (!response.ok) {
+            throw new Error(window.i18nTexts.apiRequestFailed.replace('{status}', response.status));
+        }
+
+        const data = await response.json();
+        console.log('API响应数据:', data);
+
+        // 清空并添加新选项
+        contactSelect.innerHTML = '<option value="">' + window.i18nTexts.pleaseSelectContact + '</option>';
+
+        if (data.contacts && data.contacts.length > 0) {
+            data.contacts.forEach(contact => {
+                const option = document.createElement('option');
+                option.value = contact.id;
+                option.textContent = `${contact.name}${contact.position ? ' (' + contact.position + ')' : ''}`;
+                contactSelect.appendChild(option);
+            });
+            contactSelect.disabled = false;
+            console.log('联系人选择框已启用，选项数量:', data.contacts.length);
+        } else {
+            contactSelect.innerHTML = '<option value="">' + window.i18nTexts.noContactsForCustomer + '</option>';
+            contactSelect.disabled = true;
+        }
+
+    } catch (error) {
+        console.error('加载联系人失败:', error);
+        contactSelect.innerHTML = '<option value="">' + window.i18nTexts.loadContactsFailed + '</option>';
+        contactSelect.disabled = true;
+    }
+}
+
+/**
+ * 清空联系人选择
+ */
+function clearContactSelection() {
+    const contactSelect = document.getElementById('contact_id');
+    if (contactSelect) {
+        contactSelect.innerHTML = '<option value="">' + window.i18nTexts.pleaseSelectCustomerFirst + '</option>';
+        contactSelect.disabled = true;
+    }
+}
+
+// ========================================
+// 项目联动控制函数
+// ========================================
+
+/**
+ * 加载项目关联的客户列表
+ * @param {number} projectId - 项目ID
+ */
+async function loadProjectCustomers(projectId) {
+    console.log('开始加载项目关联的客户，项目ID:', projectId);
+    const customerSelect = document.getElementById('customerId');
+
+    if (!customerSelect) {
+        console.error('客户选择框元素未找到');
+        return;
+    }
+
+    try {
+        // 清空当前选项并显示加载状态
+        customerSelect.innerHTML = '<option value="">' + window.i18nTexts.loading + '</option>';
+        customerSelect.disabled = true;
+
+        // 获取项目关联的客户
+        console.log('发送API请求:', `/project/api/customer_associations/${projectId}/search`);
+        const response = await fetch(`/project/api/customer_associations/${projectId}/search`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.querySelector('input[name="csrf_token"]')?.value || ''
+            },
+            credentials: 'same-origin'
+        });
+
+        if (!response.ok) {
+            throw new Error(window.i18nTexts.apiRequestFailed.replace('{status}', response.status));
+        }
+
+        const data = await response.json();
+        console.log('API响应数据:', data);
+
+        // 清空并添加新选项
+        customerSelect.innerHTML = '<option value="">-- {{ _("请选择客户") }} --</option>';
+
+        if (data.results && data.results.length > 0) {
+            data.results.forEach(customer => {
+                const option = document.createElement('option');
+                option.value = customer.id;
+                option.textContent = customer.company_name;
+                if (customer.contact_person) {
+                    option.textContent += ' - ' + customer.contact_person;
+                }
+                customerSelect.appendChild(option);
+            });
+            customerSelect.disabled = false;
+            console.log('客户选择框已启用，选项数量:', data.results.length);
+        } else {
+            customerSelect.innerHTML = '<option value="">-- {{ _("该项目暂无关联客户") }} --</option>';
+            customerSelect.disabled = true;
+        }
+
+    } catch (error) {
+        console.error('加载客户失败:', error);
+        customerSelect.innerHTML = '<option value="">-- {{ _("加载客户失败") }} --</option>';
+        customerSelect.disabled = true;
+    }
+}
+
+/**
+ * 清空并禁用客户选择器
+ */
+function clearCustomerSelector() {
+    console.log('清空并禁用客户选择器');
+    const customerSelect = document.getElementById('customerId');
+    if (customerSelect) {
+        customerSelect.innerHTML = '<option value="">-- ' + window.i18nTexts.pleaseSelectProject + ' --</option>';
+        customerSelect.disabled = true;
+    }
+
+    // 同时清空联系人选择器
+    clearContactSelection();
+}
 
 // 页面加载完成后执行
 $(document).ready(function() {
@@ -353,21 +546,45 @@ $(document).ready(function() {
     $(document).on('projectSelected', function(e) {
         const project = e.detail.project;
         console.log('项目已选择:', project);
-        
+
         // 更新项目ID隐藏字段
         $('#project_id').val(project.id);
-        
+
+        // 加载项目关联的客户
+        loadProjectCustomers(project.id);
+
         // 项目阶段和类型信息在保存时从项目表获取，无需前端处理
     });
-    
+
     // 监听项目搜索组件的清除事件
     $(document).on('projectCleared', function(e) {
         console.log('项目选择已清除');
-        
+
         // 清空项目ID隐藏字段
         $('#project_id').val('');
+
+        // 清空并禁用客户选择器（会级联清空联系人）
+        clearCustomerSelector();
     });
-    
+
+    // ========================================
+    // 客户选择器事件监听
+    // ========================================
+
+    // 监听客户下拉框的选择事件
+    $('#customerId').on('change', function() {
+        const customerId = $(this).val();
+        console.log('客户选择变化:', customerId);
+
+        if (customerId) {
+            // 加载该客户的联系人
+            loadCustomerContacts(customerId);
+        } else {
+            // 清空联系人选择
+            clearContactSelection();
+        }
+    });
+
     // 初始化产品明细管理器（通过宏已初始化）
     // 产品明细管理器会在 init_product_detail_scripts() 中自动初始化
 
@@ -386,10 +603,26 @@ $(document).ready(function() {
             }
         }
     });
-    
+
+    // ========================================
+    // 初始化客户选择器状态
+    // ========================================
+
+    // 根据是否有预设项目来初始化客户选择器状态
+    const presetProjectId = $('#project_id').val();
+    console.log('初始化客户选择器状态，预设项目ID:', presetProjectId);
+
+    if (presetProjectId) {
+        // 有预设项目：启用客户选择器
+        $('#customerId').prop('disabled', false);
+        console.log('客户选择框已启用（预设项目）');
+    } else {
+        // 无预设项目：禁用客户选择器
+        $('#customerId').prop('disabled', true);
+        console.log('客户选择框已禁用（无预设项目）');
+    }
+
     console.log('页面初始化完成');
-    
-    // 测试按钮已移除
 });
 
 // 测试搜索API功能已移除
@@ -484,9 +717,15 @@ function submitQuotationAsJson(productDetails) {
         const grandTotalInput = document.querySelector('#grandTotal');
         const totalAmount = parseFloat(grandTotalInput?.dataset.rawValue || grandTotalInput?.value.replace(/,/g, '')) || 0;
         
+        // 获取客户ID和联系人ID
+        const customerId = $('#customerId').val();
+        const contactId = $('#contact_id').val();
+
         // 准备JSON数据
         const jsonData = {
             project_id: parseInt(projectId),
+            customer_id: customerId ? parseInt(customerId) : null,
+            contact_id: contactId ? parseInt(contactId) : null,
             currency: currency,
             total_amount: totalAmount,
             details: productDetails.map(detail => ({

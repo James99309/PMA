@@ -13,7 +13,7 @@ import difflib
 import json
 import re
 import logging
-from app.utils.dictionary_helpers import get_company_type_options, get_industry_options, get_status_options, get_country_options, COMPANY_TYPE_LABELS, INDUSTRY_LABELS, STATUS_LABELS, COUNTRY_LABELS
+from app.utils.dictionary_helpers import get_company_type_options, get_industry_options, get_status_options, get_country_options, get_report_source_options, COMPANY_TYPE_LABELS, INDUSTRY_LABELS, STATUS_LABELS, COUNTRY_LABELS
 from app.utils.chinese_mapping_manager import mapping_manager
 
 # 设置日志记录器
@@ -551,6 +551,15 @@ def list_companies():
                     'label': _(mapping_manager.get_field_display_name('company', 'industry')),
                     'type': 'badge',
                     'render': 'render_industry_badge',
+                    'width': '120px',
+                    'sort_type': 'string'
+                },
+                {
+                    'key': 'source',
+                    'field': 'source',
+                    'label': _(mapping_manager.get_field_display_name('company', 'source')),
+                    'type': 'badge',
+                    'render': 'render_report_source_badge',
                     'width': '120px',
                     'sort_type': 'string'
                 },
@@ -1217,7 +1226,8 @@ def add_company():
     
     return render_template('customer/add.html', COMPANY_TYPE_OPTIONS=get_company_type_options(),
                           INDUSTRY_OPTIONS=get_industry_options(),
-                          STATUS_OPTIONS=get_status_options())
+                          STATUS_OPTIONS=get_status_options(),
+                          REPORT_SOURCE_OPTIONS=get_report_source_options())
 
 @customer.route('/edit/<int:company_id>', methods=['GET', 'POST'])
 @permission_required('customer', 'edit')
@@ -1261,7 +1271,8 @@ def edit_company(company_id):
 
     return render_template('customer/edit.html', company=company, COMPANY_TYPE_OPTIONS=get_company_type_options(),
                           INDUSTRY_OPTIONS=get_industry_options(),
-                          STATUS_OPTIONS=get_status_options())
+                          STATUS_OPTIONS=get_status_options(),
+                          REPORT_SOURCE_OPTIONS=get_report_source_options())
 
 @customer.route('/api/delete-confirm/<int:company_id>')
 @permission_required('customer', 'delete') 

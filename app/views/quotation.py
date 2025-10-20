@@ -127,12 +127,9 @@ def list_quotations():
             else:
                 query = query.filter(Project.project_type == project_type_filter)
         
-        # 项目阶段筛选
+        # 报价阶段筛选（使用报价单的快照阶段）
         if project_stage_filter:
-            if not project_joined:
-                query = query.join(Project, Quotation.project_id == Project.id)
-                project_joined = True
-            query = query.filter(Project.current_stage == project_stage_filter)
+            query = query.filter(Quotation.project_stage == project_stage_filter)
         
         # 验证排序字段是否有效
         valid_sort_fields = ['quotation_number', 'created_at', 'updated_at', 'total_amount', 
@@ -152,13 +149,11 @@ def list_quotations():
             else:
                 query = query.order_by(Project.project_name.asc())
         elif sort_field == 'project_stage':
-            if not project_joined:
-                query = query.join(Project, Quotation.project_id == Project.id)
-                project_joined = True
+            # 按报价单的快照阶段排序，而不是项目当前阶段
             if sort_order == 'desc':
-                query = query.order_by(Project.current_stage.desc())
+                query = query.order_by(Quotation.project_stage.desc())
             else:
-                query = query.order_by(Project.current_stage.asc())
+                query = query.order_by(Quotation.project_stage.asc())
         elif sort_field == 'project_type':
             if not project_joined:
                 query = query.join(Project, Quotation.project_id == Project.id)
@@ -243,18 +238,20 @@ def list_quotations():
             User.id.in_(unique_owner_ids)
         ).order_by(User.real_name, User.username).all()
         
-        # 项目阶段选项 - 优化为只显示实际存在的阶段
+        # 报价阶段选项 - 使用报价单的快照阶段
         from app.utils.dictionary_helpers import PROJECT_STAGE_LABELS
-        
-        # 使用高效查询获取实际存在的项目阶段
-        unique_project_stages_query = db.session.query(Project.current_stage.distinct())\
-            .join(viewable_quotation_subquery, Project.id == viewable_quotation_subquery.c.project_id)\
-            .filter(Project.current_stage.isnot(None))\
-            .filter(Project.current_stage != '')
-        
+
+        # 使用高效查询获取实际存在的报价阶段
+        # 获取可见报价单的ID列表（使用子查询）
+        viewable_quotation_ids_query = get_viewable_data(Quotation, current_user).with_entities(Quotation.id)
+        unique_project_stages_query = db.session.query(Quotation.project_stage.distinct())\
+            .filter(Quotation.id.in_(viewable_quotation_ids_query))\
+            .filter(Quotation.project_stage.isnot(None))\
+            .filter(Quotation.project_stage != '')
+
         unique_project_stages = {row[0] for row in unique_project_stages_query.all()}
-        
-        # 构建项目阶段选项，只包含实际存在的阶段
+
+        # 构建报价阶段选项，只包含实际存在的阶段
         project_stage_options = []
         for stage in unique_project_stages:
             if stage in PROJECT_STAGE_LABELS:
@@ -353,7 +350,7 @@ def list_quotations():
                 },
                 {
                     'name': 'project_stage_filter',
-                    'label': _(mapping_manager.get_field_display_name('project', 'project_stage')),
+                    'label': _('报价阶段'),
                     'all_option_text': _('全部阶段'),
                     'current_value': project_stage_filter if project_stage_filter and request.args else '',
                     'col_width': 2,
@@ -458,7 +455,7 @@ def list_quotations():
                 'icon': 'fas fa-table',
                 'fixed_height_scroll': True,     # 启用固定高度滚动（蓝色滚动条）
                 'enhanced_striping': True,       # 启用增强斑马纹效果
-                'table_name': 'quotation',       # 指定数据库表名用于动态映射
+                'table_name': None,              # 禁用动态映射，使用列配置中的label
                 'columns': [
                     {
                         'key': 'quotation_number',
@@ -499,7 +496,7 @@ def list_quotations():
                     {
                         'key': 'project_stage',
                         'field': 'project_stage',
-                        'label': _(mapping_manager.get_field_display_name('project', 'project_stage')),
+                        'label': _('报价阶段'),
                         'type': 'text',
                         'width': '100px',
                         'render': 'render_project_stage',
@@ -576,14 +573,21 @@ def list_quotations():
                               
     except Exception as e:
         logger.error(f"加载报价单列表时出错: {str(e)}", exc_info=True)
-        
+
         # 尝试回滚数据库事务
         try:
             db.session.rollback()
             logger.info("数据库事务已回滚")
         except Exception as rollback_error:
             logger.error(f"数据库事务回滚失败: {str(rollback_error)}")
-        
+
+        # 获取错误处理器需要的默认配置变量
+        from app.utils.i18n import get_current_language, get_default_currency, get_currency_symbol
+        current_lang = get_current_language()
+        amount_unit = '万美元' if current_lang == 'en' else '万元'
+        default_currency = get_default_currency()
+        currency_symbol = get_currency_symbol(default_currency)
+
         # 创建错误时的默认配置
         error_filter_config = {
             'action_url': url_for('quotation.list_quotations'),
@@ -632,7 +636,7 @@ def list_quotations():
                     {'key': 'owner', 'label': _('拥有人'), 'type': 'text'},
                     {'key': 'project_name', 'label': _('关联项目'), 'type': 'text'},
                     {'key': 'amount', 'label': _('总价'), 'type': 'number'},
-                    {'key': 'project_stage', 'label': _('阶段'), 'type': 'text'},
+                    {'key': 'project_stage', 'label': _('报价阶段'), 'type': 'text'},
                     {'key': 'project_type', 'label': _('类型'), 'type': 'text'},
                     {'key': 'updated_at', 'label': _('更新时间'), 'type': 'date'},
                     {'key': 'created_at', 'label': _('创建时间'), 'type': 'date'}
@@ -1064,7 +1068,8 @@ def create_quotation():
                 # 创建新报价单
                 quotation = Quotation(
                     project_id=project_id,
-                    contact_id=None,
+                    customer_id=data.get('customer_id'),  # 客户必填
+                    contact_id=data.get('contact_id'),     # 联系人可选
                     amount=total_amount,
                     project_stage=project_stage,  # 从项目表获取最新阶段
                     project_type=project_type,    # 从项目表获取最新类型
@@ -1346,8 +1351,38 @@ def create_quotation():
     # 如果有预设的项目ID，设置默认选中项目
     selected_project = None
     if preset_project_id:
-        selected_project = Project.query.get(preset_project_id)
-    
+        project_obj = Project.query.get(preset_project_id)
+        if project_obj:
+            # 转换为字典以支持JSON序列化
+            selected_project = {
+                'id': project_obj.id,
+                'project_name': project_obj.project_name,
+                'display_name': project_obj.display_name,
+                'authorization_code': project_obj.authorization_code
+            }
+
+    # 预加载项目关联的客户（如果有预设项目）
+    preset_customers = []
+    if preset_project_id:
+        from app.models.project_customer_association import ProjectCustomerAssociation
+        from app.models.customer import Contact
+        from app.utils.access_control import can_view_company
+
+        associations = ProjectCustomerAssociation.get_active_associations(preset_project_id)
+        for assoc in associations:
+            if assoc.company and can_view_company(current_user, assoc.company):
+                # 查询主要联系人
+                primary_contact = Contact.query.filter_by(
+                    company_id=assoc.company.id,
+                    is_primary=True
+                ).first()
+
+                preset_customers.append({
+                    'id': assoc.company.id,
+                    'company_name': assoc.company.company_name,
+                    'contact_person': primary_contact.name if primary_contact else None
+                })
+
     # 获取产品库中ID为1的产品的货币类型作为默认货币
     from app.models.product import Product
     default_currency = 'CNY'  # 默认为人民币
@@ -1367,6 +1402,7 @@ def create_quotation():
                          quotation=quotation,
                          preset_project_id=preset_project_id,
                          selected_project=selected_project,
+                         preset_customers=preset_customers,
                          currency_options=get_currency_type_options(),
                          return_to=return_to,
                          default_currency=default_currency,
@@ -1576,7 +1612,15 @@ def edit_quotation(id):
                     quotation.project_id = project.id
                     quotation.project_stage = project.current_stage
                     quotation.project_type = project.project_type
-                
+
+                # 更新客户和联系人
+                customer_id = request.form.get('customer_id')
+                contact_id = request.form.get('contact_id')
+                if customer_id:
+                    quotation.customer_id = int(customer_id)
+                if contact_id:
+                    quotation.contact_id = int(contact_id) if contact_id else None
+
                 # 更新报价单货币
                 currency = request.form.get('currency', 'CNY')
                 quotation.currency = currency
@@ -1873,6 +1917,8 @@ def edit_quotation(id):
                     self.id = original_quotation.id
                     self.quotation_number = getattr(original_quotation, 'quotation_number', None)
                     self.project_id = original_quotation.project_id
+                    self.customer_id = original_quotation.customer_id  # 添加客户ID
+                    self.contact_id = original_quotation.contact_id  # 添加联系人ID
                     self.amount = float(original_quotation.amount or 0)
                     self.currency = str(original_quotation.currency or 'CNY')
                     self.details = original_quotation.details  # 保留明细数据

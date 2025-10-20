@@ -42,7 +42,13 @@
             <i class="fas fa-info-circle me-2 fs-5"></i>
             <div>
                 <strong>{{ _('审核阶段编辑模式') }}</strong><br>
-                <small>{{ _('当前审核阶段') }}：{{ approval_edit_info.step_name }} | {{ _('可编辑字段') }}：{{ approval_edit_info.editable_fields|join(', ') }}</small>
+                <small>{{ _('当前审核阶段') }}：{{ approval_edit_info.step_name }} | {{ _('可编辑字段') }}：
+                {% if approval_edit_info.editable_fields %}
+                    {% for field in approval_edit_info.editable_fields %}
+                        {{ get_field_display_name_i18n('expense_detail', field, field) }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                {% endif %}
+                </small>
             </div>
         </div>
     </div>

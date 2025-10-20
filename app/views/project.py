@@ -1040,14 +1040,27 @@ def view_project(project_id):
             })
 
     # 查询项目相关的行动记录，按时间倒序排列
-    from app.utils.access_control import get_viewable_data
-    
-    # 如果是项目拥有者，可以看到所有相关的行动记录
-    if current_user.id == project.owner_id or current_user.role == 'admin':
+    from app.utils.access_control import get_viewable_data, can_view_company
+
+    # 统一权限逻辑：所有用户（包括项目创建人）都基于权限过滤
+    # 管理员保留查看所有记录的权限
+    if current_user.role == 'admin':
         project_actions = Action.query.filter_by(project_id=project_id).order_by(Action.date.desc(), Action.created_at.desc()).all()
     else:
-        # 其他用户只能看到有权限查看的行动记录
+        # 使用标准权限过滤（基于owner_id和权限级别）
         project_actions = get_viewable_data(Action, current_user, special_filters=[Action.project_id == project_id]).order_by(Action.date.desc(), Action.created_at.desc()).all()
+
+    # 🔥 额外过滤：基于关联客户的查看权限
+    # 厂商负责人可以查看所有行动记录，其他用户需要客户权限
+    if current_user.role == 'admin' or (hasattr(project, 'vendor_sales_manager_id') and project.vendor_sales_manager_id == current_user.id):
+        # 管理员和厂商负责人：查看所有行动记录（不受客户权限限制）
+        pass  # 不过滤
+    else:
+        # 其他用户：只保留有权限查看的客户的行动记录（或没有关联客户的记录）
+        project_actions = [
+            action for action in project_actions
+            if not action.company_id or can_view_company(current_user, Company.query.get(action.company_id))
+        ]
 
     # 传递原始阶段key给前端用于条件判断，避免语言切换时的问题
     current_stage_key = project.current_stage
@@ -1137,15 +1150,6 @@ def view_project(project_id):
 
     # 预先计算关系数据，避免模板中的错误
     has_quotations = project.quotations.count() > 0
-    has_pricing_orders = False
-    pricing_orders_list = []
-    try:
-        from app.models.pricing_order import PricingOrder
-        pricing_orders_list = PricingOrder.query.filter_by(project_id=project.id).order_by(PricingOrder.created_at.desc()).all()
-        has_pricing_orders = len(pricing_orders_list) > 0
-    except Exception:
-        has_pricing_orders = False
-        pricing_orders_list = []
 
     # 添加语言支持
     from app.utils.i18n import get_current_language
@@ -1204,8 +1208,6 @@ def view_project(project_id):
                          can_edit_stage=can_edit_stage,
                          # 预计算的关系数据
                          has_quotations=has_quotations,
-                         has_pricing_orders=has_pricing_orders,
-                         pricing_orders_list=pricing_orders_list,
                          # 添加审批相关函数
                          get_object_approval_instance=get_object_approval_instance,
                          get_available_templates=get_available_templates,
@@ -2175,14 +2177,7 @@ def update_project_stage_business_logic(project_id, new_stage, current_user_id):
         
         # 更新项目阶段
         project.current_stage = new_stage
-        
-        # 同步更新所有关联报价单的project_stage和project_type
-        from app.models.quotation import Quotation
-        quotations = Quotation.query.filter_by(project_id=project.id).all()
-        for q in quotations:
-            q.project_stage = new_stage
-            q.project_type = project.project_type
-        
+
         # 创建阶段历史记录
         try:
             from app.models.projectpm_stage_history import ProjectStageHistory
@@ -2418,7 +2413,7 @@ def update_project_stage():
         
         # 更新项目阶段
         project.current_stage = new_stage
-        
+
         # 如果项目推进到签约阶段，自动锁定项目
         if new_stage == 'signed' and not project.is_locked:
             project.is_locked = True
@@ -2426,13 +2421,7 @@ def update_project_stage():
             project.locked_by = current_user.id
             project.locked_at = datetime.now()
             current_app.logger.info(f'项目 {project.project_name} (ID: {project.id}) 由于签约自动锁定')
-        
-        # 同步更新所有关联报价单的project_stage和project_type
-        quotations = Quotation.query.filter_by(project_id=project.id).all()
-        for q in quotations:
-            q.project_stage = new_stage
-            q.project_type = project.project_type
-        
+
         # 在一个事务中同时保存项目更新和阶段历史
         try:
             current_app.logger.info(f"开始为项目ID={project.id}创建阶段历史记录: {old_stage} -> {new_stage}")
@@ -2543,30 +2532,44 @@ def update_project_stage():
         }), 500
 
 @project.route('/add_action/<int:project_id>', methods=['GET', 'POST'])
-@permission_required('customer', 'create')
+@login_required
 def add_action_for_project(project_id):
     """为项目添加行动记录"""
     project = Project.query.get_or_404(project_id)
     
-    # 从关联表查找项目相关的所有企业
+    # 从关联表查找项目相关的所有企业（与项目详情逻辑一致）
     from app.models.project_customer_association import ProjectCustomerAssociation
 
-    associations = ProjectCustomerAssociation.query.filter_by(project_id=project_id).all()
+    # 获取活跃的客户关联
+    associations = ProjectCustomerAssociation.get_active_associations(project_id)
+
+    # 🔥 权限过滤：厂商负责人可以选择所有关联客户，其他用户需要客户权限
+    if current_user.role == 'admin' or (hasattr(project, 'vendor_sales_manager_id') and project.vendor_sales_manager_id == current_user.id):
+        # 管理员和厂商负责人：可以选择所有关联客户
+        filtered_associations = associations
+    else:
+        # 其他用户：只保留有权限查看的客户
+        from app.utils.access_control import can_view_company
+        filtered_associations = [
+            assoc for assoc in associations
+            if assoc.company and can_view_company(current_user, assoc.company)
+        ]
+
+    # 构建客户列表
     related_companies = []
     related_companies_dict = {}
     customer_associations = []  # 包含类型信息的关联列表
 
-    for assoc in associations:
-        company = db.session.get(Company, assoc.company_id)
-        if company and not company.is_deleted:
-            if company.id not in related_companies_dict:
-                related_companies.append(company)
-                related_companies_dict[company.id] = company
-            # 添加到包含类型信息的列表（可能有重复公司但不同角色）
-            customer_associations.append({
-                'company': company,
-                'customer_type': assoc.customer_type
-            })
+    for assoc in filtered_associations:
+        company = assoc.company
+        if company.id not in related_companies_dict:
+            related_companies.append(company)
+            related_companies_dict[company.id] = company
+        # 添加到包含类型信息的列表（可能有重复公司但不同角色）
+        customer_associations.append({
+            'company': company,
+            'customer_type': assoc.customer_type
+        })
     
     # 获取默认选择的企业ID和锁定状态
     default_company_id = request.args.get('company_id')
@@ -2750,11 +2753,9 @@ def change_project_owner(project_id):
     project.owner_id = new_owner_id
     project.vendor_sales_manager_id = vendor_sales_manager_id
 
-    # 同步更新该项目下所有报价单的owner_id为新拥有人
-    from app.models.quotation import Quotation
-    quotations = Quotation.query.filter_by(project_id=project.id).all()
-    for quotation in quotations:
-        quotation.owner_id = new_owner_id
+    # 注意：不再自动更新关联报价单的owner_id
+    # 报价单的owner_id保持为原创建人，以保留历史记录和绩效统计准确性
+    # 这与批价单、行动记录、客户等模块的行为保持一致
 
     # 记录owner_id变更到ChangeLog
     if old_owner_id != new_owner_id:
@@ -2774,9 +2775,9 @@ def change_project_owner(project_id):
         )
 
     db.session.commit()
-    
+
     # 构建成功消息
-    success_msg = '项目拥有人及关联报价单拥有人已更新'
+    success_msg = '项目拥有人已更新'
     if vendor_sales_manager_id and vendor_sales_manager_id != new_owner_id:
         vendor_manager = User.query.get(vendor_sales_manager_id)
         success_msg += f'，厂商销售负责人已设置为 {vendor_manager.real_name or vendor_manager.username}'
@@ -3226,18 +3227,27 @@ def search_customers_temp():
         from app.models.user import User
         
         logger.info(f"搜索客户，关键词: {search_term}, 用户ID: {current_user.id}")
-        
-        # 简化查询，直接获取所有未删除的匹配公司，并加载关联数据
-        companies = Company.query.filter(
+
+        # 第一步：搜索所有匹配的客户（扩大范围，后面会权限过滤）
+        all_companies = Company.query.filter(
             Company.is_deleted == False,
             Company.company_name.ilike(f'%{search_term}%')
-        ).outerjoin(User, Company.owner_id == User.id).order_by(
-            # 用户自己的客户排在前面
-            db.case((Company.owner_id == current_user.id, 0), else_=1),
-            Company.company_name
-        ).limit(20).all()
-        
-        logger.info(f"找到客户总数: {len(companies)} 个")
+        ).limit(50).all()
+
+        # 第二步：使用权限系统过滤（包含数据归属、权限级别、共享机制）
+        from app.utils.access_control import get_viewable_data
+        user_authorized_companies = get_viewable_data(Company, current_user).all()
+        authorized_ids = {c.id for c in user_authorized_companies}
+
+        # 第三步：只保留有权限的客户并排序
+        companies = [c for c in all_companies if c.id in authorized_ids]
+        companies.sort(key=lambda c: (
+            0 if c.owner_id == current_user.id else 1,  # 用户自己的客户排前面
+            c.company_name
+        ))
+        companies = companies[:20]  # 限制返回20个
+
+        logger.info(f"搜索到 {len(all_companies)} 个匹配客户，权限过滤后剩余 {len(companies)} 个")
         
         
         customers = []
@@ -3303,15 +3313,24 @@ def get_customer_associations(project_id):
         
         # 获取活跃的客户关联
         associations = ProjectCustomerAssociation.get_active_associations(project_id)
-        
-        associations_data = []
-        
-        for assoc in associations:
-            company = assoc.company
-            # 检查当前用户是否有权限查看此客户
+
+        # 🔥 权限过滤：厂商负责人可以查看所有关联客户，其他用户需要客户权限
+        if current_user.role == 'admin' or (hasattr(project_obj, 'vendor_sales_manager_id') and project_obj.vendor_sales_manager_id == current_user.id):
+            # 管理员和厂商负责人：查看所有关联客户
+            filtered_associations = associations
+        else:
+            # 其他用户：只保留有权限查看的客户
             from app.utils.access_control import can_view_company
-            can_view_customer = can_view_company(current_user, company) if company else False
-            
+            filtered_associations = [
+                assoc for assoc in associations
+                if assoc.company and can_view_company(current_user, assoc.company)
+            ]
+
+        associations_data = []
+
+        for assoc in filtered_associations:
+            company = assoc.company
+
             # 检查是否可以移除此关联
             # 严格遵循"谁关联谁删除"原则
             can_remove = False
@@ -3335,9 +3354,11 @@ def get_customer_associations(project_id):
             
             # 获取创建者信息（安全处理）
             created_by_name = None
+            created_by_is_vendor = False
             try:
                 if hasattr(assoc, 'creator') and assoc.creator:
                     created_by_name = assoc.creator.real_name or assoc.creator.username
+                    created_by_is_vendor = assoc.creator.is_vendor_user()
             except Exception as e:
                 # 如果creator字段不存在或查询失败，使用created_by字段
                 logger.debug(f"获取创建者信息失败: {e}")
@@ -3347,10 +3368,11 @@ def get_customer_associations(project_id):
                         creator_user = User.query.get(assoc.created_by)
                         if creator_user:
                             created_by_name = creator_user.real_name or creator_user.username
+                            created_by_is_vendor = creator_user.is_vendor_user()
                     except Exception as e2:
                         logger.debug(f"查询创建者用户失败: {e2}")
                         created_by_name = f"用户#{assoc.created_by}" if hasattr(assoc, 'created_by') else None
-            
+
             associations_data.append({
                 'id': assoc.id,
                 'company_id': assoc.company_id,
@@ -3362,9 +3384,10 @@ def get_customer_associations(project_id):
                 'owner_info': owner_info,
                 'is_active': company.owner.is_active if company.owner else False,
                 'can_remove': can_remove,
-                'can_view_customer': can_view_customer,
+                'can_view_customer': True,  # 已过滤，用户必然有查看权限
                 'created_by': assoc.created_by,
                 'created_by_name': created_by_name,
+                'created_by_is_vendor': created_by_is_vendor,
                 'created_at': assoc.created_at.strftime('%Y-%m-%d %H:%M:%S')
             })
         
@@ -3388,31 +3411,22 @@ def add_customer_association():
         data = request.get_json()
         project_id = data.get('project_id')
         company_id = data.get('company_id')
-        customer_type = data.get('customer_type', None)  # DEPRECATED: 该字段已废弃，允许为空
 
-        if not all([project_id, company_id]):  # customer_type 不再是必需参数
+        if not all([project_id, company_id]):
             return jsonify({
                 'success': False,
                 'message': '缺少必要参数'
             }), 400
-        
-        # 验证项目查看权限（有查看权限即可添加客户关联）
+
+        # 权限检查
         project_obj = Project.query.get_or_404(project_id)
         if not can_view_project(current_user, project_obj):
             return jsonify({
                 'success': False,
                 'message': '没有权限访问此项目'
             }), 403
-        
-        # 验证客户类型（DEPRECATED: 该字段已废弃，但保留验证以向后兼容）
-        valid_types = ['end_user', 'design_issues', 'contractor', 'system_integrator', 'dealer', None]
-        if customer_type not in valid_types:
-            return jsonify({
-                'success': False,
-                'message': '无效的客户类型'
-            }), 400
-        
-        # 验证公司是否存在
+
+        # 验证客户是否存在
         from app.models.customer import Company
         company = Company.query.filter_by(id=company_id, is_deleted=False).first()
         if not company:
@@ -3420,26 +3434,15 @@ def add_customer_association():
                 'success': False,
                 'message': '指定的客户不存在'
             }), 404
-        
+
         # 添加关联
         from app.models.project_customer_association import ProjectCustomerAssociation
-        
-        # 检查是否支持created_by字段
-        try:
-            # 尝试使用创建者ID
-            success, result = ProjectCustomerAssociation.add_association(project_id, company_id, customer_type, current_user.id)
-        except Exception as e:
-            logger.debug(f"使用created_by字段失败，尝试不使用创建者ID: {e}")
-            # 如果失败，尝试不使用created_by字段
-            try:
-                success, result = ProjectCustomerAssociation.add_association(project_id, company_id, customer_type)
-            except Exception as e2:
-                logger.error(f"添加关联完全失败: {e2}")
-                return jsonify({
-                    'success': False,
-                    'message': '数据库错误，请联系管理员'
-                }), 500
-        
+        success, result = ProjectCustomerAssociation.add_association(
+            project_id,
+            company_id,
+            created_by=current_user.id
+        )
+
         if success:
             db.session.commit()
             return jsonify({
@@ -3451,7 +3454,7 @@ def add_customer_association():
                 'success': False,
                 'message': result
             }), 400
-            
+
     except Exception as e:
         db.session.rollback()
         logger.error(f"添加客户关联失败: {e}")
@@ -3575,6 +3578,263 @@ def render_customer_associations_list(project_id):
         return jsonify({
             'success': False,
             'message': '渲染客户关联列表失败，请重试'
+        }), 500
+
+
+# ==================== 报价单管理API ====================
+
+@project.route('/api/quotations/<int:project_id>')
+@permission_required('project', 'view')
+def get_quotations_list(project_id):
+    """获取项目的报价单列表（带权限过滤）"""
+    try:
+        from app.models.quotation import Quotation
+        from app.models.customer import Company
+
+        # 验证项目访问权限
+        project_obj = Project.query.get_or_404(project_id)
+        if not can_view_project(current_user, project_obj):
+            return jsonify({
+                'success': False,
+                'message': '没有权限查看此项目的报价单'
+            }), 403
+
+        # 查询项目的报价单（带权限过滤）
+        from app.utils.access_control import get_viewable_data
+        quotations = get_viewable_data(Quotation, current_user, [
+            Quotation.project_id == project_id
+        ]).order_by(Quotation.updated_at.desc()).all()
+
+        # 准备返回数据
+        quotations_data = []
+        for quot in quotations:
+            # 获取关联客户信息
+            customer_name = None
+            company_id = None
+            if quot.customer_id:
+                company = quot.customer  # 直接使用关系
+                if company:
+                    customer_name = company.company_name
+                    company_id = company.id
+
+            # 获取创建者信息
+            owner_name = None
+            is_vendor = False
+            if quot.owner:
+                owner_name = quot.owner.real_name if quot.owner.real_name else quot.owner.username
+                is_vendor = quot.owner.is_vendor_user()
+
+            # 检查是否可以删除（只有创建人可以删除）
+            is_owner = (quot.owner_id == current_user.id)
+
+            quotations_data.append({
+                'id': quot.id,
+                'quotation_number': quot.quotation_number,
+                'amount': quot.amount or 0,
+                'currency': quot.currency or 'CNY',
+                'customer_name': customer_name or '未关联客户',
+                'company_id': company_id,
+                'owner_name': owner_name or '未知',
+                'is_vendor': is_vendor,
+                'created_at': quot.created_at.strftime('%Y-%m-%d') if quot.created_at else '',
+                'updated_at': quot.updated_at.strftime('%Y-%m-%d %H:%M') if quot.updated_at else '',
+                'is_owner': is_owner,
+                'can_delete': is_owner or current_user.role == 'admin',
+                # 确认徽章字段
+                'confirmation_badge_status': quot.confirmation_badge_status,
+                'confirmed_by': quot.confirmed_by,
+                'confirmed_at': quot.confirmed_at.strftime('%Y-%m-%d %H:%M:%S') if quot.confirmed_at else None
+            })
+
+        return jsonify({
+            'success': True,
+            'quotations': quotations_data,
+            'total_amount': sum([q['amount'] for q in quotations_data]),
+            'count': len(quotations_data)
+        })
+
+    except Exception as e:
+        logger.error(f"获取报价单列表失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': '获取报价单列表失败，请重试'
+        }), 500
+
+
+@project.route('/api/pricing_orders/<int:project_id>')
+@permission_required('project', 'view')
+def get_pricing_orders_list(project_id):
+    """获取项目的批价单列表（带权限过滤）"""
+    try:
+        from app.models.pricing_order import PricingOrder
+
+        # 验证项目访问权限
+        project_obj = Project.query.get_or_404(project_id)
+        if not can_view_project(current_user, project_obj):
+            return jsonify({
+                'success': False,
+                'message': '您没有权限访问该项目'
+            }), 403
+
+        # 查询项目的批价单（带权限过滤）
+        from app.utils.access_control import get_viewable_data
+        pricing_orders = get_viewable_data(PricingOrder, current_user, [
+            PricingOrder.project_id == project_id
+        ]).order_by(PricingOrder.created_at.desc()).all()
+
+        pricing_orders_data = []
+        for po in pricing_orders:
+            # 经销商名称 - 安全处理
+            dealer_name = '无'
+            if po.dealer:
+                try:
+                    dealer_name = po.dealer.company_name or '无'
+                except Exception as e:
+                    logger.warning(f"获取经销商名称失败 (批价单ID: {po.id}): {e}")
+                    dealer_name = '无'
+
+            # 创建人名称 - 安全处理
+            creator_name = '未知'
+            if po.creator:
+                try:
+                    creator_name = po.creator.real_name or '未知'
+                except Exception as e:
+                    logger.warning(f"获取创建人名称失败 (批价单ID: {po.id}): {e}")
+                    creator_name = '未知'
+
+            # 获取状态标签（展开字典以便JSON序列化）
+            status_label = po.status_label
+
+            pricing_orders_data.append({
+                'id': po.id,
+                'order_number': po.order_number,
+                'dealer_id': po.dealer_id,
+                'dealer_name': dealer_name,
+                'pricing_total_amount': po.pricing_total_amount or 0,
+                'currency': po.currency or 'CNY',
+                'creator_name': creator_name,
+                'is_vendor': po.creator.is_vendor_user() if po.creator else False,
+                'status': po.status,
+                'status_label': {
+                    'zh': status_label['zh'],
+                    'color': status_label['color']
+                },
+                'created_at': po.created_at.strftime('%Y-%m-%d') if po.created_at else ''
+            })
+
+        return jsonify({
+            'success': True,
+            'pricing_orders': pricing_orders_data,
+            'count': len(pricing_orders_data)
+        })
+
+    except Exception as e:
+        logger.error(f"获取批价单列表失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': '获取批价单列表失败，请重试'
+        }), 500
+
+
+@project.route('/api/remove_quotation/<int:quotation_id>', methods=['POST'])
+@permission_required('project', 'view')
+def remove_quotation(quotation_id):
+    """删除报价单"""
+    try:
+        from app.models.quotation import Quotation
+
+        # 获取报价单
+        quotation = Quotation.query.get_or_404(quotation_id)
+
+        # 验证删除权限：只有创建人或管理员可以删除
+        if quotation.owner_id != current_user.id and current_user.role != 'admin':
+            return jsonify({
+                'success': False,
+                'message': '您只能删除自己创建的报价单'
+            }), 403
+
+        # 删除报价单
+        db.session.delete(quotation)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': '报价单删除成功'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"删除报价单失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'删除报价单失败: {str(e)}'
+        }), 500
+
+
+@project.route('/api/customer_associations/<int:project_id>/search')
+@permission_required('project', 'view')
+def search_project_customers_for_quotation(project_id):
+    """搜索项目关联的客户（用于报价单创建时的客户选择）"""
+    try:
+        from app.models.project_customer_association import ProjectCustomerAssociation
+        from app.models.customer import Company
+
+        keyword = request.args.get('keyword', '').strip()
+
+        # 验证项目访问权限
+        project_obj = Project.query.get_or_404(project_id)
+        if not can_view_project(current_user, project_obj):
+            return jsonify({
+                'success': False,
+                'message': '没有权限访问此项目'
+            }), 403
+
+        # 获取项目的客户关联
+        associations = ProjectCustomerAssociation.get_active_associations(project_id)
+
+        # 只保留用户有权限查看的客户
+        from app.utils.access_control import can_view_company
+        filtered_companies = []
+        for assoc in associations:
+            if assoc.company and can_view_company(current_user, assoc.company):
+                filtered_companies.append(assoc.company)
+
+        # 关键词过滤
+        if keyword:
+            filtered_companies = [
+                c for c in filtered_companies
+                if keyword.lower() in c.company_name.lower()
+            ]
+
+        # 返回格式化数据（与标准客户搜索API格式一致）
+        results = []
+        for company in filtered_companies[:10]:  # 限制返回10个结果
+            # 获取主要联系人 - 通过查询Contact表
+            from app.models.customer import Contact
+            primary_contact = Contact.query.filter_by(
+                company_id=company.id,
+                is_primary=True
+            ).first()
+
+            results.append({
+                'id': company.id,
+                'company_name': company.company_name,
+                'contact_person': primary_contact.name if primary_contact else None,
+                'phone': primary_contact.phone if primary_contact else None,
+                'owner_name': company.owner.real_name if company.owner else None,
+                'industry': company.industry if hasattr(company, 'industry') else None
+            })
+
+        return jsonify({
+            'success': True,
+            'results': results  # 修改字段名为results以匹配前端期望
+        })
+
+    except Exception as e:
+        logger.error(f"搜索项目关联客户失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'搜索失败: {str(e)}'
         }), 500
 
 

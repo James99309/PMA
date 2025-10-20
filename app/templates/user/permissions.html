@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button, render_top_notification, render_user_role_badge %}
+{% from 'macros/ui_helpers.html' import render_button, render_top_notification, render_user_role_badge, render_confirm_dialog %}
 
 {% block title %}{{ _('权限管理') }} - {{ _('项目管理系统') }}{% endblock %}
 
@@ -100,7 +100,7 @@
 <!-- 标准化顶部提示组件 -->
 {{ render_top_notification() }}
 
-<div class="container-fluid page-with-fixed-nav"
+<div class="container-fluid page-with-fixed-nav">
     <!-- 标准化页面头部区域：标题与操作按钮在同一行 - 使用page-header-with-actions模组 -->
     <div class="page-header-with-actions mb-4">
         <div class="row align-items-center">
@@ -164,8 +164,26 @@
                 </div>
 
                 <div class="alert alert-info mb-3">
-                    <h6 class="alert-heading"><i class="fas fa-info-circle"></i> 权限规则说明</h6>
-                    <p class="mb-0"><strong>当前角色：</strong>{{ render_user_role_badge(user.role if user else None) }}</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="alert-heading mb-2"><i class="fas fa-info-circle"></i> 权限规则说明</h6>
+                            <p class="mb-0"><strong>当前角色：</strong>{{ render_user_role_badge(user.role if user else None) }}</p>
+                        </div>
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-sm"
+                                id="resetAllToRole"
+                                title="将所有模块的权限恢复为角色默认设置">
+                            <i class="fas fa-undo me-1"></i>恢复角色设置
+                        </button>
+                    </div>
+                    <!-- 提示信息区域 -->
+                    <div id="roleDefaultNotice" class="mt-2" style="display: none;">
+                        <hr class="my-2">
+                        <p class="mb-0 text-warning">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            <strong>当前显示的是角色默认权限</strong>，修改并保存后将创建您的个人权限设置。
+                        </p>
+                    </div>
                 </div>
 
                 <hr>
@@ -242,4 +260,7 @@
         PermissionPanel.init(configKey);
     });
 </script>
+
+<!-- 通用确认对话框 -->
+{{ render_confirm_dialog() }}
 {% endblock %}

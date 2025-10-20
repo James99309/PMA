@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button, render_top_notification, render_user_role_badge, render_three_choice_dialog %}
+{% from 'macros/ui_helpers.html' import render_button, render_top_notification, render_user_role_badge, render_three_choice_dialog, render_confirm_dialog %}
 
 {% block title %}{{ _('用户详情') }} - {{ _('项目管理系统') }}{% endblock %}
 
@@ -119,6 +119,7 @@
             <div class="col text-end">
                 <!-- 操作按钮组 -->
                 <div class="btn-toolbar justify-content-end" role="toolbar" id="tabEditBtns">
+                    {% if can_edit_user %}
                     {{ render_button(
                         text=_('编辑'),
                         href=url_for('user.edit_user', user_id=user.id),
@@ -128,6 +129,8 @@
                         extra_class='d-none',
                         attrs='id="editBaseBtn" title="编辑基本信息"'
                     ) }}
+                    {% endif %}
+                    {% if can_edit_user %}
                     {{ render_button(
                         text=_('编辑归属'),
                         href=url_for('user.manage_user_affiliations', user_id=user.id),
@@ -137,6 +140,7 @@
                         extra_class='d-none',
                         attrs='id="editAffBtn" title="编辑归属关系"'
                     ) }}
+                    {% endif %}
                     {% if can_view_performance %}
                     {{ render_button(
                         text=_('查看绩效'),
@@ -246,8 +250,29 @@
     <!-- 权限 -->
     <div class="tab-pane fade" id="perm" role="tabpanel" aria-labelledby="perm-tab">
         <div class="alert alert-info mb-3">
-            <h6 class="alert-heading"><i class="fas fa-info-circle"></i> 权限规则说明</h6>
-            <p class="mb-0"><strong>当前角色：</strong>{{ role_dict.get(user.role, user.role or '-') }}</p>
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="alert-heading mb-2"><i class="fas fa-info-circle"></i> 权限规则说明</h6>
+                    <p class="mb-0"><strong>当前角色：</strong>{{ role_dict.get(user.role, user.role or '-') }}</p>
+                </div>
+                {% if can_edit_user %}
+                <a href="#"
+                   id="resetAllToRole"
+                   class="text-decoration-underline"
+                   title="将所有模块的权限恢复为角色默认设置"
+                   onclick="return false;">
+                    <i class="fas fa-undo me-1"></i>恢复角色设置
+                </a>
+                {% endif %}
+            </div>
+            <!-- 提示信息区域 -->
+            <div id="roleDefaultNotice" class="mt-2" style="display: none;">
+                <hr class="my-2">
+                <p class="mb-0 text-warning">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    <strong>当前显示的是角色默认权限</strong>，修改并保存后将创建您的个人权限设置。
+                </p>
+            </div>
         </div>
 
         <!-- 权限配置区域 - 左右分栏布局 -->
@@ -268,6 +293,7 @@
                 <!-- 右侧：权限配置面板 -->
                 <div class="col-md-9">
                     <!-- 操作按钮 -->
+                    {% if can_edit_user %}
                     <div class="d-flex justify-content-end mb-3">
                         {{ render_button(
                             text='保存个人权限',
@@ -277,6 +303,7 @@
                             attrs='id="savePermissions"'
                         ) }}
                     </div>
+                    {% endif %}
 
                     <!-- 权限配置内容 -->
                     <div id="permissionConfigPanel">
@@ -410,6 +437,9 @@
         ]
     ) }}
 </div>
+
+<!-- 通用确认对话框 -->
+{{ render_confirm_dialog() }}
 {% endblock %}
 
 {% block scripts %}
@@ -425,11 +455,15 @@
         contextId: '{{ user.id }}',
         modules: {{ modules|tojson|safe }},
         permissions: {{ permissions|tojson|safe }},
-        rolePermissions: {{ (role_permissions or {})|tojson|safe }},
+        rolePermissions: {{ (role_permissions or [])|tojson|safe }},
         personalPermissions: {{ (personal_permissions or {})|tojson|safe }},
         filterConfigs: {{ (filter_configs or {})|tojson|safe }},
         csrfToken: '{{ csrf_token() }}'
     };
+
+    // 全局变量，用于对话框回调函数访问
+    var pendingTabSwitch = null;
+    var permissionPanelInitialized = false;
 
     // 保持tab切换状态，并切换编辑按钮
     document.addEventListener('DOMContentLoaded', function() {
@@ -438,18 +472,18 @@
         var editAffBtn = document.getElementById('editAffBtn');
         var viewPerfBtn = document.getElementById('viewPerfBtn'); // 可能为null，基于查看权限
         var editPerfBtn = document.getElementById('editPerfBtn'); // 可能为null，基于编辑权限
-        var permissionPanelInitialized = false; // 权限组件初始化标志
-        var pendingTabSwitch = null; // 待切换的标签页
 
         function showEditBtn(tabId) {
-            editBaseBtn.classList.add('d-none');
-            editAffBtn.classList.add('d-none');
+            // 隐藏所有按钮（检查是否存在）
+            if (editBaseBtn) editBaseBtn.classList.add('d-none');
+            if (editAffBtn) editAffBtn.classList.add('d-none');
             if (viewPerfBtn) viewPerfBtn.classList.add('d-none');
             if (editPerfBtn) editPerfBtn.classList.add('d-none');
 
-            if(tabId === 'base-tab') editBaseBtn.classList.remove('d-none');
+            // 根据tab显示对应按钮（检查是否存在）
+            if(tabId === 'base-tab' && editBaseBtn) editBaseBtn.classList.remove('d-none');
             // 权限标签页不显示编辑按钮，因为可以直接在页面中编辑
-            if(tabId === 'aff-tab') editAffBtn.classList.remove('d-none');
+            if(tabId === 'aff-tab' && editAffBtn) editAffBtn.classList.remove('d-none');
             if(tabId === 'performance-tab') {
                 if (viewPerfBtn) viewPerfBtn.classList.remove('d-none');
                 if (editPerfBtn) editPerfBtn.classList.remove('d-none');
@@ -601,6 +635,12 @@
         console.log('🗑️ 用户选择：放弃修改');
         const modal = bootstrap.Modal.getInstance(document.getElementById('unsavedChangesModal'));
         if (modal) modal.hide();
+
+        // 重置权限组件的未保存状态
+        if (PermissionPanel && PermissionPanel.resetUnsavedState) {
+            PermissionPanel.resetUnsavedState();
+            console.log('已重置权限组件的未保存状态');
+        }
 
         // 执行标签页切换
         if (pendingTabSwitch) {

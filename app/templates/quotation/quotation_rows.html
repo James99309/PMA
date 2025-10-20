@@ -27,8 +27,8 @@
         {{ render_currency_with_symbol(quotation.amount, quotation.currency or 'CNY') }}
     </td>
     <td class="px-3">
-        {% if quotation.project %}
-            {{ render_project_stage(quotation.project.current_stage) }}
+        {% if quotation.project_stage %}
+            {{ render_project_stage(quotation.project_stage) }}
         {% else %}
             <span class="text-muted">-</span>
         {% endif %}

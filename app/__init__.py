@@ -16,7 +16,7 @@ from app.utils import version_check
 import datetime
 from app.utils.filters import project_type_style, project_stage_style, format_date, format_datetime, format_currency, format_achievement_rate
 from app.utils.dictionary_helpers import (
-    project_type_label, project_stage_label, project_type_label_i18n, project_stage_label_i18n, report_source_label, authorization_status_label, company_type_label, company_type_color, product_situation_label, industry_label, industry_color, status_label, brand_status_label, reporting_source_label, share_permission_label, user_label, get_role_display_name, get_amount_unit_config, get_currency_symbol, get_default_currency
+    project_type_label, project_stage_label, project_type_label_i18n, project_stage_label_i18n, report_source_label, authorization_status_label, company_type_label, company_type_color, product_situation_label, industry_label, industry_color, status_label, share_permission_label, user_label, get_role_display_name, get_amount_unit_config, get_currency_symbol, get_default_currency
 )
 from app.utils.access_control import can_edit_company_info, can_edit_data, can_change_company_owner, can_start_approval
 from sqlalchemy.exc import OperationalError
@@ -716,8 +716,6 @@ def create_app(config_class=Config):
     app.jinja_env.filters['industry_label'] = industry_label
     app.jinja_env.filters['industry_color'] = industry_color
     app.jinja_env.filters['status_label'] = status_label
-    app.jinja_env.filters['brand_status_label'] = brand_status_label
-    app.jinja_env.filters['reporting_source_label'] = reporting_source_label
     app.jinja_env.filters['user_label'] = user_label
     app.jinja_env.filters['share_permission_label'] = share_permission_label
 

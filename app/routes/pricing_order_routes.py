@@ -118,16 +118,29 @@ def start_pricing_process(project_id):
                 'message': '项目必须在批价或签约阶段才能发起批价流程'
             })
         
-        # 获取项目的最新报价单
-        quotation = Quotation.query.filter_by(project_id=project_id).order_by(
-            Quotation.created_at.desc()
-        ).first()
-        
-        if not quotation:
-            return jsonify({
-                'success': False,
-                'message': '项目没有关联的报价单，无法发起批价流程'
-            })
+        # 支持从报价单页面指定报价单ID，或从项目页面使用最新报价单
+        data = request.get_json() or {}
+        quotation_id = data.get('quotation_id')
+
+        if quotation_id:
+            # 从报价单页面：使用指定的报价单
+            quotation = Quotation.query.get(quotation_id)
+            if not quotation or quotation.project_id != project_id:
+                return jsonify({
+                    'success': False,
+                    'message': '报价单不存在或不属于该项目'
+                })
+        else:
+            # 从项目页面：使用最新报价单
+            quotation = Quotation.query.filter_by(project_id=project_id).order_by(
+                Quotation.created_at.desc()
+            ).first()
+
+            if not quotation:
+                return jsonify({
+                    'success': False,
+                    'message': '项目没有关联的报价单，无法发起批价流程'
+                })
         
         # 检查报价单是否有审核标记
         has_approval = (
@@ -146,17 +159,20 @@ def start_pricing_process(project_id):
                 'message': f'报价单 {quotation.quotation_number} 尚未完成审核，无法发起批价流程。请先完成报价单审批。'
             })
         
-        # 检查是否已存在批价单（签约后的项目允许创建多个批价单）
-        existing_pricing_order = PricingOrder.query.filter_by(
+        # 检查该报价单下是否有未完成的批价单（草稿、审批中、已拒绝）
+        existing_pending_order = PricingOrder.query.filter_by(
             project_id=project_id,
             quotation_id=quotation.id
+        ).filter(
+            PricingOrder.status.in_(['draft', 'pending', 'rejected'])
         ).first()
-        
-        # 只有在非签约阶段且已存在批价单时才直接跳转到已有的批价单
-        if existing_pricing_order and project.current_stage != 'signed':
+
+        # 如果有未完成的批价单，跳转到该批价单继续编辑
+        if existing_pending_order:
             return jsonify({
                 'success': True,
-                'redirect_url': url_for('pricing_order.edit_pricing_order', order_id=existing_pricing_order.id)
+                'message': f'该报价单已有未完成的批价单 {existing_pending_order.order_number}，将跳转到该批价单',
+                'redirect_url': url_for('pricing_order.edit_pricing_order', order_id=existing_pending_order.id)
             })
         
         # 创建新的批价单 - V2逻辑支持

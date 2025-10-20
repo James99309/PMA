@@ -38,36 +38,35 @@ AUTHORIZATION_STATUS_LABELS = {
     'rejected': {'zh': '已驳回', 'en': 'Rejected'}
 }
 
-# 企业类型映射
+# 企业类型映射（规范化为8个主键，按业务逻辑排序）
 COMPANY_TYPE_LABELS = {
     'user': {'zh': '用户', 'en': 'User'},
-    'dealer': {'zh': '经销商', 'en': 'Dealer'},
-    'integrator': {'zh': '系统集成商', 'en': 'System Integrator'},
-    'designer': {'zh': '设计院及顾问', 'en': 'Designer'},
+    'designer': {'zh': '设计院及顾问', 'en': 'Consultant'},
     'contractor': {'zh': '总承包单位', 'en': 'Main Contractor'},
-    'direct_customer': {'zh': '直接客户', 'en': 'Direct Customer'},
-    'partner': {'zh': '合作伙伴', 'en': 'Partner'},
-    'design_institute': {'zh': '设计院', 'en': 'Design Institute'},
-    'consultant': {'zh': '顾问', 'en': 'Consultant'},
-    'general_contractor': {'zh': '总承包商', 'en': 'General Contractor'},
+    'integrator': {'zh': '系统集成商', 'en': 'System Integrator'},
+    'dealer': {'zh': '经销商', 'en': 'Dealer'},
     'distributor': {'zh': '分销商', 'en': 'Distributor'},
+    'partner': {'zh': '合作伙伴', 'en': 'Partner'},
     'other': {'zh': '其他', 'en': 'Other'}
 }
 
-# 企业类型颜色映射
+# 企业类型颜色映射（保留向后兼容的别名）
 COMPANY_TYPE_COLORS = {
+    # 主键（8个）- 用于新数据
     'user': '#0B6EFD',
     'dealer': '#28a745',
+    'distributor': '#28a745',
     'integrator': '#fd7e14',
     'designer': '#6f42c1',
     'contractor': '#dc3545',
-    'direct_customer': '#17a2b8',
     'partner': '#20c997',
-    'design_institute': '#6f42c1',
-    'consultant': '#6f42c1',
-    'general_contractor': '#dc3545',
-    'distributor': '#28a745',
-    'other': '#6c757d'
+    'other': '#6c757d',
+
+    # 向后兼容别名（4个）- 仅用于历史数据显示
+    'direct_customer': '#0B6EFD',      # 映射到user
+    'design_institute': '#6f42c1',      # 映射到designer
+    'consultant': '#6f42c1',            # 映射到designer
+    'general_contractor': '#dc3545'     # 映射到contractor
 }
 
 # 货币类型映射
@@ -522,16 +521,6 @@ def get_dictionary_value(dict_type, key):
     cache = getattr(g, cache_name)
     return cache.get(key, key)
 
-# 品牌状态映射
-BRAND_STATUS_LABELS = {
-    'qualified': {'zh': '品牌入围', 'en': 'Qualified'},
-    'controlled': {'zh': '品牌受控', 'en': 'Controlled'},
-    'not_required': {'zh': '无品牌要求', 'en': 'Not Required'},
-    'unqualified': {'zh': '品牌未入围', 'en': 'Unqualified'}
-}
-
-def brand_status_label(key, lang='zh'):
-    return BRAND_STATUS_LABELS.get(key, {}).get(lang, key)
 
 # 产品类型映射
 PRODUCT_TYPE_LABELS = {
@@ -557,15 +546,6 @@ def product_status_label(key, lang='zh'):
 
 PRODUCT_STATUS_OPTIONS = [(k, v['zh']) for k, v in PRODUCT_STATUS_LABELS.items()]
 
-# 报备来源映射
-REPORTING_SOURCE_LABELS = {
-    'channel': {'zh': '渠道报备', 'en': 'Channel'},
-    'sales': {'zh': '销售线索', 'en': 'Sales Lead'},
-    'marketing': {'zh': '市场拓展', 'en': 'Marketing'}
-}
-
-def reporting_source_label(key, lang='zh'):
-    return REPORTING_SOURCE_LABELS.get(key, {}).get(lang, key)
 
 # 审批状态映射
 APPROVAL_STATUS_LABELS = {

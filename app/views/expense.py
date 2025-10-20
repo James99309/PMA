@@ -1327,6 +1327,47 @@ def edit_expense(id):
             logger.info(f"project_id: {request.form.get('project_id')}")
             logger.info(f"currency: {request.form.get('currency')}")
             
+            # 提前解析文件数据（用于后续的安全检查和处理）
+            file_data = {}
+            for key in request.files.keys():
+                if key.startswith('details[') and '][invoice_files][' in key:
+                    # 解析 details[index][invoice_files][fileIndex] 格式
+                    try:
+                        # 例如: details[0][invoice_files][0]
+                        parts = key.split('][')
+                        index = int(parts[0][8:])  # 提取明细索引
+                        file_index = int(parts[2][:-1])  # 提取文件索引
+
+                        if index not in file_data:
+                            file_data[index] = {}
+                        if 'files' not in file_data[index]:
+                            file_data[index]['files'] = {}
+
+                        file_data[index]['files'][file_index] = request.files[key]
+                    except (ValueError, IndexError):
+                        continue
+
+            # 处理文件元数据
+            for key, value in request.form.items():
+                if key.startswith('details[') and '][invoice_meta][' in key:
+                    try:
+                        # 例如: details[0][invoice_meta][0][filename]
+                        parts = key.split('][')
+                        index = int(parts[0][8:])
+                        file_index = int(parts[2])
+                        meta_field = parts[3][:-1]  # filename 或 size
+
+                        if index not in file_data:
+                            file_data[index] = {}
+                        if 'meta' not in file_data[index]:
+                            file_data[index]['meta'] = {}
+                        if file_index not in file_data[index]['meta']:
+                            file_data[index]['meta'][file_index] = {}
+
+                        file_data[index]['meta'][file_index][meta_field] = value
+                    except (ValueError, IndexError):
+                        continue
+
             # 根据编辑模式决定更新哪些字段
             if approval_edit_mode:
                 # 审核编辑模式：只更新允许编辑的字段
@@ -1448,48 +1489,7 @@ def edit_expense(id):
                         detail_data[index][field] = value
                     except (ValueError, IndexError):
                         continue
-            
-            # 处理AJAX FormData提交的文件数据（与创建报销单保持一致）
-            file_data = {}
-            for key in request.files.keys():
-                if key.startswith('details[') and '][invoice_files][' in key:
-                    # 解析 details[index][invoice_files][fileIndex] 格式
-                    try:
-                        # 例如: details[0][invoice_files][0]
-                        parts = key.split('][')
-                        index = int(parts[0][8:])  # 提取明细索引
-                        file_index = int(parts[2][:-1])  # 提取文件索引
-                        
-                        if index not in file_data:
-                            file_data[index] = {}
-                        if 'files' not in file_data[index]:
-                            file_data[index]['files'] = {}
-                        
-                        file_data[index]['files'][file_index] = request.files[key]
-                    except (ValueError, IndexError):
-                        continue
-            
-            # 处理文件元数据
-            for key, value in request.form.items():
-                if key.startswith('details[') and '][invoice_meta][' in key:
-                    try:
-                        # 例如: details[0][invoice_meta][0][filename]
-                        parts = key.split('][')
-                        index = int(parts[0][8:])
-                        file_index = int(parts[2])
-                        meta_field = parts[3][:-1]  # filename 或 size
-                        
-                        if index not in file_data:
-                            file_data[index] = {}
-                        if 'meta' not in file_data[index]:
-                            file_data[index]['meta'] = {}
-                        if file_index not in file_data[index]['meta']:
-                            file_data[index]['meta'][file_index] = {}
-                        
-                        file_data[index]['meta'][file_index][meta_field] = value
-                    except (ValueError, IndexError):
-                        continue
-            
+
             # 调试：记录解析的明细数据
             logger.info(f"解析到 {len(detail_data)} 条明细数据")
             logger.info(f"解析到 {len(file_data)} 组文件数据")
@@ -1533,6 +1533,11 @@ def edit_expense(id):
                     submitted_detail_fields = set()
                     for field_name in all_detail_field_names:
                         if field_name in detail:
+                            # ✅ 关键修复：如果字段不在可编辑列表中，跳过检查
+                            # 前端可能提交所有字段（包括不可编辑的），我们只检查可编辑字段的变化
+                            if field_name not in editable_fields:
+                                continue  # 忽略不可编辑的字段，不进行值比较
+
                             # 获取当前值
                             current_value = getattr(detail_obj, field_name, None)
                             submitted_value = detail[field_name]

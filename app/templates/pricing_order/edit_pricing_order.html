@@ -174,19 +174,18 @@ w{% extends "base.html" %}
                                     'customer_id_field': 'dealerId',
                                     'customer_id_name': 'dealer_id',
                                     'data_element_id': 'dealerSearchConfig',
-                                    'label': '经销商',
-                                    'placeholder': '输入公司名称搜索经销商...',
+                                    'label': '批价单位',
+                                    'placeholder': '输入公司名称搜索批价单位...',
                                     'api_endpoints': {
                                         'search': '/api/export-helpers/customers/search'
                                     },
                                     'search_config': {
                                         'min_length': 1,
                                         'delay': 300,
-                                        'limit': 10,
-                                        'company_type': 'dealer'
+                                        'limit': 50
                                     },
                                     'display_config': {
-                                        'show_contact': true,
+                                        'show_contact': false,
                                         'show_industry': false,
                                         'show_owner': true
                                     },
@@ -233,11 +232,11 @@ w{% extends "base.html" %}
                                     'search_config': {
                                         'min_length': 1,
                                         'delay': 300,
-                                        'limit': 10,
+                                        'limit': 50,
                                         'company_type': 'distributor'
                                     },
                                     'display_config': {
-                                        'show_contact': true,
+                                        'show_contact': false,
                                         'show_industry': false,
                                         'show_owner': true
                                     },
