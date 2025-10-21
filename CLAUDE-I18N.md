@@ -199,3 +199,151 @@ msgstr "Dashboard"
 msgid "数据统计"
 msgstr "Data Statistics"
 ```
+
+## 🚨 常见问题与解决方案
+
+### **问题：英文翻译全部失效，显示中文**
+
+**症状**：
+- 切换到英文环境后，导航菜单和列表标题仍显示中文
+- messages.po 文件中所有翻译条目带有 `#~` 前缀（obsolete标记）
+- 翻译条目从活跃状态变为 obsolete 状态
+
+**根本原因**：
+使用了错误的 `pybabel extract` 命令参数：
+```bash
+# ❌ 错误命令 - 导致所有翻译失效
+pybabel extract -F babel.cfg -k _l -o messages.pot .
+```
+
+**为什么会失效**：
+1. `-k _l` 参数告诉 Babel **只提取 `_l()` 函数调用**
+2. 但项目中实际使用的是 `_()` 函数（2,622 处使用）
+3. 项目中 `_l()` 函数使用次数：**0 次**
+4. 结果：提取了 0 个翻译字符串，生成空的 messages.pot
+5. 运行 `pybabel update` 后，Babel 认为所有旧翻译都过时，全部标记为 obsolete
+
+**修复步骤**：
+
+1. **从 Git 恢复完好的翻译版本**（如果有）：
+   ```bash
+   # 查找最后一个完好的版本
+   git log --oneline -- app/translations/en/LC_MESSAGES/messages.po
+
+   # 恢复完好版本（例如 970e5c2）
+   git show 970e5c2:app/translations/en/LC_MESSAGES/messages.po > app/translations/en/LC_MESSAGES/messages.po
+   ```
+
+2. **修正 babel.cfg 配置**：
+   ```
+   [python: **.py]
+   [jinja2: **/templates/**.html]
+   extensions=jinja2.ext.i18n
+   ```
+
+3. **使用正确的命令重新提取**：
+   ```bash
+   # ✅ 正确命令 - 使用默认关键字
+   pybabel extract -F babel.cfg -o messages.pot app/
+   ```
+
+4. **更新翻译文件**（合并新旧翻译）：
+   ```bash
+   pybabel update -i messages.pot -d app/translations
+   ```
+
+5. **编译翻译文件**：
+   ```bash
+   pybabel compile -d app/translations
+   ```
+
+6. **重启应用并验证**
+
+---
+
+### **❌ 永远不要使用的错误命令**
+
+```bash
+# ❌ 错误 1：使用 -k _l 参数（项目中未使用 _l()）
+pybabel extract -F babel.cfg -k _l -o messages.pot .
+
+# ❌ 错误 2：提取根目录所有文件（包含语法错误的临时脚本）
+pybabel extract -F babel.cfg -o messages.pot .
+
+# ❌ 错误 3：使用 --no-default-keywords（会忽略 _ 和 gettext）
+pybabel extract -F babel.cfg --no-default-keywords -o messages.pot app/
+```
+
+---
+
+### **✅ 标准翻译管理命令**
+
+#### **提取新的翻译文本**
+```bash
+# 从 app/ 目录提取翻译（推荐）
+pybabel extract -F babel.cfg -o messages.pot app/
+```
+
+#### **更新翻译文件**
+```bash
+# 将新提取的翻译合并到现有翻译文件
+pybabel update -i messages.pot -d app/translations
+```
+
+#### **编译翻译文件**
+```bash
+# 编译 .po 文件为 .mo 二进制文件
+pybabel compile -d app/translations
+```
+
+#### **完整更新流程**
+```bash
+# 1. 提取翻译
+pybabel extract -F babel.cfg -o messages.pot app/
+
+# 2. 更新翻译文件
+pybabel update -i messages.pot -d app/translations
+
+# 3. 手工翻译新增条目（编辑 messages.po 文件）
+
+# 4. 编译翻译文件
+pybabel compile -d app/translations
+
+# 5. 重启应用
+```
+
+---
+
+### **Babel 默认提取关键字**
+
+不使用 `-k` 参数时，Babel 会提取以下函数调用：
+- `_()` - 最常用的翻译函数
+- `gettext()` - 标准翻译函数
+- `ngettext()` - 复数翻译函数
+- `ugettext()` - Unicode 翻译函数
+- `N_()` - 延迟翻译函数
+- `pgettext()` - 上下文翻译函数
+- 等等...
+
+**项目使用情况**：
+- `_()` 函数：2,622 处（主要在模板中）
+- `gettext()` 函数：若干处（Python 代码中）
+- `_l()` 函数：**0 处**
+
+---
+
+### **预防措施**
+
+1. **记录标准命令**：在团队文档中明确记录正确的翻译管理命令
+2. **代码审查**：提交翻译文件变更时，检查是否有大量 obsolete 标记
+3. **自动化脚本**：创建标准化脚本避免手动输入错误命令
+4. **Git 保护**：定期备份 messages.po 文件
+5. **测试验证**：翻译更新后必须测试英文环境
+
+---
+
+**历史案例**：2025-10-19 翻译失效事件
+- **触发**: 使用 `pybabel extract -k _l` 命令
+- **影响**: 1,278 个翻译全部标记为 obsolete
+- **修复**: 从 Git 提交 970e5c2 恢复，重新提取并更新
+- **教训**: 严格遵循标准命令，不随意使用 `-k` 参数

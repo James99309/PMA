@@ -416,8 +416,8 @@ def list_projects():
                 'current_value': request.args.get('is_active', ''),
                 'col_width': 2,
                 'options': [
-                    {'value': 'true', 'label': '活跃', 'translate': True},
-                    {'value': 'false', 'label': '非活跃', 'translate': True}
+                    {'value': 'true', 'label': _('活跃'), 'translate': False},
+                    {'value': 'false', 'label': _('非活跃'), 'translate': False}
                 ]
             },
             {
@@ -462,8 +462,8 @@ def list_projects():
             },
             {
                 'name': 'project_type',
-                'label': '项目类型',
-                'all_option_text': '全部类型',
+                'label': _(mapping_manager.get_field_display_name('project', 'project_type')),
+                'all_option_text': _('全部类型'),
                 'current_value': request.args.get('project_type', ''),
                 'col_width': 2,
                 'options': [
@@ -810,14 +810,14 @@ def project_list_ajax():
                             {'field': 'project_type', 'renderer': 'project_type'}
                         ],
                         'details': [
-                            {'field': 'authorization_code', 'label': '授权编号', 'renderer': 'render_project_authorization'},
-                            {'field': 'owner', 'label': '拥有者', 'renderer': 'owner'},
-                            {'field': 'vendor_sales_manager', 'label': '厂商负责人', 'renderer': 'owner'},
-                            {'field': 'industry', 'label': '行业', 'renderer': 'industry_badge'},
-                            {'field': 'report_source', 'label': '来源', 'renderer': 'report_source_badge'},
-                            {'field': 'quotation_customer', 'label': '报价金额', 'format': 'currency'},
-                            {'field': 'delivery_forecast', 'label': _('预测出货时间'), 'format': 'date'},
-                            {'field': 'updated_at', 'label': '更新时间', 'format': 'datetime'}
+                            {'field': 'authorization_code', 'label': _(mapping_manager.get_field_display_name('project', 'authorization_code')), 'renderer': 'render_project_authorization'},
+                            {'field': 'owner', 'label': _(mapping_manager.get_field_display_name('project', 'owner_id')), 'renderer': 'owner'},
+                            {'field': 'vendor_sales_manager', 'label': _(mapping_manager.get_field_display_name('project', 'vendor_sales_manager_id')), 'renderer': 'owner'},
+                            {'field': 'industry', 'label': _(mapping_manager.get_field_display_name('project', 'industry')), 'renderer': 'industry_badge'},
+                            {'field': 'report_source', 'label': _(mapping_manager.get_field_display_name('project', 'report_source')), 'renderer': 'report_source_badge'},
+                            {'field': 'quotation_customer', 'label': _(mapping_manager.get_field_display_name('project', 'quotation_customer')), 'format': 'currency'},
+                            {'field': 'delivery_forecast', 'label': _(mapping_manager.get_field_display_name('project', 'delivery_forecast')), 'format': 'date'},
+                            {'field': 'updated_at', 'label': _(mapping_manager.get_field_display_name('common', 'updated_at')), 'format': 'datetime'}
                         ]
                     }
                     html = render_template_string('''
