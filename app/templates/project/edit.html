@@ -292,6 +292,10 @@
         }
     });
 </script>
+
+<!-- 厂商销售负责人选择器工具 -->
+<script src="{{ url_for('static', filename='js/vendor-sales-manager-selector.js') }}"></script>
+
 <script>
 // 国际化文本变量
 const i18nTexts = {
@@ -450,79 +454,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 搜索下拉框功能已移除
 
-    // 加载厂商销售负责人
-    async function loadVendorSalesManagers() {
-        try {
-            console.log('开始加载厂商销售负责人...');
-            {% if project and project.vendor_sales_manager_id %}
-            console.log('当前项目厂商负责人ID:', {{ project.vendor_sales_manager_id }});
-            {% else %}
-            console.log('当前项目没有设置厂商负责人');
-            {% endif %}
-            
-            // 使用与创建页面相同的API
-            const response = await fetch('/api/users/hierarchical');
-            console.log('API响应状态:', response.status);
-            
-            if (response.ok) {
-                const data = await response.json();
-                console.log('API响应数据:', data);
-                
-                const select = document.getElementById('vendor_sales_manager_id');
-                if (!select) {
-                    console.error('找不到厂商销售负责人选择框');
-                    return;
-                }
-                
-                // 清空现有选项（保留默认选项）
-                select.innerHTML = '<option value="">{{ _("请选择厂商销售负责人") }}</option>';
-                
-                if (data.success && data.data) {
-                    console.log(`找到 ${data.data.length} 个企业`);
-                    
-                    // 显示所有企业和部门的用户，不进行厂商过滤
-                    data.data.forEach(company => {
-                        if (company.users && company.users.length > 0) {
-                            // 添加企业分组标识（可选）
-                            const companyGroup = document.createElement('optgroup');
-                            companyGroup.label = company.name;
-                            
-                            company.users.forEach(user => {
-                                const option = document.createElement('option');
-                                option.value = user.id;
-                                // 显示姓名和公司信息
-                                const displayName = user.real_name || user.name;
-                                option.textContent = `${displayName} (${company.name})`;
-                                
-                                // 如果是编辑模式且当前项目有设置厂商销售负责人，则选中
-                                {% if project and project.vendor_sales_manager_id %}
-                                if (user.id === {{ project.vendor_sales_manager_id }}) {
-                                    option.selected = true;
-                                    console.log(`选中负责人: ${displayName} (ID: ${user.id})`);
-                                }
-                                {% endif %}
-                                
-                                companyGroup.appendChild(option);
-                            });
-                            
-                            select.appendChild(companyGroup);
-                        }
-                    });
-                } else {
-                    console.warn('API响应格式不正确或没有数据:', data);
-                }
-            } else {
-                console.error('API请求失败:', response.status, response.statusText);
-                const errorText = await response.text();
-                console.error('错误详情:', errorText);
-            }
-        } catch (error) {
-            console.error('加载厂商销售负责人异常:', error);
-        }
-    }
-
-    // 页面加载完成后执行
-    loadVendorSalesManagers();
+    // 加载厂商销售负责人（使用通用工具函数）
+    loadVendorSalesManagers('vendor_sales_manager_id', {
+        {% if project and project.vendor_sales_manager_id %}
+        selectedUserId: {{ project.vendor_sales_manager_id }},
+        {% endif %}
+        emptyText: '{{ _("请选择厂商销售负责人") }}'
+    });
 
     // 项目名称重复检查功能（编辑模式下可选）
     const projectNameInput = document.getElementById('project_name');

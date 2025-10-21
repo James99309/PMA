@@ -203,12 +203,36 @@ def get_all_users():
 @api_bp.route('/users/hierarchical', methods=['GET'])
 @login_required
 def get_hierarchical_users():
-    """获取层级结构的用户数据（按公司分组）"""
+    """
+    获取层级结构的用户数据（按公司分组）
+
+    可选参数:
+        vendor_only: 'true' 仅返回厂商公司的用户
+        departments: 逗号分隔的部门名称，仅返回这些部门的用户（例如：'销售部,服务部'）
+    """
+    # 获取筛选参数
+    vendor_only = request.args.get('vendor_only', 'false').lower() == 'true'
+    departments_filter = request.args.get('departments', '')
+
+    # 解析部门过滤列表
+    allowed_departments = []
+    if departments_filter:
+        allowed_departments = [d.strip() for d in departments_filter.split(',') if d.strip()]
+
     users = User.query.all()
     companies = {}
-    
+
     # 按公司分组用户
     for user in users:
+        # 厂商过滤
+        if vendor_only and not user.is_vendor_user():
+            continue
+
+        # 部门过滤
+        if allowed_departments:
+            if not user.department or user.department not in allowed_departments:
+                continue
+
         company_name = user.company_name or '未分配公司'
         if company_name not in companies:
             companies[company_name] = {
@@ -216,24 +240,25 @@ def get_hierarchical_users():
                 'is_vendor': user.is_vendor_user(),  # 添加厂商标识
                 'users': []
             }
-        
+
         # 获取真实姓名，如果没有则使用用户名
         display_name = user.real_name if hasattr(user, 'real_name') and user.real_name else (user.name if hasattr(user, 'name') else user.username)
         # 获取角色的中文显示名
         role_display = get_role_display_name(user.role) if user.role else '未知角色'
-        
+
         companies[company_name]['users'].append({
             'id': user.id,
             'name': display_name,
             'username': user.username,
             'real_name': display_name,
             'role': user.role,
-            'role_display': role_display
+            'role_display': role_display,
+            'department': user.department  # 添加部门信息
         })
-    
+
     # 转换为列表
     companies_list = list(companies.values())
-    
+
     return jsonify({
         'success': True,
         'data': companies_list
