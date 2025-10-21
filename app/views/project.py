@@ -2803,11 +2803,7 @@ def delete_action_reply(reply_id):
 def get_project_api(project_id):
     """获取项目详情API"""
     project = Project.query.get_or_404(project_id)
-    
-    # 检查查看权限
-    if not can_view_project(current_user, project):
-        return jsonify({'error': '没有权限查看此项目'}), 403
-    
+
     return jsonify({
         'id': project.id,
         'project_name': project.project_name,
@@ -2872,11 +2868,7 @@ def get_project_latest_quotation_api(project_id):
     """获取项目最新报价信息"""
     try:
         project = Project.query.get_or_404(project_id)
-        
-        # 检查权限
-        if not can_view_project(project, current_user):
-            return jsonify({'success': False, 'message': '无权限查看此项目'}), 403
-        
+
         # 获取最新报价
         latest_quotation = Quotation.query.filter_by(project_id=project_id).order_by(Quotation.created_at.desc()).first()
         
@@ -3205,15 +3197,10 @@ def get_customer_associations(project_id):
     """获取项目的客户关联列表"""
     try:
         from app.models.project_customer_association import ProjectCustomerAssociation
-        
-        # 验证项目访问权限
+
+        # 获取项目对象（用于后续厂商负责人判断）
         project_obj = Project.query.get_or_404(project_id)
-        if not can_view_project(current_user, project_obj):
-            return jsonify({
-                'success': False,
-                'message': '没有权限查看此项目的客户关联'
-            }), 403
-        
+
         # 获取活跃的客户关联
         associations = ProjectCustomerAssociation.get_active_associations(project_id)
 
@@ -3321,12 +3308,14 @@ def add_customer_association():
                 'message': '缺少必要参数'
             }), 400
 
-        # 权限检查
+        # 获取项目对象
         project_obj = Project.query.get_or_404(project_id)
-        if not can_view_project(current_user, project_obj):
+
+        # 添加客户关联需要编辑权限
+        if not can_edit_data(project_obj, current_user):
             return jsonify({
                 'success': False,
-                'message': '没有权限访问此项目'
+                'message': '没有权限编辑此项目'
             }), 403
 
         # 验证客户是否存在
@@ -3425,14 +3414,9 @@ def render_customer_associations_list(project_id):
     from app.models.project_customer_association import ProjectCustomerAssociation
     
     try:
-        # 验证项目访问权限
+        # 获取项目对象（用于后续权限判断）
         project_obj = Project.query.get_or_404(project_id)
-        if not can_view_project(current_user, project_obj):
-            return jsonify({
-                'success': False,
-                'message': '没有权限查看此项目的客户关联'
-            }), 403
-        
+
         # 获取客户关联数据
         associations = ProjectCustomerAssociation.get_active_associations(project_id)
         
@@ -3494,19 +3478,17 @@ def get_quotations_list(project_id):
         from app.models.quotation import Quotation
         from app.models.customer import Company
 
-        # 验证项目访问权限
+        # 获取项目对象（确保项目存在）
         project_obj = Project.query.get_or_404(project_id)
-        if not can_view_project(current_user, project_obj):
-            return jsonify({
-                'success': False,
-                'message': '没有权限查看此项目的报价单'
-            }), 403
 
-        # 查询项目的报价单（带权限过滤）
-        from app.utils.access_control import get_viewable_data
-        quotations = get_viewable_data(Quotation, current_user, [
-            Quotation.project_id == project_id
-        ]).order_by(Quotation.updated_at.desc()).all()
+        # 查询项目的报价单（两步过滤：先获取所有，再逐个检查权限）
+        all_quotations = Quotation.query.filter_by(
+            project_id=project_id
+        ).order_by(Quotation.updated_at.desc()).all()
+
+        # 通过 can_view_quotation 逐个检查权限
+        from app.utils.access_control import can_view_quotation
+        quotations = [q for q in all_quotations if can_view_quotation(current_user, q)]
 
         # 准备返回数据
         quotations_data = []
@@ -3571,19 +3553,17 @@ def get_pricing_orders_list(project_id):
     try:
         from app.models.pricing_order import PricingOrder
 
-        # 验证项目访问权限
+        # 获取项目对象（确保项目存在）
         project_obj = Project.query.get_or_404(project_id)
-        if not can_view_project(current_user, project_obj):
-            return jsonify({
-                'success': False,
-                'message': '您没有权限访问该项目'
-            }), 403
 
-        # 查询项目的批价单（带权限过滤）
-        from app.utils.access_control import get_viewable_data
-        pricing_orders = get_viewable_data(PricingOrder, current_user, [
-            PricingOrder.project_id == project_id
-        ]).order_by(PricingOrder.created_at.desc()).all()
+        # 查询项目的批价单（两步过滤：先获取所有，再逐个检查权限）
+        all_pricing_orders = PricingOrder.query.filter_by(
+            project_id=project_id
+        ).order_by(PricingOrder.created_at.desc()).all()
+
+        # 通过 can_view_pricing_order 逐个检查权限
+        from app.utils.access_control import can_view_pricing_order
+        pricing_orders = [po for po in all_pricing_orders if can_view_pricing_order(current_user, po)]
 
         pricing_orders_data = []
         for po in pricing_orders:
@@ -3684,13 +3664,8 @@ def search_project_customers_for_quotation(project_id):
 
         keyword = request.args.get('keyword', '').strip()
 
-        # 验证项目访问权限
+        # 获取项目对象（确保项目存在）
         project_obj = Project.query.get_or_404(project_id)
-        if not can_view_project(current_user, project_obj):
-            return jsonify({
-                'success': False,
-                'message': '没有权限访问此项目'
-            }), 403
 
         # 获取项目的客户关联
         associations = ProjectCustomerAssociation.get_active_associations(project_id)

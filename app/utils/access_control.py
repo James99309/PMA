@@ -444,30 +444,21 @@ def get_viewable_data(model_class, user, special_filters=None):
             # 系统级权限：可以查看所有报价单
             return model_class.query.filter(*special_filters if special_filters else [])
         elif permission_level == 'company' and user.company_name:
-            # 企业级权限：可以查看企业下所有报价单
-            company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
-            
-            # 获取这些用户的项目ID
-            company_project_ids = [p.id for p in Project.query.filter(Project.owner_id.in_(company_user_ids)).all()]
-            
-            # 返回企业内所有项目的报价单
+            # 企业级权限：可以查看企业内所有用户创建的报价单
+            company_user_ids = get_company_user_ids(user, include_affiliations=True)
+
+            # 直接通过报价单owner过滤（而不是通过项目）
             return model_class.query.filter(
-                model_class.project_id.in_(company_project_ids),
+                model_class.owner_id.in_(company_user_ids),
                 *special_filters if special_filters else []
             )
         elif permission_level == 'department' and user.department and user.company_name:
-            # 部门级权限：可以查看部门下所有报价单
-            dept_user_ids = [u.id for u in User.query.filter(
-                User.department == user.department,
-                User.company_name == user.company_name
-            ).all()]
-            
-            # 获取这些用户的项目ID
-            dept_project_ids = [p.id for p in Project.query.filter(Project.owner_id.in_(dept_user_ids)).all()]
-            
-            # 返回部门内所有项目的报价单
+            # 部门级权限：可以查看部门内所有用户创建的报价单（包括归属关系）
+            dept_user_ids = get_department_user_ids(user, include_affiliations=True)
+
+            # 直接通过报价单owner过滤（而不是通过项目）
             return model_class.query.filter(
-                model_class.project_id.in_(dept_project_ids),
+                model_class.owner_id.in_(dept_user_ids),
                 *special_filters if special_filters else []
             )
         
@@ -1167,6 +1158,208 @@ def can_view_company(user, company):
         logger.debug(f"[权限检查] 联系人创建权限 - 允许访问")
         return True
     
+    logger.debug(f"[权限检查] 所有权限检查失败 - 拒绝访问")
+    return False
+
+def can_view_quotation(user, quotation):
+    """
+    检查用户是否有权限查看指定的报价单
+
+    参数:
+        user: 用户对象
+        quotation: 报价单对象
+
+    返回:
+        bool: 是否有查看权限
+    """
+    # 处理匿名用户
+    if not user or not hasattr(user, 'username') or not hasattr(user, 'id'):
+        logger.debug(f"[权限检查] 匿名用户或无效用户 - 拒绝访问报价单 {quotation.id if quotation else 'unknown'}")
+        return False
+
+    logger.debug(f"[权限检查] 用户 {user.username} (ID: {user.id}, 角色: {user.role}) 尝试访问报价单 ID: {quotation.id}, Owner: {quotation.owner_id}")
+
+    # 管理员可以查看所有报价单
+    if user.role == 'admin':
+        logger.debug(f"[权限检查] 管理员权限 - 允许访问")
+        return True
+
+    # 自己创建的报价单
+    if user.id == quotation.owner_id:
+        logger.debug(f"[权限检查] 报价单拥有者权限 - 允许访问")
+        return True
+
+    # 首先检查用户是否有报价单查看权限
+    if not user.has_permission('quotation', 'view'):
+        logger.debug(f"[权限检查] 用户无报价单查看权限 - 拒绝访问")
+        return False
+
+    # 基于四级权限系统的访问控制
+    permission_level = user.get_permission_level('quotation')
+    logger.debug(f"[权限检查] 用户 {user.username} 的报价单权限级别: {permission_level}")
+
+    if permission_level == 'system':
+        # 系统级权限：可以查看所有报价单
+        logger.debug(f"[权限检查] 系统级权限 - 允许访问")
+        return True
+    elif permission_level == 'company':
+        # 公司级权限：可以查看同公司的所有报价单
+        if user.company_name:
+            quotation_owner = User.query.get(quotation.owner_id)
+            if quotation_owner and quotation_owner.company_name == user.company_name:
+                logger.debug(f"[权限检查] 公司级权限 - 同公司报价单 - 允许访问")
+                return True
+    elif permission_level == 'department':
+        # 部门级权限：可以查看同部门的报价单
+        if user.department and user.company_name:
+            quotation_owner = User.query.get(quotation.owner_id)
+            if (quotation_owner and
+                quotation_owner.department == user.department and
+                quotation_owner.company_name == user.company_name):
+                logger.debug(f"[权限检查] 部门级权限 - 同部门报价单 - 允许访问")
+                return True
+
+    # 判断是否通过归属关系获得权限
+    affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+    if quotation.owner_id in [affiliation.owner_id for affiliation in affiliations]:
+        logger.debug(f"[权限检查] 归属关系权限 - 允许访问")
+        return True
+
+    # 部门负责人权限：可以查看本公司本部门所有用户的报价单
+    if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+        quotation_owner = User.query.get(quotation.owner_id)
+        if (quotation_owner and
+            quotation_owner.department == user.department and
+            quotation_owner.company_name == user.company_name):
+            logger.debug(f"[权限检查] 部门负责人权限 - 允许访问")
+            return True
+
+    # 判断是否通过共享获得权限
+    if hasattr(quotation, 'shared_with_users') and quotation.shared_with_users:
+        if user.id in quotation.shared_with_users:
+            logger.debug(f"[权限检查] 报价单共享权限 - 允许访问")
+            return True
+
+    # 财务总监可以查看所有报价单（只读权限）
+    user_role = user.role.strip() if user.role else ''
+    if user_role in ['finance_director', 'finace_director']:
+        logger.debug(f"[权限检查] 财务总监权限 - 允许访问")
+        return True
+
+    # 渠道经理特殊权限：可以查看所有渠道跟进项目的报价单
+    if user_role == 'channel_manager' and quotation.project:
+        if quotation.project.project_type == 'channel_follow':
+            logger.debug(f"[权限检查] 渠道经理特殊权限 - 渠道跟进项目 - 允许访问")
+            return True
+
+    # 营销总监特殊权限：可以查看销售重点和渠道跟进项目的报价单
+    if user_role == 'sales_director' and quotation.project:
+        if quotation.project.project_type in ['sales_focus', 'sales_key', 'channel_follow']:
+            logger.debug(f"[权限检查] 营销总监特殊权限 - 营销项目 - 允许访问")
+            return True
+
+    # 服务经理特殊权限：可以查看商机项目的报价单
+    if user_role in ['service', 'service_manager'] and quotation.project:
+        if quotation.project.project_type == 'business_opportunity':
+            logger.debug(f"[权限检查] 服务经理特殊权限 - 商机项目 - 允许访问")
+            return True
+
+    # 厂商销售负责人权限：可以查看自己负责的项目的报价单
+    if quotation.project and hasattr(quotation.project, 'vendor_sales_manager_id'):
+        if quotation.project.vendor_sales_manager_id == user.id:
+            logger.debug(f"[权限检查] 厂商销售负责人权限 - 允许访问")
+            return True
+
+    logger.debug(f"[权限检查] 所有权限检查失败 - 拒绝访问")
+    return False
+
+def can_view_pricing_order(user, pricing_order):
+    """
+    检查用户是否有权限查看指定的批价单
+
+    参数:
+        user: 用户对象
+        pricing_order: 批价单对象
+
+    返回:
+        bool: 是否有查看权限
+
+    注意：批价单使用 created_by 字段而非 owner_id
+    """
+    # 处理匿名用户
+    if not user or not hasattr(user, 'username') or not hasattr(user, 'id'):
+        logger.debug(f"[权限检查] 匿名用户或无效用户 - 拒绝访问批价单 {pricing_order.id if pricing_order else 'unknown'}")
+        return False
+
+    logger.debug(f"[权限检查] 用户 {user.username} (ID: {user.id}, 角色: {user.role}) 尝试访问批价单 ID: {pricing_order.id}, Creator: {pricing_order.created_by}")
+
+    # 管理员可以查看所有批价单
+    if user.role == 'admin':
+        logger.debug(f"[权限检查] 管理员权限 - 允许访问")
+        return True
+
+    # 自己创建的批价单
+    if user.id == pricing_order.created_by:
+        logger.debug(f"[权限检查] 批价单创建者权限 - 允许访问")
+        return True
+
+    # 首先检查用户是否有批价单查看权限
+    if not user.has_permission('pricing_order', 'view'):
+        logger.debug(f"[权限检查] 用户无批价单查看权限 - 拒绝访问")
+        return False
+
+    # 基于四级权限系统的访问控制
+    permission_level = user.get_permission_level('pricing_order')
+    logger.debug(f"[权限检查] 用户 {user.username} 的批价单权限级别: {permission_level}")
+
+    if permission_level == 'system':
+        # 系统级权限：可以查看所有批价单
+        logger.debug(f"[权限检查] 系统级权限 - 允许访问")
+        return True
+    elif permission_level == 'company':
+        # 公司级权限：可以查看同公司的所有批价单
+        if user.company_name:
+            creator = User.query.get(pricing_order.created_by)
+            if creator and creator.company_name == user.company_name:
+                logger.debug(f"[权限检查] 公司级权限 - 同公司批价单 - 允许访问")
+                return True
+    elif permission_level == 'department':
+        # 部门级权限：可以查看同部门的批价单
+        if user.department and user.company_name:
+            creator = User.query.get(pricing_order.created_by)
+            if (creator and
+                creator.department == user.department and
+                creator.company_name == user.company_name):
+                logger.debug(f"[权限检查] 部门级权限 - 同部门批价单 - 允许访问")
+                return True
+
+    # 判断是否通过归属关系获得权限
+    affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+    if pricing_order.created_by in [affiliation.owner_id for affiliation in affiliations]:
+        logger.debug(f"[权限检查] 归属关系权限 - 允许访问")
+        return True
+
+    # 部门负责人权限：可以查看本公司本部门所有用户的批价单
+    if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+        creator = User.query.get(pricing_order.created_by)
+        if (creator and
+            creator.department == user.department and
+            creator.company_name == user.company_name):
+            logger.debug(f"[权限检查] 部门负责人权限 - 允许访问")
+            return True
+
+    # 判断是否通过共享获得权限
+    if hasattr(pricing_order, 'shared_with_users') and pricing_order.shared_with_users:
+        if user.id in pricing_order.shared_with_users:
+            logger.debug(f"[权限检查] 批价单共享权限 - 允许访问")
+            return True
+
+    # 厂商销售负责人权限：可以查看自己负责的项目的批价单
+    if pricing_order.project and hasattr(pricing_order.project, 'vendor_sales_manager_id'):
+        if pricing_order.project.vendor_sales_manager_id == user.id:
+            logger.debug(f"[权限检查] 厂商销售负责人权限 - 允许访问")
+            return True
+
     logger.debug(f"[权限检查] 所有权限检查失败 - 拒绝访问")
     return False
 
