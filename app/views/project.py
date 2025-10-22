@@ -3311,11 +3311,12 @@ def add_customer_association():
         # 获取项目对象
         project_obj = Project.query.get_or_404(project_id)
 
-        # 添加客户关联需要编辑权限
-        if not can_edit_data(project_obj, current_user):
+        # 添加客户关联只需要查看项目的权限（不需要编辑项目权限）
+        # 这与添加行动记录、删除客户关联的权限设计保持一致
+        if not can_view_project(current_user, project_obj):
             return jsonify({
                 'success': False,
-                'message': '没有权限编辑此项目'
+                'message': '没有权限访问此项目'
             }), 403
 
         # 验证客户是否存在
@@ -3326,6 +3327,14 @@ def add_customer_association():
                 'success': False,
                 'message': '指定的客户不存在'
             }), 404
+
+        # 验证用户是否有权限查看该客户
+        from app.utils.access_control import can_view_company
+        if not can_view_company(current_user, company):
+            return jsonify({
+                'success': False,
+                'message': '没有权限访问此客户'
+            }), 403
 
         # 添加关联
         from app.models.project_customer_association import ProjectCustomerAssociation
