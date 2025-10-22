@@ -578,8 +578,9 @@ def get_viewable_data(model_class, user, special_filters=None):
         return query
     
     # 报销单特殊权限处理 - 不使用数据归属机制（财务隐私保护）
-    # 注意：报销单与业务数据不同，不应该基于公司/部门级别共享
-    # 只有财务、管理员和直属上级（审批需要）可以查看他人的报销单
+    # 注意：报销单与业务数据不同，不应该基于数据归属关系共享
+    # 仅基于权限级别（system/company/department/personal）进行访问控制
+    # 参考实现：批价单（PricingOrder）权限逻辑
     if model_class.__name__ == 'Expense':
         # 检查用户是否有报销单模块的查看权限
         if not user.has_permission('expense', 'view'):
@@ -595,26 +596,26 @@ def get_viewable_data(model_class, user, special_filters=None):
         if user_role in ['finance_director', 'finace_director', 'finance', 'admin', 'ceo']:
             return model_class.query.filter(*(base_filters + (special_filters if special_filters else [])))
 
-        # 2. 普通用户：只能查看自己和直属下属的报销单
-        #    - 自己创建的报销单（所有人）
-        #    - 直属下属创建的报销单（用于审批，仅一级下属）
-        # 注意：Affiliation 已在文件顶部导入（from app.models.user import Affiliation）
+        # 2. 基于权限级别的访问控制（不包含数据归属关系）
+        permission_level = user.get_permission_level('expense')
 
-        # 可查看的用户ID列表
-        viewable_user_ids = [user.id]
-
-        # 查询下属（通过 Affiliation 归属关系）
-        # viewer_id = 当前用户ID 表示当前用户是上级
-        # owner_id = 下属用户ID
-        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-        subordinate_ids = [aff.owner_id for aff in affiliations]
-
-        if subordinate_ids:
-            viewable_user_ids.extend(subordinate_ids)
-
-        # 构建查询
-        all_filters = base_filters + [model_class.owner_id.in_(viewable_user_ids)] + (special_filters if special_filters else [])
-        query = model_class.query.filter(*all_filters)
+        if permission_level == 'system':
+            # 系统级权限：可以查看所有报销单
+            query = model_class.query.filter(*(base_filters + (special_filters if special_filters else [])))
+        elif permission_level == 'company' and user.company_name:
+            # 公司级权限：可以查看公司内用户创建的报销单（不包含归属关系）
+            company_user_ids = get_company_user_ids(user, include_affiliations=False)
+            all_filters = base_filters + [model_class.owner_id.in_(company_user_ids)] + (special_filters if special_filters else [])
+            query = model_class.query.filter(*all_filters)
+        elif permission_level == 'department' and user.department and user.company_name:
+            # 部门级权限：可以查看部门内用户创建的报销单（不包含归属关系）
+            dept_user_ids = get_department_user_ids(user, include_affiliations=False)
+            all_filters = base_filters + [model_class.owner_id.in_(dept_user_ids)] + (special_filters if special_filters else [])
+            query = model_class.query.filter(*all_filters)
+        else:  # personal
+            # 个人级权限：只能查看自己创建的报销单（不包含归属关系）
+            all_filters = base_filters + [model_class.owner_id == user.id] + (special_filters if special_filters else [])
+            query = model_class.query.filter(*all_filters)
 
         # 应用内容过滤
         query = apply_content_filters(query, model_class, 'expense', user)
