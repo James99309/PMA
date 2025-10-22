@@ -598,19 +598,19 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 2. 普通用户：只能查看自己和直属下属的报销单
         #    - 自己创建的报销单（所有人）
         #    - 直属下属创建的报销单（用于审批，仅一级下属）
-        from app.models.affiliation import Affiliation
+        # 注意：Affiliation 已在文件顶部导入（from app.models.user import Affiliation）
 
         # 可查看的用户ID列表
         viewable_user_ids = [user.id]
 
-        # 查询直属下属（一级下属，用于审批流程）
-        subordinates = db.session.query(Affiliation.subordinate_id).filter(
-            Affiliation.superior_id == user.id,
-            Affiliation.is_active == True
-        ).all()
+        # 查询下属（通过 Affiliation 归属关系）
+        # viewer_id = 当前用户ID 表示当前用户是上级
+        # owner_id = 下属用户ID
+        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+        subordinate_ids = [aff.owner_id for aff in affiliations]
 
-        if subordinates:
-            viewable_user_ids.extend([s.subordinate_id for s in subordinates])
+        if subordinate_ids:
+            viewable_user_ids.extend(subordinate_ids)
 
         # 构建查询
         all_filters = base_filters + [model_class.owner_id.in_(viewable_user_ids)] + (special_filters if special_filters else [])
