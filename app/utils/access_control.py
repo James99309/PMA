@@ -768,8 +768,8 @@ def get_viewable_data(model_class, user, special_filters=None):
             all_filters = base_filters + [model_class.created_by.in_(dept_user_ids)] + (special_filters if special_filters else [])
             query = model_class.query.filter(*all_filters)
         else:  # personal
-            viewable_user_ids = get_personal_viewable_user_ids(user)
-            all_filters = base_filters + [model_class.created_by.in_(viewable_user_ids)] + (special_filters if special_filters else [])
+            # 个人级权限：只能查看自己创建的批价单（不包含归属关系）
+            all_filters = base_filters + [model_class.created_by == user.id] + (special_filters if special_filters else [])
             query = model_class.query.filter(*all_filters)
 
         # 应用内容过滤
@@ -1338,11 +1338,7 @@ def can_view_pricing_order(user, pricing_order):
                 logger.debug(f"[权限检查] 部门级权限 - 同部门批价单 - 允许访问")
                 return True
 
-    # 判断是否通过归属关系获得权限
-    affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-    if pricing_order.created_by in [affiliation.owner_id for affiliation in affiliations]:
-        logger.debug(f"[权限检查] 归属关系权限 - 允许访问")
-        return True
+    # 批价单不使用归属关系机制（已移除，与报销单保持一致）
 
     # 部门负责人权限：可以查看本公司本部门所有用户的批价单
     if getattr(user, 'is_department_manager', False) and user.department and user.company_name:

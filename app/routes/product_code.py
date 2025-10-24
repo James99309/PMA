@@ -14,6 +14,38 @@ from datetime import datetime
 # 创建蓝图
 product_code_bp = Blueprint('product_code', __name__, url_prefix='/product-code')
 
+# ============================================================================
+# 辅助函数
+# ============================================================================
+
+def check_field_used_in_subcategory(field_name, subcategory_id):
+    """
+    检查规格字段是否在指定子分类的产品中被使用
+
+    Args:
+        field_name (str): 规格字段名称
+        subcategory_id (int): 子分类ID
+
+    Returns:
+        bool: 如果被使用返回True，否则返回False
+    """
+    used_in_dev = db.session.execute(
+        text("""
+            SELECT 1 FROM dev_product_specs dps
+            INNER JOIN dev_products dp ON dps.dev_product_id = dp.id
+            WHERE dps.field_name = :field_name
+            AND dp.subcategory_id = :subcategory_id
+            LIMIT 1
+        """),
+        {"field_name": field_name, "subcategory_id": subcategory_id}
+    ).first() is not None
+
+    return used_in_dev
+
+# ============================================================================
+# 路由函数
+# ============================================================================
+
 # 管理员和产品经理视图 - 产品分类管理
 @product_code_bp.route('/categories', methods=['GET'])
 @login_required
@@ -572,13 +604,10 @@ def subcategory_fields(id):
         
         # 检查正式产品是否使用了此规格（product_code_field_values表）
         used_in_formal = ProductCodeFieldValue.query.filter_by(field_id=field_id).first() is not None
-        
-        # 检查研发产品是否使用了此规格（dev_product_specs表）
-        used_in_dev = db.session.execute(
-            text("SELECT 1 FROM dev_product_specs WHERE field_name = :field_name LIMIT 1"),
-            {"field_name": field_name}
-        ).first() is not None
-        
+
+        # 🔥 修改：检查研发产品是否在当前子分类中使用了此规格
+        used_in_dev = check_field_used_in_subcategory(field_name, id)
+
         # 只要任何一种产品使用了此规格，就标记为已使用
         field.is_used = used_in_formal or used_in_dev
     
@@ -1528,10 +1557,15 @@ def update_fields_order(id):
         existing_field_ids = set(field.id for field in existing_fields)
         current_app.logger.info(f"现有字段ID: {existing_field_ids}")
         
-        # 检查哪些规格字段已被产品引用（通过DevProductSpec表）
-        from app.models.dev_product import DevProductSpec
+        # 检查哪些规格字段已被当前子分类的产品引用（通过DevProductSpec表）
+        from app.models.dev_product import DevProductSpec, DevProduct
         referenced_field_names = set()
-        referenced_specs = db.session.query(DevProductSpec.field_name).distinct().all()
+
+        referenced_specs = db.session.query(DevProductSpec.field_name)\
+            .join(DevProduct, DevProductSpec.dev_product_id == DevProduct.id)\
+            .filter(DevProduct.subcategory_id == id)\
+            .distinct().all()
+
         for spec in referenced_specs:
             referenced_field_names.add(spec.field_name.lower())
         

@@ -285,21 +285,8 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
-                <h5 class="mb-0" style="font-size: 1.1rem;">{{ _('最近工作记录') }}</h5>
+                <h5 class="mb-0" style="font-size: 1.1rem;">{{ _('工作记录') }}</h5>
                 <div class="d-flex align-items-center gap-3 flex-wrap">
-                    <!-- 历史天数选择器 -->
-                    <div class="d-flex align-items-center" style="white-space: nowrap;">
-                        <label for="daysSelector" class="form-label mb-0 me-2" style="font-size: 0.9rem; white-space: nowrap;">{{ _('查看历史天数') }}:</label>
-                        <select id="daysSelector" class="form-select form-select-sm" style="min-width: 85px; width: 85px;">
-                            <option value="5">{{ _('5天') }}</option>
-                            <option value="6">{{ _('6天') }}</option>
-                            <option value="7" selected>{{ _('7天') }}</option>
-                            <option value="8">{{ _('8天') }}</option>
-                            <option value="9">{{ _('9天') }}</option>
-                            <option value="10">{{ _('10天') }}</option>
-                        </select>
-                    </div>
-                    
                     <!-- 账户筛选 - 仅admin和总监级别显示 -->
                     <div id="accountFilterContainer" class="d-none">
                         <select id="accountFilter" class="form-select form-select-sm" style="min-width: 150px;">
@@ -319,7 +306,7 @@
                 
                 <!-- PC端表格 -->
                 <div id="recordsTableContainer" class="d-none d-md-block" style="display: none !important;">
-                    <div class="table-responsive">
+                    <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
                         <table class="table table-hover mb-0">
                             <thead class="table-light" style="font-size: 0.9rem;">
                                 <tr>
@@ -356,7 +343,7 @@
                     </ul>
                     
                     <!-- 选项卡内容 -->
-                    <div class="tab-content" id="recordsTabContent">
+                    <div class="tab-content" id="recordsTabContent" style="max-height: 600px; overflow-y: auto;">
                         <div class="tab-pane fade show active" id="recent" role="tabpanel" aria-labelledby="recent-tab">
                             <div id="recordsCardList">
                                 <!-- 数据将通过JavaScript填充 -->
@@ -373,8 +360,8 @@
                 <!-- 空状态 -->
                 <div id="recordsEmptyState" class="text-center p-4 d-none">
                     <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
-                    <h6 class="text-muted">{{ _('暂无最近工作记录') }}</h6>
-                    <p class="text-muted small" id="emptyStateMessage">{{ _('最近7天内没有工作记录') }}</p>
+                    <h6 class="text-muted">{{ _('暂无工作记录') }}</h6>
+                    <p class="text-muted small" id="emptyStateMessage">{{ _('当前筛选条件下没有工作记录') }}</p>
                 </div>
                 
                 <!-- 错误状态 -->
@@ -387,7 +374,7 @@
             </div>
             <div class="card-footer bg-light">
                 <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted" id="footerMessage">{{ _('显示最近7天的工作记录') }}</small>
+                    <small class="text-muted" id="footerMessage">{{ _('工作记录列表') }}</small>
                     <small class="text-muted">
                         <span id="recordsCount">0</span> {{ _('条记录') }}
                     </small>
@@ -484,8 +471,14 @@ window.i18nTexts = {
 
 // 最近工作记录功能
 let currentAccountId = null;
-let currentDays = 7; // 默认7天
 const userRole = '{{ current_user.role }}';
+
+// 无限滚动状态
+let infiniteScrollState = {
+    isLoading: false,
+    hasMore: true,
+    currentOffset: 0
+};
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
@@ -498,41 +491,64 @@ function initWorkRecords() {
     if (userRole === 'admin' || userRole === 'sales_director' || userRole === 'service_manager') {
         loadAvailableAccounts();
         document.getElementById('accountFilterContainer').classList.remove('d-none');
+
+        // 绑定账户筛选事件（仅在有权限时）
+        const accountFilter = document.getElementById('accountFilter');
+        if (accountFilter) {
+            accountFilter.addEventListener('change', function() {
+                currentAccountId = this.value || null;
+                console.log('账户筛选变更:', currentAccountId); // 调试日志
+                // 重置无限滚动状态
+                infiniteScrollState.currentOffset = 0;
+                infiniteScrollState.hasMore = true;
+                loadRecentRecords();
+            });
+        }
     }
-    
-    // 绑定天数选择事件
-    document.getElementById('daysSelector').addEventListener('change', function() {
-        currentDays = parseInt(this.value);
-        updateDisplayMessages();
-        loadRecentRecords();
-    });
-    
-    // 绑定账户筛选事件
-    document.getElementById('accountFilter').addEventListener('change', function() {
-        currentAccountId = this.value || null;
-        loadRecentRecords();
-    });
-    
+
     // 添加窗口大小变化监听器
     window.addEventListener('resize', handleResponsiveDisplay);
-    
-    // 初始化显示消息
-    updateDisplayMessages();
-    
+
+    // 设置无限滚动监听
+    setupInfiniteScrollListeners();
+
     // 加载初始数据
     loadRecentRecords();
 }
 
-// 更新显示消息
-function updateDisplayMessages() {
-    const footerMessage = document.getElementById('footerMessage');
-    const emptyStateMessage = document.getElementById('emptyStateMessage');
-    
-    if (footerMessage) {
-        footerMessage.textContent = window.i18nTexts.displayRecentDays.replace('{days}', currentDays);
+// 设置无限滚动监听
+function setupInfiniteScrollListeners() {
+    // PC端表格容器滚动监听
+    const tableContainer = document.querySelector('#recordsTableContainer .table-responsive');
+    if (tableContainer) {
+        tableContainer.addEventListener('scroll', function() {
+            handleInfiniteScroll(tableContainer);
+        });
     }
-    if (emptyStateMessage) {
-        emptyStateMessage.textContent = window.i18nTexts.noRecentRecords.replace('{days}', currentDays);
+
+    // 移动端卡片容器滚动监听
+    const cardContainer = document.querySelector('#recordsTabContent');
+    if (cardContainer) {
+        cardContainer.addEventListener('scroll', function() {
+            handleInfiniteScroll(cardContainer);
+        });
+    }
+}
+
+// 处理无限滚动
+function handleInfiniteScroll(container) {
+    if (infiniteScrollState.isLoading || !infiniteScrollState.hasMore) {
+        return;
+    }
+
+    const scrollTop = container.scrollTop;
+    const scrollHeight = container.scrollHeight;
+    const clientHeight = container.clientHeight;
+    const threshold = 100; // 距离底部100px时触发
+
+    // 检查是否滚动到底部
+    if (scrollTop + clientHeight >= scrollHeight - threshold) {
+        loadRecentRecords(true); // append 模式
     }
 }
 
@@ -572,7 +588,7 @@ function loadAvailableAccounts() {
                 data.data.forEach(account => {
                     const option = document.createElement('option');
                     option.value = account.id;
-                    option.textContent = `${account.name} (${account.role})`;
+                    option.textContent = account.name;
                     select.appendChild(option);
                 });
             }
@@ -583,36 +599,60 @@ function loadAvailableAccounts() {
 }
 
 // 加载最近工作记录
-function loadRecentRecords() {
-    showLoading();
-    
+function loadRecentRecords(append = false) {
+    // 如果是 append 模式，不显示全屏加载，只显示底部加载提示
+    if (!append) {
+        showLoading();
+        // 重置时清空现有内容和提示
+        infiniteScrollState.currentOffset = 0;
+        infiniteScrollState.hasMore = true;
+        clearLoadMoreIndicators(); // 清除所有加载提示
+    } else {
+        infiniteScrollState.isLoading = true;
+        showLoadMoreIndicator();
+    }
+
     let url = '/api/recent_work_records';
     const params = new URLSearchParams();
-    
-    // 添加天数参数
-    params.append('days', currentDays);
-    
+
+    // 添加分页参数
+    params.append('offset', infiniteScrollState.currentOffset);
+    params.append('limit', 20);
+
     // 添加账户筛选参数
     if (currentAccountId) {
         params.append('account_id', currentAccountId);
     }
-    
+
     url += '?' + params.toString();
-    
+
     fetch(url)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                displayRecords(data.data);
+                // 更新无限滚动状态
+                infiniteScrollState.currentOffset += data.loaded_count;
+                infiniteScrollState.hasMore = data.has_more;
+
+                // 显示或追加记录
+                displayRecords(data.data, append);
                 updateRecordsCount(data.total);
             } else {
-                showErrorState();
+                if (!append) {
+                    showErrorState();
+                }
                 console.error('加载工作记录失败:', data.message);
             }
         })
         .catch(error => {
-            showErrorState();
+            if (!append) {
+                showErrorState();
+            }
             console.error('加载工作记录失败:', error);
+        })
+        .finally(() => {
+            infiniteScrollState.isLoading = false;
+            hideLoadMoreIndicator();
         });
 }
 
@@ -628,44 +668,46 @@ function showLoading() {
 }
 
 // 显示记录数据
-function displayRecords(records) {
+function displayRecords(records, append = false) {
     // 隐藏加载指示器
     document.getElementById('recordsLoading').classList.add('d-none');
-    
-    // 如果没有记录，显示空状态
-    if (!records || records.length === 0) {
+
+    // 如果是首次加载且没有记录，显示空状态
+    if (!append && (!records || records.length === 0)) {
         showEmptyState();
         return;
     }
-    
+
     // 隐藏空状态和错误状态
     document.getElementById('recordsEmptyState').classList.add('d-none');
     document.getElementById('recordsErrorState').classList.add('d-none');
-    
+
     // 检测屏幕尺寸，只渲染对应的UI
     const isMobile = window.innerWidth < 768; // Bootstrap的md断点
     const tableContainer = document.getElementById('recordsTableContainer');
     const cardContainer = document.getElementById('recordsCardContainer');
-    
+
     if (isMobile) {
         // 移动端：只显示卡片，隐藏表格
         tableContainer.classList.add('d-none');
         tableContainer.style.display = 'none !important';
         cardContainer.classList.remove('d-none');
-        renderCardRecords(records);
+        renderCardRecords(records, append);
     } else {
         // 桌面端：只显示表格，隐藏卡片
         tableContainer.classList.remove('d-none');
         tableContainer.style.display = ''; // 移除内联样式
         cardContainer.classList.add('d-none');
-        renderTableRecords(records);
+        renderTableRecords(records, append);
     }
 }
 
 // 渲染PC端表格
-function renderTableRecords(records) {
+function renderTableRecords(records, append = false) {
     const tbody = document.getElementById('recordsTableBody');
-    tbody.innerHTML = '';
+    if (!append) {
+        tbody.innerHTML = '';
+    }
     
     records.forEach(record => {
         const row = document.createElement('tr');
@@ -778,14 +820,18 @@ function renderTableRecords(records) {
 }
 
 // 渲染移动端选项卡
-function renderCardRecords(records) {
+function renderCardRecords(records, append = false) {
     // 渲染最近记录
     const recentContainer = document.getElementById('recordsCardList');
-    recentContainer.innerHTML = '';
-    
+    if (!append) {
+        recentContainer.innerHTML = '';
+    }
+
     // 渲染今日记录
     const todayContainer = document.getElementById('todayRecordsList');
-    todayContainer.innerHTML = '';
+    if (!append) {
+        todayContainer.innerHTML = '';
+    }
     
     // 获取今日日期
     const today = new Date().toISOString().split('T')[0];
@@ -941,6 +987,21 @@ function createMobileCard(record) {
 function showEmptyState() {
     // 隐藏加载指示器
     document.getElementById('recordsLoading').classList.add('d-none');
+
+    // 清空数据容器内容
+    const tableBody = document.getElementById('recordsTableBody');
+    if (tableBody) {
+        tableBody.innerHTML = '';
+    }
+    const cardList = document.getElementById('recordsCardList');
+    if (cardList) {
+        cardList.innerHTML = '';
+    }
+    const todayList = document.getElementById('todayRecordsList');
+    if (todayList) {
+        todayList.innerHTML = '';
+    }
+
     // 隐藏数据容器
     document.getElementById('recordsTableContainer').classList.add('d-none');
     document.getElementById('recordsCardContainer').classList.add('d-none');
@@ -1447,9 +1508,85 @@ function replyToReply(actionId, replyId, replyToUser) {
 function cancelReply(actionId) {
     const replyForm = document.getElementById(`reply-form-${actionId}`);
     const textarea = document.getElementById(`reply-content-${actionId}`);
-    
+
     replyForm.style.display = 'none';
     textarea.value = '';
+}
+
+// 清除所有加载提示
+function clearLoadMoreIndicators() {
+    // 移除"加载更多"提示
+    const loadMoreIndicator = document.getElementById('loadMoreIndicator');
+    if (loadMoreIndicator) {
+        loadMoreIndicator.remove();
+    }
+
+    // 移除"已加载全部记录"提示
+    const noMoreIndicator = document.getElementById('noMoreDataIndicator');
+    if (noMoreIndicator) {
+        noMoreIndicator.remove();
+    }
+}
+
+// 显示加载更多提示
+function showLoadMoreIndicator() {
+    let indicator = document.getElementById('loadMoreIndicator');
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'loadMoreIndicator';
+        indicator.className = 'text-center p-3 text-muted';
+        indicator.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> {{ _("加载更多") }}...';
+
+        // 添加到表格底部
+        const tableContainer = document.querySelector('#recordsTableBody');
+        if (tableContainer && tableContainer.parentNode) {
+            tableContainer.parentNode.parentNode.appendChild(indicator);
+        }
+
+        // 添加到卡片底部
+        const cardContainer = document.querySelector('#recordsCardList');
+        if (cardContainer) {
+            cardContainer.parentNode.appendChild(indicator.cloneNode(true));
+        }
+    }
+    indicator.style.display = 'block';
+}
+
+// 隐藏加载更多提示
+function hideLoadMoreIndicator() {
+    const indicator = document.getElementById('loadMoreIndicator');
+    if (indicator) {
+        indicator.style.display = 'none';
+    }
+
+    // 如果没有更多数据，显示提示
+    if (!infiniteScrollState.hasMore && infiniteScrollState.currentOffset > 0) {
+        showNoMoreDataIndicator();
+    }
+}
+
+// 显示"已加载全部记录"提示
+function showNoMoreDataIndicator() {
+    let indicator = document.getElementById('noMoreDataIndicator');
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'noMoreDataIndicator';
+        indicator.className = 'text-center p-3 text-muted small';
+        indicator.innerHTML = '{{ _("已加载全部记录") }}';
+
+        // 添加到表格底部
+        const tableContainer = document.querySelector('#recordsTableBody');
+        if (tableContainer && tableContainer.parentNode) {
+            tableContainer.parentNode.parentNode.appendChild(indicator);
+        }
+
+        // 添加到卡片底部
+        const cardContainer = document.querySelector('#recordsCardList');
+        if (cardContainer) {
+            cardContainer.parentNode.appendChild(indicator.cloneNode(true));
+        }
+    }
+    indicator.style.display = 'block';
 }
 </script>
 </div>

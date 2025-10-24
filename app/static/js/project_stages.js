@@ -795,27 +795,13 @@ class ProjectStageProgress {
                 }
             });
         } else if (pricingFlow.action_required === 'create_pricing_order') {
-            this.showPricingFlowDialog({
-                type: 'success',
-                title: '签约流程 - 批价单创建',
-                message: `项目已成功推进到签约阶段！\n\n发现已审核报价单：${pricingFlow.quotation_number}\n${pricingFlow.message}`,
-                confirmText: '创建批价单',
-                cancelText: '稍后处理',
-                onConfirm: () => {
-                    this.createPricingOrder(pricingFlow.quotation_id);
-                }
-            });
+            // 🔥 已移除：不再弹出创建批价单的提示
+            // 项目已成功推进到签约阶段，不做任何额外操作
+            console.log('项目已推进到签约阶段，已禁用自动创建批价单流程');
         } else if (pricingFlow.action_required === 'view_pricing_order') {
-            this.showPricingFlowDialog({
-                type: 'info',
-                title: '签约流程 - 批价单状态',
-                message: `项目已成功推进到签约阶段！\n\n已存在批价单：${pricingFlow.pricing_order_number}\n状态：${this.getPricingOrderStatusLabel(pricingFlow.pricing_order_status)}`,
-                confirmText: '查看批价单',
-                cancelText: '关闭',
-                onConfirm: () => {
-                    window.location.href = `/pricing_order/${pricingFlow.pricing_order_id}`;
-                }
-            });
+            // 🔥 已移除：不再弹出批价单状态提示
+            // 项目已成功推进到签约阶段，不做任何额外操作
+            console.log('项目已推进到签约阶段，已禁用批价单状态提示');
         } else {
             // 降级到原有的复杂对话框实现
             this.handlePricingFlowPrompt_original(pricingFlow);
@@ -842,103 +828,15 @@ class ProjectStageProgress {
     handlePricingFlowPrompt_original(pricingFlow) {
         const modalId = 'pricingFlowModal';
         let modalHtml = '';
-        
+
         if (pricingFlow.action_required === 'create_pricing_order') {
-            // 需要创建批价单
-            modalHtml = `
-                <div class="modal fade" id="${modalId}" tabindex="-1" aria-labelledby="pricingFlowModalLabel" aria-hidden="true">
-                    <div class="modal-dialog modal-lg">
-                        <div class="modal-content">
-                            <div class="modal-header bg-success text-white">
-                                <h5 class="modal-title" id="pricingFlowModalLabel">
-                                    <i class="fas fa-file-invoice-dollar me-2"></i>签约流程 - 批价单创建
-                                </h5>
-                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="alert alert-success mb-3">
-                                    <i class="fas fa-check-circle me-2"></i>
-                                    项目已成功推进到签约阶段！
-                                </div>
-                                
-                                <div class="d-flex align-items-start mb-3">
-                                    <i class="fas fa-file-alt text-success me-3 mt-1" style="font-size: 1.2em;"></i>
-                                    <div>
-                                        <h6 class="mb-1">发现已审核报价单</h6>
-                                        <p class="mb-0 text-muted">报价单号：<strong>${pricingFlow.quotation_number}</strong></p>
-                                        <p class="mb-0 text-success"><i class="fas fa-check me-1"></i>审核状态：已通过审核</p>
-                                    </div>
-                                </div>
-                                
-                                <div class="alert alert-info mb-3">
-                                    <i class="fas fa-info-circle me-2"></i>
-                                    ${pricingFlow.message}
-                                </div>
-                                
-                                <p class="mb-0">您可以选择以下操作：</p>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                    <i class="fas fa-times me-1"></i>稍后处理
-                                </button>
-                                <button type="button" class="btn btn-success" id="createPricingOrderBtn">
-                                    <i class="fas fa-plus me-1"></i>创建批价单
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
+            // 🔥 已移除：不再弹出创建批价单的提示
+            console.log('项目已推进到签约阶段，已禁用自动创建批价单流程');
+            return; // 直接返回，不显示任何弹窗
         } else if (pricingFlow.action_required === 'view_pricing_order') {
-            // 已存在批价单
-            modalHtml = `
-                <div class="modal fade" id="${modalId}" tabindex="-1" aria-labelledby="pricingFlowModalLabel" aria-hidden="true">
-                    <div class="modal-dialog modal-lg">
-                        <div class="modal-content">
-                            <div class="modal-header bg-success text-white">
-                                <h5 class="modal-title" id="pricingFlowModalLabel">
-                                    <i class="fas fa-check-circle me-2"></i>签约流程 - 批价单状态
-                                </h5>
-                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="alert alert-success mb-3">
-                                    <i class="fas fa-check-circle me-2"></i>
-                                    项目已成功推进到签约阶段！
-                                </div>
-                                
-                                <div class="d-flex align-items-start mb-3">
-                                    <i class="fas fa-file-invoice-dollar text-primary me-3 mt-1" style="font-size: 1.2em;"></i>
-                                    <div>
-                                        <h6 class="mb-1">已存在批价单</h6>
-                                        <p class="mb-1 text-muted">
-                                            批价单号：<strong>${pricingFlow.pricing_order_number}</strong>
-                                        </p>
-                                        <p class="mb-0 text-muted">
-                                            状态：<span class="badge bg-info">${this.getPricingOrderStatusLabel(pricingFlow.pricing_order_status)}</span>
-                                        </p>
-                                    </div>
-                                </div>
-                                
-                                <div class="alert alert-info mb-3">
-                                    <i class="fas fa-info-circle me-2"></i>
-                                    ${pricingFlow.message}
-                                </div>
-                                
-                                <p class="mb-0">您可以选择以下操作：</p>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                    <i class="fas fa-times me-1"></i>关闭
-                                </button>
-                                <button type="button" class="btn btn-primary" id="viewPricingOrderBtn">
-                                    <i class="fas fa-eye me-1"></i>查看批价单
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
+            // 🔥 已移除：不再弹出批价单状态提示
+            console.log('项目已推进到签约阶段，已禁用批价单状态提示');
+            return; // 直接返回，不显示任何弹窗
         } else if (pricingFlow.action_required === 'complete_quotation_approval') {
             // 需要完成报价单审核
             modalHtml = `

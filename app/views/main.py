@@ -166,33 +166,20 @@ def index():
 @login_required
 def get_recent_work_records():
     """
-    获取最近N天的工作记录
-    支持权限过滤和账户筛选，以及历史天数选择（5-10天范围）
+    获取工作记录（支持无限滚动分页）
+    支持权限过滤和账户筛选
     """
     try:
         # 导入权限检查函数
         from app.permissions import is_admin_or_ceo
-        
-        # 获取参数
-        account_id = request.args.get('account_id', type=int)
-        days = request.args.get('days', 7, type=int)  # 默认7天
-        
-        # 验证天数范围
-        if days < 5 or days > 10:
-            days = 7  # 超出范围时使用默认值
-        
-        # 计算N天前的日期
-        start_date = datetime.now().date() - timedelta(days=days-1)  # days-1是因为包含今天
 
-        # 使用权限系统获取可查看的Action记录（包含时间过滤）
-        from sqlalchemy import func, or_
-        time_filters = [
-            or_(
-                Action.date >= start_date,  # 行动发生在最近N天内
-                func.date(Action.created_at) >= start_date  # 或者记录创建在最近N天内
-            )
-        ]
-        base_query = get_viewable_data(Action, current_user, time_filters)
+        # 获取分页参数
+        account_id = request.args.get('account_id', type=int)
+        offset = request.args.get('offset', 0, type=int)  # 偏移量
+        limit = request.args.get('limit', 20, type=int)  # 每页数量
+
+        # 使用权限系统获取可查看的Action记录（不限时间）
+        base_query = get_viewable_data(Action, current_user)
 
         # 账户筛选逻辑（在权限系统基础上额外过滤）
         if account_id:
@@ -224,31 +211,16 @@ def get_recent_work_records():
                     })
                 base_query = base_query.filter(Action.owner_id == current_user.id)
         
-        # 加载关联数据并按时间倒序排列（不包括replies，因为它是动态关系）
+        # 计算总数（用于判断是否还有更多数据）
+        total_count = base_query.count()
+
+        # 加载关联数据并按时间倒序排列（使用分页）
         records = base_query.options(
             joinedload(Action.company),
             joinedload(Action.contact),
             joinedload(Action.project),
             joinedload(Action.owner)
-        ).order_by(Action.date.desc(), Action.created_at.desc()).all()
-        
-        # 如果指定时间范围内没有记录，且没有指定account_id，显示用户最近的5条记录
-        fallback_message = None
-        if not records and not account_id:
-            # 使用权限系统获取可查看的Action记录（不限时间）
-            fallback_query = get_viewable_data(Action, current_user)
-
-            # 获取最近5条记录
-            fallback_records = fallback_query.options(
-                joinedload(Action.company),
-                joinedload(Action.contact),
-                joinedload(Action.project),
-                joinedload(Action.owner)
-            ).order_by(Action.date.desc(), Action.created_at.desc()).limit(5).all()
-            
-            if fallback_records:
-                records = fallback_records
-                fallback_message = f'最近{days}天内无工作记录，显示最近的{len(fallback_records)}条历史记录'
+        ).order_by(Action.date.desc(), Action.created_at.desc()).offset(offset).limit(limit).all()
         
         # 处理数据
         result = []
@@ -304,17 +276,16 @@ def get_recent_work_records():
                 'owner_id': record.owner_id
             }
             result.append(record_data)
-            
+
+        # 返回分页数据
         response_data = {
             'success': True,
             'data': result,
-            'total': len(result)
+            'loaded_count': len(result),  # 本次加载的记录数
+            'total': total_count,  # 总记录数
+            'has_more': offset + len(result) < total_count  # 是否还有更多数据
         }
-        
-        if fallback_message:
-            response_data['message'] = fallback_message
-            response_data['is_fallback'] = True
-        
+
         return jsonify(response_data)
         
     except Exception as e:
@@ -486,8 +457,11 @@ def get_available_accounts():
         
         from app.permissions import is_admin_or_ceo
         if is_admin_or_ceo():
-            # 管理员和CEO可以查看所有用户
-            all_users = User.query.filter(User.id != current_user.id).all()
+            # 管理员和CEO可以查看所有活跃用户
+            all_users = User.query.filter(
+                User.id != current_user.id,
+                User._is_active == True
+            ).all()
             for user in all_users:
                 accounts.append({
                     'id': user.id,
@@ -495,9 +469,13 @@ def get_available_accounts():
                     'role': user.role
                 })
         elif current_user.role in ['sales_director', 'service_manager', 'sales_manager']:
-            # 总监级别可以查看同部门下属（如果是部门负责人）
+            # 总监级别可以查看同部门活跃下属（如果是部门负责人）
             if current_user.is_department_manager:
-                subordinates = User.query.filter_by(department=current_user.department).filter(User.id != current_user.id).all()
+                subordinates = User.query.filter(
+                    User.department == current_user.department,
+                    User.id != current_user.id,
+                    User._is_active == True
+                ).all()
                 for user in subordinates:
                     accounts.append({
                         'id': user.id,
