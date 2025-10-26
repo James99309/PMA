@@ -336,7 +336,17 @@ w{% extends "base.html" %}
                             <tbody>
                                     {% if pricing_order.pricing_details %}
                                 {% for detail in pricing_order.pricing_details %}
-                                <tr data-detail-id="{{ detail.id }}">
+                                <tr data-detail-id="{{ detail.id }}"
+                                    data-product-name="{{ detail.product_name }}"
+                                    data-product-model="{{ detail.product_model or '' }}"
+                                    data-product-desc="{{ detail.product_desc or '' }}"
+                                    data-brand="{{ detail.brand or '' }}"
+                                    data-unit="{{ detail.unit or '' }}"
+                                    data-product-mn="{{ detail.product_mn or '' }}"
+                                    data-market-price="{{ detail.market_price }}"
+                                    data-unit-price="{{ detail.unit_price }}"
+                                    data-quantity="{{ detail.quantity }}"
+                                    data-discount-rate="{{ detail.discount_rate }}">
                                     {% if can_edit_pricing and pricing_order.status != 'pending' %}
                                         <td class="text-center">
                                             <input type="checkbox" class="form-check-input pricing-detail-checkbox" 
@@ -389,13 +399,10 @@ w{% extends "base.html" %}
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if can_edit_pricing %}
-                                            <input type="text" class="form-control product-price" 
-                                                   value="{{ '%.2f'|format(detail.market_price) }}" 
-                                                   data-raw-value="{{ detail.market_price }}" readonly>
-                                            {% else %}
-                                            ¥{{ "{:,.2f}".format(detail.market_price) }}
-                                            {% endif %}
+                                        <!-- 市场单价始终渲染为readonly input，供JavaScript读取计算 -->
+                                        <input type="text" class="form-control product-price"
+                                               value="{{ '%.2f'|format(detail.market_price) }}"
+                                               data-raw-value="{{ detail.market_price }}" readonly>
                                         </td>
                                         <td>
                                             {% if can_edit_discount_price %}
@@ -645,13 +652,10 @@ w{% extends "base.html" %}
                                     <div class="mobile-card-row">
                                         <span class="mobile-card-label">市场价</span>
                                         <div class="mobile-card-value">
-                                            {% if can_edit_pricing %}
-                                            <input type="text" class="mobile-card-input product-price" 
-                                                   value="{{ '%.2f'|format(detail.market_price) }}" 
+                                            <!-- 市场单价始终渲染为readonly input，供JavaScript读取计算 -->
+                                            <input type="text" class="mobile-card-input product-price"
+                                                   value="{{ '%.2f'|format(detail.market_price) }}"
                                                    data-raw-value="{{ detail.market_price }}" readonly>
-                                            {% else %}
-                                            {{ "{:,.2f}".format(detail.market_price) }}
-                                            {% endif %}
                                         </div>
                                     </div>
                                     
@@ -742,7 +746,17 @@ w{% extends "base.html" %}
                             </thead>
                             <tbody>
                                 {% for detail in pricing_order.settlement_details %}
-                                <tr data-detail-id="{{ detail.id }}">
+                                <tr data-detail-id="{{ detail.id }}"
+                                    data-product-name="{{ detail.product_name }}"
+                                    data-product-model="{{ detail.product_model or '' }}"
+                                    data-product-desc="{{ detail.product_desc or '' }}"
+                                    data-brand="{{ detail.brand or '' }}"
+                                    data-unit="{{ detail.unit or '' }}"
+                                    data-product-mn="{{ detail.product_mn or '' }}"
+                                    data-market-price="{{ detail.market_price }}"
+                                    data-unit-price="{{ detail.unit_price }}"
+                                    data-quantity="{{ detail.quantity }}"
+                                    data-discount-rate="{{ detail.discount_rate }}">
                                         <td>
                                             {% if can_edit_settlement %}
                                             <div class="product-name-container">
@@ -789,13 +803,10 @@ w{% extends "base.html" %}
                                             {% endif %}
                                         </td>
                                         <td>
-                                            {% if can_edit_settlement %}
-                                            <input type="text" class="form-control product-price" 
-                                                   value="{{ '%.2f'|format(detail.market_price) }}" 
+                                            <!-- 市场单价始终渲染为readonly input，供JavaScript读取计算 -->
+                                            <input type="text" class="form-control product-price"
+                                                   value="{{ '%.2f'|format(detail.market_price) }}"
                                                    data-raw-value="{{ detail.market_price }}" readonly>
-                                            {% else %}
-                                            ¥{{ "{:,.2f}".format(detail.market_price) }}
-                                            {% endif %}
                                         </td>
                                         <td>
                                             {% if can_edit_discount_price %}
@@ -971,13 +982,10 @@ w{% extends "base.html" %}
                                                                          <div class="mobile-card-row">
                                          <span class="mobile-card-label">市场价</span>
                                          <div class="mobile-card-value">
-                                             {% if can_edit_settlement %}
-                                             <input type="text" class="mobile-card-input product-price" 
-                                                    value="{{ '%.2f'|format(detail.market_price) }}" 
+                                             <!-- 市场单价始终渲染为readonly input，供JavaScript读取计算 -->
+                                             <input type="text" class="mobile-card-input product-price"
+                                                    value="{{ '%.2f'|format(detail.market_price) }}"
                                                     data-raw-value="{{ detail.market_price }}" readonly>
-                                             {% else %}
-                                             {{ "{:,.2f}".format(detail.market_price) }}
-                                             {% endif %}
                                          </div>
                                      </div>
                                     
@@ -2181,8 +2189,9 @@ function updateTotalDiscount(tabType, value) {
     // 更新表格中所有行的折扣率和价格
     $(`${tableId} tbody tr`).each(function() {
         const $row = $(this);
-        const productName = $row.find('.product-name').val();
-        
+        // 支持从input或data属性读取产品名称（兼容可编辑和只读状态）
+        const productName = $row.find('.product-name').val() || $row.data('product-name') || '';
+
         // 只处理有产品名称的行
         if (productName && productName.trim()) {
             // 🔥 修复：获取市场价，支持从显示值解析
@@ -2290,8 +2299,9 @@ function updatePricingTableTotal() {
         let pricingRowCount = 0;
         $('#pricingTable tbody tr').each(function() {
             const $row = $(this);
-            const productName = $row.find('.product-name').val();
-            
+            // 支持从input或data属性读取产品名称（兼容可编辑和只读状态）
+            const productName = $row.find('.product-name').val() || $row.data('product-name') || '';
+
             // 只计算有产品名称的行
             if (productName && productName.trim()) {
                 const subtotalValue = $row.find('.subtotal').data('raw-value');
@@ -2332,8 +2342,9 @@ function updateSettlementTableTotal() {
         let settlementRowCount = 0;
         $('#settlementTable tbody tr').each(function() {
             const $row = $(this);
-            const productName = $row.find('.product-name').val();
-            
+            // 支持从input或data属性读取产品名称（兼容可编辑和只读状态）
+            const productName = $row.find('.product-name').val() || $row.data('product-name') || '';
+
             // 只计算有产品名称的行
             if (productName && productName.trim()) {
                 const subtotalValue = $row.find('.subtotal').data('raw-value');
@@ -2377,8 +2388,9 @@ function calculateAndUpdateTotalDiscountRate(tabType, shouldUpdateDisplay = true
     // 遍历所有行计算加权平均折扣率
     $(`${tableId} tbody tr`).each(function() {
         const $row = $(this);
-        const productName = $row.find('.product-name').val();
-        
+        // 支持从input或data属性读取产品名称（兼容可编辑和只读状态）
+        const productName = $row.find('.product-name').val() || $row.data('product-name') || '';
+
         if (productName && productName.trim()) {
             const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || 0;
             const quantity = getQuantityValue($row); // 🔥 使用统一函数
@@ -2568,8 +2580,9 @@ function initializeExistingRows() {
         // 初始化批价单表格的已有行
         $('#pricingTable tbody tr').each(function() {
             var $row = $(this);
-            var productName = $row.find('.product-name').val();
-            
+            // 支持从input或data属性读取产品名称（兼容可编辑和只读状态）
+            var productName = $row.find('.product-name').val() || $row.data('product-name') || '';
+
             if (productName && productName.trim()) {
                 // 🔥 确保数量字段有正确的data-raw-value
                 var $quantityInput = $row.find('.quantity');
@@ -2614,8 +2627,9 @@ function initializeExistingRows() {
         // 初始化结算单表格的已有行
         $('#settlementTable tbody tr').each(function() {
             var $row = $(this);
-            var productName = $row.find('.product-name').val();
-            
+            // 支持从input或data属性读取产品名称（兼容可编辑和只读状态）
+            var productName = $row.find('.product-name').val() || $row.data('product-name') || '';
+
             if (productName && productName.trim()) {
                 // 🔥 确保数量字段有正确的data-raw-value
                 var $quantityInput = $row.find('.quantity');
@@ -2680,8 +2694,9 @@ function updateTableTotals(forceRecalculate = false) {
         let pricingRowCount = 0;
         $('#pricingTable tbody tr').each(function() {
             var $row = $(this);
-            var productName = $row.find('.product-name').val();
-            
+            // Support reading from input or data attribute (compatible with editable and readonly states)
+            var productName = $row.find('.product-name').val() || $row.data('product-name') || '';
+
             // 只计算有产品名称的行
             if (productName && productName.trim()) {
                 var subtotalValue = $row.find('.subtotal').data('raw-value');
@@ -2713,8 +2728,9 @@ function updateTableTotals(forceRecalculate = false) {
             let settlementRowCount = 0;
             $('#settlementTable tbody tr').each(function() {
                 var $row = $(this);
-                var productName = $row.find('.product-name').val();
-                
+                // Support reading from input or data attribute (compatible with editable and readonly states)
+                var productName = $row.find('.product-name').val() || $row.data('product-name') || '';
+
                 // 只计算有产品名称的行
                 if (productName && productName.trim()) {
                     var subtotalValue = $row.find('.subtotal').data('raw-value');
@@ -3674,7 +3690,8 @@ function calculateSubtotal($row) {
         console.log('小计计算开始', {
             '行信息': {
                 '行索引': $row.index(),
-                '产品名称': $row.find('.product-name').val(),
+                // 支持从input或data属性读取产品名称（兼容可编辑和只读状态）
+                '产品名称': $row.find('.product-name').val() || $row.data('product-name') || '',
                 '表格类型': $row.closest('#pricingTable').length > 0 ? '批价单' : '结算单'
             },
             '数量字段': {
@@ -4030,34 +4047,49 @@ function collectPricingDetails() {
     
     $pricingTable.find('tbody tr').each(function() {
         const $row = $(this);
-        const $productNameInput = $row.find('.product-name');
-        
-        // 检查产品名称输入框是否存在
-        if ($productNameInput.length === 0) {
-            console.log('产品名称输入框不存在，跳过此行');
-            return true; // 继续下一行
-        }
-        
-        const productName = $productNameInput.val();
+
+        // 优先从input读取（可编辑状态），如果没有input则从data属性读取（只读状态）
+        const productName = $row.find('.product-name').val() || $row.data('product-name') || '';
+
         if (!productName || !productName.trim()) {
             return true; // 跳过空行
         }
-        
-        // 获取当前行的实际计算值
-        const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || parseFloat($row.find('.product-price').val().replace(/[^\\d.]/g, '')) || 0;
-        const unitPrice = parseFloat($row.find('.discounted-price').data('raw-value')) || parseFloat($row.find('.discounted-price').val().replace(/[^\\d.]/g, '')) || 0;
-        const quantity = parseInt($row.find('.quantity').val()) || 1;
-        const discountRate = parseFloat($row.find('.discount-rate').val()) || 100;
-        
+
+        // 其他字段同样处理：优先从input读取，fallback到data属性
+        const productModel = $row.find('.product-model').val() || $row.data('product-model') || '';
+        const productDesc = $row.find('.product-spec').val() || $row.data('product-desc') || '';
+        const brand = $row.find('.product-brand').val() || $row.data('product-brand') || '';
+        const unit = $row.find('.product-unit').val() || $row.data('unit') || '台';
+        const productMn = $row.find('.product-mn').val() || $row.data('product-mn') || '';
+
+        // 数值类型：优先从input的data-raw-value读取，然后从input值读取，最后从tr的data属性读取
+        const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) ||
+                           parseFloat($row.find('.product-price').val()?.replace(/[^\\d.]/g, '')) ||
+                           parseFloat($row.data('market-price')) || 0;
+        const unitPrice = parseFloat($row.find('.discounted-price').data('raw-value')) ||
+                         parseFloat($row.find('.discounted-price').val()?.replace(/[^\\d.]/g, '')) ||
+                         parseFloat($row.data('unit-price')) || 0;
+        const quantity = parseInt($row.find('.quantity').val()) ||
+                        parseInt($row.data('quantity')) || 1;
+
+        // 折扣率：从input读取是百分比形式，从data读取是小数形式（需要*100）
+        let discountRate;
+        const inputDiscountRate = $row.find('.discount-rate').val();
+        if (inputDiscountRate) {
+            discountRate = parseFloat(inputDiscountRate) || 100;
+        } else {
+            discountRate = (parseFloat($row.data('discount-rate')) || 1) * 100;
+        }
+
         console.log(`收集明细 - 产品: ${productName}, 市场价: ${marketPrice}, 单价: ${unitPrice}, 数量: ${quantity}, 折扣率: ${discountRate}%`);
-        
+
         details.push({
             product_name: productName.trim(),
-            product_model: $row.find('.product-model').val() || '',
-            product_desc: $row.find('.product-spec').val() || '',
-            brand: $row.find('.product-brand').val() || '',
-            unit: $row.find('.product-unit').val() || '台',
-            product_mn: $row.find('.product-mn').val() || '',
+            product_model: productModel,
+            product_desc: productDesc,
+            brand: brand,
+            unit: unit,
+            product_mn: productMn,
             market_price: marketPrice,
             unit_price: unitPrice,  // 添加单价字段
             quantity: quantity,
@@ -4082,37 +4114,52 @@ function collectSettlementDetails() {
     
     $settlementTable.find('tbody tr').each(function() {
         const $row = $(this);
-        const $productNameInput = $row.find('.product-name');
-        
-        // 检查产品名称输入框是否存在
-        if ($productNameInput.length === 0) {
-            console.log('产品名称输入框不存在，跳过此行');
-            return true; // 继续下一行
-        }
-        
-        const productName = $productNameInput.val();
+
+        // 优先从input读取（可编辑状态），如果没有input则从data属性读取（只读状态）
+        const productName = $row.find('.product-name').val() || $row.data('product-name') || '';
+
         if (!productName || !productName.trim()) {
             return true; // 跳过空行
         }
-        
-        const id = $row.data('id');
-        
-                // 获取当前行的实际计算值
-        const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || parseFloat($row.find('.product-price').val().replace(/[^\\d.]/g, '')) || 0;
-        const unitPrice = parseFloat($row.find('.discounted-price').data('raw-value')) || parseFloat($row.find('.discounted-price').val().replace(/[^\\d.]/g, '')) || 0;
-        const quantity = parseInt($row.find('.quantity').val()) || 1;
-        const discountRate = parseFloat($row.find('.discount-rate').val()) || 100;
-        
+
+        const id = $row.data('detail-id');
+
+        // 其他字段同样处理：优先从input读取，fallback到data属性
+        const productModel = $row.find('.product-model').val() || $row.data('product-model') || '';
+        const productDesc = $row.find('.product-spec').val() || $row.data('product-desc') || '';
+        const brand = $row.find('.product-brand').val() || $row.data('brand') || '';
+        const unit = $row.find('.product-unit').val() || $row.data('unit') || '台';
+        const productMn = $row.find('.product-mn').val() || $row.data('product-mn') || '';
+
+        // 数值类型：优先从input的data-raw-value读取，然后从input值读取，最后从tr的data属性读取
+        const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) ||
+                           parseFloat($row.find('.product-price').val()?.replace(/[^\\d.]/g, '')) ||
+                           parseFloat($row.data('market-price')) || 0;
+        const unitPrice = parseFloat($row.find('.discounted-price').data('raw-value')) ||
+                         parseFloat($row.find('.discounted-price').val()?.replace(/[^\\d.]/g, '')) ||
+                         parseFloat($row.data('unit-price')) || 0;
+        const quantity = parseInt($row.find('.quantity').val()) ||
+                        parseInt($row.data('quantity')) || 1;
+
+        // 折扣率：从input读取是百分比形式，从data读取是小数形式（需要*100）
+        let discountRate;
+        const inputDiscountRate = $row.find('.discount-rate').val();
+        if (inputDiscountRate) {
+            discountRate = parseFloat(inputDiscountRate) || 100;
+        } else {
+            discountRate = (parseFloat($row.data('discount-rate')) || 1) * 100;
+        }
+
         console.log(`收集结算单明细 - 产品: ${productName}, 市场价: ${marketPrice}, 单价: ${unitPrice}, 数量: ${quantity}, 折扣率: ${discountRate}%`);
-        
+
         details.push({
             id: id,
             product_name: productName.trim(),
-            product_model: $row.find('.product-model').val() || '',
-            product_desc: $row.find('.product-spec').val() || '',
-            brand: $row.find('.product-brand').val() || '',
-            unit: $row.find('.product-unit').val() || '台',
-            product_mn: $row.find('.product-mn').val() || '',
+            product_model: productModel,
+            product_desc: productDesc,
+            brand: brand,
+            unit: unit,
+            product_mn: productMn,
             market_price: marketPrice,
             quantity: quantity,
             discount_rate: discountRate,  // 保持百分比形式

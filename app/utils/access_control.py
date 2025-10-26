@@ -161,49 +161,81 @@ def apply_content_filters(query, model_class, module_name, user):
 
         # 根据模块类型应用不同的过滤规则
         if module_name == 'project' and model_class.__name__ == 'Project':
-            # 项目类型过滤
+            # 项目类型过滤 - 允许NULL值通过（未分类项目）
             if 'project_type' in content_filters and content_filters['project_type']:
                 allowed_types = content_filters['project_type']
                 if isinstance(allowed_types, list) and allowed_types:
-                    query = query.filter(model_class.project_type.in_(allowed_types))
-                    logger.debug(f"应用项目类型过滤: {allowed_types}")
+                    query = query.filter(
+                        or_(
+                            model_class.project_type.in_(allowed_types),
+                            model_class.project_type.is_(None)
+                        )
+                    )
+                    logger.debug(f"应用项目类型过滤: {allowed_types} (含NULL)")
 
-            # 业务类型过滤
+            # 业务类型过滤 - 允许NULL值通过（未分类项目）
             if 'business_type' in content_filters and content_filters['business_type']:
                 allowed_business_types = content_filters['business_type']
                 if isinstance(allowed_business_types, list) and allowed_business_types:
-                    query = query.filter(model_class.business_type.in_(allowed_business_types))
-                    logger.debug(f"应用业务类型过滤: {allowed_business_types}")
+                    # 检查模型是否有business_type字段
+                    if hasattr(model_class, 'business_type'):
+                        query = query.filter(
+                            or_(
+                                model_class.business_type.in_(allowed_business_types),
+                                model_class.business_type.is_(None)
+                            )
+                        )
+                        logger.debug(f"应用业务类型过滤: {allowed_business_types} (含NULL)")
 
-            # 项目状态过滤
+            # 项目状态过滤 - 允许NULL值通过（未设置状态的项目）
             if 'project_status' in content_filters and content_filters['project_status']:
                 allowed_statuses = content_filters['project_status']
                 if isinstance(allowed_statuses, list) and allowed_statuses:
-                    query = query.filter(model_class.status.in_(allowed_statuses))
-                    logger.debug(f"应用项目状态过滤: {allowed_statuses}")
+                    query = query.filter(
+                        or_(
+                            model_class.status.in_(allowed_statuses),
+                            model_class.status.is_(None)
+                        )
+                    )
+                    logger.debug(f"应用项目状态过滤: {allowed_statuses} (含NULL)")
 
         elif module_name == 'customer' and model_class.__name__ == 'Company':
-            # 行业过滤
+            # 行业过滤 - 允许NULL值通过（未分类客户）
             if 'industry' in content_filters and content_filters['industry']:
                 allowed_industries = content_filters['industry']
                 if isinstance(allowed_industries, list) and allowed_industries:
-                    query = query.filter(model_class.industry.in_(allowed_industries))
-                    logger.debug(f"应用行业过滤: {allowed_industries}")
+                    query = query.filter(
+                        or_(
+                            model_class.industry.in_(allowed_industries),
+                            model_class.industry.is_(None)
+                        )
+                    )
+                    logger.debug(f"应用行业过滤: {allowed_industries} (含NULL)")
 
-            # 地区过滤
+            # 地区过滤 - 允许NULL值通过（未分类客户）
             if 'region' in content_filters and content_filters['region']:
                 allowed_regions = content_filters['region']
                 if isinstance(allowed_regions, list) and allowed_regions:
-                    query = query.filter(model_class.region.in_(allowed_regions))
-                    logger.debug(f"应用地区过滤: {allowed_regions}")
+                    query = query.filter(
+                        or_(
+                            model_class.region.in_(allowed_regions),
+                            model_class.region.is_(None)
+                        )
+                    )
+                    logger.debug(f"应用地区过滤: {allowed_regions} (含NULL)")
 
         elif module_name == 'quotation' and model_class.__name__ == 'Quotation':
-            # 报价单状态过滤
+            # 报价单状态过滤 - 允许NULL值通过（未设置状态的报价单）
             if 'quotation_status' in content_filters and content_filters['quotation_status']:
                 allowed_statuses = content_filters['quotation_status']
                 if isinstance(allowed_statuses, list) and allowed_statuses:
-                    query = query.filter(model_class.status.in_(allowed_statuses))
-                    logger.debug(f"应用报价单状态过滤: {allowed_statuses}")
+                    query = query.filter(
+                        or_(
+                            model_class.status.in_(allowed_statuses),
+                            model_class.status.is_(None)
+                        )
+                    )
+                    logger.debug(f"应用报价单状态过滤: {allowed_statuses} (含NULL)")
 
         # 其他模块可以在这里继续扩展
 

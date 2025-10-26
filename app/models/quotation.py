@@ -65,7 +65,7 @@ class Quotation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     quotation_number = db.Column(db.String(20), unique=True, nullable=False)
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
-    customer_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)  # 客户必填
+    customer_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=True)  # 客户字段（数据库可空，前端必填）
     contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))  # 联系人可选
     amount = db.Column(db.Float)
     project_stage = db.Column(db.String(20))  # 项目阶段：发现、品牌植入、招标前、招标中、中标、失败
