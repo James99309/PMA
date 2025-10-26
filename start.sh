@@ -273,6 +273,10 @@ if [ ! -f "run.py" ]; then
     exit 1
 fi
 
+# 设置动态库搜索路径（WeasyPrint PDF生成所需）
+# macOS Homebrew库路径
+export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}
+
 # 启动Flask应用
 python3 run.py
 

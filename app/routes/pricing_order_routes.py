@@ -6,7 +6,7 @@ from app.models.project import Project
 from app.models.quotation import Quotation
 from app.models.customer import Company
 from app.services.pricing_order_service import PricingOrderService
-# from app.services.pdf_generator import PDFGenerator  # 临时注释，避免WeasyPrint问题
+from app.services.pdf_generator import PDFGenerator
 from app.services.discount_permission_service import DiscountPermissionService
 from app.permissions import check_permission, permission_required
 import logging
@@ -2048,9 +2048,45 @@ def delete_pricing_order(order_id):
 @pricing_order_bp.route('/<int:order_id>/export_pdf/<pdf_type>')
 @login_required
 def export_pdf(order_id, pdf_type):
-    """导出批价单/结算单PDF - 临时禁用WeasyPrint"""
-    flash('PDF导出功能暂时不可用（WeasyPrint库问题）', 'warning')
-    return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
+    """导出批价单/结算单PDF"""
+    try:
+        from io import BytesIO
+
+        # 获取批价单
+        pricing_order = PricingOrder.query.get_or_404(order_id)
+
+        # 权限检查
+        from app.utils.access_control import can_view_pricing_order
+        if not can_view_pricing_order(current_user, pricing_order):
+            flash('您没有权限查看该批价单', 'danger')
+            return redirect(url_for('pricing_order.list_pricing_orders'))
+
+        # 生成PDF
+        pdf_generator = PDFGenerator()
+
+        if pdf_type == 'pricing':
+            result = pdf_generator.generate_pricing_order_pdf(pricing_order)
+        elif pdf_type == 'settlement':
+            result = pdf_generator.generate_settlement_order_pdf(pricing_order)
+        else:
+            flash('无效的PDF类型', 'danger')
+            return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
+
+        # 返回PDF文件
+        pdf_io = BytesIO(result['content'])
+        pdf_io.seek(0)
+
+        return send_file(
+            pdf_io,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=result['filename']
+        )
+
+    except Exception as e:
+        logger.error(f"导出PDF失败: {str(e)}")
+        flash(f'PDF导出失败: {str(e)}', 'danger')
+        return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
 
 
 @pricing_order_bp.route('/<int:order_id>/admin_rollback', methods=['POST'])

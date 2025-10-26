@@ -2593,29 +2593,29 @@ function initializeExistingRows() {
                 var $priceInput = $row.find('.product-price');
                 var priceValue = $priceInput.data('raw-value');
                 if (!priceValue) {
-                    var displayPrice = $priceInput.val().replace(/[^\d.]/g, '');
+                    var displayPrice = ($priceInput.val() || '').replace(/[^\d.]/g, '');
                     if (displayPrice) {
                         priceValue = parseFloat(displayPrice);
                         $priceInput.data('raw-value', priceValue);
                     }
                 }
-                
+
                 // 确保单价有正确的data-raw-value
                 var $unitPriceInput = $row.find('.discounted-price');
                 var unitPriceValue = $unitPriceInput.data('raw-value');
                 if (!unitPriceValue) {
-                    var displayUnitPrice = $unitPriceInput.val().replace(/[^\d.]/g, '');
+                    var displayUnitPrice = ($unitPriceInput.val() || '').replace(/[^\d.]/g, '');
                     if (displayUnitPrice) {
                         unitPriceValue = parseFloat(displayUnitPrice);
                         $unitPriceInput.data('raw-value', unitPriceValue);
                     }
                 }
-                
+
                 // 确保小计有正确的data-raw-value
                 var $subtotalInput = $row.find('.subtotal');
                 var subtotalValue = $subtotalInput.data('raw-value');
                 if (!subtotalValue) {
-                    var displaySubtotal = $subtotalInput.val().replace(/[^\d.]/g, '');
+                    var displaySubtotal = ($subtotalInput.val() || '').replace(/[^\d.]/g, '');
                     if (displaySubtotal) {
                         subtotalValue = parseFloat(displaySubtotal);
                         $subtotalInput.data('raw-value', subtotalValue);
@@ -2640,29 +2640,29 @@ function initializeExistingRows() {
                 var $priceInput = $row.find('.product-price');
                 var priceValue = $priceInput.data('raw-value');
                 if (!priceValue) {
-                    var displayPrice = $priceInput.val().replace(/[^\d.]/g, '');
+                    var displayPrice = ($priceInput.val() || '').replace(/[^\d.]/g, '');
                     if (displayPrice) {
                         priceValue = parseFloat(displayPrice);
                         $priceInput.data('raw-value', priceValue);
                     }
                 }
-                
+
                 // 确保单价有正确的data-raw-value
                 var $unitPriceInput = $row.find('.discounted-price');
                 var unitPriceValue = $unitPriceInput.data('raw-value');
                 if (!unitPriceValue) {
-                    var displayUnitPrice = $unitPriceInput.val().replace(/[^\d.]/g, '');
+                    var displayUnitPrice = ($unitPriceInput.val() || '').replace(/[^\d.]/g, '');
                     if (displayUnitPrice) {
                         unitPriceValue = parseFloat(displayUnitPrice);
                         $unitPriceInput.data('raw-value', unitPriceValue);
                     }
                 }
-                
+
                 // 确保小计有正确的data-raw-value
                 var $subtotalInput = $row.find('.subtotal');
                 var subtotalValue = $subtotalInput.data('raw-value');
                 if (!subtotalValue) {
-                    var displaySubtotal = $subtotalInput.val().replace(/[^\d.]/g, '');
+                    var displaySubtotal = ($subtotalInput.val() || '').replace(/[^\d.]/g, '');
                     if (displaySubtotal) {
                         subtotalValue = parseFloat(displaySubtotal);
                         $subtotalInput.data('raw-value', subtotalValue);
