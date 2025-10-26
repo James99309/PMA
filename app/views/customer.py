@@ -1104,6 +1104,14 @@ def view_company(company_id):
     all_viewable_actions = get_viewable_data(Action, current_user).all()
     # 只显示属于当前公司的行动记录，并按时间降序排序（最新的在最前面）
     viewable_actions = [a for a in all_viewable_actions if a.company_id == company_id]
+
+    # 🔒 额外过滤：移除关联到用户无权查看的项目的行动记录
+    # 这确保了共享客户时，用户无法看到关联到未共享项目的行动记录
+    viewable_actions = [
+        action for action in viewable_actions
+        if not action.project_id or action.project_id in viewable_project_ids
+    ]
+
     viewable_actions.sort(key=lambda x: x.created_at, reverse=True)
     
     # 提前加载行动记录所有者信息，避免N+1查询
