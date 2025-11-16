@@ -166,3 +166,6 @@ start_local_secure.sh
 *_backup_*.py
 analyze_*.py
 supplement_*.py
+
+# 但保留必要的备份服务文件
+!app/services/supabase_backup_service.py
