@@ -1,6 +1,7 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel, render_confirm_dialog, render_top_notification %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel, render_confirm_dialog, render_top_notification, render_detail_list %}
 {% from 'macros/gantt_chart.html' import render_gantt_chart %}
+{% from 'macros/approval_flow.html' import render_complete_approval_section %}
 
 {% block title %}{{ _('研发产品详情') }} - {{ dev_product.name }}{% endblock %}
 
@@ -8,6 +9,9 @@
 {{ super() }}
 <!-- 引入甘特图组件样式 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/gantt-chart.css') }}">
+<!-- 引入审批流程组件样式 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_flow.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
 <style>
     /* 研发产品详情页主容器顶部留白，避免被fixed导航遮挡 */
     .container.product-detail-main {
@@ -139,13 +143,22 @@
                 <h2>{{ _('研发产品详情') }}</h2>
                 <div>
                     {{ render_button(_('返回列表'), url_for('product_management.index'), color='secondary', icon='fas fa-arrow-left') }}
-                    
-                    {% if current_user.role == 'admin' or current_user.id == dev_product.created_by %}
+
+                    {# 发起入库审批按钮 - 允许从任何阶段提交 #}
+                    {% if not approval_instance and not warehoused_product and available_templates %}
+                        {{ render_button(
+                            _('发起入库审批'),
+                            color='primary',
+                            icon='fas fa-paper-plane',
+                            attrs='type="button" onclick="confirmSubmitApproval()"'
+                        ) }}
+                    {% endif %}
+
+                    {% if can_edit_button %}
                     {{ render_button(_('编辑产品'), href=url_for('product_management.edit_product', id=dev_product.id), color='warning', icon='fas fa-edit') }}
                     {% endif %}
 
-
-                    {% if current_user.role == 'admin' or current_user.id == dev_product.created_by %}
+                    {% if can_delete_button %}
                     {{ render_button(_('删除产品'), color='danger', icon='fas fa-trash', attrs='type="button" data-bs-toggle="modal" data-bs-target="#deleteModal"') }}
                     {% endif %}
                 </div>
@@ -198,13 +211,21 @@
                                         <!-- Supabase云端图片 -->
                                         <img src="{{ dev_product.image_path }}"
                                              alt="{{ dev_product.name }}"
-                                             class="product-image">
+                                             class="product-image"
+                                             onerror="this.style.display='none'; this.parentElement.querySelector('.product-placeholder').style.display='flex';">
                                     {% else %}
                                         <!-- 本地图片 -->
                                         <img src="{{ url_for('static', filename=dev_product.image_path) }}"
                                              alt="{{ dev_product.name }}"
-                                             class="product-image">
+                                             class="product-image"
+                                             onerror="this.style.display='none'; this.parentElement.querySelector('.product-placeholder').style.display='flex';">
                                     {% endif %}
+                                    <!-- 图片加载失败时的占位符（默认隐藏） -->
+                                    <div class="product-placeholder" style="display: none;">
+                                        <i class="fas fa-exclamation-triangle text-warning"></i>
+                                        <span>{{ _('图片加载失败') }}</span>
+                                        <small class="text-muted mt-1">{{ _('请重新上传图片') }}</small>
+                                    </div>
                                 {% else %}
                                 <div class="product-placeholder">
                                     <i class="fas fa-image"></i>
@@ -326,7 +347,9 @@
                                                 {% if spec.field_value %}
                                                 <tr>
                                                     <td class="align-middle">{{ spec.field_name }}</td>
-                                                    <td class="align-middle">{{ spec.field_value }}</td>
+                                                    <td class="align-middle">
+                                                        {{ spec.field_value }}{% if spec.field_unit %} {{ spec.field_unit }}{% endif %}
+                                                    </td>
                                                 </tr>
                                                 {% endif %}
                                                 {% endfor %}
@@ -349,24 +372,94 @@
             </div>
         </div>
     </div>
+
+    <!-- 已入库产品链接提示 -->
+    {% if warehoused_product %}
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle me-2"></i>
+                <strong>该研发产品已成功入库！</strong>
+                <a href="{{ url_for('product_route.view_product_detail', id=warehoused_product.id) }}" class="alert-link">
+                    查看产品库记录 <i class="fas fa-external-link-alt ms-1"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 入库审批流程区域（页面底部） -->
+    {% if approval_instance or warehoused_product %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h4 class="mb-3">
+                <i class="fas fa-clipboard-check me-2"></i>{{ _('入库审批流程') }}
+            </h4>
+            {{ render_complete_approval_section(
+                object_type='rd_product',
+                object_id=dev_product.id,
+                object_status=dev_product.status,
+                current_user_id=current_user.id,
+                creator_id=dev_product.created_by,
+                container_id='devProductApprovalSection',
+                options={
+                    'operation_title': '入库审批操作',
+                    'flow_title': '入库审批流程',
+                    'description': '研发产品已进入待入库阶段，审批通过后将自动转入产品库。',
+                    'warning': '审批进行中，产品信息暂时锁定。'
+                }
+            ) }}
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <!-- 删除确认模态框 -->
 <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">确认删除</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-header {% if dev_product.status == '已入库' %}bg-danger text-white{% endif %}">
+                <h5 class="modal-title">
+                    {% if dev_product.status == '已入库' %}
+                        <i class="fas fa-exclamation-triangle me-2"></i>高风险操作：确认删除
+                    {% else %}
+                        确认删除
+                    {% endif %}
+                </h5>
+                <button type="button" class="btn-close {% if dev_product.status == '已入库' %}btn-close-white{% endif %}" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                确定要删除产品 "{{ dev_product.name }}" 吗？此操作不可恢复。
+                <p class="mb-3">确定要删除产品 "<strong>{{ dev_product.name }}</strong>" 吗？</p>
+
+                {% if dev_product.status == '已入库' %}
+                <!-- 已入库产品的高风险警告 -->
+                <div class="alert alert-danger mb-0">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-exclamation-triangle me-2"></i><strong>警告：此产品已入库！</strong>
+                    </h6>
+                    <hr>
+                    <ul class="mb-2">
+                        <li>该产品已经转移到产品库，可能有关联的产品数据</li>
+                        <li>删除后产品库中的关联产品将<strong class="text-danger">失去来源追溯</strong></li>
+                        <li><strong class="text-danger">此操作不可恢复</strong></li>
+                        <li>建议只在确实需要清理数据时执行此操作</li>
+                    </ul>
+                    <p class="mb-0 text-muted small">
+                        <i class="fas fa-info-circle me-1"></i>提示：删除已入库产品需要二次确认，请再次点击"确认删除"按钮。
+                    </p>
+                </div>
+                {% else %}
+                <!-- 普通产品的提示 -->
+                <p class="text-muted mb-0">此操作不可恢复。</p>
+                {% endif %}
             </div>
             <div class="modal-footer">
                 {{ render_button('取消', '#', color='secondary', attrs='type="button" data-bs-dismiss="modal"') }}
-                <form action="{{ url_for('product_management.delete_product', id=dev_product.id) }}" method="post">
+                <form id="deleteForm" action="{{ url_for('product_management.delete_product', id=dev_product.id) }}" method="post">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    {{ render_button('确认删除', '#', color='danger', type='submit') }}
+                    <!-- 二次确认标记（通过JavaScript动态添加） -->
+                    <input type="hidden" id="confirmHighRiskInput" name="confirm_high_risk" value="">
+                    {{ render_button('确认删除', '#', color='danger', type='submit', attrs='id="confirmDeleteBtn"') }}
                 </form>
             </div>
         </div>
@@ -379,8 +472,76 @@
 <!-- 引入通用确认对话框组件 -->
 <script src="{{ url_for('static', filename='js/approval_config/approval-config.js') }}"></script>
 <script src="{{ url_for('static', filename='js/gantt-chart.js') }}"></script>
+<!-- 引入审批流程组件JS -->
+<script src="{{ url_for('static', filename='js/approval_flow.js') }}"></script>
+<script src="{{ url_for('static', filename='js/approval_flow_utils.js') }}"></script>
 
 <script>
+/**
+ * 初始化删除二次确认逻辑（仅对已入库产品）
+ */
+function initDeleteConfirmation() {
+    const deleteForm = document.getElementById('deleteForm');
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    const confirmInput = document.getElementById('confirmHighRiskInput');
+
+    if (!deleteForm || !confirmBtn || !confirmInput) {
+        console.error('删除表单元素未找到');
+        return;
+    }
+
+    let firstClickDone = false; // 标记是否已经第一次点击
+
+    deleteForm.addEventListener('submit', function(e) {
+        if (!firstClickDone) {
+            // 第一次点击：阻止提交，显示警告
+            e.preventDefault();
+            firstClickDone = true;
+
+            // 修改按钮文字和样式
+            confirmBtn.textContent = '再次确认删除';
+            confirmBtn.classList.remove('btn-danger');
+            confirmBtn.classList.add('btn-danger', 'pulse-danger');
+
+            // 添加脉动动画样式
+            if (!document.getElementById('pulseStyle')) {
+                const style = document.createElement('style');
+                style.id = 'pulseStyle';
+                style.textContent = `
+                    @keyframes pulse-danger {
+                        0%, 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+                        50% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+                    }
+                    .pulse-danger {
+                        animation: pulse-danger 1.5s infinite;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            // 显示顶部警告通知
+            showTopNotification('⚠️ 请再次点击"再次确认删除"按钮以执行删除操作', 'warning', 5000);
+
+            return false;
+        } else {
+            // 第二次点击：添加确认参数并提交
+            confirmInput.value = 'yes';
+            return true; // 允许表单提交
+        }
+    });
+
+    // 如果关闭模态框，重置状态
+    const deleteModal = document.getElementById('deleteModal');
+    if (deleteModal) {
+        deleteModal.addEventListener('hidden.bs.modal', function() {
+            firstClickDone = false;
+            confirmInput.value = '';
+            confirmBtn.textContent = '确认删除';
+            confirmBtn.classList.remove('pulse-danger');
+        });
+    }
+}
+
 /**
  * 初始化图片上传功能
  */
@@ -481,17 +642,127 @@ function uploadImage(file) {
 // 研发产品详情页面初始化
 document.addEventListener('DOMContentLoaded', function() {
     console.log('研发产品详情页面已初始化');
-    
+
     // 甘特图组件已通过宏自动初始化，无需手动初始化
-    
+
     // 初始化图片上传功能
     {% if current_user.role == 'admin' or current_user.id == dev_product.created_by %}
     initImageUpload();
+    {% endif %}
+
+    // 初始化研发产品审批流程（无条件初始化，让API决定是否显示）
+    console.log('[DEBUG] 初始化研发产品审批流程');
+    const devProductApprovalFlow = new ApprovalFlow('rd_product', {{ dev_product.id }}, {
+        containerId: 'devProductApprovalSection',
+        containerSelector: '#devProductApprovalSectionContainer',
+        apiBasePath: '/dev-product/api/approval',
+        autoLoad: true,  // 设置自动加载
+        onFlowReady: function(flow) {
+            console.log('[DEBUG] 研发产品审批流程已加载', flow);
+        }
+    });
+
+    // 调用init()方法来初始化和加载流程
+    devProductApprovalFlow.init();
+
+    // 初始化删除二次确认逻辑（仅对已入库产品）
+    {% if dev_product.status == '已入库' %}
+    initDeleteConfirmation();
     {% endif %}
 });
 </script>
 
 <!-- 阶段推进确认对话框 -->
 {{ render_confirm_dialog('stageProgressConfirmDialog') }}
+
+<!-- 入库审批确认对话框 -->
+{{ render_confirm_dialog('submitApprovalConfirmDialog') }}
+
+<script>
+/**
+ * 确认发起入库审批
+ */
+function confirmSubmitApproval() {
+    {% if available_templates %}
+        {% if available_templates|length == 1 %}
+            {# 只有一个模板，直接使用 #}
+            const templateId = {{ available_templates[0].id }};
+            const templateName = '{{ available_templates[0].name }}';
+
+            showConfirmDialog({
+                title: '{{ _("发起入库审批") }}',
+                message: '{{ _("确认要发起入库审批流程吗？") }}<br><small class="text-muted">{{ _("审批通过后，研发产品将自动转入产品库。") }}<br>{{ _("将使用审批流程") }}: <strong>' + templateName + '</strong></small>',
+                type: 'info',
+                confirmText: '{{ _("确认发起") }}',
+                cancelText: '{{ _("取消") }}',
+                confirmColor: 'primary',
+                dialogId: 'submitApprovalConfirmDialog',
+                onConfirm: () => {
+                    submitApproval(templateId);
+                }
+            });
+        {% else %}
+            {# 多个模板，需要先选择 - 暂时使用alert提示 #}
+            alert('{{ _("系统检测到多个审批流程模板，请联系管理员配置默认模板。") }}');
+        {% endif %}
+    {% else %}
+        alert('{{ _("没有可用的审批流程模板") }}');
+    {% endif %}
+}
+
+/**
+ * 发起入库审批
+ */
+function submitApproval(templateId) {
+    if (!templateId) {
+        alert('{{ _("审批流程模板ID无效") }}');
+        return;
+    }
+
+    fetch('{{ url_for("dev_product.submit_warehousing_approval", dev_product_id=dev_product.id) }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify({ template_id: parseInt(templateId) })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showConfirmDialog({
+                title: '{{ _("成功") }}',
+                message: '{{ _("审批流程已发起！页面即将刷新...") }}',
+                type: 'success',
+                confirmText: '{{ _("确定") }}',
+                dialogId: 'submitApprovalConfirmDialog',
+                onConfirm: () => {
+                    location.reload();
+                }
+            });
+            // 自动刷新
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showConfirmDialog({
+                title: '{{ _("发起失败") }}',
+                message: data.message || '{{ _("未知错误") }}',
+                type: 'danger',
+                confirmText: '{{ _("确定") }}',
+                dialogId: 'submitApprovalConfirmDialog'
+            });
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showConfirmDialog({
+            title: '{{ _("发起失败") }}',
+            message: '{{ _("网络错误，请稍后重试") }}',
+            type: 'danger',
+            confirmText: '{{ _("确定") }}',
+            dialogId: 'submitApprovalConfirmDialog'
+        });
+    });
+}
+</script>
 
 {% endblock %}

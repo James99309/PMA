@@ -105,42 +105,6 @@
                             <textarea class="form-control" id="notes" name="notes" rows="3" disabled></textarea>
                         </div>
 
-                        <hr class="my-4">
-                        <h5>{{ _('主要联系人信息') }}</h5>
-
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label for="contact_name" class="form-label">{{ get_form_label('contact', 'contact_name', '联系人姓名') }}</label>
-                                <input type="text" class="form-control" id="contact_name" name="contact_name" disabled>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="contact_department" class="form-label">{{ get_form_label('contact', 'contact_department', '部门') }}</label>
-                                <input type="text" class="form-control" id="contact_department" name="contact_department" disabled>
-                            </div>
-                        </div>
-
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label for="contact_position" class="form-label">{{ get_form_label('contact', 'contact_position', '职位') }}</label>
-                                <input type="text" class="form-control" id="contact_position" name="contact_position" disabled>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="contact_phone" class="form-label">{{ get_form_label('contact', 'contact_phone', '电话') }}</label>
-                                <input type="text" class="form-control" id="contact_phone" name="contact_phone" disabled>
-                            </div>
-                        </div>
-
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label for="contact_email" class="form-label">{{ get_form_label('contact', 'contact_email', '邮箱') }}</label>
-                                <input type="email" class="form-control" id="contact_email" name="contact_email" disabled>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="contact_notes" class="form-label">{{ get_form_label('contact', 'contact_notes', '备注') }}</label>
-                                <input type="text" class="form-control" id="contact_notes" name="contact_notes" disabled>
-                            </div>
-                        </div>
-
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                             {{ render_button(_('保存'), color='primary', type='submit') }}
                         </div>

@@ -3,7 +3,9 @@ from app.models.project import Project
 from app.models.customer import Company, Contact
 from .quotation import Quotation
 from app.models.product import Product
-from app.models.product_code import ProductCategory, ProductSubcategory, ProductRegion, ProductCodeField, ProductCodeFieldOption, ProductCode, ProductCodeFieldValue
+from app.models.product_spec import ProductSpec
+from app.models.product_code import ProductCategory, ProductSubcategory, ProductRegion, ProductCodeField, ProductCodeFieldOption, ProductCode, ProductCodeFieldValue, SpecificationDictionary
+from app.models.product_relation import ProductRelation
 from app.models.dev_product import DevProduct, DevProductSpec
 from app.models.gantt_models import DevProductMilestone, StageDependency, StageAttachment, StageReview
 from app.models.dictionary import Dictionary
@@ -13,13 +15,13 @@ from app.models.performance import PerformanceTarget, PerformanceStatistics, Fiv
 from app.models.expense import Expense, Department
 from app.models.project_customer_association import ProjectCustomerAssociation
 
-__all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 
-           'ProductCategory', 'ProductSubcategory', 'ProductRegion', 'ProductCodeField', 
-           'ProductCodeFieldOption', 'ProductCode', 'ProductCodeFieldValue', 
-           'DevProduct', 'DevProductSpec', 'DevProductMilestone', 'StageDependency', 
+__all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
+           'ProductCategory', 'ProductSubcategory', 'ProductRegion', 'ProductCodeField',
+           'ProductCodeFieldOption', 'ProductCode', 'ProductCodeFieldValue', 'SpecificationDictionary',
+           'ProductRelation', 'DevProduct', 'DevProductSpec', 'DevProductMilestone', 'StageDependency',
            'StageAttachment', 'StageReview', 'Dictionary',
            'ApprovalProcessTemplate', 'ApprovalStep', 'ApprovalInstance', 'ApprovalRecord',
-           'ApprovalStatus', 'ApprovalAction', 'PricingOrder', 'PricingOrderDetail', 
+           'ApprovalStatus', 'ApprovalAction', 'PricingOrder', 'PricingOrderDetail',
            'SettlementOrderDetail', 'PricingOrderApprovalRecord', 'PerformanceTarget',
            'PerformanceStatistics', 'FiveStarProjectBaseline', 'Expense', 'Department',
            'ProjectCustomerAssociation'] 

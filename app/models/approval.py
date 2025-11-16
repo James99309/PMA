@@ -53,7 +53,10 @@ class ApprovalActionType:
     
     # 新增：批结算审批动作
     PRICING_SETTLEMENT_APPROVAL = "pricing_settlement_approval"  # 批结算审批（同时检查批价单和结算单权限）
-    
+
+    # 新增：产品入库动作
+    PRODUCT_WAREHOUSING = "product_warehousing"  # 研发产品入库
+
     # 动作类型标签
     ACTION_TYPE_LABELS = {
         'authorization': {'zh': '授权审批', 'en': 'Authorization'},
@@ -65,7 +68,8 @@ class ApprovalActionType:
         'business_authorization': {'zh': '业务授权', 'en': 'Business Authorization'},
         'customer_service_authorization': {'zh': '客服授权', 'en': 'Customer Service Authorization'},
         'branch_decision': {'zh': '分支决策', 'en': 'Branch Decision'},
-        'pricing_settlement_approval': {'zh': '批结算审批', 'en': 'Pricing Settlement Approval'}
+        'pricing_settlement_approval': {'zh': '批结算审批', 'en': 'Pricing Settlement Approval'},
+        'product_warehousing': {'zh': '产品入库', 'en': 'Product Warehousing'}
     }
     
     @classmethod
@@ -236,6 +240,8 @@ class ApprovalStep(db.Model):
             return self._execute_branch_decision(approval_record, target_object)
         elif self.action_type == ApprovalActionType.PRICING_SETTLEMENT_APPROVAL:
             return self._execute_pricing_settlement_approval(approval_record, target_object, pricing_order_data)
+        elif self.action_type == ApprovalActionType.PRODUCT_WAREHOUSING:
+            return self._execute_product_warehousing(approval_record, target_object)
 
         return True
 
@@ -863,6 +869,80 @@ class ApprovalStep(db.Model):
             
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             return {'details': []}
+
+    def _execute_product_warehousing(self, approval_record, dev_product):
+        """执行研发产品入库动作
+
+        当审批通过时，将研发产品转移到产品库：
+        - 创建新的Product记录
+        - 复制dev_product_specs到product_specs
+        - 检测MN编号重复
+        - 更新研发产品状态为"已入库"
+
+        Args:
+            approval_record: 审批记录对象
+            dev_product: 研发产品对象 (DevProduct)
+
+        Returns:
+            bool: 是否成功执行动作
+        """
+        try:
+            from app.services.product_warehousing_service import ProductWarehousingService
+
+            if approval_record.action == 'approve':
+                # 调用入库服务
+                service = ProductWarehousingService()
+                success, message, product_id = service.transfer_dev_product_to_production(
+                    dev_product_id=dev_product.id,
+                    approver_id=approval_record.approver_id
+                )
+
+                if not success:
+                    current_app.logger.error(f"研发产品入库失败: {message}")
+                    return False
+
+                current_app.logger.info(f"研发产品入库成功: DevProduct#{dev_product.id} → Product#{product_id}, MN={dev_product.mn_code}")
+
+                # 自动完成"申请入库"和"已入库"阶段
+                from datetime import datetime
+
+                # 1. 完成"申请入库"阶段（设置结束日期）
+                if dev_product.stage_history:
+                    for record in reversed(dev_product.stage_history):
+                        if record.get('stage') == 'apply_storage' and not record.get('endDate'):
+                            record['endDate'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            break
+
+                # 2. 切换到"已入库"阶段并立即完成
+                dev_product.update_stage(
+                    'stored',
+                    user_id=approval_record.approver_id,
+                    description='入库审批通过，自动完成入库'
+                )
+
+                # 3. 设置"已入库"阶段的结束日期（标记为完成）
+                if dev_product.stage_history:
+                    for record in reversed(dev_product.stage_history):
+                        if record.get('stage') == 'stored' and not record.get('endDate'):
+                            record['endDate'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            break
+
+                # 触发SQLAlchemy更新检测
+                dev_product.stage_history = list(dev_product.stage_history)
+                db.session.add(dev_product)
+
+                return True
+            else:
+                # 拒绝入库，更新研发产品状态
+                dev_product.status = '入库被拒'
+                db.session.commit()
+                current_app.logger.info(f"研发产品入库被拒: DevProduct#{dev_product.id}")
+                return True
+
+        except Exception as e:
+            current_app.logger.error(f"执行产品入库动作失败: {str(e)}")
+            current_app.logger.error(traceback.format_exc())
+            return False
 
 
 class ApprovalInstance(db.Model):

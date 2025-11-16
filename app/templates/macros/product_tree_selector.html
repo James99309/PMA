@@ -1,0 +1,877 @@
+{#
+=============================================================================
+通用产品树状选择器组件
+=============================================================================
+
+功能说明:
+- 三级树状结构：产品分类 > 子分类 > 具体产品
+- 多选功能（复选框级联选择）
+- 已选项展示（产品型号、MN号、描述）
+- 不同分类使用不同图标区分
+
+使用示例:
+{{ render_product_tree_selector(
+    container_id='productSelector',
+    api_url=url_for('product_management.get_product_tree'),
+    selected_product_ids=[1, 2, 3],
+    disabled=False,
+    show_badges=True,
+    on_change_callback='handleProductChange'
+) }}
+
+创建日期: 2025-11-02
+=============================================================================
+#}
+
+{% macro render_product_tree_selector(container_id='productTreeSelector', api_url='', selected_product_ids=[], disabled=False, show_badges=True, on_change_callback='', header_badges_id=None, show_icons=True, exclude_product_ids=[]) %}
+{# 已选择的产品徽章展示区域 #}
+{% if show_badges %}
+<div class="mb-3">
+    <label class="form-label">{{ _('当前已选择：') }}</label>
+    <div id="{{ container_id }}_badges"
+         class="selected-badges-container d-flex flex-wrap gap-2"
+         style="min-height: 38px; padding: 8px; background-color: #f8f9fa; border-radius: 0.375rem; border: 1px solid #dee2e6;">
+        <small class="text-muted">{{ _('未选择任何产品') }}</small>
+    </div>
+</div>
+{% endif %}
+
+{# 树状选择器容器 #}
+<div class="product-tree-selector" id="{{ container_id }}" data-api-url="{{ api_url }}" data-on-change="{{ on_change_callback }}">
+    <div class="tree-search-box mb-2">
+        <input type="text"
+               class="form-control form-control-sm"
+               id="{{ container_id }}_search"
+               placeholder="{{ _('搜索产品型号或名称...') }}"
+               {% if disabled %}disabled{% endif %}>
+    </div>
+
+    <div class="tree-container" id="{{ container_id }}_tree">
+        <div class="text-center py-4">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">{{ _('加载中...') }}</span>
+            </div>
+            <p class="text-muted mt-2">{{ _('正在加载产品数据...') }}</p>
+        </div>
+    </div>
+</div>
+
+{# 隐藏的input用于存储选中的产品ID列表 #}
+<input type="hidden" id="{{ container_id }}_selected_ids" name="selected_product_ids" value="{{ selected_product_ids|join(',') if selected_product_ids else '' }}">
+
+<style>
+/* 产品树状选择器样式 */
+.product-tree-selector {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    background: white;
+}
+
+.tree-search-box {
+    padding: 8px 8px 0 8px;
+}
+
+.tree-container {
+    padding: 8px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.tree-node {
+    margin: 2px 0;
+}
+
+.tree-node-content {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 4px;
+    transition: background-color 0.15s ease;
+}
+
+.tree-node-content:hover {
+    background-color: #f8f9fa;
+}
+
+.tree-toggle {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    margin-right: 2px;
+    border-radius: 3px;
+    transition: transform 0.2s ease;
+    font-size: 0.75rem;
+}
+
+.tree-toggle:hover {
+    background-color: #e9ecef;
+}
+
+.tree-toggle.expanded i {
+    transform: rotate(90deg);
+}
+
+.tree-icon {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 4px;
+    font-size: 12px;
+}
+
+.tree-icon.category {
+    color: #0d6efd;
+}
+
+.tree-icon.subcategory {
+    color: #198754;
+}
+
+.tree-icon.product {
+    color: #6c757d;
+}
+
+.tree-checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+}
+
+.tree-checkbox {
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+
+.tree-label {
+    display: flex;
+    align-items: flex-start;
+    cursor: pointer;
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+}
+
+.tree-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.875rem;
+}
+
+.tree-product-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.tree-product-model {
+    font-weight: normal;
+    color: #212529;
+    font-size: 0.875rem;
+}
+
+.tree-product-mn {
+    color: #212529;
+    font-size: 0.875rem;
+    margin-left: 8px;
+}
+
+.tree-product-name {
+    color: #6c757d;
+    font-size: 0.8125rem;
+    margin-left: 8px;
+}
+
+.tree-product-desc {
+    color: #212529;
+    font-size: 0.8125rem;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 不同层级的缩进 */
+.category-node > .tree-node-content {
+    padding-left: 4px;
+}
+
+.subcategory-node > .tree-node-content {
+    padding-left: 20px;
+}
+
+.product-node > .tree-node-content {
+    padding-left: 36px;
+}
+
+/* 产品节点无展开箭头，额外缩进 */
+.product-checkbox-wrapper {
+    margin-left: 18px;
+}
+
+/* 禁用产品的灰色样式 */
+.tree-checkbox:disabled ~ .tree-label {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.tree-checkbox:disabled ~ .tree-label .tree-product-model,
+.tree-checkbox:disabled ~ .tree-label .tree-product-mn,
+.tree-checkbox:disabled ~ .tree-label .tree-product-desc {
+    color: #adb5bd !important;
+}
+
+/* 选中状态样式 */
+.tree-node.selected > .tree-node-content {
+    background-color: #e3f2fd;
+}
+
+.tree-node.partial-selected > .tree-node-content {
+    background-color: #fff3cd;
+}
+
+/* 隐藏的节点 */
+.tree-node.filtered-hidden {
+    display: none;
+}
+
+/* 产品徽章样式 */
+.selected-badges-container .badge {
+    font-size: 0.8125rem;
+    padding: 6px 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.badge-product {
+    background-color: #6c757d;
+    color: white;
+}
+
+.badge-product .remove-icon {
+    cursor: pointer;
+    opacity: 0.8;
+}
+
+.badge-product .remove-icon:hover {
+    opacity: 1;
+}
+</style>
+
+<script>
+// 初始化产品树状选择器
+(function() {
+    const containerId = '{{ container_id }}';
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const apiUrl = container.getAttribute('data-api-url');
+    const onChangeCallback = container.getAttribute('data-on-change');
+    const disabled = {{ 'true' if disabled else 'false' }};
+    const showIcons = {{ 'true' if show_icons else 'false' }};
+    const selectedIds = '{{ selected_product_ids|join(",") if selected_product_ids else "" }}'.split(',').filter(id => id);
+    const excludeIds = '{{ exclude_product_ids|join(",") if exclude_product_ids else "" }}'.split(',').filter(id => id).map(id => parseInt(id));
+
+    let treeData = [];
+    let selectedProductIds = new Set(selectedIds.map(id => parseInt(id)));
+
+    // 加载产品树数据
+    function loadProductTree() {
+        if (!apiUrl) {
+            showError('{{ _("未配置API地址") }}');
+            return;
+        }
+
+        fetch(apiUrl)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    treeData = data.data;
+                    renderTree();
+                    updateBadges();
+                } else {
+                    showError(data.message || '{{ _("加载失败") }}');
+                }
+            })
+            .catch(error => {
+                console.error('加载产品树失败:', error);
+                showError('{{ _("加载产品树失败，请刷新页面重试") }}');
+            });
+    }
+
+    // 渲染树
+    function renderTree() {
+        const treeContainer = document.getElementById(containerId + '_tree');
+        treeContainer.innerHTML = '';
+
+        if (treeData.length === 0) {
+            treeContainer.innerHTML = '<p class="text-muted text-center py-3">{{ _("暂无产品数据") }}</p>';
+            return;
+        }
+
+        let visibleCategoryCount = 0;
+        treeData.forEach(category => {
+            const categoryNode = createCategoryNode(category);
+            if (categoryNode) {  // 只添加非null的分类节点
+                treeContainer.appendChild(categoryNode);
+                visibleCategoryCount++;
+            }
+        });
+
+        // 如果所有分类都被过滤了，显示提示
+        if (visibleCategoryCount === 0) {
+            treeContainer.innerHTML = '<p class="text-muted text-center py-3">{{ _("所有产品均已添加，无可选产品") }}</p>';
+        }
+    }
+
+    // 创建分类节点
+    function createCategoryNode(category) {
+        const node = document.createElement('div');
+        node.className = 'tree-node category-node';
+        node.setAttribute('data-type', 'category');
+        node.setAttribute('data-id', category.id);
+
+        const content = document.createElement('div');
+        content.className = 'tree-node-content';
+
+        // 展开/折叠按钮
+        const toggle = document.createElement('span');
+        toggle.className = 'tree-toggle';
+        toggle.innerHTML = '<i class="fas fa-chevron-right"></i>';
+        toggle.onclick = () => toggleNode(category.id);
+
+        // 图标
+        const icon = document.createElement('span');
+        icon.className = 'tree-icon category';
+        if (showIcons) {
+            icon.innerHTML = `<i class="${category.icon || 'fa-layer-group'} fas"></i>`;
+        }
+
+        // 复选框和标签
+        const wrapper = document.createElement('div');
+        wrapper.className = 'tree-checkbox-wrapper';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'tree-checkbox category-checkbox';
+        checkbox.id = `checkbox_${category.id}`;
+        checkbox.disabled = disabled;
+        checkbox.onchange = () => handleCategoryChange(category);
+
+        const label = document.createElement('label');
+        label.htmlFor = `checkbox_${category.id}`;
+        label.className = 'tree-label';
+        label.innerHTML = `<span class="tree-text">${category.name}</span>`;
+
+        wrapper.appendChild(checkbox);
+        wrapper.appendChild(label);
+
+        content.appendChild(toggle);
+        content.appendChild(icon);
+        content.appendChild(wrapper);
+        node.appendChild(content);
+
+        // 子节点容器
+        const children = document.createElement('div');
+        children.className = 'tree-children';
+        children.id = `children_${category.id}`;
+        children.style.display = 'none';
+
+        category.children.forEach(subcategory => {
+            const subcategoryNode = createSubcategoryNode(subcategory, category.id);
+            if (subcategoryNode) {  // 只添加非null的子分类节点
+                children.appendChild(subcategoryNode);
+            }
+        });
+
+        // 如果过滤后没有子分类了，不显示这个分类
+        if (children.children.length === 0) {
+            return null;
+        }
+
+        node.appendChild(children);
+        return node;
+    }
+
+    // 创建子分类节点
+    function createSubcategoryNode(subcategory, parentId) {
+        const node = document.createElement('div');
+        node.className = 'tree-node subcategory-node';
+        node.setAttribute('data-type', 'subcategory');
+        node.setAttribute('data-id', subcategory.id);
+        node.setAttribute('data-parent', parentId);
+
+        const content = document.createElement('div');
+        content.className = 'tree-node-content';
+
+        // 展开/折叠按钮
+        const toggle = document.createElement('span');
+        toggle.className = 'tree-toggle';
+        toggle.innerHTML = '<i class="fas fa-chevron-right"></i>';
+        toggle.onclick = () => toggleNode(subcategory.id);
+
+        // 图标
+        const icon = document.createElement('span');
+        icon.className = 'tree-icon subcategory';
+        if (showIcons) {
+            icon.innerHTML = `<i class="${subcategory.icon || 'fa-boxes'} fas"></i>`;
+        }
+
+        // 复选框和标签
+        const wrapper = document.createElement('div');
+        wrapper.className = 'tree-checkbox-wrapper';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'tree-checkbox subcategory-checkbox';
+        checkbox.id = `checkbox_${subcategory.id}`;
+        checkbox.disabled = disabled;
+        checkbox.onchange = () => handleSubcategoryChange(subcategory, parentId);
+
+        const label = document.createElement('label');
+        label.htmlFor = `checkbox_${subcategory.id}`;
+        label.className = 'tree-label';
+        label.innerHTML = `<span class="tree-text">${subcategory.name}</span>`;
+
+        wrapper.appendChild(checkbox);
+        wrapper.appendChild(label);
+
+        content.appendChild(toggle);
+        content.appendChild(icon);
+        content.appendChild(wrapper);
+        node.appendChild(content);
+
+        // 子节点容器（产品列表）
+        const children = document.createElement('div');
+        children.className = 'tree-children';
+        children.id = `children_${subcategory.id}`;
+        children.style.display = 'none';
+
+        subcategory.children.forEach(product => {
+            const productNode = createProductNode(product, subcategory.id, parentId);
+            if (productNode) {  // 只添加非null的节点
+                children.appendChild(productNode);
+            }
+        });
+
+        // 如果过滤后没有产品了，不显示这个子分类
+        if (children.children.length === 0) {
+            return null;
+        }
+
+        node.appendChild(children);
+        return node;
+    }
+
+    // 创建产品节点
+    function createProductNode(product, subId, catId) {
+        // 如果产品在排除列表中，直接返回null（不渲染）
+        const isExcluded = excludeIds.includes(product.product_id);
+        if (isExcluded) {
+            return null;
+        }
+
+        const node = document.createElement('div');
+        node.className = 'tree-node product-node';
+        node.setAttribute('data-type', 'product');
+        node.setAttribute('data-id', product.id);
+        node.setAttribute('data-product-id', product.product_id);
+        node.setAttribute('data-subcategory', subId);
+        node.setAttribute('data-category', catId);
+        node.setAttribute('data-mn', product.mn);
+        node.setAttribute('data-name', product.name);
+        node.setAttribute('data-description', product.description);
+
+        const content = document.createElement('div');
+        content.className = 'tree-node-content';
+
+        // 图标
+        const icon = document.createElement('span');
+        icon.className = 'tree-icon product';
+        if (showIcons) {
+            icon.innerHTML = `<i class="${product.icon || 'fa-microchip'} fas"></i>`;
+        }
+
+        // 复选框和标签
+        const wrapper = document.createElement('div');
+        wrapper.className = 'tree-checkbox-wrapper product-checkbox-wrapper';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'tree-checkbox product-checkbox';
+        checkbox.id = `checkbox_${product.id}`;
+        checkbox.disabled = disabled;
+        checkbox.checked = selectedProductIds.has(product.product_id);
+        checkbox.onchange = () => handleProductChange(product, subId, catId);
+
+        const label = document.createElement('label');
+        label.htmlFor = `checkbox_${product.id}`;
+        label.className = 'tree-label';
+
+        const productInfo = document.createElement('div');
+        productInfo.className = 'tree-product-info';
+        const model = product.model || product.name || '';
+        const mn = product.mn || '';
+        productInfo.innerHTML = `
+            <div>
+                <span class="tree-product-model">${model}</span>
+                ${mn ? `<span class="tree-product-mn">${mn}</span>` : ''}
+            </div>
+            ${product.description ? `<div class="tree-product-desc">${product.description}</div>` : ''}
+        `;
+
+        label.appendChild(productInfo);
+        wrapper.appendChild(checkbox);
+        wrapper.appendChild(label);
+
+        content.appendChild(icon);
+        content.appendChild(wrapper);
+        node.appendChild(content);
+
+        return node;
+    }
+
+    // 展开/折叠节点
+    function toggleNode(nodeId) {
+        const children = document.getElementById(`children_${nodeId}`);
+        const toggle = document.querySelector(`[data-id="${nodeId}"] > .tree-node-content .tree-toggle`);
+
+        if (children && toggle) {
+            const isExpanded = children.style.display !== 'none';
+            children.style.display = isExpanded ? 'none' : 'block';
+            toggle.classList.toggle('expanded', !isExpanded);
+        }
+    }
+
+    // 处理分类复选框变化
+    function handleCategoryChange(category) {
+        const checkbox = document.getElementById(`checkbox_${category.id}`);
+        const isChecked = checkbox.checked;
+
+        // 级联选中/取消所有子产品
+        category.children.forEach(subcategory => {
+            const subCheckbox = document.getElementById(`checkbox_${subcategory.id}`);
+            if (subCheckbox) subCheckbox.checked = isChecked;
+
+            subcategory.children.forEach(product => {
+                const prodCheckbox = document.getElementById(`checkbox_${product.id}`);
+                if (prodCheckbox) {
+                    prodCheckbox.checked = isChecked;
+                    if (isChecked) {
+                        selectedProductIds.add(product.product_id);
+                    } else {
+                        selectedProductIds.delete(product.product_id);
+                    }
+                }
+            });
+        });
+
+        updateBadges();
+        triggerChangeCallback();
+    }
+
+    // 处理子分类复选框变化
+    function handleSubcategoryChange(subcategory, parentId) {
+        const checkbox = document.getElementById(`checkbox_${subcategory.id}`);
+        const isChecked = checkbox.checked;
+
+        // 级联选中/取消所有子产品
+        subcategory.children.forEach(product => {
+            const prodCheckbox = document.getElementById(`checkbox_${product.id}`);
+            if (prodCheckbox) {
+                prodCheckbox.checked = isChecked;
+                if (isChecked) {
+                    selectedProductIds.add(product.product_id);
+                } else {
+                    selectedProductIds.delete(product.product_id);
+                }
+            }
+        });
+
+        // 更新父分类状态
+        updateCategoryStatus(parentId);
+        updateBadges();
+        triggerChangeCallback();
+    }
+
+    // 处理产品复选框变化
+    function handleProductChange(product, subId, catId) {
+        const checkbox = document.getElementById(`checkbox_${product.id}`);
+
+        if (checkbox.checked) {
+            selectedProductIds.add(product.product_id);
+        } else {
+            selectedProductIds.delete(product.product_id);
+        }
+
+        // 更新父级状态
+        updateSubcategoryStatus(subId);
+        updateCategoryStatus(catId);
+        updateBadges();
+        triggerChangeCallback();
+    }
+
+    // 更新子分类状态
+    function updateSubcategoryStatus(subId) {
+        const subcategory = findSubcategoryById(subId);
+        if (!subcategory) return;
+
+        const checkbox = document.getElementById(`checkbox_${subId}`);
+        if (!checkbox) return;
+
+        const totalProducts = subcategory.children.length;
+        const selectedProducts = subcategory.children.filter(p =>
+            selectedProductIds.has(p.product_id)
+        ).length;
+
+        if (selectedProducts === 0) {
+            checkbox.checked = false;
+            checkbox.indeterminate = false;
+        } else if (selectedProducts === totalProducts) {
+            checkbox.checked = true;
+            checkbox.indeterminate = false;
+        } else {
+            checkbox.checked = false;
+            checkbox.indeterminate = true;
+        }
+    }
+
+    // 更新分类状态
+    function updateCategoryStatus(catId) {
+        const category = findCategoryById(catId);
+        if (!category) return;
+
+        const checkbox = document.getElementById(`checkbox_${catId}`);
+        if (!checkbox) return;
+
+        let totalProducts = 0;
+        let selectedProducts = 0;
+
+        category.children.forEach(subcategory => {
+            totalProducts += subcategory.children.length;
+            selectedProducts += subcategory.children.filter(p =>
+                selectedProductIds.has(p.product_id)
+            ).length;
+        });
+
+        if (selectedProducts === 0) {
+            checkbox.checked = false;
+            checkbox.indeterminate = false;
+        } else if (selectedProducts === totalProducts) {
+            checkbox.checked = true;
+            checkbox.indeterminate = false;
+        } else {
+            checkbox.checked = false;
+            checkbox.indeterminate = true;
+        }
+    }
+
+    // 查找分类
+    function findCategoryById(catId) {
+        return treeData.find(c => c.id === catId);
+    }
+
+    // 查找子分类
+    function findSubcategoryById(subId) {
+        for (let category of treeData) {
+            const subcategory = category.children.find(s => s.id === subId);
+            if (subcategory) return subcategory;
+        }
+        return null;
+    }
+
+    // 查找产品
+    function findProductById(prodId) {
+        for (let category of treeData) {
+            for (let subcategory of category.children) {
+                const product = subcategory.children.find(p => p.id === prodId);
+                if (product) return product;
+            }
+        }
+        return null;
+    }
+
+    // 更新徽章显示
+    function updateBadges() {
+        const badgesContainer = document.getElementById(containerId + '_badges');
+        if (!badgesContainer) return;
+
+        badgesContainer.innerHTML = '';
+
+        if (selectedProductIds.size === 0) {
+            badgesContainer.innerHTML = '<small class="text-muted">{{ _("未选择任何产品") }}</small>';
+            return;
+        }
+
+        // 收集所有选中的产品信息
+        const selectedProducts = [];
+        for (let category of treeData) {
+            for (let subcategory of category.children) {
+                for (let product of subcategory.children) {
+                    if (selectedProductIds.has(product.product_id)) {
+                        selectedProducts.push(product);
+                    }
+                }
+            }
+        }
+
+        // 渲染产品徽章
+        selectedProducts.forEach(product => {
+            const badge = document.createElement('span');
+            badge.className = 'badge badge-product';
+            const model = product.model || product.name || '';
+            const mn = product.mn || '';
+            badge.innerHTML = `
+                <span>${model}${mn ? ' - ' + mn : ''}</span>
+                ${disabled ? '' : '<i class="fas fa-times remove-icon"></i>'}
+            `;
+
+            if (!disabled) {
+                badge.querySelector('.remove-icon').onclick = () => {
+                    removeProduct(product.product_id);
+                };
+            }
+
+            badgesContainer.appendChild(badge);
+        });
+
+        // 更新隐藏input
+        const hiddenInput = document.getElementById(containerId + '_selected_ids');
+        if (hiddenInput) {
+            hiddenInput.value = Array.from(selectedProductIds).join(',');
+        }
+    }
+
+    // 移除产品
+    function removeProduct(productId) {
+        selectedProductIds.delete(productId);
+
+        // 取消勾选复选框
+        const productNode = document.querySelector(`.product-node[data-product-id="${productId}"]`);
+        if (productNode) {
+            const checkbox = productNode.querySelector('.product-checkbox');
+            if (checkbox) checkbox.checked = false;
+
+            const subId = productNode.getAttribute('data-subcategory');
+            const catId = productNode.getAttribute('data-category');
+
+            updateSubcategoryStatus(subId);
+            updateCategoryStatus(catId);
+        }
+
+        updateBadges();
+        triggerChangeCallback();
+    }
+
+    // 触发变化回调
+    function triggerChangeCallback() {
+        if (onChangeCallback && typeof window[onChangeCallback] === 'function') {
+            window[onChangeCallback](Array.from(selectedProductIds));
+        }
+    }
+
+    // 搜索功能
+    const searchInput = document.getElementById(containerId + '_search');
+    if (searchInput) {
+        searchInput.addEventListener('input', function(e) {
+            const keyword = e.target.value.trim().toLowerCase();
+            filterTree(keyword);
+        });
+    }
+
+    // 过滤树
+    function filterTree(keyword) {
+        if (!keyword) {
+            // 显示所有节点
+            document.querySelectorAll('.tree-node').forEach(node => {
+                node.classList.remove('filtered-hidden');
+            });
+            return;
+        }
+
+        // 隐藏所有产品节点，然后显示匹配的
+        document.querySelectorAll('.product-node').forEach(node => {
+            const mn = node.getAttribute('data-mn').toLowerCase();
+            const name = node.getAttribute('data-name').toLowerCase();
+            const desc = node.getAttribute('data-description').toLowerCase();
+
+            if (mn.includes(keyword) || name.includes(keyword) || desc.includes(keyword)) {
+                node.classList.remove('filtered-hidden');
+
+                // 展开父节点
+                const subId = node.getAttribute('data-subcategory');
+                const catId = node.getAttribute('data-category');
+
+                const subChildren = document.getElementById(`children_${subId}`);
+                const catChildren = document.getElementById(`children_${catId}`);
+
+                if (subChildren) {
+                    subChildren.style.display = 'block';
+                    const subToggle = document.querySelector(`[data-id="${subId}"] > .tree-node-content .tree-toggle`);
+                    if (subToggle) subToggle.classList.add('expanded');
+                }
+
+                if (catChildren) {
+                    catChildren.style.display = 'block';
+                    const catToggle = document.querySelector(`[data-id="${catId}"] > .tree-node-content .tree-toggle`);
+                    if (catToggle) catToggle.classList.add('expanded');
+                }
+            } else {
+                node.classList.add('filtered-hidden');
+            }
+        });
+    }
+
+    // 显示错误
+    function showError(message) {
+        const treeContainer = document.getElementById(containerId + '_tree');
+        treeContainer.innerHTML = `
+            <div class="alert alert-danger m-2" role="alert">
+                <i class="fas fa-exclamation-circle me-2"></i>${message}
+            </div>
+        `;
+    }
+
+    // 暴露公共方法：更新排除列表并重新加载产品树
+    window.updateProductTreeExclusions = window.updateProductTreeExclusions || {};
+    window.updateProductTreeExclusions['{{ container_id }}'] = function(newExcludeIds) {
+        if (!Array.isArray(newExcludeIds)) {
+            console.error('❌ updateProductTreeExclusions: 参数必须是数组');
+            return;
+        }
+
+        // 更新排除列表
+        excludeIds.length = 0;  // 清空现有数组
+        excludeIds.push(...newExcludeIds.map(id => parseInt(id)));
+
+        console.log(`🔄 更新产品树排除列表，共 ${excludeIds.length} 个产品:`, excludeIds);
+
+        // 清空选中状态
+        selectedProductIds.clear();
+
+        // 清空隐藏字段
+        const hiddenInput = document.getElementById(containerId + '_selected_ids');
+        if (hiddenInput) {
+            hiddenInput.value = '';
+        }
+
+        // 重新加载产品树
+        loadProductTree();
+
+        // 更新"当前已选择"显示
+        updateSelectedBadges();
+    };
+
+    // 初始化
+    loadProductTree();
+})();
+</script>
+{% endmacro %}

@@ -98,6 +98,9 @@ def permission_required_with_approval_context(module, action):
             elif module == 'order':
                 object_type = 'purchase_order'
                 object_id = kwargs.get('order_id') or kwargs.get('id')
+            elif module == 'product':
+                object_type = 'rd_product'
+                object_id = kwargs.get('dev_product_id') or kwargs.get('id')
             
             if object_type and object_id:
                 from app.utils.access_control import can_view_in_approval_context

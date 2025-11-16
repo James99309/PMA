@@ -314,6 +314,248 @@ stats_config = {
 - **date**: 日期显示
   - `format: '%Y-%m-%d %H:%M'` - 自定义日期格式
 
+### **详情列表组件 - render_detail_list()**
+
+用于在详情页面中显示关联数据列表（如订单明细、关联产品等），采用客户端JavaScript渲染。
+
+#### **组件位置和引入**
+- **模板宏**: `app/templates/macros/ui_helpers.html:render_detail_list()`
+- **在页面中引入**:
+```html
+{% from 'macros/ui_helpers.html' import render_detail_list %}
+```
+
+#### **基本使用**
+
+```html
+{{ render_detail_list(
+    container_id='productRelationsList',
+    title='关联产品配置',
+    icon='fa-link',
+    api_url=url_for('product_management.get_product_relations', product_id=product.id),
+    columns=[
+        {'key': 'product_name', 'label': _('产品名称'), 'width': '25%'},
+        {'key': 'product_model', 'label': _('型号'), 'width': '20%'},
+        {'key': 'product_mn', 'label': _('MN编号'), 'width': '20%'},
+        {'key': 'relation_type_label', 'label': _('配置类型'), 'width': '15%', 'align': 'center', 'type': 'badge', 'render': 'render_relation_type_badge'},
+        {'key': 'default_quantity', 'label': _('配置数量'), 'width': '10%', 'align': 'center'}
+    ],
+    actions=[
+        {'type': 'delete', 'label': _('删除'), 'confirm': _('确认删除此关联产品？')}
+    ],
+    add_button_html=render_button(
+        text=_('添加关联产品'),
+        color='primary',
+        size='sm',
+        onclick='openAddModal()',
+        type='button'
+    ) if has_permission else '',
+    empty_message=_('暂无数据'),
+    show_actions=has_permission
+) }}
+```
+
+#### **参数说明**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|-----|------|
+| `container_id` | string | ✅ | 容器唯一ID |
+| `title` | string | ✅ | 列表标题 |
+| `icon` | string | ❌ | 标题图标（如 'fa-link'） |
+| `api_url` | string | ✅ | 数据API地址 |
+| `columns` | array | ✅ | 列配置数组 |
+| `actions` | array | ❌ | 操作按钮配置 |
+| `add_button_html` | string | ❌ | 添加按钮HTML |
+| `empty_message` | string | ❌ | 空数据提示 |
+| `show_actions` | boolean | ❌ | 是否显示操作列 |
+
+#### **列配置详解**
+
+```python
+columns = [
+    {
+        'key': 'field_name',        # 数据字段名（必填）
+        'label': '列标题',           # 显示标题（必填）
+        'width': '20%',             # 列宽度（可选）
+        'align': 'center',          # 对齐方式: left/center/right（可选，默认left）
+        'type': 'badge',            # 数据类型: text/badge/link/number（可选）
+        'render': 'render_xxx_badge' # 徽章渲染宏名（type='badge'时使用）
+    }
+]
+```
+
+#### **支持的数据类型**
+
+**1. text（默认）**
+```python
+{'key': 'product_name', 'label': '产品名称', 'type': 'text'}
+```
+
+**2. badge（徽章）**
+```python
+# 使用自定义徽章宏
+{'key': 'status', 'label': '状态', 'type': 'badge', 'render': 'render_order_status_badge'}
+
+# 使用默认徽章（需要API返回 field_class 字段）
+{'key': 'type_label', 'label': '类型', 'type': 'badge'}
+# API需返回: {'type_label': '文本', 'type_label_class': 'badge-class-name'}
+```
+
+**3. link（链接）**
+```python
+{'key': 'order_number', 'label': '订单号', 'type': 'link', 'url_template': '/order/{id}'}
+```
+
+**4. number（数字）**
+```python
+{'key': 'amount', 'label': '金额', 'type': 'number', 'align': 'right'}
+```
+
+#### **操作按钮配置**
+
+```python
+actions = [
+    {
+        'type': 'edit',                    # 操作类型: edit/delete/custom
+        'label': '编辑',                   # 按钮文本
+        'onclick': 'editItem({id})'       # 点击事件（{id}会被替换为实际ID）
+    },
+    {
+        'type': 'delete',
+        'label': '删除',
+        'confirm': '确认删除此项？'        # 删除确认提示
+    }
+]
+```
+
+#### **API数据格式要求**
+
+后端API应返回以下格式：
+
+```python
+{
+    'success': True,
+    'data': [
+        {
+            'id': 1,                              # 必需：记录ID
+            'product_name': '产品A',              # 各列数据
+            'product_model': 'MODEL-001',
+            'relation_type_label': '必选',        # 徽章显示文本
+            'relation_type_label_class': 'badge relation-type-required rounded-pill',  # 徽章CSS类
+            'default_quantity': 1
+        },
+        # ...更多记录
+    ],
+    'total': 10  # 可选：总记录数
+}
+```
+
+#### **JavaScript刷新方法**
+
+组件会自动注册刷新函数，可在外部调用：
+
+```javascript
+// 刷新列表数据
+if (typeof window.refresh_productRelationsList === 'function') {
+    window.refresh_productRelationsList();
+}
+```
+
+刷新函数命名规则：`refresh_${container_id}`
+
+#### **删除操作处理**
+
+当配置了删除操作时，组件会自动调用：
+
+```javascript
+// 自动生成的删除函数
+function delete_productRelationsList(itemId) {
+    // 1. 显示确认对话框
+    // 2. 调用删除API: /api/{module}/{id}
+    // 3. 刷新列表
+}
+```
+
+可通过在路由中实现对应的DELETE接口来处理删除请求。
+
+#### **使用示例**
+
+**完整示例：产品详情页的关联产品列表**
+
+```html
+<!-- 模板代码 -->
+{% from 'macros/ui_helpers.html' import render_detail_list, render_button %}
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        {{ render_detail_list(
+            container_id='productRelationsList',
+            title='关联产品配置',
+            icon='fa-link',
+            api_url=url_for('product_management.get_product_relations', product_id=product.id),
+            columns=[
+                {'key': 'product_name', 'label': _('产品名称'), 'width': '25%'},
+                {'key': 'product_model', 'label': _('型号'), 'width': '20%'},
+                {'key': 'product_mn', 'label': _('MN编号'), 'width': '20%'},
+                {'key': 'relation_type_label', 'label': _('配置类型'), 'width': '15%', 'align': 'center', 'type': 'badge', 'render': 'render_relation_type_badge'},
+                {'key': 'default_quantity', 'label': _('配置数量'), 'width': '10%', 'align': 'center'}
+            ],
+            actions=[
+                {'type': 'delete', 'label': _('删除'), 'confirm': _('确认删除此关联产品？')}
+            ],
+            add_button_html=render_button(
+                text=_('添加关联产品'),
+                color='primary',
+                size='sm',
+                onclick='openAddRelationModal()',
+                type='button'
+            ) if current_user.role in ['admin', 'product_manager'] else '',
+            empty_message=_('暂无关联产品配置'),
+            show_actions=current_user.role in ['admin', 'product_manager']
+        ) }}
+    </div>
+</div>
+```
+
+```python
+# 后端API代码
+@product_management_bp.route('/api/product/<int:product_id>/relations', methods=['GET'])
+@login_required
+@permission_required('product', 'view')
+def get_product_relations(product_id):
+    try:
+        relations = ProductRelation.query.filter_by(
+            main_product_id=product_id,
+            is_active=True
+        ).all()
+
+        relations_data = []
+        for relation in relations:
+            relations_data.append({
+                'id': relation.id,
+                'related_product_id': relation.related_product_id,
+                'product_name': relation.related_product.product_name,
+                'product_model': relation.related_product.model,
+                'product_mn': relation.related_product.product_mn,
+                'relation_type': relation.relation_type,
+                'relation_type_label': ProductRelation.get_relation_type_label(relation.relation_type),
+                'relation_type_label_class': 'badge relation-type-required rounded-pill',  # 自定义CSS类
+                'default_quantity': relation.default_quantity
+            })
+
+        return jsonify({'success': True, 'data': relations_data, 'total': len(relations_data)})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+```
+
+#### **注意事项**
+
+1. **客户端渲染** - 组件使用JavaScript渲染，不支持服务器端渲染
+2. **徽章渲染** - 如使用自定义徽章宏，需确保宏已在ui_helpers.html中定义并注册
+3. **权限控制** - 操作按钮和添加按钮应根据权限动态显示
+4. **容器ID唯一** - 同一页面的多个列表必须使用不同的container_id
+5. **API格式** - 必须返回`{success, data, total}`格式的JSON
+
 ## 📢 提示信息组件规范
 
 ### **统一提示组件 - showTopNotification()**
@@ -579,9 +821,301 @@ showConfirmDialog({
 - ✅ **无障碍支持** - 键盘导航和屏幕阅读器友好
 
 #### **禁用的组件**
-❌ **禁止使用**: Bootstrap模态框 - 请使用标准确认对话框  
-❌ **禁止使用**: 原生alert/confirm - 用户体验不一致  
+❌ **禁止使用**: Bootstrap模态框 - 请使用标准确认对话框
+❌ **禁止使用**: 原生alert/confirm - 用户体验不一致
 ❌ **禁止使用**: 自定义对话框HTML - 违反组件化原则
+
+---
+
+### **自定义内容对话框 - render_custom_dialog()**
+
+用于需要自定义复杂内容的对话框（如选择器、表单、多步骤操作等），提供与确认对话框相同的视觉风格，但支持灵活的内容区域。
+
+#### **组件位置和引入**
+- **模板宏**: `app/templates/macros/ui_helpers.html:render_custom_dialog()`
+- **在页面中引入**:
+```jinja2
+{% from 'macros/ui_helpers.html' import render_custom_dialog %}
+
+<!-- 使用caller块定义对话框内容 -->
+{% call render_custom_dialog('myDialogId', '对话框标题', icon='fas fa-cog', size='xl') %}
+    <!-- 自定义内容区域 -->
+    <div class="row">
+        <div class="col-md-12">
+            <p>这里可以放置任意HTML内容</p>
+        </div>
+    </div>
+
+    <!-- 底部操作按钮 -->
+    <div class="custom-dialog-actions">
+        {{ render_button('保存', type='button', color='primary', onclick='saveData()') }}
+        {{ render_button('取消', type='button', color='secondary', onclick='closeCustomDialog("myDialogId")') }}
+    </div>
+{% endcall %}
+```
+
+#### **设计特性**
+- ✅ **统一风格** - 与确认对话框相同的视觉设计（灰色背景 #f8f9fa，12px圆角，白色底部）
+- ✅ **灵活尺寸** - 支持多种尺寸：sm(400px), md(600px), lg(800px), xl(1000px), full(95%)
+- ✅ **自定义内容** - 通过caller块支持任意复杂的HTML内容
+- ✅ **毛玻璃效果** - 背景模糊遮罩层
+- ✅ **动画效果** - 淡入淡出和缩放动画
+- ✅ **响应式设计** - 移动端自动适应
+
+#### **参数说明**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|-----|------|-----|--------|------|
+| `dialog_id` | string | ✅ | - | 对话框唯一ID |
+| `title` | string | ✅ | - | 对话框标题 |
+| `icon` | string | ❌ | '' | 标题图标类名（如 'fas fa-link'） |
+| `size` | string | ❌ | 'lg' | 对话框尺寸：'sm', 'md', 'lg', 'xl', 'full' |
+| `show_close` | boolean | ❌ | true | 是否显示右上角关闭按钮 |
+
+#### **JavaScript API**
+
+**1. 显示对话框**
+```javascript
+/**
+ * 显示自定义对话框
+ * @param {string} dialogId - 对话框ID（必须与模板中定义的ID一致）
+ */
+showCustomDialog('myDialogId');
+```
+
+**2. 关闭对话框**
+```javascript
+/**
+ * 关闭自定义对话框
+ * @param {string} dialogId - 对话框ID
+ */
+closeCustomDialog('myDialogId');
+```
+
+**3. 扩展关闭行为**
+```javascript
+// 覆盖关闭函数以添加清理逻辑
+const originalCloseCustomDialog = window.closeCustomDialog;
+window.closeCustomDialog = function(dialogId) {
+    if (dialogId === 'myDialogId') {
+        // 执行清理操作
+        clearFormData();
+    }
+    originalCloseCustomDialog(dialogId);
+};
+```
+
+#### **对话框尺寸规格**
+
+| 尺寸代码 | 宽度 | 适用场景 |
+|---------|------|---------|
+| `sm` | 400px | 简单表单、单一输入 |
+| `md` | 600px | 中等表单、双列布局 |
+| `lg` | 800px | 复杂表单、列表选择（默认） |
+| `xl` | 1000px | 大型选择器、树状结构 |
+| `full` | 95% | 复杂多栏布局、大数据表格 |
+
+**移动端**: 所有尺寸在移动设备上自动调整为95%宽度
+
+#### **使用示例**
+
+**示例1：产品选择器对话框**
+
+```jinja2
+{% from 'macros/ui_helpers.html' import render_custom_dialog, render_button %}
+{% from 'macros/product_tree_selector.html' import render_product_tree_selector %}
+
+<!-- 对话框定义 -->
+{% call render_custom_dialog('addRelationModal', _('添加关联产品'), icon='fas fa-link', size='xl') %}
+    <!-- 产品树选择器 -->
+    <div class="row">
+        <div class="col-md-12">
+            {{ render_product_tree_selector(
+                container_id='relationProductSelector',
+                api_url=url_for('product_management.get_product_tree'),
+                selected_product_ids=[],
+                show_badges=True,
+                show_icons=False,
+                exclude_product_ids=[product.id]
+            ) }}
+        </div>
+    </div>
+
+    <!-- 配置选项 -->
+    <div class="row mt-3">
+        <div class="col-md-6">
+            <label class="form-label fw-bold">{{ _('配置类型') }}</label>
+            <select class="form-select" id="relationType" name="relationType">
+                <option value="required">{{ _('必选') }}</option>
+                <option value="recommended">{{ _('推荐') }}</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- 底部操作按钮 -->
+    <div class="custom-dialog-actions">
+        {{ render_button(
+            text=_('保存'),
+            type='button',
+            color='primary',
+            onclick='saveRelationProducts()'
+        ) }}
+        {{ render_button(
+            text=_('取消'),
+            type='button',
+            color='secondary',
+            onclick='closeCustomDialog("addRelationModal")'
+        ) }}
+    </div>
+{% endcall %}
+```
+
+**JavaScript代码**:
+```javascript
+// 打开对话框
+function openAddRelationModal() {
+    // 初始化表单数据
+    document.getElementById('relationType').value = 'required';
+
+    // 显示对话框
+    showCustomDialog('addRelationModal');
+}
+
+// 保存操作
+function saveRelationProducts() {
+    const selectedProducts = getSelectedProducts();
+    const relationType = document.getElementById('relationType').value;
+
+    // 执行保存API调用
+    fetch('/api/save-relations', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify({
+            products: selectedProducts,
+            relation_type: relationType
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            closeCustomDialog('addRelationModal');
+            // 刷新列表
+            if (typeof window.refresh_productRelationsList === 'function') {
+                window.refresh_productRelationsList();
+            }
+        } else {
+            alert(data.message);
+        }
+    });
+}
+```
+
+**示例2：多步骤表单对话框**
+
+```jinja2
+{% call render_custom_dialog('multiStepForm', _('批量导入'), icon='fas fa-file-upload', size='lg') %}
+    <!-- 步骤指示器 -->
+    <div class="wizard-steps mb-4">
+        <div class="step active" data-step="1">1. 上传文件</div>
+        <div class="step" data-step="2">2. 数据验证</div>
+        <div class="step" data-step="3">3. 确认导入</div>
+    </div>
+
+    <!-- 步骤内容 -->
+    <div id="step1" class="wizard-content">
+        <input type="file" class="form-control" id="uploadFile">
+    </div>
+    <div id="step2" class="wizard-content" style="display:none;">
+        <div id="validationResults"></div>
+    </div>
+    <div id="step3" class="wizard-content" style="display:none;">
+        <div id="importSummary"></div>
+    </div>
+
+    <!-- 底部按钮 -->
+    <div class="custom-dialog-actions">
+        <div id="stepButtons">
+            {{ render_button('下一步', type='button', color='primary', onclick='nextStep()', attrs='id="nextBtn"') }}
+            {{ render_button('上一步', type='button', color='secondary', onclick='prevStep()', attrs='id="prevBtn" style="display:none;"') }}
+            {{ render_button('取消', type='button', color='secondary', onclick='closeCustomDialog("multiStepForm")') }}
+        </div>
+    </div>
+{% endcall %}
+```
+
+#### **底部按钮区域样式**
+
+对话框底部按钮区域使用 `.custom-dialog-actions` 类：
+
+```html
+<div class="custom-dialog-actions">
+    <!-- 按钮从右到左依次排列 -->
+    {{ render_button('主要操作', color='primary', ...) }}
+    {{ render_button('次要操作', color='secondary', ...) }}
+</div>
+```
+
+**样式特性**:
+- ✅ 白色背景 (#ffffff)
+- ✅ 右对齐按钮布局
+- ✅ 按钮间距12px
+- ✅ 与确认对话框风格一致
+
+#### **与确认对话框的区别**
+
+| 特性 | 确认对话框 | 自定义对话框 |
+|-----|----------|------------|
+| **用途** | 简单的确认/取消操作 | 复杂的表单、选择器、多步骤流程 |
+| **内容** | 固定的标题+消息+按钮 | 自定义HTML内容（通过caller块） |
+| **尺寸** | 固定400px | 可配置多种尺寸 |
+| **API** | `showConfirmDialog()` | `showCustomDialog()` |
+| **按钮** | 自动生成确认/取消按钮 | 需手动定义按钮 |
+| **回调** | 通过参数传递 | 通过onclick事件 |
+
+#### **使用规范**
+
+1. **选择正确的组件**:
+   - 简单确认操作 → 使用 `render_confirm_dialog()`
+   - 复杂内容表单 → 使用 `render_custom_dialog()`
+
+2. **唯一ID要求**: 每个对话框必须有唯一的dialog_id
+
+3. **尺寸选择**:
+   - 优先使用 `lg` 或 `xl` 确保内容不拥挤
+   - 仅在内容确实简单时使用 `sm` 或 `md`
+
+4. **按钮布局**:
+   - 主要操作按钮放在左侧
+   - 取消按钮放在右侧
+   - 统一使用 `.custom-dialog-actions` 容器
+
+5. **关闭清理**:
+   - 关闭对话框时执行必要的清理操作
+   - 重置表单状态
+   - 移除临时数据
+
+6. **移动端友好**:
+   - 确保内容在小屏幕上可读
+   - 避免过深的嵌套滚动
+
+#### **常见使用场景**
+
+- ✅ 产品/用户选择器（树状结构）
+- ✅ 多字段表单输入
+- ✅ 数据预览和编辑
+- ✅ 多步骤向导流程
+- ✅ 批量操作配置
+- ✅ 文件上传和预览
+
+#### **实际应用页面**
+
+- `app/templates/product/detail.html` - 产品关联配置选择器
+- 更多应用待补充...
+
+---
 
 ## 🏷️ 徽章组件规则
 

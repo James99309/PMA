@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button %}
+{% from 'macros/ui_helpers.html' import render_button, render_custom_dialog, render_confirm_dialog %}
 
 {% block title %}{{ subcategory.name }} - 规格管理{% endblock %}
 
@@ -59,7 +59,7 @@
                 <!-- 操作按钮组 -->
                 <div class="btn-toolbar justify-content-end" role="toolbar">
                     {{ render_button('返回子类', href=url_for('product_code.category_subcategories', id=subcategory.parent_category.id), color='secondary', icon='fas fa-arrow-left') }}
-                    {{ render_button('添加规格', href=url_for('product_code.new_field', id=subcategory.id), color='primary', icon='fas fa-plus') }}
+                    {{ render_button('添加规格', onclick='fieldManager.openModal("add")', color='primary', icon='fas fa-plus') }}
                 </div>
             </div>
         </div>
@@ -89,53 +89,7 @@
         <i class="fas fa-exclamation-circle me-1"></i>
         <span id="errorMessage">保存顺序时发生错误</span>
     </div>
-    
-    <div class="alert alert-info mb-3" style="font-size: 0.875rem;">
-        <i class="fas fa-info-circle me-1"></i>
-        <strong>规格定义说明</strong>
-        <p class="mb-2 mt-1">规格是产品编码中的特性属性，如"频率"、"功率"等。每个规格定义了编码中的一个位置，具体使用什么编码由指标管理决定。</p>
-        
-        <!-- 规格预览 -->
-        <div class="mb-2">
-            <div class="code-preview p-2 bg-light rounded">
-                <div class="d-flex justify-content-center align-items-center mb-2" id="codePreview" style="font-size: 0.875rem;">
-                    <div class="position-relative me-2">
-                        <code style="font-size: 0.875rem;">{{ subcategory.parent_category.code_letter }}</code>
-                    </div>
-                    <div class="position-relative me-2">
-                        <code style="font-size: 0.875rem;">{{ subcategory.code_letter }}</code>
-                    </div>
-                    <div class="position-relative me-2">
-                        <code class="text-success" style="font-size: 0.875rem;">3</code>
-                    </div>
-                    {% for field in fields %}
-                        {% if field.use_in_code and loop.index <= 10 %}
-                        <div class="position-relative me-2">
-                            <code class="text-info" style="font-size: 0.875rem;">[{{ field.name }}]</code>
-                        </div>
-                        {% endif %}
-                    {% endfor %}
-                    {% for i in range(10 - fields|selectattr('use_in_code')|list|length) %}
-                        <div class="position-relative me-2">
-                            <code class="text-info" style="font-size: 0.875rem;">[未定义]</code>
-                        </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
 
-        <div class="mb-1" style="font-size: 0.8rem;">编码说明：</div>
-        <ul class="mb-1" style="font-size: 0.8rem; line-height: 1.3;">
-            <li><code>{{ subcategory.parent_category.code_letter }}</code> - 产品分类标识符（位置1）</li>
-            <li><code>{{ subcategory.code_letter }}</code> - 子类标识符（位置2）</li>
-            <li><span class="text-success">3</span> - 区域信息（位置3，<a href="{{ url_for('product_code.origin_fields') }}">在销售区域管理中设置</a>）</li>
-            <li><span class="text-info">[规格字段名称]</span> - 产品规格信息（位置4-13，最多10个位置，每个位置代表一个规格属性）</li>
-        </ul>
-        <p class="mb-1" style="font-size: 0.8rem;"><strong>注意：</strong>销售区域在第3位置是由系统统一管理的，不会在此规格列表中显示。下方列表仅显示产品特定的规格字段（占据4-13位置，最多10个）。</p>
-        <p class="mb-1" style="font-size: 0.8rem;">每个规格定义了编码中的一个固定位置，系统根据添加顺序自动分配位置。具体使用什么编码需要在每个规格的指标管理中设置。</p>
-        <p class="mb-0 mt-1" style="font-size: 0.8rem;"><i class="fas fa-lock me-1"></i> <strong>重要：</strong>规格编码位置固定不可移动，当规格被产品使用后不可删除。</p>
-    </div>
-    
     <div class="card mb-4">
         <div class="card-header">
             <i class="fas fa-list me-1"></i>
@@ -157,7 +111,15 @@
                     {% for field in fields %}
                     <tr data-id="{{ field.id }}">
                         <td>{{ loop.index }}</td>
-                        <td>{{ field.name }}</td>
+                        <td>
+                            {% if not field.is_used %}
+                            <a href="javascript:void(0)" onclick="fieldManager.openModal('edit', {{ field.id }})" class="text-primary" style="cursor: pointer;">
+                                {{ field.name }}
+                            </a>
+                            {% else %}
+                            {{ field.name }}
+                            {% endif %}
+                        </td>
                         <td class="position-cell">
                             {% if field.use_in_code %}
                             <span class="badge bg-success position-badge">位置{{ field.position }}</span>
@@ -168,8 +130,16 @@
                         <td>
                             {% if field.options %}
                                 {% for option in field.options %}
-                                    {% if not loop.first %} / {% endif %}
-                                    <span title="{{ option.value }}">{{ option.value[:9] }}{% if option.value|length > 9 %}...{% endif %}</span>
+                                    <span class="badge {% if option.is_active %}bg-primary{% else %}bg-secondary{% endif %} me-1 mb-1 position-relative">
+                                        {{ option.value }}{% if field.unit %} {{ field.unit }}{% endif %}
+                                        <a href="javascript:void(0)"
+                                           onclick="toggleOptionStatus({{ option.id }}, '{{ option.value }}', {{ 'true' if option.is_active else 'false' }})"
+                                           class="text-white ms-1"
+                                           style="text-decoration: none; cursor: pointer;"
+                                           title="{% if option.is_active %}删除{% else %}启用{% endif %}">
+                                            <i class="fas {% if option.is_active %}fa-times{% else %}fa-check{% endif %}"></i>
+                                        </a>
+                                    </span>
                                 {% endfor %}
                             {% else %}
                                 <span class="text-muted">暂无指标</span>
@@ -177,23 +147,14 @@
                         </td>
                         <td>{{ field.created_at.strftime('%Y-%m-%d') if field.created_at else '未知' }}</td>
                         <td class="text-center">
-                            <a href="{{ url_for('product_code.field_options', id=field.id) }}" class="btn btn-sm btn-info" title="指标管理">
+                            <button onclick="openOptionModal({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}')" class="btn btn-sm btn-info" title="指标管理">
                                 <i class="fas fa-list"></i>
-                            </a>
-                            {% if not field.is_used %}
-                            <a href="{{ url_for('product_code.edit_field', id=field.id) }}" class="btn btn-sm btn-warning" title="编辑">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            <form id="deleteForm" method="POST" action="{{ url_for('product_code.delete_field', id=field.id) }}" class="d-inline" onsubmit="return confirm('确定要删除此规格吗？这将同时删除所有相关指标');">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="btn btn-sm btn-danger" title="删除">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </form>
-                            {% else %}
-                            <button type="button" class="btn btn-sm btn-secondary" disabled title="此规格已被产品使用，无法编辑">
-                                <i class="fas fa-lock"></i>
                             </button>
+                            {% if not field.is_used %}
+                            <button onclick="fieldManager.confirmDelete({{ field.id }}, '{{ field.name }}')" class="btn btn-sm btn-danger" title="删除">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            {% else %}
                             <button type="button" class="btn btn-sm btn-secondary" disabled title="此规格已被产品使用，无法删除">
                                 <i class="fas fa-lock"></i>
                             </button>
@@ -209,6 +170,104 @@
             </table>
         </div>
     </div>
+
+    <!-- 隐藏的子分类ID输入 -->
+    <input type="hidden" id="subcategoryId" value="{{ subcategory.id }}">
+
+    <!-- 规格字段模态框 -->
+    {% call render_custom_dialog('fieldModal', '添加规格', icon='fas fa-plus', size='md') %}
+        <form id="fieldForm">
+            <input type="hidden" id="fieldId">
+
+            <!-- 搜索框 -->
+            <div class="mb-3">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text"
+                           class="form-control"
+                           id="fieldSpecSearch"
+                           placeholder="搜索规格名称...">
+                    <button class="btn btn-outline-secondary"
+                            type="button"
+                            id="fieldSpecSearchClear"
+                            style="display: none;"
+                            title="清除搜索">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <small class="text-muted" id="fieldSpecSearchHint" style="display: none;">
+                    找到 <span id="fieldSpecMatchCount">0</span> 个匹配规格
+                </small>
+            </div>
+
+            <!-- 规格名称 -->
+            <div class="mb-3">
+                <label for="fieldName" class="form-label">
+                    规格名称 <span class="text-danger">*</span>
+                </label>
+                <select id="fieldName" class="form-select" required>
+                    <option value="">-- 请选择规格 --</option>
+                </select>
+                <div class="invalid-feedback">
+                    请选择规格名称
+                </div>
+            </div>
+
+            <!-- 必填项 -->
+            <div class="form-check mb-3">
+                <input type="checkbox" class="form-check-input" id="fieldRequired">
+                <label class="form-check-label" for="fieldRequired">
+                    必填项
+                </label>
+            </div>
+
+            <!-- 纳入编码 -->
+            <div class="form-check mb-3">
+                <input type="checkbox" class="form-check-input" id="fieldUseInCode">
+                <label class="form-check-label" for="fieldUseInCode">
+                    纳入编码（自动勾选必填项）
+                </label>
+            </div>
+
+            <!-- 按钮组 -->
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                {{ render_button('取消', onclick='closeCustomDialog("fieldModal")', color='secondary', icon='fas fa-times') }}
+                {{ render_button('保存', onclick='fieldManager.saveField()', color='primary', icon='fas fa-save') }}
+            </div>
+        </form>
+    {% endcall %}
+
+    <!-- 指标管理模态框 -->
+    {% call render_custom_dialog('optionModal', '添加指标', icon='fas fa-list-ul', size='md') %}
+        <form id="optionForm">
+            <input type="hidden" id="optionId">
+
+            <!-- 指标名称 -->
+            <div class="mb-3">
+                <label for="optionValue" class="form-label">
+                    指标名称 <span class="text-danger">*</span>
+                </label>
+                <input type="text" class="form-control" id="optionValue" required>
+                <div class="invalid-feedback">
+                    请输入指标名称
+                </div>
+                <div class="form-text" id="unitHint"></div>
+            </div>
+
+            <!-- 按钮组 -->
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                {{ render_button('取消', onclick='closeCustomDialog("optionModal")', color='secondary', icon='fas fa-times') }}
+                {{ render_button('保存', onclick='optionManager.saveOption()', color='primary', icon='fas fa-save') }}
+            </div>
+        </form>
+    {% endcall %}
+
+    <!-- 删除确认对话框 -->
+    {{ render_confirm_dialog('deleteFieldDialog') }}
+    {{ render_confirm_dialog('deleteOptionDialog') }}
+
 </div>
 {% endblock %}
 
@@ -216,71 +275,58 @@
 {{ super() }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('规格管理页面已加载，拖拽功能已禁用');
-    
-    // 初始化编码预览
-    updatePreview();
-    
-    function updatePreview() {
-        const fieldsTableBody = document.getElementById('fieldsTableBody');
-        const previewContainer = document.getElementById('codePreview');
-        
-        if (!fieldsTableBody || !previewContainer) return;
-        
-        const rows = [...fieldsTableBody.querySelectorAll('tr[data-id]')];
-        
-        // 保留前三个固定元素（分类、子类、区域）
-        const fixedElements = [...previewContainer.children].slice(0, 3);
-        
-        // 清空预览容器
-        previewContainer.innerHTML = '';
-        
-        // 重新添加固定元素
-        fixedElements.forEach(el => previewContainer.appendChild(el.cloneNode(true)));
-        
-        // 获取纳入编码的规格，按position排序
-        const codeFields = rows.filter(row => {
-            const badge = row.querySelector('.position-badge');
-            return badge && badge.textContent.includes('位置');
-        }).sort((a, b) => {
-            const posA = parseInt(a.querySelector('.position-badge').textContent.match(/\d+/)[0] || '0');
-            const posB = parseInt(b.querySelector('.position-badge').textContent.match(/\d+/)[0] || '0');
-            return posA - posB;
-        });
-        
-        // 添加规格字段，最多10个位置
-        const maxFields = 10;
-        codeFields.slice(0, maxFields).forEach(row => {
-            const fieldName = row.querySelector('td:nth-child(2)').textContent;
-            const fieldPreview = document.createElement('div');
-            fieldPreview.className = 'position-relative me-2';
-            fieldPreview.innerHTML = `<code class="text-info" style="font-size: 0.875rem;">[${fieldName}]</code>`;
-            previewContainer.appendChild(fieldPreview);
-        });
-        
-        // 添加剩余的未定义位置
-        const remainingSlots = maxFields - codeFields.length;
-        for (let i = 0; i < remainingSlots; i++) {
-            const emptySlot = document.createElement('div');
-            emptySlot.className = 'position-relative me-2';
-            emptySlot.innerHTML = '<code class="text-muted" style="font-size: 0.875rem;">[未定义]</code>';
-            previewContainer.appendChild(emptySlot);
-        }
-        
-    }
+    console.log('规格管理页面已加载');
 });
 
 // 返回到新产品页面的函数
 function returnToNewProduct() {
     // 尝试从sessionStorage或history中获取返回路径
     const returnUrl = sessionStorage.getItem('newProductReturnUrl') || '/product-management/new';
-    
+
     // 使用history.back()如果用户是从新产品页面来的，否则跳转到新产品页面
     if (document.referrer && document.referrer.includes('/product-management/new')) {
         window.history.back();
     } else {
         window.location.href = returnUrl;
     }
+}
+
+// 全局函数：切换指标启用/禁用状态
+function toggleOptionStatus(optionId, optionValue, isActive) {
+    const action = isActive ? '禁用' : '启用';
+
+    showDeleteConfirm({
+        title: `确认${action}指标`,
+        message: `确定要${action}指标"${optionValue}"吗？`,
+        dialogId: 'deleteOptionDialog',
+        onConfirm: async () => {
+            try {
+                const response = await fetch(`/product-code/api/options/${optionId}/toggle`, {
+                    method: 'PATCH'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // 立即刷新页面
+                    location.reload();
+                } else {
+                    if (typeof showTopNotification === 'function') {
+                        showTopNotification(result.message, 'error', 5000);
+                    } else {
+                        alert(result.message);
+                    }
+                }
+            } catch (error) {
+                console.error(`${action}指标失败:`, error);
+                if (typeof showTopNotification === 'function') {
+                    showTopNotification(`${action}失败，请重试`, 'error', 5000);
+                } else {
+                    alert(`${action}失败，请重试`);
+                }
+            }
+        }
+    });
 }
 
 // 当页面从新产品页面打开时，存储返回路径
@@ -293,4 +339,10 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 {% endif %}
 </script>
+
+<!-- 产品代码字段管理器 -->
+<script src="{{ url_for('static', filename='js/product-code-field-manager.js') }}"></script>
+
+<!-- 产品代码指标管理器 -->
+<script src="{{ url_for('static', filename='js/product-code-option-manager.js') }}"></script>
 {% endblock %}

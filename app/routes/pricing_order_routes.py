@@ -284,7 +284,7 @@ def edit_pricing_order(order_id):
         # 获取审批步骤的折扣权限状态
         from app.helpers.approval_helpers import get_approval_step_discount_status
         step_discount_statuses = get_approval_step_discount_status(pricing_order)
-        
+
         return render_template('pricing_order/edit_pricing_order.html',
                              pricing_order=pricing_order,
                              can_edit_pricing=can_edit_pricing,

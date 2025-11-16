@@ -1,46 +1,10 @@
 {% from 'macros/ui_helpers.html' import render_button with context %}
 {% from 'macros/ui_helpers.html' import render_tree_select, render_tree_select_plugin with context %}
 
-{% macro render_change_owner_modal(modal_id, action_url, all_users, current_owner_id, user_tree_data=None) %}
-<div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <form method="post" action="{{ action_url }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">{{ _('修改拥有人') }}</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('关闭') }}"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label for="new_owner_id" class="form-label">{{ _('选择新拥有人') }}</label>
-            {% if user_tree_data %}
-              {{ render_tree_select_plugin(name="new_owner_id", tree_data=user_tree_data, selected_value=current_owner_id, required=true) }}
-            {% else %}
-              <select class="form-select" id="new_owner_id" name="new_owner_id" required>
-                {% for user in all_users %}
-                  <option value="{{ user.id }}" {% if user.id == current_owner_id %}selected{% endif %}>
-                    {{ user.real_name or user.username }}（{{ user.role }}）
-                  </option>
-                {% endfor %}
-              </select>
-            {% endif %}
-          </div>
-        </div>
-        <div class="modal-footer">
-          {{ render_button(_('取消'), type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
-          {{ render_button(_('确认修改'), type='submit', color='primary') }}
-        </div>
-      </div>
-    </form>
-  </div>
-</div>
-{% endmacro %}
-
-{% macro render_change_project_owner_modal(modal_id, action_url, all_users, current_owner_id, user_tree_data=None) %}
-<!-- 项目拥有者选择支持所有企业用户（包括归属关系下的非厂商企业用户） -->
+{# 统一的修改负责人模态框 - 支持客户、项目、报价单等所有场景 #}
+{% macro render_unified_change_owner_modal(modal_id, action_url, all_users, current_owner_id, user_tree_data=None, title='修改拥有人', show_vendor_sales_manager=False) %}
 {% set vendor_tree_data = [] %}
-{% if user_tree_data %}
+{% if show_vendor_sales_manager and user_tree_data %}
   {% for company in user_tree_data %}
     {% if company.is_vendor %}
       {% set _ = vendor_tree_data.append(company) %}
@@ -54,7 +18,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">{{ _('修改项目拥有人') }}</h5>
+          <h5 class="modal-title">{{ _(title) }}</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('关闭') }}"></button>
         </div>
         <div class="modal-body">
@@ -65,22 +29,23 @@
             {% else %}
               <select class="form-select" id="new_owner_id" name="new_owner_id" required>
                 {% for user in all_users %}
-                  <option value="{{ user.id }}" data-company="{{ user.company_name or '' }}" {% if user.id == current_owner_id %}selected{% endif %}>
+                  <option value="{{ user.id }}" {% if show_vendor_sales_manager %}data-company="{{ user.company_name or '' }}"{% endif %} {% if user.id == current_owner_id %}selected{% endif %}>
                     {{ user.real_name or user.username }}（{{ user.role }}）
                   </option>
                 {% endfor %}
               </select>
             {% endif %}
           </div>
-          
+
+          {% if show_vendor_sales_manager %}
           <!-- 销售负责人选择框，当新拥有人不是厂商公司时显示 -->
           <div class="mb-3" id="vendor_sales_manager_container" style="display: none;">
-            <label for="vendor_sales_manager_id" class="form-label">选择厂商销售负责人 <span class="text-danger">*</span></label>
+            <label for="vendor_sales_manager_id" class="form-label">{{ _('选择厂商销售负责人') }} <span class="text-danger">*</span></label>
             {% if vendor_tree_data %}
-              {{ render_tree_select_plugin(name="vendor_sales_manager_id", tree_data=vendor_tree_data, placeholder="请选择厂商销售负责人") }}
+              {{ render_tree_select_plugin(name="vendor_sales_manager_id", tree_data=vendor_tree_data, placeholder=_("请选择厂商销售负责人")) }}
             {% else %}
               <select class="form-select" id="vendor_sales_manager_id" name="vendor_sales_manager_id">
-                <option value="">请选择厂商销售负责人</option>
+                <option value="">{{ _('请选择厂商销售负责人') }}</option>
                 {% set companies = {} %}
                 {% for user in all_users %}
                   {% set company_name = user.company_name or '未分配公司' %}
@@ -100,34 +65,36 @@
                 {% endfor %}
               </select>
             {% endif %}
-            <div class="form-text text-muted">当项目拥有人不是厂商企业账户时，可以指定厂商销售负责人</div>
+            <div class="form-text text-muted">{{ _('当项目拥有人不是厂商企业账户时，可以指定厂商销售负责人') }}</div>
           </div>
+          {% endif %}
         </div>
         <div class="modal-footer">
-          {{ render_button('取消', type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
-          {{ render_button('确认修改', type='submit', color='primary', attrs='id="confirm_change_owner"') }}
+          {{ render_button(_('取消'), type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
+          {{ render_button(_('确认修改'), type='submit', color='primary', attrs='id="confirm_change_owner"' if show_vendor_sales_manager else '') }}
         </div>
       </div>
     </form>
   </div>
 </div>
 
+{% if show_vendor_sales_manager %}
 <script>
 // 监听拥有人选择变化
 document.addEventListener('DOMContentLoaded', function() {
   const modal = document.getElementById('{{ modal_id }}');
   if (!modal) return;
-  
+
   const newOwnerSelect = modal.querySelector('#new_owner_id, input[name="new_owner_id"]');
   const vendorContainer = modal.querySelector('#vendor_sales_manager_container');
   const vendorSelect = modal.querySelector('#vendor_sales_manager_id, input[name="vendor_sales_manager_id"]');
   const confirmBtn = modal.querySelector('#confirm_change_owner');
-  
+
   if (!newOwnerSelect || !vendorContainer) return;
-  
+
   function checkOwnerCompany() {
     let selectedCompany = '';
-    
+
     // 处理树形选择器
     if (newOwnerSelect.type === 'hidden') {
       const selectedValue = newOwnerSelect.value;
@@ -162,12 +129,12 @@ document.addEventListener('DOMContentLoaded', function() {
         selectedCompany = selectedOption.getAttribute('data-company') || '';
       }
     }
-    
+
     console.log('选中的企业:', selectedCompany);
-    
+
     // 如果不是厂商企业，显示销售负责人选择框
-            const isVendorCompany = selectedUserData && selectedUserData.is_vendor;
-    
+    const isVendorCompany = selectedUserData && selectedUserData.is_vendor;
+
     if (isVendorCompany) {
       vendorContainer.style.display = 'none';
       if (vendorSelect) {
@@ -185,7 +152,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
   }
-  
+
   // 监听选择变化
   if (newOwnerSelect.type === 'hidden') {
     // 树形选择器的变化监听
@@ -197,7 +164,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
     observer.observe(newOwnerSelect, { attributes: true });
-    
+
     // 监听树形选择器的点击事件
     modal.addEventListener('click', function(e) {
       if (e.target.classList.contains('tree-label') && !e.target.classList.contains('group')) {
@@ -208,7 +175,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 普通选择器的变化监听
     newOwnerSelect.addEventListener('change', checkOwnerCompany);
   }
-  
+
   // 表单提交验证
   modal.querySelector('form').addEventListener('submit', function(e) {
     const vendorContainerVisible = vendorContainer.style.display !== 'none';
@@ -221,11 +188,68 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
   });
-  
+
   // 模态框显示时初始检查
   modal.addEventListener('shown.bs.modal', function() {
     setTimeout(checkOwnerCompany, 200);
   });
 });
 </script>
+{% endif %}
+{% endmacro %}
+
+{# 保持旧函数兼容性，但内部调用统一函数 #}
+{% macro render_change_owner_modal(modal_id, action_url, all_users, current_owner_id, user_tree_data=None) %}
+{{ render_unified_change_owner_modal(modal_id, action_url, all_users, current_owner_id, user_tree_data, title='修改拥有人', show_vendor_sales_manager=False) }}
+{% endmacro %}
+
+{# 项目拥有人修改模态框 - 包含厂商销售负责人选择 #}
+{% macro render_change_project_owner_modal(modal_id, action_url, all_users, current_owner_id, user_tree_data=None) %}
+{{ render_unified_change_owner_modal(modal_id, action_url, all_users, current_owner_id, user_tree_data, title='修改项目拥有人', show_vendor_sales_manager=True) }}
+{% endmacro %}
+
+{# 通用选择器快速添加模态框 - 替代 render_indicator_add_modal #}
+{% macro render_select_quick_add_modal(modal_id='selectQuickAddModal', title='快速添加') %}
+<div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-labelledby="{{ modal_id }}Label" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content" style="border-radius: 12px; overflow: hidden;">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="{{ modal_id }}Label">
+          <i class="fas fa-plus me-2"></i>{{ _(title) }}
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="{{ _('关闭') }}"></button>
+      </div>
+      <div class="modal-body">
+        <!-- 已有项目展示区域 -->
+        <div class="mb-3">
+          <label class="form-label text-muted">{{ _('已有项目') }}</label>
+          <div id="existingItemsList" class="border rounded p-2 bg-light" style="max-height: 120px; overflow-y: auto;">
+            <small class="text-muted">{{ _('加载中...') }}</small>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label for="quickAddValue" class="form-label">
+            {{ _('名称') }} <span class="text-danger">*</span>
+          </label>
+          <input type="text" class="form-control" id="quickAddValue"
+                 placeholder="{{ _('请输入名称') }}" required>
+          <div class="form-text">{{ _('项目的显示名称') }}</div>
+        </div>
+
+        <div class="mb-3">
+          <label for="quickAddDescription" class="form-label">
+            {{ _('描述') }} <small class="text-muted">({{ _('可选') }})</small>
+          </label>
+          <textarea class="form-control" id="quickAddDescription"
+                    rows="2" placeholder="{{ _('关于此项目的详细说明') }}"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        {{ render_button(_('取消'), type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
+        {{ render_button(_('保存并选择'), type='button', color='primary', icon='fas fa-check', attrs='id="quickAddSaveBtn"') }}
+      </div>
+    </div>
+  </div>
+</div>
 {% endmacro %} 

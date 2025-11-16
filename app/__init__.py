@@ -10,6 +10,7 @@ from app.models.temp_product import TempProduct
 from app.routes.product import bp as product_bp
 from app.routes.product_code import product_code_bp
 from app.routes.product_management import product_management_bp
+from app.routes.dev_product_management import bp as dev_product_bp
 from app.routes.performance import register_performance_routes
 from datetime import timedelta, datetime
 from app.utils import version_check
@@ -71,7 +72,7 @@ def create_app(config_class=Config):
         # 如果没有环境变量，尝试从配置文件加载
         if not supabase_url or not force_cloud_upload:
             logger.info("从环境变量中未找到Supabase配置，尝试从配置文件加载...")
-            env_file_path = os.path.join(os.path.dirname(app.root_path), '.env.supabase')
+            env_file_path = os.path.join(os.path.dirname(app.root_path), '.env.supabase.prod')
             if os.path.exists(env_file_path):
                 with open(env_file_path, 'r') as f:
                     for line in f:
@@ -340,6 +341,7 @@ def create_app(config_class=Config):
     app.register_blueprint(user_bp, url_prefix='/user')
     app.register_blueprint(product_code_bp, url_prefix='/product-code')
     app.register_blueprint(product_management_bp, url_prefix='/product-management')
+    app.register_blueprint(dev_product_bp)  # 研发产品管理蓝图（URL前缀已在蓝图定义中设置）
     app.register_blueprint(projectpm_bp, url_prefix='/projectpm')
     app.register_blueprint(approval_bp)
     app.register_blueprint(approval_config_bp)
@@ -367,7 +369,12 @@ def create_app(config_class=Config):
     # 注册导出辅助API蓝图
     app.register_blueprint(export_helpers_api)
     csrf.exempt(export_helpers_api)
-    
+
+    # 注册规格字典API蓝图
+    from app.routes.spec_dictionary import spec_dict_bp
+    app.register_blueprint(spec_dict_bp)
+    csrf.exempt(spec_dict_bp)
+
     # 注册语言切换蓝图
     from app.views.language import language_bp
     app.register_blueprint(language_bp)
@@ -789,6 +796,16 @@ def create_app(config_class=Config):
     from app.context_processors import inject_user_helpers
     app.context_processor(inject_user_helpers)
 
+    # 添加字典辅助函数到模板上下文（厂商企业信息等）
+    @app.context_processor
+    def inject_dictionary_helpers():
+        """向模板上下文注入字典辅助函数"""
+        from app.utils.dictionary_helpers import get_vendor_company, get_vendor_company_by_user
+        return {
+            'get_vendor_company': get_vendor_company,
+            'get_vendor_company_by_user': get_vendor_company_by_user
+        }
+
     # 添加文件URL处理函数到Jinja2全局环境
     from app.utils.file_url_helper import (
         normalize_file_url, 
@@ -976,13 +993,13 @@ def create_app(config_class=Config):
         except Exception as e:
             app.logger.error(f"初始化系统设置时出错: {str(e)}")
             
-        # 初始化备份服务
+        # 初始化 Supabase 备份服务
         try:
-            from app.services.database_backup import init_backup_service
-            backup_service = init_backup_service(app)
-            app.logger.info("数据库备份服务初始化完成")
+            from app.services.supabase_backup_service import init_backup_service
+            backup_service = init_backup_service()
+            app.logger.info("Supabase 备份服务初始化完成")
         except Exception as e:
-            app.logger.error(f"初始化数据库备份服务时出错: {str(e)}")
+            app.logger.error(f"初始化 Supabase 备份服务时出错: {str(e)}")
     
     # 注册上下文处理器
     from app.utils.access_control import register_context_processors

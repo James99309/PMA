@@ -11,12 +11,16 @@ class ProductDetailManager {
         this.config = this.mergeConfig(config);
         this.rows = [];
         this.eventHandlers = new Map();
-        
+
+        // 配置产品关系映射: {parentRowId: [configRowId1, configRowId2, ...]}
+        this.rowConfigMap = new Map();
+        this.rowIdCounter = 0;  // 行ID计数器
+
         // 货币相关属性
         this.currentCurrency = this.config.calculationRules.currency;
         this.exchangeRates = {};
         this.currencySymbols = {};
-        
+
         this.init();
     }
     
@@ -87,7 +91,12 @@ class ProductDetailManager {
                 unit_price: 'unit_price',
                 total_price: 'total_price',
                 product_mn: 'product_mn',
-                currency: 'currency'
+                currency: 'currency',
+                // 配置产品字段（主次关系）
+                parent_row_id: 'parent_row_id',
+                is_configuration: 'is_configuration',
+                config_type: 'config_type',
+                config_base_quantity: 'config_base_quantity'
             },
             
             // 验证规则
@@ -275,11 +284,12 @@ class ProductDetailManager {
         // 表格内事件委托
         tbody.addEventListener('click', (e) => {
             const target = e.target;
-            
-            // 删除行按钮
-            if (target.classList.contains('remove-row')) {
+
+            // 删除行按钮（使用 closest 确保点击图标也能触发）
+            const removeBtn = target.closest('.remove-row');
+            if (removeBtn) {
                 e.preventDefault();
-                const row = target.closest('tr');
+                const row = removeBtn.closest('tr');
                 this.removeRow(row);
             }
         });
@@ -355,7 +365,19 @@ class ProductDetailManager {
             console.log('其他字段变化，重新计算单价...');
             this.calculateRow(row);
         }
-        
+
+        // 如果是主产品行的数量字段变化，更新其配置产品数量
+        if (fieldName === 'quantity' && row.dataset.hasConfigurations === 'true') {
+            console.log('🔄 主产品数量变化，更新配置产品数量');
+            this.updateConfigurationQuantities(row);
+        }
+
+        // 如果是主产品行的折扣率字段变化，同步更新其配置产品折扣率
+        if (fieldName === 'discount' && row.dataset.hasConfigurations === 'true') {
+            console.log('🔄 主产品折扣率变化，同步配置产品折扣率');
+            this.updateConfigurationDiscounts(row);
+        }
+
         this.updateGrandTotal();
     }
     
@@ -390,33 +412,73 @@ class ProductDetailManager {
     /**
      * 处理产品选择
      */
-    handleProductSelect(product, inputElement) {
+    handleProductSelect(productData, inputElement) {
+        // 兼容性处理：判断是新格式（带配置）还是旧格式（单产品）
+        const isNewFormat = productData && (productData.mainProduct || productData.configurations);
+        const product = isNewFormat ? productData.mainProduct : productData;
+        const configurations = isNewFormat ? (productData.configurations || []) : [];
+
         console.log('🔄 处理产品选择:', product.product_name);
+        if (configurations.length > 0) {
+            console.log(`📦 包含 ${configurations.length} 个配置产品`);
+        }
+
         const row = inputElement.closest('tr');
-        
-        // 填充产品数据
+
+        // 生成行ID（用于跟踪父子关系）
+        const rowId = this.generateRowId();
+        row.dataset.rowId = rowId;
+
+        // 填充主产品数据
         this.fillProductData(row, product);
-        
+
         // 处理手动输入模式的字段状态
         if (product.is_temp || product.status === 'temp') {
             this.enableManualInputMode(row, product);
         } else {
             this.disableManualInputMode(row);
         }
-        
-        // 重新计算
+
+        // 重新计算主产品行
         this.calculateRow(row);
+
+        // 处理配置产品
+        if (configurations.length > 0) {
+            const configRowIds = [];
+            const tbody = row.parentNode;
+            const rowIndex = Array.from(tbody.children).indexOf(row);
+
+            configurations.forEach((config, index) => {
+                const configRow = this.addConfigurationRow(config, rowId, row);
+                configRowIds.push(configRow.dataset.rowId);
+
+                // 插入到主产品行之后
+                const insertIndex = rowIndex + 1 + index;
+                if (insertIndex < tbody.children.length) {
+                    tbody.insertBefore(configRow, tbody.children[insertIndex]);
+                } else {
+                    tbody.appendChild(configRow);
+                }
+            });
+
+            // 记录父子关系
+            this.rowConfigMap.set(rowId, configRowIds);
+
+            // 标记主产品行有配置
+            row.dataset.hasConfigurations = 'true';
+        }
+
         this.updateGrandTotal();
-        
+
         // 确保产品选择器菜单被关闭
         if (this.productSelector) {
             this.productSelector.hideMenu();
             console.log('🔧 手动关闭产品选择器菜单');
         }
-        
+
         // 触发回调
-        this.trigger('productSelect', { product, row });
-        
+        this.trigger('productSelect', { product, row, configurations });
+
         console.log('🔄 产品选择处理完成');
     }
     
@@ -430,7 +492,7 @@ class ProductDetailManager {
             retail_price: product.retail_price,
             '使用值': product.market_price || product.retail_price || 0
         });
-        
+
         // 根据实际HTML结构设置字段值
         // 产品名称使用特殊的类名
         const productNameInput = row.querySelector('.product-name');
@@ -438,32 +500,45 @@ class ProductDetailManager {
             productNameInput.value = product.product_name || '';
             console.log('✅ 设置产品名称:', product.product_name);
         }
-        
+
         // 检查是否为停产产品 - 更全面的检测
-        const isDiscontinued = product.status === 'discontinued' || 
-                              product.status === '停产' || 
+        const isDiscontinued = product.status === 'discontinued' ||
+                              product.status === '停产' ||
                               product.status === 'inactive' ||
                               product.product_status === 'discontinued' ||
                               product.product_status === '停产' ||
                               (product.status && product.status.toLowerCase().includes('discontin'));
-        
+
         // 其他字段使用标准的key-input格式
         // 产品型号字段 - 简单设置，不做特殊处理
         const productModel = product.product_model || product.model || '';
         this.setFieldValueByKey(row, 'product_model', productModel);
-        
+
         this.setFieldValueByKey(row, 'product_desc', product.product_desc || product.specification || '');
         this.setFieldValueByKey(row, 'brand', product.brand || '');
         this.setFieldValueByKey(row, 'unit', product.unit || '');
-        this.setFieldValueByKey(row, 'market_price', product.retail_price || product.market_price || 0);
+
+        // ⚠️ 货币转换：产品价格需要根据当前货币进行转换
+        const productCurrency = product.currency || 'CNY'; // 产品原始货币（数据库中产品默认为CNY）
+        let marketPrice = product.retail_price || product.market_price || 0;
+
+        // 如果当前货币与产品货币不同，需要转换
+        if (this.currentCurrency && this.currentCurrency !== productCurrency) {
+            console.log(`💱 货币转换: ${marketPrice} ${productCurrency} -> ${this.currentCurrency}`);
+            const convertedPrice = this.convertAmountLocally(marketPrice, productCurrency, this.currentCurrency);
+            marketPrice = convertedPrice;
+            console.log(`💱 转换后市场价: ${marketPrice}`);
+        }
+
+        this.setFieldValueByKey(row, 'market_price', marketPrice);
         this.setFieldValueByKey(row, 'product_mn', product.product_mn || '');
-        
+
         // 设置默认值
         this.setFieldValueByKey(row, 'quantity', 1);
         this.setFieldValueByKey(row, 'discount', 100);
-        
-        // 初始化单价为市场价（100%折扣）
-        const initialUnitPrice = product.retail_price || product.market_price || 0;
+
+        // 初始化单价为市场价（100%折扣）- 使用转换后的价格
+        const initialUnitPrice = marketPrice;
         this.setFieldValueByKey(row, 'unit_price', initialUnitPrice);
         
         // 如果是临时产品，设置临时产品ID和类别信息
@@ -813,20 +888,206 @@ class ProductDetailManager {
     }
     
     /**
+     * 生成唯一行ID
+     */
+    generateRowId() {
+        return `row_${++this.rowIdCounter}_${Date.now()}`;
+    }
+
+    /**
+     * 添加配置产品行
+     * @param {Object} config - 配置产品数据
+     * @param {string} parentRowId - 父产品行ID
+     * @param {HTMLElement} parentRow - 父产品行元素
+     * @returns {HTMLElement} 配置产品行
+     */
+    addConfigurationRow(config, parentRowId, parentRow) {
+        console.log(`📦 添加配置产品行: ${config.product_name}`);
+
+        // 创建新行
+        const configRow = this.createRow();
+
+        // 生成配置行ID
+        const configRowId = this.generateRowId();
+        configRow.dataset.rowId = configRowId;
+        configRow.dataset.parentRowId = parentRowId;
+        configRow.dataset.isConfiguration = 'true';
+        configRow.dataset.configType = config.relation_type || 'required_accessory';
+        configRow.dataset.configBaseQuantity = config.default_quantity || 1;
+
+        // 填充配置产品数据
+        this.fillProductData(configRow, config);
+
+        // 计算配置产品数量
+        const quantity = this.calculateConfigQuantity(parentRow, config.default_quantity || 1);
+
+        // 设置数量
+        const quantityInput = configRow.querySelector('.quantity-input');
+        if (quantityInput) {
+            quantityInput.value = quantity;
+            quantityInput.readOnly = true;  // 配置产品数量只读
+        }
+
+        // 重新计算
+        this.calculateRow(configRow);
+
+        console.log(`✅ 配置产品行创建完成: ${config.product_name}, 数量=${quantity}`);
+
+        return configRow;
+    }
+
+    /**
+     * 计算配置产品数量
+     * @param {HTMLElement} parentRow - 父产品行
+     * @param {number} configBaseQuantity - 配置基础数量
+     * @returns {number} 计算后的数量
+     */
+    calculateConfigQuantity(parentRow, configBaseQuantity) {
+        const quantityInput = parentRow.querySelector('.quantity-input');
+        const parentQuantity = quantityInput ? parseInt(quantityInput.value) || 1 : 1;
+        return parentQuantity * (configBaseQuantity || 1);
+    }
+
+    /**
+     * 更新配置产品数量（当主产品数量改变时调用）
+     * @param {HTMLElement} parentRow - 父产品行
+     */
+    updateConfigurationQuantities(parentRow) {
+        const rowId = parentRow.dataset.rowId;
+        if (!rowId) return;
+
+        const configRowIds = this.rowConfigMap.get(rowId);
+        if (!configRowIds || configRowIds.length === 0) return;
+
+        console.log(`🔄 更新配置产品数量，主产品行ID: ${rowId}`);
+
+        const tbody = parentRow.parentNode;
+
+        configRowIds.forEach(configRowId => {
+            const configRow = tbody.querySelector(`tr[data-row-id="${configRowId}"]`);
+            if (!configRow) return;
+
+            const configBaseQuantity = parseInt(configRow.dataset.configBaseQuantity) || 1;
+            const newQuantity = this.calculateConfigQuantity(parentRow, configBaseQuantity);
+
+            const quantityInput = configRow.querySelector('.quantity-input');
+            if (quantityInput) {
+                quantityInput.value = newQuantity;
+                quantityInput.dataset.rawValue = newQuantity;  // 同步更新rawValue，确保数据收集时能读取到最新值
+                this.calculateRow(configRow);
+                console.log(`  - 配置产品 ${configRowId}: 数量更新为 ${newQuantity}`);
+            }
+        });
+
+        this.updateGrandTotal();
+    }
+
+    /**
+     * 更新配置产品折扣率（当主产品折扣率改变时调用）
+     * @param {HTMLElement} parentRow - 父产品行
+     */
+    updateConfigurationDiscounts(parentRow) {
+        const rowId = parentRow.dataset.rowId;
+        if (!rowId) return;
+
+        const configRowIds = this.rowConfigMap.get(rowId);
+        if (!configRowIds || configRowIds.length === 0) return;
+
+        console.log(`💰 更新配置产品折扣率，主产品行ID: ${rowId}`);
+
+        const tbody = parentRow.parentNode;
+
+        // 获取主产品的折扣率
+        const parentDiscountInput = parentRow.querySelector('.discount-input');
+        if (!parentDiscountInput) return;
+
+        const parentDiscount = parseFloat(parentDiscountInput.dataset.rawValue || parentDiscountInput.value || 100);
+        console.log(`  主产品折扣率: ${parentDiscount}%`);
+
+        configRowIds.forEach(configRowId => {
+            const configRow = tbody.querySelector(`tr[data-row-id="${configRowId}"]`);
+            if (!configRow) return;
+
+            const discountInput = configRow.querySelector('.discount-input');
+            if (discountInput) {
+                // 更新折扣率值
+                discountInput.value = parentDiscount;
+                discountInput.dataset.rawValue = parentDiscount;
+
+                // 重新计算该行
+                this.calculateRow(configRow);
+                console.log(`  - 配置产品 ${configRowId}: 折扣率更新为 ${parentDiscount}%`);
+            }
+        });
+
+        this.updateGrandTotal();
+    }
+
+    /**
      * 删除行
      */
     removeRow(row) {
         const tbody = row.parentNode;
-        
+
         // 至少保留一行
         if (tbody.children.length <= 1) {
             this.showError('至少需要保留一行产品明细');
             return;
         }
-        
+
+        const rowId = row.dataset.rowId;
+        const isConfiguration = row.dataset.isConfiguration === 'true';
+        const parentRowId = row.dataset.parentRowId;
+
+        // 如果是主产品行，级联删除其所有配置产品行
+        if (!isConfiguration && rowId) {
+            const configRowIds = this.rowConfigMap.get(rowId);
+            if (configRowIds && configRowIds.length > 0) {
+                console.log(`🗑️ 级联删除 ${configRowIds.length} 个配置产品行`);
+                configRowIds.forEach(configRowId => {
+                    const configRow = tbody.querySelector(`tr[data-row-id="${configRowId}"]`);
+                    if (configRow) {
+                        tbody.removeChild(configRow);
+                        console.log(`  - 已删除配置行: ${configRowId}`);
+                    }
+                });
+                this.rowConfigMap.delete(rowId);
+            }
+        }
+
+        // 如果是配置产品行，从父产品的配置列表中移除
+        if (isConfiguration && parentRowId && rowId) {
+            console.log(`🗑️ 删除配置产品行: ${rowId}，父产品: ${parentRowId}`);
+
+            const configRowIds = this.rowConfigMap.get(parentRowId);
+            if (configRowIds) {
+                // 从配置列表中移除当前行ID
+                const index = configRowIds.indexOf(rowId);
+                if (index > -1) {
+                    configRowIds.splice(index, 1);
+                    console.log(`  - 已从父产品配置列表中移除`);
+                }
+
+                // 如果父产品已没有配置产品，清理映射并取消标记
+                if (configRowIds.length === 0) {
+                    this.rowConfigMap.delete(parentRowId);
+
+                    // 取消父产品的 hasConfigurations 标记
+                    const parentRow = tbody.querySelector(`tr[data-row-id="${parentRowId}"]`);
+                    if (parentRow) {
+                        parentRow.dataset.hasConfigurations = 'false';
+                        console.log(`  - 父产品已无配置，取消 hasConfigurations 标记`);
+                    }
+                } else {
+                    console.log(`  - 父产品还有 ${configRowIds.length} 个配置产品`);
+                }
+            }
+        }
+
+        // 删除当前行
         tbody.removeChild(row);
         this.updateGrandTotal();
-        
+
         // 触发回调
         this.trigger('rowRemove', { row });
     }
@@ -1010,7 +1271,13 @@ class ProductDetailManager {
         // 更新折扣率和小计
         this.setFieldValueByKey(row, 'discount', discount.toFixed(1));
         this.setFieldValueByKey(row, 'total_price', totalPrice);
-        
+
+        // 如果是主产品行，同步更新其配置产品折扣率
+        if (row.dataset.hasConfigurations === 'true') {
+            console.log('🔄 反向计算后，同步配置产品折扣率');
+            this.updateConfigurationDiscounts(row);
+        }
+
         return { discount, totalPrice };
     }
     
@@ -1350,17 +1617,17 @@ class ProductDetailManager {
     getRowData(row) {
         const data = {};
         const mapping = this.config.fieldMapping;
-        
+
         Object.keys(mapping).forEach(key => {
             data[key] = this.getFieldValue(row, mapping[key]);
         });
-        
+
         // 检查是否为临时产品行
         if (row.dataset.isTemp === 'true' || row.dataset.manualInputMode === 'true') {
             data.is_temp = true;
             data.status = 'temp';
             data.temp_product_id = row.dataset.tempProductId || 'MANUAL';
-            
+
             // 获取保存在DOM中的类别信息
             if (row.dataset.category) {
                 data.category = row.dataset.category;
@@ -1370,10 +1637,38 @@ class ProductDetailManager {
                 data.category_path = row.dataset.categoryPath;
                 console.log('🔧 从DOM获取类别路径:', data.category_path);
             }
-            
+
             console.log('🔧 获取临时产品行数据:', data);
         }
-        
+
+        // 从 dataset 中读取配置产品字段（主次关系）
+        if (row.dataset.isConfiguration === 'true') {
+            data.is_configuration = true;
+            data.parent_row_id = row.dataset.parentRowId || null;
+            data.config_type = row.dataset.configType || null;
+            data.config_base_quantity = row.dataset.configBaseQuantity ? parseInt(row.dataset.configBaseQuantity) : null;
+
+            console.log('📦 收集配置产品数据:', {
+                is_configuration: data.is_configuration,
+                parent_row_id: data.parent_row_id,
+                config_type: data.config_type,
+                config_base_quantity: data.config_base_quantity
+            });
+        }
+
+        // 从 dataset 中读取行ID（用于建立父子关系）
+        if (row.dataset.rowId) {
+            data.row_id = row.dataset.rowId;
+
+            // 调试日志：显示主产品的 row_id
+            if (!data.is_configuration) {
+                console.log('🔑 主产品 row_id:', {
+                    product_name: data.product_name,
+                    row_id: data.row_id
+                });
+            }
+        }
+
         return data;
     }
     
@@ -1441,23 +1736,233 @@ class ProductDetailManager {
      */
     setAllData(dataArray) {
         const tbody = document.querySelector(`${this.config.tableSelector} tbody`);
-        
+
         // 清空现有行
         tbody.innerHTML = '';
-        
+
         // 添加数据行
         if (dataArray && dataArray.length > 0) {
             dataArray.forEach(data => {
                 this.addRow(data);
             });
+
+            // 重建配置产品的主次关系
+            this.rebuildConfigurationRelationships(dataArray);
+
+            // 重新排列DOM顺序，将配置产品移动到父产品后面
+            this.reorderConfigurationRows();
         } else {
             // 添加空行
             this.addRow();
         }
-        
+
         this.updateGrandTotal();
     }
-    
+
+    /**
+     * 重建配置产品的主次关系（编辑页面加载时）
+     * @param {Array} dataArray - 产品明细数据数组
+     */
+    rebuildConfigurationRelationships(dataArray) {
+        const tbody = document.querySelector(`${this.config.tableSelector} tbody`);
+        const rows = tbody.querySelectorAll('tr');
+
+        if (!rows || rows.length === 0) return;
+
+        console.log('🔄 ========== 开始重建配置产品主次关系 ==========');
+        console.log(`📊 基本信息:`);
+        console.log(`   - 数据数组长度: ${dataArray.length}`);
+        console.log(`   - 表格行数: ${rows.length}`);
+        console.log(`\n📋 原始数据详情:`);
+
+        dataArray.forEach((data, index) => {
+            console.log(`   [${index}] {
+      item_id: ${data.item_id || 'undefined'},
+      id: ${data.id || 'undefined'},
+      product_name: "${data.product_name}",
+      is_configuration: ${data.is_configuration},
+      parent_item_id: ${data.parent_item_id || 'null'}
+    }`);
+        });
+
+        // 第一步：为所有行设置 rowId（如果还没有）并建立映射
+        const itemIdToRowMap = new Map();
+        const itemIdToRowIdMap = new Map();
+
+        console.log(`\n🔨 第一步：构建映射表`);
+
+        dataArray.forEach((data, index) => {
+            if (index < rows.length) {
+                const row = rows[index];
+
+                // 🔧 关键修复：确保每行都有 rowId
+                if (!row.dataset.rowId) {
+                    if (data.item_id) {
+                        // 使用数据库ID生成稳定的 rowId
+                        row.dataset.rowId = `row_db_${data.item_id}`;
+                    } else {
+                        // 如果没有item_id，生成临时ID
+                        row.dataset.rowId = `row_temp_${Date.now()}_${index}`;
+                    }
+                    console.log(`   ✓ 为第 ${index + 1} 行设置 rowId: ${row.dataset.rowId}`);
+                }
+
+                const rowId = row.dataset.rowId;
+                const itemId = data.item_id || data.id || index;
+
+                // 🆕 检测重复的 item_id
+                if (itemIdToRowMap.has(itemId)) {
+                    console.warn(`   ⚠️ 警告：item_id=${itemId} 已存在于映射表中！`);
+                    const existingRow = itemIdToRowMap.get(itemId);
+                    const existingIndex = Array.from(rows).indexOf(existingRow);
+                    console.warn(`      已有映射: item_id=${itemId} → row[${existingIndex}]`);
+                    console.warn(`      新数据: item_id=${itemId} → row[${index}] (将覆盖)`);
+                    console.warn(`      这会导致配置产品关联错误！`);
+                }
+
+                itemIdToRowMap.set(itemId, row);
+                itemIdToRowIdMap.set(itemId, rowId);
+
+                console.log(`   [${index}] 映射: item_id=${itemId} → row[${index}] (rowId=${rowId})`);
+            }
+        });
+
+        // 🆕 映射表完整性检查
+        console.log(`\n📊 映射表构建完成:`);
+        console.log(`   - itemIdToRowMap 大小: ${itemIdToRowMap.size}`);
+        console.log(`   - 数据数组长度: ${dataArray.length}`);
+
+        if (itemIdToRowMap.size < dataArray.length) {
+            console.error(`   ❌ 映射表大小 < 数据数组长度，存在重复的 item_id！`);
+            console.error(`      丢失的条目数: ${dataArray.length - itemIdToRowMap.size}`);
+        } else {
+            console.log(`   ✅ 映射表完整，无重复键`);
+        }
+
+        console.log(`\n🔍 映射表内容:`);
+        itemIdToRowMap.forEach((row, itemId) => {
+            const index = Array.from(rows).indexOf(row);
+            const data = dataArray[index];
+            console.log(`   item_id=${itemId} → row[${index}] "${data?.product_name}"`);
+        });
+
+        // 第二步：为配置产品设置 parent_row_id 并恢复主次关系
+        console.log(`\n🔗 第二步：关联配置产品到父产品`);
+
+        let successCount = 0;
+        let failCount = 0;
+
+        dataArray.forEach((data, index) => {
+            if (index < rows.length && data.is_configuration && data.parent_item_id) {
+                const row = rows[index];
+
+                console.log(`   [${index}] 处理配置产品: "${data.product_name}"`);
+                console.log(`      - parent_item_id: ${data.parent_item_id}`);
+                console.log(`      - 查找映射表: itemIdToRowMap.has(${data.parent_item_id}) = ${itemIdToRowMap.has(data.parent_item_id)}`);
+
+                const parentRow = itemIdToRowMap.get(data.parent_item_id);
+                const parentRowId = itemIdToRowIdMap.get(data.parent_item_id);
+
+                if (parentRow && parentRowId) {
+                    const parentIndex = Array.from(rows).indexOf(parentRow);
+                    const parentData = dataArray[parentIndex];
+
+                    console.log(`      ✅ 找到父产品: row[${parentIndex}] "${parentData?.product_name}"`);
+                    console.log(`         parent_row_id: ${parentRowId}`);
+
+                    // 设置配置产品的 dataset 属性
+                    row.dataset.isConfiguration = 'true';
+                    row.dataset.parentRowId = parentRowId;
+                    row.dataset.configType = data.config_type || '';
+                    row.dataset.configBaseQuantity = data.config_base_quantity || 1;
+
+                    // 标记父产品有配置
+                    parentRow.dataset.hasConfigurations = 'true';
+
+                    // 添加到 rowConfigMap
+                    const parentRowIdKey = parentRowId;
+                    if (!this.rowConfigMap.has(parentRowIdKey)) {
+                        this.rowConfigMap.set(parentRowIdKey, []);
+                    }
+                    this.rowConfigMap.get(parentRowIdKey).push(row.dataset.rowId);
+
+                    successCount++;
+                } else {
+                    console.error(`      ❌ 找不到父产品！`);
+                    console.error(`         parent_item_id=${data.parent_item_id}`);
+                    console.error(`         itemIdToRowMap 中的所有键: [${Array.from(itemIdToRowMap.keys()).join(', ')}]`);
+                    failCount++;
+                }
+            }
+        });
+
+        console.log(`\n✅ 配置产品主次关系重建完成`);
+        console.log(`   - 成功关联: ${successCount} 个`);
+        console.log(`   - 关联失败: ${failCount} 个`);
+        console.log(`\n📋 最终 rowConfigMap:`, this.rowConfigMap);
+        console.log('========== 重建完成 ==========\n');
+    }
+
+    /**
+     * 重新排列配置产品的DOM顺序
+     * 将配置产品行移动到其父产品行之后
+     */
+    reorderConfigurationRows() {
+        const tbody = document.querySelector(`${this.config.tableSelector} tbody`);
+        if (!tbody) {
+            console.warn('⚠️ 未找到表格tbody，无法重排DOM顺序');
+            return;
+        }
+
+        console.log('🔄 ========== 开始重新排列配置产品DOM顺序 ==========');
+        console.log(`📊 rowConfigMap 大小: ${this.rowConfigMap.size}`);
+
+        let totalMoved = 0;
+
+        // 遍历所有父产品及其配置产品
+        this.rowConfigMap.forEach((configRowIds, parentRowId) => {
+            const parentRow = tbody.querySelector(`tr[data-row-id="${parentRowId}"]`);
+            if (!parentRow) {
+                console.warn(`   ⚠️ 未找到父产品行: ${parentRowId}`);
+                return;
+            }
+
+            const parentIndex = Array.from(tbody.children).indexOf(parentRow);
+            console.log(`\n   处理父产品 [row ${parentIndex}] ${parentRowId}:`);
+            console.log(`      配置产品数量: ${configRowIds.length}`);
+
+            // 将每个配置产品行移动到父产品行之后
+            let insertAfter = parentRow;
+            configRowIds.forEach((configRowId, index) => {
+                const configRow = tbody.querySelector(`tr[data-row-id="${configRowId}"]`);
+                if (!configRow) {
+                    console.warn(`      ⚠️ 未找到配置产品行: ${configRowId}`);
+                    return;
+                }
+
+                const currentIndex = Array.from(tbody.children).indexOf(configRow);
+                const expectedPosition = insertAfter.nextElementSibling;
+
+                // 检查是否需要移动
+                if (configRow !== expectedPosition) {
+                    // 将配置行插入到正确位置
+                    tbody.insertBefore(configRow, expectedPosition);
+                    const newIndex = Array.from(tbody.children).indexOf(configRow);
+                    console.log(`      ✓ [${index + 1}/${configRowIds.length}] 移动 ${configRowId}: row[${currentIndex}] → row[${newIndex}]`);
+                    totalMoved++;
+                } else {
+                    console.log(`      ○ [${index + 1}/${configRowIds.length}] ${configRowId} 已在正确位置`);
+                }
+
+                insertAfter = configRow;
+            });
+        });
+
+        console.log(`\n✅ DOM顺序重排完成`);
+        console.log(`   - 总共移动: ${totalMoved} 行`);
+        console.log('========== 重排完成 ==========\n');
+    }
+
     /**
      * 加载已有数据
      */

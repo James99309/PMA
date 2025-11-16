@@ -2,15 +2,15 @@
 # -*- coding: utf-8 -*-
 """
 数据库备份管理路由
-提供Web界面管理数据库备份功能
+提供Web界面管理 Supabase 自动备份功能
 """
 
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, send_file, current_app, url_for
 from flask_login import login_required, current_user
-from app.services.database_backup import get_backup_service
 from app.permissions import permission_required
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -22,329 +22,438 @@ backup_bp = Blueprint('backup', __name__, url_prefix='/backup')
 def index():
     """备份管理主页"""
     try:
-        backup_service = get_backup_service()
-        if not backup_service:
-            flash('备份服务未启用', 'warning')
-            return render_template('backup/index.html', backup_status=None)
-        
-        backup_status = backup_service.get_backup_status()
-        return render_template('backup/index.html', backup_status=backup_status)
-        
-    except Exception as e:
-        logger.error(f"获取备份状态失败: {str(e)}")
-        flash(f'获取备份状态失败: {str(e)}', 'error')
-        return render_template('backup/index.html', backup_status=None)
+        from app.services.supabase_backup_service import get_backup_service
+        from flask_babel import gettext as _
 
-@backup_bp.route('/create', methods=['POST'])
+        backup_service = get_backup_service()
+
+        # 获取备份列表
+        backups = backup_service.list_backups()
+
+        # 获取存储使用情况
+        storage_info = backup_service.get_storage_usage()
+
+        # 准备显示数据并转换为字典对象（供通用组件使用）
+        backup_objects = []
+        sp8d_count = 0
+        ovs_count = 0
+        local_count = 0
+
+        for backup in backups:
+            # 计算文件年龄
+            created_at = datetime.fromisoformat(backup['created_at'].replace('Z', '+00:00'))
+            age_days = (datetime.now() - created_at.replace(tzinfo=None)).days
+
+            # 格式化大小
+            size_mb = backup['size'] / 1024 / 1024
+            size_display = f"{size_mb:.1f} MB" if size_mb >= 1 else f"{backup['size'] / 1024:.1f} KB"
+
+            # 数据库类型统计
+            db_type = backup.get('db_type', 'unknown')
+            if db_type == 'sp8d':
+                sp8d_count += 1
+            elif db_type == 'ovs':
+                ovs_count += 1
+            elif db_type == 'local':
+                local_count += 1
+
+            # 创建备份对象（添加__class__属性以供通用组件识别）
+            class BackupFile:
+                def __init__(self, data):
+                    self.filename = data['filename']
+                    self.db_type = db_type
+                    self.size = data['size']
+                    self.size_display = size_display
+                    self.created_at = created_at
+                    self.created_display = created_at.strftime('%Y-%m-%d %H:%M:%S')
+                    self.age = f"{age_days}天前" if age_days > 0 else "今天"
+                    self.path = data.get('storage_path', data['filename'])  # 使用 storage_path 获取完整路径
+
+            backup_objects.append(BackupFile(backup))
+
+        # 获取最后备份时间
+        last_backup_time = backup_objects[0].created_display if backup_objects else '从未备份'
+        last_backup_age = backup_objects[0].age if backup_objects else ''
+
+        # 环境信息 - 动态读取当前数据库配置
+        from config import Config
+        db_url = Config.SQLALCHEMY_DATABASE_URI
+
+        # 识别数据库类型并格式化显示
+        if 'localhost' in db_url or '127.0.0.1' in db_url:
+            db_display = 'pma_local@localhost'
+        elif 'sqlite' in db_url:
+            db_display = 'SQLite 本地数据库'
+        elif 'iqcyimnjtnmomvfuwjzw' in db_url:
+            db_display = 'SP8D@Supabase'
+        elif 'pqzviljbpfoqvyfulakl' in db_url:
+            db_display = 'OVS@Supabase'
+        else:
+            # 提取主机信息
+            try:
+                db_display = db_url.split('@')[1].split('/')[0] if '@' in db_url else '未知数据库'
+            except:
+                db_display = '未知数据库'
+
+        env_info = {
+            'environment': '本地开发' if Config.IS_LOCAL_ENV else '云端生产',
+            'storage_location': 'Supabase Storage' if backup_service.use_cloud_storage else '本地文件系统',
+            'database': db_display
+        }
+
+        # 计算总存储使用
+        total_storage_mb = storage_info.get('total_size', 0) / 1024 / 1024
+
+        # 准备通用列表配置
+        list_config = {
+            'module_name': 'backup',
+            'title': _('数据库备份管理'),
+            'ajax_mode': False,  # 不使用AJAX模式，直接渲染
+
+            # 统计卡片配置
+            'stats': {
+                'cards': [
+                    {
+                        'id': 'total',
+                        'title': _('备份总数'),
+                        'icon': 'fas fa-database',
+                        'value': len(backup_objects),
+                        'unit': _('个'),
+                        'color': 'primary',
+                        'data_key': 'total'
+                    },
+                    {
+                        'id': 'sp8d',
+                        'title': 'SP8D ' + _('备份'),
+                        'icon': 'fas fa-server',
+                        'value': sp8d_count,
+                        'unit': _('个'),
+                        'color': 'info',
+                        'data_key': 'sp8d'
+                    },
+                    {
+                        'id': 'ovs',
+                        'title': 'OVS ' + _('备份'),
+                        'icon': 'fas fa-server',
+                        'value': ovs_count,
+                        'unit': _('个'),
+                        'color': 'success',
+                        'data_key': 'ovs'
+                    },
+                    {
+                        'id': 'storage',
+                        'title': _('存储使用'),
+                        'icon': 'fas fa-hard-drive',
+                        'value': f"{total_storage_mb:.1f}",
+                        'unit': 'MB',
+                        'color': 'warning',
+                        'data_key': 'storage'
+                    }
+                ]
+            },
+
+            # 筛选配置
+            'filter': {
+                'action_url': url_for('backup.index'),
+                'form_id': 'backupFilterForm',
+                'reset_url': url_for('backup.index'),
+                'search_field': {
+                    'name': 'search',
+                    'label': _('搜索'),
+                    'placeholder': _('备份文件名'),
+                    'value': request.args.get('search', ''),
+                    'col_width': 4
+                },
+                'filter_fields': [
+                    {
+                        'name': 'db_type',
+                        'label': _('数据库类型'),
+                        'type': 'select',
+                        'col_width': 2,
+                        'options': [
+                            {'value': '', 'label': _('全部')},
+                            {'value': 'sp8d', 'label': 'SP8D'},
+                            {'value': 'ovs', 'label': 'OVS'},
+                            {'value': 'local', 'label': _('本地')}
+                        ],
+                        'value': request.args.get('db_type', '')
+                    }
+                ],
+                'search_button_text': _('搜索'),
+                'reset_button_text': _('重置')
+            },
+
+            # 表格配置
+            'table': {
+                'title': _('备份文件列表'),
+                'icon': 'fas fa-table',
+                'show_header': True,
+                'columns': [
+                    {
+                        'key': 'filename',
+                        'label': _('文件名'),
+                        'type': 'text',
+                        'width': '35%',
+                        'sort_type': 'string'
+                    },
+                    {
+                        'key': 'db_type',
+                        'label': _('数据库'),
+                        'type': 'badge',
+                        'render': 'render_backup_db_type_badge',
+                        'width': '10%'
+                    },
+                    {
+                        'key': 'size_display',
+                        'label': _('文件大小'),
+                        'type': 'text',
+                        'width': '12%',
+                        'align': 'right'
+                    },
+                    {
+                        'key': 'created_display',
+                        'label': _('备份时间'),
+                        'type': 'text',
+                        'width': '18%'
+                    },
+                    {
+                        'key': 'age',
+                        'label': _('备份年龄'),
+                        'type': 'text',
+                        'width': '10%'
+                    },
+                    {
+                        'key': 'actions',
+                        'label': _('操作'),
+                        'type': 'actions',
+                        'width': '15%',
+                        'align': 'center'
+                    }
+                ],
+                'empty_message': _('暂无备份文件，请点击"立即备份"按钮创建备份。')
+            }
+        }
+
+        return render_template(
+            'backup/index.html',
+            list_config=list_config,
+            backups=backup_objects,
+            storage_info=storage_info,
+            env_info=env_info,
+            last_backup_time=last_backup_time,
+            last_backup_age=last_backup_age
+        )
+
+    except Exception as e:
+        import traceback
+        logger.error(f"获取备份信息失败: {str(e)}")
+        logger.error(f"完整错误堆栈:\n{traceback.format_exc()}")
+
+        # 错误情况下的配置
+        error_list_config = {
+            'module_name': 'backup',
+            'title': _('数据库备份管理'),
+            'ajax_mode': False,
+            'stats': {'cards': []},
+            'filter': {
+                'action_url': url_for('backup.index'),
+                'form_id': 'backupFilterForm',
+                'search_field': {
+                    'name': 'search',
+                    'label': _('搜索'),
+                    'placeholder': _('备份文件名'),
+                    'value': ''
+                },
+                'filter_fields': []
+            },
+            'table': {
+                'columns': [],
+                'empty_message': _('加载备份列表失败：') + str(e)
+            }
+        }
+
+        return render_template(
+            'backup/index.html',
+            list_config=error_list_config,
+            backups=[],
+            storage_info={},
+            env_info={},
+            error=str(e)
+        )
+
+
+@backup_bp.route('/create-now', methods=['POST'])
 @login_required
 @permission_required('user', 'view')
-def create_backup():
-    """手动创建备份"""
+def create_backup_now():
+    """立即创建备份（异步）"""
     try:
-        backup_type = request.form.get('backup_type', 'full')
-        if backup_type not in ['full', 'schema_only', 'data_only']:
-            return jsonify({'success': False, 'message': '无效的备份类型'})
-        
+        from app.services.supabase_backup_service import get_backup_service
+
         backup_service = get_backup_service()
-        if not backup_service:
-            return jsonify({'success': False, 'message': '备份服务未启用'})
-        
-        backup_path = backup_service.create_backup(backup_type)
-        
-        if backup_path:
-            logger.info(f"用户 {current_user.username} 手动创建了备份: {backup_path}")
-            return jsonify({
-                'success': True, 
-                'message': f'{backup_type} 备份创建成功',
-                'backup_path': backup_path
-            })
-        else:
-            return jsonify({'success': False, 'message': '备份创建失败'})
-            
+
+        # 安全获取JSON数据
+        data = request.get_json()
+
+        if data is None:
+            data = {}
+
+        db_type = data.get('db_type', 'both')  # both, sp8d, ovs
+
+        # 启动异步备份任务
+        task_id = backup_service.create_backup_async(db_type)
+
+        return jsonify({
+            'success': True,
+            'message': '备份任务已启动',
+            'task_id': task_id
+        })
+
     except Exception as e:
         logger.error(f"创建备份失败: {str(e)}")
-        return jsonify({'success': False, 'message': f'创建备份失败: {str(e)}'})
+        return jsonify({
+            'success': False,
+            'message': f'备份失败: {str(e)}'
+        }), 500
 
-@backup_bp.route('/status')
+
+@backup_bp.route('/task-status/<task_id>')
 @login_required
 @permission_required('user', 'view')
-def backup_status():
-    """获取备份状态API"""
+def get_task_status(task_id):
+    """获取备份任务状态"""
     try:
+        from app.services.supabase_backup_service import get_backup_service
+
         backup_service = get_backup_service()
-        if not backup_service:
-            return jsonify({'success': False, 'message': '备份服务未启用'})
-        
-        status = backup_service.get_backup_status()
-        return jsonify({'success': True, 'data': status})
-        
+        status = backup_service.get_task_status(task_id)
+
+        return jsonify(status)
+
     except Exception as e:
-        logger.error(f"获取备份状态失败: {str(e)}")
-        return jsonify({'success': False, 'message': f'获取备份状态失败: {str(e)}'})
+        logger.error(f"获取任务状态失败: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@backup_bp.route('/download/<path:filename>')
+@login_required
+@permission_required('user', 'view')
+def download_backup(filename):
+    """下载备份文件（支持包含子目录的路径）"""
+    try:
+        from app.services.supabase_backup_service import get_backup_service
+
+        backup_service = get_backup_service()
+
+        if backup_service.use_cloud_storage:
+            # 从 Supabase 生成临时下载 URL 并重定向
+            download_url = backup_service.get_download_url(filename)
+            from flask import redirect
+            return redirect(download_url)
+        else:
+            # 从本地文件系统下载
+            filepath = os.path.join(backup_service.backup_dir, filename)
+            if not os.path.exists(filepath):
+                return jsonify({'success': False, 'message': '文件不存在'}), 404
+
+            return send_file(
+                filepath,
+                as_attachment=True,
+                download_name=filename
+            )
+
+    except Exception as e:
+        logger.error(f"下载备份失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@backup_bp.route('/delete/<path:filename>', methods=['DELETE'])
+@login_required
+@permission_required('user', 'view')
+def delete_backup(filename):
+    """删除备份文件（支持包含子目录的路径）"""
+    try:
+        from app.services.supabase_backup_service import get_backup_service
+
+        # 🔍 调试：记录接收到的文件名
+        logger.info(f"🔍 删除路由接收到的 filename: {filename}")
+        logger.info(f"🔍 URL编码后的值: {repr(filename)}")
+
+        backup_service = get_backup_service()
+
+        # 🔍 调试：准备调用删除服务
+        logger.info(f"🔍 准备调用 delete_backup({filename})")
+        success = backup_service.delete_backup(filename)
+        logger.info(f"🔍 delete_backup 返回结果: {success}")
+
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '备份已删除'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '删除失败'
+            }), 500
+
+    except Exception as e:
+        logger.error(f"删除备份失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
 
 @backup_bp.route('/cleanup', methods=['POST'])
 @login_required
 @permission_required('user', 'view')
-def cleanup_backups():
-    """清理过期备份"""
+def cleanup_old_backups():
+    """清理旧备份"""
     try:
-        backup_service = get_backup_service()
-        if not backup_service:
-            return jsonify({'success': False, 'message': '备份服务未启用'})
-        
-        backup_service.cleanup_old_backups()
-        logger.info(f"用户 {current_user.username} 执行了备份清理操作")
-        
-        return jsonify({'success': True, 'message': '过期备份清理完成'})
-        
-    except Exception as e:
-        logger.error(f"清理备份失败: {str(e)}")
-        return jsonify({'success': False, 'message': f'清理备份失败: {str(e)}'})
+        from app.services.supabase_backup_service import get_backup_service
 
-@backup_bp.route('/download/<filename>')
-@login_required
-@permission_required('user', 'view')
-def download_backup(filename):
-    """下载备份文件"""
-    try:
         backup_service = get_backup_service()
-        if not backup_service:
-            flash('备份服务未启用', 'warning')
-            return redirect(url_for('backup.index'))
-        
-        # 安全检查：确保文件名符合备份文件格式
-        if not filename.startswith('cloud_backup_') or not filename.endswith('.sql'):
-            flash('无效的备份文件', 'error')
-            return redirect(url_for('backup.index'))
-        
-        from flask import send_file
-        import os
-        
-        backup_path = os.path.join(backup_service.backup_location, filename)
-        
-        if not os.path.exists(backup_path):
-            flash('备份文件不存在', 'error')
-            return redirect(url_for('backup.index'))
-        
-        logger.info(f"用户 {current_user.username} 下载了备份文件: {filename}")
-        return send_file(backup_path, as_attachment=True, download_name=filename)
-        
-    except Exception as e:
-        logger.error(f"下载备份文件失败: {str(e)}")
-        flash(f'下载失败: {str(e)}', 'error')
-        return redirect(url_for('backup.index'))
+        days = request.json.get('days', backup_service.retention_days)
 
-@backup_bp.route('/incremental', methods=['POST'])
-@login_required
-@permission_required('user', 'view')
-def create_incremental_backup():
-    """创建增量备份"""
-    try:
-        backup_service = get_backup_service()
-        if not backup_service:
-            return jsonify({'success': False, 'message': '备份服务未启用'})
-        
-        backup_path = backup_service.create_incremental_backup()
-        
-        if backup_path:
-            logger.info(f"用户 {current_user.username} 创建了增量备份: {backup_path}")
-            return jsonify({
-                'success': True, 
-                'message': '增量备份创建成功',
-                'backup_path': backup_path
-            })
-        else:
-            return jsonify({'success': False, 'message': '增量备份创建失败'})
-            
-    except Exception as e:
-        logger.error(f"创建增量备份失败: {str(e)}")
-        return jsonify({'success': False, 'message': f'创建增量备份失败: {str(e)}'})
+        deleted_count = backup_service.cleanup_old_backups(days)
 
-@backup_bp.route('/details/<filename>')
-@login_required
-@permission_required('user', 'view')
-def backup_details(filename):
-    """获取备份文件详情"""
-    try:
-        backup_service = get_backup_service()
-        if not backup_service:
-            return jsonify({
-                'success': False,
-                'message': '备份服务未启用'
-            })
-        
-        # 获取备份文件信息
-        import os
-        backup_path = os.path.join(backup_service.backup_location, filename)
-        
-        if not os.path.exists(backup_path):
-            return jsonify({
-                'success': False,
-                'message': '备份文件不存在'
-            })
-        
-        # 获取文件基本信息
-        file_stat = os.stat(backup_path)
-        file_size_mb = file_stat.st_size / (1024 * 1024)
-        created_at = datetime.fromtimestamp(file_stat.st_mtime)
-        
-        # 确定备份类型
-        backup_type = '数据+结构备份'
-        if 'incremental' in filename:
-            backup_type = '增量备份'
-        elif 'schema' in filename:
-            backup_type = '结构备份'
-        elif 'data' in filename:
-            backup_type = '数据备份'
-        
-        # 获取数据库信息
-        db_info = get_database_info()
-        
-        details = {
-            'filename': filename,
-            'size': f'{file_size_mb:.1f} MB',
-            'created_at': created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            'backup_type': backup_type,
-            'database_name': db_info.get('database_name', 'pma_local'),
-            'table_count': db_info.get('table_count', 0),
-            'total_records': db_info.get('total_records', 0),
-            'data_size': db_info.get('data_size', '未知'),
-            'tables': db_info.get('tables', []),
-            'changes': [
-                f'备份时间: {created_at.strftime("%Y-%m-%d %H:%M:%S")}',
-                f'备份大小: {file_size_mb:.1f} MB',
-                f'包含 {db_info.get("table_count", 0)} 个数据表',
-                f'总计 {db_info.get("total_records", 0):,} 条记录'
-            ]
-        }
-        
         return jsonify({
             'success': True,
-            'details': details
+            'message': f'清理完成，删除了 {deleted_count} 个备份',
+            'deleted_count': deleted_count
         })
-        
+
     except Exception as e:
-        logger.error(f"获取备份详情失败: {str(e)}")
+        logger.error(f"清理备份失败: {str(e)}")
         return jsonify({
             'success': False,
-            'message': f'获取备份详情失败: {str(e)}'
-        })
-
-def get_database_info():
-    """获取当前数据库信息"""
-    try:
-        from app import db
-        from datetime import datetime
-        
-        with db.engine.connect() as conn:
-            # 获取数据库名称
-            result = conn.execute(db.text("SELECT current_database()"))
-            database_name = result.fetchone()[0]
-            
-            # 获取表数量和信息
-            result = conn.execute(db.text("""
-                SELECT 
-                    schemaname as schema_name,
-                    tablename as table_name,
-                    n_tup_ins as rows_inserted,
-                    n_tup_upd as rows_updated,
-                    n_tup_del as rows_deleted
-                FROM pg_stat_user_tables 
-                ORDER BY schemaname, tablename
-            """))
-            
-            tables_info = result.fetchall()
-            table_count = len(tables_info)
-            
-            # 获取总记录数
-            total_records = 0
-            tables_detail = []
-            
-            for table_info in tables_info:
-                table_name = table_info[1]
-                try:
-                    # 获取表记录数
-                    count_result = conn.execute(db.text(f"SELECT COUNT(*) FROM {table_name}"))
-                    row_count = count_result.fetchone()[0]
-                    total_records += row_count
-                    
-                    # 获取表大小
-                    size_result = conn.execute(db.text(f"SELECT pg_size_pretty(pg_total_relation_size('{table_name}'))"))
-                    table_size = size_result.fetchone()[0]
-                    
-                    tables_detail.append({
-                        'name': table_name,
-                        'rows': row_count,
-                        'size': table_size,
-                        'status': 'unchanged'  # 默认状态
-                    })
-                except Exception as e:
-                    logger.warning(f"获取表 {table_name} 信息失败: {str(e)}")
-                    tables_detail.append({
-                        'name': table_name,
-                        'rows': 0,
-                        'size': 'N/A',
-                        'status': 'unknown'
-                    })
-            
-            # 获取数据库大小
-            size_result = conn.execute(db.text("SELECT pg_size_pretty(pg_database_size(current_database()))"))
-            data_size = size_result.fetchone()[0]
-            
-            return {
-                'database_name': database_name,
-                'table_count': table_count,
-                'total_records': total_records,
-                'data_size': data_size,
-                'tables': sorted(tables_detail, key=lambda x: x['rows'], reverse=True)
-            }
-            
-    except Exception as e:
-        logger.error(f"获取数据库信息失败: {str(e)}")
-        return {
-            'database_name': 'unknown',
-            'table_count': 0,
-            'total_records': 0,
-            'data_size': 'unknown',
-            'tables': []
-        }
+            'message': str(e)
+        }), 500
 
 
-
-@backup_bp.route('/config', methods=['GET', 'POST'])
+@backup_bp.route('/storage-usage')
 @login_required
 @permission_required('user', 'view')
-def backup_config():
-    """备份配置管理"""
-    if request.method == 'GET':
-        try:
-            backup_service = get_backup_service()
-            if not backup_service:
-                return render_template('backup/config.html', config=None)
-            
-            config = {
-                'backup_enabled': backup_service.backup_enabled,
-                'backup_schedule': backup_service.backup_schedule,
-                'retention_days': backup_service.retention_days,
-                'backup_location': backup_service.backup_location,
-                'cloud_storage': backup_service.cloud_storage
-            }
-            
-            return render_template('backup/config.html', config=config)
-            
-        except Exception as e:
-            logger.error(f"获取备份配置失败: {str(e)}")
-            flash(f'获取备份配置失败: {str(e)}', 'error')
-            return render_template('backup/config.html', config=None)
-    
-    elif request.method == 'POST':
-        try:
-            # 这里可以实现配置更新功能
-            # 由于配置更改涉及到重启服务，建议通过配置文件修改
-            flash('配置更新功能需要重启应用才能生效，请修改配置文件后重启', 'info')
-            return redirect(url_for('backup.backup_config'))
-            
-        except Exception as e:
-            logger.error(f"更新备份配置失败: {str(e)}")
-            flash(f'更新备份配置失败: {str(e)}', 'error')
-            return redirect(url_for('backup.backup_config')) 
+def get_storage_usage():
+    """获取存储使用情况"""
+    try:
+        from app.services.supabase_backup_service import get_backup_service
+
+        backup_service = get_backup_service()
+        usage = backup_service.get_storage_usage()
+
+        return jsonify({
+            'success': True,
+            'usage': usage
+        })
+
+    except Exception as e:
+        logger.error(f"获取存储使用情况失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500

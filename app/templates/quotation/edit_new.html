@@ -2,6 +2,7 @@
 {% from "macros/ui_helpers.html" import render_quotation_number, render_button %}
 {% from "macros/product_detail_manager.html" import render_product_detail_table, init_product_detail_scripts %}
 {% from 'macros/project_search.html' import render_project_search, init_project_search_scripts %}
+{% from 'macros/product_config_modal.html' import render_product_config_modal %}
 
 {% block head %}
 {{ super() }}
@@ -355,6 +356,7 @@
                                         {% endif %}
                                         
                                         {% set detail_data = {
+                                            "item_id": detail.id,
                                             "product_name": (detail.product_name or "")|string,
                                             "product_model": (detail.product_model or "")|string,
                                             "product_desc": (detail.product_desc or "")|string,
@@ -366,7 +368,11 @@
                                             "unit_price": (detail.unit_price or 0)|float,
                                             "total_price": (detail.total_price or 0)|float,
                                             "product_mn": (detail.product_mn or "")|string,
-                                            "currency": (detail.currency or "CNY")|string
+                                            "currency": (detail.currency or "CNY")|string,
+                                            "is_configuration": (detail.is_accessory or false)|string|lower,
+                                            "parent_item_id": (detail.parent_item_id or none),
+                                            "config_type": (detail.config_type or "")|string,
+                                            "config_base_quantity": (detail.config_base_quantity or none)
                                         } %}
                                         {% if existing_details.append(detail_data) %}{% endif %}
                                     {% endfor %}
@@ -385,6 +391,9 @@
     </div>
 </div>
 
+<!-- 产品配置模态框 -->
+{{ render_product_config_modal() }}
+
 <!-- 初始化产品明细组件脚本 -->
 {{ init_product_detail_scripts() }}
 
@@ -393,8 +402,7 @@
 
 <script>
 // 客户和联系人相关函数
-async function loadProjectCustomers(projectId) {
-    console.log('加载项目关联的客户，项目ID:', projectId);
+async function loadProjectCustomers(projectId, savedCustomerId = null) {
     const customerSelect = document.getElementById('customerId');
 
     if (!customerSelect) return;
@@ -403,7 +411,13 @@ async function loadProjectCustomers(projectId) {
         customerSelect.innerHTML = '<option value="">{{ _("加载中...") }}</option>';
         customerSelect.disabled = true;
 
-        const response = await fetch(`/project/api/customer_associations/${projectId}/search`);
+        // 构建API URL,如果有savedCustomerId则传递给后端
+        let apiUrl = `/project/api/customer_associations/${projectId}/search`;
+        if (savedCustomerId) {
+            apiUrl += `?saved_customer_id=${savedCustomerId}`;
+        }
+
+        const response = await fetch(apiUrl);
         if (!response.ok) throw new Error('加载失败');
 
         const data = await response.json();
@@ -487,22 +501,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const savedCustomerId = {{ quotation.customer_id if quotation.customer_id else 'null' }};
     const savedContactId = {{ quotation.contact_id if quotation.contact_id else 'null' }};
 
-    console.log('编辑模式：初始化客户和联系人数据', {projectId, savedCustomerId, savedContactId});
-
-    // 加载项目关联的客户
-    loadProjectCustomers(projectId).then(() => {
-        console.log('项目关联客户加载完成');
-
+    // 加载项目关联的客户(传递savedCustomerId参数)
+    loadProjectCustomers(projectId, savedCustomerId).then(() => {
         // 如果有已保存的客户，选中它
         if (savedCustomerId) {
-            console.log('设置已保存的客户ID:', savedCustomerId);
             $('#customerId').val(savedCustomerId);
 
             // 如果有已保存的联系人，加载联系人后选中
             if (savedContactId) {
-                console.log('开始加载客户联系人以设置已保存的联系人');
                 loadCustomerContacts(savedCustomerId).then(() => {
-                    console.log('联系人加载完成，设置已保存的联系人ID:', savedContactId);
                     $('#contact_id').val(savedContactId);
                 }).catch(err => {
                     console.error('加载联系人失败:', err);

@@ -25,10 +25,10 @@
         {% if project.quotation_customer and project.quotations.count() > 0 %}
         <a href="{{ url_for('quotation.view_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id) }}"
            class="quotation-link" title="查看报价单详情">
-            {{ '{:,.2f}'.format(project.quotation_customer) }}
+            {{ project.quotation_currency_symbol }}{{ '{:,.2f}'.format(project.quotation_customer) }}
         </a>
         {% else %}
-        {{ '{:,.2f}'.format(project.quotation_customer) if project.quotation_customer else '' }}
+        {{ project.quotation_currency_symbol }}{{ '{:,.2f}'.format(project.quotation_customer) if project.quotation_customer else '' }}
         {% endif %}
     </td>
     <td>{% if project.report_source %}{{ project.report_source|report_source_label('zh') }}{% else %}无{% endif %}</td>

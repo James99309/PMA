@@ -1820,6 +1820,22 @@ input[type="number"].discount-rate:hover {
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* 公司徽章 - 企业蓝色 */
+.badge-company {
+    background: linear-gradient(135deg, #17a2b8, #138496, #117a8b);
+    color: #fff;
+    box-shadow: 0 3px 8px rgba(23, 162, 184, 0.4), 0 1px 3px rgba(23, 162, 184, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 部门徽章 - 紫色 */
+.badge-department {
+    background: linear-gradient(135deg, #6f42c1, #5a32a3, #4c2885);
+    color: #fff;
+    box-shadow: 0 3px 8px rgba(111, 66, 193, 0.4), 0 1px 3px rgba(111, 66, 193, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 /* 状态徽章标准颜色 - 增强渐变和阴影效果 */
 .badge-status.approved {
     background: linear-gradient(135deg, #198754, #146c43, #105632);
@@ -4058,6 +4074,76 @@ a:focus .badge.badge-transparent.expense-number-badge {
     border-color: rgba(25, 135, 84, var(--badge-border-opacity)) !important; /* 成功绿色边框 */
 }
 
+/* 产品关联配置类型徽章 - 胶囊型基础样式，采用订单徽章相同的透明度系统 */
+.data-list-table .badge.relation-type-badge,
+.badge.relation-type-badge {
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    padding: 0.35em 0.65em !important;
+    border-radius: 50rem !important; /* 强制胶囊型 */
+    border: 1px solid !important; /* 添加边框，与订单徽章一致 */
+    transition: all 0.2s ease-in-out;
+    /* 使用与订单徽章相同的CSS变量透明度系统 */
+    --badge-bg-opacity: 0.4;
+    --badge-text-opacity: 0.8;
+    --badge-border-opacity: 0.6;
+}
+
+.badge.relation-type-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* 配置类型具体颜色定义 - 采用订单徽章相同的CSS变量透明度系统 */
+.data-list-table .badge.relation-type-required,
+.badge.relation-type-required {
+    background-color: rgba(248, 215, 218, var(--badge-bg-opacity)) !important; /* 淡红色背景 */
+    color: rgba(114, 28, 36, var(--badge-text-opacity)) !important; /* 红色系文字 */
+    border-color: rgba(248, 215, 218, var(--badge-border-opacity)) !important; /* 淡红色边框 */
+}
+
+.data-list-table .badge.relation-type-recommended,
+.badge.relation-type-recommended {
+    background-color: rgba(204, 231, 255, var(--badge-bg-opacity)) !important; /* 蓝色背景 */
+    color: rgba(10, 83, 190, var(--badge-text-opacity)) !important; /* 蓝色系文字 */
+    border-color: rgba(204, 231, 255, var(--badge-border-opacity)) !important; /* 蓝色边框 */
+}
+
+.data-list-table .badge.relation-type-required-mutual,
+.badge.relation-type-required-mutual {
+    background-color: rgba(248, 215, 218, var(--badge-bg-opacity)) !important; /* 淡红色背景 */
+    color: rgba(114, 28, 36, var(--badge-text-opacity)) !important; /* 红色系文字 */
+    border-color: rgba(248, 215, 218, var(--badge-border-opacity)) !important; /* 淡红色边框 */
+}
+
+.data-list-table .badge.relation-type-optional-mutual,
+.badge.relation-type-optional-mutual {
+    background-color: rgba(204, 231, 255, var(--badge-bg-opacity)) !important; /* 蓝色背景 */
+    color: rgba(10, 83, 190, var(--badge-text-opacity)) !important; /* 蓝色系文字 */
+    border-color: rgba(204, 231, 255, var(--badge-border-opacity)) !important; /* 蓝色边框 */
+}
+
+.data-list-table .badge.relation-type-unknown,
+.badge.relation-type-unknown {
+    background-color: rgba(226, 227, 229, var(--badge-bg-opacity)) !important; /* 灰色系背景 */
+    color: rgba(73, 80, 87, var(--badge-text-opacity)) !important; /* 灰色系文字 */
+    border-color: rgba(226, 227, 229, var(--badge-border-opacity)) !important; /* 灰色系边框 */
+}
+
+/* 通用详情列表表格样式 - 缩小字体 */
+.data-list-table {
+    font-size: 0.875rem !important; /* 14px，比默认16px小一号 */
+}
+
+.data-list-table th {
+    font-size: 0.875rem !important;
+    font-weight: 600 !important;
+}
+
+.data-list-table td {
+    font-size: 0.875rem !important;
+}
+
 /* 研发产品状态徽章 - 胶囊型基础样式，采用订单徽章相同的透明度系统 */
 .data-list-table .badge.dev-product-status-badge,
 .badge.dev-product-status-badge {
@@ -5172,6 +5258,47 @@ a:focus .badge.badge-transparent.expense-number-badge {
     transition: all 0.15s ease-in-out;
 }
 
+/* ========================================
+   拖拽排序样式 (SortableJS)
+   ======================================== */
+
+/* 拖拽手柄样式 */
+.drag-handle {
+    cursor: move;
+    cursor: grab;
+    color: #6c757d;
+    font-size: 0.875rem;
+    transition: color 0.15s ease-in-out;
+}
+
+.drag-handle:hover {
+    color: #0d6efd;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+/* 拖拽时的虚影样式 */
+.sortable-ghost {
+    opacity: 0.4;
+    background-color: #e9ecef !important;
+    border: 2px dashed #0d6efd;
+}
+
+/* 正在被拖拽的元素样式 */
+.sortable-drag {
+    opacity: 0.8;
+    background-color: #f8f9fa !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    cursor: grabbing !important;
+}
+
+/* 被选中准备拖拽的元素样式 */
+.sortable-chosen {
+    background-color: #f8f9fa !important;
+}
+
 .data-list-table .sortable-column:hover .sort-icon-default {
     color: var(--bs-primary) !important;
 }
@@ -5990,6 +6117,12 @@ a:focus .badge.badge-transparent.expense-number-badge {
     font-family: var(--font-family-primary) !important;
 }
 
+/* 模态框圆角样式 - 用于通知/确认类模态框 */
+.modal-content-rounded {
+    border-radius: 12px !important;
+    overflow: hidden;
+}
+
 /* 统一所有警告框字体，排除图标 */
 .alert {
     font-family: var(--font-family-primary) !important;
@@ -6006,4 +6139,191 @@ a:focus .badge.badge-transparent.expense-number-badge {
 
 .badge *:not(.fas):not(.far):not(.fal):not(.fab):not(.fa):not([class*="fa-"]):not(.bi):not([class*="bi-"]):not(.icon):not([class*="icon-"]) {
     font-family: var(--font-family-primary) !important;
+}
+
+/* ============================================
+   配置产品行样式 (Quotation Detail Configurations)
+   ============================================ */
+
+/* 配置产品行 - 浅色背景和缩进 */
+tr[data-is-configuration="true"] {
+    background-color: #f8f9fa !important;
+}
+
+tr[data-is-configuration="true"]:hover {
+    background-color: #e9ecef !important;
+}
+
+/* 配置产品行的第一列 - 添加树状缩进指示器 */
+tr[data-is-configuration="true"] td:first-child {
+    position: relative;
+    padding-left: 2.5rem !important;
+}
+
+tr[data-is-configuration="true"] td:first-child::before {
+    content: "└─";
+    position: absolute;
+    left: 0.75rem;
+    color: #6c757d;
+    font-family: monospace;
+    font-size: 0.875rem;
+}
+
+/* 配置产品名称列 - 显示配置类型徽章 */
+tr[data-is-configuration="true"] .config-type-badge {
+    display: inline-block;
+    margin-left: 0.5rem;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-weight: 500;
+}
+
+/* 配置类型徽章颜色 */
+.config-type-badge.required {
+    background-color: #dc3545;
+    color: white;
+}
+
+.config-type-badge.required-mutual {
+    background-color: #fd7e14;
+    color: white;
+}
+
+.config-type-badge.recommended {
+    background-color: #28a745;
+    color: white;
+}
+
+.config-type-badge.optional-mutual {
+    background-color: #17a2b8;
+    color: white;
+}
+
+/* 配置产品行的数量字段 - 只读样式 */
+tr[data-is-configuration="true"] input.quantity-input {
+    background-color: #e9ecef;
+    cursor: not-allowed;
+    color: #6c757d;
+    font-style: italic;
+}
+
+tr[data-is-configuration="true"] input.quantity-input:focus {
+    background-color: #e9ecef;
+    box-shadow: none;
+}
+
+/* 配置产品行的删除按钮保持可见，允许用户删除单个配置 */
+/* 已移除隐藏删除按钮的规则，现在用户可以删除配置产品 */
+
+/* 配置产品行文字颜色稍浅 */
+tr[data-is-configuration="true"] td {
+    color: #495057;
+}
+
+/* 产品明细表格 - 确保配置行正确显示 */
+.product-detail-table tbody tr[data-is-configuration="true"] {
+    border-left: 3px solid #dee2e6;
+}
+
+/* 主产品行样式 - 与配置行区分 */
+tr[data-has-configurations="true"] {
+    font-weight: 500;
+    border-bottom: 2px solid #dee2e6;
+}
+
+/* 响应式：移动端缩小缩进 */
+@media (max-width: 768px) {
+    tr[data-is-configuration="true"] td:first-child {
+        padding-left: 1.5rem !important;
+    }
+
+    tr[data-is-configuration="true"] td:first-child::before {
+        left: 0.25rem;
+        font-size: 0.75rem;
+    }
+}
+
+/* ========================================
+   规格字典管理模态框样式
+   ======================================== */
+
+/* 规格字典模态框 - 停用行样式 */
+.spec-disabled-row {
+    opacity: 0.6;
+    background-color: #f8f9fa !important;
+}
+
+/* 粘性表头 */
+#specDictModal .sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* 表单卡片样式 */
+.spec-form-card {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    border: 1px solid #e9ecef;
+}
+
+/* 表单卡片标题 */
+.spec-form-card h6 {
+    color: #343a40;
+    font-weight: 600;
+}
+
+/* 表单动画 */
+.spec-form-card {
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 规格字典表格样式优化 */
+#specDictModal .table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    font-size: 0.875rem;
+    border-bottom: 2px solid #dee2e6;
+}
+
+#specDictModal .table td {
+    vertical-align: middle;
+    font-size: 0.875rem;
+}
+
+/* 操作按钮间距 */
+#specDictModal .btn-sm {
+    font-size: 0.8125rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+    .spec-form-card {
+        padding: 16px;
+    }
+
+    #specDictModal .table {
+        font-size: 0.8125rem;
+    }
+
+    #specDictModal .btn-sm span {
+        display: none;
+    }
 }

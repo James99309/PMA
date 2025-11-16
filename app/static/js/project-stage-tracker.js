@@ -95,7 +95,11 @@ class ProjectStageTracker extends StageTracker {
             } else {
                 const errorMsg = data.message || '未知错误';
                 console.error('更新阶段失败: ' + errorMsg);
-                alert('更新阶段失败: ' + errorMsg);
+                if (typeof window.showTopNotification === 'function') {
+                    window.showTopNotification('更新阶段失败: ' + errorMsg, 'error', 5000);
+                } else {
+                    alert('更新阶段失败: ' + errorMsg);
+                }
             }
         })
         .catch(error => {
@@ -110,11 +114,19 @@ class ProjectStageTracker extends StageTracker {
                     this.handlePricingFlowPrompt(error.data.pricing_flow);
                 } else {
                     // 显示一般性的阻塞信息
-                    alert(error.data.message || '阶段推进被阻止');
+                    if (typeof window.showTopNotification === 'function') {
+                        window.showTopNotification(error.data.message || '阶段推进被阻止', 'warning', 4000);
+                    } else {
+                        alert(error.data.message || '阶段推进被阻止');
+                    }
                 }
             } else {
                 console.error('更新阶段错误:', error);
-                alert('更新阶段时发生错误: ' + error.message);
+                if (typeof window.showTopNotification === 'function') {
+                    window.showTopNotification('更新阶段时发生错误: ' + error.message, 'error', 5000);
+                } else {
+                    alert('更新阶段时发生错误: ' + error.message);
+                }
             }
         });
     }
@@ -196,7 +208,11 @@ class ProjectStageTracker extends StageTracker {
     handlePricingFlowPrompt_original(pricingFlow) {
         // 保留原有的复杂模态框实现作为降级选项
         // 这里可以保留原有的复杂实现代码
-        alert(pricingFlow.message || '批价流程处理');
+        if (typeof window.showTopNotification === 'function') {
+            window.showTopNotification(pricingFlow.message || '批价流程处理', 'info', 4000);
+        } else {
+            alert(pricingFlow.message || '批价流程处理');
+        }
     }
 
     /**
@@ -243,7 +259,11 @@ class ProjectStageTracker extends StageTracker {
                     this.refreshPage();
                 }
             } else {
-                alert('创建批价单失败：' + (data.message || '未知错误'));
+                if (typeof window.showTopNotification === 'function') {
+                    window.showTopNotification('创建批价单失败：' + (data.message || '未知错误'), 'error', 5000);
+                } else {
+                    alert('创建批价单失败：' + (data.message || '未知错误'));
+                }
                 this.refreshPage();
             }
         })
@@ -251,9 +271,13 @@ class ProjectStageTracker extends StageTracker {
             // 移除加载指示器
             const loading = document.getElementById('createPricingOrderLoading');
             if (loading) loading.remove();
-            
+
             console.error('创建批价单错误:', error);
-            alert('创建批价单时发生错误：' + error.message);
+            if (typeof window.showTopNotification === 'function') {
+                window.showTopNotification('创建批价单时发生错误：' + error.message, 'error', 5000);
+            } else {
+                alert('创建批价单时发生错误：' + error.message);
+            }
             this.refreshPage();
         });
     }

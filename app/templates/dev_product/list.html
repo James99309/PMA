@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_filter_search_form, render_button, render_dev_product_status_badge %}
+
+{% block title %}{{ _('研发产品列表') }}{% endblock %}
+
+{% block content %}
+<div class="page-with-fixed-nav">
+    <!-- 页面头部 -->
+    <div class="page-header-with-actions">
+        <h1 class="page-title">{{ _('研发产品列表') }}</h1>
+        <div class="btn-toolbar justify-content-end">
+            {{ render_button(
+                url=url_for('dev_product.dev_product_list'),
+                label='刷新',
+                icon='fas fa-sync-alt',
+                btn_class='btn-secondary'
+            ) }}
+        </div>
+    </div>
+
+    <!-- 筛选搜索区域 -->
+    {{ render_filter_search_form(filter_config) }}
+
+    <!-- 研发产品列表 -->
+    <div class="card">
+        <div class="card-body">
+            {% if dev_products %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>{{ _('MN编号') }}</th>
+                                <th>{{ _('型号') }}</th>
+                                <th>{{ _('产品名称') }}</th>
+                                <th>{{ _('产品分类') }}</th>
+                                <th>{{ _('状态') }}</th>
+                                <th>{{ _('零售价') }}</th>
+                                <th>{{ _('更新时间') }}</th>
+                                <th>{{ _('操作') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for dev_product in dev_products %}
+                            <tr>
+                                <td>
+                                    <code>{{ dev_product.mn_code or '—' }}</code>
+                                </td>
+                                <td>
+                                    <strong>{{ dev_product.model }}</strong>
+                                </td>
+                                <td>
+                                    {{ dev_product.subcategory.name if dev_product.subcategory else '—' }}
+                                </td>
+                                <td>
+                                    {{ dev_product.category.name if dev_product.category else '—' }}
+                                </td>
+                                <td>
+                                    {{ render_dev_product_status_badge(dev_product.status) }}
+                                </td>
+                                <td>
+                                    {% if dev_product.retail_price %}
+                                        {{ '{:,.2f}'.format(dev_product.retail_price) }} {{ dev_product.currency or 'CNY' }}
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">
+                                        {{ dev_product.updated_at.strftime('%Y-%m-%d %H:%M') if dev_product.updated_at else '—' }}
+                                    </small>
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('dev_product.dev_product_detail', dev_product_id=dev_product.id) }}"
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye me-1"></i>{{ _('查看') }}
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {{ _('暂无研发产品记录') }}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

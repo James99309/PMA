@@ -1280,7 +1280,7 @@ def expense_detail(id):
 
 @expense.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
-@permission_required('expense', 'edit')
+# 注意：不使用 @permission_required 装饰器 - 创建者可以编辑自己的报销单
 def edit_expense(id):
     """编辑报销单"""
     expense_obj = Expense.query.options(
@@ -1289,20 +1289,20 @@ def edit_expense(id):
         db.joinedload(Expense.owner)
         # 移除action和department关联加载，因为已从模型中删除
     ).get_or_404(id)
-    
+
     # 检查是否为审核阶段编辑模式
     approval_edit_mode = request.args.get('approval_edit') == '1'
     approval_edit_info = None
-    
+
     if approval_edit_mode:
         # 审核阶段编辑模式的权限检查（使用通用服务）
         approval_edit_info = check_universal_approval_permission('expense', id, current_user.id, 'edit')
-        
+
         if not approval_edit_info['can_edit']:
             flash(_('您无权在当前审核阶段编辑此报销单'), 'error')
             return redirect(url_for('expense.expense_detail', id=id))
     else:
-        # 常规编辑模式的权限检查
+        # 使用统一的数据权限检查（包含数据归属逻辑）
         if not can_edit_data(expense_obj, current_user):
             flash(_('您没有权限编辑此报销单'), 'error')
             return redirect(url_for('expense.expense_detail', id=id))
@@ -1941,14 +1941,14 @@ def edit_expense(id):
 
 @expense.route('/<int:id>/delete', methods=['POST'])
 @login_required
-@permission_required('expense', 'delete')
+# 注意：不使用 @permission_required 装饰器 - 创建者可以删除自己的报销单
 def delete_expense(id):
     """删除报销单"""
     expense_obj = Expense.query.options(
         db.joinedload(Expense.owner)
     ).get_or_404(id)
-    
-    # 检查删除权限
+
+    # 使用统一的数据权限检查（包含数据归属逻辑）
     if not can_edit_data(expense_obj, current_user):
         return jsonify({'success': False, 'message': '您没有权限删除此报销单'})
     
@@ -2263,15 +2263,15 @@ def upload_invoice_temp():
 
 @expense.route('/api/upload_invoice/<int:detail_id>', methods=['POST'])
 @login_required
-@permission_required('expense', 'edit')
+# 注意：不使用 @permission_required 装饰器 - 创建者可以上传自己报销单的发票
 def upload_invoice_image(detail_id):
     """为报销明细上传发票图片"""
     try:
         # 查找报销明细
         detail = ExpenseDetail.query.get_or_404(detail_id)
-        
-        # 检查权限 - 只有创建者或管理员可以上传
-        if not can_edit_data(detail.expense.owner_id):
+
+        # 使用统一的数据权限检查（包含数据归属逻辑）
+        if not can_edit_data(detail.expense, current_user):
             return jsonify({
                 'success': False,
                 'message': _('您没有权限上传此报销单的发票')
@@ -2614,15 +2614,15 @@ def _move_temp_file_cloud(detail_id, temp_id, filename, temp_url, supabase_clien
 
 @expense.route('/api/delete_invoice/<int:detail_id>/<int:image_index>', methods=['DELETE'])
 @login_required
-@permission_required('expense', 'edit')
+# 注意：不使用 @permission_required 装饰器 - 创建者可以删除自己报销单的发票
 def delete_invoice_image(detail_id, image_index):
     """删除报销明细的发票图片"""
     try:
         # 查找报销明细
         detail = ExpenseDetail.query.get_or_404(detail_id)
-        
-        # 检查权限
-        if not can_edit_data(detail.expense.owner_id):
+
+        # 使用统一的数据权限检查（包含数据归属逻辑）
+        if not can_edit_data(detail.expense, current_user):
             return jsonify({
                 'success': False,
                 'message': _('您没有权限删除此报销单的发票')
@@ -2738,12 +2738,12 @@ def get_approval_templates(expense_id):
 
 @expense.route('/api/approval/<int:expense_id>/submit', methods=['POST'])
 @login_required
-@permission_required('expense', 'edit')
+# 注意：不使用 @permission_required 装饰器 - 创建者可以提交自己报销单的审批
 def submit_approval(expense_id):
     """提交报销单审批"""
     try:
         from app.helpers.approval_helpers import start_approval_process
-        
+
         # 获取报销单对象
         expense_obj = get_viewable_data(Expense, current_user).filter_by(id=expense_id).first()
         if not expense_obj:
@@ -2751,8 +2751,8 @@ def submit_approval(expense_id):
                 'success': False,
                 'message': '报销单不存在或无权限访问'
             }), 404
-        
-        # 检查是否是报销单创建人
+
+        # 使用统一的数据权限检查（包含数据归属逻辑）
         if not can_edit_data(expense_obj, current_user):
             return jsonify({
                 'success': False,
@@ -2823,13 +2823,13 @@ def submit_approval(expense_id):
 
 
 @expense.route('/api/approval/<int:expense_id>/recall', methods=['POST'])
-@login_required  
-@permission_required('expense', 'edit')
+@login_required
+# 注意：不使用 @permission_required 装饰器 - 创建者可以召回自己报销单的审批
 def recall_approval(expense_id):
     """召回报销单审批"""
     try:
         from app.helpers.approval_helpers import recall_approval_process
-        
+
         # 获取报销单对象
         expense_obj = get_viewable_data(Expense, current_user).filter_by(id=expense_id).first()
         if not expense_obj:
@@ -2837,8 +2837,8 @@ def recall_approval(expense_id):
                 'success': False,
                 'message': '报销单不存在或无权限访问'
             }), 404
-        
-        # 检查召回权限：创建人或管理员可以召回
+
+        # 使用统一的数据权限检查（包含数据归属逻辑）
         if not can_edit_data(expense_obj, current_user):
             return jsonify({
                 'success': False,
@@ -2880,12 +2880,12 @@ def recall_approval(expense_id):
 
 @expense.route('/api/approval/<int:expense_id>/resubmit', methods=['POST'])
 @login_required
-@permission_required('expense', 'edit')
+# 注意：不使用 @permission_required 装饰器 - 创建者可以重新提交自己报销单的审批
 def resubmit_approval(expense_id):
     """重新提交报销单审批"""
     try:
         from app.helpers.approval_helpers import start_approval_process
-        
+
         # 获取报销单对象
         expense_obj = get_viewable_data(Expense, current_user).filter_by(id=expense_id).first()
         if not expense_obj:
@@ -2893,8 +2893,8 @@ def resubmit_approval(expense_id):
                 'success': False,
                 'message': '报销单不存在或无权限访问'
             }), 404
-        
-        # 检查是否是报销单创建人
+
+        # 使用统一的数据权限检查（包含数据归属逻辑）
         if not can_edit_data(expense_obj, current_user):
             return jsonify({
                 'success': False,
@@ -3239,7 +3239,7 @@ def get_expense_status(expense_id):
 
 @expense.route('/download-invoice/<int:detail_id>/<int:invoice_index>')
 @login_required
-@permission_required('expense', 'view')
+# 注意：不使用 @permission_required 装饰器 - 创建者可以下载自己报销单的发票
 def download_invoice(detail_id, invoice_index):
     """下载发票文件 - 支持预览和下载模式"""
     from flask import send_file, abort, request
@@ -3247,12 +3247,12 @@ def download_invoice(detail_id, invoice_index):
     import json
     import urllib.parse
     from app.utils.access_control import can_edit_data
-    
+
     try:
         # 获取报销明细
         expense_detail = ExpenseDetail.query.get_or_404(detail_id)
-        
-        # 检查权限 - 是否能查看对应的报销单
+
+        # 使用统一的数据权限检查（包含数据归属逻辑）
         if not can_edit_data(expense_detail.expense, current_user):
             flash(_('您没有权限下载此发票'), 'danger')
             abort(403)

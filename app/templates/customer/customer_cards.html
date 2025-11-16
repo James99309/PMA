@@ -1,10 +1,12 @@
 {% from 'macros/ui_helpers.html' import render_owner, render_customer_status_badge, render_company_type_badge, render_industry_badge %}
 {% for company in (companies if companies is defined else items) %}
+{# 构建带筛选条件的返回URL #}
+{% set return_url = url_for('customer.list_companies', **request.args.to_dict()) %}
 <div class="customer-card-mobile data-card-mobile">
     <div class="card-header-mobile">
         <div class="card-title-mobile">
             {% if can_view_company(current_user, company) %}
-            <a href="{{ url_for('customer.view_company', company_id=company.id) }}">
+            <a href="{{ url_for('customer.view_company', company_id=company.id, return_url=return_url) }}">
                 {{ company.company_name or '-' }}
             </a>
             {% else %}

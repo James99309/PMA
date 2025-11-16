@@ -1556,6 +1556,11 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
         query = query.join(PricingOrder, ApprovalInstance.object_id == PricingOrder.id).filter(
             ApprovalInstance.object_type == 'pricing_order'
         )
+    elif object_type == 'rd_product':
+        from app.models.dev_product import DevProduct
+        query = query.join(DevProduct, ApprovalInstance.object_id == DevProduct.id).filter(
+            ApprovalInstance.object_type == 'rd_product'
+        )
     else:
         # 如果没有指定类型，查询所有类型的审批实例，确保业务对象存在
         project_subquery = db.session.query(ApprovalInstance.id).filter(
@@ -1584,7 +1589,12 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
         purchase_order_subquery = db.session.query(ApprovalInstance.id).filter(
             ApprovalInstance.object_type == 'purchase_order'
         ).join(PurchaseOrder, ApprovalInstance.object_id == PurchaseOrder.id)
-        
+
+        from app.models.dev_product import DevProduct
+        rd_product_subquery = db.session.query(ApprovalInstance.id).filter(
+            ApprovalInstance.object_type == 'rd_product'
+        ).join(DevProduct, ApprovalInstance.object_id == DevProduct.id)
+
         # 只查询存在于任一子查询中的审批实例
         query = query.filter(
             or_(
@@ -1593,7 +1603,8 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
                 ApprovalInstance.id.in_(customer_subquery),
                 ApprovalInstance.id.in_(expense_subquery),
                 ApprovalInstance.id.in_(pricing_order_subquery),
-                ApprovalInstance.id.in_(purchase_order_subquery)
+                ApprovalInstance.id.in_(purchase_order_subquery),
+                ApprovalInstance.id.in_(rd_product_subquery)
             )
         )
     
@@ -1743,11 +1754,24 @@ def get_all_approvals(object_type=None, status=None, page=1, per_page=20):
         query = query.join(Company, ApprovalInstance.object_id == Company.id).filter(
             ApprovalInstance.object_type == 'customer'
         )
-        
+
         # 应用状态过滤器
         if status:
             query = query.filter(ApprovalInstance.status == status)
-        
+
+        # 按创建时间倒序排列并返回分页结果
+        query = query.order_by(ApprovalInstance.started_at.desc())
+        return query.paginate(page=page, per_page=per_page, error_out=False)
+    elif object_type == 'rd_product':
+        from app.models.dev_product import DevProduct
+        query = query.join(DevProduct, ApprovalInstance.object_id == DevProduct.id).filter(
+            ApprovalInstance.object_type == 'rd_product'
+        )
+
+        # 应用状态过滤器
+        if status:
+            query = query.filter(ApprovalInstance.status == status)
+
         # 按创建时间倒序排列并返回分页结果
         query = query.order_by(ApprovalInstance.started_at.desc())
         return query.paginate(page=page, per_page=per_page, error_out=False)
@@ -1757,21 +1781,27 @@ def get_all_approvals(object_type=None, status=None, page=1, per_page=20):
         project_subquery = db.session.query(ApprovalInstance.id).filter(
             ApprovalInstance.object_type == 'project'
         ).join(Project, ApprovalInstance.object_id == Project.id)
-        
+
         quotation_subquery = db.session.query(ApprovalInstance.id).filter(
             ApprovalInstance.object_type == 'quotation'
         ).join(Quotation, ApprovalInstance.object_id == Quotation.id)
-        
+
         customer_subquery = db.session.query(ApprovalInstance.id).filter(
             ApprovalInstance.object_type == 'customer'
         ).join(Company, ApprovalInstance.object_id == Company.id)
-        
+
+        from app.models.dev_product import DevProduct
+        rd_product_subquery = db.session.query(ApprovalInstance.id).filter(
+            ApprovalInstance.object_type == 'rd_product'
+        ).join(DevProduct, ApprovalInstance.object_id == DevProduct.id)
+
         # 只查询存在于任一子查询中的审批实例
         query = query.filter(
             or_(
                 ApprovalInstance.id.in_(project_subquery),
                 ApprovalInstance.id.in_(quotation_subquery),
-                ApprovalInstance.id.in_(customer_subquery)
+                ApprovalInstance.id.in_(customer_subquery),
+                ApprovalInstance.id.in_(rd_product_subquery)
             )
         )
         
@@ -1951,6 +1981,8 @@ def get_approval_object_url(instance):
         return url_for('inventory.order_detail', id=object_id)
     elif object_type == 'expense':
         return url_for('expense.expense_detail', id=object_id, from_approval='true')  # 🔥 修复：添加报销单详情页路由，标记来自审批中心
+    elif object_type == 'rd_product':
+        return url_for('dev_product.dev_product_detail', dev_product_id=object_id)
     else:
         return url_for('main.index')
 
@@ -3884,6 +3916,9 @@ def _get_target_object_by_type(instance):
     elif instance.object_type == 'pricing_order':
         from app.models.pricing_order import PricingOrder
         target_object = PricingOrder.query.get(instance.object_id)
+    elif instance.object_type == 'rd_product':
+        from app.models.dev_product import DevProduct
+        target_object = DevProduct.query.get(instance.object_id)
 
     return target_object
 
@@ -4485,13 +4520,20 @@ def get_object_field_options(object_type=None):
     ]
     
     rd_product_fields = [
-        ('rd_code', '研发编码'),
-        ('rd_name', '研发产品名称'),
-        ('rd_type', '研发类型'),
-        ('development_stage', '开发阶段'),
-        ('estimated_cost', '预估成本'),
-        ('target_price', '目标价格'),
-        ('description', '产品描述')
+        ('mn_code', 'MN编号'),
+        ('model', '产品型号'),
+        ('name', '产品名称'),
+        ('status', '产品状态'),
+        ('unit', '单位'),
+        ('retail_price', '零售价'),
+        ('currency', '货币类型'),
+        ('description', '产品描述'),
+        ('category_id', '产品分类'),
+        ('subcategory_id', '产品子分类'),
+        ('region_id', '地区'),
+        ('planned_duration_days', '计划工期(天)'),
+        ('actual_duration_days', '实际工期(天)'),
+        ('risk_level', '风险等级')
     ]
     
     product_analysis_fields = [
@@ -4553,7 +4595,7 @@ def get_object_field_options(object_type=None):
         return common_fields + settlement_fields
     elif object_type == 'standard_product':
         return common_fields + standard_product_fields
-    elif object_type == 'rd_product':
+    elif object_type == 'rd_product' or object_type == 'dev_product':
         return common_fields + rd_product_fields
     elif object_type == 'product_analysis':
         return common_fields + product_analysis_fields

@@ -2,7 +2,6 @@
 {% from 'macros/file_preview.html' import render_file_preview %}
 {% for product in products %}
 <tr>
-    <td>{{ product.id }}</td>
     <td>
         {% if product.type %}
             {{ render_product_type_badge(product.type) }}
@@ -10,17 +9,25 @@
             -
         {% endif %}
     </td>
-    <td class="text-cell">{{ product.category or '-' }}</td>
-    <td class="text-cell">{{ product.product_mn or '-' }}</td>
+    <td class="text-cell">
+        {% if product.subcategory_obj and product.subcategory_obj.parent_category %}
+            {{ product.subcategory_obj.parent_category.name }}
+        {% else %}
+            -
+        {% endif %}
+    </td>
+    <td>
+        {{ render_product_status_badge(product.status) }}
+    </td>
     <td class="product-name-cell">
-        <div class="product-name-container" 
+        <div class="product-name-container"
              {% if product.image_path %}
-             data-image-url="{{ product.image_path }}" 
-             data-product-name="{{ product.product_name }}"
+             data-image-url="{{ product.image_path }}"
+             data-product-name="{{ product.subcategory_obj.name if product.subcategory_obj else '' }}"
              {% endif %}>
-            <a href="{{ url_for('product_route.view_product_detail', id=product.id) }}" 
+            <a href="{{ url_for('product_route.view_product_detail', id=product.id) }}"
                class="product-name-link">
-                {{ product.product_name or '-' }}
+                {{ product.subcategory_obj.name if product.subcategory_obj else '-' }}
                 {% if product.image_path %}
                     <i class="fas fa-image text-primary ms-1" title="{{ _('有产品图片') }}"></i>
                 {% endif %}
@@ -50,9 +57,7 @@
             -
         {% endif %}
     </td>
-    <td>
-        {{ render_product_status_badge(product.status) }}
-    </td>
+    <td class="text-cell">{{ product.product_mn or '-' }}</td>
     <td>{{ product.created_at.strftime('%Y-%m-%d %H:%M') if product.created_at else '-' }}</td>
 </tr>
 {% endfor %}

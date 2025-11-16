@@ -753,7 +753,7 @@ class GanttChart {
                 ` : '<div class="expand-icon"></div>'}
                 <div class="task-name">${task.name}</div>
                 ${statusIconSpan}
-                ${this.canEdit && task.status !== 'completed' ? `
+                ${this.canEdit && task.status !== 'completed' && !['apply_storage', 'stored'].includes(taskId) ? `
                     <div class="task-actions">
                         <button type="button" class="btn btn-add" title="添加子阶段">
                             <i class="fas fa-plus"></i>
@@ -1341,7 +1341,9 @@ class GanttChart {
         const statusText = task.status ? this.getStatusText(task.status) : '';
         const showProgress = (task.status === 'in-progress');
         const hasPlan = !!(task.startDate && task.endDate);
-        const allowStateButtons = this.canEdit && this.isCreator && hasPlan; // 只有有计划时间才显示控制按钮
+        // 隐藏申请入库和已入库阶段的控制按钮
+        const stageToCheck = task.type === 'sub' ? task.parent : taskId;
+        const allowStateButtons = this.canEdit && this.isCreator && hasPlan && !['apply_storage', 'stored'].includes(stageToCheck);
         const startEnabled = allowStateButtons && (!task.status || task.status === 'planned' || task.status === 'pending' || task.status === 'paused');
         const pauseEnabled = allowStateButtons && (task.status === 'in-progress');
         const completeEnabled = allowStateButtons && (task.status === 'in-progress' || task.status === 'paused');

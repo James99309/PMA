@@ -76,19 +76,23 @@ class StageAnalyticsComponent:
         if 'category' in filters and filters['category']:
             category = filters['category']
             # 使用子查询获取指定类别的产品，避免因Product表重复记录导致的重复统计
-            category_products = db.session.query(
-                Product.product_name, 
-                Product.model
-            ).filter(
-                Product.category == category
-            ).distinct().subquery()
-            
-            query = query.filter(
-                and_(
-                    QuotationDetail.product_name == category_products.c.product_name,
-                    QuotationDetail.product_model == category_products.c.model
+            from app.models.product_code import ProductCategory
+
+            category_obj = ProductCategory.query.filter_by(name=category).first()
+            if category_obj:
+                category_products = db.session.query(
+                    Product.product_name,
+                    Product.model
+                ).filter(
+                    Product.category_id == category_obj.id
+                ).distinct().subquery()
+
+                query = query.filter(
+                    and_(
+                        QuotationDetail.product_name == category_products.c.product_name,
+                        QuotationDetail.product_model == category_products.c.model
+                    )
                 )
-            )
         
         # 应用产品名称筛选
         if 'product_name' in filters and filters['product_name'] and filters['product_name'].strip():

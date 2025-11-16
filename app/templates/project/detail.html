@@ -35,6 +35,11 @@
     h4.timeline-title {
         font-size: 1.1rem !important;
     }
+
+    /* 防止字段标签换行 - 保持标签在一行显示 */
+    .card-body .row .col-md-4 strong {
+        white-space: nowrap;
+    }
 </style>
 {% endblock %}
 
@@ -157,7 +162,7 @@
                                 <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'current_stage')) }}：</strong></div>
                                 <div class="col-md-8" id="currentStageText">
                                     {% if project.current_stage %}
-                                        {{ render_project_stage(project.current_stage|project_stage_label(current_language)) }}
+                                        {{ render_project_stage(project.current_stage) }}
                                     {% else %}
                                         <span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">{{ _('未设置') }}</span>
                                     {% endif %}
@@ -225,7 +230,7 @@
                                     {{ render_lock_status_badge(project.is_locked) }}
                                     {# 如果项目已锁定且有锁定原因，显示原因 #}
                                     {% if project.is_locked and project.locked_reason %}
-                                        <small class="ms-2 text-muted">{{ _('原因') }}: {{ project.locked_reason }}</small>
+                                        <small class="ms-2 text-muted">{{ _('原因') }}: {{ _(project.locked_reason) }}</small>
                                     {% endif %}
                                 </div>
                             </div>
@@ -279,7 +284,7 @@
                         <!-- 报价单列表将在这里动态加载 -->
                         <div class="text-muted text-center py-3">
                             <i class="fas fa-file-invoice-dollar me-2"></i>
-                            {{ _('暂无报价单，点击上方"添加报价单"按钮添加') }}
+                            {{ _("暂无报价单，点击上方按钮添加") }}
                         </div>
                     </div>
                 </div>
@@ -326,7 +331,7 @@
                     </a>
                 </div>
                 <div class="card-body p-0">
-                    <div class="timeline-container action-records-scroll" style="height: calc(100vh - 350px); overflow-y: auto; padding: 15px;">
+                    <div class="timeline-container action-records-scroll" style="height: calc(100vh - 250px); overflow-y: auto; padding: 15px;">
                         {% if project_actions %}
                             {% for action in project_actions %}
                             <div class="timeline-item">
@@ -1493,6 +1498,38 @@ const customerI18nTexts = {
     confirmRemoveTitle: '{{ _("确认移除客户关联") }}'
 };
 
+// 当前语言
+const currentLanguage = '{{ current_language }}';
+
+// 公司类型标签字典（从后端传递）
+const companyTypeLabels = {{ company_type_labels|tojson|safe }};
+
+// 表格标题翻译文本
+const tableHeaderTexts = {
+    // 客户关联表格
+    role: '{{ _("角色") }}',
+    companyName: '{{ _("企业名称") }}',
+    contactPerson: '{{ _("负责人") }}',
+    status: '{{ _("状态") }}',
+    addedBy: '{{ _("添加者") }}',
+    actions: '{{ _("操作") }}',
+    // 报价单表格
+    quotationNo: '{{ _("报价单号") }}',
+    customer: '{{ _("关联客户") }}',
+    amount: '{{ _("金额") }}',
+    creator: '{{ _("创建者") }}',
+    updated: '{{ _("更新时间") }}',
+    // 批价单表格
+    pricingOrderNo: '{{ _("批价单号") }}',
+    dealer: '{{ _("经销商") }}',
+    createdDate: '{{ _("创建日期") }}',
+    // 通用文本
+    unknown: '{{ _("未知") }}',
+    noQuotations: '{{ _("暂无报价单，点击上方按钮添加") }}',
+    loadQuotationsFailed: '{{ _("加载报价单列表失败") }}',
+    loadQuotationsFailedRetry: '{{ _("加载报价单列表失败，请重试") }}'
+};
+
 // 公司类型徽章生成函数 - 复制render_company_type_badge宏的逻辑
 function generateCompanyTypeBadge(companyType) {
     const colorMap = {
@@ -1510,29 +1547,26 @@ function generateCompanyTypeBadge(companyType) {
         'distributor': '#28a745',
         'other': '#6c757d'
     };
-    
-    const labelMap = {
-        'user': '用户',
-        'dealer': '经销商',
-        'integrator': '系统集成商',
-        'designer': '设计院及顾问',
-        'contractor': '总承包单位',
-        'direct_customer': '直接客户',
-        'partner': '合作伙伴',
-        'system_integrator': '系统集成商',
-        'design_institute': '设计院',
-        'consultant': '顾问',
-        'general_contractor': '总承包商',
-        'distributor': '分销商',
-        'other': '其他'
-    };
-    
+
+    // 从字典系统动态获取标签（根据当前语言）
+    const labelMap = {};
+    for (const [key, labels] of Object.entries(companyTypeLabels)) {
+        labelMap[key] = labels[currentLanguage];
+    }
+
+    // 添加向后兼容的别名映射
+    labelMap['direct_customer'] = labelMap['user'];
+    labelMap['system_integrator'] = labelMap['integrator'];
+    labelMap['design_institute'] = labelMap['designer'];
+    labelMap['consultant'] = labelMap['designer'];
+    labelMap['general_contractor'] = labelMap['contractor'];
+
     if (companyType && colorMap[companyType]) {
         const color = colorMap[companyType];
         const label = labelMap[companyType] || companyType;
         return `<span class="badge rounded-pill" style="background-color: ${color}; color: #fff; font-size: 0.75rem; padding: 0.35em 0.65em;">${label}</span>`;
     } else {
-        return '<span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">未知</span>';
+        return `<span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">${tableHeaderTexts.unknown}</span>`;
     }
 }
 
@@ -1653,12 +1687,12 @@ async function loadCustomerAssociations() {
                         <table class="table table-hover align-middle table-sm">
                             <thead class="table-light">
                                 <tr class="small">
-                                    <th width="18%">角色</th>
-                                    <th width="28%">企业名称</th>
-                                    <th width="18%">负责人</th>
-                                    <th width="12%">状态</th>
-                                    <th width="14%">添加者</th>
-                                    <th width="10%">操作</th>
+                                    <th width="18%">${tableHeaderTexts.role}</th>
+                                    <th width="28%">${tableHeaderTexts.companyName}</th>
+                                    <th width="18%">${tableHeaderTexts.contactPerson}</th>
+                                    <th width="12%">${tableHeaderTexts.status}</th>
+                                    <th width="14%">${tableHeaderTexts.addedBy}</th>
+                                    <th width="10%">${tableHeaderTexts.actions}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1697,7 +1731,7 @@ async function loadCustomerAssociations() {
                                     (association.created_by_is_vendor ?
                                         `<span class="badge badge-user vendor rounded-pill">${association.created_by_name}</span>` :
                                         `<span class="badge badge-user regular">${association.created_by_name}</span>`) :
-                                    '<span class="text-muted">未知</span>'
+                                    `<span class="text-muted">${tableHeaderTexts.unknown}</span>`
                                 }
                             </td>
                             <td>
@@ -1807,12 +1841,12 @@ async function loadQuotationsList() {
                         <table class="table table-hover align-middle table-sm">
                             <thead class="table-light">
                                 <tr class="small">
-                                    <th width="15%">报价单号</th>
-                                    <th width="25%">关联客户</th>
-                                    <th width="15%">金额</th>
-                                    <th width="15%">创建者</th>
-                                    <th width="20%">更新时间</th>
-                                    <th width="10%" class="text-center">操作</th>
+                                    <th width="15%">${tableHeaderTexts.quotationNo}</th>
+                                    <th width="25%">${tableHeaderTexts.customer}</th>
+                                    <th width="20%">${tableHeaderTexts.amount}</th>
+                                    <th width="10%">${tableHeaderTexts.creator}</th>
+                                    <th width="15%">${tableHeaderTexts.updated}</th>
+                                    <th width="15%" class="text-center">${tableHeaderTexts.actions}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1830,13 +1864,11 @@ async function loadQuotationsList() {
                             ownerBadgeHtml = `<span class="badge badge-user regular">${quotation.owner_name}</span>`;
                         }
                     } else {
-                        ownerBadgeHtml = '<span class="text-muted">未知</span>';
+                        ownerBadgeHtml = `<span class="text-muted">${tableHeaderTexts.unknown}</span>`;
                     }
 
                     // 格式化金额显示（直接显示金额，不做单位转换）
-                    const amountDisplay = quotation.currency === 'USD'
-                        ? `$${quotation.amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
-                        : `¥${quotation.amount.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                    const amountDisplay = `${quotation.currency_symbol}${quotation.amount.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
                     // 操作按钮
                     const actionButton = quotation.can_delete
@@ -1886,7 +1918,7 @@ async function loadQuotationsList() {
                 container.innerHTML = `
                     <div class="text-muted text-center py-4">
                         <i class="fas fa-file-invoice-dollar fs-3 mb-2 d-block"></i>
-                        <p class="mb-0">暂无报价单，点击上方"添加报价单"按钮添加</p>
+                        <p class="mb-0">${tableHeaderTexts.noQuotations}</p>
                     </div>
                 `;
             }
@@ -1894,7 +1926,7 @@ async function loadQuotationsList() {
             container.innerHTML = `
                 <div class="text-danger text-center py-4">
                     <i class="fas fa-exclamation-triangle fs-3 mb-2 d-block"></i>
-                    <p class="mb-0">加载报价单列表失败</p>
+                    <p class="mb-0">${tableHeaderTexts.loadQuotationsFailed}</p>
                 </div>
             `;
         }
@@ -1903,7 +1935,7 @@ async function loadQuotationsList() {
         container.innerHTML = `
             <div class="text-danger text-center py-4">
                 <i class="fas fa-exclamation-triangle fs-3 mb-2 d-block"></i>
-                <p class="mb-0">加载报价单列表失败，请重试</p>
+                <p class="mb-0">${tableHeaderTexts.loadQuotationsFailedRetry}</p>
             </div>
         `;
     }
@@ -1938,12 +1970,12 @@ async function loadPricingOrdersList() {
                     <table class="table table-hover align-middle table-sm">
                         <thead class="table-light">
                             <tr class="small">
-                                <th width="15%">批价单号</th>
-                                <th width="20%">经销商</th>
-                                <th width="15%">金额</th>
-                                <th width="15%">创建人</th>
-                                <th width="15%">状态</th>
-                                <th width="20%">创建日期</th>
+                                <th width="15%">${tableHeaderTexts.pricingOrderNo}</th>
+                                <th width="20%">${tableHeaderTexts.dealer}</th>
+                                <th width="15%">${tableHeaderTexts.amount}</th>
+                                <th width="15%">${tableHeaderTexts.creator}</th>
+                                <th width="15%">${tableHeaderTexts.status}</th>
+                                <th width="20%">${tableHeaderTexts.createdDate}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1951,9 +1983,7 @@ async function loadPricingOrdersList() {
 
             data.pricing_orders.forEach(po => {
                 // 格式化金额显示
-                const amountDisplay = po.currency === 'USD'
-                    ? `$${po.pricing_total_amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
-                    : `¥${po.pricing_total_amount.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                const amountDisplay = `${po.currency_symbol}${po.pricing_total_amount.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
                 // 创建人徽章HTML（复用报价单逻辑）
                 let creatorBadgeHtml = '';
@@ -1966,11 +1996,11 @@ async function loadPricingOrdersList() {
                         creatorBadgeHtml = `<span class="badge badge-user regular">${po.creator_name}</span>`;
                     }
                 } else {
-                    creatorBadgeHtml = '<span class="text-muted">未知</span>';
+                    creatorBadgeHtml = `<span class="text-muted">${tableHeaderTexts.unknown}</span>`;
                 }
 
-                // 状态徽章（使用通用审批徽章样式）
-                const statusBadge = `<span class="badge badge-pill badge-transparent approval-status-${po.status}">${po.status_label.zh}</span>`;
+                // 状态徽章（使用通用审批徽章样式，根据当前语言显示）
+                const statusBadge = `<span class="badge badge-pill badge-transparent approval-status-${po.status}">${po.status_label[currentLanguage]}</span>`;
 
                 html += `
                     <tr class="small">

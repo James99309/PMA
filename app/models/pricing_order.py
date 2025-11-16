@@ -171,12 +171,12 @@ class PricingOrder(db.Model):
     def status_label(self):
         """状态标签"""
         status_map = {
-            'draft': {'zh': '草稿', 'color': '#6c757d'},
-            'pending': {'zh': '审批中', 'color': '#ffc107'},
-            'approved': {'zh': '已批准', 'color': '#28a745'},
-            'rejected': {'zh': '已拒绝', 'color': '#dc3545'},
+            'draft': {'zh': '草稿', 'en': 'Draft', 'color': '#6c757d'},
+            'pending': {'zh': '审批中', 'en': 'Pending', 'color': '#ffc107'},
+            'approved': {'zh': '已批准', 'en': 'Approved', 'color': '#28a745'},
+            'rejected': {'zh': '已拒绝', 'en': 'Rejected', 'color': '#dc3545'},
         }
-        return status_map.get(self.status, {'zh': '未知', 'color': '#6c757d'})
+        return status_map.get(self.status, {'zh': '未知', 'en': 'Unknown', 'color': '#6c757d'})
     
     @property
     def flow_type_label(self):
@@ -187,6 +187,12 @@ class PricingOrder(db.Model):
             'sales_opportunity': '销售机会类',
         }
         return type_map.get(self.approval_flow_type, '未知类型')
+
+    @property
+    def currency_symbol(self):
+        """获取货币符号"""
+        from app.utils.dictionary_helpers import get_currency_symbol
+        return get_currency_symbol(self.currency)
 
 
 class SettlementOrder(db.Model):
@@ -227,7 +233,10 @@ class SettlementOrder(db.Model):
     created_by = Column(Integer, ForeignKey('users.id'), nullable=False, comment='创建人')
     created_at = Column(DateTime, default=get_local_time, comment='创建时间')
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, comment='更新时间')
-    
+
+    # 货币字段
+    currency = Column(String(10), default='CNY', comment='货币类型')
+
     # 关系定义
     project = relationship('Project', backref='settlement_orders')
     quotation = relationship('Quotation', backref='settlement_orders')
@@ -318,12 +327,18 @@ class SettlementOrder(db.Model):
     def status_label(self):
         """状态标签"""
         status_map = {
-            'draft': {'zh': '草稿', 'color': '#6c757d'},
-            'pending': {'zh': '审批中', 'color': '#ffc107'},
-            'approved': {'zh': '已批准', 'color': '#28a745'},
-            'rejected': {'zh': '已拒绝', 'color': '#dc3545'},
+            'draft': {'zh': '草稿', 'en': 'Draft', 'color': '#6c757d'},
+            'pending': {'zh': '审批中', 'en': 'Pending', 'color': '#ffc107'},
+            'approved': {'zh': '已批准', 'en': 'Approved', 'color': '#28a745'},
+            'rejected': {'zh': '已拒绝', 'en': 'Rejected', 'color': '#dc3545'},
         }
-        return status_map.get(self.status, {'zh': '未知', 'color': '#6c757d'})
+        return status_map.get(self.status, {'zh': '未知', 'en': 'Unknown', 'color': '#6c757d'})
+
+    @property
+    def currency_symbol(self):
+        """获取货币符号"""
+        from app.utils.dictionary_helpers import get_currency_symbol
+        return get_currency_symbol(self.currency)
 
 
 class PricingOrderDetail(db.Model):

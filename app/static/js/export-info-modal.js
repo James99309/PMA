@@ -34,7 +34,12 @@ class ExportInfoModal {
         this.initSelectors();
         this.initNotesEditor();
         this.initEventListeners();
-        
+
+        // ⭐ 新增：如果有预填充数据，则加载
+        if (this.config.prefill) {
+            this.loadPrefillData();
+        }
+
         console.log('✅ 导出信息模态框初始化完成');
     }
     
@@ -466,11 +471,58 @@ class ExportInfoModal {
         };
     }
     
+    /**
+     * 加载预填充数据（绕过权限检查）
+     */
+    loadPrefillData() {
+        console.log('🔄 加载预填充数据:', this.config.prefill);
+
+        // 预填充客户
+        if (this.config.prefill.customer && this.config.prefill.customer.id && this.config.prefill.customer.name) {
+            const customer = this.config.prefill.customer;
+            console.log('  📋 准备预填充客户:', customer);
+            console.log('  📋 customerSelector 存在?', !!this.customerSelector);
+            console.log('  📋 customerSelector.setValue 存在?', !!(this.customerSelector && this.customerSelector.setValue));
+
+            // 直接设置选择器的值（不触发搜索API）
+            // 注意：客户选择器的 labelField 是 'company_name'
+            if (this.customerSelector && this.customerSelector.setValue) {
+                const customerData = {
+                    id: customer.id,
+                    company_name: customer.name  // 将 name 映射到 company_name
+                };
+                console.log('  ✅ 调用 customerSelector.setValue:', customerData);
+                this.customerSelector.setValue(customerData);
+                this.selectedData.customer = customerData;
+                console.log('  ✅ 客户预填充完成');
+            } else {
+                console.error('  ❌ customerSelector 或 setValue 方法不存在');
+            }
+        } else {
+            console.warn('  ⚠️ 客户预填充数据不完整:', this.config.prefill.customer);
+        }
+
+        // 预填充联系人
+        if (this.config.prefill.contact && this.config.prefill.contact.id && this.config.prefill.contact.name) {
+            const contact = this.config.prefill.contact;
+            console.log('  ✓ 预填充联系人:', contact);
+
+            // 直接设置选择器的值（不触发搜索API）
+            if (this.contactSelector && this.contactSelector.setValue) {
+                this.contactSelector.setValue({
+                    id: contact.id,
+                    name: contact.name
+                });
+                this.selectedData.contact = contact;
+            }
+        }
+    }
+
     destroy() {
         if (this.customerSelector) {
             this.customerSelector.destroy();
         }
-        
+
         if (this.contactSelector) {
             this.contactSelector.destroy();
         }

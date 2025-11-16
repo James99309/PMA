@@ -258,11 +258,15 @@
 </head>
 <body>
     <!-- 水印 -->
+    {% set vendor_user = pricing_order.project.owner if pricing_order.project and pricing_order.project.owner else current_user %}
+    {% set vendor_company = get_vendor_company_by_user(vendor_user) %}
     <div class="watermark">
-        {% if pricing_order.project and pricing_order.project.owner and pricing_order.project.owner.company_name %}
-            {{ pricing_order.project.owner.company_name }}
+        {% if vendor_company %}
+            {{ vendor_company.value }}
+        {% elif vendor_user.company_name %}
+            {{ vendor_user.company_name }}
         {% else %}
-            {{ current_user.company_name if current_user.company_name else '厂商企业' }}
+            厂商企业
         {% endif %}
     </div>
     
@@ -272,18 +276,37 @@
             <div class="project-title">{{ pricing_order.project.project_name if pricing_order.project else '未知项目' }}</div>
             <div class="distributor-name">{{ pricing_order.distributor.company_name if pricing_order.distributor else '' }}</div>
             <div class="company-name">
-                {% if pricing_order.project and pricing_order.project.owner and pricing_order.project.owner.company_name %}
-                    {{ pricing_order.project.owner.company_name }}
+                {% if vendor_company %}
+                    {{ vendor_company.value }}
+                {% elif vendor_user.company_name %}
+                    {{ vendor_user.company_name }}
                 {% else %}
-                    {{ current_user.company_name if current_user.company_name else '厂商企业' }}
+                    厂商企业
                 {% endif %}
             </div>
             <div class="company-address">
-                <div>武威路88弄19号楼6楼</div>
-                <div>普陀区 上海市</div>
-                <div>中国 (200335)</div>
-                <div>021-62596028</div>
-                <div>www.evertac.net</div>
+                {% if vendor_company %}
+                    {% if vendor_company.address %}
+                        <div>{{ vendor_company.address }}</div>
+                    {% endif %}
+                    {% if vendor_company.postal_code %}
+                        <div>中国 ({{ vendor_company.postal_code }})</div>
+                    {% endif %}
+                    {% if vendor_company.phone %}
+                        <div>{{ vendor_company.phone }}</div>
+                    {% endif %}
+                    {% if vendor_company.website %}
+                        <div>{{ vendor_company.website }}</div>
+                    {% endif %}
+                {% else %}
+                    {# 兜底：如果没有配置厂商企业，显示用户信息 #}
+                    {% if vendor_user.company_name %}
+                        <div>{{ vendor_user.company_name }}</div>
+                    {% endif %}
+                    {% if vendor_user.phone %}
+                        <div>{{ vendor_user.phone }}</div>
+                    {% endif %}
+                {% endif %}
             </div>
         </div>
         <div class="document-header">

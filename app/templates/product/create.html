@@ -1,1167 +1,1700 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 {% from 'macros/ui_helpers.html' import render_button %}
+{% from 'macros/ui_modals.html' import render_select_quick_add_modal %}
 
-{% block head %}
+{% block title %}{% if product %}{{ _('编辑产品') }}{% else %}{{ _('新增研发产品' if product_type == 'research' else '新增产品') }}{% endif %}{% endblock %}
+
+{% block styles %}
 {{ super() }}
-<!-- 强制清除浏览器缓存 -->
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
-<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
 <style>
-    /* 产品名称下拉菜单容器 */
-    .product-dropdown-container {
-        position: relative;
+    /* 标准化页面头部区域在固定导航下的间距调整 - 与其他模块保持一致 */
+    .page-with-fixed-nav .page-header-with-actions {
+        margin-top: 2rem !important;
     }
 
-    /* 类别列表样式 */
-    .category-list {
-        display: none;
-        position: absolute;
-        width: 100%;
-        max-height: 300px;
-        overflow-y: auto;
-        background-color: #fff;
-        border: 1px solid #ced4da;
-        border-radius: 0.25rem;
-        z-index: 1000;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+    /* 新增产品页面主容器顶部留白，避免被fixed导航遮挡 */
+    .container-fluid.page-with-fixed-nav {
+        margin-top: 72px !important;
+    }
+    @media (max-width: 991.98px) {
+        .container-fluid.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
     }
 
-    .category-list.show {
-        display: block;
-    }
-
-    .category-item {
-        padding: 8px 12px;
-        cursor: pointer;
-        border-bottom: 1px solid #e9ecef;
-    }
-
-    .category-item:hover {
-        background-color: #f8f9fa;
-    }
-
-    .category-item.active {
-        background-color: #e9ecef;
-    }
-
-    /* 产品名称列表样式 */
-    .product-name-list {
-        display: none;
-        margin-left: 20px;
-    }
-
-    .product-name-list.show {
-        display: block;
-    }
-
-    .product-name-item {
-        padding: 6px 12px;
-        cursor: pointer;
-    }
-
-    .product-name-item:hover {
-        background-color: #f8f9fa;
-    }
-
-    /* 型号下拉菜单样式 */
-    .model-list {
-        display: none;
-        position: absolute;
-        width: 100%;
-        max-height: 200px;
-        overflow-y: auto;
-        background-color: #fff;
-        border: 1px solid #ced4da;
-        border-radius: 0.25rem;
-        z-index: 1000;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
-    }
-
-    .model-list.show {
-        display: block;
-    }
-
-    .model-item {
-        padding: 8px 12px;
-        cursor: pointer;
-        border-bottom: 1px solid #e9ecef;
-    }
-
-    .model-item:hover {
-        background-color: #f8f9fa;
-    }
-
-    /* 必填字段标记 */
-    .required-field::after {
-        content: "*";
-        color: red;
-        margin-left: 4px;
-    }
-
-    /* 输入框不可用时的样式 */
-    .form-control:disabled,
-    .form-control[readonly] {
-        background-color: #e9ecef;
-        opacity: 1;
-    }
-
-    /* 按钮间距 */
-    .btn-toolbar .btn {
-        margin-right: 10px;
-    }
-
-    /* 自定义数字输入框样式 */
-    input[type="number"].form-control {
-        text-align: right;
-    }
-
-    /* MN号输入框容器 */
-    .mn-input-group {
-        position: relative;
-    }
-
-    /* MN号校验反馈 */
-    .mn-feedback {
-        display: none;
-        position: absolute;
-        width: 100%;
-        margin-top: 0.25rem;
-        font-size: 80%;
-    }
-
-    .mn-feedback.valid {
-        color: #28a745;
-        display: block;
-    }
-
-    .mn-feedback.invalid {
-        color: #dc3545;
-        display: block;
-    }
-
-    /* 错误消息样式 */
-    #mn-error-message {
-        min-height: 1.5rem;
-        font-weight: 500;
-        color: #dc3545;
-    }
-
-    /* 产品图片显示区域样式 */
-    .product-image-display {
-        width: 100%;
-        max-width: 300px;
-        margin-bottom: 20px;
-    }
-
-    .image-preview-container {
-        width: 100%;
-        padding-bottom: 100%; /* 1:1的比例，形成正方形 */
-        position: relative;
-        overflow: hidden;
-        background-color: #f8f9fa;
-        border-radius: 8px;
-        margin-bottom: 1rem;
+    /* 规格表格样式 - 与研发库风格一致 */
+    #specs-table {
+        margin-bottom: 0;
         border: 1px solid #dee2e6;
     }
 
-    .image-preview {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
+    #specs-table thead th {
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+        border-right: 1px solid #dee2e6;
+        font-size: 0.875rem;
+        padding: 0.75rem;
+        color: #495057;
+        font-weight: 600;
     }
 
-    .no-image-placeholder {
+    #specs-table tbody td {
+        padding: 0.75rem;
+        border-bottom: 1px solid #dee2e6;
+        border-right: 1px solid #dee2e6;
+        vertical-align: middle;
+    }
+
+    /* 禁用状态样式 */
+    .nav-link.disabled {
+        color: #6c757d !important;
+        pointer-events: none;
+        cursor: default;
+        background-color: transparent;
+    }
+
+    .btn.disabled {
+        opacity: 0.65;
+        pointer-events: none;
+    }
+
+    /* 产品型号下拉菜单样式 */
+    #modelDropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        z-index: 1050;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+
+    #modelDropdown .dropdown-item {
+        padding: 0.5rem 1rem;
+        cursor: pointer;
+        border-bottom: 1px solid #f8f9fa;
         display: flex;
-        flex-direction: column;
+        justify-content: space-between;
         align-items: center;
-        justify-content: center;
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
+    }
+
+    #modelDropdown .dropdown-item:last-child {
+        border-bottom: none;
+    }
+
+    #modelDropdown .dropdown-item:hover {
+        background-color: #f8f9fa;
+    }
+
+    #modelDropdown .dropdown-item.active {
+        background-color: #0d6efd;
+        color: white;
+    }
+
+    #modelDropdown .model-name {
+        font-weight: 500;
+        flex: 1;
+    }
+
+    #modelDropdown .model-meta {
+        font-size: 0.75rem;
         color: #6c757d;
+        margin-left: auto;
+        white-space: nowrap;
+        text-align: right;
     }
 
-    .no-image-placeholder i {
-        font-size: 3rem;
-        margin-bottom: 0.5rem;
-    }
-
-    .no-image-placeholder span {
-        font-size: 0.9rem;
-        text-align: center;
+    #modelDropdown .dropdown-item.active .model-meta {
+        color: rgba(255, 255, 255, 0.8);
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-4">
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">{% if product %}{{ _('编辑产品') }}{% else %}{{ _('新增研发产品' if product_type == 'research' else '新增产品') }}{% endif %}</h1>
+            </div>
+            <div class="col text-end">
+                <!-- 操作按钮组 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    {% if product %}
+                        {# 编辑模式：返回产品详情页 #}
+                        {% if product_type == 'research' %}
+                            {{ render_button('返回', href=url_for('product_management.product_detail', id=product.id), color='secondary', icon='fas fa-arrow-left') }}
+                        {% else %}
+                            {{ render_button('返回', href=url_for('product_route.view_product_detail', id=product.id), color='secondary', icon='fas fa-arrow-left') }}
+                        {% endif %}
+                    {% else %}
+                        {# 创建模式：返回列表页 #}
+                        {% if product_type == 'research' %}
+                            {{ render_button('返回列表', href=url_for('product_management.index'), color='secondary', icon='fas fa-arrow-left') }}
+                        {% else %}
+                            {{ render_button('返回列表', href=url_for('product_route.product_list'), color='secondary', icon='fas fa-arrow-left') }}
+                        {% endif %}
+                    {% endif %}
+                    {{ render_button('保存产品', onclick='submitProductForm();', color='primary', icon='fas fa-save', attrs='id="submit-btn"') }}
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="card">
         <div class="card-header">
-            <h5>{% if product %}{{ _('编辑产品') }}{% else %}{{ _('创建新产品') }}{% endif %}</h5>
+            <i class="fas fa-plus me-1"></i>
+            产品信息
         </div>
         <div class="card-body">
-            <form id="product-form" enctype="multipart/form-data">
-                {% if product %}
-                <input type="hidden" id="product-id" value="{{ product.id }}">
-                {% endif %}
+            <form id="productForm" method="POST" action="{% if product %}{% if product_type == 'research' %}{{ url_for('product_management.update_product', id=product.id) }}{% else %}{{ url_for('product_route.update_product', id=product.id) }}{% endif %}{% else %}{{ url_for('product_management.save' if product_type == 'research' else 'product_route.create') }}{% endif %}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <!-- 产品类型：research=研发产品, standard=标准产品 -->
+                <input type="hidden" name="product_type" value="{{ product_type if product_type else 'standard' }}">
 
-                <!-- 基本信息 -->
+                <!-- MN编码预览 - 移至选项卡上方 -->
                 <div class="row mb-4">
-                    <div class="col-md-12">
-                        <h6 class="border-bottom pb-2">基本信息</h6>
-                    </div>
-
-                    <!-- 产品图片显示区域（仅显示，不可上传） -->
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">产品图片</label>
-                        <div class="product-image-display">
-                            <div class="image-preview-container">
-                                {% if product and product.image_path %}
-                                    {% if product.image_path.startswith('http') %}
-                                        <!-- Supabase云端图片 -->
-                                        <img src="{{ product.image_path }}"
-                                             alt="产品图片"
-                                             class="image-preview">
-                                    {% elif product.image_path.startswith('/storage/') %}
-                                        <!-- 本地存储图片 -->
-                                        <img src="{{ product.image_path }}"
-                                             alt="产品图片"
-                                             class="image-preview">
+                    <div class="col-12">
+                        <div class="card bg-light">
+                            <div class="card-body py-2">
+                                <h6 class="card-title mb-1">{{ _('MN编码预览') }}</h6>
+                                <div id="mn_code_preview" class="h4 mb-0 font-monospace">
+                                    {% if product %}
+                                        {# 研发产品使用 mn_code，标准产品使用 product_mn #}
+                                        {{ product.mn_code if product.mn_code is defined else product.product_mn or '--' }}
                                     {% else %}
-                                        <!-- 旧版本本地图片 -->
-                                        <img src="{{ url_for('static', filename='uploads/products/' + product.image_path) }}"
-                                             alt="产品图片"
-                                             class="image-preview">
+                                        --
                                     {% endif %}
-                                {% else %}
-                                <div class="no-image-placeholder">
-                                    <i class="fas fa-image"></i>
-                                    <span>暂无产品图片</span>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 产品信息Card -->
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>产品信息</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if product_type == 'standard' %}
+                        <!-- 标准产品特有字段：产品类型和状态 -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="type" class="form-label">{{ _('产品类型') }}</label>
+                                <select class="form-select" id="type" name="type">
+                                    <option value="">-- {{ _('请选择产品类型') }} --</option>
+                                    <option value="third party" {% if product and product.type == 'third party' %}selected{% endif %}>{{ _('第三方产品') }}</option>
+                                    <option value="channel" {% if product and product.type == 'channel' %}selected{% endif %}>{{ _('渠道产品') }}</option>
+                                    <option value="project" {% if product and product.type == 'project' %}selected{% endif %}>{{ _('项目定制') }}</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="status" class="form-label">{{ _('产品状态') }}</label>
+                                <select class="form-select" id="status" name="status">
+                                    <option value="active" {% if not product or product.status == 'active' %}selected{% endif %}>{{ _('生产中') }}</option>
+                                    <option value="discontinued" {% if product and product.status == 'discontinued' %}selected{% endif %}>{{ _('已停产') }}</option>
+                                    <option value="upcoming" {% if product and product.status == 'upcoming' %}selected{% endif %}>{{ _('待上市') }}</option>
+                                </select>
+                                <div class="form-text">{{ _('已停产的产品不会在报价单中显示') }}</div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="category_id" class="form-label">产品分类 <span class="text-danger">*</span></label>
+                                {% if product and has_category and not is_admin %}
+                                <!-- 编辑模式且有值且非管理员：锁定分类字段 -->
+                                <input type="text" class="form-control" value="{{ product.category_name }}" disabled>
+                                <!-- 使用category_obj获取code_letter -->
+                                <input type="hidden" id="category_id" name="category_id" value="{{ product.category_id }}" data-code="{{ product.category_obj.code_letter if product.category_obj else '' }}">
+                                <small class="form-text text-muted">
+                                    <i class="fas fa-lock me-1"></i>编辑模式下不可修改产品分类
+                                </small>
+                                {% else %}
+                                <!-- 创建模式/管理员：允许选择 -->
+                                <select class="form-select" id="category_id" name="category_id" required>
+                                    <option value="">-- 请选择分类 --</option>
+                                    {% for category in categories %}
+                                    <option value="{{ category.id }}" data-code="{{ category.code_letter }}"
+                                            {% if product and product.category_id == category.id %}selected{% endif %}>
+                                        {{ category.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label for="subcategory_id" class="form-label">{{ _('产品名称') }} <span class="text-danger">*</span></label>
+                                {% if product and has_subcategory and not is_admin %}
+                                <!-- 编辑模式且有值且非管理员：锁定产品名称字段 -->
+                                {% set subcategory_relation = product.subcategory_obj if product.subcategory_obj is defined else product.subcategory %}
+                                <input type="text" class="form-control" value="{{ product.name }}" disabled>
+                                <!-- 研发产品使用subcategory，标准产品使用subcategory_obj -->
+                                {% if product_type == 'research' %}
+                                    <input type="hidden" id="subcategory_id" name="subcategory_id" value="{{ product.subcategory_id }}" data-letter="{{ product.subcategory.code_letter if product.subcategory else '' }}">
+                                {% else %}
+                                    <input type="hidden" id="subcategory_id" name="subcategory_id" value="{{ product.subcategory_id }}" data-letter="{{ product.subcategory_obj.code_letter if product.subcategory_obj else '' }}">
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    <i class="fas fa-lock me-1"></i>编辑模式下不可修改产品名称
+                                </small>
+                                {% elif product and not product.subcategory_id and not is_admin %}
+                                <!-- 历史产品且非管理员：无新字段，显示只读（提示需要迁移） -->
+                                <input type="text" class="form-control" value="{{ product.name }}" readonly>
+                                <small class="text-warning">⚠️ 此产品使用旧的产品名称字段，建议联系管理员迁移数据</small>
+                                {% else %}
+                                <!-- 创建模式/管理员：允许选择 -->
+                                <select class="form-select" id="subcategory_id" name="subcategory_id" required {% if not product %}disabled{% endif %}>
+                                    <option value="">-- 请先选择分类 --</option>
+                                    {% if product and subcategories %}
+                                    {% for subcategory in subcategories %}
+                                    <option value="{{ subcategory.id }}" data-letter="{{ subcategory.code_letter }}"
+                                            {% if product and product.subcategory_id == subcategory.id %}selected{% endif %}>
+                                        {{ subcategory.name }}
+                                    </option>
+                                    {% endfor %}
+                                    {% if has_permission('product_code', 'edit') %}
+                                    <option value="__ADD_NEW_SUBCATEGORY__" style="color: #0d6efd; font-weight: 500;">
+                                        ➕ {{ _('添加新产品名称') }}
+                                    </option>
+                                    {% endif %}
+                                    {% endif %}
+                                </select>
                                 {% endif %}
                             </div>
                         </div>
-                    </div>
 
-                    <!-- 产品名称 (支持二级下拉) -->
-                    <div class="col-md-6 mb-3">
-                        <label for="product-name" class="form-label required-field">{{ _('产品名称') }}</label>
-                        <div class="product-dropdown-container">
-                            <input type="text" class="form-control" id="product-name" name="product_name" placeholder="{{ _('选择或输入产品名称') }}" required {% if product %}value="{{ product.product_name }}"{% endif %}>
-                            <div class="category-list" id="category-list">
-                                <!-- 类别列表将通过JavaScript动态加载 -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="region_id" class="form-label">销售区域</label>
+                                {% if product and is_mn_locked and has_region and not is_admin %}
+                                <!-- 锁定且有值且非管理员：禁用显示 -->
+                                {% set region_relation = product.region_obj if product.region_obj is defined else product.region %}
+                                <input type="text" class="form-control" value="{{ region_relation.name if region_relation else '未设置' }}" disabled>
+                                <input type="hidden" id="region_id" name="region_id" value="{{ product.region_id if product.region_id else '' }}" data-code="{{ region_relation.code_letter if region_relation else '0' }}">
+                                {% else %}
+                                <!-- 创建/未锁定/值为空/管理员：允许选择 -->
+                                <select class="form-select" id="region_id" name="region_id">
+                                    <option value="">-- 请选择销售区域 --</option>
+                                    {% for region in regions %}
+                                    <option value="{{ region.id if region.id is defined else region['id'] }}"
+                                            data-code="{{ region.code if region.code is defined else region['code'] }}"
+                                            {% if product and product.region_id == (region.id if region.id is defined else region['id']) %}selected{% endif %}>
+                                        {{ region.name if region.name is defined else region['name'] }}
+                                    </option>
+                                    {% endfor %}
+                                    {% if has_permission('product_code', 'edit') %}
+                                    <option value="__ADD_NEW_REGION__" style="color: #0d6efd; font-weight: 500;">
+                                        ➕ {{ _('添加新区域') }}
+                                    </option>
+                                    {% endif %}
+                                </select>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label for="product_model" class="form-label">{{ _('产品型号') }} <span class="text-danger">*</span></label>
+                                <div class="position-relative">
+                                    <input type="text" class="form-control" id="product_model" name="product_model"
+                                           value="{{ product.model if product else '' }}"
+                                           {% if product and is_mn_locked and has_model and not is_admin %}readonly{% endif %}
+                                           {% if not product %}disabled{% endif %}
+                                           required
+                                           autocomplete="off"
+                                           placeholder="请先选择产品名称">
+                                    <div id="modelDropdown" class="dropdown-menu w-100" style="display:none; max-height:200px; overflow-y:auto;">
+                                        <!-- 型号选项将由JavaScript动态生成 -->
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- 产品类别 -->
-                    <div class="col-md-6 mb-3">
-                        <label for="category" class="form-label">产品类别</label>
-                        <select class="form-select" id="category" name="category">
-                            <option value="">-- 选择产品类别 --</option>
-                            <!-- 类别选项将通过JavaScript动态加载 -->
-                        </select>
-                    </div>
-
-                    <!-- 产品型号 -->
-                    <div class="col-md-6 mb-3">
-                        <label for="model" class="form-label required-field">{{ _('产品型号') }}</label>
-                        <div class="product-dropdown-container">
-                            <input type="text" class="form-control" id="model" name="model" placeholder="{{ _('选择或输入产品型号') }}" required {% if product %}value="{{ product.model }}"{% endif %}>
-                            <div class="model-list" id="model-list">
-                                <!-- 型号列表将通过JavaScript动态加载 -->
+                        {% if product_type == 'standard' %}
+                        <!-- 标准产品特有字段：品牌 -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="brand" class="form-label">品牌</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="brand"
+                                       name="brand"
+                                       list="brand-list"
+                                       value="{{ product.brand if product else '' }}"
+                                       placeholder="输入品牌名称或从列表选择">
+                                <datalist id="brand-list">
+                                    {% for brand in brands %}
+                                    <option value="{{ brand }}">
+                                    {% endfor %}
+                                </datalist>
+                                <small class="form-text text-muted">可直接输入或从现有品牌中选择</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="unit" class="form-label">单位</label>
+                                <input type="text" class="form-control" id="unit" name="unit" value="{{ product.unit if product else '' }}">
                             </div>
                         </div>
-                    </div>
 
-                    <!-- 产品MN号 -->
-                    <div class="col-md-6 mb-3">
-                        <label for="product-mn" class="form-label required-field">{{ _('产品MN号') }}</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="product-mn" name="product_mn" placeholder="{{ _('输入MN号') }}" required {% if product %}value="{{ product.product_mn }}"{% endif %}>
-                            <button class="btn btn-outline-secondary" type="button" id="generate-mn" title="{{ _('生成MN号') }}">
-                                <i class="fas fa-magic"></i>
-                            </button>
+                        <!-- 厂商产品标记 -->
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <label class="form-label">{{ _('产品标记') }}</label>
+                                <div class="form-check">
+                                    <input type="checkbox"
+                                           class="form-check-input"
+                                           id="is_vendor_product"
+                                           name="is_vendor_product"
+                                           {% if product and product.is_vendor_product %}checked{% endif %}>
+                                    <label for="is_vendor_product" class="form-check-label">
+                                        {{ _('厂商产品') }}
+                                    </label>
+                                </div>
+                            </div>
                         </div>
-                        <div id="mn-error-message" class="small mt-1"></div>
-                        <small class="text-muted">{{ _('MN号必须唯一') }}</small>
-                    </div>
-                </div>
-
-                <!-- 规格与价格 -->
-                <div class="row mb-4">
-                    <div class="col-md-12">
-                        <h6 class="border-bottom pb-2">{{ _('规格与价格') }}</h6>
-                    </div>
-
-                    <!-- 产品类型 -->
-                    <div class="col-md-6 mb-3">
-                        <label for="type" class="form-label">{{ _('产品类型') }}</label>
-                        <select class="form-select" id="type" name="type">
-                            <option value="">-- {{ _('选择产品类型') }} --</option>
-                            <option value="渠道产品">{{ _('渠道产品') }}</option>
-                            <option value="项目产品">{{ _('项目产品') }}</option>
-                            <option value="第三方产品">{{ _('第三方产品') }}</option>
-                        </select>
-                    </div>
-
-                    <!-- 品牌 -->
-                    <div class="col-md-6 mb-3">
-                        <label for="brand" class="form-label">{{ _('品牌') }}</label>
-                        <input type="text" class="form-control" id="brand" name="brand" placeholder="{{ _('选择或输入产品品牌') }}" list="brand-list" {% if product %}value="{{ product.brand }}"{% endif %}>
-                        <datalist id="brand-list">
-                            <!-- 品牌选项将通过JavaScript动态加载 -->
-                        </datalist>
-                        <div class="invalid-feedback">{{ _('请选择或输入品牌') }}</div>
-                    </div>
-
-                    <!-- 厂商产品标记 -->
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">产品标记</label>
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="is_vendor_product" name="is_vendor_product" {% if product and product.is_vendor_product %}checked{% endif %}>
-                            <label for="is_vendor_product" class="form-check-label">
-                                <span class="badge bg-primary rounded-pill me-2" style="font-size: 0.65rem;">厂商</span>
-                                厂商产品（计入植入合计）
-                            </label>
+                        {% else %}
+                        <!-- 研发产品只需单位字段 -->
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label for="unit" class="form-label">单位</label>
+                                <input type="text" class="form-control" id="unit" name="unit" value="{{ product.unit if product else '' }}">
+                            </div>
                         </div>
-                        <div class="form-text text-muted">
-                            勾选此项表示该产品为厂商产品，在报价单中将计入植入合计统计
-                        </div>
-                    </div>
-
-                    <!-- 单位 -->
-                    <div class="col-md-6 mb-3">
-                        <label for="unit" class="form-label">{{ _('单位') }}</label>
-                        <select class="form-select" id="unit" name="unit">
-                            <option value="">-- {{ _('选择单位') }} --</option>
-                            <!-- 单位选项将通过JavaScript动态加载 -->
-                        </select>
-                    </div>
-
-                    <!-- 市场价格 -->
-                    <div class="col-md-4 mb-3">
-                        <label for="retail-price" class="form-label">{{ _('市场价格') }}</label>
-                        <input type="number" class="form-control" id="retail-price" name="retail_price" placeholder="0.00" step="0.01" min="0" {% if product %}value="{{ product.retail_price }}"{% endif %}>
-                    </div>
-
-                    <!-- 货币类型 -->
-                    <div class="col-md-2 mb-3">
-                        <label for="currency" class="form-label">{{ _('货币') }}</label>
-                        <select class="form-select" id="currency" name="currency">
-                            <option value="CNY" {% if not product or product.currency == 'CNY' or not product.currency %}selected{% endif %}>人民币 (CNY)</option>
-                            <option value="USD" {% if product and product.currency == 'USD' %}selected{% endif %}>美元 (USD)</option>
-                            <option value="SGD" {% if product and product.currency == 'SGD' %}selected{% endif %}>新加坡元 (SGD)</option>
-                            <option value="MYR" {% if product and product.currency == 'MYR' %}selected{% endif %}>马来西亚林吉特 (MYR)</option>
-                            <option value="IDR" {% if product and product.currency == 'IDR' %}selected{% endif %}>印尼盾 (IDR)</option>
-                            <option value="THB" {% if product and product.currency == 'THB' %}selected{% endif %}>泰铢 (THB)</option>
-                        </select>
-                    </div>
-
-                    <!-- 生产状态 - 使用选择框 -->
-                    <div class="col-md-6 mb-3">
-                        <label for="status" class="form-label">生产状态</label>
-                        <select class="form-select" id="status" name="status" {% if current_user.role != 'admin' %}disabled{% endif %}>
-                          <option value="active" {% if product and product.status == 'active' %}selected{% endif %}>生产中</option>
-                          <option value="discontinued" {% if product and product.status == 'discontinued' %}selected{% endif %}>已停产</option>
-                          <option value="upcoming" {% if product and product.status == 'upcoming' %}selected{% endif %}>待上市</option>
-                        </select>
-                        {% if current_user.role != 'admin' %}
-                        <small class="text-danger">仅管理员可修改状态</small>
                         {% endif %}
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="retail_price" class="form-label">市场价（预估）</label>
+                                <input type="number" class="form-control" id="retail_price" name="retail_price" step="0.01" min="0" value="{{ product.retail_price if product else '' }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="currency" class="form-label">货币</label>
+                                <select class="form-select" id="currency" name="currency">
+                                    <option value="CNY" {% if product and product.currency == 'CNY' or not product %}selected{% endif %}>人民币 (CNY)</option>
+                                    <option value="USD" {% if product and product.currency == 'USD' %}selected{% endif %}>美元 (USD)</option>
+                                    <option value="SGD" {% if product and product.currency == 'SGD' %}selected{% endif %}>新加坡元 (SGD)</option>
+                                    <option value="MYR" {% if product and product.currency == 'MYR' %}selected{% endif %}>马来西亚林吉特 (MYR)</option>
+                                    <option value="IDR" {% if product and product.currency == 'IDR' %}selected{% endif %}>印尼盾 (IDR)</option>
+                                    <option value="THB" {% if product and product.currency == 'THB' %}selected{% endif %}>泰铢 (THB)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <label for="description" class="form-label">
+                                    产品描述
+                                    <span class="ms-2">
+                                        <input type="checkbox" class="form-check-input" id="auto-generate-description" checked>
+                                        <label class="form-check-label small text-muted" for="auto-generate-description">
+                                            自动生成
+                                        </label>
+                                    </span>
+                                </label>
+                                <textarea class="form-control" id="description" name="description" rows="3">{{ product.specification if product else '' }}</textarea>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- 规格说明 -->
-                <div class="col-md-12 mb-3">
-                    <label for="specification" class="form-label">{{ _('规格说明') }}</label>
-                    <textarea class="form-control" id="specification" name="specification" rows="3" placeholder="{{ _('产品规格说明') }}">{% if product %}{{ product.specification }}{% endif %}</textarea>
-                </div>
+                <!-- 产品规格Card -->
+                <div class="card mb-4" data-is-locked="{{ 'true' if (product and is_mn_locked and has_specs and not is_admin) else 'false' }}">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>产品规格</h5>
+                    </div>
+                    <div class="card-body">
 
-                <!-- 按钮工具栏 -->
-                <div class="btn-toolbar">
-                    {{ render_button(_('保存'), type='submit', color='primary', icon='fas fa-save') }}
-                    {{ render_button(_('取消'), href=url_for('product_route.product_list'), color='secondary', icon='fas fa-times') }}
+                        <!-- 无规格定义的提示界面 -->
+                        <div id="no-specs-defined" class="text-center py-5" style="display: none;">
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>{{ _('当前产品名称在规格管理中没有定义规格的编码位置') }}</strong>
+                            </div>
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h5 class="card-title text-muted">
+                                        <i class="fas fa-cogs me-2"></i>需要先定义规格
+                                    </h5>
+                                    <p class="card-text text-muted">
+                                        {{ _('要创建有效的产品规格，需要先在规格管理中定义该产品名称下的规格和编码位置。') }}
+                                    </p>
+                                    <a id="goto-spec-management-btn" href="#" class="btn btn-primary">
+                                        <i class="fas fa-cog me-2"></i>进入规格管理
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 有规格定义的正常界面 -->
+                        <div id="specs-interface" style="display: none;">
+
+                            <!-- 规格表格 -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-list me-2"></i>产品规格配置
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-bordered" id="specs-table">
+                                        <thead>
+                                            <tr>
+                                                <th width="30%" class="fw-bold text-muted">规格</th>
+                                                <th width="30%" class="fw-bold text-muted">指标</th>
+                                                <th width="15%" class="fw-bold text-muted text-center">纳入描述</th>
+                                                <th width="25%" class="fw-bold text-muted">{{ _('操作') }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="specs-table-body">
+                                            <!-- 规格行将在这里动态添加 -->
+                                        </tbody>
+                                    </table>
+
+                                    <!-- 添加规格按钮（当无预定义规格时显示） -->
+                                    <div class="text-start mt-3" id="add-spec-container" style="display: none;">
+                                        {{ render_button('添加非编码规格', type='button', color='outline-primary', icon='fas fa-plus', attrs='id="add-spec-btn"') }}
+                                        <small class="text-muted ms-2">添加不参与编码的其他规格</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
                 </div>
             </form>
+
         </div>
     </div>
 </div>
+
+<!-- 通用快速添加模态框 -->
+{{ render_select_quick_add_modal() }}
+
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
-<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+
+<!-- 引入共享的规格管理函数 -->
+<script src="{{ url_for('static', filename='js/spec-management-common.js') }}"></script>
+
+<!-- 引入通用快速添加组件 -->
+<script src="{{ url_for('static', filename='js/select-with-quick-add.js') }}"></script>
 
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 获取表单元素
+    const form = document.getElementById('productForm');
+    const specsTableBody = document.getElementById('specs-table-body');
+    const addSpecBtn = document.getElementById('add-spec-btn');
+
     // 全局变量
-    let categories = [];
-    let productNamesByCategory = {};
-    let modelsByProductName = {};
-    let mnCheckTimeout = null;
-    let isMnValid = false;
-    let isSelectingFromDropdown = false;
-    let originalProductData = {}; // 保存原始产品数据
-    let apiLoadCount = 0; // API加载计数器
-    const totalApiToLoad = 3; // 需要加载的API总数：类别、单位、品牌
+    let availableSpecs = [];
+    let specRowCounter = 0;
 
-    // 保存原始数据函数
-    function saveOriginalData() {
-        const productId = document.getElementById('product-id');
-        if (productId) {
-            originalProductData = {
-                product_name: document.getElementById('product-name').value,
-                category: document.getElementById('category').value,
-                model: document.getElementById('model').value,
-                product_mn: document.getElementById('product-mn').value,
-                type: document.getElementById('type').value,
-                brand: document.getElementById('brand').value,
-                unit: document.getElementById('unit').value,
-                retail_price: document.getElementById('retail-price').value,
-                status: document.getElementById('status').value,
-                specification: document.getElementById('specification').value
-            };
-            console.log("所有API加载完成，原始数据已保存:", originalProductData);
+    // 编辑模式：加载现有规格数据和锁定状态
+    const existingSpecs = {{ specs|tojson|safe if specs else '[]' }};
+    const isMNLocked = {{ 'true' if (product and is_mn_locked and not is_admin) else 'false' }};
+    const isEditMode = {{ 'true' if product else 'false' }};
+    const isAdmin = {{ 'true' if is_admin else 'false' }};
+
+    // 调试：输出完整的规格数据
+    console.log('[DEBUG] existingSpecs 完整数据:', JSON.stringify(existingSpecs, null, 2));
+
+    // 分类选择联动
+    const categorySelect = document.getElementById('category_id');
+    const subcategorySelect = document.getElementById('subcategory_id');
+
+    // 封装初始化逻辑
+    function initializeForm() {
+        const productModelInput = document.getElementById('product_model');
+
+        // 只有在非编辑模式或（编辑模式且非管理员且分类为空）时才禁用子分类下拉框
+        if (subcategorySelect) {
+            // 编辑模式下，如果是管理员，不禁用下拉框
+            if (isEditMode && isAdmin) {
+                subcategorySelect.disabled = false;
+            } else if (!isEditMode) {
+                // 创建模式下默认禁用（需要先选择分类）
+                subcategorySelect.disabled = true;
+            }
+        }
+
+        // 初始化产品型号字段为disabled
+        if (productModelInput && !isEditMode) {
+            productModelInput.disabled = true;
         }
     }
 
-    // 检查API是否全部加载完成
-    function checkApiLoaded() {
-        apiLoadCount++;
-        console.log(`API加载进度: ${apiLoadCount}/${totalApiToLoad}`);
-        if (apiLoadCount >= totalApiToLoad) {
-            // 所有API已加载完成，现在保存原始数据
-            saveOriginalData();
-        }
-    }
+    // 页面加载时初始化
+    initializeForm();
 
-    // 页面加载完成后执行
-    document.addEventListener('DOMContentLoaded', function() {
-        // 加载类别数据
-        loadCategories();
+    // 分类选择联动 - 加载子分类（直接注册事件监听器）
+    categorySelect.addEventListener('change', function() {
+        const categoryId = this.value;
 
-        // 加载单位数据
-        loadUnits();
+        // 重置子分类选择
+        subcategorySelect.innerHTML = '<option value="">-- 请选择产品名称 --</option>';
+        subcategorySelect.disabled = !categoryId;
 
-        // 加载品牌数据
-        loadBrands();
+        if (categoryId) {
+            // 发送AJAX请求获取子分类数据
+            fetch(`/product-management/api/category/${categoryId}/subcategories`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.subcategories && data.subcategories.length > 0) {
+                        data.subcategories.forEach(subcategory => {
+                            const option = document.createElement('option');
+                            option.value = subcategory.id;
+                            option.textContent = subcategory.name;
+                            option.setAttribute('data-letter', subcategory.code_letter);
+                            subcategorySelect.appendChild(option);
+                        });
 
-        // 设置产品类型（不需要API调用）
-        setProductType();
+                        // 添加快速添加选项（如果有权限）
+                        {% if has_permission('product_code', 'edit') %}
+                        const quickAddOption = document.createElement('option');
+                        quickAddOption.value = '__ADD_NEW_SUBCATEGORY__';
+                        quickAddOption.textContent = '➕ 添加新产品名称';
+                        quickAddOption.style.color = '#0d6efd';
+                        quickAddOption.style.fontWeight = '500';
+                        subcategorySelect.appendChild(quickAddOption);
+                        {% endif %}
 
-        // 绑定产品名称输入框事件
-        const productNameInput = document.getElementById('product-name');
-        productNameInput.addEventListener('focus', function() {
-            document.getElementById('category-list').classList.add('show');
-        });
-
-        productNameInput.addEventListener('input', function() {
-            // 如果用户输入了内容，暂时隐藏下拉列表
-            const categoryList = document.getElementById('category-list');
-            if (this.value.trim() !== '') {
-                categoryList.classList.remove('show');
-            } else {
-                categoryList.classList.add('show');
-            }
-        });
-
-        // 绑定型号输入框事件
-        const modelInput = document.getElementById('model');
-        modelInput.addEventListener('click', function() {
-            // 只有在点击时才显示下拉菜单
-            const productName = document.getElementById('product-name').value;
-            if (productName) {
-                const showDropdown = true;
-                if (modelsByProductName[productName]) {
-                    renderModelList(modelsByProductName[productName], showDropdown);
-                } else {
-                    loadModelsByProductName(productName, showDropdown);
-                }
-            }
-        });
-
-        // 焦点事件修改为不自动显示下拉菜单
-        modelInput.addEventListener('focus', function(e) {
-            // 如果是通过点击获得焦点，则已经由click事件处理
-            // 此处不再显示下拉菜单，只预加载数据
-            if (e.detail === 0) { // 非鼠标点击导致的focus（如Tab键）
-                const productName = document.getElementById('product-name').value;
-                if (productName && !modelsByProductName[productName]) {
-                    // 只加载数据，不显示下拉菜单
-                    loadModelsByProductName(productName, false);
-                }
-            }
-        });
-
-        modelInput.addEventListener('input', function() {
-            // 隐藏下拉列表
-            document.getElementById('model-list').classList.remove('show');
-        });
-
-        // 绑定MN号输入框事件
-        const mnInput = document.getElementById('product-mn');
-        mnInput.addEventListener('input', function() {
-            // 清除之前的延时检查
-            if (mnCheckTimeout) {
-                clearTimeout(mnCheckTimeout);
-            }
-
-            // 设置延时，避免频繁请求
-            mnCheckTimeout = setTimeout(function() {
-                checkMnAvailability();
-            }, 500);
-        });
-
-        // 绑定生成MN号按钮事件
-        document.getElementById('generate-mn').addEventListener('click', function() {
-            // 简单实现：生成随机MN号
-            // 实际项目中，可能需要调用特定的API或算法
-            const randomMn = 'MN' + Date.now().toString().slice(-8) + Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-            document.getElementById('product-mn').value = randomMn;
-
-            // 检查MN号是否可用
-            checkMnAvailability();
-        });
-
-        // 处理表单提交
-        $('#product-form').on('submit', function(e) {
-            e.preventDefault();
-
-            // 显示加载状态
-            showLoading();
-
-            // 清除所有错误提示
-            $('.is-invalid').removeClass('is-invalid');
-            $('.invalid-feedback').hide();
-
-            // 创建FormData对象，用于文件上传
-            const formData = new FormData(this);
-
-            // 添加调试日志
-            console.log('表单提交开始');
-            console.log('生产状态:', $('#status').val());
-
-            // 图片上传功能已移除
-            console.log('图片上传功能已移除');
-
-            // 如果是编辑模式，设置更新API的URL
-            let url = '/api/products/create';
-            if ($('#product-id').length > 0) {
-                const productId = $('#product-id').val();
-                url = `/api/products/${productId}/update`;
-                console.log('编辑模式，产品ID:', productId);
-            }
-
-            // 发送请求
-            $.ajax({
-                url: url,
-                type: 'POST',
-                data: formData,
-                contentType: false, // 必须设为false，让jQuery不要设置Content-Type
-                processData: false, // 必须设为false，让jQuery不要处理发送的数据
-                success: function(response) {
-                    console.log('请求成功:', response);
-                    if (response.success) {
-                        // 显示成功消息
-                        showMessage('success', response.message);
-
-                        // 如果是创建操作，清空表单
-                        if (!$('#product-id').length) {
-                            resetForm();
-                        } else {
-                            // 编辑成功后返回列表页面
-                            setTimeout(function() {
-                                window.location.href = '/products';
-                            }, 1500);
-                        }
+                        // 确保子分类选择框已启用
+                        subcategorySelect.disabled = false;
                     } else {
-                        showMessage('error', response.message);
+                        subcategorySelect.innerHTML = '<option value="">-- 该分类下暂无产品名称 --</option>';
+                        subcategorySelect.disabled = true;
                     }
-                },
-                error: function(xhr, status, error) {
-                    console.error('请求错误:', xhr.responseText);
-                    let errorMessage = '操作失败，请重试';
-                    try {
-                        const response = JSON.parse(xhr.responseText);
-                        if (response.message) {
-                            errorMessage = response.message;
-                        }
-                    } catch (e) {
-                        console.error('解析错误响应失败:', e);
-                    }
-
-                    showMessage('error', errorMessage);
-                },
-                complete: function() {
-                    // 隐藏加载状态
-                    hideLoading();
-                }
-            });
-        });
-
-        // 如果是编辑模式，初始化相关数据
-        const productId = document.getElementById('product-id');
-        if (productId) {
-            // 记录原始产品数据用于变更检测
-            originalProductData = {
-                product_name: document.getElementById('product-name').value,
-                category: document.getElementById('category').value,
-                model: document.getElementById('model').value,
-                product_mn: document.getElementById('product-mn').value,
-                type: document.getElementById('type').value,
-                brand: document.getElementById('brand').value,
-                unit: document.getElementById('unit').value,
-                retail_price: document.getElementById('retail-price').value,
-                status: document.getElementById('status').value,
-                specification: document.getElementById('specification').value
-            };
-
-            // 仅加载型号数据，但不显示下拉菜单
-            const showDropdown = false;
-            loadModelsByProductName(document.getElementById('product-name').value, showDropdown);
-
-            // 检查MN号是否有效
-            checkMnAvailability();
+                })
+                .catch(error => {
+                    console.error('获取产品名称出错:', error);
+                    subcategorySelect.innerHTML = '<option value="">-- 加载失败，请重试 --</option>';
+                    subcategorySelect.disabled = true;
+                    alert('加载产品名称失败，请检查网络连接或联系管理员。错误详情：' + error.message);
+                });
         }
 
-        // 点击页面其他位置关闭下拉列表
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.product-dropdown-container')) {
-                document.getElementById('category-list').classList.remove('show');
-                document.getElementById('model-list').classList.remove('show');
-            }
-        });
-
-        // 图片和PDF上传功能已移除，仅保留图片显示
+        // 更新MN编码预览
+        updateMNCodePreview(true);
     });
 
-    // 加载产品类别
-    function loadCategories() {
-        fetch('/api/products/categories')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('网络响应不正常');
-                }
-                return response.json();
-            })
-            .then(data => {
-                // 定义类别的自定义顺序（与服务器端保持一致，作为备份）
-                const categoryOrder = {
-                    '基站': 1,
-                    '合路平台': 2,
-                    '直放站': 3,
-                    '天线': 4,
-                    '功率分配器': 5,
-                    '功率/耦合器': 6,
-                    '对讲机': 7,
-                    '配件': 8,
-                    '应用': 9,
-                    '服务': 10
-                };
+    // 子分类选择联动 - 加载规格字段（仅当元素存在时）
+    if (subcategorySelect) {
+        subcategorySelect.addEventListener('change', function() {
+            const subcategoryId = this.value;
 
-                // 再次排序以确保顺序正确（以防服务器端排序失败）
-                categories = data.sort((a, b) => {
-                    const orderA = categoryOrder[a] || 999;
-                    const orderB = categoryOrder[b] || 999;
-                    return orderA - orderB;
+            // 检查是否选择了"快速添加"选项
+            if (subcategoryId === '__ADD_NEW_SUBCATEGORY__') {
+                // 恢复到之前的选择
+                this.value = '';
+                // 显示快速添加模态框
+                window.SelectWithQuickAdd.showModal('subcategory', {
+                    targetSelect: this
                 });
-
-                // 渲染产品名称下拉列表的类别部分
-                renderCategoryList();
-
-                // 填充类别下拉框
-                const categorySelect = document.getElementById('category');
-                const firstOption = categorySelect.options[0];
-                categorySelect.innerHTML = '';
-                categorySelect.appendChild(firstOption);
-
-                // 当前选择的类别（如果是编辑模式）
-                const currentCategory = '{{ product.category if product else "" }}';
-
-                // 添加从服务器获取的类别选项
-                categories.forEach(category => {
-                    const option = document.createElement('option');
-                    option.value = category;
-                    option.textContent = category;
-
-                    // 如果是编辑模式，检查是否需要选中
-                    if (currentCategory === category) {
-                        option.selected = true;
-                    }
-
-                    categorySelect.appendChild(option);
-                });
-
-                // 添加类别选择变更事件
-                categorySelect.addEventListener('change', function() {
-                    // 产品类别选择变更时，不会影响产品名称的内容
-                    // 可以在此添加其他处理逻辑
-                });
-
-                checkApiLoaded();
-            })
-            .catch(error => {
-                console.error('加载产品类别失败:', error);
-                document.getElementById('category-list').innerHTML = '<div class="p-3 text-danger">加载类别失败</div>';
-            });
-    }
-
-    // 加载产品单位
-    function loadUnits() {
-        fetch('/api/products/units')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('网络响应不正常');
-                }
-                return response.json();
-            })
-            .then(data => {
-                const unitSelect = document.getElementById('unit');
-                // 保留第一个选项（-- 选择单位 --）
-                const firstOption = unitSelect.options[0];
-                unitSelect.innerHTML = '';
-                unitSelect.appendChild(firstOption);
-
-                // 当前选择的单位（如果是编辑模式）
-                const currentUnit = '{{ product.unit if product else "" }}';
-
-                // 添加从服务器获取的单位选项
-                data.forEach(unit => {
-                    const option = document.createElement('option');
-                    option.value = unit;
-                    option.textContent = unit;
-
-                    // 如果是编辑模式，检查是否需要选中
-                    if (currentUnit === unit) {
-                        option.selected = true;
-                    }
-
-                    unitSelect.appendChild(option);
-                });
-
-                checkApiLoaded();
-            })
-            .catch(error => {
-                console.error('加载产品单位失败:', error);
-                // 不添加默认单位，仅显示错误信息
-                const unitSelect = document.getElementById('unit');
-                const firstOption = unitSelect.options[0];
-                unitSelect.innerHTML = '';
-                unitSelect.appendChild(firstOption);
-            });
-    }
-
-    // 设置产品类型（不需要API调用）
-    function setProductType() {
-        // 如果是编辑模式，设置产品类型选中状态
-        const currentType = '{{ product.type if product else "" }}';
-        if (currentType) {
-            const typeSelect = document.getElementById('type');
-            for (let i = 0; i < typeSelect.options.length; i++) {
-                if (typeSelect.options[i].value === currentType) {
-                    typeSelect.selectedIndex = i;
-                    break;
-                }
+                return;
             }
-        }
-        // 产品类型不需要API调用，所以不调用checkApiLoaded()
+
+            const productModelInput = document.getElementById('product_model');
+            const modelDropdown = document.getElementById('modelDropdown');
+
+            // 检查是否为编辑模式（表单action包含/update）
+            const formAction = document.querySelector('form').action || '';
+            const isEditMode = formAction.includes('/update');
+
+            // 清空产品型号
+            if (productModelInput) {
+                productModelInput.value = '';
+            }
+
+            if (subcategoryId) {
+                // 启用产品型号输入框
+                if (productModelInput && !isEditMode) {
+                    productModelInput.disabled = false;
+                    productModelInput.placeholder = '输入型号或从列表选择';
+                }
+
+                // 加载产品型号列表
+                loadProductModels(subcategoryId);
+
+                // 只在创建模式下清空规格表格
+                if (!isEditMode) {
+                    specsTableBody.innerHTML = '';
+                    specRowCounter = 0;
+                }
+
+                // 加载规格字段
+                loadSpecFields(subcategoryId);
+
+                // 更新MN编码预览
+                updateMNCodePreview(true);
+            } else {
+                // 禁用产品型号输入框
+                if (productModelInput && !isEditMode) {
+                    productModelInput.disabled = true;
+                    productModelInput.placeholder = '请先选择产品名称';
+                }
+
+                // 隐藏下拉菜单
+                if (modelDropdown) {
+                    modelDropdown.style.display = 'none';
+                }
+
+                // 清空规格表格
+                specsTableBody.innerHTML = '';
+                specRowCounter = 0;
+            }
+        });
     }
 
-    // 加载产品品牌列表
-    function loadBrands() {
-        fetch('/api/products/brands')
+    // 加载产品型号列表
+    function loadProductModels(subcategoryId) {
+        const productModelInput = document.getElementById('product_model');
+        const modelDropdown = document.getElementById('modelDropdown');
+
+        if (!productModelInput || !modelDropdown) return;
+
+        // 显示加载中
+        modelDropdown.innerHTML = '<div class="dropdown-item disabled">加载中...</div>';
+        modelDropdown.style.display = 'block';
+
+        // 调用API获取型号列表
+        fetch(`/product-management/api/subcategory/${subcategoryId}/models`)
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('网络响应不正常');
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 return response.json();
             })
             .then(data => {
-                const brandList = document.getElementById('brand-list');
-                brandList.innerHTML = '';
+                // 清空下拉菜单
+                modelDropdown.innerHTML = '';
 
-                // 添加从服务器获取的品牌选项
-                data.forEach(brand => {
-                    const option = document.createElement('option');
-                    option.value = brand;
-                    brandList.appendChild(option);
-                });
+                if (data && data.length > 0) {
+                    // 添加型号选项
+                    data.forEach(item => {
+                        const dropdownItem = document.createElement('div');
+                        dropdownItem.className = 'dropdown-item';
 
-                console.log(`成功加载 ${data.length} 个品牌选项`);
+                        const modelName = document.createElement('span');
+                        modelName.className = 'model-name';
+                        modelName.textContent = item.model;
 
-                checkApiLoaded();
-            })
-            .catch(error => {
-                console.error('加载产品品牌失败:', error);
-            });
-    }
+                        const modelMeta = document.createElement('span');
+                        modelMeta.className = 'model-meta';
+                        // 简化库类型名称
+                        const libraryShortName = item.library_type.replace('产品库', '');
+                        modelMeta.textContent = `[${libraryShortName}][${item.status}]`;
 
-    // 渲染类别列表
-    function renderCategoryList() {
-        const categoryList = document.getElementById('category-list');
-        categoryList.innerHTML = '';
+                        dropdownItem.appendChild(modelName);
+                        dropdownItem.appendChild(modelMeta);
 
-        categories.forEach(category => {
-            const categoryItem = document.createElement('div');
-            categoryItem.className = 'category-item';
-            categoryItem.textContent = category;
-            categoryItem.setAttribute('data-category', category);
+                        // 点击选择型号
+                        dropdownItem.addEventListener('click', function() {
+                            productModelInput.value = item.model;
+                            modelDropdown.style.display = 'none';
 
-            // 添加产品名称列表容器
-            const productNameList = document.createElement('div');
-            productNameList.className = 'product-name-list';
-            productNameList.id = `product-names-${category.replace(/\s+/g, '-')}`;
+                            // 更新MN编码预览
+                            updateMNCodePreview();
+                        });
 
-            // 点击类别时加载产品名称
-            categoryItem.addEventListener('click', function(e) {
-                e.stopPropagation();
+                        modelDropdown.appendChild(dropdownItem);
+                    });
 
-                // 切换显示产品名称列表
-                const isActive = this.classList.contains('active');
-                document.querySelectorAll('.category-item').forEach(item => {
-                    item.classList.remove('active');
-                    document.getElementById(`product-names-${item.getAttribute('data-category').replace(/\s+/g, '-')}`).classList.remove('show');
-                });
-
-                if (!isActive) {
-                    this.classList.add('active');
-                    productNameList.classList.add('show');
-                    loadProductNamesByCategory(category);
-                }
-            });
-
-            categoryItem.appendChild(productNameList);
-            categoryList.appendChild(categoryItem);
-        });
-    }
-
-    // 加载指定类别的产品名称
-    function loadProductNamesByCategory(category) {
-        // 如果已缓存该类别的产品名称，直接使用
-        if (productNamesByCategory[category]) {
-            renderProductNameList(category, productNamesByCategory[category]);
-            return;
-        }
-
-        // 否则从服务器获取
-        fetch(`/api/products/by-category?category=${encodeURIComponent(category)}`)
-            .then(response => response.json())
-            .then(data => {
-                productNamesByCategory[category] = data;
-                renderProductNameList(category, data);
-            })
-            .catch(error => {
-                console.error(`加载类别 "${category}" 的产品名称失败:`, error);
-            });
-    }
-
-    // 渲染产品名称列表
-    function renderProductNameList(category, productNames) {
-        const productNameList = document.getElementById(`product-names-${category.replace(/\s+/g, '-')}`);
-        productNameList.innerHTML = '';
-
-        if (productNames.length === 0) {
-            const emptyItem = document.createElement('div');
-            emptyItem.className = 'product-name-item';
-            emptyItem.textContent = '(暂无产品)';
-            productNameList.appendChild(emptyItem);
-            return;
-        }
-
-        let isSelectingFromDropdown = false;
-
-        productNames.forEach(productName => {
-            const productNameItem = document.createElement('div');
-            productNameItem.className = 'product-name-item';
-            productNameItem.textContent = productName;
-
-            // 点击产品名称时更新输入框
-            productNameItem.addEventListener('click', function(e) {
-                e.stopPropagation();
-
-                isSelectingFromDropdown = true;
-
-                // 更新产品名称输入框
-                document.getElementById('product-name').value = productName;
-
-                // 更新产品类别下拉框
-                const categorySelect = document.getElementById('category');
-                for (let i = 0; i < categorySelect.options.length; i++) {
-                    if (categorySelect.options[i].value === category) {
-                        categorySelect.selectedIndex = i;
-                        break;
-                    }
-                }
-
-                // 隐藏下拉列表
-                document.getElementById('category-list').classList.remove('show');
-
-                // 加载对应的产品型号数据，但不显示下拉菜单
-                loadModelsByProductName(productName, false);
-
-                // 自动聚焦到型号输入框，但不展开下拉菜单
-                setTimeout(() => {
-                    document.getElementById('model').focus();
-                }, 100);
-
-                isSelectingFromDropdown = false;
-            });
-
-            productNameList.appendChild(productNameItem);
-        });
-    }
-
-    // 加载指定产品名称的型号
-    function loadModelsByProductName(productName, showDropdown = false) {
-        // 如果产品名称为空，清空型号列表
-        if (!productName) {
-            document.getElementById('model-list').innerHTML = '';
-            document.getElementById('model-list').classList.remove('show');
-            return;
-        }
-
-        // 如果已缓存该产品名称的型号，直接使用
-        if (modelsByProductName[productName]) {
-            renderModelList(modelsByProductName[productName], showDropdown);
-            return;
-        }
-
-        // 否则从服务器获取
-        fetch(`/api/products/by-name?product_name=${encodeURIComponent(productName)}`)
-            .then(response => response.json())
-            .then(data => {
-                modelsByProductName[productName] = data;
-                renderModelList(data, showDropdown);
-
-                // 确保型号输入框获得焦点
-                setTimeout(() => {
-                    document.getElementById('model').focus();
-                }, 50);
-            })
-            .catch(error => {
-                console.error(`加载产品 "${productName}" 的型号失败:`, error);
-            });
-    }
-
-    // 渲染型号列表
-    function renderModelList(models, shouldShow = false) {
-        const modelList = document.getElementById('model-list');
-        modelList.innerHTML = '';
-
-        if (models.length === 0) {
-            modelList.classList.remove('show');
-            return;
-        }
-
-        models.forEach(model => {
-            const modelItem = document.createElement('div');
-            modelItem.className = 'model-item';
-            modelItem.textContent = model.model;
-            modelItem.setAttribute('data-model', JSON.stringify(model));
-
-            // 点击型号时更新输入框
-            modelItem.addEventListener('click', function() {
-                const modelData = JSON.parse(this.getAttribute('data-model'));
-
-                // 只更新型号和MN号
-                document.getElementById('model').value = modelData.model;
-                document.getElementById('product-mn').value = modelData.product_mn;
-
-                // 隐藏下拉列表
-                modelList.classList.remove('show');
-
-                // 检查MN号是否有效
-                setTimeout(checkMnAvailability, 100);
-            });
-
-            modelList.appendChild(modelItem);
-        });
-
-        // 只有在shouldShow为true时才显示下拉菜单
-        if (shouldShow) {
-            modelList.classList.add('show');
-        } else {
-            modelList.classList.remove('show');
-        }
-    }
-
-    // 检查MN号是否可用
-    function checkMnAvailability() {
-        const mnInput = document.getElementById('product-mn');
-        const mnErrorMessage = document.getElementById('mn-error-message');
-        const mn = mnInput.value.trim();
-
-        // 清除之前的反馈
-        mnErrorMessage.textContent = '';
-        mnInput.style.color = '';
-        mnInput.style.borderColor = '';
-
-        // 如果MN号为空，直接返回
-        if (!mn) {
-            isMnValid = false;
-            return;
-        }
-
-        // 构建请求URL
-        let url = `/api/products/check-mn?product_mn=${encodeURIComponent(mn)}`;
-
-        // 如果是编辑模式，需要排除当前产品
-        const productId = document.getElementById('product-id');
-        if (productId) {
-            url += `&exclude_id=${productId.value}`;
-        }
-
-        // 发送请求
-        fetch(url)
-            .then(response => response.json())
-            .then(data => {
-                if (data.valid) {
-                    mnErrorMessage.textContent = '';
-                    isMnValid = true;
+                    modelDropdown.style.display = 'block';
                 } else {
-                    mnErrorMessage.textContent = data.message || "MN号已被使用";
-                    mnInput.style.color = '#dc3545';
-                    mnInput.style.borderColor = '#dc3545';
-                    isMnValid = false;
+                    modelDropdown.innerHTML = '<div class="dropdown-item disabled text-muted">暂无已有型号，请直接输入</div>';
+                    modelDropdown.style.display = 'block';
                 }
             })
             .catch(error => {
-                console.error('检查MN号失败:', error);
-                mnErrorMessage.textContent = '检查MN号失败，请稍后再试';
-                mnInput.style.color = '#dc3545';
-                mnInput.style.borderColor = '#dc3545';
-                isMnValid = false;
+                console.error('加载产品型号失败:', error);
+                modelDropdown.innerHTML = '<div class="dropdown-item disabled text-danger">加载失败</div>';
             });
     }
 
-    // 比较产品数据，返回变更的字段及其旧值和新值
-    function compareProductData(oldData, newData) {
-        const changes = {};
+    // 产品型号输入框交互
+    const productModelInput = document.getElementById('product_model');
+    const modelDropdown = document.getElementById('modelDropdown');
 
-        for (const field in newData) {
-            // 处理retail_price字段为数值比较
-            if (field === 'retail_price') {
-                const oldValue = parseFloat(oldData[field]) || 0;
-                const newValue = parseFloat(newData[field]) || 0;
+    if (productModelInput && modelDropdown) {
+        // 获得焦点时显示下拉菜单
+        productModelInput.addEventListener('focus', function() {
+            if (this.value === '' && modelDropdown.children.length > 0) {
+                modelDropdown.style.display = 'block';
+            }
+        });
 
-                if (Math.abs(oldValue - newValue) > 0.01) {  // 考虑浮点数精度问题
-                    changes[field] = {
-                        old: oldValue.toFixed(2),
-                        new: newValue.toFixed(2)
-                    };
+        // 输入时过滤下拉菜单
+        productModelInput.addEventListener('input', function() {
+            const searchText = this.value.toLowerCase();
+            const items = modelDropdown.querySelectorAll('.dropdown-item:not(.disabled)');
+
+            let hasVisible = false;
+            items.forEach(item => {
+                const modelText = item.querySelector('.model-name').textContent.toLowerCase();
+                if (modelText.includes(searchText)) {
+                    item.style.display = 'flex';
+                    hasVisible = true;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+
+            modelDropdown.style.display = hasVisible ? 'block' : 'none';
+        });
+
+        // 点击页面其他地方时隐藏下拉菜单
+        document.addEventListener('click', function(e) {
+            if (!productModelInput.contains(e.target) && !modelDropdown.contains(e.target)) {
+                modelDropdown.style.display = 'none';
+            }
+        });
+    }
+
+    // 加载规格字段
+    function loadSpecFields(subcategoryId) {
+        Promise.all([
+            fetch(`/product-management/api/subcategory/${subcategoryId}/spec-fields`),
+            fetch(`/product-management/api/subcategory/${subcategoryId}/spec-structure`)
+        ])
+        .then(responses => Promise.all(responses.map(r => r.json())))
+        .then(([currentData, structureData]) => {
+            availableSpecs = currentData.spec_fields || [];
+            window.specStructure = structureData;
+
+            // 清空现有规格行
+            specsTableBody.innerHTML = '';
+            specRowCounter = 0;
+
+            // 检查是否有定义编码位置的规格
+            const hasDefinedSpecs = availableSpecs.length > 0 && availableSpecs.some(spec => spec.use_in_code !== false);
+
+            // 根据是否有定义规格来决定显示哪个界面
+            updateSpecInterface(hasDefinedSpecs, subcategoryId, structureData);
+
+            // 更新MN编码预览
+            updateMNCodePreview();
+
+            // 验证保存按钮状态
+            validateSaveButton();
+        })
+        .catch(error => {
+            console.error('获取规格字段失败:', error);
+            updateSpecInterface(false, subcategoryId, null);
+        });
+    }
+
+    // 更新规格界面显示
+    function updateSpecInterface(hasDefinedSpecs, subcategoryId, structureData) {
+        const noSpecsDiv = document.getElementById('no-specs-defined');
+        const specsInterfaceDiv = document.getElementById('specs-interface');
+        const addSpecContainer = document.getElementById('add-spec-container');
+        const gotoSpecManagementBtn = document.getElementById('goto-spec-management-btn');
+        const manageSpecsBtn = document.getElementById('manage-specs-btn');
+
+        if (hasDefinedSpecs) {
+            // 有定义规格，显示正常界面
+            noSpecsDiv.style.display = 'none';
+            specsInterfaceDiv.style.display = 'block';
+
+            // 如果有定义的规格，按结构初始化规格行
+            if (structureData && structureData.spec_fields.length > 0) {
+                initializeStructuredSpecRows(structureData);
+                checkNonCodeSpecAvailability();
+            } else if (availableSpecs.length > 0) {
+                initializeSpecRowsFromAvailableSpecs(availableSpecs);
+                checkNonCodeSpecAvailability();
+            }
+        } else {
+            // 没有定义规格，显示提示界面
+            noSpecsDiv.style.display = 'block';
+            specsInterfaceDiv.style.display = 'none';
+        }
+
+        // 设置规格管理按钮的链接
+        const specManagementUrl = `/product-code/subcategories/${subcategoryId}/fields`;
+        if (gotoSpecManagementBtn) {
+            gotoSpecManagementBtn.href = specManagementUrl + '?from=product_create';
+        }
+        if (manageSpecsBtn) {
+            manageSpecsBtn.onclick = function() {
+                sessionStorage.setItem('productCreateReturnUrl', window.location.href);
+                window.location.href = specManagementUrl + '?from=product_create';
+            };
+        }
+    }
+
+    // 初始化结构化规格行
+    function initializeStructuredSpecRows(structureData) {
+        // 分离编码规格和非编码必填规格
+        const codedSpecs = [];
+        const requiredNonCodedSpecs = [];
+
+        structureData.spec_fields.forEach(field => {
+            if (field.use_in_code) {
+                codedSpecs.push(field);
+            } else if (field.is_required) {
+                requiredNonCodedSpecs.push(field);
+            }
+        });
+
+        // 1. 先渲染编码规格（按position排序）
+        codedSpecs.sort((a, b) => (a.position || 0) - (b.position || 0));
+        codedSpecs.forEach((field, index) => {
+            // 查找已保存的规格值
+            let existingValue = null;
+            let existingCode = null;
+            let isSaved = false;
+
+            if (isEditMode && existingSpecs.length > 0) {
+                const existingSpec = existingSpecs.find(s => s.field_name === field.name);
+                if (existingSpec) {
+                    existingValue = existingSpec.field_value;
+                    existingCode = existingSpec.field_code;
+                    isSaved = existingSpec.is_saved === true;
                 }
             }
-            // 特殊处理状态字段
-            else if (field === 'status') {
-                if (oldData[field] !== newData[field]) {
-                    const statusTexts = {
-                        'active': '生产中',
-                        'discontinued': '已停产',
-                        'upcoming': '待上市'
-                    };
-                    changes[field] = {
-                        old: statusTexts[oldData[field]] || oldData[field],
-                        new: statusTexts[newData[field]] || newData[field]
-                    };
+
+            const newRow = createStructuredSpecRow(field, index, existingValue, isSaved, existingCode);
+            specsTableBody.appendChild(newRow);
+        });
+
+        // 2. 再渲染必填的非编码规格（按position排序）
+        requiredNonCodedSpecs.sort((a, b) => (a.position || 999) - (b.position || 999));
+        requiredNonCodedSpecs.forEach((field, index) => {
+            // 查找已保存的规格值
+            let existingValue = null;
+            let existingCode = null;
+            let isSaved = false;
+
+            if (isEditMode && existingSpecs.length > 0) {
+                const existingSpec = existingSpecs.find(s => s.field_name === field.name);
+                if (existingSpec) {
+                    existingValue = existingSpec.field_value;
+                    existingCode = existingSpec.field_code;
+                    isSaved = existingSpec.is_saved === true;
                 }
             }
-            // 处理字符串值 - 改进空值比较逻辑
-            else {
-                const oldValue = oldData[field] || '';
-                const newValue = newData[field] || '';
 
-                // 只有当两个值真正不同时才记录变更
-                // 不将空字符串和未定义值视为不同
-                if (oldValue.trim() !== newValue.trim()) {
-                    // 只有当新值不为空，或者旧值不为空时才记录变更
-                    // 避免空→空的变更
-                    if (oldValue.trim() !== '' || newValue.trim() !== '') {
-                        changes[field] = {
-                            old: oldValue.trim() === '' ? '(空)' : oldValue,
-                            new: newValue.trim() === '' ? '(空)' : newValue
-                        };
+            // 传入 true 表示这是必填的非编码规格
+            const newRow = createStructuredSpecRow(field, codedSpecs.length + index, existingValue, isSaved, existingCode, true);
+            specsTableBody.appendChild(newRow);
+        });
+
+        // 3. 编辑模式：加载现有的可选非编码规格
+        if (isEditMode && existingSpecs.length > 0) {
+            loadExistingNonCodeSpecs();
+        }
+
+        validateSaveButton();
+    }
+
+    // 加载编辑模式下现有的非编码规格
+    function loadExistingNonCodeSpecs() {
+        console.log('[DEBUG] loadExistingNonCodeSpecs - 所有规格:', existingSpecs);
+
+        // 获取所有编码规格的名称（已经加载的）
+        const codedSpecNames = new Set();
+        Array.from(specsTableBody.querySelectorAll('input[name="spec_name[]"]')).forEach(input => {
+            if (input.value) codedSpecNames.add(input.value);
+        });
+
+        // 过滤出非编码规格（不在编码规格列表中的）
+        const nonCodedSpecs = existingSpecs.filter(spec => !codedSpecNames.has(spec.field_name));
+        console.log('[DEBUG] 过滤后的非编码规格:', nonCodedSpecs);
+
+        // 为每个非编码规格创建行
+        nonCodedSpecs.forEach(spec => {
+            console.log('[DEBUG] 处理规格:', spec.field_name, '值:', spec.field_value, 'field_id:', spec.field_id);
+            const newRow = createNonCodeSpecRow();
+            specsTableBody.appendChild(newRow);
+
+            // 设置规格名称和值的隐藏字段
+            const specNameInput = newRow.querySelector('input[name="spec_name[]"]');
+            const specFieldIdInput = newRow.querySelector('input[name="spec_field_ids[]"]');
+            const specValueInput = newRow.querySelector('input[name="spec_value[]"]');
+            const specSelect = newRow.querySelector('.spec-select');
+            const indicatorSelect = newRow.querySelector('.indicator-select');
+
+            // 设置规格名称
+            specNameInput.value = spec.field_name;
+            if (spec.field_id) {
+                specFieldIdInput.value = spec.field_id;
+            }
+
+            // 设置规格选择器为只读（显示规格名称但不可修改）
+            specSelect.innerHTML = `<option value="${spec.field_name}" selected>${spec.field_name}</option>`;
+            specSelect.disabled = true;
+
+            // 启用指标选择器（非编码规格的指标可以编辑）
+            indicatorSelect.disabled = false;
+
+            // 先加载指标选项，再绑定事件（避免事件处理覆盖我们的设置）
+            SpecManagement.loadIndicatorOptionsForSpec(newRow, spec.field_name, spec.field_id, spec.field_value);
+
+            // 只绑定指标选择事件（不调用完整的setupNonCodeSpecRow，避免重新加载规格选择器）
+            const indicatorCodeHidden = newRow.querySelector('input[name="spec_option_codes[]"]');
+            indicatorSelect.addEventListener('change', () => {
+                const value = indicatorSelect.value;
+
+                // 检测是否选择了"添加新指标"特殊选项
+                if (value === '__ADD_NEW_INDICATOR__') {
+                    // 重置选择框
+                    indicatorSelect.value = '';
+
+                    // 获取当前规格信息
+                    const specName = specNameInput.value;
+                    const specFieldId = specFieldIdInput.value;
+
+                    // 触发快速添加模态框
+                    if (window.IndicatorQuickAdd) {
+                        window.IndicatorQuickAdd.showQuickAddModal(specName, specFieldId, newRow);
+                    }
+                    return;
+                }
+
+                const selectedOption = indicatorSelect.options[indicatorSelect.selectedIndex];
+                const code = selectedOption.dataset.code || '';
+
+                // 更新隐藏字段
+                specValueInput.value = value;
+                indicatorCodeHidden.value = code;
+            });
+        });
+    }
+
+    // 从可用规格初始化规格行
+    function initializeSpecRowsFromAvailableSpecs(availableSpecs) {
+        const sortedSpecs = availableSpecs.sort((a, b) => (a.position || 0) - (b.position || 0));
+
+        sortedSpecs.forEach((spec, index) => {
+            const newRow = createStructuredSpecRow(spec, index);
+            specsTableBody.appendChild(newRow);
+        });
+
+        validateSaveButton();
+    }
+
+    // 创建结构化规格行
+    function createStructuredSpecRow(field, index, existingValue = null, isSaved = false, existingCode = null, isRequiredNonCoded = false) {
+        specRowCounter++;
+        const rowId = `spec-row-${specRowCounter}`;
+
+        const row = document.createElement('tr');
+        row.id = rowId;
+        row.dataset.position = field.position;
+        row.dataset.fieldId = field.id;
+        row.dataset.useInCode = field.use_in_code ? 'true' : 'false';
+        row.dataset.isRequired = field.is_required || isRequiredNonCoded ? 'true' : 'false';
+
+        // 模式1: 只读显示已保存的规格（从快照数据还原）
+        // 注意：管理员可以编辑已保存的规格，所以需要排除管理员
+        if (isSaved && existingValue && !isAdmin) {
+            row.innerHTML = `
+                <td>
+                    <div class="spec-input-container">
+                        <input type="text" class="spec-input form-control"
+                               value="${field.name}"
+                               readonly
+                               title="编码位置${field.position}: ${field.name}">
+                    </div>
+                    <input type="hidden" name="spec_name[]" value="${field.name}">
+                    <input type="hidden" name="spec_field_ids[]" value="${field.id}">
+                </td>
+                <td>
+                    <div class="indicator-input-container">
+                        <input type="text" class="form-control bg-light"
+                               value="${existingValue}"
+                               readonly
+                               title="已保存的规格值（只读）">
+                        <input type="hidden" name="spec_value[]" value="${existingValue}">
+                        <input type="hidden" name="spec_option_codes[]" value="${existingCode || ''}">
+                    </div>
+                </td>
+                <td class="text-center">
+                    <input type="checkbox" class="form-check-input include-in-description">
+                </td>
+                <td>
+                    ${field.use_in_code ? `<span class="badge bg-info me-2">位置${field.position}</span>` : ''}
+                    ${!field.use_in_code ? '<span class="badge bg-secondary me-2">非编码</span>' : ''}
+                    ${(field.is_required || isRequiredNonCoded) ? '<span class="badge bg-danger">必填</span>' : ''}
+                </td>
+            `;
+        } else {
+            // 模式2: 可编辑下拉框（用于新增或修改规格）
+            row.innerHTML = `
+                <td>
+                    <div class="spec-input-container">
+                        <input type="text" class="spec-input form-control"
+                               data-row-id="${rowId}"
+                               value="${field.name}"
+                               readonly
+                               title="编码位置${field.position}: ${field.name}">
+                    </div>
+                    <input type="hidden" name="spec_name[]" value="${field.name}">
+                    <input type="hidden" name="spec_field_ids[]" value="${field.id}">
+                </td>
+                <td>
+                    <div class="indicator-input-container">
+                        <select class="form-control indicator-select"
+                                data-row-id="${rowId}"
+                                ${isMNLocked && existingValue ? 'disabled' : ''}>
+                            <option value="">-- 请选择指标值 --</option>
+                        </select>
+                        <input type="hidden" name="spec_value[]" value="">
+                        <input type="hidden" name="spec_option_codes[]" value="">
+                    </div>
+                </td>
+                <td class="text-center">
+                    <input type="checkbox" class="form-check-input include-in-description">
+                </td>
+                <td>
+                    ${field.use_in_code ? `<span class="badge bg-info me-2">位置${field.position}</span>` : ''}
+                    ${!field.use_in_code ? '<span class="badge bg-secondary me-2">非编码</span>' : ''}
+                    ${(field.is_required || isRequiredNonCoded) ? '<span class="badge bg-danger me-2">必填</span>' : ''}
+                    ${isMNLocked && existingValue ? '<span class="badge bg-secondary"><i class="fas fa-lock me-1"></i>已锁定</span>' : ''}
+                    ${isMNLocked && !existingValue ? '<span class="badge bg-warning"><i class="fas fa-lock me-1"></i>锁定(可补充)</span>' : ''}
+                </td>
+            `;
+
+            // 使用共享函数处理指标选择
+            const indicatorSelect = row.querySelector('.indicator-select');
+            if (indicatorSelect) {
+                // 总是加载指标选项
+                SpecManagement.loadIndicatorOptionsForSpec(row, field.name, field.id, existingValue);
+
+                // 如果未锁定，或者锁定但没有已有值（可补充），则允许修改
+                if (!isMNLocked || (isMNLocked && !existingValue)) {
+                    indicatorSelect.disabled = false;
+
+                    // 绑定选择事件
+                    indicatorSelect.addEventListener('change', function() {
+                        const value = this.value;
+
+                        // 检测是否选择了"添加新指标"特殊选项
+                        if (value === '__ADD_NEW_INDICATOR__') {
+                            // 重置选择框
+                            this.value = '';
+
+                            // 获取当前规格信息
+                            const specName = row.querySelector('input[name="spec_name[]"]').value;
+                            const specFieldId = row.querySelector('input[name="spec_field_ids[]"]').value;
+
+                            // 触发快速添加模态框
+                            if (window.IndicatorQuickAdd) {
+                                window.IndicatorQuickAdd.showQuickAddModal(specName, specFieldId, row);
+                            }
+                            return;
+                        }
+
+                        const selectedOption = this.options[this.selectedIndex];
+                        const code = selectedOption.dataset.code || '';
+
+                        // 更新隐藏字段
+                        const indicatorValueHidden = row.querySelector('input[name="spec_value[]"]');
+                        const indicatorCodeHidden = row.querySelector('input[name="spec_option_codes[]"]');
+                        indicatorValueHidden.value = value;
+                        indicatorCodeHidden.value = code;
+
+                        // 更新MN编码预览（仅在创建模式下）
+                        if (!isEditMode) {
+                            updateMNCodePreview();
+                        }
+
+                        // 验证保存按钮状态
+                        validateSaveButton();
+                    });
+                }
+                // 如果锁定且有已有值，保持禁用状态（已在HTML中设置）
+            }
+        }
+
+        return row;
+    }
+
+    // 验证保存按钮状态
+    function validateSaveButton() {
+        const saveBtn = document.getElementById('save-product-btn');
+        if (!saveBtn) return;
+
+        const specRows = specsTableBody.querySelectorAll('tr');
+        let allSpecsHaveIndicators = true;
+        let emptySpecs = [];
+        let codeRowCount = 0;
+
+        for (let row of specRows) {
+            const specInput = row.querySelector('.spec-input');
+            if (specInput && specInput.value.trim()) {
+                const pos = row.dataset && row.dataset.position ? parseInt(row.dataset.position) : -1;
+                if (pos > 0) {
+                    codeRowCount += 1;
+                    const codeInput = row.querySelector('input[name="spec_option_codes[]"]');
+                    if (!codeInput || !codeInput.value || codeInput.value.trim() === '') {
+                        allSpecsHaveIndicators = false;
+                        emptySpecs.push(specInput.value);
                     }
                 }
             }
         }
 
-        console.log("变更字段:", Object.keys(changes));
-        return changes;
-    }
-
-    // 获取字段的中文显示名称
-    function getFieldDisplayName(field) {
-        const fieldNames = {
-            'product_name': '产品名称',
-            'category': '产品类别',
-            'model': '产品型号',
-            'product_mn': 'MN号',
-            'type': '产品类型',
-            'brand': '品牌',
-            'unit': '单位',
-            'retail_price': '市场价格',
-            'status': '生产状态',
-            'specification': '规格说明'
-        };
-
-        return fieldNames[field] || field;
-    }
-
-    // 图片和PDF上传功能已移除，仅保留图片显示功能
-
-    // 添加UI辅助函数
-    function showLoading() {
-        // 添加加载遮罩
-        if ($('#loading-overlay').length === 0) {
-            $('body').append(`
-                <div id="loading-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                    background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center;">
-                    <div class="spinner-border text-light" role="status">
-                        <span class="visually-hidden">加载中...</span>
-                    </div>
-                </div>
-            `);
+        if (allSpecsHaveIndicators && codeRowCount > 0) {
+            saveBtn.disabled = false;
+            saveBtn.classList.remove('disabled');
+            saveBtn.title = '';
         } else {
-            $('#loading-overlay').show();
+            saveBtn.disabled = true;
+            saveBtn.classList.add('disabled');
+            if (emptySpecs.length > 0) {
+                saveBtn.title = `以下规格缺少指标内容: ${emptySpecs.join(', ')}`;
+            } else {
+                saveBtn.title = '请至少填写一个规格的指标内容';
+            }
         }
     }
 
-    function hideLoading() {
-        $('#loading-overlay').hide();
+    // 验证必填规格是否已填写（包括必填的非编码规格）
+    function validateRequiredSpecs() {
+        const rows = document.querySelectorAll('#specs-table-body tr');
+        const missingRequired = [];
+
+        rows.forEach(row => {
+            const isRequired = row.dataset.isRequired === 'true';
+            if (isRequired) {
+                // 获取规格名称
+                const specNameInput = row.querySelector('input[name="spec_name[]"]');
+                const specName = specNameInput ? specNameInput.value : '未知规格';
+
+                // 检查是否已保存（只读状态）
+                const isSaved = row.querySelector('.spec-input[readonly]') !== null;
+                if (isSaved) {
+                    // 已保存的规格，检查是否有值
+                    const specInput = row.querySelector('.spec-input');
+                    if (!specInput || !specInput.value || specInput.value.trim() === '') {
+                        missingRequired.push(specName);
+                    }
+                } else {
+                    // 未保存的规格，检查选择的指标或自定义值
+                    const indicatorSelect = row.querySelector('select[name*="indicator"]');
+                    const customInput = row.querySelector('input[name*="custom_value"]');
+
+                    const hasIndicator = indicatorSelect && indicatorSelect.value && indicatorSelect.value.trim() !== '';
+                    const hasCustomValue = customInput && customInput.value && customInput.value.trim() !== '';
+
+                    if (!hasIndicator && !hasCustomValue) {
+                        missingRequired.push(specName);
+                    }
+                }
+            }
+        });
+
+        return missingRequired;
     }
 
-    function showMessage(type, message) {
-        // 移除已有的消息
-        $('.alert-message').remove();
+    // 提交产品表单（带必填项验证）
+    // 挂载到 window 对象，使其可从 HTML onclick 属性访问
+    window.submitProductForm = function() {
+        // 验证必填规格
+        const missingRequired = validateRequiredSpecs();
 
-        // 创建消息元素
-        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
-        const alertIcon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+        if (missingRequired.length > 0) {
+            // 显示错误提示
+            const errorMessage = `以下必填规格尚未填写，请完成后再保存：\n\n${missingRequired.map((name, index) => `${index + 1}. ${name}`).join('\n')}`;
 
-        const alertHtml = `
-            <div class="alert ${alertClass} alert-message" style="position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 300px;">
-                <i class="fas ${alertIcon} me-2"></i> ${message}
-            </div>
+            if (typeof showTopNotification === 'function') {
+                showTopNotification(errorMessage.replace(/\n/g, '<br>'), 'error', 5000);
+            } else {
+                alert(errorMessage);
+            }
+
+            // 滚动到第一个未填写的必填规格
+            const firstMissingRow = Array.from(document.querySelectorAll('#specs-table-body tr')).find(row => {
+                const specNameInput = row.querySelector('input[name="spec_name[]"]');
+                return row.dataset.isRequired === 'true' && specNameInput && missingRequired.includes(specNameInput.value);
+            });
+
+            if (firstMissingRow) {
+                firstMissingRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // 高亮显示该行
+                firstMissingRow.classList.add('table-danger');
+                setTimeout(() => {
+                    firstMissingRow.classList.remove('table-danger');
+                }, 3000);
+            }
+
+            return false;
+        }
+
+        // 验证通过，提交表单
+        document.getElementById('productForm').submit();
+    };
+
+    // 检查非编码规格可用性
+    function checkNonCodeSpecAvailability() {
+        const addSpecContainer = document.getElementById('add-spec-container');
+        if (addSpecContainer) {
+            addSpecContainer.style.display = 'block';
+        }
+    }
+
+    // 添加非编码规格按钮事件
+    if (addSpecBtn) {
+        addSpecBtn.addEventListener('click', function() {
+            const newRow = createNonCodeSpecRow();
+            specsTableBody.appendChild(newRow);
+            SpecManagement.setupNonCodeSpecRow(newRow);
+        });
+    }
+
+    // 创建非编码规格行
+    function createNonCodeSpecRow() {
+        specRowCounter++;
+        const rowId = `spec-row-${specRowCounter}`;
+
+        const row = document.createElement('tr');
+        row.id = rowId;
+        row.dataset.isNonCodeSpec = 'true';
+        row.dataset.useInCode = 'false';
+        row.innerHTML = `
+            <td>
+                <div class="spec-input-container">
+                    <select class="form-control spec-select"
+                            data-row-id="${rowId}">
+                        <option value="">-- 请选择规格 --</option>
+                    </select>
+                </div>
+                <input type="hidden" name="spec_name[]" value="">
+                <input type="hidden" name="spec_field_ids[]" value="">
+            </td>
+            <td>
+                <div class="indicator-input-container">
+                    <select class="form-control indicator-select"
+                            data-row-id="${rowId}" disabled>
+                        <option value="">-- 请先选择规格 --</option>
+                    </select>
+                    <input type="hidden" name="spec_value[]" value="">
+                    <input type="hidden" name="spec_option_codes[]" value="">
+                </div>
+            </td>
+            <td class="text-center">
+                <input type="checkbox" class="form-check-input include-in-description">
+            </td>
+            <td>
+                <span class="badge bg-secondary me-2">非编码</span>
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeSpecRow('${rowId}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
         `;
 
-        // 显示消息
-        $('body').append(alertHtml);
-
-        // 3秒后自动隐藏
-        setTimeout(() => {
-            $('.alert-message').fadeOut('slow', function() {
-                $(this).remove();
-            });
-        }, 3000);
+        return row;
     }
 
-    // resetForm 功能已移除，因为不再需要清空表单和图片预览
+    // 删除规格行
+    window.removeSpecRow = function(rowId) {
+        const row = document.getElementById(rowId);
+        if (row) {
+            row.remove();
+            updateMNCodePreview(true);
+        }
+    };
+
+    // 页面加载时自动加载规格字段（改为垂直布局后，规格区域始终可见）
+    const currentSubcategoryId = document.getElementById('subcategory_id').value;
+    if (currentSubcategoryId) {
+        loadSpecFields(currentSubcategoryId);
+    }
+
+    // 加载销售区域选项（已弃用 - 现在在模板中直接输出）
+    // function loadRegionOptions() {
+    //     const regionSelect = document.getElementById('region_id');
+    //
+    //     fetch('/product-management/api/region-options')
+    //         .then(response => response.json())
+    //         .then(data => {
+    //             if (data.regions && data.regions.length > 0) {
+    //                 data.regions.forEach(region => {
+    //                     const option = document.createElement('option');
+    //                     option.value = region.id;
+    //                     option.textContent = region.name;
+    //                     option.setAttribute('data-code', region.code || '0');
+    //                     regionSelect.appendChild(option);
+    //                 });
+    //             } else {
+    //                 regionSelect.innerHTML = '<option value="">-- 暂无销售区域选项 --</option>';
+    //             }
+    //         })
+    //         .catch(error => {
+    //             console.error('获取销售区域选项出错:', error);
+    //         });
+    // }
+
+    // 页面加载时执行（已注释 - 地区选项现在在模板中直接输出）
+    // loadRegionOptions();
+
+    // MN编码预览功能
+    let mnCodeUpdateTimeout = null;
+    let lastMNCodeHash = null;
+
+    function updateMNCodePreview(immediate = false) {
+        if (!immediate) {
+            clearTimeout(mnCodeUpdateTimeout);
+            mnCodeUpdateTimeout = setTimeout(() => {
+                updateMNCodePreviewImmediate();
+            }, 300);
+            return;
+        }
+
+        updateMNCodePreviewImmediate();
+    }
+
+    function updateMNCodePreviewImmediate() {
+        const categoryInput = document.getElementById('category_id');
+        const subcategoryInput = document.getElementById('subcategory_id');
+        const regionInput = document.getElementById('region_id');
+        const mnPreview = document.getElementById('mn_code_preview');
+
+        if (!categoryInput || !subcategoryInput || !mnPreview) {
+            return;
+        }
+
+        // 编辑模式：MN编号完全锁定，不允许任何重新计算（包括管理员）
+        if (isEditMode) {
+            // 确保显示原始MN值（如果预览区域被清空了）
+            const currentMN = mnPreview.textContent.trim();
+            if (!currentMN || currentMN === '请选择产品分类和子分类' || currentMN === '--') {
+                // 尝试从隐藏字段获取原始MN（研发产品用mn_code，标准产品用product_mn）
+                const originalMN = '{{ product.mn_code if product and product.mn_code is defined else (product.product_mn if product else "") }}';
+                if (originalMN) {
+                    mnPreview.textContent = originalMN;
+                }
+            }
+            return;  // 编辑模式下完全禁止重新计算MN
+        }
+
+        // 计算当前状态的哈希值，用于缓存检查
+        const currentHash = `${categoryInput.value}-${subcategoryInput.value}-${regionInput?.value || ''}-${Array.from(specsTableBody.querySelectorAll('input[name="spec_option_codes[]"]')).map(i => i.value).join('')}`;
+
+        if (lastMNCodeHash === currentHash) {
+            return;
+        }
+        lastMNCodeHash = currentHash;
+
+        const categoryId = categoryInput.value;
+        const subcategoryId = subcategoryInput.value;
+
+        if (!categoryId || !subcategoryId) {
+            mnPreview.textContent = '请选择产品分类和子分类';
+            return;
+        }
+
+        // 获取分类和子分类的字母编码
+        let categoryLetter = '?';
+        let subcategoryLetter = '?';
+
+        // 检查是否为 select 元素（有 options 属性）
+        if (categoryInput.options && categoryInput.selectedIndex >= 0) {
+            const catOpt = categoryInput.options[categoryInput.selectedIndex];
+            categoryLetter = catOpt.getAttribute('data-code') || '?';
+        } else if (categoryInput.dataset && categoryInput.dataset.code) {
+            // 如果是 hidden input，尝试从 data-code 属性获取
+            categoryLetter = categoryInput.dataset.code;
+        }
+
+        if (subcategoryInput.options && subcategoryInput.selectedIndex >= 0) {
+            const subOpt = subcategoryInput.options[subcategoryInput.selectedIndex];
+            subcategoryLetter = subOpt.getAttribute('data-letter') || '?';
+        } else if (subcategoryInput.dataset && subcategoryInput.dataset.letter) {
+            subcategoryLetter = subcategoryInput.dataset.letter;
+        }
+
+        // 获取销售区域编码
+        let regionCode = '0';
+        if (regionInput && regionInput.value) {
+            if (regionInput.options && regionInput.selectedIndex >= 0) {
+                const selectedRegion = regionInput.options[regionInput.selectedIndex];
+                regionCode = selectedRegion.getAttribute('data-code') || '0';
+            } else if (regionInput.dataset && regionInput.dataset.code) {
+                regionCode = regionInput.dataset.code;
+            }
+        }
+
+        // 动态计算最大编码位置
+        let maxCodePosition = 8;  // 默认值
+        const allSpecRows = specsTableBody.querySelectorAll('tr');
+        allSpecRows.forEach(row => {
+            const position = row.dataset.position ? parseInt(row.dataset.position) : 0;
+            if (position > 0 && position > maxCodePosition) {
+                maxCodePosition = position;
+            }
+        });
+
+        // 获取已添加的规格指标编码（按位置排序）
+        const specRowsData = [];
+        const specRows = specsTableBody.querySelectorAll('tr');
+
+        let fallbackIndex = 0;
+        specRows.forEach(row => {
+            const codeInput = row.querySelector('input[name="spec_option_codes[]"]');
+            if (!codeInput) {
+                return;
+            }
+            const rawPos = row.dataset && row.dataset.position ? parseInt(row.dataset.position) : NaN;
+            let pos = !isNaN(rawPos) && rawPos > 0 ? rawPos : (4 + (fallbackIndex++));
+            if (pos > maxCodePosition) return;
+            const code = (codeInput.value || '').trim() || '0';
+            specRowsData.push({ position: pos, code });
+        });
+
+        // 按position排序
+        specRowsData.sort((a, b) => a.position - b.position);
+
+        // 映射到MN编码位置（动态范围）
+        const positionCodes = {};
+        specRowsData.forEach((spec, index) => {
+            if (index < (maxCodePosition - 3)) {
+                const mnPosition = 4 + index;
+                positionCodes[mnPosition] = spec.code;
+            }
+        });
+
+        // 构建按位置排序的规格代码数组（动态范围）
+        const usedCodes = [];
+        for (let pos = 4; pos <= maxCodePosition; pos++) {
+            usedCodes.push(positionCodes[pos] || '0');
+        }
+
+        // 去掉末尾的'0'，只保留有效编码
+        let lastNonZeroIndex = -1;
+        for (let i = usedCodes.length - 1; i >= 0; i--) {
+            if (usedCodes[i] !== '0') {
+                lastNonZeroIndex = i;
+                break;
+            }
+        }
+
+        const effectiveSpecCodes = lastNonZeroIndex >= 0 ? usedCodes.slice(0, lastNonZeroIndex + 1) : [];
+
+        // 构造完整的MN编码
+        const mnCode = `${categoryLetter}${subcategoryLetter}${regionCode}${effectiveSpecCodes.join('')}`;
+        mnPreview.textContent = mnCode;
+
+        // 存储到隐藏字段，用于后端保存
+        // 研发产品使用 mn_code_preview，标准产品使用 product_mn
+        const productType = '{{ product_type if product_type else "standard" }}';
+        const mnFieldName = productType === 'research' ? 'mn_code_preview' : 'product_mn';
+
+        let mnCodeInput = form.querySelector(`input[name="${mnFieldName}"]`);
+        if (!mnCodeInput) {
+            mnCodeInput = document.createElement('input');
+            mnCodeInput.type = 'hidden';
+            mnCodeInput.name = mnFieldName;
+            form.appendChild(mnCodeInput);
+        }
+        mnCodeInput.value = mnCode;
+
+        // MN完整时检查重复（使用缓存避免重复检查）
+        console.log('[MN检查调试] 生成的MN编码:', mnCode);
+        console.log('[MN检查调试] 是否包含?:', mnCode.includes('?'));
+
+        if (!mnCode.includes('?')) {
+            // 检查MN是否真的变化了
+            if (lastMNCodeHash !== mnCode) {
+                console.log('[MN检查调试] MN编码已变化，从', lastMNCodeHash, '到', mnCode);
+                lastMNCodeHash = mnCode;
+                checkMNDuplicate(mnCode);
+            } else {
+                console.log('[MN检查调试] MN编码未变化，跳过重复检查');
+            }
+        } else {
+            console.log('[MN检查调试] MN不完整，跳过检查');
+            lastMNCodeHash = null;  // 重置缓存
+            // MN不完整，清除之前的警告
+            const warningDiv = document.getElementById('mn-duplicate-warning');
+            if (warningDiv) warningDiv.remove();
+        }
+    }
+
+    // MN重复检查函数
+    function checkMNDuplicate(mnCode) {
+        console.log('[MN检查调试] checkMNDuplicate函数被调用, MN:', mnCode);
+
+        if (!mnCode || mnCode.trim() === '') {
+            console.log('[MN检查调试] MN为空，函数返回');
+            return;
+        }
+
+        console.log('[MN检查调试] 准备发送API请求到 /product-management/api/check-mn-code');
+
+        // 调用API检查重复
+        fetch('/product-management/api/check-mn-code', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            },
+            body: JSON.stringify({ mn_code: mnCode })
+        })
+        .then(response => {
+            console.log('[MN检查调试] API响应状态:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('[MN检查调试] API返回数据:', data);
+            const mnPreview = document.getElementById('mn_code_preview');
+            if (!mnPreview) return;
+
+            if (data.exists) {
+                // 显示重复警告
+                const sourceText = data.source === 'dev' ? '研发产品库' : '产品库';
+                const modelInfo = data.product_model ? `（产品型号: ${data.product_model}）` : '';
+
+                let warningDiv = document.getElementById('mn-duplicate-warning');
+                if (!warningDiv) {
+                    warningDiv = document.createElement('div');
+                    warningDiv.id = 'mn-duplicate-warning';
+                    warningDiv.className = 'alert alert-danger mt-2 mb-0';
+                    mnPreview.parentElement.appendChild(warningDiv);
+                }
+
+                warningDiv.innerHTML = `
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>MN编码重复！</strong>
+                    该编码 <code>${mnCode}</code> 已存在于<strong>${sourceText}</strong>中${modelInfo}
+                    <br><small>请调整规格指标以生成不同的MN编码</small>
+                `;
+
+                // 禁用保存按钮
+                const saveBtn = document.getElementById('save-product-btn');
+                if (saveBtn) {
+                    saveBtn.disabled = true;
+                    saveBtn.classList.add('disabled');
+                    saveBtn.title = 'MN编码重复，无法保存';
+                }
+            } else {
+                // 清除警告
+                const warningDiv = document.getElementById('mn-duplicate-warning');
+                if (warningDiv) warningDiv.remove();
+
+                // 恢复保存按钮状态
+                validateSaveButton();
+            }
+        })
+        .catch(error => {
+            console.error('[MN检查调试] API请求失败:', error);
+        });
+    }
+
+    // 为区域选择添加变化监听器
+    const regionSelect = document.getElementById('region_id');
+    if (regionSelect) {
+        regionSelect.addEventListener('change', function() {
+            // 检查是否选择了"快速添加"选项
+            if (this.value === '__ADD_NEW_REGION__') {
+                // 恢复到之前的选择
+                this.value = '';
+                // 显示快速添加模态框
+                window.SelectWithQuickAdd.showModal('region', {
+                    targetSelect: this
+                });
+                return;
+            }
+            updateMNCodePreview(true);
+        });
+    }
+
+    // 初始更新MN编码预览
+    updateMNCodePreview(true);
+
+    // 表单提交逻辑
+    form.addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        // 验证必填字段
+        const categoryId = document.getElementById('category_id').value;
+        const selectedSubcategoryId = document.getElementById('subcategory_id').value;
+        const model = document.getElementById('product_model').value.trim();
+
+        if (!categoryId || !selectedSubcategoryId || !model) {
+            alert('请填写所有必填字段！');
+            return;
+        }
+
+        // 验证规格表格数据
+        const specsInterfaceDiv = document.getElementById('specs-interface');
+        if (specsInterfaceDiv && specsInterfaceDiv.style.display !== 'none') {
+            const specRows = specsTableBody.querySelectorAll('tr');
+            for (let row of specRows) {
+                const specInput = row.querySelector('.spec-input');
+                if (specInput && !specInput.value.trim()) {
+                    alert('请为所有规格行输入或选择规格名称！');
+                    return;
+                }
+            }
+        }
+
+        // 检查MN编码重复
+        const mnPreview = document.getElementById('mn_code_preview');
+        const currentMNCode = mnPreview ? mnPreview.textContent.trim() : '';
+
+        if (currentMNCode && currentMNCode !== '请选择产品分类和子分类') {
+            // 检查编码是否已存在
+            fetch('/product-management/api/check-mn-code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+                },
+                body: JSON.stringify({
+                    mn_code: currentMNCode
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.exists) {
+                    alert('警告：MN编码 "' + currentMNCode + '" 已存在于' + (data.source === 'dev' ? '研发产品库' : '正式产品库') + '中，请调整规格指标后再保存。');
+                    return;
+                } else {
+                    // 编码不重复，提交表单
+                    form.submit();
+                }
+            })
+            .catch(error => {
+                console.error('检查MN编码失败:', error);
+                if (confirm('无法验证MN编码唯一性，是否继续保存？')) {
+                    form.submit();
+                }
+            });
+        } else {
+            // 没有生成MN编码，直接提交
+            form.submit();
+        }
+    });
+
+    // 编辑模式初始化：自动加载规格字段
+    if (isEditMode) {
+        const subcategoryInput = document.getElementById('subcategory_id');
+        if (subcategoryInput && subcategoryInput.value) {
+            const subcategoryId = subcategoryInput.value;
+            console.log('编辑模式：自动加载规格字段，subcategory_id =', subcategoryId);
+            loadSpecFields(subcategoryId);
+        }
+    }
+
+    // 初始化保存按钮状态为禁用
+    validateSaveButton();
+
+    // 初始化自动生成产品描述功能
+    if (window.SpecManagement && window.SpecManagement.AutoDescription) {
+        window.SpecManagement.AutoDescription.init();
+    }
+});
 </script>
 {% endblock %}

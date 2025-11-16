@@ -6,18 +6,24 @@ from sqlalchemy.orm import relationship
 class ProductCategory(db.Model):
     """产品分类模型"""
     __tablename__ = 'product_categories'
-    
+
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)  # 分类名称
     code_letter = Column(String(1), nullable=False, unique=True)  # 分类标识符
     description = Column(Text)  # 描述
+    display_order = Column(Integer, default=0, nullable=False)  # 显示顺序
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
+
     # 关联字段
     subcategories = db.relationship('ProductSubcategory', backref='parent_category', lazy='dynamic')
     product_codes = db.relationship('ProductCode', backref='category', lazy='dynamic')
-    
+
+    @classmethod
+    def get_ordered_list(cls):
+        """获取按显示顺序排列的分类列表"""
+        return cls.query.order_by(cls.display_order, cls.id).all()
+
     def __repr__(self):
         return f'<ProductCategory {self.name} ({self.code_letter})>'
 
@@ -132,7 +138,95 @@ class ProductCode(db.Model):
     
     # 编码组成部分的存储
     field_values = relationship('ProductCodeFieldValue', backref='product_code', cascade='all, delete-orphan')
-    
+
+    def generate_snapshot(self):
+        """生成产品编码的完整定义快照
+
+        返回包含编码定义的完整信息字典，用于永久保存到产品表中。
+        避免编码表变化导致历史产品编码含义丢失。
+
+        Returns:
+            dict: 编码定义快照，包含元数据、分类信息、字段明细
+        """
+        from app.models.product_code import ProductCategory, ProductSubcategory, ProductRegion, ProductCodeField
+
+        # 查询分类信息
+        category = ProductCategory.query.get(self.category_id)
+        subcategory = ProductSubcategory.query.get(self.subcategory_id)
+
+        # 构建快照基本结构
+        snapshot = {
+            "version": "1.0",
+            "generated_at": datetime.utcnow().isoformat(),
+            "product_code_id": self.id,
+            "full_code": self.full_code,
+            "category": {
+                "id": category.id if category else None,
+                "name": category.name if category else "",
+                "code_letter": category.code_letter if category else "",
+                "description": category.description if category else ""
+            },
+            "subcategory": {
+                "id": subcategory.id if subcategory else None,
+                "name": subcategory.name if subcategory else "",
+                "code_letter": subcategory.code_letter if subcategory else "",
+                "description": subcategory.description if subcategory else ""
+            },
+            "code_parts": []
+        }
+
+        # 查询产品的地区信息（如果存在）
+        if hasattr(self.product, 'region_id') and self.product.region_id:
+            region = ProductRegion.query.get(self.product.region_id)
+            if region:
+                snapshot["region"] = {
+                    "id": region.id,
+                    "name": region.name,
+                    "code_letter": region.code_letter,
+                    "description": region.description if region.description else ""
+                }
+
+        # 获取所有字段值，按position排序
+        field_value_list = db.session.query(ProductCodeFieldValue)\
+            .join(ProductCodeField)\
+            .filter(ProductCodeFieldValue.product_code_id == self.id)\
+            .order_by(ProductCodeField.position)\
+            .all()
+
+        # 构建每个编码位的详细信息
+        for field_value in field_value_list:
+            field = field_value.field
+            option = field_value.option
+
+            # 导入单位查询函数
+            from app.routes.product_code import get_field_unit
+            unit = get_field_unit(field.name)
+
+            part = {
+                "position": field.position,
+                "field_id": field.id,
+                "field_name": field.name,
+                "field_type": field.field_type,
+                "field_code": field.code if field.code else "",
+                "unit": unit,
+            }
+
+            # 添加选项信息或自定义值
+            if option:
+                part["option_id"] = option.id
+                part["code"] = option.code
+                part["value"] = option.value
+                part["description"] = option.description if option.description else ""
+            else:
+                part["option_id"] = None
+                part["code"] = field_value.custom_value if field_value.custom_value else ""
+                part["value"] = field_value.custom_value if field_value.custom_value else ""
+                part["description"] = ""
+
+            snapshot["code_parts"].append(part)
+
+        return snapshot
+
     def __repr__(self):
         return f'<ProductCode {self.full_code}>'
 
@@ -151,4 +245,28 @@ class ProductCodeFieldValue(db.Model):
     option = relationship('ProductCodeFieldOption')
     
     def __repr__(self):
-        return f'<ProductCodeFieldValue {self.field.name}: {self.option.value if self.option else self.custom_value}>' 
+        return f'<ProductCodeFieldValue {self.field.name}: {self.option.value if self.option else self.custom_value}>'
+
+class SpecificationDictionary(db.Model):
+    """规格字典 - 存储标准化的规格名称"""
+    __tablename__ = 'specification_dictionary'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False, unique=True)  # 规格名称，如"频率范围"
+    unit = Column(String(20), nullable=True)  # 单位，如"MHz", "dBm"
+    is_active = Column(Boolean, default=True)  # 是否活跃（可停用不常用的规格）
+    display_order = Column(Integer, nullable=False, default=0, index=True)  # 显示排序（用于拖拽排序）
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        """转换为字典格式"""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'unit': self.unit,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+    def __repr__(self):
+        return f'<SpecificationDictionary {self.name}>'

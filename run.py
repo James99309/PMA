@@ -36,7 +36,7 @@ def main():
         if args.supabase:
             logger.info("🌐 启用Supabase云端上传测试模式")
             # 加载Supabase配置
-            env_file_path = '.env.supabase'
+            env_file_path = '.env.supabase.prod'
             if os.path.exists(env_file_path):
                 with open(env_file_path, 'r') as f:
                     for line in f:

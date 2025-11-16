@@ -84,6 +84,86 @@
 .confirmation-badge-container .confirmation-status.confirmed {
     color: #28a745;
 }
+
+/* ==================== 产品层级显示样式 ==================== */
+
+/* 主产品行样式 */
+.product-main-row {
+    background-color: #ffffff;
+}
+
+.product-main-row:hover {
+    background-color: #f8f9fa;
+}
+
+.product-main-row td {
+    padding: 12px 12px;
+    font-weight: 500;
+    color: #212529;
+}
+
+
+/* 配置产品行样式 */
+.product-config-row {
+    background-color: #f8f9fa;
+    border-left: 4px solid #dee2e6;
+}
+
+.product-config-row:hover {
+    background-color: #e9ecef;
+}
+
+.product-config-row td {
+    padding: 10px 12px;
+    color: #495057;
+    font-size: 0.95em;
+}
+
+/* 配置产品名称容器 */
+.product-config-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-left: 12px;
+}
+
+.product-config-indent {
+    display: inline-block;
+    color: #999;
+    font-size: 1em;
+    margin-right: 6px;
+}
+
+.product-name-text {
+    flex: 1;
+}
+
+/* 配置产品分组视觉效果 */
+.product-main-row + .product-config-row {
+    border-top: none;
+}
+
+.product-config-row + .product-main-row {
+    border-top: none;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .product-config-container {
+        padding-left: 8px;
+    }
+}
+
+/* 打印样式优化 */
+@media print {
+    .product-main-row {
+        page-break-inside: avoid;
+    }
+
+    .product-config-row {
+        page-break-inside: avoid;
+    }
+}
 </style>
 {% endblock %}
 
@@ -113,13 +193,14 @@
                             {{ render_button(_('提交批价'), color='success', type='button', attrs='onclick="submitPricing(' ~ quotation.id ~ ')"') }}
                         {% endif %}
 
-                        {{ render_button(_('导出'), '#', color='auxiliary', type='button', onclick='showExportInfoModal("quotationExportModal")') }}
                         {% if can_edit_this_quotation and not quotation.is_locked %}
                             {{ render_button(_('编辑'), href=url_for('quotation.edit_quotation', id=quotation.id), color='primary') }}
                         {% endif %}
                         {% if can_delete_this_quotation and not quotation.is_locked %}
                             {{ render_button(_('删除'), color='danger', type='button', attrs='onclick="deleteQuotation(' ~ quotation.id ~ ')"') }}
                         {% endif %}
+
+                        {{ render_button(_('导出'), '#', color='auxiliary', type='button', onclick='showExportInfoModal("quotationExportModal")') }}
                     </div>
                 </div>
             </div>
@@ -265,29 +346,68 @@
                                 </tr>
                             </thead>
                             <tbody>
+                                {% set main_product_index = namespace(value=0) %}
                                 {% for detail in quotation.details %}
-                                <tr>
-                                    <td class="text-center">{{ loop.index }}</td>
-                                    <td>{{ detail.product_name or _('无') }}</td>
-                                    <td>{{ detail.product_model or _('无') }}</td>
-                                    <td>
-                                        {% if detail.product_desc and detail.product_desc|length > 30 %}
-                                            <span class="spec-text" title="{{ detail.product_desc }}">{{ detail.product_desc[:30] }}...</span>
-                                        {% else %}
-                                            {{ detail.product_desc or _('无') }}
+                                    {# 只显示主产品（非配置产品） #}
+                                    {% if not detail.parent_item_id %}
+                                        {% set main_product_index.value = main_product_index.value + 1 %}
+                                        {# 主产品行 #}
+                                        <tr class="product-main-row" data-detail-id="{{ detail.id }}">
+                                            <td class="text-center"><strong>{{ main_product_index.value }}</strong></td>
+                                            <td>{{ detail.product_name or _('无') }}</td>
+                                            <td>{{ detail.product_model or _('无') }}</td>
+                                            <td>
+                                                {% if detail.product_desc and detail.product_desc|length > 30 %}
+                                                    <span class="spec-text" title="{{ detail.product_desc }}">{{ detail.product_desc[:30] }}...</span>
+                                                {% else %}
+                                                    {{ detail.product_desc or _('无') }}
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ detail.brand or _('无') }}</td>
+                                            {% if current_user.role not in ['product_manager', 'product'] %}
+                                            <td class="text-right">{{ render_currency_with_symbol(detail.market_price, detail.currency or quotation.currency) if detail.market_price else _('无') }}</td>
+                                            <td class="text-center">{{ '%.1f%%'|format((detail.discount * 100) if detail.discount else 100) }}</td>
+                                            {% endif %}
+                                            <td class="text-right">{{ render_currency_with_symbol(detail.unit_price, detail.currency or quotation.currency) if detail.unit_price else _('无') }}</td>
+                                            <td class="text-center">{{ detail.quantity or 0 }}</td>
+                                            <td class="text-center">{{ detail.unit or _('无') }}</td>
+                                            <td class="text-right">{{ render_currency_with_symbol(detail.total_price, detail.currency or quotation.currency) if detail.total_price else _('无') }}</td>
+                                            <td>{{ detail.product_mn or _('无') }}</td>
+                                        </tr>
+
+                                        {# 配置产品行（子产品） #}
+                                        {% if detail.configurations %}
+                                            {% for config in detail.configurations %}
+                                            <tr class="product-config-row" data-parent-id="{{ detail.id }}" data-config-type="{{ config.config_type }}">
+                                                <td class="text-center text-muted">{{ main_product_index.value }}.{{ loop.index }}</td>
+                                                <td>
+                                                    <div class="product-config-container">
+                                                        <span class="product-config-indent">└</span>
+                                                        <span class="product-name-text">{{ config.product_name or _('无') }}</span>
+                                                    </div>
+                                                </td>
+                                                <td>{{ config.product_model or _('无') }}</td>
+                                                <td>
+                                                    {% if config.product_desc and config.product_desc|length > 30 %}
+                                                        <span class="spec-text" title="{{ config.product_desc }}">{{ config.product_desc[:30] }}...</span>
+                                                    {% else %}
+                                                        {{ config.product_desc or _('无') }}
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ config.brand or _('无') }}</td>
+                                                {% if current_user.role not in ['product_manager', 'product'] %}
+                                                <td class="text-right">{{ render_currency_with_symbol(config.market_price, config.currency or quotation.currency) if config.market_price else _('无') }}</td>
+                                                <td class="text-center">{{ '%.1f%%'|format((config.discount * 100) if config.discount else 100) }}</td>
+                                                {% endif %}
+                                                <td class="text-right">{{ render_currency_with_symbol(config.unit_price, config.currency or quotation.currency) if config.unit_price else _('无') }}</td>
+                                                <td class="text-center">{{ config.quantity or 0 }}</td>
+                                                <td class="text-center">{{ config.unit or _('无') }}</td>
+                                                <td class="text-right">{{ render_currency_with_symbol(config.total_price, config.currency or quotation.currency) if config.total_price else _('无') }}</td>
+                                                <td>{{ config.product_mn or _('无') }}</td>
+                                            </tr>
+                                            {% endfor %}
                                         {% endif %}
-                                    </td>
-                                    <td>{{ detail.brand or _('无') }}</td>
-                                    {% if current_user.role not in ['product_manager', 'product'] %}
-                                    <td class="text-right">{{ render_currency_with_symbol(detail.market_price, detail.currency or quotation.currency) if detail.market_price else _('无') }}</td>
-                                    <td class="text-center">{{ '%.1f%%'|format((detail.discount * 100) if detail.discount else 100) }}</td>
                                     {% endif %}
-                                    <td class="text-right">{{ render_currency_with_symbol(detail.unit_price, detail.currency or quotation.currency) if detail.unit_price else _('无') }}</td>
-                                    <td class="text-center">{{ detail.quantity or 0 }}</td>
-                                    <td class="text-center">{{ detail.unit or _('无') }}</td>
-                                    <td class="text-right">{{ render_currency_with_symbol(detail.total_price, detail.currency or quotation.currency) if detail.total_price else _('无') }}</td>
-                                    <td>{{ detail.product_mn or _('无') }}</td>
-                                </tr>
                                 {% else %}
                                 <tr>
                                     <td colspan="{% if current_user.role in ['product_manager', 'product'] %}10{% else %}12{% endif %}" class="text-center text-muted">
@@ -356,7 +476,7 @@
             'checked': false
         }
     ],
-    'preview_enabled': true
+    'preview_enabled': false
 }) }}
 
 <!-- 添加Font Awesome图标库 -->
@@ -742,7 +862,26 @@ function showExportInfoModal(modalId) {
                 max_length: 1000,
                 default_content: ''
             },
-            previewEnabled: true,
+            previewEnabled: false,
+            // ⭐ 新增：预填充报价单的客户和联系人信息
+            prefill: {
+                customer: {% if quotation.customer %}
+                {
+                    id: {{ quotation.customer_id }},
+                    name: {{ quotation.customer.company_name | tojson }}
+                }
+                {% else %}
+                null
+                {% endif %},
+                contact: {% if quotation.contact %}
+                {
+                    id: {{ quotation.contact_id }},
+                    name: {{ quotation.contact.name | tojson }}
+                }
+                {% else %}
+                null
+                {% endif %}
+            },
             onConfirm: function(data) {
                 handleExportConfirmation(modalId, data);
             }

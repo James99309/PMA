@@ -293,21 +293,20 @@ def analysis():
     # 从实际可访问的报价单明细中获取筛选选项
     # 通过连接Product表获取产品类别
     try:
+        from app.models.product_code import ProductCategory
+
+        # 方案2：只通过model字段关联（避免使用已迁移的product_name字段）
         categories_query = base_query.join(
-            Product, and_(
-                QuotationDetail.product_name == Product.product_name,
-                QuotationDetail.product_model == Product.model
-            )
-        ).with_entities(Product.category).distinct().filter(
-            Product.category.isnot(None),
-            Product.category != '',  # 排除空字符串
-            Product.category != ' '   # 排除空格字符串
-        ).order_by(Product.category)
-        
+            Product, QuotationDetail.product_model == Product.model
+        ).join(
+            ProductCategory, Product.category_id == ProductCategory.id
+        ).with_entities(ProductCategory.name).distinct().order_by(ProductCategory.id)
+
         categories = categories_query.all()
         logger.info(f"✅ 从报价单明细中获取到 {len(categories)} 个产品类别")
     except Exception as e:
         logger.warning(f"⚠️ 连接Product表获取类别失败: {str(e)}, 使用空列表")
+        db.session.rollback()  # 回滚失败的事务，避免影响后续查询
         categories = []
     
     # 获取实际在报价单中使用的产品名称
@@ -535,15 +534,19 @@ def get_filter_options():
         
         # 构建基础查询
         query = db.session.query(Product)
-        
+
         # 获取产品类别选项（不受其他筛选条件影响）
-        categories = db.session.query(Product.category).distinct().filter(
-            Product.category.isnot(None)
-        ).order_by(Product.category).all()
-        
+        from app.models.product_code import ProductCategory
+        categories = db.session.query(ProductCategory.name).order_by(
+            ProductCategory.id
+        ).all()
+
         # 根据已选择的条件进行筛选
         if category:
-            query = query.filter(Product.category == category)
+            # 通过ProductCategory关联过滤
+            category_obj = ProductCategory.query.filter_by(name=category).first()
+            if category_obj:
+                query = query.filter(Product.category_id == category_obj.id)
         if product_name:
             query = query.filter(Product.product_name == product_name)
         
@@ -623,23 +626,27 @@ def get_analysis_data():
         
         # 应用基于权限系统的数据过滤
         query = apply_permission_based_filters(query, current_user)
-        
+
         # 应用筛选条件
         if category:
             # 使用子查询获取指定类别的产品，避免因Product表重复记录导致的重复统计
-            category_products = db.session.query(
-                Product.product_name, 
-                Product.model
-            ).filter(
-                Product.category == category
-            ).distinct().subquery()
-            
-            query = query.filter(
-                and_(
-                    QuotationDetail.product_name == category_products.c.product_name,
-                    QuotationDetail.product_model == category_products.c.model
+            from app.models.product_code import ProductCategory
+
+            category_obj = ProductCategory.query.filter_by(name=category).first()
+            if category_obj:
+                category_products = db.session.query(
+                    Product.product_name,
+                    Product.model
+                ).filter(
+                    Product.category_id == category_obj.id
+                ).distinct().subquery()
+
+                query = query.filter(
+                    and_(
+                        QuotationDetail.product_name == category_products.c.product_name,
+                        QuotationDetail.product_model == category_products.c.model
+                    )
                 )
-            )
         
         if product_name and product_name.strip():
             query = query.filter(QuotationDetail.product_name == product_name)
@@ -821,23 +828,27 @@ def products_list_ajax():
                 User.real_name.ilike(f'%{search}%')
             )
             query = query.filter(search_filter)
-        
+
         # 应用筛选条件
         if category:
             # 使用子查询获取指定类别的产品，避免因Product表重复记录导致的重复统计
-            category_products = db.session.query(
-                Product.product_name, 
-                Product.model
-            ).filter(
-                Product.category == category
-            ).distinct().subquery()
-            
-            query = query.filter(
-                and_(
-                    QuotationDetail.product_name == category_products.c.product_name,
-                    QuotationDetail.product_model == category_products.c.model
+            from app.models.product_code import ProductCategory
+
+            category_obj = ProductCategory.query.filter_by(name=category).first()
+            if category_obj:
+                category_products = db.session.query(
+                    Product.product_name,
+                    Product.model
+                ).filter(
+                    Product.category_id == category_obj.id
+                ).distinct().subquery()
+
+                query = query.filter(
+                    and_(
+                        QuotationDetail.product_name == category_products.c.product_name,
+                        QuotationDetail.product_model == category_products.c.model
+                    )
                 )
-            )
         
         if product_name and product_name.strip():
             query = query.filter(QuotationDetail.product_name == product_name)

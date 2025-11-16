@@ -111,16 +111,18 @@ def get_product_categories():
     """获取去重后的产品类别列表"""
     try:
         logger.debug('正在获取产品类别列表...')
-        # 使用 distinct 获取唯一的类别列表
-        categories = db.session.query(Product.category).distinct().filter(
-            Product.is_discontinued == False,
-            Product.category.isnot(None)
-        ).all()
-        
-        # 将结果转换为列表
-        category_list = [category[0] for category in categories if category[0]]
-        category_list.sort()  # 按字母顺序排序
-        
+        # 从ProductCategory表查询,只返回有非停产产品的类别
+        from app.models.product_code import ProductCategory
+
+        categories = db.session.query(ProductCategory.name).join(
+            Product, Product.category_id == ProductCategory.id
+        ).filter(
+            Product.is_discontinued == False
+        ).distinct().order_by(ProductCategory.id).all()
+
+        # 提取类别名称
+        category_list = [cat[0] for cat in categories]
+
         logger.debug(f'找到 {len(category_list)} 个类别')
         return jsonify(category_list)
         

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}批价单列表{% endblock %}
+{% block title %}{{ _('批价单列表') }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -9,11 +9,11 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">
-                        <i class="fas fa-file-invoice-dollar me-2"></i>批价单列表
+                        <i class="fas fa-file-invoice-dollar me-2"></i>{{ _('批价单列表') }}
                     </h5>
                     <div class="d-flex gap-2">
                         <a href="{{ url_for('approval.center') }}?tab=created&object_type=pricing_order" class="btn btn-outline-primary btn-sm">
-                            <i class="fas fa-tasks me-1"></i>审批中心
+                            <i class="fas fa-tasks me-1"></i>{{ _('审批中心') }}
                         </a>
                     </div>
                 </div>
@@ -23,15 +23,15 @@
                         <table class="table table-hover">
                             <thead class="table-light">
                                 <tr>
-                                    <th>批价单号</th>
-                                    <th>项目名称</th>
-                                    <th>报价单号</th>
-                                    <th>状态</th>
-                                    <th>批价总额</th>
-                                    <th>结算总额</th>
-                                    <th>审批流程</th>
-                                    <th>创建时间</th>
-                                    <th>操作</th>
+                                    <th>{{ _('批价单号') }}</th>
+                                    <th>{{ _('项目名称') }}</th>
+                                    <th>{{ _('报价单号') }}</th>
+                                    <th>{{ _('状态') }}</th>
+                                    <th>{{ _('批价总额') }}</th>
+                                    <th>{{ _('结算总额') }}</th>
+                                    <th>{{ _('审批流程') }}</th>
+                                    <th>{{ _('创建时间') }}</th>
+                                    <th>{{ _('操作') }}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -70,7 +70,7 @@
                                     <td>
                                         <small class="text-muted">{{ pricing_order.approval_flow_type }}</small>
                                         {% if pricing_order.status == 'pending' %}
-                                        <br><small class="text-info">步骤 {{ pricing_order.current_approval_step }}</small>
+                                        <br><small class="text-info">{{ _('步骤') }} {{ pricing_order.current_approval_step }}</small>
                                         {% endif %}
                                     </td>
                                     <td>
@@ -80,14 +80,14 @@
                                     </td>
                                     <td>
                                         <div class="btn-group btn-group-sm" role="group">
-                                            <a href="{{ url_for('pricing_order.edit_pricing_order', order_id=pricing_order.id) }}" 
+                                            <a href="{{ url_for('pricing_order.edit_pricing_order', order_id=pricing_order.id) }}"
                                                class="btn btn-outline-primary btn-sm">
-                                                <i class="fas fa-edit"></i> 编辑
+                                                <i class="fas fa-edit"></i> {{ _('编辑') }}
                                             </a>
                                             {% if pricing_order.status == 'draft' %}
-                                            <button type="button" class="btn btn-outline-success btn-sm" 
+                                            <button type="button" class="btn btn-outline-success btn-sm"
                                                     onclick="submitForApproval({{ pricing_order.id }})">
-                                                <i class="fas fa-paper-plane"></i> 提交审批
+                                                <i class="fas fa-paper-plane"></i> {{ _('提交审批') }}
                                             </button>
                                             {% endif %}
                                             <!-- PDF导出下拉菜单 -->
@@ -98,18 +98,18 @@
                                                 </button>
                                                 <ul class="dropdown-menu">
                                                     <li>
-                                                        <a class="dropdown-item" 
-                                                           href="{{ url_for('pricing_order.export_pdf', order_id=pricing_order.id, pdf_type='pricing') }}" 
+                                                        <a class="dropdown-item"
+                                                           href="{{ url_for('pricing_order.export_pdf', order_id=pricing_order.id, pdf_type='pricing') }}"
                                                            target="_blank">
-                                                            <i class="fas fa-file-pdf text-primary me-2"></i>批价单PDF
+                                                            <i class="fas fa-file-pdf text-primary me-2"></i>{{ _('批价单PDF') }}
                                                         </a>
                                                     </li>
                                                     {% if current_user.role in ['admin', 'channel_manager', 'sales_director', 'service_manager'] %}
                                                     <li>
-                                                        <a class="dropdown-item" 
-                                                           href="{{ url_for('pricing_order.export_pdf', order_id=pricing_order.id, pdf_type='settlement') }}" 
+                                                        <a class="dropdown-item"
+                                                           href="{{ url_for('pricing_order.export_pdf', order_id=pricing_order.id, pdf_type='settlement') }}"
                                                            target="_blank">
-                                                            <i class="fas fa-file-pdf text-success me-2"></i>结算单PDF
+                                                            <i class="fas fa-file-pdf text-success me-2"></i>{{ _('结算单PDF') }}
                                                         </a>
                                                     </li>
                                                     {% endif %}
@@ -167,10 +167,10 @@
                     {% else %}
                     <div class="text-center py-5">
                         <i class="fas fa-file-invoice-dollar fa-3x text-muted mb-3"></i>
-                        <h5 class="text-muted">暂无批价单</h5>
-                        <p class="text-muted">您还没有创建任何批价单</p>
+                        <h5 class="text-muted">{{ _('暂无批价单') }}</h5>
+                        <p class="text-muted">{{ _('您还没有创建任何批价单') }}</p>
                         <a href="{{ url_for('project.list_projects') }}" class="btn btn-primary">
-                            <i class="fas fa-plus me-1"></i>前往项目列表创建批价单
+                            <i class="fas fa-plus me-1"></i>{{ _('前往项目列表创建批价单') }}
                         </a>
                     </div>
                     {% endif %}
@@ -182,10 +182,10 @@
 
 <script>
 function submitForApproval(orderId) {
-    if (!confirm('确定要提交批价单审批吗？提交后将无法修改。')) {
+    if (!confirm('{{ _("确定要提交批价单审批吗？提交后将无法修改。") }}')) {
         return;
     }
-    
+
     fetch(`/pricing_order/${orderId}/submit`, {
         method: 'POST',
         headers: {
@@ -195,14 +195,26 @@ function submitForApproval(orderId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('批价单已提交审批！');
+            if (typeof window.showTopNotification === 'function') {
+                window.showTopNotification('{{ _("批价单已提交审批！") }}', 'success', 3000);
+            } else {
+                alert('{{ _("批价单已提交审批！") }}');
+            }
             location.reload();
         } else {
-            alert('提交失败: ' + data.message);
+            if (typeof window.showTopNotification === 'function') {
+                window.showTopNotification('{{ _("提交失败") }}: ' + data.message, 'error', 5000);
+            } else {
+                alert('{{ _("提交失败") }}: ' + data.message);
+            }
         }
     })
     .catch(error => {
-        alert('提交失败: ' + error.message);
+        if (typeof window.showTopNotification === 'function') {
+            window.showTopNotification('{{ _("提交失败") }}: ' + error.message, 'error', 5000);
+        } else {
+            alert('{{ _("提交失败") }}: ' + error.message);
+        }
     });
 }
 </script>

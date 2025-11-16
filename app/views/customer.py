@@ -1049,12 +1049,13 @@ def search_contacts():
                           COUNTRY_OPTIONS=get_country_options())
 
 @customer.route('/<int:company_id>/view')
-@permission_required('customer', 'view')
+@login_required
+# 注意：不使用 @permission_required 装饰器 - 创建者可以查看自己的客户
 def view_company(company_id):
     from app.utils.access_control import get_viewable_data
     company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
-    
-    # 检查当前用户是否有权限查看此企业
+
+    # 使用统一的数据权限检查（包含数据归属和模块权限逻辑）
     if not can_view_company(current_user, company):
         flash(_('您没有权限查看此客户信息'), 'danger')
         return redirect(url_for('customer.list_companies'))
@@ -1171,7 +1172,21 @@ def view_company(company_id):
     if can_change_company_owner(current_user, company):
         filter_by_dept = current_user.role != 'admin'
         user_tree_data = generate_user_tree_data(filter_by_department=filter_by_dept)
-    
+
+    # 智能返回逻辑：保留筛选条件
+    return_url = request.args.get('return_url')
+    if return_url:
+        # 安全检查：确保是本站URL
+        from urllib.parse import urlparse
+        parsed = urlparse(return_url)
+        if parsed.netloc and parsed.netloc != request.host:
+            # 非本站URL，忽略
+            return_url = None
+
+    # 默认返回客户列表
+    if not return_url:
+        return_url = url_for('customer.list_companies')
+
     return render_template('customer/view.html', 
                           company=company, 
                           contacts=viewable_contacts, 
@@ -1189,6 +1204,7 @@ def view_company(company_id):
                           INDUSTRY_OPTIONS=get_industry_options(),
                           STATUS_OPTIONS=get_status_options(),
                           user_tree_data=user_tree_data,
+                          return_url=return_url,  # 智能返回URL
                           # 添加审批相关函数
                           get_object_approval_instance=get_object_approval_instance,
                           get_available_templates=get_available_templates,
@@ -1238,58 +1254,83 @@ def add_company():
                           REPORT_SOURCE_OPTIONS=get_report_source_options())
 
 @customer.route('/edit/<int:company_id>', methods=['GET', 'POST'])
-@permission_required('customer', 'edit')
+@login_required
+# 注意：不使用 @permission_required 装饰器 - 创建者可以编辑自己的客户数据
 def edit_company(company_id):
     company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
-    
-    # 检查编辑权限
+
+    # 使用统一的数据权限检查（包含数据归属逻辑）
     if not can_edit_company_info(current_user, company):
         flash(_('您没有权限编辑此企业信息'), 'danger')
         return redirect(url_for('customer.view_company', company_id=company_id))
+
+    # 获取return_url（GET从query参数，POST从form）
+    return_url = request.args.get('return_url') if request.method == 'GET' else request.form.get('return_url')
+
+    # 验证return_url安全性
+    if return_url:
+        from urllib.parse import urlparse
+        parsed = urlparse(return_url)
+        # 只允许相对路径，拒绝绝对URL
+        if parsed.netloc:
+            return_url = None
 
     if request.method == 'POST':
         try:
             # 导入历史记录跟踪器
             from app.utils.change_tracker import ChangeTracker
-            
+
             # 捕获修改前的值
             old_values = ChangeTracker.capture_old_values(company)
-            
+
             data = request.form.to_dict()
             # 移除status字段，禁止编辑
             data.pop('status', None)
+            # 移除return_url字段，不应存入数据库
+            data.pop('return_url', None)
             for key, value in data.items():
                 setattr(company, key, value)
             db.session.commit()
-            
+
             # 记录变更历史
             try:
                 new_values = ChangeTracker.get_new_values(company, old_values.keys())
                 ChangeTracker.log_update(company, old_values, new_values)
             except Exception as track_err:
                 logger.warning(f"记录客户变更历史失败: {str(track_err)}")
-            
+
             # 更新客户活跃状态
             check_company_activity(company_id=company_id, days_threshold=1)
             flash(_('客户信息已更新！'), 'success')
-            return redirect(url_for('customer.view_company', company_id=company.id))
+
+            # 始终返回详情页，同时保留 return_url 参数传递给详情页
+            # 这样详情页的"返回列表"按钮仍能回到带筛选的列表页
+            if return_url:
+                return redirect(url_for('customer.view_company',
+                                       company_id=company.id,
+                                       return_url=return_url))
+            else:
+                return redirect(url_for('customer.view_company', company_id=company.id))
         except Exception as e:
             db.session.rollback()
             flash('保存失败：' + str(e), 'danger')
 
-    return render_template('customer/edit.html', company=company, COMPANY_TYPE_OPTIONS=get_company_type_options(),
+    return render_template('customer/edit.html', company=company,
+                          return_url=return_url,
+                          COMPANY_TYPE_OPTIONS=get_company_type_options(),
                           INDUSTRY_OPTIONS=get_industry_options(),
                           STATUS_OPTIONS=get_status_options(),
                           REPORT_SOURCE_OPTIONS=get_report_source_options())
 
 @customer.route('/api/delete-confirm/<int:company_id>')
-@permission_required('customer', 'delete') 
+@login_required
+# 注意：不使用 @permission_required 装饰器 - 创建者可以删除自己的客户数据
 def api_delete_confirm(company_id):
     """API端点 - 获取删除确认数据"""
     try:
         company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
-        
-        # 检查删除权限
+
+        # 使用统一的数据权限检查（包含数据归属逻辑）
         if not can_edit_data(company, current_user):
             return jsonify({'error': '您没有权限删除此企业'}), 403
 
@@ -1310,7 +1351,8 @@ def api_delete_confirm(company_id):
         return jsonify({'error': f'获取删除确认信息失败: {str(e)}'}), 500
 
 @customer.route('/api/batch-delete-confirm', methods=['POST'])
-@permission_required('customer', 'delete')
+@login_required
+# 注意：不使用 @permission_required 装饰器 - 创建者可以删除自己的客户数据
 def api_batch_delete_confirm():
     """API端点 - 获取批量删除确认数据"""
     try:
@@ -1502,11 +1544,12 @@ def analyze_company_dependencies(company):
         }
 
 @customer.route('/delete/<int:company_id>', methods=['POST'])
-@permission_required('customer', 'delete')
+@login_required
+# 注意：不使用 @permission_required 装饰器 - 创建者可以删除自己的客户数据
 def delete_company(company_id):
     company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
-    
-    # 检查删除权限
+
+    # 使用统一的数据权限检查（包含数据归属逻辑）
     if not can_edit_data(company, current_user):
         flash('您没有权限删除此企业', 'danger')
         return redirect(url_for('customer.list_companies'))
@@ -2832,11 +2875,12 @@ def import_customers():
         return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500
 
 @customer.route('/api/batch-delete', methods=['POST'])
-@permission_required('customer', 'delete')
+@login_required
+# 注意：不使用 @permission_required 装饰器 - 创建者可以删除自己的客户数据
 def batch_delete_companies():
     """批量删除企业API"""
     try:
-        # 只要有customer.delete权限即可批量删除，但只能删除自己有权限的企业
+        # 每个客户都会检查权限，只能删除自己有权限的企业
         # 检查请求是否包含JSON数据
         if not request.is_json:
             return jsonify({'success': False, 'message': '请求必须是JSON格式'}), 400

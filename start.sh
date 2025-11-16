@@ -278,7 +278,13 @@ fi
 export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}
 
 # 启动Flask应用
-python3 run.py
+if [ "$storage_choice" = "2" ]; then
+    # 云端存储模式：传递 --supabase 参数
+    python3 run.py --supabase
+else
+    # 本地存储模式：不传递参数
+    python3 run.py
+fi
 
 # ============================================================
 # 8. 启动后清理（可选）

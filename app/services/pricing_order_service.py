@@ -4,7 +4,7 @@ from decimal import Decimal
 import logging
 from app import db
 from app.models.pricing_order import (
-    PricingOrder, PricingOrderDetail, SettlementOrder, SettlementOrderDetail, 
+    PricingOrder, PricingOrderDetail, SettlementOrder, SettlementOrderDetail,
     PricingOrderApprovalRecord, PricingOrderStatus, PricingOrderApprovalFlowType,
     SettlementOrderStatus
 )
@@ -13,6 +13,7 @@ from app.models.project import Project
 from app.models.customer import Company
 from app.models.user import User
 from app.permissions import check_permission
+from flask_babel import gettext as _
 
 logger = logging.getLogger(__name__)
 
@@ -505,6 +506,7 @@ class PricingOrderService:
                 distributor_id=distributor_id,
                 dealer_id=dealer_id or project_dealer_id,  # 使用传入的经销商ID或项目中的经销商ID
                 approval_flow_type=flow_type,
+                currency=quotation.currency,  # 继承报价单货币
                 created_by=current_user_id
             )
             
@@ -584,6 +586,7 @@ class PricingOrderService:
             dealer_id=dealer_id,
             is_direct_contract=pricing_order.is_direct_contract,  # 同步业务类型标记
             is_factory_pickup=pricing_order.is_factory_pickup,    # 同步业务类型标记
+            currency=pricing_order.currency,  # 继承批价单货币
             created_by=current_user_id
         )
 
@@ -661,7 +664,8 @@ class PricingOrderService:
                 quantity=qd.quantity,
                 discount_rate=qd.discount,
                 source_type='quotation',
-                source_quotation_detail_id=qd.id
+                source_quotation_detail_id=qd.id,
+                currency=qd.currency or quotation.currency  # 继承货币
             )
             pricing_detail.calculate_prices()
             db.session.add(pricing_detail)
@@ -686,7 +690,8 @@ class PricingOrderService:
                 unit_price=pricing_detail.unit_price,
                 quantity=pricing_detail.quantity,
                 discount_rate=pricing_detail.discount_rate,
-                pricing_detail_id=pricing_detail.id
+                pricing_detail_id=pricing_detail.id,
+                currency=pricing_detail.currency  # 继承批价单明细货币
             )
             settlement_detail.calculate_prices()
             db.session.add(settlement_detail)
@@ -911,14 +916,14 @@ class PricingOrderService:
             project = pricing_order.project
             if project:
                 project.is_locked = True
-                project.locked_reason = "批价审批流程进行中"
+                project.locked_reason = _("批价审批流程进行中")
                 project.locked_by = current_user.id
                 project.locked_at = datetime.now()
-            
+
             quotation = pricing_order.quotation
             if quotation:
                 quotation.is_locked = True
-                quotation.lock_reason = "批价审批流程进行中"
+                quotation.lock_reason = _("批价审批流程进行中")
                 quotation.locked_by = current_user.id
                 quotation.locked_at = datetime.now()
             

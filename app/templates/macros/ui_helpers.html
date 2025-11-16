@@ -53,6 +53,32 @@
   {% endif %}
 {% endmacro %}
 
+{% macro render_company_badge(company) %}
+  {% if company %}
+    {# 安全检查：确保company是对象而不是字符串 #}
+    {% if company.__class__.__name__ == 'str' %}
+      <span class="badge badge-company">{{ company }}</span>
+    {% else %}
+      <span class="badge badge-company">{{ company.name }}</span>
+    {% endif %}
+  {% else %}
+    <span class="badge badge-company">{{ _('未知') }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro render_department_badge(department) %}
+  {% if department %}
+    {# 安全检查：确保department是对象而不是字符串 #}
+    {% if department.__class__.__name__ == 'str' %}
+      <span class="badge badge-department">{{ department }}</span>
+    {% else %}
+      <span class="badge badge-department">{{ department.name }}</span>
+    {% endif %}
+  {% else %}
+    <span class="badge badge-department">{{ _('未知') }}</span>
+  {% endif %}
+{% endmacro %}
+
 {% macro render_project_stage(stage) %}
   {# 中文显示映射 #}
   {% set stage_map_zh = {
@@ -761,6 +787,54 @@
     } %}
     <span class="badge badge-pill badge-transparent stock-status-{{ status }}">
       {{ status_map.get(status, status) }}
+    </span>
+  {% endif %}
+{% endmacro %}
+
+{% macro render_backup_db_type_badge(db_type) %}
+  {# 备份数据库类型徽章 #}
+  {% if db_type is none %}
+    <span class="badge badge-pill badge-muted">-</span>
+  {% else %}
+    {# 中文显示映射 #}
+    {% set type_map_zh = {
+      'sp8d': 'SP8D',
+      'ovs': 'OVS',
+      'local': '本地',
+      'unknown': '未知'
+    } %}
+
+    {# 英文显示映射 #}
+    {% set type_map_en = {
+      'sp8d': 'SP8D',
+      'ovs': 'OVS',
+      'local': 'Local',
+      'unknown': 'Unknown'
+    } %}
+
+    {# 颜色映射 #}
+    {% set color_map = {
+      'sp8d': 'info',
+      'ovs': 'success',
+      'local': 'warning',
+      'unknown': 'secondary'
+    } %}
+
+    {# 检测当前语言 #}
+    {% set is_english = (_('搜索') == 'Search') %}
+    {% set lang_code = 'en' if is_english else 'zh' %}
+
+    {# 根据语言选择显示文本 #}
+    {% if lang_code == 'en' %}
+      {% set display_text = type_map_en.get(db_type, db_type) %}
+    {% else %}
+      {% set display_text = type_map_zh.get(db_type, db_type) %}
+    {% endif %}
+
+    {% set badge_color = color_map.get(db_type, 'secondary') %}
+
+    <span class="badge badge-pill badge-{{ badge_color }}">
+      {{ display_text }}
     </span>
   {% endif %}
 {% endmacro %}
@@ -2051,7 +2125,7 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
              {% if table_config.max_height or table_config.min_height %}
              style="{% if table_config.max_height %}max-height: {{ table_config.max_height }}; overflow-y: auto;{% endif %}{% if table_config.min_height %}min-height: {{ table_config.min_height }};{% endif %}"
              {% endif %}>
-            <table class="table table-hover mb-0 data-list-table{% if table_config.enhanced_striping %} table-striped{% endif %}{% if table_config.compact %} table-sm{% endif %}"
+            <table class="table table-hover mb-0 data-list-table{% if table_config.enhanced_striping %} table-striped{% endif %}{% if table_config.compact %} table-sm{% endif %}">
                 {% if table_config.show_header|default(true) %}
                 <thead class="table-light">
                     <tr>
@@ -2633,6 +2707,8 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
                 {{ render_expense_category_badge(value) }}
             {% elif column.render == 'render_expense_status_badge' %}
                 {{ render_expense_status_badge(value) }}
+            {% elif column.render == 'render_relation_type_badge' %}
+                {{ render_relation_type_badge(value) }}
             {% else %}
                 {{ caller(value, column.render) if caller else value }}
             {% endif %}
@@ -2676,7 +2752,13 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
     {% elif column.type == 'number' %}
         {# 数字类型 #}
         {% if column.format == 'currency' %}
-            {{ get_default_currency_symbol() }}{{ "{:,.2f}".format(value) if value else '0.00' }}
+            {% if column.key == 'quotation_customer' and item.quotation_currency_symbol is defined %}
+                {# 项目报价金额:使用项目自己的货币符号 #}
+                {{ item.quotation_currency_symbol }}{{ "{:,.2f}".format(value) if value else '0.00' }}
+            {% else %}
+                {# 其他货币字段:使用默认货币符号 #}
+                {{ get_default_currency_symbol() }}{{ "{:,.2f}".format(value) if value else '0.00' }}
+            {% endif %}
         {% elif column.format == 'wan' %}
             {{ "{:.2f}".format(value/10000) if value else '0.00' }}万
         {% else %}
@@ -2748,6 +2830,21 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
                    class="btn btn-outline-primary btn-sm" title="{{ _('配置模板') }}">
                     <i class="fas fa-cogs"></i>
                 </a>
+            {% elif item.__class__.__name__ == 'BackupFile' %}
+                {# 备份文件的操作按钮 - 下载和删除 #}
+                <!-- 🔍 DEBUG: item.filename = {{ item.filename }}, item.path = {{ item.path }} -->
+                <a href="{{ url_for('backup.download_backup', filename=item.path) }}"
+                   class="btn btn-outline-primary btn-sm"
+                   title="{{ _('下载备份') }}"
+                   download="{{ item.filename }}">
+                    <i class="fas fa-download"></i>
+                </a>
+                <button type="button"
+                        class="btn btn-outline-danger btn-sm"
+                        onclick="deleteBackup('{{ item.filename }}', '{{ item.path }}')"
+                        title="{{ _('删除备份') }}">
+                    <i class="fas fa-trash"></i>
+                </button>
             {% else %}
                 {# 其他类型显示通用按钮（简化版本避免权限检查） #}
                 {% if list_config is defined and list_config.module_name %}
@@ -3043,7 +3140,13 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
                         {% endif %}
                     {% elif column.type == 'number' %}
                         {% if column.format == 'currency' %}
-                            {{ get_default_currency_symbol() }}{{ "%.2f"|format(value) }}
+                            {% if column.key == 'quotation_customer' and item.quotation_currency_symbol is defined %}
+                                {# 项目报价金额:使用项目自己的货币符号 #}
+                                {{ item.quotation_currency_symbol }}{{ "%.2f"|format(value) }}
+                            {% else %}
+                                {# 其他货币字段:使用默认货币符号 #}
+                                {{ get_default_currency_symbol() }}{{ "%.2f"|format(value) }}
+                            {% endif %}
                         {% elif column.format == 'wan' %}
                             {{ "%.2f"|format(value / 10000) }}万
                         {% else %}
@@ -3129,7 +3232,32 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
     </span>
 {% endmacro %}
 
-{# 
+{#
+  产品关联配置类型徽章渲染 - 胶囊型
+  参数:
+  - relation_type: 配置类型值 (required_accessory, recommended)
+  - lang: 语言代码(可选，默认从session获取)
+#}
+{% macro render_relation_type_badge(relation_type, lang=None) %}
+    {% if not lang %}
+        {% set lang = session.get('language', 'zh') %}
+    {% endif %}
+
+    {% set type_map = {
+        'required_accessory': {'zh': '必选', 'en': 'Required', 'css_class': 'relation-type-required'},
+        'recommended': {'zh': '推荐', 'en': 'Recommended', 'css_class': 'relation-type-recommended'}
+    } %}
+
+    {% set type_config = type_map.get(relation_type, {'zh': relation_type or '未知', 'en': relation_type or 'Unknown', 'css_class': 'relation-type-unknown'}) %}
+    {% set display_text = type_config[lang] %}
+    {% set css_class = type_config.css_class %}
+
+    <span class="badge relation-type-badge rounded-pill {{ css_class }}">
+        {{ display_text }}
+    </span>
+{% endmacro %}
+
+{#
   报销单锁定状态徽章渲染 - 使用通用徽章样式
   参数:
   - is_locked: 是否锁定 (boolean)
@@ -4528,6 +4656,300 @@ window.showDeleteConfirm = function(options = {}) {
     
     showConfirmDialog({...defaultOptions, ...options});
 };
+</script>
+{% endmacro %}
+
+{#
+=============================================================================
+📦 通用自定义对话框组件宏
+=============================================================================
+提供与确认对话框相同风格的可自定义内容对话框：
+- 确认对话框风格：灰色背景、圆角、白色底部
+- 自定义内容：通过caller块传入任意内容
+- 可配置：标题、图标、大小、底部按钮
+- 响应式设计：适配各种屏幕尺寸
+
+参数：
+- dialog_id: 对话框ID（必填）
+- title: 标题文本（必填）
+- icon: 标题图标（可选，如 'fas fa-link'）
+- size: 对话框大小（可选，'sm'/'lg'/'xl'/'default'，默认'lg'）
+- show_close: 是否显示关闭按钮（可选，默认true）
+
+使用示例：
+{% call render_custom_dialog('myDialog', '对话框标题', icon='fas fa-cog', size='xl') %}
+    <!-- 自定义内容 -->
+    <div>这里是自定义内容</div>
+{% endcall %}
+
+底部按钮区域需要在caller块内自行添加，例如：
+<div class="custom-dialog-actions">
+    {{ render_button('保存', color='primary', ...) }}
+    {{ render_button('取消', color='secondary', ...) }}
+</div>
+=============================================================================
+#}
+{% macro render_custom_dialog(dialog_id, title, icon='', size='lg', show_close=true) %}
+<div id="{{ dialog_id }}" class="standard-custom-dialog" style="display: none;">
+    <div class="dialog-overlay"></div>
+    <div class="dialog-container {{ 'dialog-size-' + size }}">
+        <div class="dialog-content">
+            <!-- 头部 -->
+            <div class="custom-dialog-header">
+                <div class="header-title">
+                    {% if icon %}
+                        <i class="{{ icon }} me-2"></i>
+                    {% endif %}
+                    {{ title }}
+                </div>
+                {% if show_close %}
+                    <button type="button" class="custom-dialog-close" onclick="closeCustomDialog('{{ dialog_id }}')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                {% endif %}
+            </div>
+
+            <!-- 内容区域（由caller提供） -->
+            <div class="custom-dialog-body">
+                {{ caller() }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* 通用自定义对话框样式 - 模仿确认对话框风格 */
+.standard-custom-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1060;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.standard-custom-dialog.show {
+    opacity: 1;
+}
+
+.standard-custom-dialog .dialog-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+}
+
+.standard-custom-dialog .dialog-container {
+    position: relative;
+    z-index: 1;
+    transform: scale(0.9) translateY(-20px);
+    transition: transform 0.3s ease;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.standard-custom-dialog.show .dialog-container {
+    transform: scale(1) translateY(0);
+}
+
+/* 不同大小 */
+.standard-custom-dialog .dialog-container.dialog-size-sm {
+    width: 400px;
+}
+
+.standard-custom-dialog .dialog-container.dialog-size-default {
+    width: 600px;
+}
+
+.standard-custom-dialog .dialog-container.dialog-size-lg {
+    width: 800px;
+}
+
+.standard-custom-dialog .dialog-container.dialog-size-xl {
+    width: 1140px;
+}
+
+.standard-custom-dialog .dialog-content {
+    background: #f8f9fa; /* 淡灰色背景，与确认对话框一致 */
+    border-radius: 12px; /* 圆角，与确认对话框一致 */
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    width: 100%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* 头部样式 */
+.custom-dialog-header {
+    padding: 24px;
+    padding-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.custom-dialog-header .header-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #343a40;
+    display: flex;
+    align-items: center;
+}
+
+.custom-dialog-close {
+    background: none;
+    border: none;
+    padding: 4px 8px;
+    cursor: pointer;
+    color: #6c757d;
+    font-size: 20px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.custom-dialog-close:hover {
+    background: rgba(108, 117, 125, 0.1);
+    color: #495057;
+}
+
+/* 内容区域 */
+.custom-dialog-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+/* 底部操作区域样式（由使用者添加） */
+.custom-dialog-actions {
+    padding: 16px 24px;
+    border-top: 1px solid #e9ecef;
+    background: #ffffff; /* 白色底部，与确认对话框一致 */
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin: 0 -24px -24px -24px; /* 负margin使其贴合底部边缘 */
+}
+
+/* 响应式调整 */
+@media (max-width: 1200px) {
+    .standard-custom-dialog .dialog-container.dialog-size-xl {
+        width: 95vw;
+    }
+}
+
+@media (max-width: 992px) {
+    .standard-custom-dialog .dialog-container.dialog-size-lg {
+        width: 95vw;
+    }
+}
+
+@media (max-width: 768px) {
+    .standard-custom-dialog .dialog-container {
+        width: 95vw !important;
+    }
+
+    .custom-dialog-header {
+        padding: 20px;
+        padding-bottom: 16px;
+    }
+
+    .custom-dialog-header .header-title {
+        font-size: 16px;
+    }
+
+    .custom-dialog-body {
+        padding: 20px;
+    }
+
+    .custom-dialog-actions {
+        padding: 12px 20px;
+        flex-direction: column-reverse;
+        margin: 0 -20px -20px -20px;
+    }
+
+    .custom-dialog-actions .btn {
+        width: 100%;
+        margin: 4px 0;
+    }
+}
+</style>
+
+<script>
+/**
+ * 显示自定义对话框
+ * @param {string} dialogId - 对话框ID
+ */
+window.showCustomDialog = function(dialogId) {
+    const dialog = document.getElementById(dialogId);
+    if (!dialog) {
+        console.error('对话框未找到:', dialogId);
+        return;
+    }
+
+    dialog.style.display = 'flex';
+    setTimeout(() => {
+        dialog.classList.add('show');
+    }, 10);
+
+    // 阻止背景滚动
+    document.body.style.overflow = 'hidden';
+};
+
+/**
+ * 关闭自定义对话框
+ * @param {string} dialogId - 对话框ID
+ */
+window.closeCustomDialog = function(dialogId) {
+    const dialog = document.getElementById(dialogId);
+    if (!dialog) {
+        console.error('对话框未找到:', dialogId);
+        return;
+    }
+
+    dialog.classList.remove('show');
+    setTimeout(() => {
+        dialog.style.display = 'none';
+        // 恢复背景滚动
+        document.body.style.overflow = '';
+    }, 300);
+};
+
+// 点击遮罩层关闭对话框
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('dialog-overlay')) {
+        const dialog = e.target.closest('.standard-custom-dialog');
+        if (dialog && dialog.id) {
+            closeCustomDialog(dialog.id);
+        }
+    }
+});
+
+// ESC键关闭对话框
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const visibleDialogs = document.querySelectorAll('.standard-custom-dialog.show');
+        if (visibleDialogs.length > 0) {
+            const lastDialog = visibleDialogs[visibleDialogs.length - 1];
+            if (lastDialog.id) {
+                closeCustomDialog(lastDialog.id);
+            }
+        }
+    }
+});
 </script>
 {% endmacro %}
 
@@ -6444,25 +6866,35 @@ window.hideInvoicePreviewDialog = hideInvoicePreviewDialog;
 {% macro render_sharing_section(model_obj, model_type, current_user, action_url=None, collapsed=True, can_edit_sharing=True, can_view_sharing=False, shareable_users=[], shareable_users_tree=[]) %}
 {% if can_edit_sharing or can_view_sharing %}
 <div class="card mb-4">
-    <div class="card-header bg-light" style="cursor:pointer;" data-bs-toggle="collapse" 
-         data-bs-target="#sharingCollapse_{{ model_obj.id }}" aria-expanded="{{ 'false' if collapsed else 'true' }}" 
+    <div class="card-header bg-light" style="cursor:pointer;" data-bs-toggle="collapse"
+         data-bs-target="#sharingCollapse_{{ model_obj.id }}" aria-expanded="{{ 'false' if collapsed else 'true' }}"
          aria-controls="sharingCollapse_{{ model_obj.id }}">
         <div class="d-flex justify-content-between align-items-center">
             <span>{{ _('共享设置') }}</span>
             <i class="fas fa-chevron-down" id="sharingCollapseIcon_{{ model_obj.id }}"></i>
         </div>
+        <!-- 折叠时的徽章预览区域 -->
+        <div id="sharingHeaderBadges_{{ model_obj.id }}"
+             class="d-flex flex-wrap gap-1 mt-2"
+             style="display: {% if collapsed %}block{% else %}none{% endif %};">
+            <!-- JavaScript动态填充 -->
+        </div>
     </div>
     <div id="sharingCollapse_{{ model_obj.id }}" class="collapse{% if not collapsed %} show{% endif %}">
         <div class="card-body">
-            <form method="POST" action="{{ action_url or url_for(model_type + '.update_' + model_type + '_sharing', **{model_type + '_id': model_obj.id}) }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                
+            <div id="sharingContainer_{{ model_obj.id }}"
+                 data-model-type="{{ model_type }}"
+                 data-model-id="{{ model_obj.id }}"
+                 data-action-url="{{ action_url or url_for(model_type + '.update_' + model_type + '_sharing', **{model_type + '_id': model_obj.id}) }}"
+                 data-csrf-token="{{ csrf_token() }}">
+
                 <!-- 启用共享选项 -->
                 <div class="mb-3">
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="share_enabled_{{ model_obj.id }}" 
+                        <input class="form-check-input sharing-auto-save" type="checkbox" id="share_enabled_{{ model_obj.id }}"
                                name="share_enabled" {% if model_obj.share_enabled %}checked{% endif %}
-                               {% if not can_edit_sharing %}disabled{% endif %}>
+                               {% if not can_edit_sharing %}disabled{% endif %}
+                               data-field="share_enabled">
                         <label class="form-check-label" for="share_enabled_{{ model_obj.id }}">
                             {{ _('启用共享') }}
                         </label>
@@ -6472,19 +6904,20 @@ window.hideInvoicePreviewDialog = hideInvoicePreviewDialog;
                 <!-- 用户选择区域 -->
                 <div id="shared_users_section_{{ model_obj.id }}" style="display: {% if model_obj.share_enabled %}block{% else %}none{% endif %};">
                     <div class="mb-3">
-                        <label for="shared_with_users_{{ model_obj.id }}" class="form-label">{{ _('共享给以下用户') }}：</label>
+                        <label for="shared_with_users_{{ model_obj.id }}" class="form-label">{{ _('共享给以下用户：') }}</label>
                         {% if shareable_users_tree %}
-                            {{ render_tree_user_selector(shareable_users_tree, model_obj.shared_user_ids, 'userTree_' + model_obj.id|string, disabled=(not can_edit_sharing)) }}
+                            {{ render_tree_user_selector(shareable_users_tree, model_obj.shared_user_ids, 'userTree_' + model_obj.id|string, disabled=(not can_edit_sharing), show_badges=True, header_badges_id='sharingHeaderBadges_' + model_obj.id|string) }}
                         {% else %}
                             <!-- 备用方案：简单列表 -->
-                            <div id="shared_with_users_box_{{ model_obj.id }}" 
+                            <div id="shared_with_users_box_{{ model_obj.id }}"
                                  style="border:1px solid #ced4da;border-radius:0.375rem;height:120px;overflow-y:auto;padding:6px;">
                                 {% for user in shareable_users %}
                                 <div class="form-check">
-                                    <input class="form-check-input shared-user-checkbox-{{ model_obj.id }}" 
+                                    <input class="form-check-input shared-user-checkbox-{{ model_obj.id }} sharing-auto-save"
                                            type="checkbox" value="{{ user.id }}" id="user_checkbox_{{ model_obj.id }}_{{ user.id }}"
                                         {% if model_obj.shared_with_users and user.id in model_obj.shared_user_ids %}checked{% endif %}
-                                        {% if not can_edit_sharing %}disabled{% endif %}>
+                                        {% if not can_edit_sharing %}disabled{% endif %}
+                                        data-field="shared_with_users">
                                     <label class="form-check-label" for="user_checkbox_{{ model_obj.id }}_{{ user.id }}">
                                         {{ user.real_name or user.username }}
                                     </label>
@@ -6492,16 +6925,16 @@ window.hideInvoicePreviewDialog = hideInvoicePreviewDialog;
                                 {% endfor %}
                             </div>
                         {% endif %}
-                        <input type="hidden" name="shared_with_users" id="shared_with_users_hidden_{{ model_obj.id }}">
                     </div>
 
                     <!-- 模型特定的共享选项 -->
                     {% if model_type == 'customer' %}
                     <div class="mb-3">
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="share_contacts_{{ model_obj.id }}" 
+                            <input class="form-check-input sharing-auto-save" type="checkbox" id="share_contacts_{{ model_obj.id }}"
                                    name="share_contacts" {% if model_obj.share_contacts %}checked{% endif %}
-                                   {% if not can_edit_sharing %}disabled{% endif %}>
+                                   {% if not can_edit_sharing %}disabled{% endif %}
+                                   data-field="share_contacts">
                             <label class="form-check-label" for="share_contacts_{{ model_obj.id }}">
                                 {{ _('自动共享客户下所有联系人') }}
                             </label>
@@ -6509,23 +6942,91 @@ window.hideInvoicePreviewDialog = hideInvoicePreviewDialog;
                     </div>
                     {% endif %}
                 </div>
-
-                {% if can_edit_sharing %}
-                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                    {{ render_button(_('保存共享设置'), type='submit', color='primary', icon='fas fa-save') }}
-                </div>
-                {% endif %}
-            </form>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // 共享启用切换控制
+    const container = document.getElementById('sharingContainer_{{ model_obj.id }}');
     const shareEnabledCheckbox = document.getElementById('share_enabled_{{ model_obj.id }}');
     const sharedUsersSection = document.getElementById('shared_users_section_{{ model_obj.id }}');
-    
+
+    if (!container) return;
+
+    // 防抖函数
+    let saveTimeout;
+    function debouncedSave(fn, delay = 500) {
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(fn, delay);
+    }
+
+    // 自动保存函数
+    function autoSaveSharing() {
+        const modelType = container.getAttribute('data-model-type');
+        const modelId = container.getAttribute('data-model-id');
+        const actionUrl = container.getAttribute('data-action-url');
+        const csrfToken = container.getAttribute('data-csrf-token');
+
+        // 收集表单数据
+        const formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+
+        // 共享启用状态
+        if (shareEnabledCheckbox) {
+            if (shareEnabledCheckbox.checked) {
+                formData.append('share_enabled', 'on');
+            }
+        }
+
+        // 收集选中的用户ID
+        const userIds = [];
+        const treeContainer = document.getElementById('userTree_{{ model_obj.id|string }}');
+        if (treeContainer) {
+            // 树状选择器：收集所有选中的用户节点
+            treeContainer.querySelectorAll('input[data-type="user"]:checked').forEach(function(cb) {
+                const userId = cb.getAttribute('data-user-id');
+                if (userId) userIds.push(userId);
+            });
+        } else {
+            // 简单列表选择器
+            document.querySelectorAll('.shared-user-checkbox-{{ model_obj.id }}:checked').forEach(function(cb) {
+                if (cb.value) userIds.push(cb.value);
+            });
+        }
+        formData.append('shared_with_users', userIds.join(','));
+
+        // 客户特有选项
+        const shareContactsCheckbox = document.getElementById('share_contacts_{{ model_obj.id }}');
+        if (shareContactsCheckbox && shareContactsCheckbox.checked) {
+            formData.append('share_contacts', 'on');
+        }
+
+        // 发送AJAX请求
+        fetch(actionUrl, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('保存失败');
+            }
+            return response.text();
+        })
+        .then(html => {
+            // 成功：静默处理，无提示
+            console.log('共享设置已自动保存');
+        })
+        .catch(error => {
+            // 失败：显示错误消息
+            console.error('自动保存共享设置失败:', error);
+            alert('保存共享设置失败，请重试');
+        });
+    }
+
+    // 共享启用切换控制
     if (shareEnabledCheckbox) {
         shareEnabledCheckbox.addEventListener('change', function() {
             if (this.checked) {
@@ -6533,48 +7034,70 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 sharedUsersSection.style.display = 'none';
                 // 清空用户选择
-                document.querySelectorAll('.shared-user-checkbox-{{ model_obj.id }}').forEach(function(cb) {
-                    cb.checked = false;
-                });
+                const treeContainer = document.getElementById('userTree_{{ model_obj.id|string }}');
+                if (treeContainer) {
+                    treeContainer.querySelectorAll('input[data-type="user"]:checked').forEach(function(cb) {
+                        cb.checked = false;
+                    });
+                    // 更新徽章显示
+                    if (typeof updateBadges === 'function') {
+                        updateBadges('userTree_{{ model_obj.id|string }}');
+                    }
+                } else {
+                    document.querySelectorAll('.shared-user-checkbox-{{ model_obj.id }}').forEach(function(cb) {
+                        cb.checked = false;
+                    });
+                }
+            }
+
+            // 不是disabled状态才保存
+            if (!this.disabled) {
+                debouncedSave(autoSaveSharing);
             }
         });
     }
 
-    // 表单提交前同步用户选择到隐藏字段
-    const form = shareEnabledCheckbox.closest('form');
-    if (form) {
-        form.addEventListener('submit', function() {
-            const ids = [];
-            // 检查是否使用树状选择器
-            const treeContainer = document.getElementById('userTree_{{ model_obj.id|string }}');
-            if (treeContainer) {
-                // 树状选择器：收集所有选中的用户节点
-                treeContainer.querySelectorAll('input[data-type="user"]:checked').forEach(function(cb){
-                    ids.push(cb.getAttribute('data-user-id'));
-                });
-            } else {
-                // 简单列表选择器
-                document.querySelectorAll('.shared-user-checkbox-{{ model_obj.id }}:checked').forEach(function(cb){
-                    ids.push(cb.value);
-                });
+    // 监听所有自动保存checkbox的变化
+    container.querySelectorAll('.sharing-auto-save').forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            if (!this.disabled) {
+                debouncedSave(autoSaveSharing);
             }
-            document.getElementById('shared_with_users_hidden_{{ model_obj.id }}').value = ids.join(',');
+        });
+    });
+
+    // 监听树状选择器的变化（用户选择）
+    const treeContainer = document.getElementById('userTree_{{ model_obj.id|string }}');
+    if (treeContainer) {
+        treeContainer.addEventListener('change', function(e) {
+            if (e.target.type === 'checkbox' && !e.target.disabled) {
+                debouncedSave(autoSaveSharing);
+            }
         });
     }
 
-    // 折叠状态切换图标
+    // 折叠状态切换图标和头部徽章显示控制
     const collapseEl = document.getElementById('sharingCollapse_{{ model_obj.id }}');
     const icon = document.getElementById('sharingCollapseIcon_{{ model_obj.id }}');
-    
+    const headerBadges = document.getElementById('sharingHeaderBadges_{{ model_obj.id }}');
+
     if (collapseEl && icon) {
         collapseEl.addEventListener('shown.bs.collapse', function() {
+            // 展开时：切换图标为向上，隐藏头部徽章
             icon.classList.remove('fa-chevron-down');
             icon.classList.add('fa-chevron-up');
+            if (headerBadges) {
+                headerBadges.style.display = 'none';
+            }
         });
-        
+
         collapseEl.addEventListener('hidden.bs.collapse', function() {
+            // 折叠时：切换图标为向下，显示头部徽章
             icon.classList.remove('fa-chevron-up');
             icon.classList.add('fa-chevron-down');
+            if (headerBadges) {
+                headerBadges.style.display = 'block';
+            }
         });
     }
 });
@@ -6590,7 +7113,19 @@ document.addEventListener('DOMContentLoaded', function() {
 支持父节点选择自动选中所有子节点
 #}
 
-{% macro render_tree_user_selector(tree_data, selected_user_ids=[], container_id="userTree", disabled=False) %}
+{% macro render_tree_user_selector(tree_data, selected_user_ids=[], container_id="userTree", disabled=False, show_badges=True, header_badges_id=None) %}
+{# 徽章显示区域 #}
+{% if show_badges %}
+<div class="mb-3">
+    <label class="form-label">{{ _('当前已选择：') }}</label>
+    <div id="{{ container_id }}_badges"
+         class="selected-badges-container d-flex flex-wrap gap-2"
+         style="min-height: 38px; padding: 8px; background-color: #f8f9fa; border-radius: 0.375rem; border: 1px solid #dee2e6;">
+        <small class="text-muted">{{ _('未选择任何用户') }}</small>
+    </div>
+</div>
+{% endif %}
+
 <div class="tree-user-selector" id="{{ container_id }}">
     <div class="tree-container">
         {% for company in tree_data %}
@@ -6877,7 +7412,7 @@ function initTreeUserSelector(containerId) {
                 // 选中用户时，更新父级状态
                 const departmentId = checkbox.getAttribute('data-parent');
                 const companyId = checkbox.getAttribute('data-company');
-                
+
                 if (departmentId && departmentId !== companyId) {
                     updateDepartmentStatus(departmentId);
                     updateCompanyStatus(companyId);
@@ -6885,6 +7420,9 @@ function initTreeUserSelector(containerId) {
                     updateCompanyStatus(companyId);
                 }
             }
+
+            // 更新徽章显示
+            updateBadges(containerId);
         }
     });
     
@@ -6916,12 +7454,12 @@ function initTreeUserSelector(containerId) {
     
     // 更新公司的选中状态
     function updateCompanyStatus(companyId) {
-        const companyCheckbox = container.querySelector(`[data-id="${companyId}"][data-type="company"]`);
+        const companyCheckbox = container.querySelector(`input.company-checkbox[data-id="${companyId}"]`);
         if (!companyCheckbox) return;
-        
+
         const allUsers = container.querySelectorAll(`[data-company="${companyId}"].user-checkbox`);
         const checkedUsers = container.querySelectorAll(`[data-company="${companyId}"].user-checkbox:checked`);
-        
+
         if (checkedUsers.length === 0) {
             companyCheckbox.checked = false;
             companyCheckbox.indeterminate = false;
@@ -6936,12 +7474,12 @@ function initTreeUserSelector(containerId) {
     
     // 更新部门的选中状态
     function updateDepartmentStatus(departmentId) {
-        const departmentCheckbox = container.querySelector(`[data-id="${departmentId}"][data-type="department"]`);
+        const departmentCheckbox = container.querySelector(`input.department-checkbox[data-id="${departmentId}"]`);
         if (!departmentCheckbox) return;
-        
+
         const allUsers = container.querySelectorAll(`[data-parent="${departmentId}"].user-checkbox`);
         const checkedUsers = container.querySelectorAll(`[data-parent="${departmentId}"].user-checkbox:checked`);
-        
+
         if (checkedUsers.length === 0) {
             departmentCheckbox.checked = false;
             departmentCheckbox.indeterminate = false;
@@ -6978,7 +7516,223 @@ function initTreeUserSelector(containerId) {
     setTimeout(function() {
         initializeParentStates();
     }, 500);
-    
+
+    // 更新徽章显示（智能识别公司/部门/用户）
+    function updateBadges(containerId) {
+        const badgesContainer = document.getElementById(containerId + '_badges');
+        if (!badgesContainer) return; // 如果没有徽章容器则跳过
+
+        badgesContainer.innerHTML = '';
+
+        const companies = [];
+        const departments = [];
+        const users = [];
+
+        // 分析公司级别选择
+        container.querySelectorAll('.company-checkbox').forEach(companyCheckbox => {
+            const companyId = companyCheckbox.getAttribute('data-id');
+            const companyName = companyCheckbox.getAttribute('data-name');
+            const allUsers = container.querySelectorAll(`[data-company="${companyId}"].user-checkbox`);
+            const checkedUsers = container.querySelectorAll(`[data-company="${companyId}"].user-checkbox:checked`);
+
+            if (allUsers.length > 0 && checkedUsers.length === allUsers.length) {
+                // 整个公司被选中
+                companies.push({ id: companyId, name: companyName });
+            } else if (checkedUsers.length > 0) {
+                // 部分选中，检查部门级别
+                analyzeDepartments(companyId, departments, users);
+            }
+        });
+
+        // 渲染徽章
+        renderBadges(companies, departments, users);
+        // 同时更新头部徽章（折叠时显示）
+        renderHeaderBadges(companies, departments, users);
+    }
+
+    // 分析部门级别选择
+    function analyzeDepartments(companyId, departments, users) {
+        const companyCheckbox = container.querySelector(`[data-id="${companyId}"][data-type="company"].company-checkbox`);
+        if (!companyCheckbox) return;
+
+        const companyName = companyCheckbox.getAttribute('data-name');
+        const deptCheckboxes = container.querySelectorAll(`[data-parent="${companyId}"].department-checkbox`);
+        const processedUsers = new Set(); // 记录已被部门覆盖的用户
+
+        deptCheckboxes.forEach(deptCheckbox => {
+            const deptId = deptCheckbox.getAttribute('data-id');
+            const deptName = deptCheckbox.getAttribute('data-name');
+            const deptUsers = container.querySelectorAll(`[data-parent="${deptId}"].user-checkbox`);
+            const checkedDeptUsers = container.querySelectorAll(`[data-parent="${deptId}"].user-checkbox:checked`);
+
+            if (deptUsers.length > 0 && checkedDeptUsers.length === deptUsers.length) {
+                // 整个部门被选中，记录公司名称和ID
+                departments.push({
+                    id: deptId,
+                    name: deptName,
+                    companyName: companyName,
+                    companyId: companyId
+                });
+                // 记录这些用户已被部门覆盖
+                checkedDeptUsers.forEach(u => processedUsers.add(u.getAttribute('data-user-id')));
+            }
+        });
+
+        // 添加未被公司/部门覆盖的单独用户
+        const checkedUsers = container.querySelectorAll(`[data-company="${companyId}"].user-checkbox:checked`);
+        checkedUsers.forEach(userCheckbox => {
+            const userId = userCheckbox.getAttribute('data-user-id');
+            if (!processedUsers.has(userId)) {
+                users.push({
+                    id: userId,
+                    name: userCheckbox.getAttribute('data-name'),
+                    isVendor: false
+                });
+            }
+        });
+    }
+
+    // 渲染徽章
+    function renderBadges(companies, departments, users) {
+        const badgesContainer = document.getElementById(containerId + '_badges');
+
+        if (companies.length === 0 && departments.length === 0 && users.length === 0) {
+            badgesContainer.innerHTML = '<small class="text-muted">{{ _("未选择任何用户") }}</small>';
+            return;
+        }
+
+        // 渲染公司徽章
+        companies.forEach(company => {
+            const badge = document.createElement('span');
+            badge.className = 'badge badge-company';  // 使用两个类名：基础badge + badge-company
+            badge.innerHTML = `
+                ${company.name}
+                <i class="fas fa-times ms-1" style="cursor: pointer;"></i>
+            `;
+            badge.querySelector('i').addEventListener('click', () => {
+                const checkbox = container.querySelector(`input.company-checkbox[data-id="${company.id}"]`);
+                if (checkbox) {
+                    checkbox.checked = false;
+                    // 级联取消所有子节点
+                    selectCompanyChildren(company.id, false);
+                    // 立即更新徽章显示
+                    updateBadges(containerId);
+                    // 触发change事件以自动保存
+                    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+            badgesContainer.appendChild(badge);
+        });
+
+        // 渲染部门徽章
+        departments.forEach(dept => {
+            const badge = document.createElement('span');
+            badge.className = 'badge badge-department';  // 使用两个类名：基础badge + badge-department
+            badge.innerHTML = `
+                ${dept.companyName} > ${dept.name}
+                <i class="fas fa-times ms-1" style="cursor: pointer;"></i>
+            `;
+            badge.querySelector('i').addEventListener('click', () => {
+                const checkbox = container.querySelector(`input.department-checkbox[data-id="${dept.id}"]`);
+                if (checkbox) {
+                    checkbox.checked = false;
+                    // 级联取消所有子用户
+                    selectDepartmentChildren(dept.id, false);
+                    // 更新父级公司状态
+                    updateCompanyStatus(dept.companyId);
+                    // 立即更新徽章显示
+                    updateBadges(containerId);
+                    // 触发change事件以自动保存
+                    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+            badgesContainer.appendChild(badge);
+        });
+
+        // 渲染用户徽章
+        users.forEach(user => {
+            const badge = document.createElement('span');
+            badge.className = user.isVendor ? 'badge badge-user vendor rounded-pill' : 'badge badge-user regular';
+            badge.innerHTML = `
+                ${user.name}
+                <i class="fas fa-times ms-1" style="cursor: pointer;"></i>
+            `;
+            badge.querySelector('i').addEventListener('click', () => {
+                const checkbox = container.querySelector(`[data-user-id="${user.id}"].user-checkbox`);
+                if (checkbox) {
+                    checkbox.checked = false;
+                    // 更新父级部门和公司状态
+                    const parentDeptId = checkbox.getAttribute('data-parent');
+                    if (parentDeptId) {
+                        updateDepartmentStatus(parentDeptId);
+                        const deptCheckbox = container.querySelector(`[data-id="${parentDeptId}"][data-type="department"]`);
+                        if (deptCheckbox) {
+                            const companyId = deptCheckbox.getAttribute('data-parent');
+                            if (companyId) updateCompanyStatus(companyId);
+                        }
+                    }
+                    // 立即更新徽章显示
+                    updateBadges(containerId);
+                    // 触发change事件以自动保存
+                    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+            badgesContainer.appendChild(badge);
+        });
+    }
+
+    // 渲染头部徽章（折叠时显示，只读模式）
+    function renderHeaderBadges(companies, departments, users) {
+        {% if header_badges_id %}
+        const headerBadgesContainer = document.getElementById('{{ header_badges_id }}');
+        if (!headerBadgesContainer) return;
+        {% else %}
+        // 没有提供header_badges_id参数，跳过头部徽章渲染
+        return;
+        {% endif %}
+
+        // 清空容器
+        headerBadgesContainer.innerHTML = '';
+
+        // 如果没有选择任何用户，显示提示
+        if (companies.length === 0 && departments.length === 0 && users.length === 0) {
+            const hint = document.createElement('small');
+            hint.className = 'text-muted';
+            hint.textContent = '{{ _("未选择任何用户") }}';
+            headerBadgesContainer.appendChild(hint);
+            return;
+        }
+
+        // 渲染公司徽章（只读，无删除按钮）
+        companies.forEach(company => {
+            const badge = document.createElement('span');
+            badge.className = 'badge badge-company';
+            badge.textContent = company.name;
+            headerBadgesContainer.appendChild(badge);
+        });
+
+        // 渲染部门徽章（只读，无删除按钮）
+        departments.forEach(dept => {
+            const badge = document.createElement('span');
+            badge.className = 'badge badge-department';
+            badge.textContent = `${dept.companyName} > ${dept.name}`;
+            headerBadgesContainer.appendChild(badge);
+        });
+
+        // 渲染用户徽章（只读，无删除按钮）
+        users.forEach(user => {
+            const badge = document.createElement('span');
+            badge.className = user.isVendor ? 'badge badge-user vendor rounded-pill' : 'badge badge-user regular';
+            badge.textContent = user.name;
+            headerBadgesContainer.appendChild(badge);
+        });
+    }
+
+    // 初始化时也更新徽章
+    setTimeout(function() {
+        updateBadges(containerId);
+    }, 600);
+
     // 获取所有选中用户的ID
     window.getSelectedUserIds = function(containerId) {
         const container = document.getElementById(containerId);
@@ -7235,7 +7989,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 {% elif detail_config.format == 'datetime' and detail_value.strftime %}
                     {{ detail_value.strftime('%Y-%m-%d %H:%M') }}
                 {% elif detail_config.format == 'currency' %}
-                    {{ get_default_currency_symbol() }}{{ "%.2f"|format(detail_value) }}
+                    {% if detail_config.field == 'quotation_customer' and item.quotation_currency_symbol is defined %}
+                        {# 项目报价金额:使用项目自己的货币符号 #}
+                        {{ item.quotation_currency_symbol }}{{ "%.2f"|format(detail_value) }}
+                    {% else %}
+                        {# 其他货币字段:使用默认货币符号 #}
+                        {{ get_default_currency_symbol() }}{{ "%.2f"|format(detail_value) }}
+                    {% endif %}
                 {% elif detail_config.format == 'phone' %}
                     <a href="tel:{{ detail_value }}" class="text-decoration-none">{{ detail_value }}</a>
                 {% elif detail_config.format == 'email' %}
@@ -7623,3 +8383,253 @@ document.addEventListener('DOMContentLoaded', function() {
     {% endif %}
 {% endmacro %}
 
+
+{#
+=============================================================================
+详情页动态列表组件
+=============================================================================
+
+用于详情页中的关联数据列表展示，支持通过API动态加载和操作。
+
+使用示例:
+{{ render_detail_list(
+    container_id='relationsList',
+    title='关联产品配置',
+    icon='fa-link',
+    api_url=url_for('product_management.get_product_relations', product_id=product.id),
+    columns=[
+        {'key': 'product_name', 'label': '产品名称', 'width': '25%'},
+        {'key': 'product_model', 'label': '产品型号', 'width': '20%'},
+        {'key': 'product_mn', 'label': '产品MN', 'width': '20%'},
+        {'key': 'relation_type_label', 'label': '配置类型', 'width': '15%', 'align': 'center', 'type': 'badge'},
+        {'key': 'default_quantity', 'label': '默认数量', 'width': '10%', 'align': 'center'}
+    ],
+    actions=[
+        {'type': 'delete', 'label': '删除', 'confirm': '确认删除此关联产品？'}
+    ],
+    add_button_html=render_button(
+        text='添加关联产品',
+        color='primary',
+        size='sm',
+        icon='fa-plus',
+        onclick='openAddRelationModal()',
+        type='button'
+    ) if current_user.role in ['admin', 'product_manager'] else '',
+    empty_message='暂无关联产品配置',
+    show_actions=current_user.role in ['admin', 'product_manager']
+) }}
+
+参数说明:
+- container_id: 容器ID（必填）
+- title: 列表标题（必填）
+- icon: 标题图标（可选，Font Awesome类名）
+- api_url: API接口地址（必填）
+- columns: 列定义数组（必填）
+  - key: 数据字段名
+  - label: 列标题
+  - width: 列宽度
+  - align: 对齐方式（left/center/right）
+  - type: 特殊类型（badge/link/custom）
+- actions: 操作按钮数组（可选）
+- add_button_html: 添加按钮HTML（可选，建议使用render_button函数生成）
+- empty_message: 空数据提示（可选）
+- show_actions: 是否显示操作按钮（可选，默认True）
+
+创建日期: 2025-11-02
+=============================================================================
+#}
+{% macro render_detail_list(container_id, title, api_url, columns, icon='', actions=[], add_button_html='', empty_message='暂无数据', show_actions=True) %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            {% if icon %}<i class="fas {{ icon }} me-2"></i>{% endif %}{{ _(title) }}
+        </h5>
+        {% if add_button_html and show_actions %}
+            {{ add_button_html | safe }}
+        {% endif %}
+    </div>
+    <div class="card-body" id="{{ container_id }}_container">
+        <div class="text-center py-4">
+            <i class="fas fa-spinner fa-spin me-2"></i>{{ _('加载中...') }}
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const containerId = '{{ container_id }}';
+    const apiUrl = '{{ api_url }}';
+    const columns = {{ columns | tojson }};
+    const actions = {{ actions | tojson }};
+    const emptyMessage = '{{ _(empty_message) }}';
+    const hasPermission = {{ 'true' if show_actions else 'false' }};
+
+    // 加载列表数据
+    function loadList() {
+        fetch(apiUrl)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 检查是否存在自定义行渲染函数
+                    const customRowRenderer = window['render_' + containerId + '_rows'];
+                    if (typeof customRowRenderer === 'function') {
+                        // 调用自定义函数，传递完整的data对象
+                        customRowRenderer(data);
+                    } else {
+                        // 使用默认渲染
+                        renderList(data.data || data.items || []);
+                    }
+                } else {
+                    showError(data.message || '{{ _("加载失败") }}');
+                }
+            })
+            .catch(error => {
+                console.error('加载列表失败:', error);
+                showError('{{ _("加载列表失败，请刷新页面重试") }}');
+            });
+    }
+
+    // 渲染列表
+    function renderList(items) {
+        const container = document.getElementById(containerId + '_container');
+        
+        if (items.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                    <p class="mb-0">${emptyMessage}</p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = `
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle mb-0 data-list-table">
+                    <thead class="table-light">
+                        <tr>
+        `;
+
+        // 渲染表头
+        columns.forEach(col => {
+            const align = col.align || 'left';
+            const width = col.width ? ` width="${col.width}"` : '';
+            html += `<th${width} class="text-${align}">${col.label}</th>`;
+        });
+
+        // 操作列
+        if (actions.length > 0 && hasPermission) {
+            html += `<th width="10%" class="text-center">{{ _('操作') }}</th>`;
+        }
+
+        html += `
+                        </tr>
+                    </thead>
+                    <tbody id="${containerId}-tbody">
+        `;
+
+        // 渲染数据行
+        items.forEach(item => {
+            html += '<tr>';
+            
+            columns.forEach(col => {
+                const value = item[col.key] || '';
+                const align = col.align || 'left';
+                
+                if (col.type === 'badge') {
+                    // 徽章类型
+                    const badgeClass = item[col.key + '_class'] || 'bg-secondary';
+                    html += `<td class="text-${align}"><span class="badge ${badgeClass}">${value}</span></td>`;
+                } else if (col.type === 'link') {
+                    // 链接类型
+                    const url = item[col.key + '_url'] || '#';
+                    html += `<td class="text-${align}"><a href="${url}" class="text-primary">${value}</a></td>`;
+                } else {
+                    // 普通文本
+                    html += `<td class="text-${align}">${value}</td>`;
+                }
+            });
+
+            // 操作按钮
+            if (actions.length > 0 && hasPermission) {
+                html += '<td class="text-center">';
+                actions.forEach(action => {
+                    if (action.type === 'delete') {
+                        html += `
+                            <button class="btn btn-sm btn-outline-danger" 
+                                    onclick="deleteItem(${item.id}, '${action.confirm || '确认删除？'}')"
+                                    title="${action.label}">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        `;
+                    } else if (action.type === 'edit') {
+                        html += `
+                            <button class="btn btn-sm btn-outline-primary" 
+                                    onclick="${action.onclick}(${item.id})"
+                                    title="${action.label}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        `;
+                    }
+                });
+                html += '</td>';
+            }
+
+            html += '</tr>';
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        container.innerHTML = html;
+    }
+
+    // 删除项目
+    window.deleteItem = function(id, confirmMessage) {
+        if (!confirm(confirmMessage)) return;
+        
+        fetch(apiUrl + '/' + id, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadList(); // 重新加载列表
+                if (window.showToast) {
+                    showToast('{{ _("删除成功") }}', 'success');
+                }
+            } else {
+                alert(data.message || '{{ _("删除失败") }}');
+            }
+        })
+        .catch(error => {
+            console.error('删除失败:', error);
+            alert('{{ _("删除失败，请重试") }}');
+        });
+    };
+
+    // 显示错误
+    function showError(message) {
+        const container = document.getElementById(containerId + '_container');
+        container.innerHTML = `
+            <div class="alert alert-danger mb-0">
+                <i class="fas fa-exclamation-circle me-2"></i>${message}
+            </div>
+        `;
+    }
+
+    // 页面加载时初始化
+    loadList();
+
+    // 导出刷新函数供外部调用
+    window['refresh_' + containerId] = loadList;
+})();
+</script>
+{% endmacro %}

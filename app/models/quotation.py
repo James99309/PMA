@@ -264,13 +264,19 @@ class Quotation(db.Model):
         """获取锁定状态显示信息"""
         if not self.is_locked:
             return None
-        
+
         return {
             'is_locked': True,
             'reason': self.lock_reason,
             'locked_by': self.locker.real_name or self.locker.username if self.locker else '未知',
             'locked_at': self.locked_at.strftime('%Y-%m-%d %H:%M:%S') if self.locked_at else ''
         }
+
+    @property
+    def currency_symbol(self):
+        """获取货币符号"""
+        from app.utils.dictionary_helpers import get_currency_symbol
+        return get_currency_symbol(self.currency)
 
     def calculate_product_signature(self):
         """计算产品明细的数字签名，用于检测关键变化（行数和MN号）"""
@@ -352,7 +358,7 @@ class Quotation(db.Model):
 @event.listens_for(Quotation, 'after_insert')
 @event.listens_for(Quotation, 'after_update')
 def update_project_quotation(mapper, connection, target):
-    """在报价单保存或更新后自动更新项目为最新报价单金额和更新时间（北京时间）"""
+    """在报价单保存或更新后自动更新项目为最新报价单金额、货币和更新时间（北京时间）"""
     try:
         if target.project_id:
             now = datetime.now(ZoneInfo('Asia/Shanghai'))
@@ -365,16 +371,23 @@ def update_project_quotation(mapper, connection, target):
                     ORDER BY created_at DESC
                     LIMIT 1
                 ),
+                quotation_currency = (
+                    SELECT COALESCE(currency, 'CNY')
+                    FROM quotations
+                    WHERE project_id = :project_id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ),
                 updated_at = :now
                 WHERE id = :project_id
             """)
             connection.execute(sql, {"project_id": target.project_id, "now": now})
     except Exception as e:
-        print(f"更新项目最新报价金额时发生错误: {str(e)}")
+        print(f"更新项目最新报价金额和货币时发生错误: {str(e)}")
 
 @event.listens_for(Quotation, 'after_delete')
 def update_project_quotation_on_delete(mapper, connection, target):
-    """在报价单删除后自动更新项目为最新报价单金额和更新时间（北京时间）"""
+    """在报价单删除后自动更新项目为最新报价单金额、货币和更新时间（北京时间）"""
     try:
         if target.project_id:
             now = datetime.now(ZoneInfo('Asia/Shanghai'))
@@ -387,12 +400,19 @@ def update_project_quotation_on_delete(mapper, connection, target):
                     ORDER BY created_at DESC
                     LIMIT 1
                 ),
+                quotation_currency = (
+                    SELECT COALESCE(currency, 'CNY')
+                    FROM quotations
+                    WHERE project_id = :project_id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ),
                 updated_at = :now
                 WHERE id = :project_id
             """)
             connection.execute(sql, {"project_id": target.project_id, "now": now})
     except Exception as e:
-        print(f"删除报价单后更新项目最新报价金额时发生错误: {str(e)}")
+        print(f"删除报价单后更新项目最新报价金额和货币时发生错误: {str(e)}")
 
 class QuotationDetail(db.Model):
     __tablename__ = 'quotation_details'
@@ -416,15 +436,28 @@ class QuotationDetail(db.Model):
     
     # 货币字段
     currency = db.Column(db.String(10), default='CNY')  # 货币类型
-    
+
+    # 配置产品字段（使用已存在的parent_item_id和is_accessory字段）
+    parent_item_id = db.Column(db.Integer, db.ForeignKey('quotation_details.id', ondelete='CASCADE'), nullable=True)  # 父级产品行ID
+    is_accessory = db.Column(db.Boolean, default=False, nullable=False)  # 是否为配置产品
+    is_editable = db.Column(db.Boolean, default=True, nullable=False)  # 是否可编辑
+    config_type = db.Column(db.String(50), nullable=True)  # 配置类型: 'required_accessory', 'required_mutual', 'recommended', 'optional_mutual'
+    config_base_quantity = db.Column(db.Integer, nullable=True)  # 配置基础数量
+
     # 产品明细确认字段 - 暂时注释掉数据库字段，使用会话存储
     # is_confirmed = db.Column(db.Boolean, default=False)  # 是否确认
     # confirmed_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # 确认人
     # confirmed_at = db.Column(db.DateTime)  # 确认时间
-    
+
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
-    
+
+    # 配置产品关系
+    configurations = db.relationship('QuotationDetail',
+                                    backref=db.backref('parent_detail', remote_side=[id]),
+                                    cascade='all, delete-orphan',
+                                    foreign_keys=[parent_item_id])
+
     # 确认人关联 - 暂时注释掉
     # confirmer = db.relationship('User', foreign_keys=[confirmed_by], backref='confirmed_detail_items')
     

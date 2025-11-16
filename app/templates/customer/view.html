@@ -37,9 +37,9 @@
             <div class="col text-end">
                 <!-- 操作按钮组 -->
                 <div class="btn-toolbar justify-content-end" role="toolbar">
-                    {{ render_button(_('返回'), url_for('customer.list_companies'), color='secondary') }}
+                    {{ render_button(_('返回'), return_url, color='secondary') }}
                     {% if has_permission('customer', 'edit') and can_edit_company_info(current_user, company) %}
-                    {{ render_button(_('编辑客户'), url_for('customer.edit_company', company_id=company.id), color='primary') }}
+                    {{ render_button(_('编辑客户'), url_for('customer.edit_company', company_id=company.id, return_url=return_url), color='primary') }}
                     {% endif %}
                     {% if has_permission('customer', 'delete') and can_edit_data(company, current_user) %}
                     {{ render_button(_('删除客户'), '#', color='danger', icon='fas fa-trash', attrs='id="deleteCompanyBtn" data-company-id="' + company.id|string + '"') }}
@@ -230,39 +230,19 @@
                     {% if contact.position %}{{ contact.position }}{% endif %}
                 </div>
                 {% endif %}
-                
-                {% if contact.phone %}
-                <div class="small mb-1">
-                    <i class="fas fa-phone text-secondary me-1"></i>
-                    <a href="tel:{{ contact.phone }}" class="text-decoration-none">{{ contact.phone }}</a>
-                </div>
-                {% endif %}
-                
-                {% if contact.email %}
-                <div class="small mb-1">
-                    <i class="fas fa-envelope text-secondary me-1"></i>
-                    <a href="mailto:{{ contact.email }}" class="text-decoration-none">{{ contact.email }}</a>
-                </div>
-                {% endif %}
-                
+
                 <div class="small text-muted mt-2">
                     <i class="fas fa-user me-1"></i>{{ render_owner(contact.owner) }}
                     <span class="mx-1">·</span>
                     <i class="fas fa-clock me-1"></i>{{ render_date(contact.created_at) }}
                 </div>
-                
-                <div class="mt-3 pt-2 border-top">
-                    <div class="btn-group btn-group-sm">
-                        {{ render_button(_('添加行动记录'), href=url_for('customer.add_action_for_company', company_id=company.id) ~ '?contact_id=' ~ contact.id, color='info', size='sm', extra_class='me-1') }}
-                        
-                        {% if has_permission('customer', 'edit') and can_edit_contact(current_user, contact) %}
-                        {{ render_button(_('编辑'), href=url_for('customer.edit_contact', company_id=company.id, contact_id=contact.id), color='primary', size='sm', extra_class='me-1') }}
-                        {% endif %}
-                        
-                        {% if has_permission('customer', 'delete') and can_delete_contact(current_user, contact) %}
-                        {{ render_button(_('删除'), href='#', color='danger', size='sm', attrs='onclick="deleteContact(' ~ company.id ~ ', ' ~ contact.id ~ ')"') }}
-                        {% endif %}
-                    </div>
+
+                <div class="mt-3 pt-2 border-top text-center">
+                    <a href="{{ url_for('customer.add_action_for_company', company_id=company.id) }}?contact_id={{ contact.id }}"
+                       class="btn btn-sm btn-outline-primary"
+                       title="{{ _('添加行动记录') }}">
+                        <i class="fas fa-plus"></i> {{ _('添加行动记录') }}
+                    </a>
                 </div>
             </div>
         </div>
@@ -279,12 +259,10 @@
                             <th class="px-3 py-3" style="min-width: 100px;">{{ _('联系人姓名') }}</th>
                             <th class="px-3" style="min-width: 100px;">{{ _('部门') }}</th>
                             <th class="px-3" style="min-width: 100px;">{{ _('职位') }}</th>
-                            <th class="px-3" style="min-width: 120px;">{{ _('电话') }}</th>
-                            <th class="px-3" style="min-width: 200px;">{{ _('邮箱') }}</th>
                             <th class="px-3" style="min-width: 100px;">{{ _('主要联系人') }}</th>
                             <th class="px-3" style="min-width: 100px;">{{ _('拥有人') }}</th>
                             <th class="px-3" style="min-width: 120px;">{{ _('创建时间') }}</th>
-                            <th class="px-3" style="min-width: 120px;">{{ _('操作') }}</th>
+                            <th class="px-3" style="min-width: 80px;">{{ _('操作') }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -297,31 +275,23 @@
                             </td>
                             <td class="px-3">{{ contact.department or '' }}</td>
                             <td class="px-3">{{ contact.position or '' }}</td>
-                            <td class="px-3">{{ contact.phone or '' }}</td>
-                            <td class="px-3">{{ contact.email or '' }}</td>
                             <td class="px-3 text-center">
                                 {{ render_primary_contact_badge(contact.is_primary) }}
                             </td>
                             <td class="px-3">{{ render_owner(contact.owner) }}</td>
                             <td class="px-3">{{ render_date(contact.created_at) }}</td>
                             <td class="px-3">
-                                <div class="btn-group btn-group-sm">
-                                    {{ render_button(_('添加行动记录'), href=url_for('customer.add_action_for_company', company_id=company.id) ~ '?contact_id=' ~ contact.id, color='info', size='sm', extra_class='me-1') }}
-                                    
-                                    {% if has_permission('customer', 'edit') and can_edit_contact(current_user, contact) %}
-                                    {{ render_button(_('编辑'), href=url_for('customer.edit_contact', company_id=company.id, contact_id=contact.id), color='primary', size='sm', extra_class='me-1') }}
-                                    {% endif %}
-                                    
-                                    {% if has_permission('customer', 'delete') and can_delete_contact(current_user, contact) %}
-                                    {{ render_button(_('删除'), href='#', color='danger', size='sm', attrs='onclick="deleteContact(' ~ company.id ~ ', ' ~ contact.id ~ ')"') }}
-                                    {% endif %}
-                                </div>
+                                <a href="{{ url_for('customer.add_action_for_company', company_id=company.id) }}?contact_id={{ contact.id }}"
+                                   class="btn btn-sm btn-outline-primary"
+                                   title="{{ _('添加行动记录') }}">
+                                    <i class="fas fa-plus"></i>
+                                </a>
                             </td>
                         </tr>
                         {% endfor %}
                         {% if not contacts %}
                         <tr>
-                            <td colspan="9" class="text-center py-4 text-muted">{{ _('暂无联系人数据') }}</td>
+                            <td colspan="7" class="text-center py-4 text-muted">{{ _('暂无联系人数据') }}</td>
                         </tr>
                         {% endif %}
                     </tbody>
@@ -350,7 +320,7 @@
             <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="badge bg-info">{{ project.project_code }}</span>
-                    {{ render_project_stage(project.current_stage|project_stage_label(get_current_language())) if project.current_stage else render_project_stage(_('无')) }}
+                    {{ render_project_stage(project.current_stage) if project.current_stage else render_project_stage(_('无')) }}
                 </div>
                 
                 <h5 class="card-title mb-2">
@@ -365,32 +335,16 @@
                         {% if project.project_type %} {% endif %}{{ render_product_situation_badge(project.product_situation, get_current_language()) }}
                     {% endif %}
                 </div>
-                
-                {% if project.end_user %}
-                <div class="small mb-1">
-                    <i class="fas fa-building text-secondary me-1"></i> {{ _('直接用户') }}: {{ project.end_user }}
-                </div>
-                {% endif %}
-                
+
                 {% if project.quotation_customer %}
                 <div class="small mb-1">
-                    <i class="fas fa-yen-sign text-secondary me-1"></i> 报价: {{ '{:,.2f}'.format(project.quotation_customer) }}元
+                    <i class="fas fa-coins text-secondary me-1"></i> {{ _('报价') }}: {{ project.quotation_currency_symbol }}{{ '{:,.2f}'.format(project.quotation_customer) }}
                 </div>
                 {% endif %}
-                
+
                 <div class="small mb-1">
                     <i class="fas fa-clock text-secondary me-1"></i> 报备: {{ render_date(project.report_time) }}
                     {% if project.report_source %} {{ render_report_source_badge(project.report_source, get_current_language()) }}{% endif %}
-                </div>
-                
-                {% if project.delivery_forecast %}
-                <div class="small mb-1">
-                    <i class="fas fa-shipping-fast text-secondary me-1"></i> 出货预测: {{ render_date(project.delivery_forecast) }}
-                </div>
-                {% endif %}
-                
-                <div class="small text-muted mt-2">
-                    <i class="fas fa-user me-1"></i>{{ render_owner(project.owner) }}
                 </div>
             </div>
         </div>
@@ -411,13 +365,7 @@
                                 <th style="min-width: 120px;">{{ _('项目类型') }}</th>
                                 <th style="min-width: 120px;">{{ _('品牌情况') }}</th>
                                 <th style="min-width: 120px;">{{ _('当前阶段') }}</th>
-                                <th style="min-width: 100px;">{{ _('报价') }}（{{ _('元') }}）</th>
-                                <th style="min-width: 120px;">{{ _('直接用户') }}</th>
-                                <th style="min-width: 120px;">{{ _('设计院及顾问') }}</th>
-                                <th style="min-width: 120px;">{{ _('总承包单位') }}</th>
-                                <th style="min-width: 120px;">{{ _('系统集成商') }}</th>
-                                <th style="min-width: 100px;">{{ _('出货预测日期') }}</th>
-                                <th style="min-width: 100px;">{{ _('负责人') }}</th>
+                                <th style="min-width: 100px;">{{ _('报价') }}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -433,19 +381,17 @@
                                 <td>{% if project.report_source %}{{ render_report_source_badge(project.report_source, get_current_language()) }}{% endif %}</td>
                                 <td>{% if project.project_type %}{{ render_project_type(project.project_type) }}{% endif %}</td>
                                 <td>{% if project.product_situation %}{{ render_product_situation_badge(project.product_situation, get_current_language()) }}{% endif %}</td>
-                                <td>{{ render_project_stage(project.current_stage|project_stage_label(get_current_language())) if project.current_stage else render_project_stage(_('无')) }}</td>
-                                <td>{{ '{:,.2f}'.format(project.quotation_customer) if project.quotation_customer }}</td>
-                                <td>{{ project.end_user if project.end_user else '' }}</td>
-                                <td>{{ project.design_issues if project.design_issues else '' }}</td>
-                                <td>{{ project.contractor if project.contractor else '' }}</td>
-                                <td>{{ project.system_integrator if project.system_integrator else '' }}</td>
-                                <td>{{ render_date(project.delivery_forecast) }}</td>
-                                <td>{{ render_owner(project.owner) }}</td>
+                                <td>{{ render_project_stage(project.current_stage) if project.current_stage else render_project_stage(_('无')) }}</td>
+                                <td>
+                                    {% if project.quotation_customer %}
+                                        {{ project.quotation_currency_symbol }}{{ '{:,.2f}'.format(project.quotation_customer) }}
+                                    {% endif %}
+                                </td>
                             </tr>
                             {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="13" class="text-center py-4 text-muted">{{ _('暂无关联项目') }}</td>
+                                    <td colspan="7" class="text-center py-4 text-muted">{{ _('暂无关联项目') }}</td>
                                 </tr>
                             {% endif %}
                         </tbody>
@@ -852,33 +798,7 @@ document.querySelectorAll('.delete-contact-btn').forEach(function(button) {
         }
     });
 });
-  
-  // 初始化页面上的模态框，确保树状选择控件能正常工作
-  var changeOwnerModal = document.getElementById('changeOwnerModal');
-  if (changeOwnerModal) {
-    // 监听模态框打开事件
-    $(changeOwnerModal).on('shown.bs.modal', function() {
-      // 手动触发树状控件的初始化
-      var treeContainer = $(this).find('.tree-container');
-      if (treeContainer.length && treeContainer.children().length === 0) {
-        // 如果树容器为空，获取树数据并重建
-        var treeInput = $(this).find('input[type="hidden"]');
-        var treeWrapper = treeInput.siblings('.tree-select-wrapper');
-        
-        // 强制刷新树视图
-        var treeDropdown = treeWrapper.find('.tree-select-dropdown');
-        treeDropdown.show();
-        
-        // 200ms后检查树是否构建成功
-        setTimeout(function() {
-          if (treeContainer.children().length === 0) {
-            treeContainer.html('<div class="text-center py-2">加载用户列表中...</div>');
-          }
-        }, 200);
-      }
-    });
-  }
-  
+
   // 使用函数封装，允许在加载后重新调用
   function initReplyButtons() {
     $('.show-reply-form-btn').each(function() {
@@ -947,9 +867,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <!-- 引入行动记录回复相关脚本 -->
 <script src="{{ url_for('static', filename='js/project_action_reply.js') }}"></script>
-{% if can_change_company_owner(current_user, company) %}
-{{ render_change_owner_modal('changeOwnerModal', url_for('customer.change_company_owner', company_id=company.id), all_users, company.owner_id, user_tree_data) }}
-{% endif %}
 
 <!-- 删除确认模态框 -->
 <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">

@@ -29,7 +29,9 @@ except ImportError:
     JSONProvider = None
     
 from app.models.product import Product
+from app.models.product_code import ProductSubcategory, ProductCategory
 from app.extensions import db
+from app.utils.product_helpers import get_products_by_name
 import logging
 from decimal import Decimal, InvalidOperation
 from flask_login import login_required, current_user
@@ -52,6 +54,51 @@ bp = Blueprint('product_route', __name__)
 # 文件验证和处理功能已移至 ProductFileService
 
 # 本地PDF处理函数已移除，使用 ProductFileService
+
+
+def _get_product_form_data():
+    """获取产品表单所需的通用数据（分类、地区、品牌列表）
+
+    Returns:
+        dict: 包含 categories, regions, brands 的字典
+    """
+    from app.models.product_code import ProductCategory, ProductCodeField, ProductCodeFieldOption
+
+    # 获取所有产品分类
+    categories = ProductCategory.get_ordered_list()
+
+    # 获取所有产品地区（从ProductCodeField获取，统一数据源）
+    region_fields = ProductCodeField.query.filter_by(field_type='origin_location')\
+                                          .order_by(ProductCodeField.position).all()
+
+    regions = []
+    for field in region_fields:
+        # 获取编码（处理"?"情况）
+        code = field.code or '0'
+        if code == "?":
+            # 从字段选项中获取第一个选项的编码
+            option = ProductCodeFieldOption.query.filter_by(field_id=field.id).first()
+            code = option.code if option else "0"
+
+        regions.append({
+            'id': field.id,
+            'name': field.name,
+            'code': code
+        })
+
+    # 获取现有品牌列表（去重、非空、排序）
+    existing_brands = db.session.query(Product.brand)\
+        .filter(Product.brand.isnot(None), Product.brand != '')\
+        .distinct()\
+        .order_by(Product.brand)\
+        .all()
+    brands = [b[0] for b in existing_brands]
+
+    return {
+        'categories': categories,
+        'regions': regions,
+        'brands': brands
+    }
 
 
 @bp.route('/products', methods=['GET'])
@@ -80,9 +127,11 @@ def product_list():
     # 应用搜索条件（搜索产品名称、MN、型号）
     if search:
         search_term = f'%{search}%'
+        # 先join ProductSubcategory以支持新字段搜索
+        query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
         query = query.filter(
             or_(
-                Product.product_name.ilike(search_term),
+                ProductSubcategory.name.ilike(search_term),
                 Product.product_mn.ilike(search_term),
                 Product.model.ilike(search_term)
             )
@@ -92,15 +141,45 @@ def product_list():
     if product_type:
         query = query.filter(Product.type == product_type)
     if category:
-        query = query.filter(Product.category == category)
+        # 通过外键关系筛选
+        # 先确保JOIN了ProductSubcategory
+        if 'product_subcategories' not in str(query.statement.compile() if hasattr(query, 'statement') else query).lower():
+            query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
+        # 通过ProductSubcategory JOIN ProductCategory
+        query = query.outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)
+        query = query.filter(ProductCategory.name == category)
     if brand:
         query = query.filter(Product.brand == brand)
     if status:
         query = query.filter(Product.status == status)
     
+    # 执行查询：按分类体系排序
+    # 避免重复JOIN（如果前面的搜索/筛选已经JOIN，则不再重复）
+    from app.models.product_code import ProductCategory, ProductSubcategory
+
+    # 检查是否已经JOIN了这些表
+    query_str = str(query.statement.compile()) if hasattr(query, 'statement') else str(query)
+    has_subcategory_join = 'product_subcategory' in query_str.lower() or 'product_subcategories' in query_str.lower()
+    has_category_join = 'product_category' in query_str.lower() or 'product_categories' in query_str.lower()
+
+    # 只在需要时添加JOIN
+    if not has_subcategory_join:
+        query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
+    if not has_category_join:
+        query = query.outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)
+
+    # 添加排序
+    query = query.order_by(
+        ProductCategory.id.asc(),
+        ProductSubcategory.display_order.asc(),
+        ProductSubcategory.name.asc(),
+        Product.model.asc(),
+        Product.id.asc()
+    )
+
     # 执行查询
-    products = query.order_by(Product.id.asc()).all()
-    
+    products = query.all()
+
     # 统计数据
     total_count = len(products)
     active_count = len([p for p in products if p.status == 'active'])
@@ -120,10 +199,9 @@ def product_list():
     ).all()
     product_types = [{'value': t[0], 'label': t[0]} for t in product_types if t[0]]
     
-    categories = db.session.query(Product.category).distinct().filter(
-        Product.category.isnot(None), Product.category != ''
-    ).all()
-    categories = [{'value': c[0], 'label': c[0]} for c in categories if c[0]]
+    # 从ProductCategory表查询，按ID顺序（与显示顺序一致）
+    categories = ProductCategory.query.order_by(ProductCategory.id).all()
+    categories = [{'value': cat.name, 'label': cat.name} for cat in categories]
     
     brands = db.session.query(Product.brand).distinct().filter(
         Product.brand.isnot(None), Product.brand != ''
@@ -263,25 +341,25 @@ def product_list():
             'ajax_target': 'productTableBody',
             'title': _('产品列表'),
             'icon': 'fas fa-table',
+            'fixed_height_scroll': True,  # 启用固定表头功能
             'use_custom_rows': True,
             'custom_rows_template': 'product/product_rows.html',
             'columns': [
-                {'key': 'id', 'field': 'id', 'label': 'ID', 'width': '60px', 'sort_type': 'number'},
                 {'key': 'type', 'field': 'type', 'label': _('产品类型'), 'width': '100px', 'sort_type': 'string'},
                 {'key': 'category', 'field': 'category', 'label': _('产品类别'), 'width': '120px', 'sort_type': 'string'},
-                {'key': 'product_mn', 'field': 'product_mn', 'label': _('MN号'), 'width': '120px', 'sort_type': 'string'},
+                {'key': 'status', 'field': 'status', 'label': _('状态'), 'width': '100px', 'sort_type': 'string'},
                 {'key': 'product_name', 'field': 'product_name', 'label': _('产品名称'), 'width': '180px', 'sort_type': 'string'},
                 {'key': 'model', 'field': 'model', 'label': _('型号'), 'width': '120px', 'sort_type': 'string'},
                 {'key': 'specification', 'field': 'specification', 'label': _('规格'), 'width': '150px', 'sort_type': 'string'},
                 {'key': 'brand', 'field': 'brand', 'label': _('品牌'), 'width': '100px', 'sort_type': 'string'},
                 {'key': 'unit', 'field': 'unit', 'label': _('单位'), 'width': '80px', 'sort_type': 'string'},
                 {'key': 'retail_price', 'field': 'retail_price', 'label': _('价格'), 'width': '100px', 'sort_type': 'number'},
-                {'key': 'status', 'field': 'status', 'label': _('状态'), 'width': '100px', 'sort_type': 'string'},
+                {'key': 'product_mn', 'field': 'product_mn', 'label': _('MN号'), 'width': '120px', 'sort_type': 'string'},
                 {'key': 'created_at', 'field': 'created_at', 'label': _('创建时间'), 'width': '150px', 'sort_type': 'date'}
             ]
         }
     }
-    
+
     return render_template('product/index.html', 
                           list_config=list_config,
                           products=products,  # 保留用于行模板
@@ -292,16 +370,210 @@ def product_list():
 @login_required
 @permission_required('product', 'create')  # 添加产品创建权限装饰器
 def create_product_page():
-    """创建产品页面"""
-    return render_template('product/create.html')
+    """创建产品页面（标准产品）- 使用统一模板"""
+    form_data = _get_product_form_data()
+    form_data['product_type'] = 'standard'  # 标记为标准产品
+    return render_template('product/create.html', **form_data)
+
+@bp.route('/create', methods=['POST'])
+@login_required
+@permission_required('product', 'create')
+def create():
+    """处理产品创建表单提交（新版分类体系+规格管理）"""
+    try:
+        logger.debug('正在创建新产品（新版）...')
+
+        # 获取表单数据
+        product_type = request.form.get('type') or None
+        product_status = request.form.get('status', 'active')
+        category_id = request.form.get('category_id')
+        subcategory_id = request.form.get('subcategory_id')
+        region_id = request.form.get('region_id') or None
+        product_model = request.form.get('product_model')
+        product_mn = request.form.get('product_mn')
+        brand = request.form.get('brand') or None
+        unit = request.form.get('unit')
+        retail_price = request.form.get('retail_price')
+        currency = request.form.get('currency', 'CNY')
+        description = request.form.get('description')
+
+        # 验证必填字段
+        if not all([category_id, subcategory_id, product_model, product_mn]):
+            flash('请填写所有必填字段', 'error')
+            return redirect(url_for('product_route.create_product_page'))
+
+        # 验证MN号全局唯一性（跨研发库和产品库）
+        from app.routes.product_management import check_mn_code_duplicate
+        duplicate_info = check_mn_code_duplicate(product_mn)
+        if duplicate_info['is_duplicate']:
+            # 构建详细错误信息
+            error_parts = []
+            if duplicate_info['dev_products']:
+                dev_models = ', '.join([p['model'] for p in duplicate_info['dev_products']])
+                error_parts.append(f"研发产品库: {dev_models}")
+            if duplicate_info['standard_products']:
+                std_models = ', '.join([p['model'] for p in duplicate_info['standard_products']])
+                error_parts.append(f"产品库: {std_models}")
+
+            error_msg = f"MN编号 {product_mn} 已被以下产品使用：" + "；".join(error_parts)
+            flash(error_msg, 'error')
+            return redirect(url_for('product_route.create_product_page'))
+
+        # 处理零售价格
+        if retail_price:
+            try:
+                retail_price = Decimal(retail_price)
+            except (InvalidOperation, ValueError):
+                flash('零售价格格式不正确', 'error')
+                return redirect(url_for('product_route.create_product_page'))
+        else:
+            retail_price = Decimal('0.00')
+
+        # 创建新产品
+        new_product = Product(
+            type=product_type,
+            status=product_status,
+            category_id=int(category_id),
+            subcategory_id=int(subcategory_id),
+            region_id=int(region_id) if region_id else None,
+            model=product_model,
+            product_mn=product_mn,
+            brand=brand,
+            unit=unit,
+            retail_price=retail_price,
+            currency=currency,
+            specification=description,  # 使用旧字段存储描述
+            source_type='manual',  # 手动创建
+            owner_id=current_user.id
+        )
+
+        # 保存产品以获取ID
+        db.session.add(new_product)
+        db.session.flush()
+
+        # 保存规格数据
+        spec_names = request.form.getlist('spec_name[]')
+        spec_values = request.form.getlist('spec_value[]')
+        spec_codes = request.form.getlist('spec_option_codes[]')
+        spec_field_ids = request.form.getlist('spec_field_ids[]')
+
+        if spec_names:
+            spec_data_list = []
+            for i in range(len(spec_names)):
+                if spec_names[i].strip():  # 只处理非空规格
+                    spec_data_list.append({
+                        'field_name': spec_names[i],
+                        'field_value': spec_values[i] if i < len(spec_values) else '',
+                        'field_code': spec_codes[i] if i < len(spec_codes) and spec_codes[i] != '0' else None,
+                        'action': 'create'
+                    })
+
+            if spec_data_list:
+                success, saved_specs, error = save_product_specs(new_product.id, spec_data_list)
+                if not success:
+                    db.session.rollback()
+                    flash(f'保存规格数据失败: {error}', 'error')
+                    return redirect(url_for('product_route.create_product_page'))
+
+                logger.debug(f'保存了 {len(saved_specs)} 条规格数据')
+
+        # 提交事务
+        db.session.commit()
+
+        logger.info(f'产品创建成功: ID={new_product.id}, MN={new_product.product_mn}, 型号={new_product.model}')
+        flash('产品创建成功', 'success')
+
+        # 重定向到产品列表
+        return redirect(url_for('product_route.product_list'))
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'创建产品时出错: {str(e)}', exc_info=True)
+        flash(f'创建产品失败: {str(e)}', 'error')
+        return redirect(url_for('product_route.create_product_page'))
 
 @bp.route('/products/<int:id>/edit', methods=['GET'])
 @login_required
 @permission_required('product', 'edit')  # 添加产品编辑权限装饰器
 def edit_product_page(id):
     """编辑产品页面"""
-    product = Product.query.get_or_404(id)
-    return render_template('product/create.html', product=product)
+    from sqlalchemy.orm import joinedload
+    from app.models.product_code import ProductSubcategory
+    from app.models.product_spec import ProductSpec
+
+    # 使用joinedload预加载关联数据
+    product = db.session.query(Product).options(
+        joinedload(Product.category_obj),
+        joinedload(Product.subcategory_obj),
+        joinedload(Product.region_obj)
+    ).filter_by(id=id).first_or_404()
+
+    # 使用统一函数获取通用数据（分类、地区、品牌列表）
+    form_data = _get_product_form_data()
+
+    # 获取当前分类下的子分类列表
+    subcategories = []
+    if product.category_id:
+        subcategories = ProductSubcategory.query.filter_by(
+            category_id=product.category_id
+        ).order_by(ProductSubcategory.display_order).all()
+
+    # 获取产品规格数据
+    specs_db = ProductSpec.query.filter_by(product_id=id).order_by(ProductSpec.display_order).all()
+
+    # 将ProductSpec对象转换为字典列表（方便前端使用）
+    # 同时查询对应的field_id（用于加载指标选项）
+    from app.models.product_code import ProductCodeField
+    specs = []
+    for spec in specs_db:
+        spec_dict = {
+            'field_name': spec.field_name,
+            'field_value': spec.field_value,
+            'field_code': spec.field_code,
+            'is_saved': True  # 标记为已保存的规格，前端将以只读方式显示
+        }
+        # 尝试查找对应的ProductCodeField以获取field_id
+        field = ProductCodeField.query.filter_by(
+            subcategory_id=product.subcategory_id,
+            name=spec.field_name
+        ).first()
+        if field:
+            spec_dict['field_id'] = field.id
+        specs.append(spec_dict)
+
+    # 获取锁定状态
+    is_mn_locked = product.is_mn_locked or False
+
+    # 管理员绕过锁定限制
+    is_admin = current_user.role == 'admin'
+
+    # 检查是否被报价单引用（按MN编号检查，MN是唯一标识）
+    from app.models.quotation import QuotationDetail
+    is_referenced = QuotationDetail.query.filter(
+        QuotationDetail.product_mn == product.product_mn
+    ).count() > 0
+
+    # 检查关键字段是否有值（用于智能锁定控制）
+    has_category = product.category_id is not None
+    has_subcategory = product.subcategory_id is not None
+    has_region = product.region_id is not None
+    has_model = bool(product.model and product.model.strip())
+    has_specs = len(specs) > 0
+
+    return render_template('product/create.html',
+                         product=product,
+                         subcategories=subcategories,
+                         specs=specs,
+                         product_type='standard',  # 标识为标准产品
+                         is_mn_locked=is_mn_locked,
+                         is_admin=is_admin,
+                         is_referenced=is_referenced,
+                         has_category=has_category,
+                         has_subcategory=has_subcategory,
+                         has_region=has_region,
+                         has_model=has_model,
+                         has_specs=has_specs,
+                         **form_data)
 
 # API路由
 @bp.route('/products/ajax', methods=['GET'])
@@ -310,17 +582,20 @@ def edit_product_page(id):
 def product_list_ajax():
     """产品列表AJAX端点"""
     try:
+        # 导入必需的模型类
+        from app.models.product_code import ProductCategory, ProductSubcategory
+
         # 获取筛选参数
         search = request.args.get('search', '').strip()
         product_type = request.args.get('product_type', '').strip()
         category = request.args.get('category', '').strip()
         brand = request.args.get('brand', '').strip()
         status = request.args.get('status', '').strip()
-        
+
         # 获取排序参数 (支持两种参数格式)
-        sort_field = request.args.get('sort_field') or request.args.get('sort', 'id')
+        sort_field = request.args.get('sort_field') or request.args.get('sort')
         sort_dir = request.args.get('sort_direction') or request.args.get('dir', 'asc')
-        
+
         # 构建查询
         query = Product.query
         
@@ -331,9 +606,11 @@ def product_list_ajax():
         # 应用搜索条件（搜索产品名称、MN、型号）
         if search:
             search_term = f'%{search}%'
+            # 先join ProductSubcategory以支持新字段搜索
+            query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
             query = query.filter(
                 or_(
-                    Product.product_name.ilike(search_term),
+                    ProductSubcategory.name.ilike(search_term),
                     Product.product_mn.ilike(search_term),
                     Product.model.ilike(search_term)
                 )
@@ -343,7 +620,13 @@ def product_list_ajax():
         if product_type:
             query = query.filter(Product.type == product_type)
         if category:
-            query = query.filter(Product.category == category)
+            # 通过外键关系筛选
+            # 先确保JOIN了ProductSubcategory
+            if 'product_subcategories' not in str(query.statement.compile() if hasattr(query, 'statement') else query).lower():
+                query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
+            # 通过ProductSubcategory JOIN ProductCategory
+            query = query.outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)
+            query = query.filter(ProductCategory.name == category)
         if brand:
             query = query.filter(Product.brand == brand)
         if status:
@@ -357,7 +640,27 @@ def product_list_ajax():
             else:
                 query = query.order_by(field.asc())
         else:
-            query = query.order_by(Product.id.asc())
+            # 默认排序：按分类体系
+            # 避免重复JOIN（如果前面的搜索/筛选已经JOIN，则不再重复）
+
+            # 检查是否已经JOIN了这些表
+            query_str = str(query.statement.compile()) if hasattr(query, 'statement') else str(query)
+            has_subcategory_join = 'product_subcategory' in query_str.lower() or 'product_subcategories' in query_str.lower()
+            has_category_join = 'product_category' in query_str.lower() or 'product_categories' in query_str.lower()
+
+            # 只在需要时添加JOIN
+            if not has_subcategory_join:
+                query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
+            if not has_category_join:
+                query = query.outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)
+
+            query = query.order_by(
+                ProductCategory.id.asc(),
+                ProductSubcategory.display_order.asc(),
+                ProductSubcategory.name.asc(),
+                Product.model.asc(),
+                Product.id.asc()
+            )
         
         # 执行查询
         products = query.all()
@@ -431,12 +734,13 @@ def get_products():
         # 应用搜索条件
         if search_term:
             search_term = f'%{search_term}%'
+            # 先join ProductSubcategory以支持新字段搜索
+            query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
             query = query.filter(
                 or_(
-                    Product.product_name.ilike(search_term),
+                    ProductSubcategory.name.ilike(search_term),
                     Product.product_mn.ilike(search_term),
                     Product.model.ilike(search_term),
-                    Product.category.ilike(search_term),
                     Product.type.ilike(search_term)
                 )
             )
@@ -497,9 +801,9 @@ def get_products():
                 product_dict = {
                     'id': p.id,
                     'type': p.type,
-                    'category': p.category,
+                    'category': p.category_name,  # 使用智能属性
                     'product_mn': p.product_mn,
-                    'product_name': p.product_name,
+                    'product_name': p.name,  # 使用智能属性
                     'model': p.model,
                     'specification': p.specification,
                     'brand': p.brand,
@@ -535,34 +839,13 @@ def get_product_categories():
     """获取去重后的产品类别列表"""
     try:
         logger.debug('正在获取产品类别列表...')
-        # 使用 distinct 获取唯一的类别列表
-        categories = db.session.query(Product.category).distinct().filter(
-            Product.category.isnot(None)
-        ).all()
-        
-        # 将结果转换为列表
-        category_list = [category[0] for category in categories if category[0]]
-        
-        # 定义类别的自定义顺序
-        category_order = {
-            '基站': 1,
-            '合路平台': 2, 
-            '直放站': 3,
-            '天线': 4,
-            '功率分配器': 5,
-            '功率/耦合器': 6,
-            '对讲机': 7,
-            '配件': 8,
-            '应用': 9,
-            '服务': 10
-        }
-        
-        # 按自定义顺序排序
-        def custom_sort(item):
-            return category_order.get(item, 999)  # 未定义顺序的类别排在最后
-            
-        category_list.sort(key=custom_sort)
-        
+        # 直接从ProductCategory表查询,按id排序(业务顺序)
+        from app.models.product_code import ProductCategory
+        categories = ProductCategory.query.order_by(ProductCategory.id).all()
+
+        # 提取类别名称
+        category_list = [cat.name for cat in categories]
+
         logger.debug(f'找到 {len(category_list)} 个类别')
         return jsonify(category_list)
         
@@ -605,7 +888,7 @@ def get_products_by_category():
             try:
                 product_dict = {
                     'id': p.id,
-                    'product_name': p.product_name,
+                    'product_name': p.name,  # 使用智能属性
                     'model': p.model,
                     'specification': p.specification,
                     'brand': p.brand,
@@ -640,9 +923,9 @@ def get_products_by_name():
         
         if not product_name:
             return jsonify([])
-        
-        # 查询指定产品名称的产品型号
-        products = Product.query.filter_by(product_name=product_name).all()
+
+        # 查询指定产品名称的产品型号（使用公共辅助函数）
+        products = get_products_by_name(product_name)
         
         def decimal_to_float(obj):
             if isinstance(obj, Decimal):
@@ -707,8 +990,8 @@ def get_product_models():
             try:
                 product_dict = {
                     'id': p.id,
-                    'product_name': p.product_name,
-                    'category': p.category,
+                    'product_name': p.name,  # 使用智能属性
+                    'category': p.category_name,  # 使用智能属性
                     'model': p.model,
                     'product_model': p.model,  # 兼容性字段
                     'product_mn': p.product_mn,
@@ -864,22 +1147,25 @@ def get_dashboard_data():
             base_query = base_query.filter(Product.status == 'active')
         
         # 按分类统计产品数量
+        from app.models.product_code import ProductCategory
+
         category_stats = db.session.query(
-            Product.category, 
+            ProductCategory.name,
             func.count(Product.id)
-        ).filter(
-            Product.category.isnot(None)
+        ).join(
+            Product, Product.category_id == ProductCategory.id
         )
-        
+
         # 应用产品可见性筛选到类别统计
         if current_user.role not in ['admin', 'product_manager', 'solution_manager']:
             category_stats = category_stats.filter(Product.status == 'active')
-        
-        # 完成分组查询
+
+        # 完成分组查询，按ProductCategory.id分组保持业务顺序
         category_stats = category_stats.group_by(
-            Product.category
-        ).all()
-        
+            ProductCategory.id,
+            ProductCategory.name
+        ).order_by(ProductCategory.id).all()
+
         category_data = [{'category': cat, 'count': count} for cat, count in category_stats]
         
         # 统计各状态产品数量
@@ -953,6 +1239,144 @@ def get_dashboard_data():
             'error': '获取仪表盘数据失败',
             'message': str(e)
         }), 500
+
+# 产品库规格保存函数
+def save_product_specs(product_id, spec_data_list, current_logger=None):
+    """
+    保存产品规格数据（参考研发库实现）
+
+    Args:
+        product_id: 产品ID
+        spec_data_list: 规格数据列表 [
+            {
+                'id': existing_spec_id (可选，用于更新),
+                'field_name': '规格名称',
+                'field_value': '规格值',
+                'field_code': '规格编码' (可选),
+                'action': 'create'|'update'|'delete' (可选)
+            }
+        ]
+        current_logger: 日志记录器
+
+    Returns:
+        tuple: (success, saved_specs, error_message)
+    """
+    if not current_logger:
+        current_logger = logger
+
+    from app.models.product_spec import ProductSpec
+    saved_specs = []
+
+    try:
+        for spec_data in spec_data_list:
+            action = spec_data.get('action', 'create')
+
+            if action == 'delete':
+                # 删除规格
+                spec_id = spec_data.get('id')
+                if spec_id:
+                    spec_to_delete = ProductSpec.query.get(spec_id)
+                    if spec_to_delete and spec_to_delete.product_id == product_id:
+                        # 只能删除非编码规格
+                        if not spec_to_delete.field_code or spec_to_delete.field_code.strip() == '':
+                            db.session.delete(spec_to_delete)
+                            current_logger.debug(f"删除非编码规格: {spec_to_delete.field_name}")
+
+            elif action == 'update':
+                # 更新现有规格
+                spec_id = spec_data.get('id')
+                if spec_id:
+                    existing_spec = ProductSpec.query.get(spec_id)
+                    if existing_spec and existing_spec.product_id == product_id:
+                        existing_spec.field_name = spec_data['field_name']
+                        existing_spec.field_value = spec_data['field_value']
+                        # 如果是编码规格，更新编码
+                        if spec_data.get('field_code'):
+                            existing_spec.field_code = spec_data['field_code']
+                        current_logger.debug(f"更新规格: {spec_data['field_name']} = {spec_data['field_value']}")
+                        saved_specs.append(existing_spec)
+
+            else:  # create
+                # 创建新规格
+                if spec_data.get('field_name', '').strip():
+                    new_spec = ProductSpec(
+                        product_id=product_id,
+                        field_name=spec_data['field_name'],
+                        field_value=spec_data.get('field_value', ''),
+                        field_code=spec_data.get('field_code') if spec_data.get('field_code') and spec_data.get('field_code') != '0' else None
+                    )
+                    db.session.add(new_spec)
+                    current_logger.debug(f"添加新规格: {spec_data['field_name']} = {spec_data.get('field_value', '')}")
+                    saved_specs.append(new_spec)
+
+        db.session.flush()  # 确保所有更改在同一个事务中
+        return (True, saved_specs, None)
+
+    except Exception as e:
+        current_logger.error(f"保存产品规格时出错: {str(e)}")
+        return (False, [], str(e))
+
+# 产品规格查询API
+@bp.route('/api/product/<int:product_id>/specs', methods=['GET'])
+@login_required
+@permission_required('product', 'view')
+def get_product_specs(product_id):
+    """
+    获取产品的所有规格数据
+
+    Args:
+        product_id: 产品ID
+
+    Returns:
+        JSON: {
+            'specs': [
+                {
+                    'id': int,
+                    'field_name': str,
+                    'field_value': str,
+                    'field_code': str,
+                    'position': int  # 规格在MN编码中的位置
+                }
+            ]
+        }
+    """
+    try:
+        from app.models.product_spec import ProductSpec
+        from app.models.product_code import ProductCodeField
+        from app.models.product import Product
+
+        # 验证产品存在性
+        product = Product.query.get_or_404(product_id)
+
+        # 获取产品规格
+        specs = ProductSpec.query.filter_by(product_id=product_id).all()
+
+        # 转换为字典并添加position信息
+        spec_list = []
+        for spec in specs:
+            spec_dict = spec.to_dict()
+
+            # 获取规格字段的position（用于MN编码排序）
+            if product.subcategory_id and spec.field_name:
+                field = ProductCodeField.query.filter_by(
+                    subcategory_id=product.subcategory_id,
+                    name=spec.field_name
+                ).first()
+                if field:
+                    spec_dict['position'] = field.position
+                else:
+                    spec_dict['position'] = 999  # 未找到对应字段，使用默认值
+            else:
+                spec_dict['position'] = 999
+
+            spec_list.append(spec_dict)
+
+        logger.debug(f"为产品 {product_id} 找到 {len(spec_list)} 个规格")
+        return jsonify({'specs': spec_list})
+
+    except Exception as e:
+        logger.error(f"获取产品规格失败: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/products/create', methods=['POST'])
 @login_required
@@ -1118,11 +1542,155 @@ def create_product():
             'message': f'创建产品失败: {str(e)}'
         }), 500
 
+@bp.route('/products/<int:id>/update', methods=['POST'])
+@login_required
+@permission_required('product', 'edit')
+def update_product(id):
+    """更新产品信息（表单提交）"""
+    try:
+        logger.debug(f'正在更新产品 ID={id}（新版分类体系）...')
+
+        # 查找产品
+        product = Product.query.get_or_404(id)
+
+        # 检查权限
+        if product.owner_id != current_user.id and current_user.role not in ['admin', 'product_manager']:
+            flash('您没有权限编辑此产品', 'error')
+            return redirect(url_for('product_route.product_list'))
+
+        # 获取表单数据（新版字段）
+        product_type = request.form.get('type') or None
+        product_status = request.form.get('status', 'active')
+        product_model = request.form.get('product_model')
+        brand = request.form.get('brand') or None
+        unit = request.form.get('unit')
+        retail_price = request.form.get('retail_price')
+        currency = request.form.get('currency', 'CNY')
+        description = request.form.get('description')
+
+        # 分类字段从表单获取
+        category_id = request.form.get('category_id')
+        subcategory_id = request.form.get('subcategory_id')
+        region_id = request.form.get('region_id') or None
+
+        # 前端已通过disabled属性锁定关键字段，disabled字段不会被提交
+        # 因此后端不需要重复检查MN锁定状态，直接信任前端提交的数据即可
+
+        # 验证必填字段
+        if not product_model:
+            flash('请填写产品型号', 'error')
+            return redirect(url_for('product_route.edit_product_page', id=id))
+
+        # 更新产品基本信息
+        product.type = product_type
+        product.status = product_status
+        product.model = product_model
+        product.brand = brand
+        product.unit = unit
+        product.currency = currency
+        product.specification = description
+
+        # 更新厂商产品标记（不影响MN编码，允许修改）
+        is_vendor_product = request.form.get('is_vendor_product') == 'on'
+        if product.is_vendor_product != is_vendor_product:
+            product.is_vendor_product = is_vendor_product
+            logger.debug(f'厂商产品标记从 {product.is_vendor_product} 更新为 {is_vendor_product}')
+
+        # 更新分类字段（允许补充空值，管理员可以修改已有值）
+        if category_id and (not product.category_id or current_user.role == 'admin'):
+            product.category_id = int(category_id)
+        if subcategory_id and (not product.subcategory_id or current_user.role == 'admin'):
+            product.subcategory_id = int(subcategory_id)
+        if region_id and (not product.region_id or current_user.role == 'admin'):
+            product.region_id = int(region_id)
+
+        # 处理零售价格
+        if retail_price:
+            try:
+                product.retail_price = Decimal(retail_price)
+            except (InvalidOperation, ValueError):
+                flash('零售价格格式不正确', 'error')
+                return redirect(url_for('product_route.edit_product_page', id=id))
+        else:
+            product.retail_price = Decimal('0.00')
+
+        # 更新规格数据
+        # 前端已对编码规格字段禁用（disabled），非编码规格始终可编辑
+        spec_names = request.form.getlist('spec_name[]')
+        spec_values = request.form.getlist('spec_value[]')
+        spec_codes = request.form.getlist('spec_option_codes[]')
+
+        # 先删除所有现有规格（简单粗暴但可靠的更新方式）
+        from app.models.product_spec import ProductSpec
+        ProductSpec.query.filter_by(product_id=product.id).delete()
+        db.session.flush()
+
+        if spec_names:
+            spec_data_list = []
+            for i in range(len(spec_names)):
+                if spec_names[i].strip():
+                    spec_data_list.append({
+                        'field_name': spec_names[i],
+                        'field_value': spec_values[i] if i < len(spec_values) else '',
+                        'field_code': spec_codes[i] if i < len(spec_codes) and spec_codes[i] != '0' else None,
+                        'action': 'create'
+                    })
+
+            if spec_data_list:
+                # 保存新的规格数据
+                success, saved_specs, error = save_product_specs(product.id, spec_data_list)
+                if not success:
+                    db.session.rollback()
+                    flash(f'保存规格数据失败: {error}', 'error')
+                    return redirect(url_for('product_route.edit_product_page', id=id))
+
+                # 更新编码定义快照（保存规格成功后）
+                from app.utils.product_helpers import generate_product_snapshot
+                snapshot = generate_product_snapshot(
+                    product=product,
+                    source="manual_update"
+                )
+                if snapshot:
+                    product.code_definition_snapshot = snapshot
+                    logger.info(f'更新编码快照成功: 产品ID={product.id}')
+                else:
+                    # 快照更新失败不阻止产品编辑，只记录警告
+                    logger.warning(f'快照更新跳过: 产品ID={product.id}（规格数据可能不完整）')
+
+                # 只有在MN未锁定时才更新MN编码（管理员例外）
+                if not product.is_mn_locked or current_user.role == 'admin':
+                    new_mn = request.form.get('product_mn')
+                    if new_mn and new_mn.strip() and new_mn != product.product_mn:
+                        # 验证MN唯一性
+                        from app.routes.product_management import check_mn_code_duplicate
+                        duplicate_info = check_mn_code_duplicate(new_mn, exclude_product_id=product.id)
+                        if duplicate_info['exists']:
+                            flash(f'MN编号 {new_mn} 已存在，无法更新', 'warning')
+                        else:
+                            product.product_mn = new_mn
+                            logger.info(f'更新产品MN编码: ID={product.id}, 旧MN={product.product_mn} -> 新MN={new_mn}')
+                else:
+                    logger.debug(f'产品 ID={product.id} MN已锁定，跳过MN编码更新')
+
+        # 提交事务
+        db.session.commit()
+
+        logger.info(f'产品更新成功: ID={product.id}, MN={product.product_mn}, 型号={product.model}')
+        flash('产品更新成功', 'success')
+
+        return redirect(url_for('product_route.view_product_detail', id=product.id))
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'更新产品时出错: {str(e)}', exc_info=True)
+        flash(f'更新产品失败: {str(e)}', 'error')
+        return redirect(url_for('product_route.edit_product_page', id=id))
+
 @bp.route('/api/products/<int:id>/update', methods=['POST'])
 @login_required
 @permission_required('product', 'edit')  # 添加产品编辑权限装饰器
-def update_product(id):
-    """更新产品信息"""
+def update_product_api(id):
+    """更新产品信息（JSON API）"""
     try:
         logger.debug(f'正在更新产品 ID={id}...')
         
@@ -1337,19 +1905,11 @@ def update_product(id):
         if product.type != product_data['type']:
             product.type = product_data['type']
             data_changed = True
-            
-        if product.category != product_data['category']:
-            product.category = product_data['category']
-            data_changed = True
-            
+
         if product.product_mn != product_data['product_mn']:
             product.product_mn = product_data['product_mn']
             data_changed = True
-            
-        if product.product_name != product_data['product_name']:
-            product.product_name = product_data['product_name']
-            data_changed = True
-            
+
         if product.model != product_data['model']:
             product.model = product_data['model']
             data_changed = True
@@ -1400,7 +1960,7 @@ def update_product(id):
                 'message': '产品更新成功',
                 'product': {
                     'id': product.id,
-                    'product_name': product.product_name,
+                    'product_name': product.name,  # 使用智能属性
                     'product_mn': product.product_mn,
                     'image_updated': image_changed,
                     'pdf_updated': pdf_changed
@@ -1413,7 +1973,7 @@ def update_product(id):
                 'message': '产品数据未发生变化',
                 'product': {
                     'id': product.id,
-                    'product_name': product.product_name,
+                    'product_name': product.name,  # 使用智能属性
                     'product_mn': product.product_mn
                 }
             })
@@ -1461,9 +2021,9 @@ def get_product(id):
         response = {
             'id': product.id,
             'type': product.type,
-            'category': product.category,
+            'category': product.category_name,  # 使用智能属性
             'product_mn': product.product_mn,
-            'product_name': product.product_name,
+            'product_name': product.name,  # 使用智能属性
             'model': product.model,
             'specification': product.specification,
             'brand': product.brand,
@@ -1491,30 +2051,36 @@ def get_product(id):
 
 @bp.route('/api/products/<int:id>/delete', methods=['POST'])
 @login_required
-@permission_required('product', 'delete')  # 添加产品删除权限装饰器
+# 注意：不使用 @permission_required 装饰器，因为创建者即使没有模块权限也可以删除自己的产品
 def delete_product(id):
-    """删除产品API - 只有admin和product_manager可以删除未被引用的产品"""
+    """删除产品API - 创建者或有权限的角色可以删除未被引用的产品"""
     try:
-        # 检查用户角色权限
-        if current_user.role not in ['admin', 'product_manager']:
+        product = Product.query.get_or_404(id)
+
+        # 权限检查：管理员、产品经理或产品创建者可以删除
+        can_delete = (
+            current_user.role == 'admin' or
+            current_user.role in ['product_manager', 'product'] or
+            current_user.has_permission('product', 'delete') or
+            (hasattr(product, 'created_by') and product.created_by == current_user.id)
+        )
+
+        if not can_delete:
             return jsonify({
                 'success': False,
-                'message': '只有管理员和产品经理可以删除产品'
+                'message': '您没有权限删除此产品'
             }), 403
         
-        product = Product.query.get_or_404(id)
-        
-        # 检查产品是否被报价单引用
+        # 检查产品是否被报价单引用（按MN编号检查，MN是唯一标识）
         from app.models.quotation import QuotationDetail
         referenced_count = QuotationDetail.query.filter(
-            QuotationDetail.product_name == product.product_name,
-            QuotationDetail.product_model == product.model
+            QuotationDetail.product_mn == product.product_mn
         ).count()
-        
+
         if referenced_count > 0:
             return jsonify({
                 'success': False,
-                'message': f'该产品已被 {referenced_count} 个报价单引用，不能删除。如需停产，请使用"停产"功能。',
+                'message': f'该产品（MN: {product.product_mn}）已被 {referenced_count} 个报价单引用，不能删除。如需停产，请使用"停产"功能。',
                 'code': 'PRODUCT_REFERENCED'
             }), 400
         
@@ -1741,16 +2307,30 @@ def get_product_brands():
 def view_product_detail(id):
     """查看产品详情页面"""
     try:
+        from app.models.product_spec import ProductSpec
+        from app.routes.product_code import get_field_unit
+
         # 获取产品详情
         product = Product.query.get_or_404(id)
-        
+
         # 检查产品停产状态的权限：只有产品经理、解决方案经理和管理员可以查看停产产品
         if product.status == 'discontinued' and current_user.role not in ['admin', 'product_manager', 'solution_manager']:
             logger.warning(f"用户 {current_user.username} 尝试查看停产产品详情: {id}")
             flash(_('您没有权限查看已停产的产品'), 'danger')
             return redirect(url_for('product_route.product_list'))
-        
-        return render_template('product/detail.html', product=product)
+
+        # 获取产品规格数据（按display_order排序）
+        product_specs_objects = ProductSpec.query.filter_by(product_id=id).order_by(ProductSpec.display_order).all()
+
+        # 为每个规格附加单位信息
+        product_specs = []
+        for spec in product_specs_objects:
+            spec_dict = spec.to_dict()
+            # 从规格字典获取单位
+            spec_dict['unit'] = get_field_unit(spec.field_name)
+            product_specs.append(spec_dict)
+
+        return render_template('product/detail.html', product=product, product_specs=product_specs)
     except Exception as e:
         logger.error(f'查看产品详情页面时出错: {str(e)}')
         flash(_('查看产品详情失败: %s') % str(e), 'danger')
@@ -1851,4 +2431,266 @@ def download_pdf(id):
 def get_pdf_preview(id):
     """获取PDF文件用于预览缩略图（不强制下载，支持PDF.js加载）"""
     file_service = get_product_file_service()
-    return file_service.preview_pdf(id) 
+    return file_service.preview_pdf(id)
+
+
+# ============= 报价单产品级联选择相关API =============
+
+@bp.route('/api/products/subcategories', methods=['GET'])
+@login_required
+def get_subcategories_api():
+    """
+    获取指定分类下的所有子分类
+    用于报价单产品选择的级联菜单
+    """
+    try:
+        category = request.args.get('category')
+
+        if not category:
+            return jsonify({
+                'success': False,
+                'message': '缺少分类参数'
+            }), 400
+
+        # 查询该分类下的所有产品
+        from app.models.product_code import ProductCategory
+
+        category_obj = ProductCategory.query.filter_by(name=category).first()
+        if not category_obj:
+            return jsonify({
+                'success': False,
+                'message': f'未找到分类: {category}'
+            }), 404
+
+        products = Product.query.filter(
+            Product.category_id == category_obj.id,
+            Product.status == 'active'
+        ).all()
+
+        # 统计子分类（支持新旧数据结构，记录display_order用于排序）
+        subcategory_data = {}  # {name: {'count': x, 'display_order': y}}
+        for product in products:
+            # 优先使用新的关联子分类，回退到旧的product_name字段
+            if product.subcategory_obj:
+                subcategory_name = product.subcategory_obj.name
+                display_order = product.subcategory_obj.display_order or 999
+            elif product.product_name:
+                subcategory_name = product.product_name
+                display_order = 999  # 旧数据放在最后
+            else:
+                continue  # 跳过没有子分类信息的产品
+
+            if subcategory_name not in subcategory_data:
+                subcategory_data[subcategory_name] = {
+                    'count': 0,
+                    'display_order': display_order
+                }
+            subcategory_data[subcategory_name]['count'] += 1
+
+        # 构建返回结果，按display_order排序
+        result = []
+        for name, data in sorted(subcategory_data.items(), key=lambda x: x[1]['display_order']):
+            result.append({
+                'name': name,
+                'count': data['count']
+            })
+
+        logger.info(f'查询分类 {category} 下的子分类，共 {len(result)} 个')
+
+        return jsonify({
+            'success': True,
+            'subcategories': result
+        })
+
+    except Exception as e:
+        logger.error(f'查询子分类时出错: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'查询子分类失败: {str(e)}'
+        }), 500
+
+
+@bp.route('/api/products/by-subcategory', methods=['GET'])
+@login_required
+def get_products_by_subcategory_api():
+    """
+    获取指定分类和子分类下的所有产品，按型号分组
+    用于报价单产品选择：显示型号列表，每个型号下可能有多个产品
+    注意：不返回product_desc字段（按需求隐藏描述）
+    """
+    try:
+        category = request.args.get('category')
+        subcategory = request.args.get('subcategory')
+
+        if not category or not subcategory:
+            return jsonify({
+                'success': False,
+                'message': '缺少分类或子分类参数'
+            }), 400
+
+        # 查询所有产品（支持新旧数据结构）
+        from app.models.product_code import ProductSubcategory, ProductCategory
+
+        # 先查询该分类下的生产中产品（排除停产和待上市）
+        category_obj = ProductCategory.query.filter_by(name=category).first()
+        if not category_obj:
+            return jsonify({
+                'success': False,
+                'message': f'未找到分类: {category}'
+            }), 404
+
+        all_products = Product.query.filter(
+            Product.category_id == category_obj.id,
+            Product.status == 'active'
+        ).all()
+
+        # 在Python中过滤子分类（支持新旧数据）
+        products = []
+        for product in all_products:
+            product_subcategory = None
+            if product.subcategory_obj:
+                product_subcategory = product.subcategory_obj.name
+            elif product.product_name:
+                product_subcategory = product.product_name
+
+            if product_subcategory == subcategory:
+                products.append(product)
+
+        # 按型号分组
+        model_groups = {}
+        for product in products:
+            # 使用model字段作为型号
+            model = product.model or product.product_name or '未知型号'
+
+            if model not in model_groups:
+                model_groups[model] = []
+
+            # 获取产品配置数量
+            from app.models.product_relation import ProductRelation
+            config_relations = ProductRelation.get_relations_for_product(product.id)
+            config_count = len(config_relations)
+
+            # 构建产品数据
+            product_data = {
+                'id': product.id,
+                'product_name': product.product_name,
+                'model': product.model,
+                'product_mn': product.product_mn,
+                'specification': product.specification,
+                'brand': product.brand,
+                'unit': product.unit,
+                'retail_price': float(product.retail_price) if product.retail_price else None,
+                'currency': product.currency,
+                'status': product.status,
+                'code_definition_snapshot': product.code_definition_snapshot,
+                'image_path': product.image_path,
+                'config_count': config_count,
+                'has_configurations': config_count > 0
+            }
+
+            model_groups[model].append(product_data)
+
+        # 构建返回结果
+        result = []
+        for model, products_list in model_groups.items():
+            result.append({
+                'model': model,
+                'count': len(products_list),
+                'products': products_list
+            })
+
+        # 按型号名称排序
+        result.sort(key=lambda x: x['model'])
+
+        logger.info(f'查询 {category}/{subcategory} 下的产品，共 {len(result)} 个型号，{len(products)} 个产品')
+
+        return jsonify({
+            'success': True,
+            'model_groups': result
+        })
+
+    except Exception as e:
+        logger.error(f'查询产品按子分类时出错: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'查询产品失败: {str(e)}'
+        }), 500
+
+
+@bp.route('/api/products/<int:product_id>/configurations', methods=['GET'])
+@login_required
+@permission_required('product', 'view')
+def get_product_configurations(product_id):
+    """
+    获取指定产品的配置列表
+
+    根据产品ID获取其关联的配置产品（配件、附件等）
+    按产品名称分组返回
+
+    Args:
+        product_id: 产品ID
+
+    Returns:
+        JSON格式的配置列表，按产品名称分组
+    """
+    try:
+        from app.models.product import Product
+        from app.models.product_relation import ProductRelation
+
+        # 验证产品是否存在
+        product = Product.query.get(product_id)
+        if not product:
+            return jsonify({
+                'success': False,
+                'message': '产品不存在'
+            }), 404
+
+        # 获取产品的关联配置
+        relations = ProductRelation.get_relations_for_product(product_id)
+
+        # 按产品名称分组配置
+        config_groups = {}
+        for relation in relations:
+            if relation.related_product and relation.related_product.status == 'active':
+                related_prod = relation.related_product
+                product_name = related_prod.product_name or '其他配置'
+
+                if product_name not in config_groups:
+                    config_groups[product_name] = []
+
+                config_groups[product_name].append({
+                    'id': related_prod.id,
+                    'model': related_prod.model,
+                    'product_mn': related_prod.product_mn,
+                    'specification': related_prod.specification,
+                    'product_name': related_prod.product_name,
+                    'brand': related_prod.brand,
+                    'unit': related_prod.unit,
+                    'retail_price': float(related_prod.retail_price) if related_prod.retail_price else None,
+                    'currency': related_prod.currency,
+                    'relation_type': relation.relation_type,
+                    'is_required': relation.is_required,
+                    'default_quantity': relation.default_quantity
+                })
+
+        # 转换为列表格式
+        configurations = []
+        for product_name, items in config_groups.items():
+            configurations.append({
+                'product_name': product_name,
+                'items': items
+            })
+
+        logger.info(f'获取产品 {product_id} 的配置，共 {len(configurations)} 个分组')
+
+        return jsonify({
+            'success': True,
+            'configurations': configurations
+        })
+
+    except Exception as e:
+        logger.error(f'获取产品配置时出错: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'获取配置失败: {str(e)}'
+        }), 500 

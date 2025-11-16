@@ -31,7 +31,8 @@ class Project(SharingMixin, db.Model):
     authorization_code = Column(String(64), nullable=True, index=True)
     delivery_forecast = Column(Date, nullable=True)
     quotation_customer = Column(db.Float, nullable=True, default=0)  # 添加报价总额字段
-    
+    quotation_currency = Column(String(10), nullable=True, default='CNY')  # 最新报价单的货币
+
     # 新增授权状态和反馈字段
     authorization_status = Column(String(20), nullable=True, default=None)  # None, 'pending', 'rejected'
     feedback = Column(Text, nullable=True)  # 存储申请反馈或驳回原因
@@ -170,6 +171,12 @@ class Project(SharingMixin, db.Model):
     def display_name(self):
         """获取项目显示名称（用于搜索组件）"""
         return self.project_name
+
+    @property
+    def quotation_currency_symbol(self):
+        """获取报价金额的货币符号"""
+        from app.utils.dictionary_helpers import get_currency_symbol
+        return get_currency_symbol(self.quotation_currency or 'CNY')
 
     @staticmethod
     def generate_authorization_code(project_type):

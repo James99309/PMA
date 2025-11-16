@@ -449,15 +449,8 @@ def list_projects():
                 'current_value': request.args.get('current_stage', ''),
                 'col_width': 3,
                 'options': [
-                    {'value': 'discover', 'label': '发现', 'translate': True},
-                    {'value': 'embed', 'label': '植入', 'translate': True},
-                    {'value': 'pre_tender', 'label': '招标前', 'translate': True},
-                    {'value': 'tendering', 'label': '招标中', 'translate': True},
-                    {'value': 'awarded', 'label': '中标', 'translate': True},
-                    {'value': 'quoted', 'label': '批价', 'translate': True},
-                    {'value': 'signed', 'label': '签约', 'translate': True},
-                    {'value': 'lost', 'label': '失败', 'translate': True},
-                    {'value': 'paused', 'label': '搁置', 'translate': True}
+                    {'value': k, 'label': v, 'translate': False}
+                    for k, v in get_project_stage_options()
                 ]
             },
             {
@@ -1198,13 +1191,13 @@ def view_project(project_id):
     return render_template("project/detail.html",
                          project=project,
                          Quotation=Quotation,
-                         stageHistory=stage_history, 
-                         project_actions=project_actions, 
-                         current_stage_key=current_stage_key, 
-                         all_users=all_users, 
-                         has_change_owner_permission=has_change_owner_permission, 
-                         user_tree_data=user_tree_data, 
-                         settings=settings, 
+                         stageHistory=stage_history,
+                         project_actions=project_actions,
+                         current_stage_key=current_stage_key,
+                         all_users=all_users,
+                         has_change_owner_permission=has_change_owner_permission,
+                         user_tree_data=user_tree_data,
+                         settings=settings,
                          can_edit_stage=can_edit_stage,
                          # 预计算的关系数据
                          has_quotations=has_quotations,
@@ -1214,6 +1207,7 @@ def view_project(project_id):
                          can_start_approval=can_start_approval,
                          # 添加语言支持
                          current_language=current_language,
+                         company_type_labels=COMPANY_TYPE_LABELS,
                          # 共享权限和用户
                          can_edit_sharing=can_edit_sharing,
                          can_view_sharing=can_view_sharing,
@@ -1381,11 +1375,12 @@ def get_edit_project_data():
     return get_project_form_data()
 
 @project.route('/edit/<int:project_id>', methods=['GET', 'POST'])
-@permission_required('project', 'edit')
+@login_required
+# 注意：不使用 @permission_required 装饰器 - 创建者可以编辑自己的项目
 def edit_project(project_id):
     project = Project.query.get_or_404(project_id)
-    
-    # 检查编辑权限
+
+    # 使用统一的数据权限检查（包含数据归属逻辑）
     if not can_edit_data(project, current_user):
         logger.warning(f"用户 {current_user.username} (ID: {current_user.id}, 角色: {current_user.role}) 尝试编辑无权限的项目: {project_id} (所有者: {project.owner_id})")
         flash('您没有权限编辑此项目', 'danger')
@@ -1534,21 +1529,22 @@ def edit_project(project_id):
     )
 
 @project.route('/delete/<int:project_id>', methods=['POST'])
-@permission_required('project', 'delete')
+@login_required
+# 注意：不使用 @permission_required 装饰器 - 创建者可以删除自己的项目数据
 def delete_project(project_id):
     project = Project.query.get_or_404(project_id)
-    
-    # 检查删除权限
+
+    # 使用统一的数据权限检查（包含数据归属逻辑）
     if not can_edit_data(project, current_user):
         logger.warning(f"用户 {current_user.username} (ID: {current_user.id}, 角色: {current_user.role}) 尝试删除无权限的项目: {project_id} (所有者: {project.owner_id})")
-        
+
         # 检查是否是AJAX请求
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
                 'success': False,
                 'message': '您没有权限删除此项目'
             }), 403
-            
+
         flash('您没有权限删除此项目', 'danger')
         return redirect(url_for('project.list_projects'))
     
@@ -1986,7 +1982,8 @@ def revoke_authorization(project_id):
         return redirect(url_for('project.view_project', project_id=project_id))
 
 @project.route('/api/batch-delete', methods=['POST'])
-@permission_required('project', 'delete')
+@login_required
+# 注意：不使用 @permission_required 装饰器 - 创建者可以删除自己的项目数据
 @csrf.exempt
 def batch_delete_projects():
     """批量删除项目"""
@@ -2293,8 +2290,15 @@ def update_project_stage():
         old_stage = project.current_stage
         pricing_flow_info = None
         should_block_progress = False
-        
+
         if new_stage == 'signed' and old_stage == 'quoted':
+            # ⚠️ 禁止从"批价"阶段手动推进到"签约"阶段
+            # 签约阶段必须通过批价单审批流程自动推进（见 pricing_order_service.py::complete_approval）
+            return jsonify({
+                'success': False,
+                'message': '签约阶段需通过批价单审批流程自动推进'
+            }), 400
+
             # 从批价阶段推进到签约阶段，检查批价流程状态
             
             # 获取项目的最新报价单
@@ -2417,7 +2421,7 @@ def update_project_stage():
         # 如果项目推进到签约阶段，自动锁定项目
         if new_stage == 'signed' and not project.is_locked:
             project.is_locked = True
-            project.locked_reason = '项目已签约，自动锁定'
+            project.locked_reason = _('项目已签约，自动锁定')
             project.locked_by = current_user.id
             project.locked_at = datetime.now()
             current_app.logger.info(f'项目 {project.project_name} (ID: {project.id}) 由于签约自动锁定')
@@ -2928,8 +2932,14 @@ def _get_project_owner_options(current_user):
         current_app.logger.error(f"获取项目拥有人选项失败: {e}")
         return []
 
-def _format_currency_amount(amount, currency_symbol='¥'):
+def _format_currency_amount(amount, currency_symbol=None):
     """格式化金额，添加千位分隔符"""
+    # 如果没有传入货币符号，使用当前语言的默认货币符号
+    if currency_symbol is None:
+        from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
+        default_currency = get_default_currency()
+        currency_symbol = get_currency_symbol(default_currency)
+
     try:
         # 保留两位小数
         formatted = f"{amount:.2f}"
@@ -3526,6 +3536,7 @@ def get_quotations_list(project_id):
                 'quotation_number': quot.quotation_number,
                 'amount': quot.amount or 0,
                 'currency': quot.currency or 'CNY',
+                'currency_symbol': quot.currency_symbol,
                 'customer_name': customer_name or '未关联客户',
                 'company_id': company_id,
                 'owner_name': owner_name or '未知',
@@ -3604,11 +3615,13 @@ def get_pricing_orders_list(project_id):
                 'dealer_name': dealer_name,
                 'pricing_total_amount': po.pricing_total_amount or 0,
                 'currency': po.currency or 'CNY',
+                'currency_symbol': po.currency_symbol,
                 'creator_name': creator_name,
                 'is_vendor': po.creator.is_vendor_user() if po.creator else False,
                 'status': po.status,
                 'status_label': {
                     'zh': status_label['zh'],
+                    'en': status_label['en'],
                     'color': status_label['color']
                 },
                 'created_at': po.created_at.strftime('%Y-%m-%d') if po.created_at else ''
@@ -3672,6 +3685,7 @@ def search_project_customers_for_quotation(project_id):
         from app.models.customer import Company
 
         keyword = request.args.get('keyword', '').strip()
+        saved_customer_id = request.args.get('saved_customer_id', type=int)  # 已保存的客户ID
 
         # 获取项目对象（确保项目存在）
         project_obj = Project.query.get_or_404(project_id)
@@ -3685,6 +3699,16 @@ def search_project_customers_for_quotation(project_id):
         for assoc in associations:
             if assoc.company and can_view_company(current_user, assoc.company):
                 filtered_companies.append(assoc.company)
+
+        # ⚠️ 特殊处理: 如果提供了saved_customer_id,确保已保存的客户在结果中
+        # 编辑报价单时,用户应该能看到报价单已关联的客户,即使该客户不在项目关联中
+        if saved_customer_id:
+            # 检查已保存的客户是否已在列表中
+            if not any(c.id == saved_customer_id for c in filtered_companies):
+                # 尝试加载该客户并插入到列表开头
+                saved_customer = Company.query.get(saved_customer_id)
+                if saved_customer:
+                    filtered_companies.insert(0, saved_customer)
 
         # 关键词过滤
         if keyword:
@@ -3727,13 +3751,13 @@ def search_project_customers_for_quotation(project_id):
 
 @project.route('/<int:project_id>/start_approval', methods=['POST'])
 @login_required
-@permission_required('project', 'edit')
+# 注意：不使用 @permission_required 装饰器 - 创建者可以启动自己项目的审批
 def start_project_approval(project_id):
     """启动项目审批流程"""
     try:
         project_obj = Project.query.get_or_404(project_id)
-        
-        # 检查权限
+
+        # 使用统一的数据权限检查（包含数据归属逻辑）
         if not can_edit_data(project_obj, current_user):
             return jsonify({
                 'success': False,
@@ -3953,12 +3977,12 @@ def preview_project_authorization(project_id):
 
 @project.route('/api/approval/<int:project_id>/submit', methods=['POST'])
 @login_required
-@permission_required('project', 'edit')
+# 注意：不使用 @permission_required 装饰器 - 创建者可以提交自己项目的审批
 def submit_project_approval_standard(project_id):
     """提交项目审批 - 标准化API"""
     try:
         logging.info(f"提交项目审批请求: project_id={project_id}, user_id={current_user.id}")
-        
+
         # 获取项目
         viewable_projects = get_viewable_data(Project, current_user)
         project_obj = viewable_projects.filter_by(id=project_id).first()
@@ -3968,18 +3992,18 @@ def submit_project_approval_standard(project_id):
                 'success': False,
                 'message': '项目不存在或无权限访问'
             }), 404
-        
+
         logging.info(f"项目当前状态: status={project_obj.status}, is_locked={project_obj.is_locked}")
-        
+
         # 检查项目状态
         if project_obj.status not in ['draft', 'rejected']:
             logging.warning(f"项目状态不允许提交审批: status={project_obj.status}")
             return jsonify({
-                'success': False, 
+                'success': False,
                 'message': '只有草稿或被拒绝状态的项目才能提交审批'
             })
-        
-        # 检查编辑权限
+
+        # 使用统一的数据权限检查（包含数据归属逻辑）
         if not can_edit_data(project_obj, current_user):
             logging.warning(f"无编辑权限: project_id={project_id}, user_id={current_user.id}")
             return jsonify({
@@ -4269,7 +4293,7 @@ def resubmit_project_approval(project_id):
 
 @project.route('/<int:project_id>/generate_authorization', methods=['POST'])
 @login_required
-@permission_required('project', 'edit')
+# 注意：不使用 @permission_required 装饰器 - 创建者可以为自己的项目生成授权编号
 def generate_authorization_code(project_id):
     """审批通过后生成项目授权编号"""
     try:
@@ -4281,8 +4305,8 @@ def generate_authorization_code(project_id):
                 'success': False,
                 'message': '项目不存在或无权限访问'
             }), 404
-        
-        # 检查编辑权限
+
+        # 使用统一的数据权限检查（包含数据归属逻辑）
         if not can_edit_data(project, current_user):
             return jsonify({
                 'success': False,

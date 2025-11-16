@@ -157,12 +157,12 @@
                                             <span class="fw-bold">{{ detail.quantity }}</span>
                                         </td>
                                         <td>{{ detail.unit or '-' }}</td>
-                                        <td>¥{{ "%.2f"|format(detail.market_price) }}</td>
-                                        <td>¥{{ "%.2f"|format(detail.unit_price) }}</td>
+                                        <td>{{ settlement_order.currency_symbol }}{{ "%.2f"|format(detail.market_price) }}</td>
+                                        <td>{{ settlement_order.currency_symbol }}{{ "%.2f"|format(detail.unit_price) }}</td>
                                         <td>{{ "%.1f"|format(detail.discount_rate * 100) }}%</td>
                                         <td>
                                             <span class="text-success fw-bold">
-                                                ¥{{ "%.2f"|format(detail.total_price) }}
+                                                {{ settlement_order.currency_symbol }}{{ "%.2f"|format(detail.total_price) }}
                                             </span>
                                         </td>
                                     </tr>
@@ -194,7 +194,7 @@
                 </div>
                 <div class="card-body text-center">
                     <div class="amount-display">
-                        ¥{{ settlement_order.formatted_total_amount }}
+                        {{ settlement_order.currency_symbol }}{{ settlement_order.formatted_total_amount }}
                     </div>
                     <p class="text-muted mb-3">结算总金额</p>
                     
@@ -266,7 +266,7 @@
                     <p><strong>结算单号：</strong>{{ settlement_order.order_number }}</p>
                     <p><strong>经销商：</strong>{{ settlement_order.dealer.company_name if settlement_order.dealer else '无经销商' }}</p>
                     <p><strong>产品项数：</strong>{{ settlement_order.details|length }}</p>
-                    <p><strong>结算金额：</strong>¥{{ settlement_order.formatted_total_amount }}</p>
+                    <p><strong>结算金额：</strong>{{ settlement_order.currency_symbol }}{{ settlement_order.formatted_total_amount }}</p>
                 </div>
             </div>
             <div class="modal-footer">

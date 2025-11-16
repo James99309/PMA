@@ -220,13 +220,13 @@ def get_project_scoring_details(project_id):
 
 @project_scoring_api.route('/api/project/<int:project_id>/scoring/recalculate', methods=['POST'], endpoint='scoring_recalculate')
 @login_required
-@permission_required('project', 'edit')
+# 注意：不使用 @permission_required 装饰器 - 创建者和相关人员可以重新计算项目评分
 def recalculate_project_score(project_id):
     """重新计算项目评分"""
     try:
         project = Project.query.get_or_404(project_id)
-        
-        # 检查权限
+
+        # 使用统一的数据权限检查（包含数据归属和角色逻辑）
         if not can_view_project(current_user, project):
             return jsonify({'success': False, 'message': '无权限访问此项目'}), 403
         

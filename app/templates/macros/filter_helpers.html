@@ -1,0 +1,167 @@
+{#
+筛选状态保持 Jinja2 宏
+
+提供统一的筛选条件保持机制，用于列表页、详情页、编辑页之间的导航。
+这些宏简化了模板中构建带筛选条件URL的逻辑。
+#}
+
+{#
+构建带筛选条件的返回URL
+用于在列表页构建详情页链接时，保留当前的筛选条件
+
+参数:
+    endpoint: Flask路由端点名称，如 'customer.list_companies'
+
+返回:
+    完整的URL字符串，包含所有当前筛选条件
+
+使用示例:
+    {% set return_url = build_return_url('customer.list_companies') %}
+    <a href="{{ url_for('customer.view_company', company_id=company.id, return_url=return_url) }}">
+#}
+{% macro build_return_url(endpoint) %}
+    {%- set return_url = url_for(endpoint, **request.args.to_dict()) -%}
+    {{- return_url -}}
+{% endmacro %}
+
+
+{#
+构建带return_url的详情页链接
+自动生成包含筛选条件的详情页链接，简化模板代码
+
+参数:
+    endpoint: 详情页路由端点，如 'customer.view_company'
+    item_id_key: 项目ID参数名，如 'company_id'
+    item_id_value: 项目ID值
+    text: 链接文本
+    css_class: CSS类名（可选，默认 'text-decoration-none'）
+
+返回:
+    完整的<a>标签
+
+使用示例:
+    {# 旧方式（重复代码） ❌ #}
+    {% set return_url = url_for('customer.list_companies', **request.args.to_dict()) %}
+    <a href="{{ url_for('customer.view_company', company_id=company.id, return_url=return_url) }}">
+        {{ company.company_name }}
+    </a>
+
+    {# 新方式（通用宏） ✅ #}
+    {{ detail_link('customer.view_company', 'company_id', company.id, company.company_name) }}
+#}
+{% macro detail_link(endpoint, item_id_key, item_id_value, text, css_class='text-decoration-none') %}
+    {%- set return_url = url_for(request.endpoint, **request.args.to_dict()) -%}
+    {%- set params = {item_id_key: item_id_value, 'return_url': return_url} -%}
+    <a href="{{ url_for(endpoint, **params) }}" class="{{ css_class }}">{{ text }}</a>
+{% endmacro %}
+
+
+{#
+构建带return_url的编辑页链接
+用于在详情页构建编辑页链接时，传递return_url
+
+参数:
+    endpoint: 编辑页路由端点，如 'customer.edit_company'
+    item_id_key: 项目ID参数名，如 'company_id'
+    item_id_value: 项目ID值
+    text: 链接文本（可选，默认为空）
+    css_class: CSS类名（可选，默认 'btn btn-primary'）
+    return_url: 返回URL（可选，默认使用当前页面的return_url参数）
+
+返回:
+    完整的<a>标签
+
+使用示例:
+    {# 在详情页中使用 #}
+    {{ edit_link('customer.edit_company', 'company_id', company.id, '编辑客户') }}
+
+    {# 自定义样式 #}
+    {{ edit_link('project.edit_project', 'project_id', project.id, '编辑', 'btn btn-sm btn-outline-primary') }}
+#}
+{% macro edit_link(endpoint, item_id_key, item_id_value, text='', css_class='btn btn-primary', return_url=None) %}
+    {%- if return_url is none -%}
+        {%- set return_url = request.args.get('return_url') or url_for(request.endpoint, **{item_id_key: item_id_value}) -%}
+    {%- endif -%}
+    {%- set params = {item_id_key: item_id_value, 'return_url': return_url} -%}
+    <a href="{{ url_for(endpoint, **params) }}" class="{{ css_class }}">{{ text }}</a>
+{% endmacro %}
+
+
+{#
+保留筛选条件的URL参数字典
+用于在模板中构建保留筛选条件的链接
+
+参数:
+    **kwargs: 新的参数（会覆盖同名的当前参数）
+
+返回:
+    合并后的参数字典
+
+使用示例:
+    {# 分页链接 #}
+    {% set params = preserve_filters(page=2) %}
+    <a href="{{ url_for('customer.list_companies', **params) }}">下一页</a>
+
+    {# 修改排序 #}
+    {% set params = preserve_filters(sort='created_at', order='desc') %}
+    <a href="{{ url_for('customer.list_companies', **params) }}">按创建时间排序</a>
+#}
+{% macro preserve_filters() %}
+    {%- set params = request.args.to_dict() -%}
+    {{- params -}}
+{% endmacro %}
+
+
+{#
+生成带筛选条件的返回列表按钮
+用于详情页或编辑页的"返回列表"按钮
+
+参数:
+    list_endpoint: 列表页路由端点，如 'customer.list_companies'
+    text: 按钮文本（可选，默认 '返回列表'）
+    css_class: CSS类名（可选，默认 'btn btn-secondary'）
+    return_url: 返回URL（可选，默认使用当前页面的return_url参数）
+
+返回:
+    完整的<a>标签按钮
+
+使用示例:
+    {# 在详情页中 #}
+    {{ return_list_button('customer.list_companies', '返回客户列表') }}
+
+    {# 使用自定义return_url #}
+    {{ return_list_button('project.list_projects', return_url=custom_url) }}
+#}
+{% macro return_list_button(list_endpoint, text='返回列表', css_class='btn btn-secondary', return_url=None) %}
+    {%- if return_url is none -%}
+        {%- set return_url = request.args.get('return_url') or url_for(list_endpoint) -%}
+    {%- endif -%}
+    <a href="{{ return_url }}" class="{{ css_class }}">{{ text }}</a>
+{% endmacro %}
+
+
+{#
+生成保留筛选条件的隐藏表单字段
+用于在表单中传递return_url参数
+
+参数:
+    return_url: 返回URL（可选，默认使用当前页面的return_url参数）
+
+返回:
+    隐藏的input标签
+
+使用示例:
+    <form method="POST">
+        {{ return_url_field() }}
+        <!-- 其他表单字段 -->
+        <button type="submit">保存</button>
+    </form>
+#}
+{% macro return_url_field(return_url=None) %}
+    {%- if return_url is none -%}
+        {%- set return_url = request.args.get('return_url') or request.form.get('return_url') -%}
+    {%- endif -%}
+    {%- if return_url -%}
+        <input type="hidden" name="return_url" value="{{ return_url }}">
+    {%- endif -%}
+{% endmacro %}

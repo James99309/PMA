@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel, render_currency_with_symbol, render_product_type_badge, render_product_status_badge, render_top_notification %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel, render_currency_with_symbol, render_product_type_badge, render_product_status_badge, render_top_notification, render_confirm_dialog, render_detail_list, render_relation_type_badge, render_custom_dialog, render_vendor_badge %}
 
-{% block title %}{{ _('产品详情') }} - {{ product.product_name }}{% endblock %}
+{% block title %}{{ _('产品详情') }} - {{ product.subcategory_obj.name if product.subcategory_obj else product.product_mn }}{% endblock %}
 
 {% block head %}
 {{ super() }}
@@ -99,6 +99,70 @@
         font-size: 3rem;
     }
 
+    /* 规格表格样式 */
+    .specs-table {
+        margin-bottom: 0;
+    }
+
+    .specs-table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        color: #495057;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .specs-table td {
+        vertical-align: middle;
+    }
+
+    /* 斑马线效果 */
+    .specs-table tbody tr:nth-child(even) {
+        background-color: #f8f9fa;
+    }
+
+    .specs-table tbody tr:hover {
+        background-color: #e9ecef;
+    }
+
+    /* 编码说明折叠区域样式 */
+    .code-definition-collapse {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .code-definition-header {
+        background-color: #f8f9fa;
+        padding: 1rem 1.5rem;
+        cursor: pointer;
+        border-bottom: 1px solid #dee2e6;
+        transition: background-color 0.2s;
+    }
+
+    .code-definition-header:hover {
+        background-color: #e9ecef;
+    }
+
+    .code-definition-header h5 {
+        margin: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .code-definition-header .toggle-icon {
+        transition: transform 0.3s;
+    }
+
+    .code-definition-header .toggle-icon.rotated {
+        transform: rotate(180deg);
+    }
+
+    .code-definition-body {
+        padding: 1.5rem;
+        background-color: #fff;
+    }
+
     /* PDF预览样式 */
     .pdf-preview-container {
         border-top: 1px solid #e7e7e7;
@@ -180,11 +244,11 @@
         .pdf-preview-canvas {
             max-width: 100%;
         }
-        
+
         .pdf-preview-overlay-content {
             padding: 0.5rem;
         }
-        
+
         .pdf-preview-overlay-content i {
             font-size: 1.5rem;
         }
@@ -195,6 +259,7 @@
 {% block content %}
 {{ render_top_notification() }}
 <div class="container mt-4 product-detail-main">
+    <!-- 页面头部 -->
     <div class="row mb-3">
         <div class="col-md-12">
             <div class="d-flex justify-content-between align-items-center">
@@ -204,16 +269,20 @@
                     {% if has_permission('product', 'edit') %}
                     {{ render_button(_('编辑产品'), url_for('product_route.edit_product_page', id=product.id), color='primary', icon='fas fa-edit') }}
                     {% endif %}
+                    {% if has_permission('product', 'delete') %}
+                    {{ render_button(_('删除产品'), '#', color='danger', icon='fas fa-trash', attrs='onclick="confirmDeleteProduct()"') }}
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- 第一部分：产品基本信息 -->
     <div class="row">
         <div class="col-md-12">
-            <div class="card product-detail-card">
+            <div class="card product-detail-card mb-4">
                 <div class="product-header">
-                    <h2>{{ product.product_name }}</h2>
+                    <h2>{{ product.subcategory_obj.name if product.subcategory_obj else product.product_mn }}</h2>
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <span class="ml-2">MN: {{ product.product_mn }}</span>
@@ -230,17 +299,17 @@
                                     {% if product.image_path.startswith('http') %}
                                         <!-- Supabase云端图片 -->
                                         <img src="{{ product.image_path }}"
-                                             alt="{{ product.product_name }}"
+                                             alt="{{ product.subcategory_obj.name if product.subcategory_obj else product.product_mn }}"
                                              class="product-image">
                                     {% elif product.image_path.startswith('/storage/') %}
                                         <!-- 新版本地存储图片 -->
                                         <img src="{{ product.image_path }}"
-                                             alt="{{ product.product_name }}"
+                                             alt="{{ product.subcategory_obj.name if product.subcategory_obj else product.product_mn }}"
                                              class="product-image">
                                     {% else %}
                                         <!-- 旧版本地图片 -->
                                         <img src="{{ url_for('static', filename='uploads/products/' + product.image_path) }}"
-                                             alt="{{ product.product_name }}"
+                                             alt="{{ product.subcategory_obj.name if product.subcategory_obj else product.product_mn }}"
                                              class="product-image">
                                     {% endif %}
                                 {% else %}
@@ -249,7 +318,7 @@
                                 </div>
                                 {% endif %}
                             </div>
-                            
+
                             <!-- 图片上传按钮（仅在有编辑权限时显示） -->
                             {% if has_permission('product', 'edit') %}
                             <div class="mt-2 text-center">
@@ -279,23 +348,22 @@
                                     </div>
 
                                     <div class="product-property">
-                                        <div class="property-label">{{ _('产品类别') }}</div>
-                                        <div class="property-value">{{ product.category or _('无') }}</div>
+                                        <div class="property-label">{{ _('产品分类') }}</div>
+                                        <div class="property-value">
+                                            {% if product.subcategory_obj and product.subcategory_obj.parent_category %}
+                                                {{ product.subcategory_obj.parent_category.name }}
+                                            {% else %}
+                                                {{ _('无') }}
+                                            {% endif %}
+                                        </div>
                                     </div>
 
                                     <div class="product-property">
                                         <div class="property-label">{{ _('品牌') }}</div>
                                         <div class="property-value">
                                             {{ product.brand or _('无') }}
-                                            {% if product.is_vendor_product %}
-                                            <span class="badge bg-primary rounded-pill ms-2" title="{{ _('厂商产品，计入植入合计') }}" style="font-size: 0.65rem;">{{ _('厂商') }}</span>
-                                            {% endif %}
+                                            {{ render_vendor_badge(product.is_vendor_product) }}
                                         </div>
-                                    </div>
-
-                                    <div class="product-property">
-                                        <div class="property-label">{{ _('规格说明') }}</div>
-                                        <div class="property-value">{{ product.specification or _('无') }}</div>
                                     </div>
                                 </div>
 
@@ -326,90 +394,276 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
 
-                    <!-- PDF文档上传和预览部分 -->
-                    <div class="row mt-4">
-                        <div class="col-md-12">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h5 class="mb-0">
-                                        <i class="fas fa-file-pdf me-2 text-danger"></i>{{ _('产品文档') }}
-                                    </h5>
-                                </div>
-                                <div class="card-body">
-                                    <!-- 上传/下载按钮区域 -->
-                                    <div class="text-center mb-3">
-                                        <!-- 上传按钮仅有编辑权限时显示 -->
-                                        {% if has_permission('product', 'edit') %}
-                                            {{ render_button(_('上传PDF文档'), type='button', color='outline-primary', icon='fas fa-upload', attrs={'id': 'uploadPdfBtn'}) }}
-                                            <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;">
-                                        {% endif %}
-                                        
-                                        <!-- 下载按钮当有PDF文档时始终显示（无论权限） -->
-                                        {% if product.pdf_path %}
-                                            {{ render_button(_('下载'), href=url_for('product_route.download_pdf', id=product.id), color='primary', icon='fas fa-download', attrs={'target': '_blank'}) }}
-                                        {% endif %}
+                            <!-- 规格说明（横跨两栏） -->
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <div class="product-property">
+                                        <div class="property-label">{{ _('规格说明') }}</div>
+                                        <div class="property-value">{{ product.specification or _('无') }}</div>
                                     </div>
-                                    
-                                    <!-- PDF预览区域 -->
-                                    {% if product.pdf_path %}
-                                    <div class="d-flex align-items-center mb-3">
-                                        <i class="fas fa-file-pdf text-danger fa-3x me-3"></i>
-                                        <div class="flex-grow-1">
-                                            <h6 class="mb-1">{{ product.pdf_path.split('/')[-1].split('_', 1)[-1] if '_' in product.pdf_path.split('/')[-1] else product.pdf_path.split('/')[-1] }}</h6>
-                                            <small class="text-muted">{{ _('PDF文档') }}</small>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- PDF预览容器 -->
-                                    <div id="pdfPreviewContainer" class="pdf-preview-container">
-                                        <div class="pdf-preview-header">
-                                            <span class="text-muted">{{ _('PDF封面预览') }}</span>
-                                            <small class="ms-2 text-info">{{ _('点击预览图可在新窗口查看完整PDF') }}</small>
-                                        </div>
-                                        <div class="pdf-preview-content">
-                                            <div class="pdf-loading" id="pdfLoading">
-                                                <div class="d-flex justify-content-center align-items-center" style="height: 200px;">
-                                                    <div class="spinner-border text-primary" role="status">
-                                                        <span class="visually-hidden">{{ _('加载中...') }}</span>
-                                                    </div>
-                                                    <span class="ms-2">{{ _('加载PDF预览中...') }}</span>
-                                                </div>
-                                            </div>
-                                            <div class="pdf-preview-canvas-container" id="pdfCanvasContainer" style="display: none;">
-                                                <canvas id="pdfCanvas" class="pdf-preview-canvas"></canvas>
-                                                <div class="pdf-preview-overlay" onclick="openPdfInNewWindow()">
-                                                    <div class="pdf-preview-overlay-content">
-                                                        <i class="fas fa-external-link-alt"></i>
-                                                        <span>{{ _('点击在新窗口查看') }}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="pdf-error" id="pdfError" style="display: none;">
-                                                <div class="text-center text-muted py-4">
-                                                    <i class="fas fa-exclamation-triangle text-warning fa-2x mb-2"></i>
-                                                    <div>{{ _('PDF预览加载失败') }}</div>
-                                                    <small>{{ _('请尝试直接下载文件查看') }}</small>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {% else %}
-                                    <!-- 当没有PDF文档时显示的占位区域 -->
-                                    <div class="text-center py-5 bg-light rounded">
-                                        <i class="fas fa-file-pdf text-muted fa-3x mb-3"></i>
-                                        <p class="text-muted mb-0">{{ _('暂无产品文档') }}</p>
-                                        {% if current_user.has_permission('product', 'edit') %}
-                                        <small class="text-muted">{{ _('点击上方"上传PDF文档"按钮添加产品文档') }}</small>
-                                        {% endif %}
-                                    </div>
-                                    {% endif %}
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 第二部分：产品规格 -->
+    {% if product_specs and product_specs|length > 0 %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cogs me-2"></i>{{ _('产品规格') }}
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table specs-table mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40%;">{{ _('规格') }}</th>
+                                    <th style="width: 60%;">{{ _('指标') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for spec in product_specs %}
+                                <tr>
+                                    <td><strong>{{ spec.field_name }}</strong></td>
+                                    <td>
+                                        {{ spec.field_value }}
+                                        {% if spec.unit %}
+                                        <span class="text-muted ms-1">{{ spec.unit }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 关联产品配置区域 -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            {{ render_detail_list(
+                container_id='productRelationsList',
+                title='关联产品配置',
+                icon='fa-link',
+                api_url=url_for('product_management.get_product_relations', product_id=product.id),
+                columns=[
+                    {'key': 'product_name', 'label': _('产品名称'), 'width': '25%'},
+                    {'key': 'product_model', 'label': _('型号'), 'width': '20%'},
+                    {'key': 'product_mn', 'label': _('MN编号'), 'width': '20%'},
+                    {'key': 'relation_type_label', 'label': _('配置类型'), 'width': '15%', 'align': 'center', 'type': 'badge'},
+                    {'key': 'default_quantity', 'label': _('配置数量'), 'width': '10%', 'align': 'center'}
+                ],
+                actions=[
+                    {'type': 'delete', 'label': _('删除'), 'confirm': _('确认删除此关联产品？')}
+                ],
+                add_button_html=render_button(
+                    text=_('添加关联产品'),
+                    color='primary',
+                    size='sm',
+                    onclick='openAddRelationModal()',
+                    type='button'
+                ) if current_user.role in ['admin', 'product_manager'] else '',
+                empty_message=_('暂无关联产品配置'),
+                show_actions=current_user.role in ['admin', 'product_manager']
+            ) }}
+        </div>
+    </div>
+
+    <!-- 第三部分：产品编码定义说明（可折叠） -->
+    {% if product.code_definition_snapshot %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="code-definition-collapse">
+                <div class="code-definition-header" onclick="toggleCodeDefinition()">
+                    <h5>
+                        <span>
+                            <i class="fas fa-barcode me-2"></i>{{ _('产品编码定义说明') }}
+                        </span>
+                        <i class="fas fa-chevron-down toggle-icon" id="codeToggleIcon"></i>
+                    </h5>
+                </div>
+                <div class="code-definition-body" id="codeDefinitionBody" style="display: none;">
+                    {% set snapshot = product.code_definition_snapshot %}
+
+                    <!-- 基本信息 -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <strong>{{ _('完整编码') }}:</strong>
+                            <p class="mb-0 text-primary fs-5">
+                                <code>{{ snapshot.full_code }}</code>
+                            </p>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>{{ _('产品分类') }}:</strong>
+                            <p class="mb-0">{{ snapshot.category.name }} ({{ snapshot.category.code_letter }})</p>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>{{ _('产品名称') }}:</strong>
+                            <p class="mb-0">{{ snapshot.subcategory.name }} ({{ snapshot.subcategory.code_letter }})</p>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>{{ _('生成时间') }}:</strong>
+                            <p class="mb-0 text-muted">{{ snapshot.generated_at[:10] }}</p>
+                        </div>
+                    </div>
+
+                    <!-- 编码分解表格 -->
+                    {% if snapshot.code_parts %}
+                    <h6 class="border-bottom pb-2 mb-3">{{ _('编码组成明细') }}</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 8%;">{{ _('位置') }}</th>
+                                    <th style="width: 20%;">{{ _('字段名称') }}</th>
+                                    <th style="width: 12%;">{{ _('字段类型') }}</th>
+                                    <th style="width: 10%;">{{ _('编码值') }}</th>
+                                    <th style="width: 18%;">{{ _('含义') }}</th>
+                                    <th style="width: 32%;">{{ _('描述') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for part in snapshot.code_parts %}
+                                <tr>
+                                    <td class="text-center">
+                                        <span class="badge bg-secondary">{{ part.position }}</span>
+                                    </td>
+                                    <td>
+                                        <strong>{{ part.field_name }}</strong>
+                                    </td>
+                                    <td>
+                                        {% if part.field_type == 'origin_location' %}
+                                        <span class="badge bg-info">{{ _('原产地') }}</span>
+                                        {% elif part.field_type == 'spec' %}
+                                        <span class="badge bg-success">{{ _('规格') }}</span>
+                                        {% elif part.field_type == 'supplement' %}
+                                        <span class="badge bg-warning text-dark">{{ _('补充') }}</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ part.field_type }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <code class="text-primary">{{ part.code }}</code>
+                                    </td>
+                                    <td>{{ part.value }}</td>
+                                    <td class="text-muted small">{{ part.description or '-' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+
+                    <!-- 地区信息（如果有） -->
+                    {% if snapshot.region %}
+                    <div class="alert alert-info mt-3" role="alert">
+                        <i class="fas fa-globe-asia me-2"></i>
+                        <strong>{{ _('地区') }}:</strong> {{ snapshot.region.name }} ({{ snapshot.region.code_letter }})
+                        {% if snapshot.region.description %}
+                        - {{ snapshot.region.description }}
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <!-- 说明 -->
+                    <div class="text-muted small mt-3 border-top pt-3">
+                        <i class="fas fa-info-circle me-1"></i>
+                        {{ _('此编码定义为产品创建时的快照，记录了编码各位的完整含义，确保历史数据可追溯。') }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 第四部分：产品文档上传和展示 -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">{{ _('产品文档') }}</h5>
+                </div>
+                <div class="card-body">
+                    <!-- 上传/下载按钮区域 -->
+                    <div class="text-center mb-3">
+                        <!-- 上传按钮仅有编辑权限时显示 -->
+                        {% if has_permission('product', 'edit') %}
+                            {{ render_button(_('上传PDF文档'), type='button', color='outline-primary', icon='fas fa-upload', attrs={'id': 'uploadPdfBtn'}) }}
+                            <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;">
+                        {% endif %}
+
+                        <!-- 下载按钮当有PDF文档时始终显示（无论权限） -->
+                        {% if product.pdf_path %}
+                            {{ render_button(_('下载'), href=url_for('product_route.download_pdf', id=product.id), color='primary', icon='fas fa-download', attrs={'target': '_blank'}) }}
+                        {% endif %}
+                    </div>
+
+                    <!-- PDF预览区域 -->
+                    {% if product.pdf_path %}
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fas fa-file-pdf text-danger fa-3x me-3"></i>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">{{ product.pdf_path.split('/')[-1].split('_', 1)[-1] if '_' in product.pdf_path.split('/')[-1] else product.pdf_path.split('/')[-1] }}</h6>
+                            <small class="text-muted">{{ _('PDF文档') }}</small>
+                        </div>
+                    </div>
+
+                    <!-- PDF预览容器 -->
+                    <div id="pdfPreviewContainer" class="pdf-preview-container">
+                        <div class="pdf-preview-header">
+                            <span class="text-muted">{{ _('PDF封面预览') }}</span>
+                            <small class="ms-2 text-info">{{ _('点击预览图可在新窗口查看完整PDF') }}</small>
+                        </div>
+                        <div class="pdf-preview-content">
+                            <div class="pdf-loading" id="pdfLoading">
+                                <div class="d-flex justify-content-center align-items-center" style="height: 200px;">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">{{ _('加载中...') }}</span>
+                                    </div>
+                                    <span class="ms-2">{{ _('加载PDF预览中...') }}</span>
+                                </div>
+                            </div>
+                            <div class="pdf-preview-canvas-container" id="pdfCanvasContainer" style="display: none;">
+                                <canvas id="pdfCanvas" class="pdf-preview-canvas"></canvas>
+                                <div class="pdf-preview-overlay" onclick="openPdfInNewWindow()">
+                                    <div class="pdf-preview-overlay-content">
+                                        <i class="fas fa-external-link-alt"></i>
+                                        <span>{{ _('点击在新窗口查看') }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="pdf-error" id="pdfError" style="display: none;">
+                                <div class="text-center text-muted py-4">
+                                    <i class="fas fa-exclamation-triangle text-warning fa-2x mb-2"></i>
+                                    <div>{{ _('PDF预览加载失败') }}</div>
+                                    <small>{{ _('请尝试直接下载文件查看') }}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <!-- 当没有PDF文档时显示的占位区域 -->
+                    <div class="text-center py-5 bg-light rounded">
+                        <i class="fas fa-file-pdf text-muted fa-3x mb-3"></i>
+                        <p class="text-muted mb-0">{{ _('暂无产品文档') }}</p>
+                        {% if current_user.has_permission('product', 'edit') %}
+                        <small class="text-muted">{{ _('点击上方"上传PDF文档"按钮添加产品文档') }}</small>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -420,6 +674,20 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <script>
+// 编码定义折叠功能
+function toggleCodeDefinition() {
+    const body = document.getElementById('codeDefinitionBody');
+    const icon = document.getElementById('codeToggleIcon');
+
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        icon.classList.add('rotated');
+    } else {
+        body.style.display = 'none';
+        icon.classList.remove('rotated');
+    }
+}
+
 // PDF预览相关全局变量
 let currentPdfUrl = null;
 
@@ -434,26 +702,26 @@ if (typeof pdfjsLib !== 'undefined') {
 function loadPdfPreview() {
     // 使用专用的PDF预览API端点
     const pdfUrl = '{{ url_for("product_route.get_pdf_preview", id=product.id) if product.pdf_path else "" }}';
-    
+
     if (!pdfUrl) {
         showPdfError();
         return;
     }
-    
+
     currentPdfUrl = pdfUrl;
-    
+
     // 显示加载状态
     showPdfLoading();
-    
+
     // 加载PDF
     pdfjsLib.getDocument(pdfUrl).promise.then(function(pdf) {
         console.log('PDF加载成功，页数:', pdf.numPages);
-        
+
         // 获取第一页
         return pdf.getPage(1);
     }).then(function(page) {
         console.log('获取第一页成功');
-        
+
         // 渲染页面
         renderPdfPage(page);
     }).catch(function(error) {
@@ -468,25 +736,25 @@ function loadPdfPreview() {
 function renderPdfPage(page) {
     const canvas = document.getElementById('pdfCanvas');
     const context = canvas.getContext('2d');
-    
+
     // 设置渲染参数
     const viewport = page.getViewport({ scale: 1.0 });
-    
+
     // 计算合适的缩放比例（限制最大宽度）
     const maxWidth = 600;
     const scale = Math.min(maxWidth / viewport.width, 1.5);
     const scaledViewport = page.getViewport({ scale: scale });
-    
+
     // 设置canvas尺寸
     canvas.height = scaledViewport.height;
     canvas.width = scaledViewport.width;
-    
+
     // 渲染参数
     const renderContext = {
         canvasContext: context,
         viewport: scaledViewport
     };
-    
+
     // 渲染页面
     page.render(renderContext).promise.then(function() {
         console.log('PDF第一页渲染完成');
@@ -543,21 +811,21 @@ function openPdfInNewWindow() {
 function initImageUpload() {
     const uploadBtn = document.getElementById('uploadImageBtn');
     const fileInput = document.getElementById('imageFileInput');
-    
+
     if (!uploadBtn || !fileInput) {
         return; // 没有上传按钮或文件输入框（可能没有编辑权限）
     }
-    
+
     // 点击上传按钮时触发文件选择
     uploadBtn.addEventListener('click', function() {
         fileInput.click();
     });
-    
+
     // 文件选择变化时的处理
     fileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
-        
+
         // 文件类型验证
         const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
         if (!allowedTypes.includes(file.type)) {
@@ -565,7 +833,7 @@ function initImageUpload() {
             fileInput.value = '';
             return;
         }
-        
+
         // 文件大小验证 (12MB)
         const maxSize = 12 * 1024 * 1024;
         if (file.size > maxSize) {
@@ -573,7 +841,7 @@ function initImageUpload() {
             fileInput.value = '';
             return;
         }
-        
+
         // 立即开始上传
         uploadImage(file);
     });
@@ -585,16 +853,16 @@ function initImageUpload() {
 function uploadImage(file) {
     const uploadBtn = document.getElementById('uploadImageBtn');
     const fileInput = document.getElementById('imageFileInput');
-    
+
     // 禁用按钮并显示上传状态
     uploadBtn.disabled = true;
     uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{{ _("\u4e0a\u4f20\u4e2d...") }}';
-    
+
     // 创建 FormData
     const formData = new FormData();
     formData.append('image', file);
     formData.append('csrf_token', '{{ csrf_token() }}');
-    
+
     // 发送上传请求
     fetch('/api/products/{{ product.id }}/upload-files', {
         method: 'POST',
@@ -628,28 +896,28 @@ function uploadImage(file) {
 function initPdfUpload() {
     const uploadBtn = document.getElementById('uploadPdfBtn');
     const fileInput = document.getElementById('pdfFileInput');
-    
+
     if (!uploadBtn || !fileInput) {
         return; // 没有上传按钮或文件输入框（可能没有编辑权限）
     }
-    
+
     // 点击上传按钮时触发文件选择
     uploadBtn.addEventListener('click', function() {
         fileInput.click();
     });
-    
+
     // 文件选择变化时的处理
     fileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
-        
+
         // 文件类型验证
         if (file.type !== 'application/pdf') {
             alert('{{ _("请选择PDF文件") }}');
             fileInput.value = '';
             return;
         }
-        
+
         // 文件大小验证 (12MB)
         const maxSize = 12 * 1024 * 1024;
         if (file.size > maxSize) {
@@ -657,7 +925,7 @@ function initPdfUpload() {
             fileInput.value = '';
             return;
         }
-        
+
         // 立即开始上传
         uploadPdf(file);
     });
@@ -669,16 +937,16 @@ function initPdfUpload() {
 function uploadPdf(file) {
     const uploadBtn = document.getElementById('uploadPdfBtn');
     const fileInput = document.getElementById('pdfFileInput');
-    
+
     // 禁用按钮并显示上传状态
     uploadBtn.disabled = true;
     uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{{ _("上传中...") }}';
-    
+
     // 创建 FormData
     const formData = new FormData();
     formData.append('pdf', file);
     formData.append('csrf_token', '{{ csrf_token() }}');
-    
+
     // 发送上传请求
     fetch('/api/products/{{ product.id }}/upload-files', {
         method: 'POST',
@@ -706,16 +974,71 @@ function uploadPdf(file) {
     });
 }
 
+/**
+ * 确认删除产品
+ */
+function confirmDeleteProduct() {
+    showDeleteConfirm({
+        title: '{{ _("确认删除") }}',
+        message: '{{ _("确定要删除此产品吗？删除后将无法恢复，请谨慎操作。") }}',
+        confirmText: '{{ _("删除") }}',
+        cancelText: '{{ _("取消") }}',
+        onConfirm: function() {
+            executeDeleteProduct();
+        }
+    });
+}
+
+/**
+ * 执行删除产品
+ */
+function executeDeleteProduct() {
+    // 获取CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]');
+    const headers = {
+        'Content-Type': 'application/json',
+    };
+
+    if (csrfToken) {
+        headers['X-CSRFToken'] = csrfToken.content;
+    }
+
+    // 发送删除请求
+    fetch('/api/products/{{ product.id }}/delete', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+            reason: '{{ _("用户主动删除") }}'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showTopNotification('{{ _("产品已成功删除！") }}', 'success', 2000);
+            // 延迟后跳转到产品列表页面
+            setTimeout(() => {
+                window.location.href = '{{ url_for("product_route.product_list") }}';
+            }, 2000);
+        } else {
+            showTopNotification('{{ _("删除失败") }}: ' + (data.message || '{{ _("未知错误") }}'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('{{ _("删除产品时发生错误") }}:', error);
+        showTopNotification('{{ _("删除过程中发生错误，请重试") }}', 'error');
+    });
+}
+
 // 页面加载完成后的初始化
 document.addEventListener('DOMContentLoaded', function() {
     console.log('产品详情页面功能已初始化');
-    
+
     // 检查是否有PDF文件，如果有则自动开始加载预览
     const pdfContainer = document.getElementById('pdfPreviewContainer');
     if (pdfContainer) {
         loadPdfPreview();
     }
-    
+
     // 初始化上传功能（仅有编辑权限时）
     {% if has_permission('product', 'edit') %}
     initImageUpload();
@@ -723,5 +1046,812 @@ document.addEventListener('DOMContentLoaded', function() {
     {% endif %}
 });
 </script>
+
+<!-- 添加关联产品弹窗 - 使用自定义对话框风格 -->
+{% call render_custom_dialog('addRelationModal', _('添加关联产品'), icon='fas fa-link', size='xl') %}
+    <!-- 产品树选择器 -->
+    <div class="row">
+        <div class="col-md-12">
+            {% from 'macros/product_tree_selector.html' import render_product_tree_selector %}
+            {{ render_product_tree_selector(
+                container_id='relationProductSelector',
+                api_url=url_for('product_management.get_product_tree'),
+                selected_product_ids=[],
+                show_badges=True,
+                show_icons=False,
+                exclude_product_ids=[product.id]
+            ) }}
+        </div>
+    </div>
+
+    <!-- 配置选项（初始隐藏，选择产品后显示） - 单行布局 -->
+    <div class="row mt-3" id="configurationSection" style="display: none;">
+        <div class="col-md-12">
+            <div class="row g-2">
+                <!-- 配置类型 -->
+                <div class="col-md-3">
+                    <label class="form-label fw-bold small">{{ _('配置类型') }}</label>
+                    <select class="form-select form-select-sm" id="relationType" name="relationType" onchange="handleRelationTypeChange()">
+                        <option value="required_accessory">{{ _('必选配件') }}</option>
+                        <option value="recommended">{{ _('推荐配件') }}</option>
+                        <!-- 互斥组选项将通过JavaScript动态添加 -->
+                    </select>
+                </div>
+
+                <!-- 配置数量 -->
+                <div class="col-md-2">
+                    <label class="form-label fw-bold small">{{ _('数量') }}</label>
+                    <input type="number" class="form-control form-control-sm" id="defaultQuantity" name="defaultQuantity" value="1" min="1" step="1">
+                </div>
+
+                <!-- 互斥组名称（初始隐藏） -->
+                <div class="col-md-4" id="mutualGroupNameContainer" style="display: none;">
+                    <label class="form-label fw-bold small">
+                        {{ _('互斥组名称') }}
+                        <span class="text-danger">*</span>
+                    </label>
+                    <input type="text" class="form-control form-control-sm" id="mutualGroupName" name="mutualGroupName"
+                           placeholder="{{ _('例如：电源线规格') }}">
+                </div>
+
+                <!-- 默认选项（初始隐藏） -->
+                <div class="col-md-3" id="mutualDefaultContainer" style="display: none;">
+                    <label class="form-label fw-bold small">{{ _('默认选项') }}</label>
+                    <select class="form-select form-select-sm" id="mutualDefaultProduct" name="mutualDefaultProduct">
+                        <option value="">{{ _('无默认') }}</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部按钮区域 -->
+    <div class="custom-dialog-actions">
+        {{ render_button(
+            text=_('保存'),
+            type='button',
+            color='primary',
+            onclick='saveRelationProducts()',
+            attrs='id="saveRelationBtn"'
+        ) }}
+        {{ render_button(
+            text=_('取消'),
+            type='button',
+            color='secondary',
+            onclick='closeCustomDialog("addRelationModal")'
+        ) }}
+    </div>
+{% endcall %}
+
+<script>
+/**
+ * 从API结果中提取所有已添加产品的ID
+ * @param {Object} result - API返回的结果对象 {data: [], groups: {}}
+ * @returns {Array} 产品ID数组
+ */
+function extractAllProductIds(result) {
+    const ids = [];
+
+    // 1. 提取普通关联产品ID
+    if (result.data && Array.isArray(result.data)) {
+        result.data.forEach(item => {
+            if (item.related_product_id) {
+                ids.push(item.related_product_id);
+            }
+        });
+    }
+
+    // 2. 提取互斥组内产品ID
+    if (result.groups && typeof result.groups === 'object') {
+        Object.values(result.groups).forEach(group => {
+            if (group.products && Array.isArray(group.products)) {
+                group.products.forEach(item => {
+                    if (item.related_product_id) {
+                        ids.push(item.related_product_id);
+                    }
+                });
+            }
+        });
+    }
+
+    // 去重
+    const uniqueIds = [...new Set(ids)];
+    console.log(`📋 已提取 ${uniqueIds.length} 个已添加产品ID:`, uniqueIds);
+
+    return uniqueIds;
+}
+
+// 打开添加关联产品弹窗
+function openAddRelationModal() {
+    // 重置表单到初始状态
+    document.getElementById('relationType').value = 'required_accessory';
+    document.getElementById('defaultQuantity').value = 1;
+    document.getElementById('mutualGroupName').value = '';
+    document.getElementById('mutualDefaultProduct').innerHTML = '<option value="">{{ _("无默认") }}</option>';
+
+    // 隐藏所有配置区域
+    document.getElementById('configurationSection').style.display = 'none';
+    document.getElementById('mutualGroupNameContainer').style.display = 'none';
+    document.getElementById('mutualDefaultContainer').style.display = 'none';
+
+    // 重置配置类型选项为基础选项
+    resetRelationTypeOptions();
+
+    // 获取已有的关联产品ID列表，更新产品树排除列表
+    fetch('{{ url_for("product_management.get_product_relations", product_id=product.id) }}')
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                // 提取所有已有产品的ID列表（包括普通关联和互斥组）
+                const existingProductIds = extractAllProductIds(result);
+
+                // 将当前产品和已添加产品加入排除列表
+                const excludeIds = [{{ product.id }}, ...existingProductIds];
+
+                // 更新产品树的排除列表（产品树会自动重新加载并过滤这些产品）
+                if (window.updateProductTreeExclusions && window.updateProductTreeExclusions['relationProductSelector']) {
+                    window.updateProductTreeExclusions['relationProductSelector'](excludeIds);
+                }
+            }
+        })
+        .catch(error => {
+            console.error('获取已添加产品列表失败:', error);
+        });
+
+    // 显示弹窗
+    showCustomDialog('addRelationModal');
+}
+
+// 重置配置类型选项为基础选项
+function resetRelationTypeOptions() {
+    const relationTypeSelect = document.getElementById('relationType');
+    relationTypeSelect.innerHTML = `
+        <option value="required_accessory">{{ _('必选配件') }}</option>
+        <option value="recommended">{{ _('推荐配件') }}</option>
+    `;
+}
+
+// 添加互斥组选项到配置类型下拉框
+function addMutualExclusionOptions() {
+    const relationTypeSelect = document.getElementById('relationType');
+    const currentValue = relationTypeSelect.value;
+
+    // 检查是否已经有互斥组选项
+    const hasMutualOptions = relationTypeSelect.querySelector('option[value="mutual_exclusion_required"]');
+    if (hasMutualOptions) return;
+
+    // 添加互斥组选项
+    relationTypeSelect.innerHTML += `
+        <option value="mutual_exclusion_required">{{ _('互斥组（必选）') }}</option>
+        <option value="mutual_exclusion_optional">{{ _('互斥组（可选）') }}</option>
+    `;
+
+    // 恢复之前的选择（如果有效）
+    relationTypeSelect.value = currentValue;
+}
+
+// 移除互斥组选项
+function removeMutualExclusionOptions() {
+    const relationTypeSelect = document.getElementById('relationType');
+    const currentValue = relationTypeSelect.value;
+
+    // 如果当前选择的是互斥组选项，先切换回必选配件
+    const isMutualExclusion = currentValue === 'mutual_exclusion_required' || currentValue === 'mutual_exclusion_optional';
+    if (isMutualExclusion) {
+        relationTypeSelect.value = 'required_accessory';
+        // 隐藏互斥组配置字段
+        document.getElementById('mutualGroupNameContainer').style.display = 'none';
+        document.getElementById('mutualDefaultContainer').style.display = 'none';
+    }
+
+    // 移除互斥组选项
+    const mutualOptions = relationTypeSelect.querySelectorAll('option[value^="mutual_exclusion"]');
+    mutualOptions.forEach(option => option.remove());
+}
+
+// 处理产品选择变化
+function handleProductSelectionChange() {
+    // 获取当前选中的产品数量
+    const hiddenInput = document.getElementById('relationProductSelector_selected_ids');
+    const selectedIds = hiddenInput.value ?
+        hiddenInput.value.split(',').map(id => parseInt(id)).filter(id => id) : [];
+    const selectedCount = selectedIds.length;
+
+    const configurationSection = document.getElementById('configurationSection');
+    const relationType = document.getElementById('relationType').value;
+
+    if (selectedCount === 0) {
+        // 0个产品：隐藏所有配置
+        configurationSection.style.display = 'none';
+        document.getElementById('mutualGroupNameContainer').style.display = 'none';
+        document.getElementById('mutualDefaultContainer').style.display = 'none';
+        resetRelationTypeOptions();
+    } else if (selectedCount === 1) {
+        // 1个产品：显示基础配置，移除互斥组选项
+        configurationSection.style.display = 'block';
+        removeMutualExclusionOptions();
+    } else {
+        // 2个及以上产品：显示基础配置，添加互斥组选项
+        configurationSection.style.display = 'block';
+        addMutualExclusionOptions();
+
+        // 如果当前是互斥组选项，更新默认产品列表
+        if (relationType === 'mutual_exclusion_required' || relationType === 'mutual_exclusion_optional') {
+            updateSelectedProductsForMutualGroup();
+        }
+    }
+}
+
+// 处理配置类型变化
+function handleRelationTypeChange() {
+    const relationType = document.getElementById('relationType').value;
+    const mutualGroupNameContainer = document.getElementById('mutualGroupNameContainer');
+    const mutualDefaultContainer = document.getElementById('mutualDefaultContainer');
+
+    // 验证产品数量
+    const hiddenInput = document.getElementById('relationProductSelector_selected_ids');
+    const selectedIds = hiddenInput.value ?
+        hiddenInput.value.split(',').map(id => parseInt(id)).filter(id => id) : [];
+    const selectedCount = selectedIds.length;
+
+    // 如果选择互斥组，验证产品数量并显示互斥组字段
+    if (relationType === 'mutual_exclusion_required' || relationType === 'mutual_exclusion_optional') {
+        if (selectedCount < 2) {
+            alert('{{ _("互斥组至少需要2个产品") }}');
+            document.getElementById('relationType').value = 'required_accessory';
+            mutualGroupNameContainer.style.display = 'none';
+            mutualDefaultContainer.style.display = 'none';
+            return;
+        }
+
+        // 显示互斥组配置字段
+        mutualGroupNameContainer.style.display = 'block';
+        mutualDefaultContainer.style.display = 'block';
+        updateSelectedProductsForMutualGroup();
+    } else {
+        // 隐藏互斥组配置字段
+        mutualGroupNameContainer.style.display = 'none';
+        mutualDefaultContainer.style.display = 'none';
+    }
+}
+
+// 更新互斥组的已选产品列表
+function updateSelectedProductsForMutualGroup() {
+    // 获取当前选中的产品
+    const hiddenInput = document.getElementById('relationProductSelector_selected_ids');
+    const selectedIds = hiddenInput.value ?
+        hiddenInput.value.split(',').map(id => parseInt(id)).filter(id => id) : [];
+
+    // 更新默认产品下拉框
+    const defaultProductSelect = document.getElementById('mutualDefaultProduct');
+    defaultProductSelect.innerHTML = '<option value="">{{ _("无默认") }}</option>';
+
+    // 遍历所有产品节点，查找选中的产品
+    const treeContainer = document.getElementById('relationProductSelector_tree');
+    if (!treeContainer) return;
+
+    const productNodes = treeContainer.querySelectorAll('.tree-node[data-type="product"]');
+    productNodes.forEach(node => {
+        const productId = parseInt(node.getAttribute('data-product-id'));
+        if (selectedIds.includes(productId)) {
+            // 从data属性中获取产品信息
+            const model = node.getAttribute('data-name') || '';
+            const mn = node.getAttribute('data-mn') || '';
+
+            // 组合显示文本：型号 - MN号
+            let displayText = '';
+            if (model && mn) {
+                displayText = `${model} - ${mn}`;
+            } else if (model) {
+                displayText = model;
+            } else if (mn) {
+                displayText = mn;
+            } else {
+                displayText = `产品 ${productId}`;
+            }
+
+            const option = document.createElement('option');
+            option.value = productId;
+            option.textContent = displayText;
+            defaultProductSelect.appendChild(option);
+        }
+    });
+}
+
+// 监听产品选择变化
+document.addEventListener('DOMContentLoaded', function() {
+    // 使用MutationObserver监听隐藏输入框的变化
+    const observer = new MutationObserver(function(mutations) {
+        // 产品选择发生变化时，触发处理函数
+        handleProductSelectionChange();
+    });
+
+    const hiddenInput = document.getElementById('relationProductSelector_selected_ids');
+    if (hiddenInput) {
+        observer.observe(hiddenInput, { attributes: true, attributeOldValue: true });
+    }
+});
+
+// 保存关联产品
+function saveRelationProducts() {
+    // 获取选中的产品ID
+    const hiddenInput = document.getElementById('relationProductSelector_selected_ids');
+    const selectedIds = hiddenInput.value ?
+        hiddenInput.value.split(',').map(id => parseInt(id)) : [];
+
+    if (selectedIds.length === 0) {
+        alert('{{ _("请至少选择一个产品") }}');
+        return;
+    }
+
+    // 获取选中的配置类型和数量
+    const relationType = document.getElementById('relationType').value;
+    const defaultQuantity = parseInt(document.getElementById('defaultQuantity').value) || 1;
+
+    // 判断是否为互斥组类型
+    const isMutualExclusion = relationType === 'mutual_exclusion_required' || relationType === 'mutual_exclusion_optional';
+
+    // 如果是互斥组，需要额外验证和准备数据
+    if (isMutualExclusion) {
+        // 验证互斥组特殊要求
+        if (selectedIds.length < 2) {
+            alert('{{ _("互斥组至少需要选择2个产品") }}');
+            return;
+        }
+
+        const groupName = document.getElementById('mutualGroupName').value.trim();
+        if (!groupName) {
+            alert('{{ _("请输入互斥组名称") }}');
+            return;
+        }
+
+        // 获取默认产品ID
+        const defaultProductId = parseInt(document.getElementById('mutualDefaultProduct').value) || null;
+
+        // 准备互斥组数据
+        const mutualGroupData = {
+            product_ids: selectedIds,
+            group_name: groupName,
+            is_required: relationType === 'mutual_exclusion_required',
+            default_product_id: defaultProductId,
+            default_quantity: defaultQuantity
+        };
+
+        // 调用互斥组专用API
+        saveMutualExclusionGroup(mutualGroupData);
+    } else {
+        // 准备普通关联数据
+        const data = {
+            product_ids: selectedIds,
+            relation_type: relationType,
+            default_quantity: defaultQuantity
+        };
+
+        // 调用普通关联API
+        saveNormalRelations(data);
+    }
+}
+
+// 保存互斥组
+function saveMutualExclusionGroup(data) {
+    // 显示加载状态
+    const saveBtn = document.getElementById('saveRelationBtn');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{{ _("保存中...") }}';
+
+    // 发送请求到互斥组API
+    fetch('{{ url_for("product_management.batch_add_mutual_exclusion_group", product_id=product.id) }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 关闭弹窗
+            closeCustomDialog('addRelationModal');
+            // 刷新关联产品列表
+            if (typeof window.refresh_productRelationsList === 'function') {
+                window.refresh_productRelationsList();
+            }
+        } else {
+            alert(data.message || '{{ _("保存失败") }}');
+        }
+    })
+    .catch(error => {
+        console.error('保存互斥组失败:', error);
+        alert('{{ _("保存失败，请重试") }}');
+    })
+    .finally(() => {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+    });
+}
+
+// 保存普通关联关系
+function saveNormalRelations(data) {
+    // 显示加载状态
+    const saveBtn = document.getElementById('saveRelationBtn');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{{ _("保存中...") }}';
+
+    // 发送请求到普通关联API
+    fetch('{{ url_for("product_management.batch_add_product_relations", product_id=product.id) }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 关闭弹窗
+            closeCustomDialog('addRelationModal');
+            // 刷新关联产品列表
+            if (typeof window.refresh_productRelationsList === 'function') {
+                window.refresh_productRelationsList();
+            }
+        } else {
+            alert(data.message || '{{ _("保存失败") }}');
+        }
+    })
+    .catch(error => {
+        console.error('保存关联产品失败:', error);
+        alert('{{ _("保存失败，请重试") }}');
+    })
+    .finally(() => {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+    });
+}
+
+// ============================================================================
+// 自定义产品关联列表渲染（支持互斥组）
+// ============================================================================
+
+/**
+ * 覆盖产品关联列表的默认渲染器
+ * 支持互斥组的分组显示和单选框
+ *
+ * 注意：必须在DOMContentLoaded之前定义，确保render_detail_list加载时能找到此函数
+ */
+window.render_productRelationsList_rows = function(data) {
+    console.log('🔍 自定义渲染函数被调用');
+    console.log('🔍 接收到的数据:', data);
+
+    // 获取主容器（card-body）
+    const mainContainer = document.getElementById('productRelationsList_container');
+    if (!mainContainer) {
+        console.error('❌ 找不到主容器: productRelationsList_container');
+        return;
+    }
+
+    console.log('✅ 找到主容器，开始渲染');
+
+    // 检查是否有数据
+    const hasNormalData = data.data && data.data.length > 0;
+    const hasGroups = data.groups && Object.keys(data.groups).length > 0;
+
+    if (!hasNormalData && !hasGroups) {
+        // 显示空状态
+        mainContainer.innerHTML = `
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-inbox fa-3x mb-3"></i>
+                <p class="mb-0">{{ _("暂无关联产品配置") }}</p>
+            </div>
+        `;
+        return;
+    }
+
+    // 创建表格结构
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-hover table-sm data-list-table">
+                <thead class="table-light">
+                    <tr>
+                        <th width="25%">{{ _('产品名称') }}</th>
+                        <th width="20%">{{ _('型号') }}</th>
+                        <th width="20%">{{ _('MN编号') }}</th>
+                        <th width="15%" class="text-center">{{ _('配置类型') }}</th>
+                        <th width="10%" class="text-center">{{ _('配置数量') }}</th>
+                        {% if current_user.role in ['admin', 'product_manager'] %}
+                        <th width="10%" class="text-center">{{ _('操作') }}</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody id="productRelationsList-tbody">
+                </tbody>
+            </table>
+        </div>
+    `;
+
+    mainContainer.innerHTML = html;
+
+    // 现在获取 tbody 并填充数据
+    const tbody = document.getElementById('productRelationsList-tbody');
+
+    // 1. 渲染普通关联产品
+    if (hasNormalData) {
+        data.data.forEach(item => {
+            tbody.appendChild(createNormalRelationRow(item));
+        });
+    }
+
+    // 2. 渲染互斥组
+    if (hasGroups) {
+        Object.values(data.groups).forEach(group => {
+            // 渲染组标题行
+            tbody.appendChild(createMutualGroupHeaderRow(group));
+
+            // 渲染组内产品
+            group.products.forEach(item => {
+                tbody.appendChild(createMutualGroupProductRow(item, group));
+            });
+        });
+    }
+
+    console.log('✅ 渲染完成');
+};
+
+/**
+ * 创建普通关联产品行
+ */
+function createNormalRelationRow(item) {
+        const tr = document.createElement('tr');
+
+        tr.innerHTML = `
+            <td style="width: 25%">${item.product_name || '-'}</td>
+            <td style="width: 20%">${item.product_model || '-'}</td>
+            <td style="width: 20%">${item.product_mn || '-'}</td>
+            <td style="width: 15%; text-align: center;">
+                <span class="${item.relation_type_label_class}">${item.relation_type_label}</span>
+            </td>
+            <td style="width: 10%; text-align: center;">${item.default_quantity}</td>
+            <td style="width: 10%; text-align: center;">
+                {% if current_user.role in ['admin', 'product_manager'] %}
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteRelation(${item.id})" title="{{ _('删除') }}">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+                {% endif %}
+            </td>
+        `;
+
+        return tr;
+}
+
+/**
+ * 创建互斥组标题行
+ */
+function createMutualGroupHeaderRow(group) {
+        const tr = document.createElement('tr');
+        tr.className = 'mutual-group-header';
+        tr.dataset.groupId = group.group_id;
+
+        // 配置类型徽章 - 使用后端返回的统一徽章样式
+        const typeBadge = `<span class="${group.badge_class}">${group.badge_label}</span>`;
+
+        tr.innerHTML = `
+            <td colspan="3" class="mutual-group-header-cell">
+                <i class="fas fa-chevron-right mutual-group-toggle me-2"
+                   style="cursor: pointer; transition: transform 0.2s;"
+                   onclick="toggleMutualGroup('${group.group_id}')"></i>
+                <i class="fas fa-layer-group me-2"></i>
+                <strong>${group.group_name}</strong>
+            </td>
+            <td style="width: 15%; text-align: center;">
+                ${typeBadge}
+            </td>
+            <td style="width: 10%; text-align: center;">
+                <span class="text-muted">-</span>
+            </td>
+            <td style="width: 10%; text-align: center;">
+                {% if current_user.role in ['admin', 'product_manager'] %}
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteMutualGroup('${group.group_id}')" title="{{ _('删除互斥组') }}">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+                {% endif %}
+            </td>
+        `;
+
+        return tr;
+}
+
+/**
+ * 创建互斥组内产品行
+ */
+function createMutualGroupProductRow(item, group) {
+        const tr = document.createElement('tr');
+        tr.className = 'mutual-group-product-row';
+        tr.dataset.groupId = group.group_id;
+        tr.style.display = 'none'; // 默认折叠（隐藏）
+
+        // 如果是单选模式，显示单选框标记
+        const selectionIndicator = group.selection_mode === 'single' ?
+            `<span class="mutual-selection-indicator">${item.is_default ? '●' : '○'}</span>` : '';
+
+        tr.innerHTML = `
+            <td style="width: 25%; padding-left: 2.5rem;">
+                ${selectionIndicator}
+                ${item.product_name || '-'}
+            </td>
+            <td style="width: 20%">${item.product_model || '-'}</td>
+            <td style="width: 20%">${item.product_mn || '-'}</td>
+            <td style="width: 15%; text-align: center;">
+                <span class="text-muted">-</span>
+            </td>
+            <td style="width: 10%; text-align: center;">${item.default_quantity}</td>
+            <td style="width: 10%; text-align: center;">
+                <span class="text-muted">-</span>
+            </td>
+        `;
+
+        return tr;
+}
+
+/**
+ * 删除关联产品
+ */
+window.deleteRelation = function(relationId) {
+        showConfirmDialog({
+            title: '{{ _("确认删除") }}',
+            message: '{{ _("确认删除此关联产品？") }}',
+            type: 'danger',
+            confirmText: '{{ _("删除") }}',
+            cancelText: '{{ _("取消") }}',
+            dialogId: 'deleteRelationDialog',
+            onConfirm: () => {
+                fetch(`{{ url_for('product_management.delete_product_relation', product_id=product.id, relation_id=0) }}`.replace('/0', `/${relationId}`), {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 刷新列表
+                        if (typeof window.refresh_productRelationsList === 'function') {
+                            window.refresh_productRelationsList();
+                        }
+                    } else {
+                        alert(data.message || '{{ _("删除失败") }}');
+                    }
+                })
+                .catch(error => {
+                    console.error('删除关联产品失败:', error);
+                    alert('{{ _("删除失败，请重试") }}');
+                });
+            }
+        });
+};
+
+/**
+ * 删除互斥组（删除组内所有产品关联）
+ */
+window.deleteMutualGroup = function(groupId) {
+        showConfirmDialog({
+            title: '{{ _("确认删除") }}',
+            message: '{{ _("确认删除整个互斥组及其所有产品？此操作不可撤销。") }}',
+            type: 'danger',
+            confirmText: '{{ _("删除") }}',
+            cancelText: '{{ _("取消") }}',
+            dialogId: 'deleteMutualGroupDialog',
+            onConfirm: () => {
+                fetch(`{{ url_for('product_management.delete_mutual_exclusion_group', product_id=product.id) }}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ group_id: groupId })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 刷新列表
+                        if (typeof window.refresh_productRelationsList === 'function') {
+                            window.refresh_productRelationsList();
+                        }
+                    } else {
+                        alert(data.message || '{{ _("删除失败") }}');
+                    }
+                })
+                .catch(error => {
+                    console.error('删除互斥组失败:', error);
+                    alert('{{ _("删除失败，请重试") }}');
+                });
+            }
+        });
+};
+
+/**
+ * 切换互斥组展开/折叠状态
+ */
+window.toggleMutualGroup = function(groupId) {
+        // 查找该组的所有产品行
+        const productRows = document.querySelectorAll(`tr.mutual-group-product-row[data-group-id="${groupId}"]`);
+
+        // 查找标题行中的切换图标
+        const headerRow = document.querySelector(`tr.mutual-group-header[data-group-id="${groupId}"]`);
+        const toggleIcon = headerRow ? headerRow.querySelector('.mutual-group-toggle') : null;
+
+        if (productRows.length === 0) return;
+
+        // 判断当前状态（检查第一行是否可见）
+        const isExpanded = productRows[0].style.display !== 'none';
+
+        // 切换所有产品行的显示状态
+        productRows.forEach(row => {
+            row.style.display = isExpanded ? 'none' : '';
+        });
+
+        // 旋转切换图标
+        if (toggleIcon) {
+            if (isExpanded) {
+                // 折叠：箭头向右
+                toggleIcon.classList.remove('fa-chevron-down');
+                toggleIcon.classList.add('fa-chevron-right');
+            } else {
+                // 展开：箭头向下
+                toggleIcon.classList.remove('fa-chevron-right');
+                toggleIcon.classList.add('fa-chevron-down');
+            }
+        }
+};
+
+// 注意：deleteRelation 函数必须是全局的，因为HTML onclick会调用它
+</script>
+
+<!-- 互斥组样式 -->
+<style>
+/* 互斥组标题行样式 */
+tr.mutual-group-header {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-top: 2px solid #dee2e6;
+    border-bottom: 1px solid #dee2e6;
+}
+
+tr.mutual-group-header td.mutual-group-header-cell {
+    padding: 0.75rem 1rem;
+    font-size: 0.95rem;
+    color: #495057;
+}
+
+/* 互斥组产品行样式 */
+tr.mutual-group-product-row {
+    background-color: #fafbfc;
+}
+
+tr.mutual-group-product-row:hover {
+    background-color: #f1f3f5;
+}
+
+/* 选择指示器样式 */
+.mutual-selection-indicator {
+    display: inline-block;
+    width: 1.2rem;
+    height: 1.2rem;
+    line-height: 1.2rem;
+    text-align: center;
+    margin-right: 0.5rem;
+    font-size: 1rem;
+    color: #28a745;
+}
+</style>
+
+<script>
+</script>
+
+<!-- 标准确认对话框 -->
+{{ render_confirm_dialog('deleteRelationDialog') }}
+{{ render_confirm_dialog('deleteMutualGroupDialog') }}
 
 {% endblock %}

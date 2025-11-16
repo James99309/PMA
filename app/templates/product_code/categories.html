@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button %}
+{% from 'macros/ui_helpers.html' import render_button, render_custom_dialog, render_confirm_dialog %}
 
 {% block title %}产品分类管理{% endblock %}
 
@@ -35,18 +35,12 @@
             <div class="col text-end">
                 <!-- 操作按钮组 -->
                 <div class="btn-toolbar justify-content-end" role="toolbar">
-                    {{ render_button('添加分类', href=url_for('product_code.new_category'), color='primary', icon='fas fa-plus') }}
+                    {{ render_button('规格管理', onclick="showCustomDialog('specDictModal')", color='info', icon='fas fa-list-ul', type='button') }}
+                    {{ render_button('添加分类', onclick='categoryManager.openModal("add")', color='primary', icon='fas fa-plus') }}
                 </div>
             </div>
         </div>
     </div>
-
-    <div class="alert alert-info mb-3" style="font-size: 0.875rem;">
-        <p class="mb-1" style="font-size: 0.8rem;"><i class="fas fa-info-circle me-1"></i> 产品分类是产品编码的第一个组成部分。每个分类有一个唯一的字母标识符。</p>
-        <p class="mb-1" style="font-size: 0.8rem;">已使用标识符: {{ used_letters|join(', ') }}</p>
-        <p class="mb-0" style="font-size: 0.8rem;">可用标识符: {{ available_letters|join(', ') }}</p>
-    </div>
-
 
     <div class="card mb-4">
         <div class="card-header">
@@ -67,9 +61,20 @@
                 </thead>
                 <tbody id="categories-list">
                     {% for category in categories %}
-                    <tr>
-                        <td>{{ loop.index }}</td>
-                        <td>{{ category.name }}</td>
+                    <tr data-id="{{ category.id }}">
+                        <td>
+                            <i class="fas fa-grip-vertical drag-handle text-muted me-2" title="拖拽排序"></i>
+                            {{ loop.index }}
+                        </td>
+                        <td>
+                            {% if not category.is_used %}
+                            <a href="javascript:void(0)" onclick="categoryManager.openModal('edit', {{ category.id }})" class="text-primary" style="cursor: pointer;">
+                                {{ category.name }}
+                            </a>
+                            {% else %}
+                            {{ category.name }}
+                            {% endif %}
+                        </td>
                         <td>{{ category.code_letter }}</td>
                         <td>{{ category.description if category.description }}</td>
                         <td>{{ category.created_at.strftime('%Y-%m-%d %H:%M') if category.created_at }}</td>
@@ -78,17 +83,11 @@
                                 <i class="fas fa-list"></i>
                             </a>
                             {% if not category.is_used %}
-                            <a href="{{ url_for('product_code.edit_category', id=category.id) }}" class="btn btn-sm btn-warning" title="编辑">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            <button type="button" class="btn btn-sm btn-danger delete-category" data-id="{{ category.id }}" data-name="{{ category.name }}" title="删除">
+                            <button onclick="categoryManager.confirmDelete({{ category.id }}, '{{ category.name }}')" class="btn btn-sm btn-danger" title="删除">
                                 <i class="fas fa-trash"></i>
                             </button>
                             {% else %}
-                            <button type="button" class="btn btn-sm btn-secondary" disabled title="该分类已被研发产品使用，无法编辑">
-                                <i class="fas fa-lock"></i>
-                            </button>
-                            <button type="button" class="btn btn-sm btn-secondary" disabled title="该分类已被研发产品使用，无法删除">
+                            <button type="button" class="btn btn-sm btn-secondary" disabled title="该分类已被子分类使用，无法删除">
                                 <i class="fas fa-lock"></i>
                             </button>
                             {% endif %}
@@ -99,51 +98,211 @@
             </table>
         </div>
     </div>
+
+    <!-- 产品分类模态框 -->
+    {% call render_custom_dialog('categoryModal', '添加分类', icon='fas fa-plus', size='md') %}
+        <form id="categoryForm">
+            <input type="hidden" id="categoryId">
+
+            <!-- 分类名称 -->
+            <div class="mb-3">
+                <label for="categoryName" class="form-label">
+                    分类名称 <span class="text-danger">*</span>
+                </label>
+                <input type="text" class="form-control" id="categoryName" required>
+                <div class="invalid-feedback">
+                    请输入分类名称
+                </div>
+            </div>
+
+            <!-- 标识符 -->
+            <div class="mb-3">
+                <label for="categoryCode" class="form-label">
+                    标识符 <span class="text-danger">*</span>
+                </label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="categoryCode"
+                           placeholder="A-Z" maxlength="1" required
+                           style="text-transform: uppercase;">
+                    <button type="button" class="btn btn-outline-primary"
+                            onclick="categoryManager.generateCodeLetter()" title="生成唯一标识符">
+                        <i class="fas fa-magic"></i> 生成
+                    </button>
+                </div>
+                <div class="invalid-feedback">
+                    请输入或生成标识符（单个字符，A-Z）
+                </div>
+                <div class="form-text">
+                    <i class="fas fa-info-circle me-1"></i>
+                    标识符是产品编码的第1位，必须是唯一的大写字母（A-Z）
+                </div>
+            </div>
+
+            <!-- 描述 -->
+            <div class="mb-3">
+                <label for="categoryDescription" class="form-label">
+                    描述 <span class="text-muted">(可选)</span>
+                </label>
+                <textarea class="form-control" id="categoryDescription" rows="3"></textarea>
+            </div>
+
+            <!-- 按钮组 -->
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                {{ render_button('取消', onclick='closeCustomDialog("categoryModal")', color='secondary', icon='fas fa-times') }}
+                {{ render_button('保存', onclick='categoryManager.saveCategory()', color='primary', icon='fas fa-save') }}
+            </div>
+        </form>
+    {% endcall %}
+
+    <!-- 删除确认对话框 -->
+    {{ render_confirm_dialog('deleteCategoryDialog') }}
+
 </div>
 
-<!-- 删除确认模态框 -->
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deleteModalLabel">确认删除</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+<!-- 规格字典管理模态框 -->
+{% call render_custom_dialog('specDictModal', '规格字典管理', icon='fas fa-list-ul', size='lg') %}
+    <!-- 说明提示 -->
+    <div class="alert alert-info mb-3">
+        <i class="fas fa-info-circle"></i>
+        规格字典用于标准化产品规格输入，避免重复录入和拼写不一致。添加的规格将在研发产品管理中提供输入建议。
+    </div>
+
+    <!-- 添加规格表单（默认隐藏） -->
+    <div id="specFormCard" class="spec-form-card" style="display: none;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0"><i class="fas fa-plus me-2"></i><span id="formTitle">添加规格</span></h6>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="specDictManager.hideForm()">
+                <i class="fas fa-times me-1"></i>收起
+            </button>
+        </div>
+        <form id="specForm">
+            <input type="hidden" id="specId" name="spec_id">
+
+            <!-- 规格名称 -->
+            <div class="mb-3">
+                <label for="specName" class="form-label">
+                    规格名称 <span class="text-danger">*</span>
+                </label>
+                <input type="text" class="form-control" id="specName" name="name"
+                       required maxlength="100" placeholder="例如：频率范围、输出功率、工作温度">
+                <div class="form-text">用于在添加产品规格时提供输入建议</div>
+                <div class="invalid-feedback">规格名称不能为空且不能重复</div>
             </div>
-            <div class="modal-body">
-                确定要删除分类 <span id="categoryName" class="fw-bold"></span> 吗？此操作不可撤销。
+
+            <!-- 单位 -->
+            <div class="mb-3">
+                <label for="specUnit" class="form-label">
+                    单位 <span class="text-muted">(可选)</span>
+                </label>
+                <input type="text" class="form-control" id="specUnit" name="unit"
+                       maxlength="20" placeholder="例如：MHz、dBm、℃、V、kg">
+                <div class="form-text">留空表示该规格无单位（如"接口类型"）</div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <form id="deleteForm" method="POST" action="" class="d-inline">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-danger">确认删除</button>
-                </form>
+
+            <!-- 是否启用 -->
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="specActive" name="is_active" checked>
+                <label class="form-check-label" for="specActive">创建后立即启用</label>
             </div>
+
+            <!-- 表单按钮 -->
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                {{ render_button('保存', type='button', onclick='specDictManager.saveSpec()', color='primary', icon='fas fa-save') }}
+                {{ render_button('取消', type='button', onclick='specDictManager.hideForm()', color='secondary') }}
+            </div>
+        </form>
+    </div>
+
+    <!-- 搜索框区域 -->
+    <div class="mb-3">
+        <div class="input-group input-group-sm">
+            <span class="input-group-text">
+                <i class="fas fa-search"></i>
+            </span>
+            <input type="text"
+                   class="form-control"
+                   id="specDictSearch"
+                   placeholder="搜索规格名称或单位...">
+            <button class="btn btn-outline-secondary"
+                    type="button"
+                    id="specDictSearchClear"
+                    style="display: none;"
+                    title="清除搜索">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
     </div>
-</div>
+
+    <!-- 添加按钮 -->
+    <div class="text-end mb-3">
+        {{ render_button('添加规格', type='button', onclick='specDictManager.showAddForm()', color='success', size='sm', icon='fas fa-plus') }}
+    </div>
+
+    <!-- 表格容器 -->
+    <div style="max-height: 50vh; overflow-y: auto;">
+        <table class="table table-bordered table-striped table-hover">
+            <thead class="sticky-top bg-white">
+                <tr>
+                    <th style="width: 60px;">序号</th>
+                    <th>规格名称</th>
+                    <th style="width: 100px;">单位</th>
+                    <th style="width: 80px;">状态</th>
+                    <th style="width: 140px;">创建时间</th>
+                    <th style="width: 160px;" class="text-center">操作</th>
+                </tr>
+            </thead>
+            <tbody id="specDictList">
+                <tr>
+                    <td colspan="6" class="text-center">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <span class="ms-2 text-muted">加载规格列表...</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 统计信息 -->
+    <div class="mt-2 text-muted small">
+        共 <span id="specCount">0</span> 条记录
+    </div>
+
+    <!-- 底部操作按钮 -->
+    <div class="custom-dialog-actions">
+        {{ render_button('关闭', type='button', onclick='closeCustomDialog("specDictModal")', color='secondary') }}
+    </div>
+{% endcall %}
+
+<!-- 删除规格确认对话框 -->
+{{ render_confirm_dialog('deleteSpecDialog') }}
+
 {% endblock %}
 
 {% block scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('产品分类管理页面已加载');
-    
-    // 初始化删除模态框
-    const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
-    const deleteButtons = document.querySelectorAll('.delete-category');
-    const deleteForm = document.getElementById('deleteForm');
-    const categoryNameToDelete = document.getElementById('categoryName');
+<!-- SortableJS库 -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
 
-    deleteButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const id = this.getAttribute('data-id');
-            const name = this.getAttribute('data-name');
-            deleteForm.action = `/product-code/categories/${id}/delete`;
-            categoryNameToDelete.textContent = name;
-            deleteModal.show();
-        });
+<!-- 通用拖拽排序工具 -->
+<script src="{{ url_for('static', filename='js/sortable-list.js') }}"></script>
+
+<!-- 产品代码分类管理器 -->
+<script src="{{ url_for('static', filename='js/product-code-category-manager.js') }}"></script>
+
+<!-- 规格字典管理器 -->
+<script src="{{ url_for('static', filename='js/spec-dict-manager.js') }}"></script>
+
+<script>
+// 初始化拖拽排序
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化产品分类拖拽排序
+    initSortableList('categories-list', '/product-code/category/update_order', {
+        handle: '.drag-handle'
     });
+
+    // 初始化规格字典管理器
+    specDictManager = new SpecDictManager();
 });
 </script>
 {% endblock %}

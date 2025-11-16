@@ -234,64 +234,8 @@
                 <!-- 操作按钮已移至页面标题区域 -->
             </div>
         </div>
-
-        <!-- 项目共享设置卡片 -->
-        {% if SharingService.can_edit_sharing_settings(current_user, project, 'project') %}
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="card-title mb-0">{{ _('项目共享设置') }}</h5>
-            </div>
-            <div class="card-body">
-                <div class="row mb-3">
-                    <div class="col-md-12">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="share_enabled" name="share_enabled" 
-                                   {% if project and project.share_enabled %}checked{% endif %}>
-                            <label class="form-check-label" for="share_enabled">
-                                {{ _('启用项目共享') }}
-                            </label>
-                            <div class="form-text">{{ _('启用后，可以将此项目共享给指定用户查看') }}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="row" id="shared_users_section" style="display: {% if project and project.share_enabled %}block{% else %}none{% endif %};">
-                    <div class="col-md-12">
-                        <label for="shared_with_users" class="form-label">{{ _('共享给用户') }}</label>
-                        <select class="form-select" id="shared_with_users" name="shared_with_users" multiple size="6">
-                            {% for user in get_shareable_users(current_user, 'project') %}
-                            <option value="{{ user.id }}" 
-                                    {% if project and user.id in project.shared_user_ids %}selected{% endif %}>
-                                {{ user.real_name or user.username }} ({{ user.department or '未设置部门' }})
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">{{ _('按住 Ctrl 键可选择多个用户') }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
     </form>
 </div>
-
-<!-- 添加日期格式化脚本 -->
-<script>
-    // 项目共享设置控制
-    document.getElementById('share_enabled').addEventListener('change', function() {
-        const sharedUsersSection = document.getElementById('shared_users_section');
-        if (this.checked) {
-            sharedUsersSection.style.display = 'block';
-        } else {
-            sharedUsersSection.style.display = 'none';
-            // 清空用户选择
-            const select = document.getElementById('shared_with_users');
-            for (let option of select.options) {
-                option.selected = false;
-            }
-        }
-    });
-</script>
 
 <!-- 厂商销售负责人选择器工具 -->
 <script src="{{ url_for('static', filename='js/vendor-sales-manager-selector.js') }}"></script>

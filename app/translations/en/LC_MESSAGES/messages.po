@@ -256,7 +256,6 @@ msgstr "Status"
 #: app/routes/product_management.py:390 app/routes/product_management.py:506
 #: app/templates/product_management/product_detail.html:277
 #: app/templates/product_management/product_detail_backup.html:454
-#, fuzzy
 msgid "创建者"
 msgstr "Created"
 
@@ -268,8 +267,8 @@ msgstr "All Creators"
 #: app/templates/base.html:372 app/templates/base.html:392
 #: app/templates/product_management/index.html:5
 #: app/templates/product_management/index.html:34
-msgid "研发产品库"
-msgstr "R&D Product"
+msgid "研发库"
+msgstr "R&D Library"
 
 #: app/routes/product_management.py:415 app/routes/product_management.py:540
 #: app/templates/product_analysis/analysis.html:220
@@ -4903,7 +4902,6 @@ msgid "总计金额"
 msgstr "Total Amount"
 
 #: app/templates/macros/expense_detail_manager.html:530
-#, fuzzy
 msgid "金额"
 msgstr "Total Amount"
 
@@ -5265,7 +5263,7 @@ msgstr "Sharing Settings"
 
 #: app/templates/macros/ui_helpers.html:6467
 msgid "启用共享"
-msgstr ""
+msgstr "Enable Sharing"
 
 #: app/templates/macros/ui_helpers.html:6475
 msgid "共享给以下用户"
@@ -6459,7 +6457,7 @@ msgstr "Not Applied"
 
 #: app/templates/project/detail.html:228
 msgid "原因"
-msgstr ""
+msgstr "Reason"
 
 #: app/templates/project/detail.html:233
 msgid "最后活动"
@@ -6470,13 +6468,8 @@ msgid "暂无关联客户，点击上方\"添加客户\"按钮添加"
 msgstr ""
 
 #: app/templates/project/detail.html:273
-#, fuzzy
 msgid "添加报价单"
 msgstr "Add Quotation"
-
-#: app/templates/project/detail.html:282
-msgid "暂无报价单，点击上方\"添加报价单\"按钮添加"
-msgstr ""
 
 #: app/templates/project/detail.html:300
 msgid "项目说明卡片"
@@ -7427,7 +7420,6 @@ msgstr "Company"
 #: app/templates/user/detail.html:227 app/templates/user/detail.html:325
 #: app/templates/user/detail.html:338 app/templates/user/profile.html:107
 #: app/templates/user/profile.html:259 app/templates/user/profile.html:272
-#, fuzzy
 msgid "角色"
 msgstr "Role"
 
@@ -8231,9 +8223,17 @@ msgid "项目名称或客户名称"
 msgstr "Project name or customer name"
 
 #: app/views/project.py:401
-#, fuzzy
 msgid "全部厂商销售"
+msgstr "All Vendor Sales"
+
+msgid "厂商销售"
 msgstr "Vendor Sales"
+
+msgid "活跃度"
+msgstr "Active Status"
+
+msgid "报价金额"
+msgstr "Quotation Amount"
 
 #: app/views/project.py:437
 msgid "全部来源"
@@ -9219,3 +9219,329 @@ msgstr "Update failed"
 #~ msgid "活跃度"
 #~ msgstr "Activity Status"
 
+
+# Pricing Order List Page Translations - Added 2025-10-31
+msgid "批价单列表"
+msgstr "Pricing Order List"
+
+msgid "批价单号"
+msgstr "Pricing Order Number"
+
+msgid "报价单号"
+msgstr "Quotation Number"
+
+msgid "批价总额"
+msgstr "Pricing Total Amount"
+
+msgid "结算总额"
+msgstr "Settlement Total Amount"
+
+msgid "步骤"
+msgstr "Step"
+
+msgid "批价单PDF"
+msgstr "Pricing Order PDF"
+
+msgid "结算单PDF"
+msgstr "Settlement Order PDF"
+
+msgid "暂无批价单"
+msgstr "No Pricing Orders"
+
+msgid "您还没有创建任何批价单"
+msgstr "You haven't created any pricing orders yet"
+
+msgid "前往项目列表创建批价单"
+msgstr "Go to Project List to Create Pricing Order"
+
+msgid "确定要提交批价单审批吗？提交后将无法修改。"
+msgstr "Are you sure you want to submit the pricing order for approval? It cannot be modified after submission."
+
+msgid "批价单已提交审批！"
+msgstr "Pricing order has been submitted for approval!"
+
+msgid "产品情况"
+msgstr "Product Situation"
+
+msgid "交付预测"
+msgstr "Delivery Forecast"
+
+msgid "批价审批流程进行中"
+msgstr "Pricing order approval in progress"
+
+msgid "项目已签约，自动锁定"
+msgstr "Project signed, auto-locked"
+
+msgid "添加者"
+msgstr "Added By"
+
+msgid "暂无报价单，点击上方按钮添加"
+msgstr "No quotations yet, click the button above to add"
+
+msgid "加载报价单列表失败"
+msgstr "Failed to load quotations list"
+
+msgid "加载报价单列表失败，请重试"
+msgstr "Failed to load quotations list, please retry"
+
+msgid "当前已选择"
+msgstr "Currently Selected"
+
+msgid "未选择任何用户"
+msgstr "No users selected"
+msgid "共享给以下用户："
+msgstr "Share with following users:"
+
+msgid "当前已选择："
+msgstr "Currently Selected:"
+
+#: Configuration types in quotation detail
+msgid "必需附件"
+msgstr "Required Accessory"
+
+msgid "可选附件"
+msgstr "Optional Accessory"
+
+msgid "推荐"
+msgstr "Recommended"
+
+msgid "互斥必需"
+msgstr "Mutually Exclusive Required"
+
+msgid "互斥可选"
+msgstr "Mutually Exclusive Optional"
+
+msgid "配置产品"
+msgstr "Configuration Product"
+
+#: Specification Dictionary Management
+msgid "规格管理"
+msgstr "Specification Dictionary"
+
+msgid "规格字典管理"
+msgstr "Specification Dictionary Management"
+
+msgid "添加规格"
+msgstr "Add Specification"
+
+msgid "编辑规格"
+msgstr "Edit Specification"
+
+msgid "规格名称"
+msgstr "Specification Name"
+
+msgid "单位"
+msgstr "Unit"
+
+msgid "启用"
+msgstr "Active"
+
+msgid "停用"
+msgstr "Inactive"
+
+msgid "确认删除规格"
+msgstr "Confirm Delete Specification"
+
+msgid "规格字典用于标准化产品规格输入，避免重复录入和拼写不一致。添加的规格将在研发产品管理中提供输入建议。"
+msgstr "Specification dictionary standardizes product spec input, avoids duplication and inconsistency. Added specs will provide autocomplete suggestions in R&D product management."
+
+msgid "创建后立即启用"
+msgstr "Activate immediately after creation"
+
+msgid "例如：频率范围、输出功率、工作温度"
+msgstr "e.g., Frequency Range, Output Power, Operating Temperature"
+
+msgid "例如：MHz、dBm、℃、V、kg"
+msgstr "e.g., MHz, dBm, ℃, V, kg"
+
+msgid "用于在添加产品规格时提供输入建议"
+msgstr "Provide autocomplete suggestions when adding product specifications"
+
+msgid "留空表示该规格无单位（如"接口类型"）"
+msgstr "Leave blank if specification has no unit (e.g., \"Interface Type\")"
+
+msgid "暂无规格数据"
+msgstr "No specification data"
+
+msgid "加载规格列表..."
+msgstr "Loading specification list..."
+
+msgid "收起"
+msgstr "Collapse"
+
+# 产品代码字段管理（模态框模式）
+msgid "请选择规格"
+msgstr "Please select specification"
+
+msgid "从规格字典中选择，确保规格命名统一"
+msgstr "Select from specification dictionary to ensure consistent naming"
+
+msgid "勾选后，产品必须提供此规格的值"
+msgstr "When checked, product must provide value for this specification"
+
+msgid "勾选后，此规格将占据产品编码中的一个位置（自动勾选必填项）"
+msgstr "When checked, this specification will occupy a position in product code (automatically checks required)"
+
+msgid "规格创建成功"
+msgstr "Specification created successfully"
+
+msgid "规格更新成功"
+msgstr "Specification updated successfully"
+
+msgid "规格删除成功"
+msgstr "Specification deleted successfully"
+
+msgid "子分类ID和规格名称不能为空"
+msgstr "Subcategory ID and specification name cannot be empty"
+
+msgid "规格编码位置已满（最多10个位置），请取消其他规格的编码选择后再添加"
+msgstr "Specification code positions are full (maximum 10 positions), please uncheck other specifications before adding"
+
+msgid "编码位置已满（最多10个编码字段，位置4-13）"
+msgstr "Code positions are full (maximum 10 code fields, positions 4-13)"
+
+msgid "此规格已被产品使用，无法修改"
+msgstr "This specification is already in use by products and cannot be modified"
+
+msgid "无法删除此规格，因为已有产品编码使用"
+msgstr "Cannot delete this specification as it is used by product codes"
+
+msgid "此规格已被产品使用，无法删除"
+msgstr "This specification is already in use by products and cannot be deleted"
+
+msgid "只能查询规格类型字段"
+msgstr "Can only query specification type fields"
+
+msgid "只能编辑规格类型字段"
+msgstr "Can only edit specification type fields"
+
+msgid "只能删除规格类型字段"
+msgstr "Can only delete specification type fields"
+
+msgid "已存在于当前产品分类中"
+msgstr "already exists in current product category"
+
+# 指标管理翻译
+msgid "添加指标"
+msgstr "Add Indicator"
+
+msgid "编辑指标"
+msgstr "Edit Indicator"
+
+msgid "指标管理"
+msgstr "Indicator Management"
+
+msgid "指标名称"
+msgstr "Indicator Name"
+
+msgid "指标描述"
+msgstr "Indicator Description"
+
+msgid "请输入指标名称"
+msgstr "Please enter indicator name"
+
+msgid "单位会自动添加"
+msgstr "Unit will be added automatically"
+
+msgid "指标创建成功"
+msgstr "Indicator created successfully"
+
+msgid "指标更新成功"
+msgstr "Indicator updated successfully"
+
+msgid "指标删除成功"
+msgstr "Indicator deleted successfully"
+
+msgid "确认删除指标"
+msgstr "Confirm Delete Indicator"
+
+msgid "确定要删除指标"
+msgstr "Are you sure you want to delete indicator"
+
+msgid "指标不存在"
+msgstr "Indicator does not exist"
+
+msgid "指标编码生成失败"
+msgstr "Failed to generate indicator code"
+
+msgid "指标值不能为空"
+msgstr "Indicator value cannot be empty"
+
+msgid "该指标值已存在"
+msgstr "This indicator value already exists"
+
+msgid "字段不存在"
+msgstr "Field does not exist"
+
+msgid "暂无指标"
+msgstr "No indicators"
+
+# 子分类（产品名称）管理翻译
+msgid "添加产品名称"
+msgstr "Add Product Name"
+
+msgid "编辑产品名称"
+msgstr "Edit Product Name"
+
+msgid "产品名称"
+msgstr "Product Name"
+
+msgid "标识符"
+msgstr "Identifier"
+
+msgid "生成"
+msgstr "Generate"
+
+msgid "确认删除产品名称"
+msgstr "Confirm Delete Product Name"
+
+msgid "确定要删除产品名称"
+msgstr "Are you sure you want to delete product name"
+
+msgid "此操作将同时删除所有相关规格和指标，且不可恢复。"
+msgstr "This will also delete all related specifications and indicators, and cannot be undone."
+
+msgid "产品名称是必填项"
+msgstr "Product name is required"
+
+msgid "请输入产品名称"
+msgstr "Please enter product name"
+
+msgid "请输入或生成标识符（单个字符，A-Z或1-9）"
+msgstr "Please enter or generate identifier (single character, A-Z or 1-9)"
+
+msgid "标识符是产品编码的第2位，必须是唯一的单字符（A-Z或1-9）"
+msgstr "Identifier is the 2nd position in product code, must be unique single character (A-Z or 1-9)"
+
+msgid "标识符必须是单个字符"
+msgstr "Identifier must be a single character"
+
+msgid "标识符必须是大写字母A-Z或数字1-9"
+msgstr "Identifier must be uppercase letter A-Z or digit 1-9"
+
+msgid "该标识符已在此分类下使用"
+msgstr "This identifier is already used in this category"
+
+msgid "产品名称创建成功"
+msgstr "Product name created successfully"
+
+msgid "产品名称更新成功"
+msgstr "Product name updated successfully"
+
+msgid "产品名称删除成功"
+msgstr "Product name deleted successfully"
+
+msgid "该产品名称已被研发产品使用，无法删除"
+msgstr "This product name is used by products and cannot be deleted"
+
+msgid "该产品名称已被研发产品使用，无法编辑"
+msgstr "This product name is used by products and cannot be edited"
+
+msgid "产品名称不存在"
+msgstr "Product name does not exist"
+
+msgid "标识符生成失败"
+msgstr "Failed to generate identifier"
+
+msgid "所有可用标识符已用完"
+msgstr "All available identifiers have been used"

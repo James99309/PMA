@@ -4,7 +4,7 @@
     <div class="product-header">
         <div class="product-name">
             <a href="{{ url_for('product_route.view_product_detail', id=product.id) }}">
-                {{ product.product_name or '-' }}
+                {{ product.name or '-' }}
             </a>
             <span class="product-id">#{{ product.id }}</span>
         </div>
@@ -24,10 +24,10 @@
         </div>
         {% endif %}
         
-        {% if product.category %}
+        {% if product.category_name %}
         <div class="detail-row">
             <span class="label">{{ _('类别') }}:</span>
-            <span class="value">{{ product.category }}</span>
+            <span class="value">{{ product.category_name }}</span>
         </div>
         {% endif %}
         

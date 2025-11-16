@@ -5,6 +5,7 @@ from app.models.project import Project
 from app.models.customer import Company, Contact
 from app.models.product import Product  # 添加产品模型导入
 from app.models.user import User  # 添加User模型导入
+from app.utils.product_helpers import find_product_by_name_and_model  # 产品查询辅助函数
 from datetime import datetime
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
@@ -1098,7 +1099,11 @@ def create_quotation():
                     }), 400
                 
                 current_app.logger.debug(f'开始处理 {len(details)} 个明细项')
-                
+
+                # 两阶段保存：先创建所有明细，再建立父子关系
+                detail_id_map = {}  # {row_id: detail对象}
+                pending_configs = []  # 待处理的配置产品列表
+
                 for index, detail in enumerate(details):
                     try:
                         current_app.logger.debug(f'处理第 {index+1} 个明细项: {detail}')
@@ -1201,10 +1206,31 @@ def create_quotation():
                             product_mn=product_mn_value,
                             currency=data.get('currency', 'CNY')  # 添加明细货币字段
                         )
-                        
+
+                        # 处理配置产品相关字段
+                        is_configuration = detail.get('is_configuration', False)
+                        if is_configuration:
+                            new_detail.is_accessory = True
+                            new_detail.is_editable = False
+                            new_detail.config_type = detail.get('config_type')
+                            new_detail.config_base_quantity = int(detail.get('config_base_quantity', 1))
+
+                            # 添加到待处理配置列表
+                            pending_configs.append({
+                                'detail': new_detail,
+                                'parent_row_id': detail.get('parent_row_id')
+                            })
+                            current_app.logger.debug(f'第 {index+1} 行是配置产品: parent_row_id={detail.get("parent_row_id")}')
+                        else:
+                            # 主产品：记录row_id映射
+                            row_id = detail.get('row_id')
+                            if row_id:
+                                detail_id_map[row_id] = new_detail
+                                current_app.logger.debug(f'第 {index+1} 行是主产品: row_id={row_id}')
+
                         # 计算植入小计
                         new_detail.calculate_prices()
-                        
+
                         current_app.logger.debug(f'创建第 {index+1} 行明细项')
                         quotation.details.append(new_detail)
                     except Exception as item_error:
@@ -1235,7 +1261,22 @@ def create_quotation():
                     
                     # 3. 手动更新时间戳
                     quotation.updated_at = datetime.utcnow()
-                    
+
+                    # 3.5. 第二阶段：Flush获取ID，然后建立父子关系
+                    if pending_configs:
+                        current_app.logger.info(f"开始处理 {len(pending_configs)} 个配置产品的父子关系")
+                        db.session.flush()  # Flush以获取所有detail的ID
+
+                        for config_info in pending_configs:
+                            parent_detail = detail_id_map.get(config_info['parent_row_id'])
+                            if parent_detail:
+                                config_info['detail'].parent_item_id = parent_detail.id
+                                current_app.logger.debug(f"配置产品 {config_info['detail'].product_name} 关联到父产品 {parent_detail.product_name} (ID={parent_detail.id})")
+                            else:
+                                current_app.logger.warning(f"配置产品 {config_info['detail'].product_name} 找不到父产品，parent_row_id={config_info['parent_row_id']}")
+
+                        current_app.logger.info(f"配置产品父子关系建立完成")
+
                     # 4. 提交数据库更改
                     current_app.logger.info('准备提交所有更改到数据库...')
                     db.session.commit()
@@ -1444,15 +1485,15 @@ def get_project(project_id):
 
 @quotation.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
-@permission_required('quotation', 'edit')  # 添加编辑权限装饰器
+# 注意：不使用 @permission_required 装饰器 - 创建者可以编辑自己的报价单数据
 def edit_quotation(id):
     # 获取返回URL参数
     return_to = request.args.get('return_to')
-    
+
     try:
         quotation = Quotation.query.get_or_404(id)
-        
-        # 检查编辑权限
+
+        # 使用统一的数据权限检查（包含数据归属逻辑）
         if not can_edit_data(quotation, current_user):
             flash(_('您没有权限编辑此报价单'), 'danger')
             return redirect(url_for('quotation.list_quotations'))
@@ -1463,19 +1504,15 @@ def edit_quotation(id):
             flash(f'报价单已被锁定，无法编辑。锁定原因：{lock_info["reason"]}，锁定人：{lock_info["locked_by"]}', 'warning')
             return redirect(url_for('quotation.view_quotation', id=id))
         
-        # 按产品库产品ID排序获取报价单明细
-        from app.models.product import Product
-        from sqlalchemy import case
-        
-        # 获取排序后的明细
-        sorted_details = db.session.query(QuotationDetail)\
-            .outerjoin(Product, Product.product_name == QuotationDetail.product_name)\
+        # 按ID排序获取报价单明细（保留用户添加时的原有顺序）
+        # 不再按产品库分类重新排序，避免每次编辑都打乱用户的排列
+        quotation_details = db.session.query(QuotationDetail)\
             .filter(QuotationDetail.quotation_id == quotation.id)\
-            .order_by(case((Product.id.is_(None), 1), else_=0), Product.id.asc(), QuotationDetail.id.asc())\
+            .order_by(QuotationDetail.id.asc())\
             .all()
-        
+
         # 替换原有的details
-        quotation.details = sorted_details
+        quotation.details = quotation_details
         
         # 处理报价单明细数据
         for detail in quotation.details:
@@ -1485,8 +1522,8 @@ def edit_quotation(id):
             detail.discount_rate = detail.discount * 100 if detail.discount is not None else 100.0
             # 确保正确设置product_mn字段
             if not hasattr(detail, 'product_mn') or detail.product_mn is None:
-                # 尝试从产品表中获取MN号
-                product = Product.query.filter_by(product_name=detail.product_name, model=detail.product_model).first()
+                # 尝试从产品表中获取MN号（使用公共辅助函数）
+                product = find_product_by_name_and_model(detail.product_name, detail.product_model)
                 if product:
                     detail.product_mn = product.product_mn
                 else:
@@ -1514,7 +1551,12 @@ def edit_quotation(id):
                     'subtotal': float(detail.total_price or 0),
                     'product_mn': product_mn,
                     'is_temp': is_temp_product,  # 添加临时产品标识
-                    'status': 'temp' if is_temp_product else 'regular'  # 添加状态标识
+                    'status': 'temp' if is_temp_product else 'regular',  # 添加状态标识
+                    # 配置产品字段
+                    'is_configuration': getattr(detail, 'is_accessory', False),
+                    'parent_item_id': getattr(detail, 'parent_item_id', None),  # 传递parent_item_id，前端需要重建row关系
+                    'config_type': getattr(detail, 'config_type', None),
+                    'config_base_quantity': getattr(detail, 'config_base_quantity', None)
                 }
                 
                 # 如果是临时产品，添加调试日志
@@ -1691,7 +1733,11 @@ def edit_quotation(id):
                     
                     # 获取报价单货币，用于明细记录
                     detail_currency = request.form.get('currency', 'CNY')
-                    
+
+                    # 两阶段保存：先创建所有明细，再建立父子关系
+                    detail_id_map = {}  # {row_id: detail对象}
+                    pending_configs = []  # 待处理的配置产品列表
+
                     total_amount = 0.0
                     for i, detail_data in enumerate(product_details):
                         try:
@@ -1761,7 +1807,7 @@ def edit_quotation(id):
                                 subtotal = discounted_price * quantity
                             
                             total_amount += subtotal
-                            
+
                             # 创建明细记录
                             detail = QuotationDetail(
                                 product_name=product_name,
@@ -1777,10 +1823,29 @@ def edit_quotation(id):
                                 product_mn=str(detail_data.get('product_mn', '')).strip() or None,
                                 currency=detail_currency
                             )
-                            
+
+                            # 处理配置产品相关字段
+                            is_configuration = detail_data.get('is_configuration', False)
+                            if is_configuration:
+                                detail.is_accessory = True
+                                detail.is_editable = False
+                                detail.config_type = detail_data.get('config_type')
+                                detail.config_base_quantity = int(detail_data.get('config_base_quantity', 1))
+
+                                # 添加到待处理配置列表
+                                pending_configs.append({
+                                    'detail': detail,
+                                    'parent_row_id': detail_data.get('parent_row_id')
+                                })
+                            else:
+                                # 主产品：记录row_id映射
+                                row_id = detail_data.get('row_id')
+                                if row_id:
+                                    detail_id_map[row_id] = detail
+
                             # 计算植入小计
                             detail.calculate_prices()
-                            
+
                             quotation.details.append(detail)
                         except Exception as e:
                             raise ValueError(f'处理第 {i+1} 行数据时出错：{str(e)}')
@@ -1790,10 +1855,25 @@ def edit_quotation(id):
                     
                     # 计算植入总额
                     quotation.calculate_implant_total_amount()
-                    
+
                     # 手动更新时间戳，确保updated_at字段正确
                     quotation.updated_at = datetime.utcnow()
-                    
+
+                    # 第二阶段：Flush获取ID，然后建立父子关系
+                    if pending_configs:
+                        current_app.logger.info(f"开始处理 {len(pending_configs)} 个配置产品的父子关系")
+                        db.session.flush()  # Flush以获取所有detail的ID
+
+                        for config_info in pending_configs:
+                            parent_detail = detail_id_map.get(config_info['parent_row_id'])
+                            if parent_detail:
+                                config_info['detail'].parent_item_id = parent_detail.id
+                                current_app.logger.debug(f"配置产品 {config_info['detail'].product_name} 关联到父产品 {parent_detail.product_name}")
+                            else:
+                                current_app.logger.warning(f"配置产品 {config_info['detail'].product_name} 找不到父产品，parent_row_id={config_info['parent_row_id']}")
+
+                        current_app.logger.info(f"配置产品父子关系建立完成")
+
                 finally:
                     # 安全地重新注册事件监听器
                     try:
@@ -2025,11 +2105,11 @@ def copy_quotation(id):
 
 @quotation.route('/<int:id>/delete', methods=['POST'])
 @login_required
-@permission_required('quotation', 'delete')
+# 注意：不使用 @permission_required 装饰器 - 创建者可以删除自己的报价单数据
 def delete_quotation(id):
     quotation = Quotation.query.get_or_404(id)
-    
-    # 检查删除权限
+
+    # 使用统一的数据权限检查（包含数据归属逻辑）
     if not can_edit_data(quotation, current_user):
         flash(_('您没有权限删除此报价单'), 'danger')
         return redirect(url_for('quotation.list_quotations'))
@@ -2082,7 +2162,7 @@ def delete_quotation(id):
 
 @quotation.route('/batch-delete', methods=['POST'])
 @login_required
-@permission_required('quotation', 'delete')
+# 注意：不使用 @permission_required 装饰器 - 创建者可以删除自己的报价单数据
 def batch_delete_quotations():
     try:
         data = request.get_json()
@@ -2340,20 +2420,24 @@ def get_products():
 @login_required
 @permission_required('quotation', 'view')
 def get_product_categories():
-    """获取去重后的产品类别列表，按每个类别下最小产品ID升序排列"""
+    """获取去重后的产品类别列表，按业务顺序排列"""
     try:
         logger.debug('正在获取产品类别列表...')
-        # 查询每个类别下ID最小的产品ID
-        min_id_per_category = db.session.query(
-            Product.category,
-            func.min(Product.id).label('min_id')
-        ).filter(Product.status != '停产').group_by(Product.category).all()
-        # 按min_id排序
-        sorted_categories = sorted(
-            [c for c in min_id_per_category if c[0]],
-            key=lambda x: x[1]
-        )
-        category_list = [c[0] for c in sorted_categories]
+        # 从ProductCategory表查询，只返回有非停产产品的类别
+        from app.models.product_code import ProductCategory
+
+        # 修复SQL错误：SELECT DISTINCT时，ORDER BY字段必须在SELECT列表中
+        # 按产品分类的业务顺序（ProductCategory.id）排序
+        categories = db.session.query(
+            ProductCategory.id,
+            ProductCategory.name
+        ).join(
+            Product, Product.category_id == ProductCategory.id
+        ).filter(
+            Product.status != '停产'
+        ).distinct().order_by(ProductCategory.id).all()
+
+        category_list = [cat[1] for cat in categories]  # cat[1] 是 name
         logger.debug(f'找到 {len(category_list)} 个类别')
         return jsonify(category_list)
     except Exception as e:
@@ -2909,19 +2993,28 @@ def view_quotation(id):
                 flash(_('您没有权限查看该报价单关联的项目'), 'danger')
                 return redirect(url_for('quotation.list_quotations'))
         
-        # 按产品库产品ID排序获取报价单明细
+        # 按产品库分类体系排序获取报价单明细
+        from app.models.product_code import ProductCategory, ProductSubcategory
         from sqlalchemy import case
-        
-        # 获取排序后的明细
+
+        # 获取排序后的明细：分类 → 子分类 → 产品名称 → 型号 → 明细ID
         sorted_details = db.session.query(QuotationDetail)\
             .outerjoin(Product, Product.product_name == QuotationDetail.product_name)\
+            .outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)\
+            .outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)\
             .filter(QuotationDetail.quotation_id == quotation.id)\
-            .order_by(case((Product.id.is_(None), 1), else_=0), Product.id.asc(), QuotationDetail.id.asc())\
-            .all()
-        
+            .order_by(
+                case((Product.id.is_(None), 1), else_=0),  # 无对应产品的排在最后
+                ProductCategory.id.asc(),  # 按业务顺序排序
+                ProductSubcategory.display_order.asc(),
+                ProductSubcategory.name.asc(),  # 使用子分类名称
+                Product.model.asc(),
+                QuotationDetail.id.asc()
+            ).all()
+
         # 替换原有的details
         quotation.details = sorted_details
-        
+
         # 查询可选新拥有人
         all_users = []
         if can_change_quotation_owner(current_user, quotation):
@@ -2999,9 +3092,9 @@ def get_quotation_details(id):
                 if hasattr(detail, 'product_mn') and detail.product_mn:
                     product_mn = detail.product_mn
                 else:
-                    # 尝试从产品表中获取MN号
+                    # 尝试从产品表中获取MN号（使用公共辅助函数）
                     try:
-                        product = Product.query.filter_by(product_name=detail.product_name, model=detail.product_model).first()
+                        product = find_product_by_name_and_model(detail.product_name, detail.product_model)
                         if product:
                             product_mn = product.product_mn
                     except Exception as product_error:
@@ -3074,12 +3167,12 @@ def get_quotation_details(id):
 
 @quotation.route('/<int:id>/save', methods=['POST'])
 @login_required
-@permission_required('quotation', 'edit')  # 添加编辑权限装饰器
+# 注意：不使用 @permission_required 装饰器 - 创建者可以保存自己的报价单
 def save_quotation(id):
     try:
         quotation = Quotation.query.get_or_404(id)
-        
-        # 检查编辑权限
+
+        # 使用统一的数据权限检查（包含数据归属逻辑）
         if not can_edit_data(quotation, current_user):
             return jsonify({
                 'status': 'error',

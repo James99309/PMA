@@ -4,12 +4,14 @@ from app import db
 from app.models.inventory import Inventory, InventoryTransaction, Settlement, SettlementDetail, PurchaseOrder, PurchaseOrderDetail
 from app.models.customer import Company
 from app.models.product import Product
+from app.models.product_code import ProductSubcategory
+from app.utils.product_helpers import find_product_by_name
 from app.utils.inventory_helpers import update_inventory, process_settlement, generate_order_number, get_inventory_status, calculate_order_totals
 from app.decorators import permission_required, permission_required_with_approval_context
 from datetime import datetime, date
 import logging
 from app.models.pricing_order import SettlementOrder, SettlementOrderDetail
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.sql import func
 import io
 import pandas as pd
@@ -90,11 +92,14 @@ def stock_list():
             
             # 应用搜索条件：搜索MN号、型号或产品名称
             if search:
+                # 先join ProductSubcategory以支持新字段搜索
+                query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
                 query = query.filter(
                     or_(
                         Product.product_mn.ilike(f'%{search}%'),
                         Product.model.ilike(f'%{search}%'),
-                        Product.product_name.ilike(f'%{search}%')
+                        ProductSubcategory.name.ilike(f'%{search}%'),  # 新字段
+                        Product.product_name.ilike(f'%{search}%')      # 旧字段
                     )
                 )
                 logger.info(f"应用搜索条件: {search}")
@@ -109,8 +114,16 @@ def stock_list():
                 )
             elif stock_status == 'zero':
                 query = query.filter(Inventory.quantity == 0)
-            
-            query = query.order_by(Product.product_name, Product.model)
+
+            # 确保join ProductSubcategory以支持新字段排序
+            if not search:  # 如果有搜索，上面已经join了
+                query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
+
+            # 排序时优先使用新字段
+            query = query.order_by(
+                func.coalesce(ProductSubcategory.name, Product.product_name),
+                Product.model
+            )
             inventories = query.all()
             
             # 转换为产品记录格式
@@ -119,7 +132,7 @@ def stock_list():
                 product_records.append({
                     'inventory_id': inv.id,
                     'product_id': inv.product.id,
-                    'product_name': inv.product.product_name,
+                    'product_name': inv.product.name,  # 使用智能属性
                     'model': inv.product.model,
                     'specification': inv.product.specification,
                     'product_mn': inv.product.product_mn,
@@ -135,7 +148,10 @@ def stock_list():
         else:
             # 产品聚合视图：显示所有公司的产品合计
             logger.info("使用产品聚合视图模式")
-            
+
+            # 计算用于显示和排序的产品名称（优先使用新字段）
+            computed_name = func.coalesce(ProductSubcategory.name, Product.product_name).label('display_name')
+
             # 构建聚合查询
             query = db.session.query(
                 Product.id,
@@ -145,23 +161,26 @@ def stock_list():
                 Product.product_mn,
                 Product.brand,
                 Product.unit,
+                computed_name,
                 func.sum(Inventory.quantity).label('total_quantity'),
                 func.max(Inventory.updated_at).label('updated_at')
             ).join(Inventory, Inventory.product_id == Product.id)\
              .join(Company, Inventory.company_id == Company.id)\
+             .outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)\
              .filter(Company.is_deleted == False)
-            
+
             # 应用搜索条件：搜索MN号、型号或产品名称
             if search:
                 query = query.filter(
                     or_(
                         Product.product_mn.ilike(f'%{search}%'),
                         Product.model.ilike(f'%{search}%'),
-                        Product.product_name.ilike(f'%{search}%')
+                        ProductSubcategory.name.ilike(f'%{search}%'),  # 新字段
+                        Product.product_name.ilike(f'%{search}%')      # 旧字段
                     )
                 )
                 logger.info(f"应用搜索条件: {search}")
-            
+
             # 按产品分组
             query = query.group_by(
                 Product.id,
@@ -170,8 +189,12 @@ def stock_list():
                 Product.specification,
                 Product.product_mn,
                 Product.brand,
-                Product.unit
-            ).order_by(Product.product_name, Product.model)
+                Product.unit,
+                ProductSubcategory.name  # 新增：包含新字段
+            ).order_by(
+                computed_name,
+                Product.model
+            )
             
             results = query.all()
             
@@ -186,7 +209,7 @@ def stock_list():
                 product_records.append({
                     'inventory_id': None,
                     'product_id': result.id,
-                    'product_name': result.product_name,
+                    'product_name': result.display_name,  # 使用计算字段（优先新字段）
                     'model': result.model,
                     'specification': result.specification,
                     'product_mn': result.product_mn,
@@ -578,16 +601,19 @@ def stock_list_ajax():
                 Company.is_deleted == False
             )
             
-            # 应用搜索条件
+            # 应用搜索条件：搜索MN号、型号或产品名称
             if search:
+                # 先join ProductSubcategory以支持新字段搜索
+                query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
                 query = query.filter(
                     or_(
                         Product.product_mn.ilike(f'%{search}%'),
                         Product.model.ilike(f'%{search}%'),
-                        Product.product_name.ilike(f'%{search}%')
+                        ProductSubcategory.name.ilike(f'%{search}%'),  # 新字段
+                        Product.product_name.ilike(f'%{search}%')      # 旧字段
                     )
                 )
-            
+
             # 应用库存状态筛选
             if stock_status == 'normal':
                 query = query.filter(Inventory.quantity > Inventory.min_stock)
@@ -598,7 +624,11 @@ def stock_list_ajax():
                 )
             elif stock_status == 'zero':
                 query = query.filter(Inventory.quantity == 0)
-            
+
+            # 确保join ProductSubcategory以支持新字段排序
+            if not search:  # 如果有搜索，上面已经join了
+                query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
+
             # 应用排序（公司视图）
             if sort_field and sort_direction:
                 field_mapping = {
@@ -609,7 +639,7 @@ def stock_list_ajax():
                     'total_quantity': Inventory.quantity,
                     'updated_at': Inventory.updated_at
                 }
-                
+
                 if sort_field in field_mapping:
                     sort_column = field_mapping[sort_field]
                     if sort_direction.lower() == 'desc':
@@ -617,11 +647,17 @@ def stock_list_ajax():
                     else:
                         query = query.order_by(sort_column.asc())
                 else:
-                    # 默认排序
-                    query = query.order_by(Product.product_name, Product.model)
+                    # 默认排序：优先使用新字段
+                    query = query.order_by(
+                        func.coalesce(ProductSubcategory.name, Product.product_name),
+                        Product.model
+                    )
             else:
-                # 默认排序
-                query = query.order_by(Product.product_name, Product.model)
+                # 默认排序：优先使用新字段
+                query = query.order_by(
+                    func.coalesce(ProductSubcategory.name, Product.product_name),
+                    Product.model
+                )
             
             # 执行查询
             total_count = query.count()
@@ -633,7 +669,7 @@ def stock_list_ajax():
                 product_records.append({
                     'inventory_id': inv.id,
                     'product_id': inv.product.id,
-                    'product_name': inv.product.product_name,
+                    'product_name': inv.product.name,  # 使用智能属性
                     'model': inv.product.model,
                     'specification': inv.product.specification,
                     'product_mn': inv.product.product_mn,
@@ -648,6 +684,9 @@ def stock_list_ajax():
             
         else:
             # 产品聚合视图
+            # 计算用于显示和排序的产品名称（优先使用新字段）
+            computed_name = func.coalesce(ProductSubcategory.name, Product.product_name).label('display_name')
+
             query = db.session.query(
                 Product.id,
                 Product.product_name,
@@ -656,22 +695,25 @@ def stock_list_ajax():
                 Product.product_mn,
                 Product.brand,
                 Product.unit,
+                computed_name,
                 func.sum(Inventory.quantity).label('total_quantity'),
                 func.max(Inventory.updated_at).label('updated_at')
             ).join(Inventory, Inventory.product_id == Product.id)\
              .join(Company, Inventory.company_id == Company.id)\
+             .outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)\
              .filter(Company.is_deleted == False)
-            
-            # 应用搜索条件
+
+            # 应用搜索条件：搜索MN号、型号或产品名称
             if search:
                 query = query.filter(
                     or_(
                         Product.product_mn.ilike(f'%{search}%'),
                         Product.model.ilike(f'%{search}%'),
-                        Product.product_name.ilike(f'%{search}%')
+                        ProductSubcategory.name.ilike(f'%{search}%'),  # 新字段
+                        Product.product_name.ilike(f'%{search}%')      # 旧字段
                     )
                 )
-            
+
             # 按产品分组
             query = query.group_by(
                 Product.id,
@@ -680,20 +722,21 @@ def stock_list_ajax():
                 Product.specification,
                 Product.product_mn,
                 Product.brand,
-                Product.unit
+                Product.unit,
+                ProductSubcategory.name  # 新增：包含新字段
             )
-            
+
             # 应用排序（聚合视图）
             if sort_field and sort_direction:
                 field_mapping = {
-                    'product_name': Product.product_name,
+                    'product_name': computed_name,  # 使用计算字段排序
                     'model': Product.model,
                     'product_mn': Product.product_mn,
                     'brand': Product.brand,
                     'total_quantity': func.sum(Inventory.quantity),
                     'updated_at': func.max(Inventory.updated_at)
                 }
-                
+
                 if sort_field in field_mapping:
                     sort_column = field_mapping[sort_field]
                     if sort_direction.lower() == 'desc':
@@ -701,11 +744,11 @@ def stock_list_ajax():
                     else:
                         query = query.order_by(sort_column.asc())
                 else:
-                    # 默认排序
-                    query = query.order_by(Product.product_name, Product.model)
+                    # 默认排序：优先使用新字段
+                    query = query.order_by(computed_name, Product.model)
             else:
-                # 默认排序
-                query = query.order_by(Product.product_name, Product.model)
+                # 默认排序：优先使用新字段
+                query = query.order_by(computed_name, Product.model)
             
             # 执行查询
             total_query_count = query.count()
@@ -721,7 +764,7 @@ def stock_list_ajax():
                 product_records.append({
                     'inventory_id': None,
                     'product_id': result.id,
-                    'product_name': result.product_name,
+                    'product_name': result.display_name,  # 使用计算字段（优先新字段）
                     'model': result.model,
                     'specification': result.specification,
                     'product_mn': result.product_mn,
@@ -1123,7 +1166,11 @@ def add_stock():
     companies = Company.query.filter(
         Company.is_deleted == False
     ).order_by(Company.company_name).all()
-    products = Product.query.order_by(Product.product_name).all()
+    # 获取产品列表，排序时优先使用新字段
+    products = Product.query\
+        .outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)\
+        .order_by(func.coalesce(ProductSubcategory.name, Product.product_name))\
+        .all()
     
     return render_template('inventory/add_stock.html', 
                          companies=companies, 
@@ -2379,8 +2426,9 @@ def execute_settlement(id):
             if detail.product_mn:
                 product = Product.query.filter_by(product_mn=detail.product_mn).first()
             if not product and detail.product_name:
-                product = Product.query.filter_by(product_name=detail.product_name).first()
-            
+                # 根据产品名称查找（使用公共辅助函数）
+                product = find_product_by_name(detail.product_name)
+
             if product:
                 settlement_items.append({
                     'product_id': product.id,
@@ -4111,8 +4159,9 @@ def settle_product():
         if detail.product_mn:
             product = Product.query.filter_by(product_mn=detail.product_mn).first()
         if not product and detail.product_name:
-            product = Product.query.filter_by(product_name=detail.product_name).first()
-        
+            # 根据产品名称查找（使用公共辅助函数）
+            product = find_product_by_name(detail.product_name)
+
         if not product:
             return jsonify({'success': False, 'message': f'未找到产品: {detail.product_name}'})
         
@@ -4425,8 +4474,9 @@ def settle_single_product(detail_id):
         if detail.product_mn:
             product = Product.query.filter_by(product_mn=detail.product_mn).first()
         if not product and detail.product_name:
-            product = Product.query.filter_by(product_name=detail.product_name).first()
-        
+            # 根据产品名称查找（使用公共辅助函数）
+            product = find_product_by_name(detail.product_name)
+
         if not product:
             return jsonify({'success': False, 'message': '找不到对应的产品信息'})
         
@@ -4794,17 +4844,18 @@ def get_product_categories_for_order():
     """获取产品类别列表 - 用于订单创建"""
     try:
         from app.models.product import Product
-        
-        # 获取所有有效产品的类别
-        categories = db.session.query(Product.category).filter(
-            Product.category.isnot(None),
+        from app.models.product_code import ProductCategory
+
+        # 从ProductCategory表查询,只返回有生产中产品的类别
+        categories = db.session.query(ProductCategory.name).join(
+            Product, Product.category_id == ProductCategory.id
+        ).filter(
             Product.status == 'active'
-        ).distinct().all()
-        
-        # 提取类别名称并排序
-        category_list = [c[0] for c in categories if c[0]]
-        category_list.sort()
-        
+        ).distinct().order_by(ProductCategory.id).all()
+
+        # 提取类别名称
+        category_list = [cat[0] for cat in categories]
+
         logger.debug(f'找到 {len(category_list)} 个类别')
         return jsonify(category_list)
     except Exception as e:
@@ -4847,7 +4898,7 @@ def get_products_by_category_for_order():
             try:
                 product_dict = {
                     'id': p.id,
-                    'product_name': p.product_name,
+                    'product_name': p.name,  # 使用智能属性
                     'model': p.model,
                     'specification': p.specification,
                     'brand': p.brand,

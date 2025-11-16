@@ -653,4 +653,70 @@ def get_business_type_options():
 
 BUSINESS_TYPE_OPTIONS = [(k, v['zh']) for k, v in BUSINESS_TYPE_LABELS.items()]
 
+# 厂商企业信息获取函数
+def get_vendor_company():
+    """
+    获取默认厂商企业信息（从Dictionary表）
+
+    返回Dictionary对象，包含完整的企业信息：
+    - value: 企业全称
+    - address: 详细地址
+    - postal_code: 邮政编码
+    - phone: 企业电话
+    - website: 网站地址
+    - logo_content: Logo Base64内容
+    等
+    """
+    from app.models.dictionary import Dictionary
+
+    # 使用 Flask g 对象缓存，避免重复查询
+    if 'vendor_company' not in g:
+        g.vendor_company = Dictionary.query.filter_by(
+            type='company',
+            is_vendor=True,
+            is_active=True
+        ).first()
+
+    return g.vendor_company
+
+
+def get_vendor_company_by_user(user):
+    """
+    根据用户的company_name获取对应的厂商企业信息
+
+    参数:
+        user: User对象
+
+    返回:
+        Dictionary对象（企业字典），如果找不到则返回默认厂商企业
+
+    用途:
+        PDF模板中根据项目拥有人获取厂商信息，支持多厂商场景
+    """
+    from app.models.dictionary import Dictionary
+
+    # 如果没有用户或用户没有设置公司名称，返回默认厂商
+    if not user or not user.company_name:
+        return get_vendor_company()
+
+    # 尝试精确匹配用户的公司名称
+    vendor = Dictionary.query.filter_by(
+        type='company',
+        value=user.company_name,
+        is_vendor=True,
+        is_active=True
+    ).first()
+
+    if not vendor:
+        # 如果精确匹配失败，尝试模糊匹配
+        vendor = Dictionary.query.filter(
+            Dictionary.type == 'company',
+            Dictionary.is_vendor == True,
+            Dictionary.is_active == True,
+            Dictionary.value.ilike(f'%{user.company_name}%')
+        ).first()
+
+    # 如果还是找不到，返回默认厂商企业
+    return vendor or get_vendor_company()
+
 # TODO: 可扩展更多字典类型的获取方法 

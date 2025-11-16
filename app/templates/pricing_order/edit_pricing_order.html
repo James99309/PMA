@@ -421,7 +421,7 @@ w{% extends "base.html" %}
                                                    value="{{ '%.2f'|format(detail.unit_price) }}" 
                                                    data-raw-value="{{ detail.unit_price }}" placeholder="输入单价">
                                         {% else %}
-                                        ¥{{ "{:,.2f}".format(detail.unit_price) }}
+                                        {{ pricing_order.currency_symbol }}{{ "{:,.2f}".format(detail.unit_price) }}
                                         {% endif %}
                                     </td>
                                         <td>
@@ -444,7 +444,7 @@ w{% extends "base.html" %}
                                                    value="{{ '%.2f'|format(detail.total_price) }}" 
                                                    data-raw-value="{{ detail.total_price }}" readonly>
                                             {% else %}
-                                            ¥{{ "{:,.2f}".format(detail.total_price) }}
+                                            {{ pricing_order.currency_symbol }}{{ "{:,.2f}".format(detail.total_price) }}
                                             {% endif %}
                                         </td>
                                         <td>
@@ -708,7 +708,7 @@ w{% extends "base.html" %}
                                     <div class="d-flex justify-content-between">
                                         <span><strong>批价单总金额：</strong></span>
                                         <span class="text-primary" id="pricingTotalAmount">
-                                            ¥{{ pricing_order.formatted_pricing_total_amount }}
+                                            {{ pricing_order.currency_symbol }}{{ pricing_order.formatted_pricing_total_amount }}
                                         </span>
                                     </div>
                                 </div>
@@ -825,7 +825,7 @@ w{% extends "base.html" %}
                                                    value="{{ '%.2f'|format(detail.unit_price) }}" 
                                                    data-raw-value="{{ detail.unit_price }}" placeholder="输入单价">
                                         {% else %}
-                                        ¥{{ "{:,.2f}".format(detail.unit_price) }}
+                                        {{ pricing_order.currency_symbol }}{{ "{:,.2f}".format(detail.unit_price) }}
                                         {% endif %}
                                     </td>
                                         <td>
@@ -843,7 +843,7 @@ w{% extends "base.html" %}
                                                    value="{{ '%.2f'|format(detail.total_price) }}" 
                                                    data-raw-value="{{ detail.total_price }}" readonly>
                                             {% else %}
-                                            ¥{{ "{:,.2f}".format(detail.total_price) }}
+                                            {{ pricing_order.currency_symbol }}{{ "{:,.2f}".format(detail.total_price) }}
                                             {% endif %}
                                         </td>
                                         <td>
@@ -1022,7 +1022,7 @@ w{% extends "base.html" %}
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between">
                                         <span><strong>分销利润：</strong></span>
-                                        <span id="distributionProfit">¥0.00</span>
+                                        <span id="distributionProfit">{{ pricing_order.currency_symbol }}0.00</span>
                                     </div>
                                     <div class="d-flex justify-content-between mt-2">
                                         <span><strong>利润率：</strong></span>
@@ -1057,7 +1057,7 @@ w{% extends "base.html" %}
                                     <div class="d-flex justify-content-between mt-2">
                                         <span><strong>结算单总金额：</strong></span>
                                         <span class="text-success" id="settlementTotalAmount">
-                                            ¥{{ pricing_order.formatted_settlement_total_amount }}
+                                            {{ pricing_order.currency_symbol }}{{ pricing_order.formatted_settlement_total_amount }}
                                         </span>
                                     </div>
                                 </div>
@@ -1757,6 +1757,7 @@ input[type="number"].discount-rate {
 // 设置全局变量
 const PRICING_ORDER_ID = "{{ pricing_order.id }}";
 const PRICING_ORDER_STATUS = "{{ pricing_order.status }}";
+const CURRENCY_SYMBOL = "{{ pricing_order.currency_symbol }}";
 
 // 🔒 全局权限检查函数
 function canEditBasicInfo() {
@@ -2085,11 +2086,11 @@ function updatePricingDetail(detailId, field, value) {
     .then(data => {
         if (data.success) {
             // 更新总额显示，不刷新页面
-            $('#pricingTotalAmount').text('¥' + data.pricing_total_amount);
+            $('#pricingTotalAmount').text(CURRENCY_SYMBOL + data.pricing_total_amount);
             if ($('#pricingTotalDiscount').length) {
                 $('#pricingTotalDiscount').val(data.pricing_discount_percentage);
             }
-            $('#settlementTotalAmount').text('¥' + data.settlement_total_amount);
+            $('#settlementTotalAmount').text(CURRENCY_SYMBOL + data.settlement_total_amount);
             if ($('#settlementTotalDiscount').length) {
                 $('#settlementTotalDiscount').val(data.settlement_discount_percentage);
             }
@@ -2125,7 +2126,7 @@ function updatePricingDetailUnitPrice(detailId, unitPrice) {
     .then(data => {
         if (data.success) {
             // 更新总额显示
-            $('#pricingTotalAmount').text('¥' + data.pricing_total_amount);
+            $('#pricingTotalAmount').text(CURRENCY_SYMBOL + data.pricing_total_amount);
             if ($('#pricingTotalDiscount').length) {
                 $('#pricingTotalDiscount').val(data.pricing_discount_percentage);
             }
@@ -2161,7 +2162,7 @@ function updateSettlementDetail(detailId, field, value) {
     .then(data => {
         if (data.success) {
             // 更新总额显示，不刷新页面
-            $('#settlementTotalAmount').text('¥' + data.settlement_total_amount);
+            $('#settlementTotalAmount').text(CURRENCY_SYMBOL + data.settlement_total_amount);
             if ($('#settlementTotalDiscount').length) {
                 $('#settlementTotalDiscount').val(data.settlement_discount_percentage);
             }
@@ -2325,7 +2326,7 @@ function updatePricingTableTotal() {
         });
         
         // 更新批价单总额显示
-        $('#pricingTotalAmount').text('¥' + formatNumber(pricingTotal));
+        $('#pricingTotalAmount').text(CURRENCY_SYMBOL + formatNumber(pricingTotal));
         console.log('批价单总额已更新:', pricingTotal, '有效行数:', pricingRowCount);
         
     } catch (e) {
@@ -2368,7 +2369,7 @@ function updateSettlementTableTotal() {
         });
         
         // 更新结算单总额显示
-        $('#settlementTotalAmount').text('¥' + formatNumber(settlementTotal));
+        $('#settlementTotalAmount').text(CURRENCY_SYMBOL + formatNumber(settlementTotal));
         console.log('结算单总额已更新:', settlementTotal, '有效行数:', settlementRowCount);
         
     } catch (e) {
@@ -2559,10 +2560,10 @@ function calculateRowValues(row, triggerType) {
     // 更新小计显示 - 根据表格类型选择正确的列
     if (row.closest('#pricingTable').length > 0) {
         // 批价单表格：小计是第9列
-        row.find('td:nth-child(9)').text('¥' + subtotal.toLocaleString('zh-CN', {minimumFractionDigits: 2}));
+        row.find('td:nth-child(9)').text(CURRENCY_SYMBOL + subtotal.toLocaleString('zh-CN', {minimumFractionDigits: 2}));
     } else if (row.closest('#settlementTable').length > 0) {
         // 结算单表格：小计是第8列
-        row.find('td:nth-child(8)').text('¥' + subtotal.toLocaleString('zh-CN', {minimumFractionDigits: 2}));
+        row.find('td:nth-child(8)').text(CURRENCY_SYMBOL + subtotal.toLocaleString('zh-CN', {minimumFractionDigits: 2}));
     }
     
     // 重新计算总额（用户编辑时需要重新计算）
@@ -2720,7 +2721,7 @@ function updateTableTotals(forceRecalculate = false) {
         });
         
         // 更新批价单总额显示
-        $('#pricingTotalAmount').text('¥' + formatNumber(pricingTotal));
+        $('#pricingTotalAmount').text(CURRENCY_SYMBOL + formatNumber(pricingTotal));
         
         // 计算结算单总额（如果存在）
         if ($('#settlementTable tbody tr').length > 0) {
@@ -2753,7 +2754,7 @@ function updateTableTotals(forceRecalculate = false) {
                 }
             });
             // 更新结算单总额显示
-            $('#settlementTotalAmount').text('¥' + formatNumber(settlementTotal));
+            $('#settlementTotalAmount').text(CURRENCY_SYMBOL + formatNumber(settlementTotal));
             console.log('结算单总额:', settlementTotal, '有效行数:', settlementRowCount);
         }
         
@@ -2793,7 +2794,7 @@ function updateDistributionProfit() {
         }
         
         // 更新显示
-        $('#distributionProfit').text('¥' + formatNumber(distributionProfit));
+        $('#distributionProfit').text(CURRENCY_SYMBOL + formatNumber(distributionProfit));
         $('#profitMargin').text(profitMargin.toFixed(2) + '%');
         
         console.log('分销利润计算:', {
@@ -2805,7 +2806,7 @@ function updateDistributionProfit() {
         
     } catch (e) {
         console.error('更新分销利润时出错:', e);
-        $('#distributionProfit').text('¥0.00');
+        $('#distributionProfit').text(CURRENCY_SYMBOL + '0.00');
         $('#profitMargin').text('0.00%');
     }
 }
@@ -4773,7 +4774,7 @@ function validateAmountBeforeApproval() {
         console.log('❌ 金额校验失败: 结算单总额大于批价单总额');
         
         // 使用标准消息提示函数显示错误
-        const errorMessage = `审批失败：结算单总金额 ¥${settlementTotal.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} 大于批价单总金额 ¥${pricingTotal.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}，不能通过审批`;
+        const errorMessage = `审批失败：结算单总金额 ${CURRENCY_SYMBOL}${settlementTotal.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} 大于批价单总金额 ${CURRENCY_SYMBOL}${pricingTotal.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}，不能通过审批`;
         
         console.log('错误消息:', errorMessage);
         

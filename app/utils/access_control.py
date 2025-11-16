@@ -337,7 +337,7 @@ def get_viewable_data(model_class, user, special_filters=None):
     if special_filters is None:
         special_filters = []
     logger.debug(f"用户 {user.username} (ID: {user.id}, 角色: {user.role}) 查询 {model_class.__name__} 数据")
-    
+
     # 管理员可以查看所有数据
     if user.role == 'admin':
         # 为所有支持软删除的模型添加is_deleted过滤条件
@@ -811,14 +811,14 @@ def get_viewable_data(model_class, user, special_filters=None):
     
     # 标准数据访问控制：自己的数据 + 归属关系授权的数据
     viewable_user_ids = [user.id]
-    
+
     # 代理商和普通用户只能看到自己的数据
     if user.role not in ['dealer', 'user']:
         # 获取通过归属关系可以查看的数据
         affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
         for affiliation in affiliations:
             viewable_user_ids.append(affiliation.owner_id)
-    
+
     return model_class.query.filter(
         model_class.owner_id.in_(viewable_user_ids),
         *special_filters

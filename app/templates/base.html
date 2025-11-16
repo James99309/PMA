@@ -369,7 +369,7 @@
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('product_route.product_list') }}">{{ _('产品库') }}</a></li>
                                 {% endif %}
                                 {% if has_permission('product_code', 'view') %}
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_management.index') }}">{{ _('研发产品库') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_management.index') }}">{{ _('研发库') }}</a></li>
                                 {% endif %}
                                 {% if current_user.role in ['admin', 'product_manager'] %}
                                 <li><hr class="dropdown-divider my-1"></li>
@@ -389,7 +389,7 @@
                             <li><a class="dropdown-item" href="{{ url_for('product_route.product_list') }}">{{ _('产品库') }}</a></li>
                             {% endif %}
                             {% if has_permission('product_code', 'view') %}
-                            <li><a class="dropdown-item" href="{{ url_for('product_management.index') }}">{{ _('研发产品库') }}</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('product_management.index') }}">{{ _('研发库') }}</a></li>
                             {% endif %}
                             {% if current_user.role in ['admin', 'product_manager'] %}
                             <li><hr class="dropdown-divider"></li>

@@ -20,6 +20,7 @@
 
 | 工具文件 | 功能描述 | 使用场景 | 已用页面数 | 状态 |
 |---------|---------|---------|-----------|------|
+| sortable-list.js | 通用拖拽排序组件 | 任何需要列表拖拽排序的页面 | 2 | ✅ 已文档化 |
 | vendor-sales-manager-selector.js | 厂商销售负责人选择器 | 项目创建/编辑需要选择厂商销售负责人 | 2 | ✅ 已文档化 |
 | customer-search.js | 客户搜索组件 | 需要搜索和选择客户 | 5+ | 📋 待补充文档 |
 | product-selector.js | 产品四级选择器 | 需要选择产品（类别→名称→型号→规格） | 8+ | 📋 待补充文档 |
@@ -32,6 +33,7 @@
 | product-detail-manager.js | 产品明细管理 | 管理产品明细列表（增删改） | 3+ | 📋 待补充文档 |
 | expense-detail-manager.js | 费用明细管理 | 管理费用明细列表（增删改） | 2+ | 📋 待补充文档 |
 | project-search.js | 项目搜索组件 | 需要搜索和选择项目 | 4+ | 📋 待补充文档 |
+| select-with-quick-add.js | 通用选择器快速添加组件 | 为任何下拉选择器提供快速添加新选项功能 | 3 | ✅ 已文档化 |
 
 > **说明**:
 > - ✅ 已文档化 - 有完整的API文档和使用示例
@@ -41,6 +43,198 @@
 ---
 
 ## 📚 工具详细文档
+
+### 🔄 通用功能类
+
+#### sortable-list.js
+
+**基本信息**
+- **文件路径**: `app/static/js/sortable-list.js`
+- **功能描述**: 基于SortableJS实现的通用拖拽排序工具，支持AJAX自动保存、视觉反馈和错误处理
+- **依赖库**: SortableJS 1.14.0+, showTopNotification()
+- **创建日期**: 2025-11-15
+
+**已使用页面**
+1. `/product-code/categories` - 产品分类管理（分类排序）
+2. `/product-code/category/<id>/subcategories` - 产品名称管理（名称排序）
+
+**API文档**
+
+```javascript
+/**
+ * 初始化表格拖拽排序功能
+ *
+ * @param {string} tbodyId - 表格tbody元素的ID
+ * @param {string} updateUrl - 更新排序的API端点URL
+ * @param {Object} options - 可选配置参数
+ * @param {string} [options.handle=null] - 拖拽手柄的CSS选择器，null表示整行可拖
+ * @param {number} [options.animation=150] - 拖拽动画时长(毫秒)
+ * @param {Function} [options.onSuccess=null] - 保存成功回调函数
+ * @param {Function} [options.onError=null] - 保存失败回调函数
+ * @param {Function} [options.extractId=null] - 自定义提取行ID的函数
+ * @param {boolean} [options.autoReload=true] - 保存失败时是否自动刷新
+ * @param {boolean} [options.updateRowNumbers=true] - 拖动后是否自动更新序号列
+ * @returns {Sortable|null} Sortable实例或null
+ */
+function initSortableList(tbodyId, updateUrl, options = {})
+```
+
+**参数说明**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| tbodyId | string | ✅ | - | 表格tbody元素的ID |
+| updateUrl | string | ✅ | - | 保存排序的API端点 |
+| options.handle | string | ❌ | null | 拖拽手柄选择器（如'.drag-handle'），null表示整行可拖 |
+| options.animation | number | ❌ | 150 | 拖拽动画时长（毫秒） |
+| options.onSuccess | function | ❌ | null | 保存成功回调 |
+| options.onError | function | ❌ | null | 保存失败回调 |
+| options.extractId | function | ❌ | (row) => row.dataset.id | 提取行ID的函数 |
+| options.autoReload | boolean | ❌ | true | 失败时是否自动刷新页面 |
+| options.updateRowNumbers | boolean | ❌ | true | 拖动后是否自动更新序号列（假设序号在第一个td中） |
+
+**使用示例**
+
+```html
+<!-- 1. 引入依赖库 -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+<script src="{{ url_for('static', filename='js/sortable-list.js') }}"></script>
+
+<!-- 2. HTML表格结构 -->
+<table class="table">
+    <thead>
+        <tr>
+            <th>序号</th>
+            <th>名称</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody id="myTableBody">
+        <tr data-id="1">
+            <td>
+                <i class="fas fa-grip-vertical drag-handle"></i>
+                1
+            </td>
+            <td>项目A</td>
+            <td>...</td>
+        </tr>
+        <tr data-id="2">
+            <td>
+                <i class="fas fa-grip-vertical drag-handle"></i>
+                2
+            </td>
+            <td>项目B</td>
+            <td>...</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- 3. 初始化拖拽排序 -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 基础用法（使用拖拽手柄）
+    initSortableList('myTableBody', '/api/update-order', {
+        handle: '.drag-handle'
+    });
+
+    // 高级用法（自定义回调）
+    initSortableList('myTableBody', '/api/update-order', {
+        handle: '.drag-handle',
+        animation: 200,
+        onSuccess: function(result) {
+            console.log('排序保存成功', result);
+        },
+        onError: function(error) {
+            console.error('排序保存失败', error);
+        },
+        autoReload: false  // 失败时不自动刷新
+    });
+});
+</script>
+```
+
+**后端API要求**
+
+```python
+@app.route('/api/update-order', methods=['POST'])
+def update_order():
+    """
+    接收格式:
+    {
+        "items": [
+            {"id": 1, "order": 1},
+            {"id": 2, "order": 2},
+            {"id": 3, "order": 3}
+        ]
+    }
+
+    返回格式:
+    {
+        "success": true,
+        "message": "排序更新成功"
+    }
+    """
+    data = request.get_json()
+    items = data.get('items', [])
+
+    for item in items:
+        # 更新数据库中的display_order字段
+        obj = Model.query.get(item['id'])
+        if obj:
+            obj.display_order = item['order']
+
+    db.session.commit()
+    return jsonify({'success': True, 'message': '排序更新成功'})
+```
+
+**CSS样式配置**
+
+```css
+/* style.css 中已包含以下样式，无需额外添加 */
+
+/* 拖拽手柄 */
+.drag-handle {
+    cursor: grab;
+    color: #6c757d;
+}
+.drag-handle:hover {
+    color: #0d6efd;
+}
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+/* 拖拽时的虚影 */
+.sortable-ghost {
+    opacity: 0.4;
+    background-color: #e9ecef !important;
+    border: 2px dashed #0d6efd;
+}
+
+/* 正在拖拽的元素 */
+.sortable-drag {
+    opacity: 0.8;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+```
+
+**注意事项**
+
+1. ⚠️ 表格每行必须有 `data-id` 属性，值为记录的ID
+2. ⚠️ 后端API必须返回 `{success: true/false, message: '...'}` 格式
+3. ⚠️ 需要在数据模型中添加 `display_order` 字段
+4. ✅ 支持移动端触摸拖拽
+5. ✅ 保存失败会自动回滚（刷新页面）
+
+**扩展场景**
+
+未来可用于：
+- 审批步骤排序
+- 产品规格字段排序
+- 菜单项排序
+- 任何需要列表排序的场景
+
+---
 
 ### 🎯 数据选择器类
 
@@ -510,6 +704,281 @@ functionName(param1, param2, options)
 
 ---
 
-**版本**: 1.0.0
-**最后更新**: 2025-10-21
+## 🆕 快速操作工具
+
+### select-with-quick-add.js
+
+**基本信息**
+
+- **文件路径**: `app/static/js/select-with-quick-add.js`
+- **版本**: 2.0.0
+- **创建日期**: 2025-11-08
+- **文件大小**: 约700行
+- **替代**: indicator-quick-add.js (已删除)
+
+**功能描述**
+
+通用选择器快速添加组件，为任何下拉选择器提供即时添加新选项的能力。基于配置驱动设计，支持多种数据源（产品指标、产品名称、销售区域等）。
+
+**使用场景**
+
+- 产品创建/编辑时快速添加规格指标
+- 产品创建/编辑时快速添加产品名称（子分类）
+- 产品创建/编辑时快速添加销售区域
+- 任何需要为下拉选择器动态添加新选项的场景
+
+**已使用页面**
+
+1. `app/templates/product/create.html` - 产品创建/编辑页面（统一页面）
+2. `app/templates/product_management/new_product.html` - 研发产品新建页面（通过create.html）
+3. `app/templates/product_management/edit_product.html` - 研发产品编辑页面（通过create.html）
+
+**核心功能**
+
+- ✅ 配置驱动架构，支持多种数据源
+- ✅ 预设配置：产品指标、产品名称、销售区域
+- ✅ 显示统一的快速添加模态框（Bootstrap 5风格）
+- ✅ 自动加载并显示已有项目列表（徽章样式）
+- ✅ 提交到对应的后端API
+- ✅ 自动刷新目标下拉选择器
+- ✅ 自动选中新添加的项目
+- ✅ 自动生成唯一编码（A-Z → 0-9）
+- ✅ 权限检查支持
+- ✅ Toast通知提示添加结果
+- ✅ 完整的错误处理
+- ✅ 向后兼容IndicatorQuickAdd API
+
+**API文档**
+
+```javascript
+// 1. 注册新配置（扩展到其他数据源）
+SelectWithQuickAdd.register(type, config)
+
+// 2. 显示快速添加模态框
+SelectWithQuickAdd.showModal(type, context)
+
+// 3. 提交新项目（通常由模态框内的保存按钮调用）
+SelectWithQuickAdd.submit()
+
+// 4. 向后兼容的指标API（已弃用，建议使用showModal）
+IndicatorQuickAdd.showQuickAddModal(specName, specFieldId, rowElement)
+```
+
+**预设配置类型**
+
+| 类型 | 说明 | API端点 | 已用页面 |
+|-----|------|---------|---------|
+| `indicator` | 产品规格指标 | `/product-management/api/spec-field-options/add` | 产品创建/编辑 |
+| `subcategory` | 产品名称（子分类） | `/product-code/api/subcategories/quick-add` | 产品创建 |
+| `region` | 销售区域 | `/product-code/api/regions/quick-add` | 产品创建 |
+
+**showModal参数说明**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|-----|------|-----|--------|------|
+| type | string | ✅ | - | 配置类型（indicator/subcategory/region） |
+| context | object | ✅ | - | 上下文信息 |
+| context.targetSelect | HTMLElement | 条件 | null | 目标下拉选择器（subcategory/region必需） |
+| context.targetRow | HTMLElement | 条件 | null | 目标行元素（indicator必需） |
+| context.specName | string | 条件 | null | 规格名称（indicator必需） |
+| context.specFieldId | string/number | ❌ | null | 规格字段ID（indicator可选） |
+| context.displayName | string | ❌ | null | 模态框标题显示名称 |
+
+**使用示例**
+
+```html
+<!-- 1. 引入模态框宏 -->
+{% from 'macros/ui_modals.html' import render_select_quick_add_modal %}
+
+<!-- 2. 在页面底部渲染模态框 -->
+{{ render_select_quick_add_modal() }}
+
+<!-- 3. 引入JS工具 -->
+<script src="{{ url_for('static', filename='js/select-with-quick-add.js') }}"></script>
+
+<!-- 4. 示例1: 产品名称下拉框添加快速添加选项 -->
+<select class="form-select" id="subcategory_id" name="subcategory_id">
+    <option value="">-- 请先选择分类 --</option>
+    <!-- 动态加载的选项 -->
+    {% if has_permission('product_code', 'edit') %}
+    <option value="__ADD_NEW_SUBCATEGORY__" style="color: #0d6efd; font-weight: 500;">
+        ➕ 添加新产品名称
+    </option>
+    {% endif %}
+</select>
+
+<script>
+// 监听产品名称选择变化
+document.getElementById('subcategory_id').addEventListener('change', function() {
+    if (this.value === '__ADD_NEW_SUBCATEGORY__') {
+        this.value = ''; // 恢复到之前的选择
+        SelectWithQuickAdd.showModal('subcategory', {
+            targetSelect: this
+        });
+    }
+});
+</script>
+
+<!-- 5. 示例2: 销售区域快速添加 -->
+<select class="form-select" id="region_id" name="region_id">
+    <option value="">-- 请选择销售区域 --</option>
+    <!-- 选项列表 -->
+    {% if has_permission('product_code', 'edit') %}
+    <option value="__ADD_NEW_REGION__" style="color: #0d6efd; font-weight: 500;">
+        ➕ 添加新区域
+    </option>
+    {% endif %}
+</select>
+
+<script>
+// 监听区域选择变化
+document.getElementById('region_id').addEventListener('change', function() {
+    if (this.value === '__ADD_NEW_REGION__') {
+        this.value = '';
+        SelectWithQuickAdd.showModal('region', {
+            targetSelect: this
+        });
+    }
+});
+</script>
+
+<!-- 6. 示例3: 产品指标快速添加（向后兼容） -->
+<button type="button"
+        onclick="IndicatorQuickAdd.showQuickAddModal('颜色', '123', this.closest('tr'))">
+    <i class="fas fa-plus"></i> 快速添加
+</button>
+```
+
+**模态框UI预览**
+
+```
+┌─────────────────────────────────────────────────┐
+│ ⊕ 快速添加指标                           ✕      │ ← 蓝色header
+├─────────────────────────────────────────────────┤
+│ ℹ️ 添加新的指标值到当前规格。新指标将立即可用。   │
+│ 当前规格: 颜色                                  │
+│                                                 │
+│ 指标名称 *                                      │
+│ ┌─────────────────────────────────────────┐   │
+│ │ 请输入指标名称...                        │   │
+│ └─────────────────────────────────────────┘   │
+│                                                 │
+│ 指标说明 (可选)                                 │
+│ ┌─────────────────────────────────────────┐   │
+│ │                                         │   │
+│ └─────────────────────────────────────────┘   │
+│                                                 │
+│ 🪄 系统将自动为指标分配唯一编码                  │
+├─────────────────────────────────────────────────┤
+│                            [取消] [✓ 保存并选择] │
+└─────────────────────────────────────────────────┘
+```
+
+**后端API依赖**
+
+**API 1: 产品指标快速添加**
+```
+POST /product-management/api/spec-field-options/add
+请求: { subcategory_id, spec_name, field_id?, value, description? }
+响应: { success, message, new_item: {id, value, code, description} }
+```
+
+**API 2: 产品名称快速添加**
+```
+POST /product-code/api/subcategories/quick-add
+请求: { category_id, value, description? }
+响应: { success, message, new_item: {id, name, code_letter, description} }
+```
+
+**API 3: 销售区域快速添加**
+```
+POST /product-code/api/regions/quick-add
+请求: { value, description? }
+响应: { success, message, new_item: {id, name, code_letter, description} }
+```
+
+**API 4-5: 获取已有项目列表**
+```
+GET /product-code/api/subcategories?category_id={id}
+GET /product-code/api/regions
+响应: { success, items: [{id, name, code, is_active}] }
+```
+
+**前端依赖**
+
+- **Bootstrap 5**: 模态框组件 (`bootstrap.Modal`)
+- **模板宏**: `macros/ui_modals.html::render_select_quick_add_modal()`
+- **UI组件**: `macros/ui_helpers.html::render_button()`
+- **Toast容器**: 用于成功提示（可选，降级为console）
+- **权限系统**: `has_permission('product_code', 'edit')` 控制显示
+
+**工作流程**
+
+1. 用户在下拉框中选择"➕ 添加新XXX"特殊选项
+2. JavaScript监听change事件，检测特殊值
+3. 调用 `SelectWithQuickAdd.showModal(type, context)` 显示模态框
+4. 自动加载并显示已有项目列表（徽章样式）
+5. 用户输入名称和描述
+6. 点击"保存并选择"触发 `submit()`
+7. 调用对应的后端API创建新项目
+8. API自动生成唯一编码（A-Z → 0-9）
+9. 成功后关闭模态框
+10. 刷新目标下拉选择器，添加新选项
+11. 自动选中新添加的项目
+12. 显示Toast成功提示
+
+**注意事项**
+
+- ✅ 自动初始化，无需手动调用 `init()`
+- ✅ 支持Enter键快速提交
+- ✅ 模态框关闭时自动重置表单
+- ✅ 配置驱动，易于扩展到其他数据源
+- ✅ 向后兼容 IndicatorQuickAdd API
+- ✅ 权限控制：只有有 `product_code.edit` 权限的用户能看到快速添加选项
+- ⚠️ 需要确保页面有CSRF token字段
+- ⚠️ 产品名称快速添加需要先选择产品分类
+- ⚠️ 产品指标快速添加需要先选择产品名称（子分类）
+
+**扩展示例：添加新的数据源**
+
+```javascript
+// 注册新的配置类型：品牌快速添加
+SelectWithQuickAdd.register('brand', {
+    modalId: 'selectQuickAddModal',
+    apiEndpoint: '/product-code/api/brands/quick-add',
+    valueFieldLabel: '品牌名称',
+    descriptionFieldLabel: '品牌描述',
+
+    getExistingItemsUrl: function(context) {
+        return '/product-code/api/brands';
+    },
+
+    refreshTarget: function(context, newItem) {
+        if (!context.targetSelect) return;
+        const option = document.createElement('option');
+        option.value = newItem.id;
+        option.textContent = newItem.name;
+        context.targetSelect.appendChild(option);
+        context.targetSelect.value = newItem.id;
+        context.targetSelect.dispatchEvent(new Event('change'));
+    }
+});
+
+// 使用
+SelectWithQuickAdd.showModal('brand', {
+    targetSelect: document.getElementById('brand_select')
+});
+```
+
+**维护日志**
+
+| 日期 | 版本 | 变更说明 |
+|------|------|---------|
+| 2025-11-08 | 2.0.0 | 重构为通用组件，支持产品指标、产品名称、销售区域快速添加 |
+| 2025-11-01 | 1.0.0 | ~~初始版本（indicator-quick-add.js，已删除）~~ |
+
+---
+
+**版本**: 2.0.0
+**最后更新**: 2025-11-08
 **维护者**: Claude AI

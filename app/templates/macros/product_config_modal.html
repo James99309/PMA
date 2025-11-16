@@ -1,0 +1,599 @@
+{#
+  通用产品配置选择模态框
+  用于报价单产品明细中选择具体产品配置
+
+  作者: Claude AI
+  版本: 2.0.0 (重构为使用render_custom_dialog组件)
+  日期: 2025-11-03
+#}
+
+{% from 'macros/ui_helpers.html' import render_custom_dialog, render_button %}
+
+{% macro render_product_config_modal() %}
+{% call render_custom_dialog('productConfigModal', _('产品配置'), icon='fas fa-cog', size='lg') %}
+    <!-- 固定顶部区域：产品基本信息 -->
+    <div class="modal-fixed-header">
+      <div class="product-basic-info">
+        <div class="row">
+          <div class="col-md-9">
+            <h6 id="configProductName" class="mb-2">{{ _('产品名称') }}</h6>
+            <div id="configProductModel" class="text-muted mb-2">{{ _('型号') }}:</div>
+            <div id="configProductMn" class="mb-2"></div>
+          </div>
+          <div class="col-md-3">
+            <div class="product-image-container">
+              <img id="configProductImage" src="/static/images/no-image.png" alt="{{ _('产品图片') }}" class="img-fluid">
+            </div>
+          </div>
+        </div>
+      </div>
+      <hr class="section-divider">
+    </div>
+
+    <!-- 可滚动内容区域 -->
+    <div class="modal-scrollable-content">
+      <!-- 规格选择区域（多个产品时显示） -->
+      <div id="codeSelectionArea" style="display: none;">
+        <h6 class="mb-3" id="codeSelectionTitle">
+          <i class="fas fa-sliders-h"></i> {{ _('请选择产品规格') }}
+        </h6>
+        <div id="codeFieldsContainer">
+          <!-- 规格字段将动态生成：确定的值直接显示，不同的值显示选择器 -->
+        </div>
+      </div>
+
+      <!-- 规格详情区域（单个产品或选择完成后显示） -->
+      <div id="productSpecsArea">
+        <h6 class="mb-2">
+          <i class="fas fa-list-ul"></i> {{ _('产品规格') }}
+        </h6>
+        <div id="productSpecsList" class="specs-list">
+          <!-- 规格列表将动态生成 -->
+        </div>
+      </div>
+
+      <!-- 已选配置展示区域（确认后显示） -->
+      <div id="selectedConfigsArea" style="display: none;">
+        <h6 class="mb-2 mt-3">
+          <i class="fas fa-puzzle-piece"></i> {{ _('已选配置') }}
+        </h6>
+        <div id="selectedConfigsList" class="config-list">
+          <!-- 已选配置将动态生成 -->
+        </div>
+      </div>
+
+      <!-- 产品配置区域（产品确定后显示） -->
+      <div id="productConfigArea" style="display: none;">
+        <hr class="section-divider">
+        <h6 class="mb-3">
+          <i class="fas fa-puzzle-piece"></i> {{ _('产品配置') }}
+        </h6>
+
+        <!-- 必选配置区域 -->
+        <div id="requiredConfigArea" style="display: none;">
+          <div id="requiredConfigList" class="config-list">
+            <!-- 必选配置将动态生成 -->
+          </div>
+        </div>
+
+        <!-- 必选互斥配置区域 -->
+        <div id="requiredMutualConfigArea" style="display: none;" class="mt-3">
+          <div id="requiredMutualConfigList" class="config-list">
+            <!-- 必选互斥配置将动态生成 -->
+          </div>
+        </div>
+
+        <!-- 推荐配置区域 -->
+        <div id="recommendedConfigArea" style="display: none;" class="mt-3">
+          <div id="recommendedConfigList" class="config-list">
+            <!-- 推荐配置将动态生成 -->
+          </div>
+        </div>
+
+        <!-- 推荐互斥配置区域 -->
+        <div id="optionalMutualConfigArea" style="display: none;" class="mt-3">
+          <div id="optionalMutualConfigList" class="config-list">
+            <!-- 可选互斥配置将动态生成 -->
+          </div>
+        </div>
+
+        <!-- 加载中提示 -->
+        <div id="configLoadingSpinner" class="loading-spinner" style="display: none;">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="mt-2 text-muted">{{ _('正在加载配置选项...') }}</p>
+        </div>
+
+        <!-- 无配置提示 -->
+        <div id="noConfigMessage" style="display: none;" class="text-muted text-center py-3">
+          <i class="fas fa-info-circle"></i> {{ _('该产品暂无配置选项') }}
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 固定底部区域：按钮 -->
+    <div class="custom-dialog-actions">
+        {{ render_button(
+            text=_('返回'),
+            type='button',
+            color='secondary',
+            icon='fas fa-arrow-left',
+            attrs='id="backToConfigSelection" style="display: none;"'
+        ) }}
+        {{ render_button(
+            text=_('确认选择'),
+            type='button',
+            color='primary',
+            icon='fas fa-check',
+            attrs='id="confirmProductSelection"'
+        ) }}
+        {{ render_button(
+            text=_('取消'),
+            type='button',
+            color='secondary',
+            icon='fas fa-times',
+            onclick='closeCustomDialog("productConfigModal")'
+        ) }}
+    </div>
+{% endcall %}
+
+<!-- 产品配置模态框样式 -->
+<style>
+/* 确保对话框主体不会产生滚动条，所有滚动在内部区域处理 */
+#productConfigModal .custom-dialog-body {
+  overflow: visible !important;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 固定顶部区域 */
+#productConfigModal .modal-fixed-header {
+  background: #fff;
+  padding-bottom: 0;
+  margin-bottom: 0;
+  flex-shrink: 0;  /* 不压缩 */
+}
+
+/* 固定头部内的分割线 */
+#productConfigModal .modal-fixed-header .section-divider {
+  margin: 1rem 0 0 0;
+}
+
+/* 可滚动内容区域 */
+#productConfigModal .modal-scrollable-content {
+  max-height: calc(100vh - 350px);  /* 视口高度 - (固定头部 + 按钮区域 + 边距) */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1rem 0;
+  margin-top: 1rem;
+  flex-shrink: 1;  /* 可以压缩 */
+}
+
+/* 产品图片容器 */
+#productConfigModal .product-image-container {
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+  background: #f8f9fa;
+}
+
+#productConfigModal .product-image-container img {
+  max-height: 150px;
+  width: 100%;
+  object-fit: contain;
+}
+
+/* 编码字段分组样式 */
+#productConfigModal .code-field-group {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  background: #f8f9fa;
+}
+
+#productConfigModal .code-field-group .form-label {
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+/* 按钮组样式 */
+#productConfigModal .btn-group .btn {
+  min-width: 80px;
+}
+
+#productConfigModal .btn-group .btn-check:checked + .btn-outline-primary {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+  color: white;
+}
+
+/* 规格列表网格布局 */
+#productConfigModal .specs-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.5rem;
+}
+
+#productConfigModal .spec-item {
+  padding: 0.5rem;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  background: white;
+}
+
+#productConfigModal .spec-item .spec-name {
+  font-weight: 600;
+  color: #6c757d;
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+}
+
+#productConfigModal .spec-item .spec-value {
+  color: #212529;
+  font-size: 0.95rem;
+}
+
+/* MN号徽章样式 */
+#productConfigModal .mn-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+#productConfigModal .mn-badge.confirmed {
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
+}
+
+#productConfigModal .mn-badge.pending {
+  background-color: #fff3cd;
+  border: 1px solid #ffc107;
+  color: #856404;
+}
+
+#productConfigModal .mn-badge.partial {
+  background-color: #ffe0b2;
+  border: 1px solid #ff9800;
+  color: #e65100;
+}
+
+#productConfigModal .mn-badge.error {
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+/* 规格字段网格容器 - 两栏布局 */
+#productConfigModal .spec-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem 1rem;  /* 行间距0.5rem，列间距1rem */
+  margin-bottom: 1rem;
+}
+
+/* 产品额外信息网格容器 - 两栏布局 */
+#productConfigModal .product-extra-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem 1rem;
+}
+
+/* 配置信息三栏网格容器 */
+#productConfigModal .config-info-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem 1rem;
+  margin-top: 0.5rem;
+}
+
+/* 配置信息两栏网格容器 */
+#productConfigModal .config-info-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem 1rem;
+  margin-top: 0.5rem;
+}
+
+/* 固定字段样式 - 极简纯文本 */
+#productConfigModal .spec-field-fixed {
+  display: flex;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+#productConfigModal .spec-field-fixed .spec-field-label {
+  font-weight: 600;
+  color: #6c757d;
+  font-size: 0.9rem;
+  min-width: 120px;
+  flex-shrink: 0;
+}
+
+#productConfigModal .spec-field-fixed .spec-field-value {
+  color: #212529;
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+/* 可选字段样式（需要选择） */
+#productConfigModal .spec-field-selectable {
+  margin-bottom: 1.5rem;
+  padding: 0;
+}
+
+#productConfigModal .spec-field-selectable .form-label {
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+#productConfigModal .spec-field-selectable .form-label .text-danger {
+  font-size: 1.1rem;
+  margin-left: 0.25rem;
+}
+
+#productConfigModal .spec-field-selectable .form-label small {
+  font-weight: normal;
+  color: #6c757d;
+}
+
+/* 产品基本信息样式 */
+#productConfigModal .product-basic-info h6 {
+  color: #212529;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+#productConfigModal .product-basic-info .text-muted {
+  font-size: 0.95rem;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  /* 网格改为单栏 */
+  #productConfigModal .spec-fields-grid,
+  #productConfigModal .product-extra-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #productConfigModal .specs-list {
+    grid-template-columns: 1fr;
+  }
+
+  #productConfigModal .btn-group {
+    flex-direction: column;
+  }
+
+  #productConfigModal .btn-group .btn {
+    border-radius: 0.375rem !important;
+    margin-bottom: 0.25rem;
+  }
+}
+
+/* 选项列表样式（列表式单选框） */
+#productConfigModal .spec-options-list {
+  margin-top: 0.5rem;
+}
+
+#productConfigModal .spec-options-list .form-check {
+  padding: 0.4rem 0;
+  margin-bottom: 0.4rem;
+}
+
+/* 隐藏规格选择区域的单选框（只针对规格选择，不影响配置区域） */
+#productConfigModal #codeSelectionArea .spec-options-list .form-check-input,
+#productConfigModal .spec-options-list .form-check-input[type="radio"] {
+  display: none !important;
+}
+
+/* 自定义标签样式 */
+#productConfigModal .spec-options-list .form-check-label {
+  position: relative;
+  padding-left: 1.8rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: #212529;
+}
+
+/* 未选中：显示圆圈 ○ */
+#productConfigModal .spec-options-list .form-check-label::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.2rem;
+  height: 1.2rem;
+  border: 2px solid #6c757d;
+  border-radius: 50%;
+  background: white;
+}
+
+/* 已选中：显示打勾 ✓ */
+#productConfigModal .spec-options-list .form-check-input:checked ~ .form-check-label::before {
+  content: '\2713';
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-color: #28a745;
+  background: #28a745;
+  color: white;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+/* 已选中：文字加粗 */
+#productConfigModal .spec-options-list .form-check-input:checked ~ .form-check-label {
+  font-weight: 600;
+  color: #212529;
+}
+
+/* 加载状态样式 */
+#productConfigModal .loading-spinner {
+  text-align: center;
+  padding: 2rem;
+}
+
+#productConfigModal .loading-spinner .spinner-border {
+  width: 3rem;
+  height: 3rem;
+}
+
+/* 错误提示样式 */
+#productConfigModal .error-message {
+  color: #dc3545;
+  padding: 1rem;
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  margin: 1rem 0;
+}
+
+#productConfigModal .error-message i {
+  margin-right: 0.5rem;
+}
+
+/* 分割线样式 */
+#productConfigModal .section-divider {
+  margin: 1.5rem 0;
+  border: none;
+  border-top: 2px solid #e9ecef;
+}
+
+/* ============== 产品配置区域样式 ============== */
+
+/* 配置区域整体 */
+#productConfigModal #productConfigArea {
+  margin-top: 1.5rem;
+}
+
+/* 配置区域标题 */
+#productConfigModal .config-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+#productConfigModal .config-section-title-text {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #495057;
+}
+
+#productConfigModal .config-section-header .badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.25rem 0.65rem;
+}
+
+/* 配置区域分割线 */
+#productConfigModal .config-section-divider {
+  margin: 0.5rem 0;
+  border: none;
+  border-top: 1px solid #e9ecef;
+}
+
+/* 配置列表容器 */
+#productConfigModal .config-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+/* 互斥组容器 */
+#productConfigModal .mutual-group {
+  padding: 1rem;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  background: #f8f9fa;
+  margin-bottom: 1rem;
+}
+
+#productConfigModal .mutual-group .group-title {
+  font-weight: 600;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #dee2e6;
+  color: #495057;
+  font-size: 1rem;
+}
+
+/* 必选配置项样式（简化，不可选择） */
+#productConfigModal .config-item-simple {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+#productConfigModal .config-item-simple:last-child {
+  border-bottom: none;
+}
+
+/* 产品名称样式 */
+#productConfigModal .config-product-name {
+  font-weight: normal;
+  font-size: 1rem;
+  color: #212529;
+}
+
+/* 可选配置项样式（单选框/复选框） */
+#productConfigModal .config-option-simple {
+  display: flex;
+  align-items: flex-start;
+  padding: 0.75rem 0.5rem 0.75rem 0;
+  margin-bottom: 0.5rem;
+}
+
+#productConfigModal .config-option-simple .form-check-input {
+  margin-top: 0.3rem;
+  margin-left: 0.5rem;
+  margin-right: 0.75rem;
+  flex-shrink: 0;
+}
+
+#productConfigModal .config-option-simple .form-check-label {
+  flex: 1;
+  cursor: pointer;
+  padding-left: 0;
+}
+
+/* 配置价格样式 */
+#productConfigModal .config-price {
+  color: #0d6efd;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+/* 确保按钮区域固定在底部，不参与滚动 */
+#productConfigModal .custom-dialog-actions {
+  flex-shrink: 0;  /* 不压缩 */
+  position: sticky;  /* 粘性定位 */
+  bottom: 0;
+  z-index: 10;
+  background: #ffffff;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);  /* 添加阴影使其更突出 */
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  /* 移动端优化 */
+  #productConfigModal .config-section-header {
+    flex-wrap: wrap;
+  }
+
+  #productConfigModal .mutual-group {
+    padding: 0.75rem;
+  }
+}
+</style>
+{% endmacro %}

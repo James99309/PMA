@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>复选框显示问题诊断</title>
+    <style>
+        /* 模拟问题场景 */
+
+        /* 规格选择区域的CSS - 隐藏单选框 */
+        #productConfigModal .spec-options-list .form-check-input {
+            display: none;
+        }
+
+        /* 配置区域的CSS - 应该显示复选框 */
+        #productConfigModal .config-item-text .form-check-input {
+            margin-top: 0.25rem;
+            flex-shrink: 0;
+            display: block !important;
+            width: 1.25rem;
+            height: 1.25rem;
+        }
+
+        .config-item-text {
+            display: flex;
+            align-items: flex-start;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-check-label {
+            margin-left: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <h2>复选框显示诊断</h2>
+
+    <div id="productConfigModal">
+        <h3>场景1: 规格选择区域（单选框应该被隐藏）</h3>
+        <div class="spec-options-list">
+            <div class="form-check">
+                <input type="radio" class="form-check-input" id="radio1">
+                <label class="form-check-label" for="radio1">选项1（单选框应该不可见）</label>
+            </div>
+        </div>
+
+        <h3>场景2: 配置区域（复选框应该显示）</h3>
+        <div id="configurationsContainer">
+            <div class="form-check config-item-text">
+                <input type="checkbox" class="form-check-input" id="check1">
+                <label class="form-check-label" for="check1">配置1（复选框应该可见）</label>
+            </div>
+
+            <div class="form-check config-item-text">
+                <input type="checkbox" class="form-check-input" id="check2">
+                <label class="form-check-label" for="check2">配置2（复选框应该可见）</label>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 检查复选框的实际计算样式
+        document.addEventListener('DOMContentLoaded', function() {
+            const checkboxes = document.querySelectorAll('#configurationsContainer .form-check-input');
+            console.log('找到复选框数量:', checkboxes.length);
+
+            checkboxes.forEach((checkbox, index) => {
+                const styles = window.getComputedStyle(checkbox);
+                console.log(`复选框 ${index + 1} 的计算样式:`, {
+                    display: styles.display,
+                    visibility: styles.visibility,
+                    opacity: styles.opacity,
+                    width: styles.width,
+                    height: styles.height,
+                    position: styles.position
+                });
+            });
+        });
+    </script>
+</body>
+</html>

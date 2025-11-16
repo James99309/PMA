@@ -1,8 +1,9 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel, render_confirm_dialog %}
 {% from 'macros/ui_helpers.html' import render_authorization_code, render_owner %}
 {% from 'macros/product_detail_manager.html' import render_product_detail_table, init_product_detail_scripts %}
 {% from 'macros/project_search.html' import render_project_search, init_project_search_scripts %}
+{% from 'macros/product_config_modal.html' import render_product_config_modal %}
 
 {% block content %}
 <div class="container-fluid page-with-fixed-nav">
@@ -337,6 +338,12 @@
         </div>
     </div>
 </div>
+
+<!-- 产品配置模态框 -->
+{{ render_product_config_modal() }}
+
+<!-- 标准确认对话框 -->
+{{ render_confirm_dialog() }}
 
 <!-- 内联样式已移除，使用通用组件的内置样式 -->
 
@@ -749,7 +756,13 @@ function submitQuotationAsJson(productDetails) {
                 unit_price: parseFloat(detail.unit_price) || 0,
                 total_price: parseFloat(detail.total_price) || 0,
                 product_mn: detail.product_mn || '',
-                currency: currency
+                currency: currency,
+                // 配置产品字段（主次关系）
+                is_configuration: detail.is_configuration || false,
+                parent_row_id: detail.parent_row_id || null,
+                row_id: detail.row_id || null,
+                config_type: detail.config_type || null,
+                config_base_quantity: detail.config_base_quantity || null
             })),
             return_to: $('input[name="return_to"]').val() || ''
         };

@@ -12,6 +12,8 @@ class ProductSelector {
         const defaultApiEndpoints = {
             categories: '/api/products/categories',
             productsByCategory: '/api/products/by-category',
+            subcategories: '/api/products/subcategories',           // 新增：子分类查询
+            productsBySubcategory: '/api/products/by-subcategory',  // 新增：按子分类查询产品
             productModels: '/api/products/models',
             productSpecs: '/api/products/specs',
             productSearch: '/api/products/search'
@@ -52,16 +54,80 @@ class ProductSelector {
         this.cache = new Map();
         this.activeMenus = new Map();
         this.searchTimeout = null;
-        
+        this.configModal = null;  // 产品配置模态框实例
+        this.currentInput = null;  // 当前正在操作的输入框
+
         this.init();
     }
-    
+
     /**
      * 初始化组件
      */
     init() {
         this.addStyles();
         this.bindGlobalEvents();
+        this.initConfigModal();  // 初始化产品配置模态框
+    }
+
+    /**
+     * 初始化产品配置模态框（增强版 - 支持自动重试）
+     */
+    initConfigModal() {
+        console.log('🔍 Checking ProductConfigModal initialization...');
+        console.log('  - ProductConfigModal class defined:', typeof ProductConfigModal !== 'undefined');
+        console.log('  - Modal DOM element exists:', !!document.getElementById('productConfigModal'));
+
+        // 如果 ProductConfigModal 未定义，启动自动重试机制（防御性编程）
+        if (typeof ProductConfigModal === 'undefined') {
+            console.warn('⚠️ ProductConfigModal not yet loaded, setting up retry mechanism...');
+
+            let retryCount = 0;
+            const maxRetries = 10;  // 最多重试10次
+
+            const retryInterval = setInterval(() => {
+                retryCount++;
+                console.log(`  🔄 Retry #${retryCount}...`);
+
+                if (typeof ProductConfigModal !== 'undefined' && document.getElementById('productConfigModal')) {
+                    clearInterval(retryInterval);
+                    this.configModal = new ProductConfigModal(this);
+                    console.log(`✅ Product config modal initialized successfully (after ${retryCount} retry)`);
+                } else if (retryCount >= maxRetries) {
+                    clearInterval(retryInterval);
+                    console.error(`❌ ProductConfigModal initialization failed after ${maxRetries} retries`);
+                    console.error('   - ProductConfigModal:', typeof ProductConfigModal);
+                    console.error('   - Modal element:', document.getElementById('productConfigModal'));
+                }
+            }, 100);  // 每100ms重试一次
+            return;
+        }
+
+        // 正常初始化路径
+        if (document.getElementById('productConfigModal')) {
+            this.configModal = new ProductConfigModal(this);
+            console.log('✅ Product config modal initialized successfully');
+        } else {
+            console.error('❌ ProductConfigModal class exists but DOM element not found');
+            console.error('   Please ensure render_product_config_modal() is called in the template');
+        }
+    }
+
+    /**
+     * 打开产品配置模态框
+     */
+    openProductConfigModal(config) {
+        // 如果模态框未初始化，尝试重新初始化（延迟初始化机制）
+        if (!this.configModal) {
+            console.log('🔄 Attempting lazy initialization of ProductConfigModal...');
+            this.initConfigModal();
+        }
+
+        if (this.configModal) {
+            this.configModal.open(config);
+        } else {
+            console.error('❌ Product config modal not initialized and lazy initialization failed');
+            alert('产品配置功能初始化失败，请刷新页面重试');
+        }
     }
     
     /**
@@ -705,7 +771,7 @@ class ProductSelector {
     }
     
     /**
-     * 选择类别
+     * 选择类别 - 改造后：加载子分类列表
      */
     async selectCategory(menu, category) {
         // 高亮当前类别
@@ -713,66 +779,60 @@ class ProductSelector {
             item.classList.remove('active');
         });
         menu.querySelector(`[data-category="${category}"]`).classList.add('active');
-        
+
         // 重置后续列表
         const modelsContainer = menu.querySelector('.model-list');
-        modelsContainer.innerHTML = '<div class="menu-loading">请选择产品</div>';
+        modelsContainer.innerHTML = '<div class="menu-loading">请选择子分类</div>';
         modelsContainer.style.display = 'none';
-        
-        // 显示并加载产品列表
-        const productsContainer = menu.querySelector('.product-list');
-        productsContainer.style.display = 'block';
-        productsContainer.innerHTML = '<div class="menu-loading">加载中...</div>';
-        
+
+        // 显示并加载子分类列表
+        const subcategoriesContainer = menu.querySelector('.product-list');
+        subcategoriesContainer.style.display = 'block';
+        subcategoriesContainer.innerHTML = '<div class="menu-loading">加载中...</div>';
+
         try {
-            const products = await this.fetchData('productsByCategory', { category });
-            
-            productsContainer.innerHTML = '';
-            
-            if (!products || products.length === 0) {
-                productsContainer.innerHTML = '<div class="menu-empty">此类别下暂无产品</div>';
+            // 调用新的API接口获取子分类
+            const subcategoriesData = await this.fetchData('subcategories', { category });
+
+            subcategoriesContainer.innerHTML = '';
+
+            if (!subcategoriesData || !subcategoriesData.subcategories || subcategoriesData.subcategories.length === 0) {
+                subcategoriesContainer.innerHTML = '<div class="menu-empty">此分类下暂无子分类</div>';
                 return;
             }
-            
-            // 按产品名称分组
-            const productGroups = {};
-            products.forEach(product => {
-                if (!productGroups[product.product_name]) {
-                    productGroups[product.product_name] = [];
-                }
-                productGroups[product.product_name].push(product);
-            });
-            
-            // 显示产品名称
-            Object.keys(productGroups).forEach(productName => {
+
+            const subcategories = subcategoriesData.subcategories;
+
+            // 显示子分类列表
+            subcategories.forEach(subcategory => {
                 const item = document.createElement('div');
                 item.className = 'menu-item';
                 item.innerHTML = `
                     <div class="product-info">
-                        <div class="product-name">${productName}</div>
-                        <div class="product-details">${productGroups[productName].length} 个型号</div>
+                        <div class="product-name">${subcategory.name}</div>
+                        <div class="product-details">${subcategory.count} 个产品</div>
                     </div>
                 `;
-                item.dataset.productName = productName;
+                item.dataset.subcategory = subcategory.name;
                 item.dataset.category = category;
-                
+
                 // 添加鼠标悬停和点击事件
                 let hoverTimer;
-                
+
                 item.addEventListener('mouseenter', () => {
                     // 添加悬停视觉反馈
                     item.classList.add('hover-expanding');
-                    
+
                     // 延迟展开，避免快速滑过时误触
                     hoverTimer = setTimeout(() => {
-                        this.selectProduct(menu, category, productName);
+                        this.selectSubcategory(menu, category, subcategory.name);
                     }, 200);
                 });
-                
+
                 item.addEventListener('mouseleave', () => {
                     // 移除悬停视觉反馈
                     item.classList.remove('hover-expanding');
-                    
+
                     // 清除延迟定时器
                     if (hoverTimer) {
                         clearTimeout(hoverTimer);
@@ -780,50 +840,147 @@ class ProductSelector {
                 });
                 
                 item.addEventListener('click', () => {
-                    // 立即选择产品
+                    // 立即选择子分类
                     if (hoverTimer) {
                         clearTimeout(hoverTimer);
                     }
-                    this.selectProduct(menu, category, productName);
+                    this.selectSubcategory(menu, category, subcategory.name);
                 });
-                
-                productsContainer.appendChild(item);
+
+                subcategoriesContainer.appendChild(item);
             });
-            
-            // 加载并显示临时产品名称（如果启用）
-            await this.loadTempProductNames(productsContainer, category, menu);
-            
-            // 在产品列表末尾添加手动输入选项（如果启用）
-            console.log('🔧 检查手动输入配置:', this.config.manual_input);
-            console.log('🔧 完整配置对象:', this.config);
-            console.log('🔧 manual_input存在:', !!this.config.manual_input);
-            console.log('🔧 manual_input.enabled值:', this.config.manual_input ? this.config.manual_input.enabled : 'undefined');
-            if (this.config.manual_input && this.config.manual_input.enabled) {
-                console.log('✅ 手动输入功能已启用，在产品列表中添加选项');
-                const manualInputItem = document.createElement('div');
-                manualInputItem.className = 'menu-item manual-input-option';
-                manualInputItem.innerHTML = `
-                    <div class="product-info manual-input-info">
-                        <div class="product-name">
-                            <i class="fas fa-edit"></i> ${this.config.manual_input.option_text || '手动输入'}
-                        </div>
-                        <div class="product-details">手动输入产品信息</div>
-                    </div>
-                `;
-                
-                manualInputItem.addEventListener('click', () => {
-                    console.log('🔧 手动输入选项被点击，分类:', category);
-                    this.showManualInputForm(category, '');
-                });
-                
-                productsContainer.appendChild(manualInputItem);
-                console.log('✅ 手动输入选项已添加到产品列表');
-            } else {
-                console.log('❌ 手动输入功能未启用或配置不正确');
-            }
-            
+
         } catch (error) {
-            this.handleError(productsContainer, '加载产品失败');
+            this.handleError(subcategoriesContainer, '加载子分类失败');
+        }
+    }
+
+    /**
+     * 选择子分类 - 新增方法：加载型号列表
+     */
+    async selectSubcategory(menu, category, subcategory) {
+        // 高亮当前子分类
+        menu.querySelectorAll('.product-list .menu-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        const subcategoryItem = menu.querySelector(`[data-subcategory="${subcategory}"]`);
+        if (subcategoryItem) {
+            subcategoryItem.classList.add('active');
+        }
+
+        // 显示并加载型号列表
+        const modelsContainer = menu.querySelector('.model-list');
+        modelsContainer.style.display = 'block';
+        modelsContainer.innerHTML = '<div class="menu-loading">加载中...</div>';
+
+        try {
+            // 调用新的API接口获取该子分类下的所有产品（按型号分组）
+            const productsData = await this.fetchData('productsBySubcategory', { category, subcategory });
+
+            modelsContainer.innerHTML = '';
+
+            if (!productsData || !productsData.model_groups || productsData.model_groups.length === 0) {
+                modelsContainer.innerHTML = '<div class="menu-empty">此子分类下暂无产品</div>';
+                return;
+            }
+
+            const modelGroups = productsData.model_groups;
+
+            // 显示型号列表（去重后的）
+            modelGroups.forEach(modelGroup => {
+                const item = document.createElement('div');
+                item.className = 'menu-item';
+
+                // 根据产品数量决定显示内容
+                let contentHtml = '';
+                if (modelGroup.count === 1) {
+                    // 只有1个产品：显示型号、价格和产品描述
+                    const product = modelGroup.products[0];
+                    const price = product.retail_price ? parseFloat(product.retail_price) : null;
+                    const priceText = price ? `¥${price.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '价格面议';
+                    const isDiscontinued = product.status === 'discontinued' || product.status === '停产';
+                    const priceClass = isDiscontinued ? 'product-price-discontinued' : 'product-price';
+
+                    contentHtml = `
+                        <div class="product-info">
+                            <div class="product-name">${modelGroup.model}</div>
+                            ${product.specification ? `<div class="product-details">${product.specification}</div>` : ''}
+                            <div class="${priceClass}">${priceText}${isDiscontinued ? ' (停产)' : ''}</div>
+                        </div>
+                    `;
+                } else {
+                    // 多个产品：不显示价格，显示"点击选择"提示
+                    contentHtml = `
+                        <div class="product-info">
+                            <div class="product-name">${modelGroup.model}</div>
+                            <div class="product-details" style="color: #6c757d; font-style: italic;">点击选择 (${modelGroup.count} 个产品)</div>
+                        </div>
+                    `;
+                }
+
+                item.innerHTML = contentHtml;
+                item.dataset.model = modelGroup.model;
+                item.dataset.category = category;
+                item.dataset.subcategory = subcategory;
+
+                // 点击型号时触发选择逻辑
+                item.addEventListener('click', () => {
+                    this.selectModel(modelGroup, category, subcategory);
+                });
+
+                modelsContainer.appendChild(item);
+            });
+
+        } catch (error) {
+            console.error('加载型号列表失败:', error);
+            this.handleError(modelsContainer, '加载型号失败');
+        }
+    }
+
+    /**
+     * 选择型号 - 新增方法：处理单/多产品逻辑
+     */
+    selectModel(modelGroup, category, subcategory) {
+        const products = modelGroup.products;
+
+        if (!products || products.length === 0) {
+            console.error('型号下没有产品');
+            return;
+        }
+
+        // 关闭级联菜单
+        this.hideMenu();
+
+        if (products.length === 1) {
+            // 情况1：只有1个产品
+            const product = products[0];
+
+            // 检查产品是否有配置选项
+            if (product.has_configurations) {
+                // 有配置 → 打开配置模态框
+                console.log('产品有配置选项，打开配置模态框:', product);
+                this.openProductConfigModal({
+                    category: category,
+                    subcategory: subcategory,
+                    model: modelGroup.model,
+                    products: products
+                });
+            } else {
+                // 无配置 → 直接选择
+                console.log('型号下只有1个产品且无配置，直接选择:', product);
+                if (this.config.onSelect && this.currentInput) {
+                    this.config.onSelect(product, this.currentInput);
+                }
+            }
+        } else {
+            // 情况2：有多个产品，打开配置模态框
+            console.log('型号下有多个产品，打开配置模态框:', products);
+            this.openProductConfigModal({
+                category: category,
+                subcategory: subcategory,
+                model: modelGroup.model,
+                products: products
+            });
         }
     }
     
@@ -1132,70 +1289,6 @@ class ProductSelector {
             this.handleError(modelsContainer, errorMessage);
         }
     }
-    
-    /**
-     * 选择型号
-     */
-    async selectModel(menu, category, productName, model) {
-        // 高亮当前型号
-        menu.querySelectorAll('.model-list .menu-item').forEach(item => {
-            item.classList.remove('active');
-        });
-        menu.querySelector(`[data-model="${model}"]`).classList.add('active');
-        
-        // 显示并加载规格列表
-        const specsContainer = menu.querySelector('.spec-list');
-        specsContainer.style.display = 'block';
-        specsContainer.innerHTML = '<div class="menu-loading">加载中...</div>';
-        
-        try {
-            const specs = await this.fetchData('productSpecs', { 
-                category, 
-                product_name: productName, 
-                model: model 
-            });
-            
-            specsContainer.innerHTML = '';
-            
-            if (!specs || specs.length === 0) {
-                specsContainer.innerHTML = '<div class="menu-empty">此型号下暂无规格</div>';
-                return;
-            }
-            
-            // 显示规格
-            specs.forEach(spec => {
-                const item = document.createElement('div');
-                item.className = 'menu-item selectable no-arrow';
-                
-                // 检查是否为停产产品
-                const isDiscontinued = spec.status === 'discontinued' || spec.status === '停产';
-                const priceClass = isDiscontinued ? 'product-price-discontinued' : 'product-price';
-                const priceText = spec.retail_price ? `¥${this.formatPrice(spec.retail_price)}${isDiscontinued ? ' (停产)' : ''}` : '';
-                
-                item.innerHTML = `
-                    <div class="product-info">
-                        <div class="product-name">${spec.specification || '标准规格'}</div>
-                        <div class="product-details">
-                            MN: ${spec.product_mn || '无'}
-                            ${spec.brand ? ` | 品牌: ${spec.brand}` : ''}
-                            ${spec.unit ? ` | 单位: ${spec.unit}` : ''}
-                        </div>
-                        ${priceText ? `<div class="${priceClass}">${priceText}</div>` : ''}
-                    </div>
-                `;
-                
-                item.addEventListener('click', () => {
-                    this.selectSpec(menu, spec);
-                });
-                
-                specsContainer.appendChild(item);
-            });
-            
-        } catch (error) {
-            this.handleError(specsContainer, '加载规格失败');
-        }
-    }
-    
     /**
      * 选择规格（最终选择）
      */

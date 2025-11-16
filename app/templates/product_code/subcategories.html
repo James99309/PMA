@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button %}
+{% from 'macros/ui_helpers.html' import render_button, render_custom_dialog, render_confirm_dialog %}
 
 {% block title %}产品名称管理{% endblock %}
 
@@ -36,22 +36,10 @@
                 <!-- 操作按钮组 -->
                 <div class="btn-toolbar justify-content-end" role="toolbar">
                     {{ render_button('返回分类', href=url_for('product_code.categories'), color='secondary', icon='fas fa-arrow-left') }}
-                    {{ render_button('添加产品名称', href=url_for('product_code.new_subcategory', id=category.id), color='primary', icon='fas fa-plus') }}
+                    {{ render_button('添加产品名称', onclick='subcategoryManager.openModal("add")', color='primary', icon='fas fa-plus') }}
                 </div>
             </div>
         </div>
-    </div>
-
-
-    <div class="alert alert-info mb-3" style="font-size: 0.875rem;">
-        <i class="fas fa-info-circle me-1"></i>
-        <strong>编码规则说明</strong>
-        <p class="mb-2 mt-1" style="font-size: 0.8rem;">完整的产品编码格式如下：</p>
-        <div class="mb-2">
-            <code class="h6">{{ category.code_letter }}<span class="text-primary">X</span><span class="text-success">3</span><span class="text-info">XXXXXXXXXX</span></code>
-            <p class="mb-0 mt-1" style="font-size: 0.8rem;">（其中<span class="text-primary">X</span>位置表示产品名称标识符，<span class="text-info">XXXXXXXXXX</span>表示10位规格信息）</p>
-        </div>
-        <p class="mb-0" style="font-size: 0.8rem;">产品名称标识符是产品编码中的第2位，请为每个产品名称分配一个唯一的单字符标识符。</p>
     </div>
 
     <div class="card mb-4">
@@ -63,37 +51,40 @@
             <table class="table table-bordered table-striped" id="subcategoryTable">
                 <thead>
                     <tr>
-                        <th width="50">序号</th>
-                        <th width="220">产品名称</th>
-                        <th width="100">标识符</th>
-                        <th>描述</th>
-                        <th width="150">创建时间</th>
-                        <th width="120">操作</th>
+                        <th width="6%">序号</th>
+                        <th width="25%">产品名称</th>
+                        <th width="12%">标识符</th>
+                        <th width="20%">创建时间</th>
+                        <th width="15%">操作</th>
                     </tr>
                 </thead>
                 <tbody id="subcategoryTableBody">
                     {% for subcategory in subcategories %}
-                    <tr>
-                        <td>{{ loop.index }}</td>
-                        <td>{{ subcategory.name }}</td>
+                    <tr data-id="{{ subcategory.id }}">
+                        <td>
+                            <i class="fas fa-grip-vertical drag-handle text-muted me-2" title="拖拽排序"></i>
+                            {{ loop.index }}
+                        </td>
+                        <td>
+                            {% if not subcategory.is_used %}
+                            <a href="javascript:void(0)" onclick="subcategoryManager.openModal('edit', {{ subcategory.id }})" class="text-primary" style="cursor: pointer;">
+                                {{ subcategory.name }}
+                            </a>
+                            {% else %}
+                            {{ subcategory.name }}
+                            {% endif %}
+                        </td>
                         <td>{{ subcategory.code_letter }}</td>
-                        <td>{{ subcategory.description }}</td>
                         <td>{{ subcategory.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                         <td class="text-center">
                             <a href="{{ url_for('product_code.subcategory_fields', id=subcategory.id) }}" class="btn btn-sm btn-info" title="规格管理">
                                 <i class="fas fa-list"></i>
                             </a>
                             {% if not subcategory.is_used %}
-                            <a href="{{ url_for('product_code.edit_subcategory', id=subcategory.id) }}" class="btn btn-sm btn-warning" title="编辑">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            <button type="button" class="btn btn-sm btn-danger delete-subcategory" data-id="{{ subcategory.id }}" data-name="{{ subcategory.name }}" title="删除">
+                            <button onclick="subcategoryManager.confirmDelete({{ subcategory.id }}, '{{ subcategory.name }}')" class="btn btn-sm btn-danger" title="删除">
                                 <i class="fas fa-trash"></i>
                             </button>
                             {% else %}
-                            <button type="button" class="btn btn-sm btn-secondary" disabled title="该产品名称已被研发产品使用，无法编辑">
-                                <i class="fas fa-lock"></i>
-                            </button>
                             <button type="button" class="btn btn-sm btn-secondary" disabled title="该产品名称已被研发产品使用，无法删除">
                                 <i class="fas fa-lock"></i>
                             </button>
@@ -102,58 +93,89 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="text-center">暂无产品名称，请添加</td>
+                        <td colspan="5" class="text-center">暂无产品名称，请添加</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
-</div>
 
-<!-- 删除确认模态框 -->
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deleteModalLabel">确认删除</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <!-- 隐藏的分类ID输入 -->
+    <input type="hidden" id="categoryId" value="{{ category.id }}">
+
+    <!-- 产品名称模态框 -->
+    {% call render_custom_dialog('subcategoryModal', '添加产品名称', icon='fas fa-plus', size='md') %}
+        <form id="subcategoryForm">
+            <input type="hidden" id="subcategoryId">
+
+            <!-- 产品名称 -->
+            <div class="mb-3">
+                <label for="subcategoryName" class="form-label">
+                    产品名称 <span class="text-danger">*</span>
+                </label>
+                <input type="text" class="form-control" id="subcategoryName" required>
+                <div class="invalid-feedback">
+                    请输入产品名称
+                </div>
             </div>
-            <div class="modal-body">
-                <p>确定要删除产品名称 <span id="subcategoryNameToDelete"></span> 吗？</p>
-                <p class="text-danger">警告：这将同时删除所有相关字段和选项！</p>
+
+            <!-- 标识符 -->
+            <div class="mb-3">
+                <label for="subcategoryCode" class="form-label">
+                    标识符 <span class="text-danger">*</span>
+                </label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="subcategoryCode"
+                           placeholder="A-Z或1-9" maxlength="1" required
+                           style="text-transform: uppercase;">
+                    <button type="button" class="btn btn-outline-primary"
+                            onclick="subcategoryManager.generateCodeLetter()" title="生成唯一标识符">
+                        <i class="fas fa-magic"></i> 生成
+                    </button>
+                </div>
+                <div class="invalid-feedback">
+                    请输入或生成标识符（单个字符，A-Z或1-9）
+                </div>
+                <div class="form-text">
+                    <i class="fas fa-info-circle me-1"></i>
+                    标识符是产品编码的第2位，必须是唯一的单字符（A-Z或1-9）
+                </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <form id="deleteForm" method="POST" action="" class="d-inline">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-danger">确认删除</button>
-                </form>
+
+            <!-- 按钮组 -->
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                {{ render_button('取消', onclick='closeCustomDialog("subcategoryModal")', color='secondary', icon='fas fa-times') }}
+                {{ render_button('保存', onclick='subcategoryManager.saveSubcategory()', color='primary', icon='fas fa-save') }}
             </div>
-        </div>
-    </div>
+        </form>
+    {% endcall %}
+
+    <!-- 删除确认对话框 -->
+    {{ render_confirm_dialog('deleteSubcategoryDialog') }}
+
 </div>
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
+
+<!-- SortableJS库 -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+
+<!-- 通用拖拽排序工具 -->
+<script src="{{ url_for('static', filename='js/sortable-list.js') }}"></script>
+
+<!-- 产品代码子分类管理器 -->
+<script src="{{ url_for('static', filename='js/product-code-subcategory-manager.js') }}"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     console.log('产品名称管理页面已加载');
-    
-    // 初始化删除模态框
-    const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
-    const deleteButtons = document.querySelectorAll('.delete-subcategory');
-    const deleteForm = document.getElementById('deleteForm');
-    const subcategoryNameToDelete = document.getElementById('subcategoryNameToDelete');
 
-    deleteButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const id = this.getAttribute('data-id');
-            const name = this.getAttribute('data-name');
-            deleteForm.action = `/product-code/subcategories/${id}/delete`;
-            subcategoryNameToDelete.textContent = name;
-            deleteModal.show();
-        });
+    // 初始化产品名称拖拽排序
+    initSortableList('subcategoryTableBody', '/product-code/subcategory/update_order', {
+        handle: '.drag-handle'
     });
 });
 </script>

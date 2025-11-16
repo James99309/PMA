@@ -11,7 +11,11 @@
             <div class="col text-end">
                 <!-- 操作按钮组 -->
                 <div class="btn-toolbar justify-content-end" role="toolbar">
-                    {{ render_button(_('返回客户详情'), url_for('customer.view_company', company_id=company.id), color='secondary') }}
+                    {% if return_url %}
+                        {{ render_button(_('返回列表'), return_url, color='secondary') }}
+                    {% else %}
+                        {{ render_button(_('返回客户详情'), url_for('customer.view_company', company_id=company.id), color='secondary') }}
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -27,6 +31,9 @@
 
                     <form method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        {% if return_url %}
+                        <input type="hidden" name="return_url" value="{{ return_url }}">
+                        {% endif %}
                         <div class="mb-3">
                             <label for="company_name" class="form-label">{{ _('企业名称') }}</label>
                             <input type="text" class="form-control" id="company_name" name="company_name" value="{{ company.company_name }}" required>

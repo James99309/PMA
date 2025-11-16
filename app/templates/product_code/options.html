@@ -57,28 +57,22 @@
                             {% if option.is_active %}
                             <span class="badge bg-success">启用</span>
                             {% else %}
-                            <span class="badge bg-danger">禁用</span>
+                            <span class="badge bg-secondary">已停用</span>
                             {% endif %}
                         </td>
                         <td>
                             <a href="{{ url_for('product_code.edit_option', id=option.id) }}" class="btn btn-sm btn-warning">
                                 <i class="fas fa-edit"></i> 编辑
                             </a>
-                            <form method="POST" action="{{ url_for('product_code.toggle_option', id=option.id) }}"
-                                  class="d-inline">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="btn btn-sm {% if option.is_active %}btn-secondary{% else %}btn-success{% endif %}">
-                                    <i class="fas {% if option.is_active %}fa-ban{% else %}fa-check{% endif %}"></i>
-                                    {% if option.is_active %}禁用{% else %}启用{% endif %}
-                                </button>
-                            </form>
-                            <form method="POST" action="{{ url_for('product_code.delete_option', id=option.id) }}"
-                                  class="d-inline" onsubmit="return confirm('确定要删除此选项吗？');">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="btn btn-sm btn-danger">
-                                    <i class="fas fa-trash"></i> 删除
-                                </button>
-                            </form>
+                            <button type="button" class="btn btn-sm {% if option.is_active %}btn-secondary{% else %}btn-success{% endif %}"
+                                    onclick="toggleOptionStatus({{ option.id }}, '{{ option.value }}', {{ 'true' if option.is_active else 'false' }})">
+                                <i class="fas {% if option.is_active %}fa-ban{% else %}fa-check{% endif %}"></i>
+                                {% if option.is_active %}禁用{% else %}启用{% endif %}
+                            </button>
+                            <button type="button" class="btn btn-sm btn-danger"
+                                    onclick="deleteOption({{ option.id }}, '{{ option.value }}')">
+                                <i class="fas fa-trash"></i> 删除
+                            </button>
                         </td>
                     </tr>
                     {% else %}
@@ -106,4 +100,79 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 切换指标启用/禁用状态
+async function toggleOptionStatus(optionId, optionValue, isActive) {
+    const action = isActive ? '禁用' : '启用';
+
+    if (!confirm(`确定要${action}指标"${optionValue}"吗？`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/product-code/api/options/${optionId}/toggle`, {
+            method: 'PATCH'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            // 立即刷新页面
+            location.reload();
+        } else {
+            // 显示错误消息
+            if (typeof showTopNotification === 'function') {
+                showTopNotification(result.message, 'error', 5000);
+            } else {
+                alert(result.message);
+            }
+        }
+
+    } catch (error) {
+        console.error(`${action}指标失败:`, error);
+        if (typeof showTopNotification === 'function') {
+            showTopNotification(`${action}失败，请重试`, 'error', 5000);
+        } else {
+            alert(`${action}失败，请重试`);
+        }
+    }
+}
+
+async function deleteOption(optionId, optionValue) {
+    if (!confirm(`确定要删除指标"${optionValue}"吗？\n\n此操作不可恢复。`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/product-code/api/options/${optionId}`, {
+            method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            // 立即刷新页面
+            location.reload();
+        } else {
+            // 显示错误消息
+            if (typeof showTopNotification === 'function') {
+                showTopNotification(result.message, 'error', 5000);
+            } else {
+                alert(result.message);
+            }
+        }
+
+    } catch (error) {
+        console.error('删除指标失败:', error);
+        if (typeof showTopNotification === 'function') {
+            showTopNotification('删除失败，请重试', 'error', 5000);
+        } else {
+            alert('删除失败，请重试');
+        }
+    }
+}
+</script>
 {% endblock %}

@@ -700,7 +700,11 @@ class StageTracker {
             } else {
                 const errorMsg = data.message || '未知错误';
                 console.error('更新阶段失败: ' + errorMsg);
-                alert('更新阶段失败: ' + errorMsg);
+                if (typeof window.showTopNotification === 'function') {
+                    window.showTopNotification('更新阶段失败: ' + errorMsg, 'error', 5000);
+                } else {
+                    alert('更新阶段失败: ' + errorMsg);
+                }
             }
         })
         .catch(error => {
@@ -710,7 +714,11 @@ class StageTracker {
                 this.handleBlockedProgress(error);
             } else {
                 console.error('更新阶段错误:', error);
-                alert('更新阶段时发生错误: ' + error.message);
+                if (typeof window.showTopNotification === 'function') {
+                    window.showTopNotification('更新阶段时发生错误: ' + error.message, 'error', 5000);
+                } else {
+                    alert('更新阶段时发生错误: ' + error.message);
+                }
             }
         });
     }
@@ -765,7 +773,11 @@ class StageTracker {
      * 子类可以覆盖此方法来处理特定的阻塞逻辑
      */
     handleBlockedProgress(error) {
-        alert(error.data.message || '阶段推进被阻止');
+        if (typeof window.showTopNotification === 'function') {
+            window.showTopNotification(error.data.message || '阶段推进被阻止', 'warning', 4000);
+        } else {
+            alert(error.data.message || '阶段推进被阻止');
+        }
     }
 
     /**
