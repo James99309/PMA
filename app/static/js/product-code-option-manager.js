@@ -229,11 +229,31 @@ let optionManager;
  * @param {number} fieldId - 规格字段ID
  * @param {string} fieldName - 规格名称
  * @param {string} fieldUnit - 规格单位
+ * @param {string} mode - 模式：'add' 或 'edit'（默认 'add'）
+ * @param {number|null} optionId - 指标ID（编辑模式时使用）
  */
-window.openOptionModal = function(fieldId, fieldName, fieldUnit) {
+window.openOptionModal = function(fieldId, fieldName, fieldUnit, mode = 'add', optionId = null) {
     // 初始化管理器
     optionManager = new ProductCodeOptionManager(fieldId, fieldName, fieldUnit || '');
 
-    // 打开模态框（添加模式）
-    optionManager.openModal('add');
+    // 打开模态框（支持添加和编辑模式）
+    optionManager.openModal(mode, optionId);
+};
+
+/**
+ * 删除指标的全局函数
+ * @param {number} fieldId - 规格字段ID
+ * @param {string} fieldName - 规格名称
+ * @param {string} fieldUnit - 规格单位
+ * @param {number} optionId - 指标ID
+ * @param {string} optionValue - 指标名称
+ */
+window.deleteOption = function(fieldId, fieldName, fieldUnit, optionId, optionValue) {
+    // 如果 optionManager 不存在或属于不同的字段，重新初始化
+    if (!optionManager || optionManager.fieldId !== fieldId) {
+        optionManager = new ProductCodeOptionManager(fieldId, fieldName, fieldUnit || '');
+    }
+
+    // 调用确认删除
+    optionManager.confirmDelete(optionId, optionValue);
 };

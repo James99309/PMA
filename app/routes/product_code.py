@@ -680,6 +680,48 @@ def subcategory_fields(id):
         # 为每个字段附加单位信息（从规格字典中获取）
         field.unit = get_field_unit(field_name)
 
+        # 为每个字段的选项计算 is_used 状态
+        for option in field.options:
+            # 检查是否被旧版产品编码使用
+            used_in_product_code = ProductCodeFieldValue.query.filter_by(option_id=option.id).first() is not None
+
+            # 检查是否被研发产品使用
+            used_in_dev_option = db.session.execute(
+                text("""
+                    SELECT 1 FROM dev_product_specs dps
+                    INNER JOIN dev_products dp ON dps.dev_product_id = dp.id
+                    WHERE dps.field_name = :field_name
+                    AND dps.field_value = :value
+                    AND dp.subcategory_id = :subcategory_id
+                    LIMIT 1
+                """),
+                {
+                    "field_name": field_name,
+                    "value": option.value,
+                    "subcategory_id": id
+                }
+            ).first() is not None
+
+            # 检查是否被正式产品使用
+            used_in_formal_option = db.session.execute(
+                text("""
+                    SELECT 1 FROM product_specs ps
+                    INNER JOIN products p ON ps.product_id = p.id
+                    WHERE ps.field_name = :field_name
+                    AND ps.field_value = :value
+                    AND p.subcategory_id = :subcategory_id
+                    LIMIT 1
+                """),
+                {
+                    "field_name": field_name,
+                    "value": option.value,
+                    "subcategory_id": id
+                }
+            ).first() is not None
+
+            # 标记是否被使用
+            option.is_used = used_in_product_code or used_in_dev_option or used_in_formal_option
+
     return render_template('product_code/fields.html', subcategory=subcategory, fields=fields)
 
 # ============================================================================

@@ -130,16 +130,45 @@
                         <td>
                             {% if field.options %}
                                 {% for option in field.options %}
-                                    <span class="badge {% if option.is_active %}bg-primary{% else %}bg-secondary{% endif %} me-1 mb-1 position-relative">
-                                        {{ option.value }}{% if field.unit %} {{ field.unit }}{% endif %}
-                                        <a href="javascript:void(0)"
-                                           onclick="toggleOptionStatus({{ option.id }}, '{{ option.value }}', {{ 'true' if option.is_active else 'false' }})"
-                                           class="text-white ms-1"
-                                           style="text-decoration: none; cursor: pointer;"
-                                           title="{% if option.is_active %}删除{% else %}启用{% endif %}">
-                                            <i class="fas {% if option.is_active %}fa-times{% else %}fa-check{% endif %}"></i>
-                                        </a>
-                                    </span>
+                                    {% if option.is_used %}
+                                        {# 已使用的指标：显示锁定图标，不可编辑删除 #}
+                                        <span class="badge bg-secondary me-1 mb-1 position-relative">
+                                            {{ option.value }}{% if field.unit %} {{ field.unit }}{% endif %}
+                                            <span class="text-white ms-1" title="此指标已被产品使用，无法修改或删除">
+                                                <i class="fas fa-lock"></i>
+                                            </span>
+                                        </span>
+                                    {% elif option.is_active %}
+                                        {# 激活且未使用的指标：可点击编辑，可删除 #}
+                                        <span class="badge bg-primary me-1 mb-1 position-relative" style="padding-right: 28px;">
+                                            <a href="javascript:void(0)"
+                                               onclick="openOptionModal({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', 'edit', {{ option.id }})"
+                                               class="text-white text-decoration-none"
+                                               style="cursor: pointer;"
+                                               title="点击编辑指标">
+                                                {{ option.value }}{% if field.unit %} {{ field.unit }}{% endif %}
+                                            </a>
+                                            <a href="javascript:void(0)"
+                                               onclick="event.stopPropagation(); deleteOption({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', {{ option.id }}, '{{ option.value }}')"
+                                               class="text-white ms-1 position-absolute"
+                                               style="text-decoration: none; cursor: pointer; right: 8px;"
+                                               title="删除">
+                                                <i class="fas fa-times"></i>
+                                            </a>
+                                        </span>
+                                    {% else %}
+                                        {# 已禁用的指标：显示重新启用按钮 #}
+                                        <span class="badge bg-secondary me-1 mb-1 position-relative">
+                                            {{ option.value }}{% if field.unit %} {{ field.unit }}{% endif %}
+                                            <a href="javascript:void(0)"
+                                               onclick="toggleOptionStatus({{ option.id }}, '{{ option.value }}', false)"
+                                               class="text-white ms-1"
+                                               style="text-decoration: none; cursor: pointer;"
+                                               title="重新启用">
+                                                <i class="fas fa-check"></i>
+                                            </a>
+                                        </span>
+                                    {% endif %}
                                 {% endfor %}
                             {% else %}
                                 <span class="text-muted">暂无指标</span>
