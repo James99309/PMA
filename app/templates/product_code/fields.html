@@ -134,7 +134,7 @@
                                     {% if option.is_used %}
                                         {# 已使用的指标：显示锁定图标，不可编辑删除 #}
                                         <span class="badge bg-secondary me-1 mb-1 position-relative">
-                                            {{ option.value }}{% if field.unit %} {{ field.unit }}{% endif %}
+                                            {{ option.value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.code %} ({{ option.code }}){% endif %}
                                             <span class="text-white ms-1" title="此指标已被产品使用，无法修改或删除">
                                                 <i class="fas fa-lock"></i>
                                             </span>
@@ -147,7 +147,7 @@
                                                class="text-white text-decoration-none"
                                                style="cursor: pointer;"
                                                title="点击编辑指标">
-                                                {{ option.value }}{% if field.unit %} {{ field.unit }}{% endif %}
+                                                {{ option.value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.code %} ({{ option.code }}){% endif %}
                                             </a>
                                             <a href="javascript:void(0)"
                                                onclick="event.stopPropagation(); deleteOption({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', {{ option.id }}, '{{ option.value }}')"
@@ -160,7 +160,7 @@
                                     {% else %}
                                         {# 已禁用的指标：显示重新启用按钮 #}
                                         <span class="badge bg-secondary me-1 mb-1 position-relative">
-                                            {{ option.value }}{% if field.unit %} {{ field.unit }}{% endif %}
+                                            {{ option.value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.code %} ({{ option.code }}){% endif %}
                                             <a href="javascript:void(0)"
                                                onclick="toggleOptionStatus({{ option.id }}, '{{ option.value }}', false)"
                                                class="text-white ms-1"
