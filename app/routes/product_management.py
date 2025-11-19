@@ -2642,49 +2642,65 @@ def get_available_spec_options():
             except ValueError:
                 current_app.logger.warning(f"无效的exclude_ids格式: {exclude_ids_str}")
 
-        # 优先使用field_id查找，否则通过名称查找
-        if field_id:
+        # 检查是否仅返回产品使用值
+        include_product_values = request.args.get('include_product_values', 'false').lower() == 'true'
+
+        # 优先使用spec_name查询所有同名字段（跨产品汇总模式）
+        all_fields = []
+        if spec_name:
+            all_fields = ProductCodeField.query.filter_by(
+                name=spec_name,
+                field_type='spec'
+            ).all()
+            current_app.logger.info(f"[调试] 按规格名称'{spec_name}'查询到 {len(all_fields)} 个字段")
+
+        # 备用：使用field_id查找单个字段
+        elif field_id:
             field = ProductCodeField.query.get(field_id)
-        else:
+            if field:
+                all_fields = [field]
+                current_app.logger.info(f"[调试] 按field_id={field_id}查询到字段: {field.name}")
+
+        # 兼容旧逻辑：通过产品分类和名称查找
+        elif subcategory_id and spec_name:
             field = ProductCodeField.query.filter_by(
                 subcategory_id=subcategory_id,
                 name=spec_name,
                 field_type='spec'
             ).first()
+            if field:
+                all_fields = [field]
+                current_app.logger.info(f"[调试] 按产品分类查询到字段: {field.name}")
 
-        if not field:
+        if not all_fields:
+            current_app.logger.warning(f"[调试] 未找到任何字段")
             return jsonify({'options': []})
-
-        # 检查是否仅返回产品使用值
-        include_product_values = request.args.get('include_product_values', 'false').lower() == 'true'
-
-        # 调试日志
-        current_app.logger.info(f"[调试] API参数 - subcategory_id: {subcategory_id}, spec_name: '{spec_name}', "
-                                f"field_id: {field_id}, include_product_values: {include_product_values}")
-        current_app.logger.info(f"[调试] 找到的字段 - ID: {field.id if field else None}, "
-                                f"名称: '{field.name if field else None}'")
 
         # 如果仅返回产品值，执行专门的查询逻辑
         if include_product_values:
-            # 1. 获取预定义选项的值（用于排除）
+            # 1. 汇总所有字段的预定义选项值（用于排除）
             existing_option_values = set()
-            for option in field.options.all():
-                if option.value and option.value.strip():
-                    existing_option_values.add(option.value.strip())
+            for field in all_fields:
+                for option in field.options.all():
+                    if option.value and option.value.strip():
+                        existing_option_values.add(option.value.strip())
 
-            # 2. 查询产品使用值
+            # 2. 查询产品使用值（使用规格名称，而不是字段名）
             from app.models.dev_product import DevProductSpec
             from app.models.product_spec import ProductSpec
 
+            # 使用第一个字段的名称（所有同名字段的名称应该相同）
+            field_name = all_fields[0].name
+
             # 从研发产品表提取值
             dev_values = db.session.query(DevProductSpec.field_value)\
-                .filter(DevProductSpec.field_name == field.name)\
+                .filter(DevProductSpec.field_name == field_name)\
                 .distinct()\
                 .all()
 
             # 从产品库表提取值
             product_values = db.session.query(ProductSpec.field_value)\
-                .filter(ProductSpec.field_name == field.name)\
+                .filter(ProductSpec.field_name == field_name)\
                 .distinct()\
                 .all()
 
@@ -2701,53 +2717,77 @@ def get_available_spec_options():
             product_only_values = all_product_values - existing_option_values
 
             # 调试日志
-            current_app.logger.info(f"[调试] 预定义值: {existing_option_values}")
+            current_app.logger.info(f"[调试] 汇总了 {len(all_fields)} 个字段的预定义值: {existing_option_values}")
             current_app.logger.info(f"[调试] DevProductSpec查询结果: {len(dev_values)}个")
             current_app.logger.info(f"[调试] ProductSpec查询结果: {len(product_values)}个")
             current_app.logger.info(f"[调试] 合并后的产品值: {all_product_values}")
             current_app.logger.info(f"[调试] 排除预定义后: {product_only_values}")
 
-            # 5. 获取规格单位（在组装数据前）
-            field_unit = get_field_unit(field.name)
+            # 5. 获取规格单位
+            field_unit = get_field_unit(field_name)
 
             # 6. 组装返回数据（仅产品值）
             options_data = []
             for value in sorted(product_only_values):
                 options_data.append({
-                    'id': None,  # 产品值没有ID
+                    'id': None,
                     'value': value,
-                    'code': '',  # 产品值没有编码
-                    'description': '',  # 产品值没有描述
+                    'code': '',
+                    'description': '',
                     'is_active': True,
-                    'source': 'product',  # 标识来源
-                    'unit': field_unit  # 单位
+                    'source': 'product',
+                    'unit': field_unit
                 })
 
             return jsonify({
                 'options': options_data,
-                'field_id': field.id,
-                'field_name': field.name,
+                'field_name': field_name,
                 'field_unit': field_unit
             })
 
-        # 原有逻辑：获取预定义选项
+        # 原有逻辑：获取预定义选项（现在从多个字段汇总）
         include_inactive = request.args.get('include_inactive', 'false').lower() == 'true'
 
-        # 构建查询
-        query = ProductCodeFieldOption.query.filter_by(field_id=field.id)
+        # 汇总所有字段的预定义选项并去重
+        seen_values = {}  # {value: option对象}
+        for field in all_fields:
+            for option in field.options:
+                # 过滤已删除的选项（兼容有/无is_deleted字段的情况）
+                if hasattr(option, 'is_deleted') and option.is_deleted:
+                    continue
 
-        # 排除已选择的指标
-        if exclude_ids:
-            query = query.filter(~ProductCodeFieldOption.id.in_(exclude_ids))
+                # 过滤不活跃的选项（根据参数）
+                if not include_inactive and hasattr(option, 'is_active') and not option.is_active:
+                    continue
 
-        # 是否包含禁用的指标
-        if not include_inactive:
-            query = query.filter_by(is_active=True)
+                # 排除已选择的指标（通过exclude_ids）
+                if exclude_ids and option.id in exclude_ids:
+                    continue
 
-        options = query.order_by(ProductCodeFieldOption.position).all()
+                # 去重逻辑：同值保留is_active优先的选项
+                if option.value not in seen_values:
+                    seen_values[option.value] = option
+                elif hasattr(option, 'is_active') and option.is_active:
+                    # 如果新选项是活跃的，检查旧选项是否不活跃
+                    old_is_active = hasattr(seen_values[option.value], 'is_active') and seen_values[option.value].is_active
+                    if not old_is_active:
+                        # 旧选项不活跃，则替换
+                        seen_values[option.value] = option
 
-        # 获取规格单位（在组装数据前）
-        field_unit = get_field_unit(field.name)
+        # 转换为列表
+        options = list(seen_values.values())
+
+        # 按position排序（如果有的话）
+        options.sort(key=lambda x: (x.position if x.position is not None else 9999, x.value))
+
+        # 获取规格单位
+        field_name = all_fields[0].name
+        field_unit = get_field_unit(field_name)
+
+        # 调试日志
+        current_app.logger.info(f"[调试] 汇总了 {len(all_fields)} 个字段的预定义选项")
+        current_app.logger.info(f"[调试] 去重后选项数: {len(options)}")
+        current_app.logger.info(f"[调试] 排除的ID: {exclude_ids}")
 
         # 组装返回数据
         options_data = []
@@ -2758,13 +2798,12 @@ def get_available_spec_options():
                 'code': option.code,
                 'description': option.description or '',
                 'is_active': option.is_active,
-                'unit': field_unit  # 单位
+                'unit': field_unit
             })
 
         return jsonify({
             'options': options_data,
-            'field_id': field.id,
-            'field_name': field.name,
+            'field_name': field_name,
             'field_unit': field_unit
         })
 

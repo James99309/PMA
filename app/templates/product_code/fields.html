@@ -177,7 +177,12 @@
                         </td>
                         <td>{{ field.created_at.strftime('%Y-%m-%d') if field.created_at else '未知' }}</td>
                         <td class="text-center">
-                            <button onclick="window.IndicatorQuickAdd.showQuickAddModal('{{ field.name }}', {{ field.id }}, null)" class="btn btn-sm btn-info" title="添加指标">
+                            {# 收集当前字段的所有选项ID（用于排除） #}
+                            {% set exclude_option_ids = [] %}
+                            {% for option in field.options.all() %}
+                                {% set _ = exclude_option_ids.append(option.id) %}
+                            {% endfor %}
+                            <button onclick="window.IndicatorQuickAdd.showQuickAddModal('{{ field.name }}', {{ field.id }}, null, {{ exclude_option_ids }})" class="btn btn-sm btn-info" title="添加指标">
                                 <i class="fas fa-list"></i>
                             </button>
                             {% if not field.is_used %}
@@ -403,9 +408,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (subcategoryId) {
                     url.searchParams.append('subcategory_id', subcategoryId);
                 }
+                // 同时传递field_id和spec_name，优先使用spec_name汇总所有同名字段的选项
                 url.searchParams.append('field_id', context.specFieldId);
+                if (context.specName) {
+                    url.searchParams.append('spec_name', context.specName);
+                }
                 url.searchParams.append('include_inactive', 'false');
-                url.searchParams.append('include_product_values', 'true');  // 仅返回产品使用值
+
+                // 添加已使用的指标ID列表（用于排除）
+                if (context.excludeIds && context.excludeIds.length > 0) {
+                    url.searchParams.append('exclude_ids', context.excludeIds.join(','));
+                    console.log('[规格管理] 排除的指标ID:', context.excludeIds);
+                }
+
+                // 返回预定义指标选项，而不是产品使用值
+                // url.searchParams.append('include_product_values', 'true');
 
                 console.log('[规格管理] 构建的URL:', url.toString());
                 return url.toString();

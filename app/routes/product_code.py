@@ -653,6 +653,7 @@ def subcategory_fields(id):
     
     # 使用正确的字段名查询，只获取类型为 'spec' 的字段
     # 先显示编码规格（按位置排序），再显示非编码规格（按位置排序）
+    # 注意：options 关系使用 lazy='dynamic'，不支持 eager loading，模板中需使用 field.options.all()
     fields = ProductCodeField.query.filter_by(subcategory_id=id, field_type='spec')\
         .order_by(ProductCodeField.use_in_code.desc(), ProductCodeField.position).all()
     
