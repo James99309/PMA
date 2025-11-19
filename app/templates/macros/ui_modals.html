@@ -222,9 +222,9 @@ document.addEventListener('DOMContentLoaded', function() {
       <div class="modal-body">
         <!-- 已有项目展示区域 -->
         <div class="mb-3">
-          <label class="form-label text-muted">{{ _('已有项目') }}</label>
-          <div id="existingItemsList" class="border rounded p-2 bg-light" style="max-height: 120px; overflow-y: auto;">
-            <small class="text-muted">{{ _('加载中...') }}</small>
+          <label class="form-label text-muted">{{ _('已有项目') }} <small class="text-muted">({{ _('点击选择') }})</small></label>
+          <div id="existingItemsList" class="list-group" style="max-height: 200px; overflow-y: auto;">
+            <small class="text-muted p-2">{{ _('加载中...') }}</small>
           </div>
         </div>
 
@@ -232,9 +232,14 @@ document.addEventListener('DOMContentLoaded', function() {
           <label for="quickAddValue" class="form-label">
             {{ _('名称') }} <span class="text-danger">*</span>
           </label>
-          <input type="text" class="form-control" id="quickAddValue"
-                 placeholder="{{ _('请输入名称') }}" required>
-          <div class="form-text">{{ _('项目的显示名称') }}</div>
+          <div class="input-group">
+            <input type="text" class="form-control" id="quickAddValue"
+                   placeholder="{{ _('输入新名称或搜索已有项目') }}"
+                   autocomplete="off"
+                   required>
+            <span class="input-group-text" id="quickAddValueUnit" style="display: none;"></span>
+          </div>
+          <div class="form-text">{{ _('选择已有项目或输入创建新的') }}</div>
         </div>
 
         <div class="mb-3">

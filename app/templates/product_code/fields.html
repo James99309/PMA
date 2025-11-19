@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_button, render_custom_dialog, render_confirm_dialog %}
+{% from 'macros/ui_modals.html' import render_select_quick_add_modal %}
 
 {% block title %}{{ subcategory.name }} - 规格管理{% endblock %}
 
@@ -176,7 +177,7 @@
                         </td>
                         <td>{{ field.created_at.strftime('%Y-%m-%d') if field.created_at else '未知' }}</td>
                         <td class="text-center">
-                            <button onclick="openOptionModal({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}')" class="btn btn-sm btn-info" title="指标管理">
+                            <button onclick="window.IndicatorQuickAdd.showQuickAddModal('{{ field.name }}', {{ field.id }}, null)" class="btn btn-sm btn-info" title="添加指标">
                                 <i class="fas fa-list"></i>
                             </button>
                             {% if not field.is_used %}
@@ -201,7 +202,7 @@
     </div>
 
     <!-- 隐藏的子分类ID输入 -->
-    <input type="hidden" id="subcategoryId" value="{{ subcategory.id }}">
+    <input type="hidden" id="subcategory_id" value="{{ subcategory.id }}">
 
     <!-- 规格字段模态框 -->
     {% call render_custom_dialog('fieldModal', '添加规格', icon='fas fa-plus', size='md') %}
@@ -268,8 +269,11 @@
         </form>
     {% endcall %}
 
-    <!-- 指标管理模态框 -->
-    {% call render_custom_dialog('optionModal', '添加指标', icon='fas fa-list-ul', size='md') %}
+    <!-- 指标添加模态框 - 使用SelectWithQuickAdd通用框架（显示已有指标列表） -->
+    {{ render_select_quick_add_modal() }}
+
+    <!-- 指标编辑模态框 - 保留旧版用于编辑已有指标 -->
+    {% call render_custom_dialog('optionModal', '编辑指标', icon='fas fa-edit', size='md') %}
         <form id="optionForm">
             <input type="hidden" id="optionId">
 
@@ -367,6 +371,55 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 {% endif %}
+</script>
+
+<!-- SelectWithQuickAdd通用框架 -->
+<script src="{{ url_for('static', filename='js/select-with-quick-add.js') }}"></script>
+
+<!-- 配置 SelectWithQuickAdd 用于规格管理页面的指标添加 -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.IndicatorQuickAdd) {
+        // 自定义配置：规格管理页面添加指标后刷新整个页面
+        window.IndicatorQuickAdd.configure({
+            // 自定义获取已有项目URL：仅返回产品使用值
+            getExistingItemsUrl: function(context) {
+                console.log('[规格管理] 自定义getExistingItemsUrl调用', {
+                    specFieldId: context.specFieldId,
+                    specName: context.specName,
+                    context: context
+                });
+
+                if (!context.specFieldId) {
+                    console.warn('[规格管理] specFieldId为空，无法构建URL');
+                    return null;
+                }
+
+                const url = new URL('/product-management/api/spec-field-options/available', window.location.origin);
+                const subcategoryId = document.getElementById('subcategory_id')?.value;
+
+                console.log('[规格管理] subcategory_id:', subcategoryId);
+
+                if (subcategoryId) {
+                    url.searchParams.append('subcategory_id', subcategoryId);
+                }
+                url.searchParams.append('field_id', context.specFieldId);
+                url.searchParams.append('include_inactive', 'false');
+                url.searchParams.append('include_product_values', 'true');  // 仅返回产品使用值
+
+                console.log('[规格管理] 构建的URL:', url.toString());
+                return url.toString();
+            },
+
+            // 刷新逻辑：添加指标后刷新整个页面
+            refreshTarget: function(context, newItem) {
+                console.log('[规格管理] 指标添加成功，刷新页面', newItem);
+                // 刷新页面以显示新添加的指标徽章
+                location.reload();
+            }
+        });
+    }
+});
 </script>
 
 <!-- 产品代码字段管理器 -->

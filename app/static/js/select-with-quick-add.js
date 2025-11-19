@@ -32,6 +32,9 @@
             relatedId: null  // 相关ID（如subcategory_id）
         },
 
+        // 当前字段的单位
+        currentFieldUnit: '',
+
         /**
          * 注册配置
          * @param {string} type - 配置类型（如 'indicator', 'subcategory', 'region'）
@@ -121,11 +124,22 @@
                 const modal = new bootstrap.Modal(modalElement);
                 modal.show();
 
-                // 聚焦到输入框
+                // 聚焦到输入框并添加搜索监听
                 modalElement.addEventListener('shown.bs.modal', function() {
                     const valueInput = document.getElementById('quickAddValue');
                     if (valueInput) {
                         valueInput.focus();
+
+                        // 添加实时搜索功能
+                        valueInput.addEventListener('input', function(e) {
+                            SelectWithQuickAdd.filterSuggestions(e.target.value);
+                            // 清除选中状态（因为用户开始输入了）
+                            SelectWithQuickAdd.selectedExistingItem = null;
+                            // 移除所有高亮
+                            document.querySelectorAll('.quick-add-suggestion').forEach(s => {
+                                s.classList.remove('active');
+                            });
+                        });
                     }
                 }, { once: true });
             } else {
@@ -173,6 +187,9 @@
             if (existingList) {
                 existingList.innerHTML = '';
             }
+
+            // 清除选中标记
+            this.selectedExistingItem = null;
         },
 
         /**
@@ -186,36 +203,167 @@
             // 显示加载状态
             container.innerHTML = '<small class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>加载中...</small>';
 
+            // 调试日志：显示context内容
+            console.log('[SelectWithQuickAdd] loadExistingItems调用', {
+                type: this.type,
+                context: this.context,
+                config: config
+            });
+
             const url = config.getExistingItemsUrl(this.context);
+            console.log('[SelectWithQuickAdd] getExistingItemsUrl返回:', url);
+
             if (!url) {
+                console.warn('[SelectWithQuickAdd] URL为空，无法加载列表', {
+                    context: this.context
+                });
                 container.innerHTML = '<small class="text-muted">无法加载列表</small>';
                 return;
             }
 
+            console.log('[SelectWithQuickAdd] 开始fetch请求:', url);
+
             fetch(url)
-                .then(response => response.json())
+                .then(response => {
+                    console.log('[SelectWithQuickAdd] 收到响应:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        ok: response.ok
+                    });
+                    if (!response.ok) {
+                        console.error('[SelectWithQuickAdd] HTTP响应错误:', response.status, response.statusText);
+                    }
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('[SelectWithQuickAdd] 解析后的数据:', data);
+
+                    // 保存字段单位并更新显示
+                    this.currentFieldUnit = data.field_unit || '';
+                    this.updateUnitDisplay(this.currentFieldUnit);
+
                     const items = data.options || data.items || [];
+                    console.log('[SelectWithQuickAdd] 提取的items数组:', items);
+                    console.log('[SelectWithQuickAdd] items数量:', items.length);
+
                     if (items.length === 0) {
+                        console.warn('[SelectWithQuickAdd] items为空，显示提示信息');
                         container.innerHTML = '<small class="text-muted">暂无已有项目</small>';
                         return;
                     }
 
-                    // 显示为徽章列表
-                    const badgesHtml = items.map(item => {
-                        const badgeClass = item.is_active !== false ? 'bg-secondary' : 'bg-danger';
-                        const statusText = item.is_active !== false ? '' : ' [已禁用]';
+                    // 显示为可点击列表
+                    console.log('[SelectWithQuickAdd] 开始生成列表HTML');
+                    const listHtml = items.map(item => {
                         const displayText = item.value || item.name || item.code_name;
                         const displayUnit = item.unit ? ` ${item.unit}` : '';
-                        return `<span class="badge ${badgeClass} me-1 mb-1">${displayText}${displayUnit}${statusText}</span>`;
+                        const displayCode = item.code ? `<small class="text-muted">${item.code}</small>` : '';
+                        const displayDesc = item.description ? `<small class="text-muted d-block">${item.description}</small>` : '';
+                        const disabledClass = item.is_active === false ? 'disabled text-muted' : '';
+                        const disabledText = item.is_active === false ? ' [已禁用]' : '';
+
+                        return `
+                        <a href="#" class="list-group-item list-group-item-action quick-add-suggestion ${disabledClass}"
+                           data-id="${item.id}"
+                           data-value="${displayText}"
+                           data-unit="${item.unit || ''}"
+                           data-code="${item.code || ''}"
+                           data-description="${item.description || ''}">
+                          <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                              <span class="fw-medium">${displayText}${displayUnit}${disabledText}</span>
+                              ${displayDesc}
+                            </div>
+                            ${displayCode}
+                          </div>
+                        </a>`;
                     }).join('');
 
-                    container.innerHTML = badgesHtml;
+                    console.log('[SelectWithQuickAdd] 生成的HTML长度:', listHtml.length);
+                    container.innerHTML = listHtml;
+
+                    // 绑定点击事件
+                    console.log('[SelectWithQuickAdd] 绑定点击事件');
+                    SelectWithQuickAdd.bindSuggestionClicks();
                 })
                 .catch(error => {
-                    console.error('加载项目列表失败:', error);
+                    console.error('[SelectWithQuickAdd] 加载项目列表失败:', error);
+                    console.error('[SelectWithQuickAdd] 错误堆栈:', error.stack);
                     container.innerHTML = '<small class="text-danger">加载失败</small>';
                 });
+        },
+
+        /**
+         * 绑定建议项点击事件
+         */
+        bindSuggestionClicks: function() {
+            const suggestions = document.querySelectorAll('.quick-add-suggestion');
+            suggestions.forEach(item => {
+                item.addEventListener('click', (e) => this.handleSuggestionClick(e));
+            });
+        },
+
+        /**
+         * 处理建议项点击
+         */
+        handleSuggestionClick: function(event) {
+            event.preventDefault();
+
+            // 禁用的项不可选
+            if (event.currentTarget.classList.contains('disabled')) {
+                this.showMessage('该指标已禁用，无法选择', 'warning');
+                return;
+            }
+
+            const item = event.currentTarget;
+            const value = item.dataset.value;
+            const unit = item.dataset.unit;
+            const id = item.dataset.id;
+            const description = item.dataset.description;
+
+            // 填充到输入框
+            const valueInput = document.getElementById('quickAddValue');
+            const descInput = document.getElementById('quickAddDescription');
+
+            if (valueInput) valueInput.value = value;
+            if (descInput && description) descInput.value = description;
+
+            // 更新单位显示
+            this.updateUnitDisplay(unit);
+
+            // 标记为选择已有项（不需要创建新的）
+            this.selectedExistingItem = {
+                id: parseInt(id),
+                value: value,
+                code: item.dataset.code,
+                description: description,
+                unit: unit
+            };
+
+            // 高亮选中的项
+            document.querySelectorAll('.quick-add-suggestion').forEach(s => {
+                s.classList.remove('active');
+            });
+            item.classList.add('active');
+
+            console.log('选择了已有指标:', this.selectedExistingItem);
+        },
+
+        /**
+         * 搜索过滤建议列表
+         */
+        filterSuggestions: function(keyword) {
+            const suggestions = document.querySelectorAll('.quick-add-suggestion');
+            const lowerKeyword = keyword.toLowerCase();
+
+            suggestions.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                if (text.includes(lowerKeyword)) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
         },
 
         /**
@@ -247,6 +395,14 @@
                 return;
             }
 
+            // 记录是否选择了已有项（用于日志）
+            const isSelectingExisting = !!this.selectedExistingItem;
+            if (isSelectingExisting) {
+                console.log('选择已有项并添加:', this.selectedExistingItem);
+            } else {
+                console.log('创建新项:', value);
+            }
+
             // 禁用按钮，显示加载状态
             if (saveBtn) {
                 saveBtn.disabled = true;
@@ -271,8 +427,9 @@
 
             console.log('提交新项目:', requestData);
 
-            // 获取CSRF token
-            const csrfToken = document.querySelector('input[name="csrf_token"]');
+            // 获取CSRF token（兼容input和meta标签）
+            const csrfToken = document.querySelector('input[name="csrf_token"]') ||
+                              document.querySelector('meta[name="csrf-token"]');
             if (!csrfToken) {
                 console.error('找不到CSRF token');
                 this.restoreSaveButton(saveBtn);
@@ -280,12 +437,15 @@
                 return;
             }
 
+            // 获取token值（兼容input的value和meta的content）
+            const tokenValue = csrfToken.value || csrfToken.getAttribute('content');
+
             // 发送请求
             fetch(config.apiEndpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken.value
+                    'X-CSRFToken': tokenValue
                 },
                 body: JSON.stringify(requestData)
             })
@@ -313,9 +473,15 @@
                         config.onSuccess(data);
                     }
 
+                    // 清除选中标记（无论是选择已有还是创建新的，都已成功添加）
+                    if (this.selectedExistingItem) {
+                        this.selectedExistingItem = null;
+                    }
+
                     // 提示成功
                     const codeInfo = data.new_item && data.new_item.code ? `，编码：${data.new_item.code}` : '';
-                    this.showMessage(`${config.valueFieldLabel} "${value}" 添加成功${codeInfo}`, 'success');
+                    const actionText = isSelectingExisting ? '选择并添加' : '添加';
+                    this.showMessage(`${config.valueFieldLabel} "${value}" ${actionText}成功${codeInfo}`, 'success');
                 } else {
                     throw new Error(data.message || '添加失败');
                 }
@@ -343,6 +509,23 @@
             if (button) {
                 button.disabled = false;
                 button.innerHTML = '<i class="fas fa-check me-1"></i>保存并选择';
+            }
+        },
+
+        /**
+         * 更新输入框右侧的单位显示
+         * @param {string} unit - 单位文本
+         */
+        updateUnitDisplay: function(unit) {
+            const unitElement = document.getElementById('quickAddValueUnit');
+            if (!unitElement) return;
+
+            if (unit && unit.trim() !== '') {
+                unitElement.textContent = unit;
+                unitElement.style.display = '';  // 显示
+            } else {
+                unitElement.textContent = '';
+                unitElement.style.display = 'none';  // 隐藏
             }
         },
 
@@ -455,10 +638,17 @@
 
         getExistingItemsUrl: function(context) {
             if (!context.relatedId || !context.specName) return null;
-            const url = new URL('/product-management/api/spec-field-options', window.location.origin);
+            // 使用新的/available API，可以排除已选择的指标
+            const url = new URL('/product-management/api/spec-field-options/available', window.location.origin);
             url.searchParams.append('subcategory_id', context.relatedId);
             url.searchParams.append('spec_name', context.specName);
-            url.searchParams.append('include_inactive', 'true');
+            url.searchParams.append('include_inactive', 'false');  // 只显示启用的指标
+
+            // 添加已选择的指标ID列表（用于排除）
+            if (context.excludeIds && context.excludeIds.length > 0) {
+                url.searchParams.append('exclude_ids', context.excludeIds.join(','));
+            }
+
             return url.toString();
         },
 
@@ -643,17 +833,29 @@
 
     // 向后兼容：保留原IndicatorQuickAdd接口
     window.IndicatorQuickAdd = {
-        showQuickAddModal: function(specName, specFieldId, rowElement) {
+        showQuickAddModal: function(specName, specFieldId, rowElement, excludeIds) {
             window.SelectWithQuickAdd.showModal('indicator', {
                 specName: specName,
                 specFieldId: specFieldId,
                 targetRow: rowElement,
-                displayName: specName
+                displayName: specName,
+                excludeIds: excludeIds || []  // 传递已选择的指标ID列表（用于排除）
             });
         },
         configure: function(options) {
             if (options && typeof options === 'object') {
-                Object.assign(window.SelectWithQuickAdd.configs.indicator, options);
+                console.log('[IndicatorQuickAdd] 应用自定义配置', options);
+                const indicatorConfig = window.SelectWithQuickAdd.configs.indicator;
+                if (indicatorConfig) {
+                    // 使用逐属性赋值确保函数属性正确覆盖
+                    Object.keys(options).forEach(key => {
+                        console.log(`[IndicatorQuickAdd] 覆盖配置属性: ${key}`, typeof options[key]);
+                        indicatorConfig[key] = options[key];
+                    });
+                    console.log('[IndicatorQuickAdd] 配置覆盖完成', indicatorConfig);
+                } else {
+                    console.error('[IndicatorQuickAdd] 找不到indicator配置对象');
+                }
             }
         }
     };

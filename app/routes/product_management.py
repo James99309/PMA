@@ -2594,6 +2594,184 @@ def get_spec_field_options():
         current_app.logger.error(f"获取规格字段选项失败: {str(e)}")
         return jsonify({'options': []})
 
+# 获取可用的规格字段选项（排除已选择的）
+@product_management_bp.route('/api/spec-field-options/available', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def get_available_spec_options():
+    """获取可用的指标选项（排除已选择的）
+
+    参数:
+        - subcategory_id: 产品名称ID
+        - spec_name: 规格名称
+        - field_id: 规格字段ID（可选）
+        - exclude_ids: 要排除的指标ID列表（逗号分隔字符串，如"1,2,3"）
+        - include_inactive: 是否包含禁用的指标（默认false）
+        - include_product_values: 是否仅返回产品使用值（排除预定义选项，默认false）
+
+    返回:
+        {
+            'options': [...],
+            'field_id': 字段ID,
+            'field_name': 字段名称,
+            'field_unit': 字段单位
+        }
+    """
+    try:
+        subcategory_id = request.args.get('subcategory_id', type=int)
+        spec_name = request.args.get('spec_name', '').strip()
+        field_id = request.args.get('field_id', type=int)
+        exclude_ids_str = request.args.get('exclude_ids', '').strip()
+
+        # 调试日志：记录API入口参数
+        current_app.logger.info(f"[API入口] get_available_spec_options 请求参数: "
+                                f"subcategory_id={subcategory_id}, spec_name='{spec_name}', "
+                                f"field_id={field_id}, exclude_ids='{exclude_ids_str}'")
+
+        # 参数验证：如果提供了field_id，不需要spec_name；否则必须提供subcategory_id和spec_name
+        if not field_id and (not subcategory_id or not spec_name):
+            current_app.logger.warning(f"[API验证失败] 参数不足: field_id={field_id}, "
+                                      f"subcategory_id={subcategory_id}, spec_name='{spec_name}'")
+            return jsonify({'options': []})
+
+        # 解析排除ID列表
+        exclude_ids = []
+        if exclude_ids_str:
+            try:
+                exclude_ids = [int(id_str.strip()) for id_str in exclude_ids_str.split(',') if id_str.strip()]
+            except ValueError:
+                current_app.logger.warning(f"无效的exclude_ids格式: {exclude_ids_str}")
+
+        # 优先使用field_id查找，否则通过名称查找
+        if field_id:
+            field = ProductCodeField.query.get(field_id)
+        else:
+            field = ProductCodeField.query.filter_by(
+                subcategory_id=subcategory_id,
+                name=spec_name,
+                field_type='spec'
+            ).first()
+
+        if not field:
+            return jsonify({'options': []})
+
+        # 检查是否仅返回产品使用值
+        include_product_values = request.args.get('include_product_values', 'false').lower() == 'true'
+
+        # 调试日志
+        current_app.logger.info(f"[调试] API参数 - subcategory_id: {subcategory_id}, spec_name: '{spec_name}', "
+                                f"field_id: {field_id}, include_product_values: {include_product_values}")
+        current_app.logger.info(f"[调试] 找到的字段 - ID: {field.id if field else None}, "
+                                f"名称: '{field.name if field else None}'")
+
+        # 如果仅返回产品值，执行专门的查询逻辑
+        if include_product_values:
+            # 1. 获取预定义选项的值（用于排除）
+            existing_option_values = set()
+            for option in field.options.all():
+                if option.value and option.value.strip():
+                    existing_option_values.add(option.value.strip())
+
+            # 2. 查询产品使用值
+            from app.models.dev_product import DevProductSpec
+            from app.models.product_spec import ProductSpec
+
+            # 从研发产品表提取值
+            dev_values = db.session.query(DevProductSpec.field_value)\
+                .filter(DevProductSpec.field_name == field.name)\
+                .distinct()\
+                .all()
+
+            # 从产品库表提取值
+            product_values = db.session.query(ProductSpec.field_value)\
+                .filter(ProductSpec.field_name == field.name)\
+                .distinct()\
+                .all()
+
+            # 3. 合并并去重
+            all_product_values = set()
+            for (value,) in dev_values:
+                if value and value.strip():
+                    all_product_values.add(value.strip())
+            for (value,) in product_values:
+                if value and value.strip():
+                    all_product_values.add(value.strip())
+
+            # 4. 排除预定义值（关键逻辑）
+            product_only_values = all_product_values - existing_option_values
+
+            # 调试日志
+            current_app.logger.info(f"[调试] 预定义值: {existing_option_values}")
+            current_app.logger.info(f"[调试] DevProductSpec查询结果: {len(dev_values)}个")
+            current_app.logger.info(f"[调试] ProductSpec查询结果: {len(product_values)}个")
+            current_app.logger.info(f"[调试] 合并后的产品值: {all_product_values}")
+            current_app.logger.info(f"[调试] 排除预定义后: {product_only_values}")
+
+            # 5. 获取规格单位（在组装数据前）
+            field_unit = get_field_unit(field.name)
+
+            # 6. 组装返回数据（仅产品值）
+            options_data = []
+            for value in sorted(product_only_values):
+                options_data.append({
+                    'id': None,  # 产品值没有ID
+                    'value': value,
+                    'code': '',  # 产品值没有编码
+                    'description': '',  # 产品值没有描述
+                    'is_active': True,
+                    'source': 'product',  # 标识来源
+                    'unit': field_unit  # 单位
+                })
+
+            return jsonify({
+                'options': options_data,
+                'field_id': field.id,
+                'field_name': field.name,
+                'field_unit': field_unit
+            })
+
+        # 原有逻辑：获取预定义选项
+        include_inactive = request.args.get('include_inactive', 'false').lower() == 'true'
+
+        # 构建查询
+        query = ProductCodeFieldOption.query.filter_by(field_id=field.id)
+
+        # 排除已选择的指标
+        if exclude_ids:
+            query = query.filter(~ProductCodeFieldOption.id.in_(exclude_ids))
+
+        # 是否包含禁用的指标
+        if not include_inactive:
+            query = query.filter_by(is_active=True)
+
+        options = query.order_by(ProductCodeFieldOption.position).all()
+
+        # 获取规格单位（在组装数据前）
+        field_unit = get_field_unit(field.name)
+
+        # 组装返回数据
+        options_data = []
+        for option in options:
+            options_data.append({
+                'id': option.id,
+                'value': option.value,
+                'code': option.code,
+                'description': option.description or '',
+                'is_active': option.is_active,
+                'unit': field_unit  # 单位
+            })
+
+        return jsonify({
+            'options': options_data,
+            'field_id': field.id,
+            'field_name': field.name,
+            'field_unit': field_unit
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"获取可用规格字段选项失败: {str(e)}")
+        return jsonify({'options': []})
+
 @product_management_bp.route('/api/spec-field-options/add', methods=['POST'])
 @login_required
 @permission_required('product_code', 'edit')

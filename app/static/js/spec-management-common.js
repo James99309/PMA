@@ -219,9 +219,12 @@ window.SpecManagement = {
                 const specName = specNameHidden.value;
                 const specFieldId = specFieldIdHidden.value;
 
-                // 触发快速添加模态框
+                // 收集当前表格中同一规格下已选择的指标ID列表
+                const excludeIds = SpecManagement.getSelectedIndicatorIds(specName, specFieldId);
+
+                // 触发快速添加模态框（传递已选择的指标ID用于排除）
                 if (window.IndicatorQuickAdd) {
-                    window.IndicatorQuickAdd.showQuickAddModal(specName, specFieldId, row);
+                    window.IndicatorQuickAdd.showQuickAddModal(specName, specFieldId, row, excludeIds);
                 }
                 return;
             }
@@ -233,6 +236,41 @@ window.SpecManagement = {
             indicatorValueHidden.value = value;
             indicatorCodeHidden.value = code;
         });
+    },
+
+    /**
+     * 获取当前表格中同一规格下已选择的指标ID列表
+     * @param {string} specName - 规格名称
+     * @param {string} specFieldId - 规格字段ID
+     * @returns {Array<number>} 已选择的指标ID数组
+     */
+    getSelectedIndicatorIds: function(specName, specFieldId) {
+        const selectedIds = [];
+
+        // 遍历所有规格行
+        const rows = document.querySelectorAll('#specs-table-body tr');
+        rows.forEach(row => {
+            // 获取该行的规格名称和字段ID
+            const rowSpecName = row.querySelector('input[name="spec_name[]"]')?.value || '';
+            const rowSpecFieldId = row.querySelector('input[name="spec_field_ids[]"]')?.value || '';
+
+            // 如果规格名称和字段ID匹配
+            if (rowSpecName === specName && rowSpecFieldId === specFieldId) {
+                // 获取该行选中的指标ID
+                const indicatorSelect = row.querySelector('.indicator-select');
+                if (indicatorSelect && indicatorSelect.value && indicatorSelect.value !== '__ADD_NEW_INDICATOR__') {
+                    const selectedOption = indicatorSelect.options[indicatorSelect.selectedIndex];
+                    const indicatorId = selectedOption?.dataset?.id;
+
+                    if (indicatorId) {
+                        selectedIds.push(parseInt(indicatorId, 10));
+                    }
+                }
+            }
+        });
+
+        console.log(`[getSelectedIndicatorIds] 规格"${specName}"已选择的指标IDs:`, selectedIds);
+        return selectedIds;
     },
 
     /**

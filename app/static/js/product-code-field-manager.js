@@ -398,7 +398,7 @@ let fieldManager;
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
-    const subcategoryIdInput = document.getElementById('subcategoryId');
+    const subcategoryIdInput = document.getElementById('subcategory_id');
     if (subcategoryIdInput) {
         const subcategoryId = parseInt(subcategoryIdInput.value);
         fieldManager = new ProductCodeFieldManager(subcategoryId);
