@@ -9,7 +9,7 @@ class DevProduct(db.Model):
     id = Column(Integer, primary_key=True)
     category_id = Column(Integer, ForeignKey('product_categories.id'))
     subcategory_id = Column(Integer, ForeignKey('product_subcategories.id'))
-    region_id = Column(Integer, ForeignKey('product_regions.id'))
+    region_id = Column(Integer, ForeignKey('product_code_fields.id'))
     name = Column(String(100))
     model = Column(String(100))
     status = Column(String(50))
@@ -40,7 +40,7 @@ class DevProduct(db.Model):
     # 关联关系
     category = relationship("ProductCategory", foreign_keys=[category_id])
     subcategory = relationship("ProductSubcategory", foreign_keys=[subcategory_id])
-    region = relationship("ProductRegion", foreign_keys=[region_id])
+    region = relationship("ProductCodeField", foreign_keys=[region_id])
     owner = relationship("User", foreign_keys=[owner_id])
     creator = relationship("User", foreign_keys=[created_by])
     specs = relationship("DevProductSpec", back_populates="product", cascade="all, delete-orphan")

@@ -1509,7 +1509,14 @@ def update_product(id):
         # 更新货币字段
         currency = request.form.get('currency', 'CNY')
         dev_product.currency = currency
-        
+
+        # 更新销售区域
+        region_id = request.form.get('region_id') or None
+        if region_id:
+            dev_product.region_id = int(region_id)
+        else:
+            dev_product.region_id = None
+
         dev_product.updated_at = datetime.now()
         
         # WYSIWYG方案：直接从前端获取已计算好的MN编码，后端只负责验证
