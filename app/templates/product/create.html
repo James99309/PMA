@@ -396,7 +396,7 @@
                                         </label>
                                     </span>
                                 </label>
-                                <textarea class="form-control" id="description" name="description" rows="3">{{ product.specification if product else '' }}</textarea>
+                                <textarea class="form-control" id="description" name="description" rows="3">{{ product.description if product else '' }}</textarea>
                             </div>
                         </div>
                     </div>
@@ -1679,8 +1679,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 初始更新MN编码预览
-    updateMNCodePreview(true);
+    // 初始更新MN编码预览（编辑模式下跳过，保留原有MN）
+    if (!isEditMode) {
+        updateMNCodePreview(true);
+    } else {
+        console.log('[MN初始化] 编辑模式，保留原有MN编码，不重新计算');
+    }
 
     // 表单提交逻辑
     form.addEventListener('submit', function(event) {
