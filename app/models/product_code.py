@@ -96,7 +96,7 @@ class ProductCodeField(db.Model):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
     # 关联字段
-    options = db.relationship('ProductCodeFieldOption', backref='field', lazy='dynamic')
+    options = db.relationship('ProductCodeFieldOption', backref='field', lazy='dynamic', cascade="all, delete-orphan")
     
     def __repr__(self):
         return f'<ProductCodeField {self.name} ({self.field_type})>'

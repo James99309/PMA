@@ -38,7 +38,7 @@ window.SpecManagement = {
             // 初始生成（仅在新建模式或描述为空时）
             // 编辑模式下如果已有描述内容，不自动生成以避免覆盖
             if (this.autoToggle.checked) {
-                const existingDescription = this.descriptionTextarea.value.trim();
+                const existingDescription = this.descriptionField.value.trim();
                 if (!existingDescription) {
                     // 描述为空时才自动生成
                     console.log('[AutoDescription] 描述为空，自动生成');

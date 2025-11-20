@@ -477,7 +477,7 @@
 {{ super() }}
 
 <!-- 引入共享的规格管理函数 -->
-<script src="{{ url_for('static', filename='js/spec-management-common.js') }}"></script>
+<script src="{{ url_for('static', filename='js/spec-management-common.js') }}?v={{ config.APP_VERSION }}"></script>
 
 <!-- 引入通用快速添加组件 -->
 <script src="{{ url_for('static', filename='js/select-with-quick-add.js') }}"></script>
