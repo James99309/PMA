@@ -503,6 +503,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const isEditMode = {{ 'true' if product else 'false' }};
     const isAdmin = {{ 'true' if is_admin else 'false' }};
     const productType = '{{ product_type if product_type else "standard" }}';
+    const currentProductId = {{ product.id if product else 'null' }};
 
     // 调试：输出完整的规格数据
     console.log('[DEBUG] existingSpecs 完整数据:', JSON.stringify(existingSpecs, null, 2));
@@ -797,6 +798,88 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // 为编辑模式绑定规格字段事件（不重新加载数据）
+    function bindSpecFieldEvents() {
+        console.log('[编辑模式] 开始绑定规格字段事件...');
+        const rows = document.querySelectorAll('[data-spec-row]');
+
+        rows.forEach((row, rowIndex) => {
+            const indicatorSelect = row.querySelector('select[data-indicator-select]');
+            if (!indicatorSelect) {
+                console.log(`[编辑模式] 第${rowIndex}行没有指标选择器，跳过`);
+                return;
+            }
+
+            // 检查是否已经绑定过事件（避免重复绑定）
+            if (indicatorSelect.dataset.eventBound === 'true') {
+                console.log(`[编辑模式] 第${rowIndex}行指标选择器已绑定事件，跳过`);
+                return;
+            }
+
+            // 绑定change事件
+            indicatorSelect.addEventListener('change', function() {
+                const value = this.value;
+
+                // 检测是否选择了"添加新指标"特殊选项
+                if (value === '__ADD_NEW_INDICATOR__') {
+                    // 重置选择框
+                    this.value = '';
+
+                    // 获取当前规格信息
+                    const specName = row.querySelector('input[name="spec_name[]"]').value;
+                    const specFieldId = row.querySelector('input[name="spec_field_ids[]"]').value;
+
+                    // 触发快速添加模态框
+                    if (window.IndicatorQuickAdd) {
+                        window.IndicatorQuickAdd.showQuickAddModal(specName, specFieldId, row);
+                    }
+                    return;
+                }
+
+                const selectedOption = this.options[this.selectedIndex];
+                const code = selectedOption.dataset.code || '';
+
+                // 更新隐藏字段
+                const indicatorValueHidden = row.querySelector('input[name="spec_value[]"]');
+                const indicatorCodeHidden = row.querySelector('input[name="spec_option_codes[]"]');
+                indicatorValueHidden.value = value;
+                indicatorCodeHidden.value = code;
+
+                // [调试1] 确认指标值确实更新了
+                console.log('[调试1] 指标变化:', {
+                    规格名称: row.querySelector('input[name="spec_name[]"]')?.value,
+                    新指标值: value,
+                    新指标编码: code,
+                    时间戳: new Date().toISOString()
+                });
+
+                // [调试2] 确认条件判断是否通过
+                console.log('[调试2] 检查是否更新MN:', {
+                    productType: productType,
+                    isEditMode: isEditMode,
+                    条件结果: (productType === 'research' || !isEditMode),
+                    时间戳: new Date().toISOString()
+                });
+
+                // 更新MN编码预览
+                // 研发库：总是更新MN（包括编辑模式，因为还在研发配置阶段）
+                // 产品库：仅创建模式更新MN（编辑模式下MN已定型）
+                if (productType === 'research' || !isEditMode) {
+                    updateMNCodePreview();
+                }
+
+                // 验证保存按钮状态
+                validateSaveButton();
+            });
+
+            // 标记已绑定
+            indicatorSelect.dataset.eventBound = 'true';
+            console.log(`[编辑模式] 第${rowIndex}行指标选择器事件绑定完成`);
+        });
+
+        console.log(`[编辑模式] 共绑定了 ${rows.length} 个规格字段的事件`);
+    }
+
     // 更新规格界面显示
     function updateSpecInterface(hasDefinedSpecs, subcategoryId, structureData) {
         const noSpecsDiv = document.getElementById('no-specs-defined');
@@ -918,7 +1001,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 为每个非编码规格创建行
         nonCodedSpecs.forEach(spec => {
-            console.log('[DEBUG] 处理规格:', spec.field_name, '值:', spec.field_value, 'field_id:', spec.field_id);
+            console.log('[DEBUG] 处理规格:', spec.field_name, '值:', spec.field_value, 'field_id:', spec.field_id, 'is_snapshot:', spec.is_snapshot);
             const newRow = createNonCodeSpecRow();
             specsTableBody.appendChild(newRow);
 
@@ -938,6 +1021,14 @@ document.addEventListener('DOMContentLoaded', function() {
             // 设置规格选择器为只读（显示规格名称但不可修改）
             specSelect.innerHTML = `<option value="${spec.field_name}" selected>${spec.field_name}</option>`;
             specSelect.disabled = true;
+
+            // 如果不是快照规格（是当前规格定义中的规格），则隐藏删除按钮
+            if (!spec.is_snapshot) {
+                const deleteBtn = newRow.querySelector('button.btn-outline-danger');
+                if (deleteBtn) {
+                    deleteBtn.style.display = 'none';
+                }
+            }
 
             // 启用指标选择器（非编码规格的指标可以编辑）
             indicatorSelect.disabled = false;
@@ -1609,7 +1700,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
             },
-            body: JSON.stringify({ mn_code: mnCode })
+            body: JSON.stringify({
+                mn_code: mnCode,
+                exclude_product_id: isEditMode ? currentProductId : null
+            })
         })
         .then(response => {
             console.log('[MN检查调试] API响应状态:', response.status);
@@ -1751,14 +1845,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // 编辑模式初始化：自动加载规格字段
+    // 编辑模式初始化：只绑定事件，不重新加载数据
     if (isEditMode) {
-        const subcategoryInput = document.getElementById('subcategory_id');
-        if (subcategoryInput && subcategoryInput.value) {
-            const subcategoryId = subcategoryInput.value;
-            console.log('编辑模式：自动加载规格字段，subcategory_id =', subcategoryId);
-            loadSpecFields(subcategoryId);
-        }
+        console.log('编辑模式：绑定规格字段事件（不重新加载数据）');
+        bindSpecFieldEvents();
     }
 
     // 初始化保存按钮状态为禁用

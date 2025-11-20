@@ -1413,12 +1413,24 @@ def edit_product(id):
         current_app.logger.debug(f"通过ORM关系获取规格，找到 {len(product_specs)} 个规格")
         specs_db = product_specs
     
+    # 获取当前产品分类下的有效规格名称（用于标记快照规格）
+    valid_spec_names = set()
+    if dev_product.subcategory_id:
+        from app.models.product_code import ProductCodeField
+        valid_fields = ProductCodeField.query.filter_by(
+            subcategory_id=dev_product.subcategory_id
+        ).all()
+        valid_spec_names = {field.name for field in valid_fields}
+
     # 将DevProductSpec对象转换为可JSON序列化的字典列表
+    # 标记哪些是快照规格（不在当前规格定义中的历史数据）
     specs = [
         {
             'field_name': spec.field_name,
             'field_value': spec.field_value,
-            'field_code': getattr(spec, 'field_code', None)  # 兼容字段编码
+            'field_code': getattr(spec, 'field_code', None),  # 兼容字段编码
+            'is_saved': True,
+            'is_snapshot': spec.field_name not in valid_spec_names  # 标记快照规格
         } for spec in specs_db
     ]
 
