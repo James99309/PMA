@@ -941,6 +941,7 @@ document.addEventListener('DOMContentLoaded', function() {
             let existingValue = null;
             let existingCode = null;
             let isSaved = false;
+            let isSnapshot = false;
 
             if (isEditMode && existingSpecs.length > 0) {
                 const existingSpec = existingSpecs.find(s => s.field_name === field.name);
@@ -948,10 +949,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     existingValue = existingSpec.field_value;
                     existingCode = existingSpec.field_code;
                     isSaved = existingSpec.is_saved === true;
+                    isSnapshot = existingSpec.is_snapshot === true;
                 }
             }
 
-            const newRow = createStructuredSpecRow(field, index, existingValue, isSaved, existingCode);
+            const newRow = createStructuredSpecRow(field, index, existingValue, isSaved, existingCode, false, isSnapshot);
             specsTableBody.appendChild(newRow);
         });
 
@@ -962,6 +964,7 @@ document.addEventListener('DOMContentLoaded', function() {
             let existingValue = null;
             let existingCode = null;
             let isSaved = false;
+            let isSnapshot = false;
 
             if (isEditMode && existingSpecs.length > 0) {
                 const existingSpec = existingSpecs.find(s => s.field_name === field.name);
@@ -969,11 +972,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     existingValue = existingSpec.field_value;
                     existingCode = existingSpec.field_code;
                     isSaved = existingSpec.is_saved === true;
+                    isSnapshot = existingSpec.is_snapshot === true;
                 }
             }
 
-            // 传入 true 表示这是必填的非编码规格
-            const newRow = createStructuredSpecRow(field, codedSpecs.length + index, existingValue, isSaved, existingCode, true);
+            // 传入 true 表示这是必填的非编码规格，最后一个参数是 isSnapshot
+            const newRow = createStructuredSpecRow(field, codedSpecs.length + index, existingValue, isSaved, existingCode, true, isSnapshot);
             specsTableBody.appendChild(newRow);
         });
 
@@ -1080,7 +1084,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 创建结构化规格行
-    function createStructuredSpecRow(field, index, existingValue = null, isSaved = false, existingCode = null, isRequiredNonCoded = false) {
+    function createStructuredSpecRow(field, index, existingValue = null, isSaved = false, existingCode = null, isRequiredNonCoded = false, isSnapshot = false) {
         specRowCounter++;
         const rowId = `spec-row-${specRowCounter}`;
 
@@ -1122,6 +1126,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     ${field.use_in_code ? `<span class="badge bg-info me-2">位置${field.position}</span>` : ''}
                     ${!field.use_in_code ? '<span class="badge bg-secondary me-2">非编码</span>' : ''}
                     ${(field.is_required || isRequiredNonCoded) ? '<span class="badge bg-danger">必填</span>' : ''}
+                    ${isSnapshot ? `<button type="button" class="btn btn-outline-danger btn-sm ms-2" onclick="removeSpecRow('${rowId}')"><i class="fas fa-trash"></i></button>` : ''}
                 </td>
             `;
         } else {
@@ -1158,6 +1163,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     ${(field.is_required || isRequiredNonCoded) ? '<span class="badge bg-danger me-2">必填</span>' : ''}
                     ${isMNLocked && existingValue ? '<span class="badge bg-secondary"><i class="fas fa-lock me-1"></i>已锁定</span>' : ''}
                     ${isMNLocked && !existingValue ? '<span class="badge bg-warning"><i class="fas fa-lock me-1"></i>锁定(可补充)</span>' : ''}
+                    ${isSnapshot ? `<button type="button" class="btn btn-outline-danger btn-sm ms-2" onclick="removeSpecRow('${rowId}')"><i class="fas fa-trash"></i></button>` : ''}
                 </td>
             `;
 
