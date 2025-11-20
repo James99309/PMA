@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, render_template_string, request, j
 from flask_babel import gettext as _
 from flask_login import login_required, current_user
 from app import db
-from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField, ProductCodeFieldOption, ProductRegion
+from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField, ProductCodeFieldOption
 from app.models.dev_product import DevProduct, DevProductSpec
 from app.permissions import admin_required, product_manager_required, permission_required, has_permission
 from sqlalchemy.exc import IntegrityError

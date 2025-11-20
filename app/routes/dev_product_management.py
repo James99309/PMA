@@ -11,7 +11,7 @@ from flask_login import login_required, current_user
 from app.decorators import permission_required, permission_required_with_approval_context
 from app.models.dev_product import DevProduct, DevProductSpec
 from app.models.product import Product
-from app.models.product_code import ProductCategory, ProductSubcategory, ProductRegion
+from app.models.product_code import ProductCategory, ProductSubcategory
 from app.models.approval import ApprovalInstance, ApprovalProcessTemplate, ApprovalStatus
 from app.services.product_warehousing_service import ProductWarehousingService
 from app import db

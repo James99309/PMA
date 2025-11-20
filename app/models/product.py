@@ -31,7 +31,7 @@ class Product(db.Model):
     # 产品分类体系字段（与研发库一致）
     category_id = db.Column(db.Integer, db.ForeignKey('product_categories.id'))
     subcategory_id = db.Column(db.Integer, db.ForeignKey('product_subcategories.id'))
-    region_id = db.Column(db.Integer, db.ForeignKey('product_regions.id'))
+    region_id = db.Column(db.Integer, db.ForeignKey('product_code_fields.id'))
 
     # 产品来源字段
     source_type = db.Column(db.String(20))  # 'manual'(手动创建) 或 'from_dev'(研发产品化)
@@ -48,7 +48,7 @@ class Product(db.Model):
     # 分类体系关联关系（使用_obj后缀避免与旧字段名冲突）
     category_obj = db.relationship('ProductCategory', foreign_keys=[category_id], backref='products')
     subcategory_obj = db.relationship('ProductSubcategory', foreign_keys=[subcategory_id], backref='products')
-    region_obj = db.relationship('ProductRegion', foreign_keys=[region_id], backref='products')
+    region_obj = db.relationship('ProductCodeField', foreign_keys=[region_id], backref='products')
     source_dev_product = db.relationship('DevProduct', foreign_keys=[source_dev_product_id], backref='productized_products')
 
     @property

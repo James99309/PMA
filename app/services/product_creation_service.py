@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 from app.extensions import db
 from app.models.dev_product import DevProduct
 from app.models.product import Product
-from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField, ProductRegion
+from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField
 from app.routes.product_management import save_dev_product_specs
 from app.routes.product import save_product_specs
 

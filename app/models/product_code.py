@@ -60,8 +60,24 @@ class ProductSubcategory(db.Model):
         return f'<ProductSubcategory {self.name} ({self.code_letter})>'
 
 class ProductRegion(db.Model):
+    """
+    ⚠️ DEPRECATED - 此表已废弃
+
+    此表为历史遗留，现已被 ProductCodeField (field_type='origin_location') 替代。
+
+    废弃原因：
+    - 系统已统一使用 product_code_fields 表管理销售区域
+    - 保留此类仅用于兼容历史数据和数据库表定义
+
+    新功能请使用：
+        ProductCodeField.query.filter_by(field_type='origin_location')
+
+    管理页面：/origin-fields（区域信息管理）
+
+    废弃日期：2025-11-20
+    """
     __tablename__ = 'product_regions'
-    
+
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)
     code_letter = Column(String(1), nullable=False)
@@ -148,7 +164,7 @@ class ProductCode(db.Model):
         Returns:
             dict: 编码定义快照，包含元数据、分类信息、字段明细
         """
-        from app.models.product_code import ProductCategory, ProductSubcategory, ProductRegion, ProductCodeField
+        from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField
 
         # 查询分类信息
         category = ProductCategory.query.get(self.category_id)
@@ -177,12 +193,12 @@ class ProductCode(db.Model):
 
         # 查询产品的地区信息（如果存在）
         if hasattr(self.product, 'region_id') and self.product.region_id:
-            region = ProductRegion.query.get(self.product.region_id)
-            if region:
+            region = ProductCodeField.query.get(self.product.region_id)
+            if region and region.field_type == 'origin_location':
                 snapshot["region"] = {
                     "id": region.id,
                     "name": region.name,
-                    "code_letter": region.code_letter,
+                    "code": region.code,
                     "description": region.description if region.description else ""
                 }
 
