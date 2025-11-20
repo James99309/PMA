@@ -502,6 +502,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const isMNLocked = {{ 'true' if (product and is_mn_locked and not is_admin) else 'false' }};
     const isEditMode = {{ 'true' if product else 'false' }};
     const isAdmin = {{ 'true' if is_admin else 'false' }};
+    const productType = '{{ product_type if product_type else "standard" }}';
 
     // 调试：输出完整的规格数据
     console.log('[DEBUG] existingSpecs 完整数据:', JSON.stringify(existingSpecs, null, 2));
@@ -1108,8 +1109,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         indicatorValueHidden.value = value;
                         indicatorCodeHidden.value = code;
 
-                        // 更新MN编码预览（仅在创建模式下）
-                        if (!isEditMode) {
+                        // 更新MN编码预览
+                        // 研发库：总是更新MN（包括编辑模式，因为还在研发配置阶段）
+                        // 产品库：仅创建模式更新MN（编辑模式下MN已定型）
+                        if (productType === 'research' || !isEditMode) {
                             updateMNCodePreview();
                         }
 
@@ -1369,8 +1372,9 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // 编辑模式：MN编号完全锁定，不允许任何重新计算（包括管理员）
-        if (isEditMode) {
+        // 产品库编辑模式：MN编号完全锁定，不允许任何重新计算
+        // 研发库编辑模式：允许MN更新（研发配置阶段）
+        if (isEditMode && productType !== 'research') {
             // 确保显示原始MN值（如果预览区域被清空了）
             const currentMN = mnPreview.textContent.trim();
             if (!currentMN || currentMN === '请选择产品分类和子分类' || currentMN === '--') {
@@ -1380,7 +1384,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     mnPreview.textContent = originalMN;
                 }
             }
-            return;  // 编辑模式下完全禁止重新计算MN
+            return;  // 产品库编辑模式下完全禁止重新计算MN
         }
 
         // 计算当前状态的哈希值，用于缓存检查

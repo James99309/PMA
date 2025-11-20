@@ -32,8 +32,8 @@ def api_companies_for_pricing(company_type):
         
         # 根据类型筛选企业
         type_mapping = {
-            'dealer': ['dealer', 'distributor', 'end_user', 'customer'], # 经销商类型包含多种
-            'distributor': ['distributor', 'dealer', 'end_user', 'customer'] # 分销商也可以从这些类型中选择
+            'dealer': ['dealer'],  # 经销商
+            'distributor': ['distributor']  # 分销商
         }
         
         if company_type in type_mapping:

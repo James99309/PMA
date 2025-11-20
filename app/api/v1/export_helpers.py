@@ -51,16 +51,8 @@ def search_customers():
             # 支持多个类型，用逗号分隔
             types = [t.strip() for t in company_type.split(',') if t.strip()]
             if types:
-                # 特殊映射：distributor 和 contractor 映射到 dealer 和 integrator
-                mapped_types = []
-                for t in types:
-                    if t == 'distributor':
-                        mapped_types.append('dealer')  # 代理商映射为经销商
-                    elif t == 'contractor':
-                        mapped_types.append('integrator')  # 总承包映射为系统集成商
-                    else:
-                        mapped_types.append(t)
-                query = query.filter(Company.company_type.in_(mapped_types))
+                # 直接使用类型过滤，不进行映射
+                query = query.filter(Company.company_type.in_(types))
 
         # 应用库存过滤
         if has_inventory == 'true':
