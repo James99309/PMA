@@ -1424,15 +1424,24 @@ def edit_product(id):
 
     # 将DevProductSpec对象转换为可JSON序列化的字典列表
     # 标记哪些是快照规格（不在当前规格定义中的历史数据）
-    specs = [
-        {
+    specs = []
+    for spec in specs_db:
+        # 尝试查找对应的ProductCodeField（用于未来功能，快照规格可能为None）
+        field = ProductCodeField.query.filter_by(
+            name=spec.field_name,
+            field_type='spec'
+        ).first()
+
+        is_snapshot = spec.field_name not in valid_spec_names
+
+        specs.append({
             'field_name': spec.field_name,
             'field_value': spec.field_value,
             'field_code': getattr(spec, 'field_code', None),  # 兼容字段编码
+            'field_id': field.id if field else None,  # 添加 field_id（快照规格可能为 None）
             'is_saved': True,
-            'is_snapshot': spec.field_name not in valid_spec_names  # 标记快照规格
-        } for spec in specs_db
-    ]
+            'is_snapshot': is_snapshot  # 标记快照规格
+        })
 
     # 获取所有产品地区（使用ProductCodeField，与创建页面一致）
     from app.models.product_code import ProductCodeField, ProductCodeFieldOption

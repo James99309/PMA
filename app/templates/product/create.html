@@ -499,14 +499,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 编辑模式：加载现有规格数据和锁定状态
     const existingSpecs = {{ specs|tojson|safe if specs else '[]' }};
+    window.existingSpecs = existingSpecs;  // 暴露到全局供调试
     const isMNLocked = {{ 'true' if (product and is_mn_locked and not is_admin) else 'false' }};
     const isEditMode = {{ 'true' if product else 'false' }};
     const isAdmin = {{ 'true' if is_admin else 'false' }};
     const productType = '{{ product_type if product_type else "standard" }}';
     const currentProductId = {{ product.id if product else 'null' }};
-
-    // 调试：输出完整的规格数据
-    console.log('[DEBUG] existingSpecs 完整数据:', JSON.stringify(existingSpecs, null, 2));
 
     // 分类选择联动
     const categorySelect = document.getElementById('category_id');
@@ -991,8 +989,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 加载编辑模式下现有的非编码规格
     function loadExistingNonCodeSpecs() {
-        console.log('[DEBUG] loadExistingNonCodeSpecs - 所有规格:', existingSpecs);
-
         // 获取所有编码规格的名称（已经加载的）
         const codedSpecNames = new Set();
         Array.from(specsTableBody.querySelectorAll('input[name="spec_name[]"]')).forEach(input => {
@@ -1001,11 +997,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 过滤出非编码规格（不在编码规格列表中的）
         const nonCodedSpecs = existingSpecs.filter(spec => !codedSpecNames.has(spec.field_name));
-        console.log('[DEBUG] 过滤后的非编码规格:', nonCodedSpecs);
 
         // 为每个非编码规格创建行
         nonCodedSpecs.forEach(spec => {
-            console.log('[DEBUG] 处理规格:', spec.field_name, '值:', spec.field_value, 'field_id:', spec.field_id, 'is_snapshot:', spec.is_snapshot);
             const newRow = createNonCodeSpecRow();
             specsTableBody.appendChild(newRow);
 
@@ -1027,22 +1021,44 @@ document.addEventListener('DOMContentLoaded', function() {
             specSelect.disabled = true;
 
             // 如果不是快照规格（是当前规格定义中的规格），则隐藏删除按钮
-            if (!spec.is_snapshot) {
+            // 添加 !spec.field_id 作为回退判断：没有field_id的也应该显示删除按钮
+            if (!spec.is_snapshot && spec.field_id) {
                 const deleteBtn = newRow.querySelector('button.btn-outline-danger');
                 if (deleteBtn) {
                     deleteBtn.style.display = 'none';
                 }
             }
 
-            // 启用指标选择器（非编码规格的指标可以编辑）
-            indicatorSelect.disabled = false;
+            // 区分快照规格和当前规格（添加 !spec.field_id 作为回退判断）
+            if (spec.is_snapshot || !spec.field_id) {
+                // 快照规格：显示只读值
+                indicatorSelect.innerHTML = `<option value="${spec.field_value}" selected>${spec.field_value}</option>`;
+                indicatorSelect.disabled = true;  // 禁用编辑
 
-            // 先加载指标选项，再绑定事件（避免事件处理覆盖我们的设置）
-            SpecManagement.loadIndicatorOptionsForSpec(newRow, spec.field_name, spec.field_id, spec.field_value);
+                // 更新隐藏字段
+                specValueInput.value = spec.field_value;
+                const indicatorCodeHidden = newRow.querySelector('input[name="spec_option_codes[]"]');
+                indicatorCodeHidden.value = spec.field_code || '';
 
-            // 只绑定指标选择事件（不调用完整的setupNonCodeSpecRow，避免重新加载规格选择器）
-            const indicatorCodeHidden = newRow.querySelector('input[name="spec_option_codes[]"]');
-            indicatorSelect.addEventListener('change', () => {
+                // 添加"历史快照"徽章
+                const specSelectCell = newRow.querySelector('td:first-child');
+                if (specSelectCell) {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-secondary ms-2';
+                    badge.textContent = '历史快照';
+                    badge.title = '此规格已从规格管理中删除，但保留了历史数据';
+                    specSelectCell.appendChild(badge);
+                }
+            } else {
+                // 当前规格：启用指标选择器并正常加载指标选项
+                indicatorSelect.disabled = false;
+
+                // 先加载指标选项，再绑定事件（避免事件处理覆盖我们的设置）
+                SpecManagement.loadIndicatorOptionsForSpec(newRow, spec.field_name, spec.field_id, spec.field_value);
+
+                // 只绑定指标选择事件（不调用完整的setupNonCodeSpecRow，避免重新加载规格选择器）
+                const indicatorCodeHidden = newRow.querySelector('input[name="spec_option_codes[]"]');
+                indicatorSelect.addEventListener('change', () => {
                 const value = indicatorSelect.value;
 
                 // 检测是否选择了"添加新指标"特殊选项
@@ -1067,7 +1083,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 更新隐藏字段
                 specValueInput.value = value;
                 indicatorCodeHidden.value = code;
-            });
+                });
+            }
         });
     }
 
@@ -1170,11 +1187,34 @@ document.addEventListener('DOMContentLoaded', function() {
             // 使用共享函数处理指标选择
             const indicatorSelect = row.querySelector('.indicator-select');
             if (indicatorSelect) {
-                // 总是加载指标选项
-                SpecManagement.loadIndicatorOptionsForSpec(row, field.name, field.id, existingValue);
+                // 如果是快照规格，显示只读值；否则加载指标选项
+                if (isSnapshot || (!field.id && existingValue)) {
+                    // 快照规格：显示只读值，不从API加载
+                    indicatorSelect.innerHTML = `<option value="${existingValue}" selected>${existingValue}</option>`;
+                    indicatorSelect.disabled = true;
 
-                // 如果未锁定，或者锁定但没有已有值（可补充），则允许修改
-                if (!isMNLocked || (isMNLocked && !existingValue)) {
+                    // 更新隐藏字段
+                    const indicatorValueHidden = row.querySelector('input[name="spec_value[]"]');
+                    const indicatorCodeHidden = row.querySelector('input[name="spec_option_codes[]"]');
+                    indicatorValueHidden.value = existingValue;
+                    indicatorCodeHidden.value = existingCode || '';
+
+                    // 添加"历史快照"徽章
+                    const badgeCell = row.querySelector('td:last-child');
+                    if (badgeCell) {
+                        const badge = document.createElement('span');
+                        badge.className = 'badge bg-secondary ms-2';
+                        badge.textContent = '历史快照';
+                        badge.title = '此规格已从规格管理中删除，但保留了历史数据';
+                        badgeCell.insertBefore(badge, badgeCell.querySelector('button'));
+                    }
+                } else {
+                    // 正常规格：加载指标选项
+                    SpecManagement.loadIndicatorOptionsForSpec(row, field.name, field.id, existingValue);
+                }
+
+                // 如果未锁定，或者锁定但没有已有值（可补充），则允许修改（但快照规格总是禁用）
+                if ((!isMNLocked || (isMNLocked && !existingValue)) && !isSnapshot) {
                     indicatorSelect.disabled = false;
 
                     // 绑定选择事件
