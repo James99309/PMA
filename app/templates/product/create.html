@@ -1109,6 +1109,22 @@ document.addEventListener('DOMContentLoaded', function() {
                         indicatorValueHidden.value = value;
                         indicatorCodeHidden.value = code;
 
+                        // [调试1] 确认指标值确实更新了
+                        console.log('[调试1] 指标变化:', {
+                            规格名称: row.querySelector('input[name="spec_name[]"]')?.value,
+                            新指标值: value,
+                            新指标编码: code,
+                            时间戳: new Date().toISOString()
+                        });
+
+                        // [调试2] 确认条件判断是否通过
+                        console.log('[调试2] 检查是否更新MN:', {
+                            productType: productType,
+                            isEditMode: isEditMode,
+                            条件结果: (productType === 'research' || !isEditMode),
+                            时间戳: new Date().toISOString()
+                        });
+
                         // 更新MN编码预览
                         // 研发库：总是更新MN（包括编辑模式，因为还在研发配置阶段）
                         // 产品库：仅创建模式更新MN（编辑模式下MN已定型）
@@ -1372,6 +1388,14 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        // [调试3] 确认是否被编辑锁定阻止
+        console.log('[调试3] 检查编辑锁定:', {
+            isEditMode: isEditMode,
+            productType: productType,
+            是否被锁定: (isEditMode && productType !== 'research'),
+            时间戳: new Date().toISOString()
+        });
+
         // 产品库编辑模式：MN编号完全锁定，不允许任何重新计算
         // 研发库编辑模式：允许MN更新（研发配置阶段）
         if (isEditMode && productType !== 'research') {
@@ -1388,12 +1412,25 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // 计算当前状态的哈希值，用于缓存检查
-        const currentHash = `${categoryInput.value}-${subcategoryInput.value}-${regionInput?.value || ''}-${Array.from(specsTableBody.querySelectorAll('input[name="spec_option_codes[]"]')).map(i => i.value).join('')}`;
+        const specCodes = Array.from(specsTableBody.querySelectorAll('input[name="spec_option_codes[]"]'))
+            .map(i => i.value)
+            .join('');
+        const currentHash = `${categoryInput.value}-${subcategoryInput.value}-${regionInput?.value || ''}-${specCodes}`;
+
+        // [调试4] 确认哈希值变化
+        console.log('[调试4] 哈希值检查:', {
+            当前哈希: currentHash,
+            上次哈希: lastMNCodeHash,
+            是否相同: (lastMNCodeHash === currentHash),
+            时间戳: new Date().toISOString()
+        });
 
         if (lastMNCodeHash === currentHash) {
+            console.log('[调试4] ❌ 哈希相同，跳过更新');
             return;
         }
         lastMNCodeHash = currentHash;
+        console.log('[调试4] ✅ 哈希已变化，继续计算MN');
 
         const categoryId = categoryInput.value;
         const subcategoryId = subcategoryInput.value;
@@ -1507,9 +1544,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const mnCode = `${categoryLetter}${subcategoryLetter}${regionCode}${effectiveSpecCodes.join('')}`;
         mnPreview.textContent = mnCode;
 
+        // [调试5] 确认MN是否计算成功
+        console.log('[调试5] MN计算结果:', {
+            计算的MN: mnCode,
+            预览元素当前值: mnPreview.textContent,
+            分类字母: categoryLetter,
+            子分类字母: subcategoryLetter,
+            区域编码: regionCode,
+            规格编码: effectiveSpecCodes.join(''),
+            时间戳: new Date().toISOString()
+        });
+
         // 存储到隐藏字段，用于后端保存
         // 研发产品使用 mn_code_preview，标准产品使用 product_mn
-        const productType = '{{ product_type if product_type else "standard" }}';
+        // productType 已在全局定义（第505行），直接使用
         const mnFieldName = productType === 'research' ? 'mn_code_preview' : 'product_mn';
 
         let mnCodeInput = form.querySelector(`input[name="${mnFieldName}"]`);
