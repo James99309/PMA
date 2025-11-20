@@ -208,9 +208,13 @@
                                 <label for="category_id" class="form-label">产品分类 <span class="text-danger">*</span></label>
                                 {% if product and has_category and not is_admin %}
                                 <!-- 编辑模式且有值且非管理员：锁定分类字段 -->
-                                <input type="text" class="form-control" value="{{ product.category_name }}" disabled>
-                                <!-- 使用category_obj获取code_letter -->
-                                <input type="hidden" id="category_id" name="category_id" value="{{ product.category_id }}" data-code="{{ product.category_obj.code_letter if product.category_obj else '' }}">
+                                <input type="text" class="form-control" value="{{ product.category.name if product.category else '' }}" disabled>
+                                <!-- 研发产品使用category，标准产品使用category_obj -->
+                                {% if product_type == 'research' %}
+                                    <input type="hidden" id="category_id" name="category_id" value="{{ product.category_id }}" data-code="{{ product.category.code_letter if product.category else '' }}">
+                                {% else %}
+                                    <input type="hidden" id="category_id" name="category_id" value="{{ product.category_id }}" data-code="{{ product.category_obj.code_letter if product.category_obj else '' }}">
+                                {% endif %}
                                 <small class="form-text text-muted">
                                     <i class="fas fa-lock me-1"></i>编辑模式下不可修改产品分类
                                 </small>
@@ -232,7 +236,7 @@
                                 {% if product and has_subcategory and not is_admin %}
                                 <!-- 编辑模式且有值且非管理员：锁定产品名称字段 -->
                                 {% set subcategory_relation = product.subcategory_obj if product.subcategory_obj is defined else product.subcategory %}
-                                <input type="text" class="form-control" value="{{ product.name }}" disabled>
+                                <input type="text" class="form-control" value="{{ subcategory_relation.name if subcategory_relation else '' }}" disabled>
                                 <!-- 研发产品使用subcategory，标准产品使用subcategory_obj -->
                                 {% if product_type == 'research' %}
                                     <input type="hidden" id="subcategory_id" name="subcategory_id" value="{{ product.subcategory_id }}" data-letter="{{ product.subcategory.code_letter if product.subcategory else '' }}">
