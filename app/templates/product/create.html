@@ -1430,10 +1430,14 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        // 动态计算最大编码位置
+        // 动态计算最大编码位置（只考虑编码规格）
         let maxCodePosition = 8;  // 默认值
         const allSpecRows = specsTableBody.querySelectorAll('tr');
         allSpecRows.forEach(row => {
+            // 只考虑编码规格的位置
+            const useInCode = row.dataset.useInCode === 'true';
+            if (!useInCode) return;
+
             const position = row.dataset.position ? parseInt(row.dataset.position) : 0;
             if (position > 0 && position > maxCodePosition) {
                 maxCodePosition = position;
@@ -1450,6 +1454,15 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!codeInput) {
                 return;
             }
+
+            // 检查规格是否属于编码
+            const useInCode = row.dataset.useInCode === 'true';
+            if (!useInCode) {
+                // 跳过非编码规格，不纳入MN编码生成
+                console.log('[MN编码] 跳过非编码规格:', row.querySelector('input[name="spec_name[]"]')?.value || '未知规格');
+                return;
+            }
+
             const rawPos = row.dataset && row.dataset.position ? parseInt(row.dataset.position) : NaN;
             let pos = !isNaN(rawPos) && rawPos > 0 ? rawPos : (4 + (fallbackIndex++));
             if (pos > maxCodePosition) return;
