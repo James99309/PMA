@@ -85,7 +85,7 @@ class SupabaseBackupService:
         os.makedirs(self.temp_dir, exist_ok=True)
 
         # Supabase 存储桶配置
-        self.backup_bucket = os.getenv('SUPABASE_BUCKET_BACKUP', 'database-backups')
+        self.backup_bucket = os.getenv('SUPABASE_BUCKET_BACKUP', 'database-backup')
 
         # 子目录前缀配置（按数据库类型隔离，复用图片存储的架构模式）
         self.path_prefix = {
@@ -174,6 +174,10 @@ class SupabaseBackupService:
 
                 # 执行备份
                 results = self.create_backup(db_type)
+
+                # 验证备份结果
+                if not results or len(results) == 0:
+                    raise Exception("备份失败：未生成备份文件")
 
                 self.tasks[task_id]['progress'] = 100
                 self.tasks[task_id]['status'] = 'completed'
@@ -277,7 +281,7 @@ class SupabaseBackupService:
 
         except Exception as e:
             logger.error(f"备份当前数据库失败: {e}")
-            return None
+            raise  # 向上抛出异常，让调用者处理
 
     def _find_latest_backup(self, db_type: str, timestamp: str) -> Optional[str]:
         """查找最新生成的备份文件（精确匹配完整时间戳）"""

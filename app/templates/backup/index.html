@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button, render_data_list %}
+{% from 'macros/ui_helpers.html' import render_button, render_data_list, render_top_notification %}
 
 {% block title %}{{ list_config.title }}{% endblock %}
 
@@ -105,6 +105,8 @@
 {% endblock %}
 
 {% block content %}
+{{ render_top_notification() }}
+
 <div class="container-fluid page-with-fixed-nav">
     <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
     <div class="page-header-with-actions mb-4">
@@ -237,13 +239,13 @@ window.createBackupNow = function() {
             pollTaskStatus();
         } else {
             hideLoading();
-            showTopNotification('{{ _("备份失败") }}: ' + data.message, 'error');
+            window.showTopNotification('{{ _("备份失败") }}: ' + data.message, 'error', 5000);
         }
     })
     .catch(error => {
         hideLoading();
         console.error('备份请求失败:', error);
-        showTopNotification('{{ _("网络错误") }}: ' + error.message, 'error');
+        window.showTopNotification('{{ _("网络错误") }}: ' + error.message, 'error', 5000);
     });
 }
 
@@ -261,12 +263,19 @@ function pollTaskStatus() {
             updateProgress(data.progress || 0, data.message || '{{ _("处理中...") }}');
 
             if (data.status === 'completed') {
+                // 验证是否有实际结果
+                if (!data.results || data.results.length === 0) {
+                    hideLoading();
+                    window.showTopNotification('{{ _("备份失败：未生成备份文件") }}', 'error', 5000);
+                    clearInterval(pollInterval);
+                    return;
+                }
                 hideLoading();
-                showTopNotification('{{ _("备份完成！") }}', 'success');
+                window.showTopNotification('{{ _("备份完成！") }}', 'success', 3000);
                 setTimeout(() => location.reload(), 1000);
             } else if (data.status === 'failed') {
                 hideLoading();
-                showTopNotification('{{ _("备份失败") }}: ' + data.message, 'error');
+                window.showTopNotification('{{ _("备份失败") }}: ' + data.message, 'error', 5000);
             }
         })
         .catch(error => {
@@ -306,16 +315,16 @@ window.deleteBackup = function(filename, filepath) {
     .then(data => {
         hideLoading();
         if (data.success) {
-            showTopNotification('{{ _("删除成功") }}', 'success');
+            window.showTopNotification('{{ _("删除成功") }}', 'success', 3000);
             setTimeout(() => location.reload(), 1000);
         } else {
-            showTopNotification('{{ _("删除失败") }}: ' + data.message, 'error');
+            window.showTopNotification('{{ _("删除失败") }}: ' + data.message, 'error', 5000);
         }
     })
     .catch(error => {
         hideLoading();
         console.error('删除备份失败:', error);
-        showTopNotification('{{ _("网络错误") }}: ' + error.message, 'error');
+        window.showTopNotification('{{ _("网络错误") }}: ' + error.message, 'error', 5000);
     });
 }
 
@@ -341,26 +350,17 @@ window.cleanupOldBackups = function() {
     .then(data => {
         hideLoading();
         if (data.success) {
-            showTopNotification(`{{ _("清理完成，删除了") }} ${data.deleted_count} {{ _("个备份文件") }}`, 'success');
+            window.showTopNotification(`{{ _("清理完成，删除了") }} ${data.deleted_count} {{ _("个备份文件") }}`, 'success', 3000);
             setTimeout(() => location.reload(), 1000);
         } else {
-            showTopNotification('{{ _("清理失败") }}: ' + data.message, 'error');
+            window.showTopNotification('{{ _("清理失败") }}: ' + data.message, 'error', 5000);
         }
     })
     .catch(error => {
         hideLoading();
         console.error('清理备份失败:', error);
-        showTopNotification('{{ _("网络错误") }}: ' + error.message, 'error');
+        window.showTopNotification('{{ _("网络错误") }}: ' + error.message, 'error', 5000);
     });
-}
-
-// 简单的顶部通知函数
-function showTopNotification(message, type) {
-    if (typeof toastr !== 'undefined') {
-        toastr[type](message);
-    } else {
-        alert(message);
-    }
 }
 </script>
 {% endblock %}
