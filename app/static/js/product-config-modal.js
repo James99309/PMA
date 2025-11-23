@@ -960,6 +960,19 @@ class ProductConfigModal {
 
             if (result.success && (result.data.length > 0 || Object.keys(result.groups || {}).length > 0)) {
                 console.log(`  ✓ 配置加载成功: ${result.total} 个配置`);
+
+                // 🔍 调试：打印所有配置的 has_nested_configs 状态
+                console.log('🔍 [API响应调试] 所有配置的子配置状态:');
+                result.data.forEach(config => {
+                    console.log(`  - ${config.product_name || config.product_model}: has_nested_configs=${config.has_nested_configs}, nested_count=${config.nested_count}`);
+                });
+                Object.values(result.groups || {}).forEach(group => {
+                    console.log(`  - 互斥组 "${group.group_name}":`);
+                    group.products.forEach(product => {
+                        console.log(`    - ${product.product_name || product.product_model}: has_nested_configs=${product.has_nested_configs}, nested_count=${product.nested_count}`);
+                    });
+                });
+
                 this.renderConfigurations(result);
             } else {
                 console.log('  ℹ️ 该产品无配置选项');
@@ -1445,8 +1458,17 @@ class ProductConfigModal {
                 badgeText: '推荐'
             }));
 
-            // ⭐ 新增：如果有子配置且未超过最大层级，添加展开按钮和子配置容器
-            if (config.has_nested_configs && level < 2) {
+            // 🔍 调试日志：检查每个推荐配置的子配置状态
+            console.log(`🔍 [推荐配置调试] 产品 ${config.related_product_id} (${config.product_name || config.product_model}):`, {
+                has_nested_configs: config.has_nested_configs,
+                nested_count: config.nested_count,
+                level: level,
+                willAddToggle: config.has_nested_configs && level === 0,
+                product_data: config
+            });
+
+            // ⭐ 新增：如果有子配置且为顶层配置（level 0），添加展开按钮和子配置容器
+            if (config.has_nested_configs && level === 0) {
                 console.log(`  🔧 为推荐配置产品 ${config.related_product_id} 添加展开按钮 (层级: ${level})`);
 
                 // 添加展开按钮
@@ -1560,8 +1582,17 @@ class ProductConfigModal {
                     badgeText: '可选互斥'
                 }));
 
-                // ⭐ 新增：如果有子配置且未超过最大层级，添加展开按钮和子配置容器
-                if (product.has_nested_configs && level < 2) {
+                // 🔍 调试日志：检查每个可选互斥产品的子配置状态
+                console.log(`🔍 [可选互斥调试] 产品 ${product.related_product_id} (${product.product_name || product.product_model}):`, {
+                    has_nested_configs: product.has_nested_configs,
+                    nested_count: product.nested_count,
+                    level: level,
+                    willAddToggle: product.has_nested_configs && level === 0,
+                    product_data: product
+                });
+
+                // ⭐ 新增：如果有子配置且为顶层配置（level 0），添加展开按钮和子配置容器
+                if (product.has_nested_configs && level === 0) {
                     console.log(`  🔧 为可选互斥产品 ${product.related_product_id} 添加展开按钮 (层级: ${level})`);
 
                     // 添加展开按钮
