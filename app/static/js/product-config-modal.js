@@ -69,6 +69,21 @@ class ProductConfigModal {
             return;
         }
 
+        // 强制隐藏返回按钮（初始状态）
+        const backBtn = document.getElementById('backToConfigSelection');
+        if (backBtn) {
+            backBtn.style.display = 'none';
+        }
+
+        // 重置确认状态
+        this.configConfirmed = false;
+
+        // 确保显示配置选择区域，隐藏确认展示区域
+        const configArea = document.getElementById('productConfigArea');
+        const selectedArea = document.getElementById('selectedConfigsArea');
+        if (configArea) configArea.style.display = 'block';
+        if (selectedArea) selectedArea.style.display = 'none';
+
         // 检测产品数量
         if (this.currentProducts.length === 1) {
             // 单个产品：直接显示产品信息
@@ -522,35 +537,41 @@ class ProductConfigModal {
             // 完全确定
             const product = this.remainingProducts[0];
 
-            // 构建产品额外信息（两栏网格布局）
-            let productExtraInfo = '';
-
-            // 第一行：品牌、单位
-            const row1_col1 = product.brand ?
-                `<div class="spec-field-fixed"><div class="spec-field-label">品牌:</div><div class="spec-field-value">${product.brand}</div></div>` : '';
-            const row1_col2 = product.unit ?
-                `<div class="spec-field-fixed"><div class="spec-field-label">单位:</div><div class="spec-field-value">${product.unit}</div></div>` : '';
-
-            // 第二行：价格、规格说明
-            const price = product.retail_price || product.market_price;
-            const row2_col1 = price ?
-                `<div class="spec-field-fixed"><div class="spec-field-label">价格:</div><div class="spec-field-value">¥${price}</div></div>` : '';
-            const row2_col2 = product.specification ?
-                `<div class="spec-field-fixed"><div class="spec-field-label">规格说明:</div><div class="spec-field-value">${product.specification}</div></div>` : '';
-
-            // 使用两栏网格布局
-            if (row1_col1 || row1_col2 || row2_col1 || row2_col2) {
-                productExtraInfo = `<div class="product-extra-info-grid mt-3">
-                    ${row1_col1}${row1_col2}${row2_col1}${row2_col2}
-                </div>`;
-            }
-
+            // 更新MN号（简洁版，品牌价格规格已移到独立区域）
             mnElement.innerHTML = `
                 <span class="mn-badge confirmed">
-                    <i class="fas fa-check-circle"></i> MN号：${product.product_mn || '无'}
+                    <i class="fas fa-check-circle"></i> ${product.product_mn || '无'}
                 </span>
-                ${productExtraInfo}
             `;
+
+            // 更新品牌 + 价格
+            const brandPriceElement = document.getElementById('configProductBrandPrice');
+            if (brandPriceElement) {
+                const brand = product.brand || '';
+                const price = product.retail_price || product.market_price || 0;
+
+                if (brand && price) {
+                    brandPriceElement.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted">品牌: ${brand}</span>
+                            <span class="fw-bold text-primary">¥${price}</span>
+                        </div>
+                    `;
+                } else if (brand) {
+                    brandPriceElement.innerHTML = `<span class="text-muted">品牌: ${brand}</span>`;
+                } else if (price) {
+                    brandPriceElement.innerHTML = `<span class="fw-bold text-primary">¥${price}</span>`;
+                } else {
+                    brandPriceElement.innerHTML = '';
+                }
+            }
+
+            // 更新规格说明
+            const specElement = document.getElementById('configProductSpec');
+            if (specElement) {
+                specElement.textContent = product.specification || '';
+            }
+
             this.selectedProduct = product;
             this.pendingSpecs = [];
 
@@ -561,6 +582,12 @@ class ProductConfigModal {
                     <i class="fas fa-filter"></i> 筛选中... (剩余 ${this.remainingProducts.length} 个)
                 </span>
             `;
+            // 清空品牌价格和规格说明
+            const brandPriceElement = document.getElementById('configProductBrandPrice');
+            if (brandPriceElement) brandPriceElement.innerHTML = '';
+            const specElement = document.getElementById('configProductSpec');
+            if (specElement) specElement.textContent = '';
+
             this.selectedProduct = null;
             this.pendingSpecs = [];
 
@@ -568,9 +595,15 @@ class ProductConfigModal {
             // 完全未选择
             mnElement.innerHTML = `
                 <span class="mn-badge pending">
-                    <i class="fas fa-clock"></i> MN号：待确定
+                    <i class="fas fa-clock"></i> 待确定
                 </span>
             `;
+            // 清空品牌价格和规格说明
+            const brandPriceElement = document.getElementById('configProductBrandPrice');
+            if (brandPriceElement) brandPriceElement.innerHTML = '';
+            const specElement = document.getElementById('configProductSpec');
+            if (specElement) specElement.textContent = '';
+
             this.selectedProduct = null;
             this.pendingSpecs = [];
 
@@ -584,6 +617,12 @@ class ProductConfigModal {
                     请检查规格选择是否正确
                 </small>
             `;
+            // 清空品牌价格和规格说明
+            const brandPriceElement = document.getElementById('configProductBrandPrice');
+            if (brandPriceElement) brandPriceElement.innerHTML = '';
+            const specElement = document.getElementById('configProductSpec');
+            if (specElement) specElement.textContent = '';
+
             this.selectedProduct = null;
             this.pendingSpecs = [];
         }
@@ -607,20 +646,48 @@ class ProductConfigModal {
             nameElement.textContent = product.product_name || '产品名称';
         }
 
-        // 产品型号
+        // 产品型号（显示在产品名称右侧）
         const modelElement = document.getElementById('configProductModel');
         if (modelElement) {
-            modelElement.textContent = `型号：${product.product_model || product.model || '未知'}`;
+            modelElement.textContent = product.product_model || product.model || '未知';
         }
 
-        // MN号
+        // MN号（保持简洁，只显示MN徽章）
         const mnElement = document.getElementById('configProductMn');
         if (mnElement) {
             mnElement.innerHTML = `
                 <span class="mn-badge confirmed">
-                    <i class="fas fa-barcode"></i> MN号：${product.product_mn || '无'}
+                    <i class="fas fa-check-circle"></i> ${product.product_mn || '无'}
                 </span>
             `;
+        }
+
+        // 品牌 + 价格
+        const brandPriceElement = document.getElementById('configProductBrandPrice');
+        if (brandPriceElement) {
+            const brand = product.brand || '';
+            const price = product.retail_price || product.market_price || 0;
+
+            if (brand && price) {
+                brandPriceElement.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">品牌: ${brand}</span>
+                        <span class="fw-bold text-primary">¥${price}</span>
+                    </div>
+                `;
+            } else if (brand) {
+                brandPriceElement.innerHTML = `<span class="text-muted">品牌: ${brand}</span>`;
+            } else if (price) {
+                brandPriceElement.innerHTML = `<span class="fw-bold text-primary">¥${price}</span>`;
+            } else {
+                brandPriceElement.innerHTML = '';
+            }
+        }
+
+        // 规格说明
+        const specElement = document.getElementById('configProductSpec');
+        if (specElement) {
+            specElement.textContent = product.specification || '';
         }
     }
 
@@ -672,6 +739,10 @@ class ProductConfigModal {
      * @param {Array} configurations - 配置列表
      */
     showSelectedConfigurations(configurations) {
+        console.log('📋 [showSelectedConfigurations] 开始展示配置');
+        console.log('  - 配置数量:', configurations.length);
+        console.log('  - 配置数据:', configurations);
+
         const container = document.getElementById('selectedConfigsList');
         if (!container) return;
 
@@ -682,32 +753,76 @@ class ProductConfigModal {
             return;
         }
 
+        // 递归渲染配置（包含嵌套）
         configurations.forEach(config => {
-            const item = document.createElement('div');
-            item.className = 'config-item-simple';
-
-            // 根据 relation_type 确定徽章类型
-            const badgeMap = {
-                'required_accessory': { type: 'relation-type-required', text: '必选' },
-                'recommended': { type: 'relation-type-recommended', text: '推荐' },
-                'optional_accessory': { type: 'relation-type-optional-mutual', text: '可选互斥' }
-            };
-
-            const badge = badgeMap[config.relation_type] || { type: '', text: '' };
-
-            // 直接使用配置数据（已包含完整的产品信息）
-            // 使用通用模板，传递数量和徽章参数
-            const fragment = this.createConfigItemContent(config, {
-                quantity: config.default_quantity || 1,
-                badgeType: badge.type,
-                badgeText: badge.text
-            });
-
-            item.appendChild(fragment);
-            container.appendChild(item);
+            this.renderConfigWithNested(config, container, 0);
         });
 
-        console.log(`📦 已展示 ${configurations.length} 个配置`);
+        console.log(`📦 已展示配置完成`);
+    }
+
+    /**
+     * 递归渲染配置项（包含嵌套配置）
+     * @param {Object} config - 配置对象
+     * @param {HTMLElement} container - 容器元素
+     * @param {number} level - 嵌套层级
+     */
+    renderConfigWithNested(config, container, level = 0) {
+        console.log(`%c${'  '.repeat(level)}📦 [Level ${level}] 渲染配置: ${config.product_name}`, 'color: #2196F3; font-weight: bold;');
+        console.log(`${'  '.repeat(level)}   - 容器ID: ${container.id || '(无ID)'}`);
+        console.log(`${'  '.repeat(level)}   - 容器类名: ${container.className}`);
+
+        const item = document.createElement('div');
+        item.className = 'config-item-simple';  // 所有层级统一使用 config-item-simple，缩进由父容器 sub-config-container 负责
+        console.log(`${'  '.repeat(level)}   - 创建item, 类名: ${item.className}`);
+
+        // 根据 relation_type 确定徽章类型
+        const badgeMap = {
+            'required_accessory': { type: 'relation-type-required', text: '必选' },
+            'recommended': { type: 'relation-type-recommended', text: '推荐' },
+            'optional_accessory': { type: 'relation-type-optional-mutual', text: '可选互斥' }
+        };
+
+        const badge = badgeMap[config.relation_type] || { type: '', text: '' };
+
+        // 直接使用配置数据（已包含完整的产品信息）
+        // 使用通用模板，传递数量和徽章参数
+        const fragment = this.createConfigItemContent(config, {
+            quantity: config.default_quantity || 1,
+            badgeType: badge.type,
+            badgeText: badge.text
+        });
+
+        item.appendChild(fragment);
+        console.log(`${'  '.repeat(level)}   ✅ fragment已添加到item`);
+
+        // ⭐ 递归渲染子配置（使用父子结构，与选择页面一致）
+        if (config.nested_configs && config.nested_configs.length > 0) {
+            console.log(`%c${'  '.repeat(level)}   📦 发现 ${config.nested_configs.length} 个子配置，创建嵌套容器`, 'color: #FF9800; font-weight: bold;');
+
+            // 创建子配置容器作为item的子元素（与选择页面相同）
+            const nestedContainer = document.createElement('div');
+            nestedContainer.className = `sub-config-container level-${level}`;
+            console.log(`${'  '.repeat(level)}   - 创建嵌套容器，类名: ${nestedContainer.className}`);
+
+            // 递归渲染子配置到嵌套容器中
+            config.nested_configs.forEach((nestedConfig, idx) => {
+                console.log(`${'  '.repeat(level)}   - 递归渲染子配置 ${idx + 1}/${config.nested_configs.length}`);
+                this.renderConfigWithNested(nestedConfig, nestedContainer, level + 1);
+            });
+
+            // 将嵌套容器添加到item作为子元素
+            item.appendChild(nestedContainer);
+            console.log(`%c${'  '.repeat(level)}   ✅ 嵌套容器已添加到item (父子结构)`, 'color: #4CAF50; font-weight: bold;');
+        } else {
+            console.log(`${'  '.repeat(level)}   ℹ️ 无子配置`);
+        }
+
+        // 将item添加到父容器
+        container.appendChild(item);
+        console.log(`${'  '.repeat(level)}   ✅ item已添加到container (container.children: ${container.children.length})`)
+
+        console.log('');  // 空行分隔
     }
 
     /**
@@ -965,8 +1080,13 @@ class ProductConfigModal {
      * @returns {DocumentFragment} 配置项内容片段
      */
     createConfigItemContent(config, options = {}) {
+        console.log('🎨 [createConfigItemContent] 创建配置项内容');
+        console.log('  - config对象:', config);
+        console.log('  - options:', options);
+
         const fragment = document.createDocumentFragment();
         const price = config.retail_price || 0;
+        console.log('  - 使用的价格:', price);
 
         // 配置类型徽章
         let typeBadge = '';
@@ -1005,12 +1125,16 @@ class ProductConfigModal {
         row2.style.paddingRight = '1rem';
 
         const modelMn = `${config.product_model || '-'}  ${config.product_mn || '-'}`;
+        console.log('  - 型号:', config.product_model);
+        console.log('  - MN:', config.product_mn);
+        console.log('  - 拼接后:', modelMn);
 
         // 左侧：型号+MN
         const leftSpan = document.createElement('span');
         leftSpan.className = 'text-muted';
         leftSpan.style.fontSize = '0.9rem';
         leftSpan.textContent = modelMn;
+        console.log('  - 设置左侧文本:', modelMn);
 
         // 右侧：数量（已选配置）或 价格（正常选择）
         const rightSpan = document.createElement('span');
@@ -1036,11 +1160,14 @@ class ProductConfigModal {
         row3.style.fontSize = '0.9rem';
         row3.style.marginTop = '0.25rem';
         row3.textContent = config.specification || '-';
+        console.log('  - 规格说明:', config.specification);
+        console.log('  - 第三行文本:', row3.textContent);
 
         fragment.appendChild(row1);
         fragment.appendChild(row2);
         fragment.appendChild(row3);
 
+        console.log('✅ [createConfigItemContent] 配置项内容创建完成');
         return fragment;
     }
 
@@ -1048,12 +1175,15 @@ class ProductConfigModal {
      * 渲染必选配置
      * @param {Array} configs - 必选配置列表
      */
-    renderRequiredConfigs(configs) {
-        console.log(`  📌 渲染必选配置: ${configs.length} 个`);
+    renderRequiredConfigs(configs, options = {}) {
+        const containerId = options.containerId || 'requiredConfigList';
+        const level = options.level || 0;
+        const parentId = options.parentId || null;
 
-        const area = document.getElementById('requiredConfigArea');
-        const container = document.getElementById('requiredConfigList');
-        if (!area || !container) return;
+        console.log(`  📌 渲染必选配置: ${configs.length} 个 (层级: ${level})`);
+
+        const container = document.getElementById(containerId);
+        if (!container) return;
 
         container.innerHTML = '';
 
@@ -1061,35 +1191,77 @@ class ProductConfigModal {
             const item = document.createElement('div');
             item.className = 'config-item-simple';
             item.dataset.productId = config.related_product_id;
+            item.dataset.productName = config.product_name;
+            item.dataset.productMn = config.product_mn;
             item.dataset.quantity = config.default_quantity || 1;
             item.dataset.configType = 'required';
+            item.dataset.relationType = 'required_accessory';
 
             // 存储完整的产品数据（JSON字符串）
-            // API 返回的数据是扁平结构，产品字段直接在 config 对象中
             item.dataset.productData = JSON.stringify(config);
 
             // 使用通用模板，传递必选徽章
-            // API 返回的 config 对象已经包含所有产品字段
             item.appendChild(this.createConfigItemContent(config, {
                 badgeType: 'relation-type-required',
                 badgeText: '必选'
             }));
+
+            // ⭐ 新增：如果有子配置且未超过最大层级，添加展开按钮和子配置容器
+            if (config.has_nested_configs && level < 1) {
+                console.log(`  🔧 为产品 ${config.related_product_id} 添加展开按钮 (层级: ${level})`);
+                const contentWrapper = item.querySelector('.config-item-content') || item.firstChild;
+                if (contentWrapper) {
+                    // 添加展开按钮
+                    const toggleBtn = document.createElement('button');
+                    toggleBtn.className = 'btn btn-sm btn-link toggle-nested-btn';
+                    toggleBtn.type = 'button';
+                    toggleBtn.innerHTML = `<i class="fas fa-chevron-right" id="toggle-icon-${config.related_product_id}"></i>`;
+                    toggleBtn.onclick = () => {
+                        console.log('🖱️ 展开按钮被点击 - related_product_id:', config.related_product_id, 'level:', level);
+                        this.toggleNestedConfig(config.related_product_id, level);
+                    };
+                    contentWrapper.appendChild(toggleBtn);
+                    console.log(`  ✅ 展开按钮已添加到内容包装器`);
+
+
+                    // 添加"已配置"徽章占位
+                    const badge = document.createElement('span');
+                    badge.id = `configured-badge-${config.related_product_id}`;
+                    badge.className = 'badge bg-success ms-2';
+                    badge.textContent = '已配置';
+                    badge.style.display = 'none';
+                    contentWrapper.appendChild(badge);
+                }
+
+                // 添加子配置容器
+                const nestedContainer = this.createNestedConfigContainer(config, level);
+                console.log(`  📦 创建嵌套容器ID: ${nestedContainer.id}`);
+                item.appendChild(nestedContainer);
+            }
+
             container.appendChild(item);
         });
 
-        area.style.display = 'block';
+        // 只在第一层显示area
+        if (level === 0) {
+            const area = document.getElementById('requiredConfigArea');
+            if (area) area.style.display = 'block';
+        }
     }
 
     /**
      * 渲染必选互斥组
      * @param {Object} groups - 必选互斥组对象
      */
-    renderRequiredMutualGroups(groups) {
-        console.log(`  ⚠️ 渲染必选互斥组: ${Object.keys(groups).length} 组`);
+    renderRequiredMutualGroups(groups, options = {}) {
+        const containerId = options.containerId || 'requiredMutualConfigList';
+        const level = options.level || 0;
+        const parentId = options.parentId || null;
 
-        const area = document.getElementById('requiredMutualConfigArea');
-        const container = document.getElementById('requiredMutualConfigList');
-        if (!area || !container) return;
+        console.log(`  ⚠️ 渲染必选互斥组: ${Object.keys(groups).length} 组 (层级: ${level})`);
+
+        const container = document.getElementById(containerId);
+        if (!container) return;
 
         container.innerHTML = '';
 
@@ -1098,14 +1270,21 @@ class ProductConfigModal {
             groupDiv.className = 'mutual-group';
             groupDiv.dataset.groupId = group.group_id;
             groupDiv.dataset.isRequired = 'true';
+            groupDiv.dataset.groupRequired = 'true';
+            groupDiv.dataset.groupName = group.group_name || `必选互斥组 ${group.group_id}`;
 
             const groupTitle = document.createElement('div');
             groupTitle.className = 'group-title';
             groupTitle.textContent = group.group_name || `必选互斥组 ${group.group_id}`;
             groupDiv.appendChild(groupTitle);
 
+            // ⭐ 修复：先确定应该默认选中的那一个产品
+            const defaultProduct = group.products.find(p => p.is_default) || group.products[0];
+            const defaultProductId = defaultProduct ? defaultProduct.related_product_id : null;
+            console.log(`  🎯 [必选互斥] 组 ${group.group_id} 的默认选中产品ID: ${defaultProductId}`);
+
             group.products.forEach((product, index) => {
-                const price = product.retail_price || 0;
+                const price = product.retail_product || 0;
 
                 // 使用简化的选项样式
                 const optionDiv = document.createElement('div');
@@ -1118,17 +1297,20 @@ class ProductConfigModal {
                 radio.id = `config-rm-${group.group_id}-${product.related_product_id}`;
                 radio.value = product.related_product_id;
                 radio.dataset.productId = product.related_product_id;
+                radio.dataset.productName = product.product_name;
+                radio.dataset.productMn = product.product_mn;
                 radio.dataset.quantity = product.default_quantity || 1;
                 radio.dataset.configType = 'required_mutual';
                 radio.dataset.groupId = group.group_id;
+                radio.dataset.required = 'true';
 
                 // 存储完整的产品数据（JSON字符串）
-                // API 返回的数据是扁平结构
                 radio.dataset.productData = JSON.stringify(product);
 
-                // 设置默认选项
-                if (product.is_default || index === 0) {
+                // ⭐ 修复：只为应该默认选中的那一个产品设置 checked
+                if (product.related_product_id === defaultProductId) {
                     radio.checked = true;
+                    console.log(`  ✅ [必选互斥] 设置产品 ${product.related_product_id} 为默认选中`);
                 }
 
                 const label = document.createElement('label');
@@ -1136,7 +1318,6 @@ class ProductConfigModal {
                 label.setAttribute('for', radio.id);
 
                 // 使用通用模板（显示必选互斥徽章）
-                // API 返回的 product 对象已经包含所有产品字段
                 label.appendChild(this.createConfigItemContent(product, {
                     badgeType: 'relation-type-required-mutual',
                     badgeText: '必选互斥'
@@ -1144,31 +1325,93 @@ class ProductConfigModal {
 
                 optionDiv.appendChild(radio);
                 optionDiv.appendChild(label);
+
+                // ⭐ 新增：如果有子配置且未超过最大层级，添加子配置容器和监听
+                if (product.has_nested_configs && level < 1) {
+                    console.log(`  🔧 [必选互斥] 为产品 ${product.related_product_id} 添加嵌套配置 (层级: ${level})`);
+
+                    // 添加"已配置"徽章占位
+                    const badge = document.createElement('span');
+                    badge.id = `configured-badge-${product.related_product_id}`;
+                    badge.className = 'badge bg-success ms-2';
+                    badge.textContent = '已配置';
+                    badge.style.display = 'none';
+                    label.appendChild(badge);
+
+                    // 添加子配置容器
+                    const nestedContainer = this.createNestedConfigContainer(product, level);
+                    console.log(`  📦 [必选互斥] 创建嵌套容器ID: ${nestedContainer.id}`);
+                    optionDiv.appendChild(nestedContainer);
+
+                    // ⭐ 监听radio选中状态变化
+                    radio.addEventListener('change', (e) => {
+                        console.log(`📻 [必选互斥] Radio状态变化 - 产品ID: ${product.related_product_id}, 选中: ${e.target.checked}`);
+
+                        if (e.target.checked) {
+                            // 选中时自动展开
+                            this.autoExpandNestedConfig(product.related_product_id, level);
+                        }
+                    });
+
+                    // 监听同组其他radio的change事件，取消选中时收起
+                    const groupName = `required-mutual-${group.group_id}`;
+                    document.addEventListener('change', (e) => {
+                        if (e.target.name === groupName && e.target.value != product.related_product_id) {
+                            // 同组其他选项被选中，收起当前产品的嵌套配置
+                            console.log(`📻 [必选互斥] 其他选项被选中，收起产品 ${product.related_product_id} 的嵌套配置`);
+                            this.collapseNestedConfig(product.related_product_id, level);
+                        }
+                    });
+
+                    // 如果当前是默认选中，自动展开
+                    if (radio.checked) {
+                        console.log(`  ✅ [必选互斥] 产品 ${product.related_product_id} 是默认选中，将自动展开`);
+                        // 延迟展开，确保DOM已完全渲染
+                        setTimeout(() => {
+                            this.autoExpandNestedConfig(product.related_product_id, level);
+                        }, 100);
+                    }
+                }
+
                 groupDiv.appendChild(optionDiv);
             });
 
             container.appendChild(groupDiv);
         });
 
-        area.style.display = 'block';
+        // 只在第一层显示area
+        if (level === 0) {
+            const area = document.getElementById('requiredMutualConfigArea');
+            if (area) area.style.display = 'block';
+        }
     }
 
     /**
      * 渲染推荐配置
      * @param {Array} configs - 推荐配置列表
      */
-    renderRecommendedConfigs(configs) {
-        console.log(`  ✨ 渲染推荐配置: ${configs.length} 个`);
+    renderRecommendedConfigs(configs, options = {}) {
+        const containerId = options.containerId || 'recommendedConfigList';
+        const level = options.level || 0;
+        const parentId = options.parentId || null;
 
-        const area = document.getElementById('recommendedConfigArea');
-        const container = document.getElementById('recommendedConfigList');
-        if (!area || !container) return;
+        console.log(`  ✨ 渲染推荐配置: ${configs.length} 个 (层级: ${level})`);
+
+        const container = document.getElementById(containerId);
+        if (!container) return;
 
         container.innerHTML = '';
 
-        // 创建分组容器（使用与互斥组相同的样式）
-        const groupDiv = document.createElement('div');
-        groupDiv.className = 'mutual-group';
+        // 只在第一层（level 0）创建分组容器，嵌套层级直接使用容器
+        let targetContainer;
+        if (level === 0) {
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'mutual-group';
+            container.appendChild(groupDiv);
+            targetContainer = groupDiv;
+        } else {
+            targetContainer = container;
+        }
 
         configs.forEach((config, idx) => {
             const optionDiv = document.createElement('div');
@@ -1177,7 +1420,7 @@ class ProductConfigModal {
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.className = 'form-check-input';
-            checkbox.id = `config-rec-${config.related_product_id}`;
+            checkbox.id = `config-rec-${config.related_product_id}-${level}`;
             checkbox.value = config.related_product_id;
             checkbox.dataset.productId = config.related_product_id;
             checkbox.dataset.quantity = config.default_quantity || 1;
@@ -1198,38 +1441,82 @@ class ProductConfigModal {
                 badgeText: '推荐'
             }));
 
+            // ⭐ 新增：如果有子配置且未超过最大层级，添加展开按钮和子配置容器
+            if (config.has_nested_configs && level < 2) {
+                console.log(`  🔧 为推荐配置产品 ${config.related_product_id} 添加展开按钮 (层级: ${level})`);
+
+                // 添加展开按钮
+                const toggleBtn = document.createElement('button');
+                toggleBtn.className = 'btn btn-sm btn-link toggle-nested-btn';
+                toggleBtn.type = 'button';
+                toggleBtn.innerHTML = `<i class="fas fa-chevron-right" id="toggle-icon-${config.related_product_id}"></i>`;
+                toggleBtn.onclick = () => {
+                    console.log('🖱️ 推荐配置展开按钮被点击 - related_product_id:', config.related_product_id, 'level:', level);
+                    this.toggleNestedConfig(config.related_product_id, level);
+                };
+                label.appendChild(toggleBtn);
+
+                // 添加"已配置"徽章占位
+                const badge = document.createElement('span');
+                badge.id = `configured-badge-${config.related_product_id}`;
+                badge.className = 'badge bg-success ms-2';
+                badge.textContent = '已配置';
+                badge.style.display = 'none';
+                label.appendChild(badge);
+
+                // 添加子配置容器
+                const nestedContainer = this.createNestedConfigContainer(config, level);
+                console.log(`  📦 创建嵌套容器ID: ${nestedContainer.id}`);
+                optionDiv.appendChild(nestedContainer);
+            }
+
             optionDiv.appendChild(checkbox);
             optionDiv.appendChild(label);
-            groupDiv.appendChild(optionDiv);
+            targetContainer.appendChild(optionDiv);
         });
 
-        container.appendChild(groupDiv);
-        area.style.display = 'block';
+        // 只在第一层显示area
+        if (level === 0) {
+            const area = document.getElementById('recommendedConfigArea');
+            if (area) area.style.display = 'block';
+        }
     }
 
     /**
      * 渲染推荐互斥组（可选互斥）
      * @param {Object} groups - 推荐互斥组对象
      */
-    renderOptionalMutualGroups(groups) {
-        console.log(`  💡 渲染可选互斥组: ${Object.keys(groups).length} 组`);
+    renderOptionalMutualGroups(groups, options = {}) {
+        const containerId = options.containerId || 'optionalMutualConfigList';
+        const level = options.level || 0;
+        const parentId = options.parentId || null;
 
-        const area = document.getElementById('optionalMutualConfigArea');
-        const container = document.getElementById('optionalMutualConfigList');
-        if (!area || !container) return;
+        console.log(`  💡 渲染可选互斥组: ${Object.keys(groups).length} 组 (层级: ${level})`);
+
+        const container = document.getElementById(containerId);
+        if (!container) return;
 
         container.innerHTML = '';
 
         Object.values(groups).forEach(group => {
-            const groupDiv = document.createElement('div');
-            groupDiv.className = 'mutual-group';
-            groupDiv.dataset.groupId = group.group_id;
-            groupDiv.dataset.isRequired = 'false';
+            // 只在第一层（level 0）创建组容器和标题，嵌套层级直接使用容器
+            let targetContainer;
+            if (level === 0) {
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'mutual-group';
+                groupDiv.dataset.groupId = group.group_id;
+                groupDiv.dataset.isRequired = 'false';
 
-            const groupTitle = document.createElement('div');
-            groupTitle.className = 'group-title';
-            groupTitle.textContent = group.group_name || `可选互斥组 ${group.group_id}`;
-            groupDiv.appendChild(groupTitle);
+                const groupTitle = document.createElement('div');
+                groupTitle.className = 'group-title';
+                groupTitle.textContent = group.group_name || `可选互斥组 ${group.group_id}`;
+                groupDiv.appendChild(groupTitle);
+
+                container.appendChild(groupDiv);
+                targetContainer = groupDiv;
+            } else {
+                targetContainer = container;
+            }
 
             // 添加具体选项（移除"不选择"选项）
             group.products.forEach((product, index) => {
@@ -1241,8 +1528,8 @@ class ProductConfigModal {
                 const radio = document.createElement('input');
                 radio.type = 'radio';
                 radio.className = 'form-check-input';
-                radio.name = `optional-mutual-${group.group_id}`;
-                radio.id = `config-om-${group.group_id}-${product.related_product_id}`;
+                radio.name = `optional-mutual-${group.group_id}-${level}`;
+                radio.id = `config-om-${group.group_id}-${product.related_product_id}-${level}`;
                 radio.value = product.related_product_id;
                 radio.dataset.productId = product.related_product_id;
                 radio.dataset.quantity = product.default_quantity || 1;
@@ -1269,15 +1556,46 @@ class ProductConfigModal {
                     badgeText: '可选互斥'
                 }));
 
+                // ⭐ 新增：如果有子配置且未超过最大层级，添加展开按钮和子配置容器
+                if (product.has_nested_configs && level < 2) {
+                    console.log(`  🔧 为可选互斥产品 ${product.related_product_id} 添加展开按钮 (层级: ${level})`);
+
+                    // 添加展开按钮
+                    const toggleBtn = document.createElement('button');
+                    toggleBtn.className = 'btn btn-sm btn-link toggle-nested-btn';
+                    toggleBtn.type = 'button';
+                    toggleBtn.innerHTML = `<i class="fas fa-chevron-right" id="toggle-icon-${product.related_product_id}"></i>`;
+                    toggleBtn.onclick = () => {
+                        console.log('🖱️ 可选互斥展开按钮被点击 - related_product_id:', product.related_product_id, 'level:', level);
+                        this.toggleNestedConfig(product.related_product_id, level);
+                    };
+                    label.appendChild(toggleBtn);
+
+                    // 添加"已配置"徽章占位
+                    const badge = document.createElement('span');
+                    badge.id = `configured-badge-${product.related_product_id}`;
+                    badge.className = 'badge bg-success ms-2';
+                    badge.textContent = '已配置';
+                    badge.style.display = 'none';
+                    label.appendChild(badge);
+
+                    // 添加子配置容器
+                    const nestedContainer = this.createNestedConfigContainer(product, level);
+                    console.log(`  📦 创建嵌套容器ID: ${nestedContainer.id}`);
+                    optionDiv.appendChild(nestedContainer);
+                }
+
                 optionDiv.appendChild(radio);
                 optionDiv.appendChild(label);
-                groupDiv.appendChild(optionDiv);
+                targetContainer.appendChild(optionDiv);
             });
-
-            container.appendChild(groupDiv);
         });
 
-        area.style.display = 'block';
+        // 只在第一层显示area
+        if (level === 0) {
+            const area = document.getElementById('optionalMutualConfigArea');
+            if (area) area.style.display = 'block';
+        }
     }
 
     /**
@@ -1285,111 +1603,20 @@ class ProductConfigModal {
      * @returns {Array} 配置列表
      */
     collectConfigurations() {
-        const configurations = [];
+        console.log('🚀 [collectConfigurations] 开始收集所有配置...');
 
-        // 1. 收集必选配置（全部自动添加）
-        document.querySelectorAll('#requiredConfigList .config-item-simple').forEach(item => {
-            const productId = item.dataset.productId;
-            const quantity = parseInt(item.dataset.quantity) || 1;
+        // ⭐ 统一收集所有配置类型（包含嵌套）
+        // - 必选配置 (required_accessory)
+        // - 必选互斥配置 (required_accessory with group)
+        // - 推荐配置 (recommended)
+        // - 可选互斥配置 (optional_mutual)
+        // 注：所有配置类型统一在 collectNestedConfigs() 中收集，避免重复
+        const configurations = this.collectNestedConfigs('#productConfigArea', 0);
 
-            // 从dataset读取完整的产品数据
-            let productData = {};
-            if (item.dataset.productData) {
-                try {
-                    productData = JSON.parse(item.dataset.productData);
-                } catch (e) {
-                    console.error('❌ 解析产品数据失败:', e);
-                }
-            }
+        console.log(`✅ [collectConfigurations] 收集完成！`);
+        console.log(`  📦 总计: ${configurations.length} 个配置`);
+        console.log(`  📋 完整配置列表:`, configurations);
 
-            configurations.push({
-                ...productData,  // 展开完整的产品数据
-                product_id: parseInt(productId),
-                default_quantity: quantity,
-                relation_type: 'required_accessory',
-                is_selected: true
-            });
-        });
-
-        // 2. 收集必选互斥配置（选中的）
-        document.querySelectorAll('#requiredMutualConfigList input[type="radio"]:checked').forEach(radio => {
-            if (radio.value) {
-                const productId = radio.dataset.productId;
-                const quantity = parseInt(radio.dataset.quantity) || 1;
-
-                // 从dataset读取完整的产品数据
-                let productData = {};
-                if (radio.dataset.productData) {
-                    try {
-                        productData = JSON.parse(radio.dataset.productData);
-                    } catch (e) {
-                        console.error('解析产品数据失败:', e);
-                    }
-                }
-
-                configurations.push({
-                    ...productData,  // 展开完整的产品数据
-                    product_id: parseInt(productId),
-                    default_quantity: quantity,
-                    relation_type: 'required_accessory',
-                    is_selected: true,
-                    group_id: radio.dataset.groupId
-                });
-            }
-        });
-
-        // 3. 收集推荐配置（选中的复选框）
-        document.querySelectorAll('#recommendedConfigList input[type="checkbox"]:checked').forEach(checkbox => {
-            const productId = checkbox.dataset.productId;
-            const quantity = parseInt(checkbox.dataset.quantity) || 1;
-
-            // 从dataset读取完整的产品数据
-            let productData = {};
-            if (checkbox.dataset.productData) {
-                try {
-                    productData = JSON.parse(checkbox.dataset.productData);
-                } catch (e) {
-                    console.error('解析产品数据失败:', e);
-                }
-            }
-
-            configurations.push({
-                ...productData,  // 展开完整的产品数据
-                product_id: parseInt(productId),
-                default_quantity: quantity,
-                relation_type: 'recommended',
-                is_selected: true
-            });
-        });
-
-        // 4. 收集可选互斥配置（选中的，排除"不选择"）
-        document.querySelectorAll('#optionalMutualConfigList input[type="radio"]:checked').forEach(radio => {
-            if (radio.value) {  // 排除value为空的"不选择"选项
-                const productId = radio.dataset.productId;
-                const quantity = parseInt(radio.dataset.quantity) || 1;
-
-                // 从dataset读取完整的产品数据
-                let productData = {};
-                if (radio.dataset.productData) {
-                    try {
-                        productData = JSON.parse(radio.dataset.productData);
-                    } catch (e) {
-                        console.error('解析产品数据失败:', e);
-                    }
-                }
-
-                configurations.push({
-                    ...productData,  // 展开完整的产品数据
-                    product_id: parseInt(productId),
-                    default_quantity: quantity,
-                    relation_type: 'optional_accessory',
-                    is_selected: true,
-                    group_id: radio.dataset.groupId
-                });
-            }
-        });
-
-        console.log(`📦 收集到 ${configurations.length} 个配置`);
         return configurations;
     }
 
@@ -1456,9 +1683,590 @@ class ProductConfigModal {
 
         if (codeSelectionArea) codeSelectionArea.style.display = 'none';
         if (specsArea) specsArea.style.display = 'none';
-        if (configArea) configArea.style.display = 'none';
+
+        // 确保配置选择区域显示，确认展示区域隐藏
+        if (configArea) configArea.style.display = 'block';
         if (selectedArea) selectedArea.style.display = 'none';
+
+        // 强制隐藏返回按钮
         if (backBtn) backBtn.style.display = 'none';
+    }
+
+    // ==================== 嵌套配置方法（新增）====================
+
+    /**
+     * 加载必选配置的子配置
+     * @param {number} parentProductId - 父产品ID
+     * @param {string} containerId - 渲染容器ID
+     * @param {number} level - 嵌套层级（最多2层）
+     */
+    async loadNestedRequiredConfigs(parentProductId, containerId, level) {
+        if (level >= 2) return; // 限制最多2层
+
+        console.log(`📡 [loadNestedRequiredConfigs] 加载产品 ${parentProductId} 的子配置 (层级: ${level})`);
+
+        try {
+            const response = await fetch(`/product-management/api/product/${parentProductId}/relations`);
+            console.log('  - API响应状态:', response.status);
+
+            const data = await response.json();
+            console.log('  - API返回数据:', data);
+
+            if (!data.success) {
+                console.error('加载子配置失败:', data.message);
+                return;
+            }
+
+            // 1. 渲染必选配置
+            const requiredConfigs = data.data.filter(config => config.relation_type === 'required_accessory');
+            if (requiredConfigs.length > 0) {
+                this.renderRequiredConfigs(requiredConfigs, {
+                    containerId: `${containerId}_required`,
+                    level: level + 1,
+                    parentId: parentProductId
+                });
+            }
+
+            // 2. 渲染必选互斥组
+            const requiredGroups = {};
+            for (const [groupId, groupData] of Object.entries(data.groups || {})) {
+                if (groupData.is_required) {
+                    requiredGroups[groupId] = groupData;
+                }
+            }
+            if (Object.keys(requiredGroups).length > 0) {
+                this.renderRequiredMutualGroups(requiredGroups, {
+                    containerId: `${containerId}_mutual`,
+                    level: level + 1,
+                    parentId: parentProductId
+                });
+            }
+
+            // 3. 渲染推荐配置
+            const recommendedConfigs = data.data.filter(config => config.relation_type === 'recommended');
+            if (recommendedConfigs.length > 0) {
+                this.renderRecommendedConfigs(recommendedConfigs, {
+                    containerId: `${containerId}_recommended`,
+                    level: level + 1,
+                    parentId: parentProductId
+                });
+            }
+
+            // 4. 渲染可选互斥组
+            const optionalGroups = {};
+            for (const [groupId, groupData] of Object.entries(data.groups || {})) {
+                if (!groupData.is_required) {
+                    optionalGroups[groupId] = groupData;
+                }
+            }
+            if (Object.keys(optionalGroups).length > 0) {
+                this.renderOptionalMutualGroups(optionalGroups, {
+                    containerId: `${containerId}_optional_mutual`,
+                    level: level + 1,
+                    parentId: parentProductId
+                });
+            }
+
+            // 5. 所有配置渲染完成后，动态添加分割线
+            this.addDividersToNestedContainer(containerId);
+
+        } catch (error) {
+            console.error('加载子配置失败:', error);
+        }
+    }
+
+    /**
+     * 创建嵌套配置容器
+     * @param {Object} config - 配置对象
+     * @param {number} level - 嵌套层级
+     * @returns {HTMLElement} 子配置容器
+     */
+    createNestedConfigContainer(config, level) {
+        // 兼容两种属性名：related_product_id (从API返回) 或 product_id
+        const productId = config.related_product_id || config.product_id;
+        const containerId = `nested-config-${productId}-${level}`;
+
+        console.log(`  🏗️ [createNestedConfigContainer] 创建容器`);
+        console.log(`    - config对象:`, config);
+        console.log(`    - 使用的productId: ${productId}`);
+        console.log(`    - level: ${level}`);
+        console.log(`    - 生成的containerId: ${containerId}`);
+
+        const container = document.createElement('div');
+        container.id = containerId;
+        container.className = `sub-config-container level-${level}`;
+        container.style.display = 'none'; // 默认隐藏
+        // 不再静态添加分割线，只创建容器，分割线将在渲染完成后动态添加
+        container.innerHTML = `
+            <div id="${containerId}_required"></div>
+            <div id="${containerId}_mutual"></div>
+            <div id="${containerId}_recommended"></div>
+            <div id="${containerId}_optional_mutual"></div>
+        `;
+
+        return container;
+    }
+
+    /**
+     * 动态添加分割线到嵌套配置容器
+     * 只在有内容的区域之间添加分割线
+     * @param {string} containerId - 嵌套容器ID
+     */
+    addDividersToNestedContainer(containerId) {
+        console.log(`📏 [addDividersToNestedContainer] 为容器添加分割线: ${containerId}`);
+
+        const container = document.getElementById(containerId);
+        if (!container) {
+            console.warn(`  ⚠️ 容器未找到: ${containerId}`);
+            return;
+        }
+
+        // 获取所有子容器
+        const requiredDiv = document.getElementById(`${containerId}_required`);
+        const mutualDiv = document.getElementById(`${containerId}_mutual`);
+        const recommendedDiv = document.getElementById(`${containerId}_recommended`);
+        const optionalMutualDiv = document.getElementById(`${containerId}_optional_mutual`);
+
+        // 收集有内容的容器（按顺序）
+        const nonEmptyContainers = [
+            requiredDiv,
+            mutualDiv,
+            recommendedDiv,
+            optionalMutualDiv
+        ].filter(div => div && div.children.length > 0);
+
+        console.log(`  ✅ 找到 ${nonEmptyContainers.length} 个有内容的容器`);
+
+        // 在有内容的容器之间插入分割线
+        for (let i = 0; i < nonEmptyContainers.length - 1; i++) {
+            const divider = document.createElement('hr');
+            divider.className = 'nested-divider';
+
+            // 在下一个容器之前插入分割线
+            const nextContainer = nonEmptyContainers[i + 1];
+            container.insertBefore(divider, nextContainer);
+            console.log(`  ➕ 在第 ${i + 1} 和第 ${i + 2} 个容器之间添加分割线`);
+        }
+
+        console.log(`  ✅ 分割线添加完成`);
+    }
+
+    /**
+     * 展开/折叠子配置
+     * @param {number} productId - 产品ID
+     * @param {number} level - 当前层级
+     */
+    toggleNestedConfig(productId, level) {
+        console.log('🔍 [toggleNestedConfig] 被调用');
+        console.log('  - productId:', productId);
+        console.log('  - level:', level);
+        console.log('  - 查找容器ID:', `nested-config-${productId}-${level}`);
+
+        const container = document.getElementById(`nested-config-${productId}-${level}`);
+        console.log('  - 找到容器:', container ? 'YES' : 'NO');
+
+        const icon = document.getElementById(`toggle-icon-${productId}`);
+        console.log('  - 找到图标:', icon ? 'YES' : 'NO');
+
+        const btn = icon ? icon.closest('.toggle-nested-btn') : null;
+        console.log('  - 找到按钮:', btn ? 'YES' : 'NO');
+
+        if (!container) {
+            console.error('❌ 容器未找到! 期望ID:', `nested-config-${productId}-${level}`);
+            // 列出页面上所有的嵌套容器ID
+            const allContainers = document.querySelectorAll('[id^="nested-config-"]');
+            console.log('  页面上现有的嵌套容器:', Array.from(allContainers).map(c => c.id));
+            return;
+        }
+
+        if (container.style.display === 'none') {
+            // 展开
+            container.style.display = 'block';
+            container.classList.remove('collapsed');
+            if (icon) icon.className = 'fas fa-chevron-down';
+            if (btn) btn.classList.add('expanded');
+
+            // 首次展开时加载子配置
+            if (!container.dataset.loaded) {
+                this.loadNestedRequiredConfigs(productId, container.id, level);
+                container.dataset.loaded = 'true';
+            }
+        } else {
+            // 折叠
+            container.style.display = 'none';
+            container.classList.add('collapsed');
+            if (icon) icon.className = 'fas fa-chevron-right';
+            if (btn) btn.classList.remove('expanded');
+        }
+    }
+
+    /**
+     * 自动展开嵌套配置（选中时调用）
+     * @param {number} productId - 产品ID
+     * @param {number} level - 当前层级
+     */
+    autoExpandNestedConfig(productId, level) {
+        console.log(`🔓 [autoExpandNestedConfig] 自动展开产品 ${productId} 的嵌套配置 (层级: ${level})`);
+
+        const container = document.getElementById(`nested-config-${productId}-${level}`);
+
+        if (!container) {
+            console.error('❌ 容器未找到! 期望ID:', `nested-config-${productId}-${level}`);
+            return;
+        }
+
+        // 展开容器
+        container.style.display = 'block';
+        container.classList.remove('collapsed');
+
+        // 首次展开时加载子配置
+        if (!container.dataset.loaded) {
+            console.log(`  📡 首次展开，加载子配置...`);
+            this.loadNestedRequiredConfigs(productId, container.id, level);
+            container.dataset.loaded = 'true';
+        } else {
+            console.log(`  ✅ 子配置已加载，直接展开`);
+        }
+    }
+
+    /**
+     * 收起嵌套配置（取消选中时调用）
+     * @param {number} productId - 产品ID
+     * @param {number} level - 当前层级
+     */
+    collapseNestedConfig(productId, level) {
+        console.log(`🔒 [collapseNestedConfig] 收起产品 ${productId} 的嵌套配置 (层级: ${level})`);
+
+        const container = document.getElementById(`nested-config-${productId}-${level}`);
+
+        if (!container) {
+            console.log('  ℹ️ 容器不存在或已移除');
+            return;
+        }
+
+        // 收起容器
+        container.style.display = 'none';
+        container.classList.add('collapsed');
+
+        console.log(`  ✅ 嵌套配置已收起`);
+    }
+
+    /**
+     * 递归收集嵌套配置
+     * @param {string} baseSelector - 容器选择器
+     * @param {number} level - 层级
+     * @returns {Array} 配置列表（包含子配置）
+     */
+    collectNestedConfigs(baseSelector, level = 0) {
+        console.log(`📦 [collectNestedConfigs] 开始收集嵌套配置`);
+        console.log(`  - baseSelector: ${baseSelector}`);
+        console.log(`  - level: ${level}`);
+
+        const configs = [];
+        const container = document.querySelector(baseSelector);
+        if (!container) {
+            console.warn(`  ⚠️ 容器未找到: ${baseSelector}`);
+            return configs;
+        }
+        console.log(`  ✅ 找到容器: ${container.id}`);
+
+        // 收集必选配置
+        // 第一层使用固定ID，嵌套层使用动态ID
+        const requiredContainerId = (level === 0) ? 'requiredConfigList' : `${container.id}_required`;
+        const requiredContainer = document.getElementById(requiredContainerId);
+        console.log(`  🔍 查找必选配置容器: #${requiredContainerId}, 找到: ${requiredContainer ? 'YES' : 'NO'}`);
+
+        if (requiredContainer) {
+            console.log(`  📌 收集必选配置...`);
+            const requiredItems = requiredContainer.querySelectorAll('[data-product-id][data-relation-type="required_accessory"]');
+            console.log(`    - 找到 ${requiredItems.length} 个必选配置项`);
+
+            requiredItems.forEach(item => {
+                const productId = item.dataset.productId;
+                console.log(`    - 收集必选配置: productId=${productId}`);
+
+                // 优先使用完整的产品数据
+                let config = {};
+                if (item.dataset.productData) {
+                    try {
+                        config = JSON.parse(item.dataset.productData);
+                        console.log(`      ✅ 使用完整产品数据`);
+                        console.log(`      - 解析后的config:`, config);
+                        console.log(`      - product_model: ${config.product_model}`);
+                        console.log(`      - specification: ${config.specification}`);
+                        console.log(`      - retail_price: ${config.retail_price}`);
+                    } catch (e) {
+                        console.error('      ❌ 解析产品数据失败:', e);
+                    }
+                }
+
+                // 如果没有完整数据，使用基本字段
+                if (!config.related_product_id && !config.product_id) {
+                    config = {
+                        product_id: parseInt(productId),
+                        product_name: item.dataset.productName,
+                        product_mn: item.dataset.productMn,
+                        default_quantity: parseInt(item.dataset.quantity || 1),
+                        relation_type: 'required_accessory'
+                    };
+                    console.log(`      ⚠️ 使用基本字段数据`);
+                } else {
+                    console.log(`      ✅ 保留完整产品数据，不覆盖`);
+                }
+
+                // 确保字段一致性（但不覆盖已有的完整数据）
+                if (!config.product_id) {
+                    config.product_id = config.related_product_id || parseInt(productId);
+                }
+                if (!config.default_quantity) {
+                    config.default_quantity = parseInt(item.dataset.quantity || 1);
+                }
+                config.relation_type = 'required_accessory';
+
+                // 递归收集子配置
+                const subContainerId = `nested-config-${productId}-${level}`;
+                console.log(`      🔍 查找子配置容器: ${subContainerId}`);
+                const subContainer = document.getElementById(subContainerId);
+
+                if (subContainer) {
+                    console.log(`      ✅ 找到子配置容器, loaded=${subContainer.dataset.loaded}`);
+                    if (subContainer.dataset.loaded === 'true') {
+                        console.log(`      📦 递归收集子配置...`);
+                        config.nested_configs = this.collectNestedConfigs(`#${subContainer.id}`, level + 1);
+                        console.log(`      ✅ 收集到 ${config.nested_configs.length} 个子配置`);
+                    }
+                } else {
+                    console.log(`      ℹ️ 没有子配置容器`);
+                }
+
+                configs.push(config);
+                console.log(`      ✅ 已添加配置到列表`);
+            });
+        }
+
+        // 收集必选互斥配置
+        // 第一层使用固定ID，嵌套层使用动态ID
+        const mutualContainerId = (level === 0) ? 'requiredMutualConfigList' : `${container.id}_mutual`;
+        const mutualContainer = document.getElementById(mutualContainerId);
+        console.log(`  🔍 查找必选互斥配置容器: #${mutualContainerId}, 找到: ${mutualContainer ? 'YES' : 'NO'}`);
+
+        if (mutualContainer) {
+            console.log(`  📻 收集必选互斥配置...`);
+            const checkedRadios = mutualContainer.querySelectorAll('input[type="radio"]:checked');
+            console.log(`    - 找到 ${checkedRadios.length} 个选中的radio`);
+
+            checkedRadios.forEach(radio => {
+                console.log(`    - 检查radio: productId=${radio.value}, required=${radio.dataset.required}`);
+
+                if (radio.dataset.required === 'true') {
+                    const productId = radio.value;
+                    console.log(`      ✅ 收集产品 ${productId}`);
+
+                    // 优先使用完整的产品数据
+                    let config = {};
+                    if (radio.dataset.productData) {
+                        try {
+                            config = JSON.parse(radio.dataset.productData);
+                            console.log(`      ✅ [互斥组] 使用完整产品数据`);
+                            console.log(`      - 解析后的config:`, config);
+                            console.log(`      - product_model: ${config.product_model}`);
+                            console.log(`      - specification: ${config.specification}`);
+                            console.log(`      - retail_price: ${config.retail_price}`);
+                        } catch (e) {
+                            console.error('      ❌ [互斥组] 解析产品数据失败:', e);
+                        }
+                    }
+
+                    // 如果没有完整数据，使用基本字段
+                    if (!config.related_product_id && !config.product_id) {
+                        config = {
+                            product_id: parseInt(productId),
+                            product_name: radio.dataset.productName,
+                            product_mn: radio.dataset.productMn,
+                            default_quantity: 1,
+                            relation_type: 'required_accessory',
+                            group_id: radio.name
+                        };
+                        console.log(`      ⚠️ [互斥组] 使用基本字段数据`);
+                    } else {
+                        console.log(`      ✅ [互斥组] 保留完整产品数据，不覆盖`);
+                    }
+
+                    // 确保字段一致性
+                    if (!config.product_id) {
+                        config.product_id = config.related_product_id || parseInt(productId);
+                    }
+                    config.default_quantity = 1;
+                    config.relation_type = 'required_accessory';
+                    config.group_id = radio.name;
+
+                    // 递归收集子配置
+                    const subContainerId = `nested-config-${productId}-${level}`;
+                    console.log(`      🔍 查找子配置容器: ${subContainerId}`);
+                    const subContainer = document.getElementById(subContainerId);
+
+                    if (subContainer) {
+                        console.log(`      ✅ 找到子配置容器, loaded=${subContainer.dataset.loaded}`);
+                        if (subContainer.dataset.loaded === 'true') {
+                            console.log(`      📦 递归收集子配置...`);
+                            config.nested_configs = this.collectNestedConfigs(`#${subContainer.id}`, level + 1);
+                            console.log(`      ✅ 收集到 ${config.nested_configs.length} 个子配置`);
+                        } else {
+                            console.log(`      ⚠️ 子配置容器未加载`);
+                        }
+                    } else {
+                        console.log(`      ℹ️ 没有子配置容器`);
+                    }
+
+                    configs.push(config);
+                    console.log(`      ✅ 已添加配置到列表`);
+                }
+            });
+        } else {
+            console.log(`  ℹ️ 没有必选互斥配置容器`);
+        }
+
+        // ===== 新增：收集推荐配置 =====
+        const recommendedContainerId = (level === 0) ? 'recommendedConfigList' : `${container.id}_recommended`;
+        const recommendedContainer = document.getElementById(recommendedContainerId);
+        console.log(`  🔍 查找推荐配置容器: #${recommendedContainerId}, 找到: ${recommendedContainer ? 'YES' : 'NO'}`);
+
+        if (recommendedContainer) {
+            console.log(`  ✨ 收集推荐配置...`);
+            const checkedBoxes = recommendedContainer.querySelectorAll('input[type="checkbox"]:checked');
+            console.log(`    - 找到 ${checkedBoxes.length} 个选中的checkbox`);
+
+            checkedBoxes.forEach(checkbox => {
+                const productId = checkbox.dataset.productId;
+                console.log(`    - 收集推荐配置: productId=${productId}`);
+
+                // 优先使用完整的产品数据
+                let config = {};
+                if (checkbox.dataset.productData) {
+                    try {
+                        config = JSON.parse(checkbox.dataset.productData);
+                        console.log(`      ✅ 使用完整产品数据`);
+                    } catch (e) {
+                        console.error('      ❌ 解析产品数据失败:', e);
+                    }
+                }
+
+                // 确保字段一致性
+                if (!config.product_id) {
+                    config.product_id = config.related_product_id || parseInt(productId);
+                }
+                if (!config.default_quantity) {
+                    config.default_quantity = parseInt(checkbox.dataset.quantity || 1);
+                }
+                config.relation_type = 'recommended';
+
+                // 递归收集子配置
+                const subContainerId = `nested-config-${productId}-${level}`;
+                console.log(`      🔍 查找子配置容器: ${subContainerId}`);
+                const subContainer = document.getElementById(subContainerId);
+
+                if (subContainer && subContainer.dataset.loaded === 'true') {
+                    console.log(`      📦 递归收集子配置...`);
+                    config.nested_configs = this.collectNestedConfigs(`#${subContainer.id}`, level + 1);
+                    console.log(`      ✅ 收集到 ${config.nested_configs.length} 个子配置`);
+                }
+
+                configs.push(config);
+                console.log(`      ✅ 已添加配置到列表`);
+            });
+        }
+
+        // ===== 新增：收集可选互斥配置 =====
+        const optionalMutualContainerId = (level === 0) ? 'optionalMutualConfigList' : `${container.id}_optional_mutual`;
+        const optionalMutualContainer = document.getElementById(optionalMutualContainerId);
+        console.log(`  🔍 查找可选互斥配置容器: #${optionalMutualContainerId}, 找到: ${optionalMutualContainer ? 'YES' : 'NO'}`);
+
+        if (optionalMutualContainer) {
+            console.log(`  💡 收集可选互斥配置...`);
+            const checkedRadios = optionalMutualContainer.querySelectorAll('input[type="radio"]:checked');
+            console.log(`    - 找到 ${checkedRadios.length} 个选中的radio`);
+
+            checkedRadios.forEach(radio => {
+                const productId = radio.value;
+                console.log(`    - 收集可选互斥配置: productId=${productId}`);
+
+                // 优先使用完整的产品数据
+                let config = {};
+                if (radio.dataset.productData) {
+                    try {
+                        config = JSON.parse(radio.dataset.productData);
+                        console.log(`      ✅ 使用完整产品数据`);
+                    } catch (e) {
+                        console.error('      ❌ 解析产品数据失败:', e);
+                    }
+                }
+
+                // 确保字段一致性
+                if (!config.product_id) {
+                    config.product_id = config.related_product_id || parseInt(productId);
+                }
+                if (!config.default_quantity) {
+                    config.default_quantity = parseInt(radio.dataset.quantity || 1);
+                }
+                config.relation_type = 'optional_mutual';
+                config.group_id = radio.dataset.groupId;
+
+                // 递归收集子配置
+                const subContainerId = `nested-config-${productId}-${level}`;
+                console.log(`      🔍 查找子配置容器: ${subContainerId}`);
+                const subContainer = document.getElementById(subContainerId);
+
+                if (subContainer && subContainer.dataset.loaded === 'true') {
+                    console.log(`      📦 递归收集子配置...`);
+                    config.nested_configs = this.collectNestedConfigs(`#${subContainer.id}`, level + 1);
+                    console.log(`      ✅ 收集到 ${config.nested_configs.length} 个子配置`);
+                }
+
+                configs.push(config);
+                console.log(`      ✅ 已添加配置到列表`);
+            });
+        }
+
+        console.log(`📦 [collectNestedConfigs] 收集完成，共 ${configs.length} 个配置`);
+        console.log(`  配置列表:`, configs);
+        return configs;
+    }
+
+    /**
+     * 递归验证必选配置
+     * @param {string} baseSelector - 容器选择器
+     * @param {number} level - 层级
+     * @returns {boolean} 是否通过验证
+     */
+    validateNestedRequiredConfigs(baseSelector, level = 0) {
+        const container = document.querySelector(baseSelector);
+        if (!container) return true;
+
+        // 验证必选互斥组
+        const mutualContainer = container.querySelector(`#${container.id}_mutual`);
+        if (mutualContainer) {
+            const groups = mutualContainer.querySelectorAll('[data-group-required="true"]');
+            for (const group of groups) {
+                const groupName = group.dataset.groupName;
+                const checkedInputs = group.querySelectorAll('input[type="radio"]:checked');
+
+                if (checkedInputs.length === 0) {
+                    alert(`请为"${groupName}"选择一个选项`);
+                    return false;
+                }
+
+                // 递归验证选中项的子配置
+                const checkedProductId = checkedInputs[0].value;
+                const subContainer = document.getElementById(`nested-config-${checkedProductId}-${level}`);
+                if (subContainer && subContainer.dataset.loaded === 'true') {
+                    if (!this.validateNestedRequiredConfigs(`#${subContainer.id}`, level + 1)) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
     }
 }
 

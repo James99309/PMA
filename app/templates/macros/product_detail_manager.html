@@ -946,6 +946,7 @@
 {% macro init_product_detail_scripts() %}
 <!-- 产品配置模态框脚本（必须最先加载，被 product-selector.js 依赖） -->
 <script src="{{ url_for('static', filename='js/product-config-modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/product-config-debug.js') }}"></script>
 <script src="{{ url_for('static', filename='js/product-selector.js') }}"></script>
 <script src="{{ url_for('static', filename='js/product-detail-manager.js') }}"></script>
 

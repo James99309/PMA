@@ -1,0 +1,182 @@
+/**
+ * 产品嵌套配置样式
+ * 用于必选配置和必选互斥配置的嵌套展示
+ */
+
+/* 确保嵌套配置在底部展开而不是右侧 */
+.form-check.config-option-simple {
+    display: flex;
+    flex-wrap: wrap;  /* 允许换行 */
+    align-items: flex-start;  /* 顶部对齐 */
+}
+
+/* radio 和 label 保持在同一行 */
+.form-check.config-option-simple > .form-check-input {
+    flex: 0 0 auto;  /* 不拉伸 */
+}
+
+.form-check.config-option-simple > .form-check-label {
+    flex: 1 1 auto;  /* 占据剩余空间 */
+}
+
+/* 子配置容器独占一行，在底部 */
+.form-check.config-option-simple > .sub-config-container {
+    flex-basis: 100%;  /* 独占一行 */
+    width: 100%;
+    margin-top: 10px;
+}
+
+/* 子配置容器 */
+.sub-config-container {
+    margin: 10px 0 10px 20px;
+    padding: 10px 0 10px 15px;
+    border-left: 3px solid #e3e6f0;
+    background-color: #f8f9fa;
+    border-radius: 0 4px 4px 0;
+}
+
+/* 不同层级的缩进 */
+.sub-config-container.level-0 {
+    margin-left: 20px;
+    border-left-color: #e3e6f0;  /* 灰色边框 */
+}
+
+.sub-config-container.level-1 {
+    margin-left: 40px;
+    border-left-color: #e3e6f0;  /* 灰色边框 */
+}
+
+.sub-config-container.level-2 {
+    margin-left: 60px;
+    border-left-color: #e3e6f0;  /* 灰色边框 */
+}
+
+/* 提示信息样式 */
+.sub-config-container .alert-sm {
+    padding: 8px 12px;
+    font-size: 13px;
+    margin-bottom: 10px;
+}
+
+/* 展开/折叠按钮 */
+.toggle-nested-btn {
+    padding: 2px 6px;
+    font-size: 12px;
+    color: #6c757d;
+    margin-left: 10px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.toggle-nested-btn:hover {
+    color: #007bff;
+    background-color: transparent;
+}
+
+.toggle-nested-btn i {
+    transition: transform 0.3s ease;
+}
+
+/* 展开状态的图标旋转 */
+.toggle-nested-btn.expanded i {
+    transform: rotate(90deg);
+}
+
+/* 已配置徽章 */
+.configured-badge {
+    background-color: #28a745 !important;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+/* 已配置徽章动画 */
+.badge.bg-success {
+    animation: fadeInScale 0.3s ease-out;
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* 展开/折叠动画 */
+.sub-config-container {
+    overflow: hidden;
+    transition: max-height 0.4s ease-out, opacity 0.3s ease-out;
+}
+
+.sub-config-container.collapsed {
+    max-height: 0 !important;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+/* 配置项头部（用于展开按钮定位） */
+.config-item-with-nested {
+    position: relative;
+}
+
+.config-item-with-nested .toggle-nested-btn {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+/* ========== 确认页面嵌套配置显示样式 ========== */
+
+/* 嵌套配置显示容器 */
+.nested-configs-display {
+    margin: 10px 0 0 20px;      /* 上边距10px，左缩进20px */
+    padding: 10px;              /* 内边距 */
+    border-left: 3px solid #e3e6f0;
+    background-color: transparent;  /* 移除背景色，让子配置自带背景 */
+    border-radius: 0;
+}
+
+/* 不同层级的嵌套配置 */
+.nested-configs-display.level-1 {
+    margin-left: 20px;  /* 与选择页面一致：30px → 20px */
+    border-left-color: #007bff;
+}
+
+.nested-configs-display.level-2 {
+    margin-left: 40px;  /* 与选择页面一致：60px → 40px */
+    border-left-color: #6c757d;
+}
+
+/* 子配置项样式 */
+.config-item-simple.sub-config-item {
+    margin: 10px 0 0 0;     /* 上边距10px，无左边距（由父容器控制） */
+    padding: 8px 12px;
+    background-color: white;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+}
+
+.config-item-simple.sub-config-item.level-1 {
+    border-left: 3px solid #007bff;
+}
+
+.config-item-simple.sub-config-item.level-2 {
+    border-left: 3px solid #6c757d;
+}
+
+/* 嵌套配置区域虚线分割线 */
+.nested-divider {
+    margin: 0.75rem 0;
+    border: none;
+    border-top: 1px dashed #dee2e6;
+}

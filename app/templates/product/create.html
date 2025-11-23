@@ -1398,9 +1398,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 检查非编码规格可用性
     function checkNonCodeSpecAvailability() {
-        const addSpecContainer = document.getElementById('add-spec-container');
-        if (addSpecContainer) {
-            addSpecContainer.style.display = 'block';
+        // 调用共享的检查逻辑
+        if (window.SpecManagement && window.SpecManagement.checkCanAddMoreSpecs) {
+            window.SpecManagement.checkCanAddMoreSpecs();
         }
     }
 
@@ -1463,6 +1463,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (row) {
             row.remove();
             updateMNCodePreview(true);
+            // 删除后重新检查是否还有可用规格
+            checkNonCodeSpecAvailability();
         }
     };
 

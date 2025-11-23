@@ -372,7 +372,8 @@
                                             "is_configuration": (detail.is_accessory or false)|string|lower,
                                             "parent_item_id": (detail.parent_item_id or none),
                                             "config_type": (detail.config_type or "")|string,
-                                            "config_base_quantity": (detail.config_base_quantity or none)
+                                            "config_base_quantity": (detail.config_base_quantity or none),
+                                            "quantity_synced": (detail.quantity_synced if detail.quantity_synced is not none else true)|string|lower
                                         } %}
                                         {% if existing_details.append(detail_data) %}{% endif %}
                                     {% endfor %}

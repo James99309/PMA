@@ -308,7 +308,41 @@ class ProductDetailManager {
         tbody.addEventListener('change', (e) => {
             const target = e.target;
             const row = target.closest('tr');
-            
+
+            // 处理数量同步复选框状态变化
+            if (target.classList.contains('sync-quantity-checkbox')) {
+                const quantityInput = row.querySelector('.quantity-input');
+                if (!quantityInput) return;
+
+                if (target.checked) {
+                    // 勾选：同步主产品数量
+                    row.dataset.quantitySynced = 'true';
+                    quantityInput.readOnly = true;
+                    quantityInput.style.backgroundColor = '';  // 恢复默认灰色背景
+
+                    // 立即同步数量
+                    const parentRowId = row.dataset.parentRowId;
+                    if (parentRowId) {
+                        const tbody = row.parentNode;
+                        const parentRow = tbody.querySelector(`tr[data-row-id="${parentRowId}"]`);
+                        if (parentRow) {
+                            const configBaseQuantity = parseInt(row.dataset.configBaseQuantity) || 1;
+                            const newQuantity = this.calculateConfigQuantity(parentRow, configBaseQuantity);
+                            quantityInput.value = newQuantity;
+                            quantityInput.dataset.rawValue = newQuantity;
+                            this.calculateRow(row);
+                            this.updateGrandTotal();
+                        }
+                    }
+                } else {
+                    // 取消勾选：允许独立编辑数量
+                    row.dataset.quantitySynced = 'false';
+                    quantityInput.readOnly = false;
+                    quantityInput.style.backgroundColor = '#ffffff';  // 白色背景表示可编辑
+                }
+                return;
+            }
+
             // 避免在更新时触发事件
             if (row && this.config.calculationRules.autoCalculate && !target.dataset.updating) {
                 this.handleFieldChange(row, target);
@@ -446,19 +480,34 @@ class ProductDetailManager {
         if (configurations.length > 0) {
             const configRowIds = [];
             const tbody = row.parentNode;
-            const rowIndex = Array.from(tbody.children).indexOf(row);
+            let rowIndex = Array.from(tbody.children).indexOf(row);
+            let insertOffset = 0;
 
-            configurations.forEach((config, index) => {
+            // 递归添加配置（包含嵌套配置）
+            const addConfigRecursively = (config) => {
                 const configRow = this.addConfigurationRow(config, rowId, row);
                 configRowIds.push(configRow.dataset.rowId);
 
                 // 插入到主产品行之后
-                const insertIndex = rowIndex + 1 + index;
+                const insertIndex = rowIndex + 1 + insertOffset;
                 if (insertIndex < tbody.children.length) {
                     tbody.insertBefore(configRow, tbody.children[insertIndex]);
                 } else {
                     tbody.appendChild(configRow);
                 }
+                insertOffset++;
+
+                // 如果有嵌套配置，递归添加
+                if (config.nested_configs && config.nested_configs.length > 0) {
+                    console.log(`  📦 配置 "${config.product_name}" 包含 ${config.nested_configs.length} 个子配置`);
+                    config.nested_configs.forEach(nestedConfig => {
+                        addConfigRecursively(nestedConfig);
+                    });
+                }
+            };
+
+            configurations.forEach(config => {
+                addConfigRecursively(config);
             });
 
             // 记录父子关系
@@ -698,13 +747,20 @@ class ProductDetailManager {
      */
     addRow(data = null) {
         const tbody = document.querySelector(`${this.config.tableSelector} tbody`);
-        const row = this.createRow(data);
-        
+
+        // ✅ 从数据中判断是否是配置产品
+        const isConfiguration = data && (
+            data.is_configuration === true ||
+            data.is_configuration === 'true'
+        );
+
+        const row = this.createRow(data, isConfiguration);
+
         tbody.appendChild(row);
-        
+
         // 初始化行的产品选择器
         this.productSelector.initializeRow(row);
-        
+
         // 如果有数据则填充
         if (data) {
             this.fillRowData(row, data);
@@ -717,40 +773,45 @@ class ProductDetailManager {
                 console.log('🔧 编辑模式：保持现有价格，不重新计算');
             }
         }
-        
+
         this.updateGrandTotal();
-        
+
         // 触发回调
         this.trigger('rowAdd', { row, data });
-        
+
         return row;
     }
     
     /**
      * 创建表格行
+     * @param {*} data - 行数据
+     * @param {boolean} isConfiguration - 是否是配置产品行
      */
-    createRow(data = null) {
+    createRow(data = null, isConfiguration = false) {
         const row = document.createElement('tr');
-        
+
         this.config.columns.forEach(column => {
             const td = document.createElement('td');
-            const input = this.createField(column, data);
-            
+            const input = this.createField(column, data, isConfiguration);
+
             if (input) {
                 td.appendChild(input);
             }
             row.appendChild(td);
         });
-        
+
         return row;
     }
     
     /**
      * 创建字段元素
+     * @param {Object} column - 列配置
+     * @param {*} data - 数据
+     * @param {boolean} isConfiguration - 是否是配置产品行
      */
-    createField(column, data = null) {
+    createField(column, data = null, isConfiguration = false) {
         const value = data ? data[column.key] : '';
-        
+
         switch (column.type) {
             case 'product-selector':
                 return this.createProductSelectorField(column, value);
@@ -763,7 +824,7 @@ class ProductDetailManager {
             case 'percentage':
                 return this.createPercentageInput(column, value);
             case 'actions':
-                return this.createActionsField();
+                return this.createActionsField(isConfiguration);
             default:
                 return this.createTextInput(column, value);
         }
@@ -872,17 +933,31 @@ class ProductDetailManager {
     
     /**
      * 创建操作按钮字段
+     * @param {boolean} isConfiguration - 是否是配置产品行
      */
-    createActionsField() {
+    createActionsField(isConfiguration = false) {
         const container = document.createElement('div');
-        container.className = 'text-center';
-        
+        container.className = isConfiguration
+            ? 'text-center d-flex flex-row align-items-center justify-content-center gap-2'
+            : 'text-center';
+
+        // 配置产品行添加同步数量复选框
+        if (isConfiguration) {
+            const syncCheckbox = document.createElement('input');
+            syncCheckbox.type = 'checkbox';
+            syncCheckbox.className = 'form-check-input sync-quantity-checkbox';
+            syncCheckbox.checked = true;
+            syncCheckbox.title = '同步主产品数量';
+            syncCheckbox.style.cursor = 'pointer';
+            container.appendChild(syncCheckbox);
+        }
+
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
         removeBtn.className = 'btn btn-sm btn-outline-danger remove-row';
         removeBtn.innerHTML = '<i class="fas fa-trash"></i>';
         removeBtn.title = this.config.i18n?.deleteRow || '删除行';
-        
+
         container.appendChild(removeBtn);
         return container;
     }
@@ -904,8 +979,8 @@ class ProductDetailManager {
     addConfigurationRow(config, parentRowId, parentRow) {
         console.log(`📦 添加配置产品行: ${config.product_name}`);
 
-        // 创建新行
-        const configRow = this.createRow();
+        // 创建新行（传入true表示这是配置产品行）
+        const configRow = this.createRow(null, true);
 
         // 生成配置行ID
         const configRowId = this.generateRowId();
@@ -914,6 +989,7 @@ class ProductDetailManager {
         configRow.dataset.isConfiguration = 'true';
         configRow.dataset.configType = config.relation_type || 'required_accessory';
         configRow.dataset.configBaseQuantity = config.default_quantity || 1;
+        configRow.dataset.quantitySynced = 'true';  // 默认同步数量
 
         // 填充配置产品数据
         this.fillProductData(configRow, config);
@@ -966,6 +1042,12 @@ class ProductDetailManager {
         configRowIds.forEach(configRowId => {
             const configRow = tbody.querySelector(`tr[data-row-id="${configRowId}"]`);
             if (!configRow) return;
+
+            // 检查是否需要同步数量（复选框未勾选时跳过）
+            if (configRow.dataset.quantitySynced === 'false') {
+                console.log(`  - 配置产品 ${configRowId}: 跳过数量同步（用户已取消同步）`);
+                return;
+            }
 
             const configBaseQuantity = parseInt(configRow.dataset.configBaseQuantity) || 1;
             const newQuantity = this.calculateConfigQuantity(parentRow, configBaseQuantity);
@@ -1648,11 +1730,15 @@ class ProductDetailManager {
             data.config_type = row.dataset.configType || null;
             data.config_base_quantity = row.dataset.configBaseQuantity ? parseInt(row.dataset.configBaseQuantity) : null;
 
+            // ✅ 收集同步状态（默认为 true）
+            data.quantity_synced = row.dataset.quantitySynced !== 'false';
+
             console.log('📦 收集配置产品数据:', {
                 is_configuration: data.is_configuration,
                 parent_row_id: data.parent_row_id,
                 config_type: data.config_type,
-                config_base_quantity: data.config_base_quantity
+                config_base_quantity: data.config_base_quantity,
+                quantity_synced: data.quantity_synced
             });
         }
 
@@ -1712,7 +1798,32 @@ class ProductDetailManager {
             
             console.log('✅ 临时产品模式启用完成');
         }
-        
+
+        // ✅ 恢复配置产品的同步状态
+        if (data.is_configuration === true || data.is_configuration === 'true') {
+            // 从数据中读取同步状态，支持布尔值和字符串
+            const quantitySynced = data.quantity_synced === true ||
+                                   data.quantity_synced === 'true';
+
+            // 设置 dataset
+            row.dataset.quantitySynced = quantitySynced ? 'true' : 'false';
+
+            // 更新复选框状态
+            const syncCheckbox = row.querySelector('.sync-quantity-checkbox');
+            if (syncCheckbox) {
+                syncCheckbox.checked = quantitySynced;
+                console.log(`🔧 恢复复选框状态: ${quantitySynced}`);
+            }
+
+            // 同步数量输入框的只读状态和背景色
+            const quantityInput = row.querySelector('.quantity-input');
+            if (quantityInput) {
+                quantityInput.readOnly = quantitySynced;
+                quantityInput.style.backgroundColor = quantitySynced ? '' : '#ffffff';
+                console.log(`🔧 恢复数量输入框状态: readOnly=${quantitySynced}`);
+            }
+        }
+
         console.log('✅ 行数据填充完成');
     }
     

@@ -391,13 +391,9 @@ class ProductSelector {
             }
             
             .product-price {
-                font-weight: 600;
-                color: #ff6b35;
-                font-size: 12px;
-                background: #fff3e0;
-                padding: 3px 8px;
-                border-radius: 4px;
-                border: 1px solid #ffcc80;
+                font-weight: bold;
+                color: #333;
+                font-size: 13px;
             }
             
             .product-price-discontinued {
@@ -894,22 +890,27 @@ class ProductSelector {
                 // 根据产品数量决定显示内容
                 let contentHtml = '';
                 if (modelGroup.count === 1) {
-                    // 只有1个产品：显示型号、价格和产品描述
+                    // 只有1个产品：显示型号、价格和产品描述，添加 no-arrow 类
                     const product = modelGroup.products[0];
                     const price = product.retail_price ? parseFloat(product.retail_price) : null;
                     const priceText = price ? `¥${price.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '价格面议';
                     const isDiscontinued = product.status === 'discontinued' || product.status === '停产';
                     const priceClass = isDiscontinued ? 'product-price-discontinued' : 'product-price';
 
+                    // 添加 no-arrow 类隐藏箭头
+                    item.classList.add('no-arrow');
+
                     contentHtml = `
                         <div class="product-info">
-                            <div class="product-name">${modelGroup.model}</div>
+                            <div class="product-name" style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>${modelGroup.model}</span>
+                                <span class="${priceClass}" style="font-weight: bold; color: #2196f3;">${priceText}${isDiscontinued ? ' (停产)' : ''}</span>
+                            </div>
                             ${product.specification ? `<div class="product-details">${product.specification}</div>` : ''}
-                            <div class="${priceClass}">${priceText}${isDiscontinued ? ' (停产)' : ''}</div>
                         </div>
                     `;
                 } else {
-                    // 多个产品：不显示价格，显示"点击选择"提示
+                    // 多个产品：不显示价格，显示"点击选择"提示，保留箭头
                     contentHtml = `
                         <div class="product-info">
                             <div class="product-name">${modelGroup.model}</div>
@@ -1042,7 +1043,7 @@ class ProductSelector {
             if (hasRegularProducts) {
                 regularProducts.forEach(product => {
                 const item = document.createElement('div');
-                item.className = 'menu-item product-detail-item';
+                item.className = 'menu-item product-detail-item no-arrow';
                 
                 // 格式化价格显示，停产产品使用灰色
                 const marketPrice = product.retail_price || product.market_price;
@@ -1063,8 +1064,9 @@ class ProductSelector {
                 
                 item.innerHTML = `
                     <div class="product-detail-info">
-                        <div class="product-line-1">
+                        <div class="product-line-1" style="display: flex; justify-content: space-between; align-items: center;">
                             <strong class="product-model">${product.model || product.product_model || '未知型号'}</strong>
+                            <span class="${priceClass}" style="font-weight: bold;">${priceText}${isDiscontinued ? ' (停产)' : ''}</span>
                         </div>
                         <div class="product-line-2">
                             <span class="product-spec">${formattedSpec || '无规格说明'}</span>
@@ -1072,7 +1074,6 @@ class ProductSelector {
                         <div class="product-line-3">
                             <span class="product-mn">MN: ${product.product_mn || product.mn || '无'}</span>
                             <span class="product-brand">品牌: ${product.brand || '未知'}</span>
-                            <span class="${priceClass}">${priceText}${isDiscontinued ? ' (停产)' : ''}</span>
                         </div>
                     </div>
                 `;
@@ -1140,7 +1141,7 @@ class ProductSelector {
                 // 显示临时产品型号
                 tempProductList.forEach(product => {
                     const item = document.createElement('div');
-                    item.className = 'menu-item product-detail-item temp-product-item';
+                    item.className = 'menu-item product-detail-item temp-product-item no-arrow';
                     
                     // 临时产品专用样式
                     item.style.borderLeft = '4px solid #ff9800';
@@ -1158,29 +1159,32 @@ class ProductSelector {
                     item.innerHTML = `
                         <div class="product-detail-info" style="flex: 1;">
                             <div class="product-line-1" style="display: flex; justify-content: space-between; align-items: center;">
-                                <div>
+                                <div style="display: flex; align-items: center;">
                                     <strong class="product-model">${product.product_model}</strong>
                                     <span class="temp-indicator" style="
-                                        background: #ff9800; 
-                                        color: white; 
-                                        padding: 1px 6px; 
-                                        border-radius: 10px; 
-                                        font-size: 10px; 
+                                        background: #ff9800;
+                                        color: white;
+                                        padding: 1px 6px;
+                                        border-radius: 10px;
+                                        font-size: 10px;
                                         font-weight: 500;
                                         margin-left: 8px;
                                     ">临时</span>
                                 </div>
-                                <button class="temp-delete-btn" 
-                                        style="background: none; border: none; color: #dc3545; 
-                                               font-size: 14px; cursor: pointer; padding: 2px; 
-                                               opacity: 0; transition: opacity 0.3s ease, color 0.2s ease;
-                                               display: flex; align-items: center; justify-content: center;
-                                               width: 20px; height: 20px; border-radius: 3px;"
-                                        onmouseover="this.style.color='#c82333'; this.style.backgroundColor='rgba(220, 53, 69, 0.1)'"
-                                        onmouseout="this.style.color='#dc3545'; this.style.backgroundColor='none'"
-                                        title="删除临时产品">
-                                    <i class="fas fa-times"></i>
-                                </button>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span class="product-price" style="font-weight: bold;">${priceText}</span>
+                                    <button class="temp-delete-btn"
+                                            style="background: none; border: none; color: #dc3545;
+                                                   font-size: 14px; cursor: pointer; padding: 2px;
+                                                   opacity: 0; transition: opacity 0.3s ease, color 0.2s ease;
+                                                   display: flex; align-items: center; justify-content: center;
+                                                   width: 20px; height: 20px; border-radius: 3px;"
+                                            onmouseover="this.style.color='#c82333'; this.style.backgroundColor='rgba(220, 53, 69, 0.1)'"
+                                            onmouseout="this.style.color='#dc3545'; this.style.backgroundColor='none'"
+                                            title="删除临时产品">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="product-line-2">
                                 <span class="product-spec">${product.product_desc || '无规格说明'}</span>
@@ -1188,7 +1192,6 @@ class ProductSelector {
                             <div class="product-line-3">
                                 <span class="product-mn">MN: ${product.product_mn || '无'}</span>
                                 <span class="product-brand">品牌: ${product.brand || '未知'}</span>
-                                <span class="product-price" style="color: #ff9800; font-weight: 500;">${priceText}</span>
                             </div>
                         </div>
                     `;
@@ -2156,8 +2159,8 @@ class ProductSelector {
                 // 添加临时产品
                 tempProducts.forEach(product => {
                     const item = document.createElement('div');
-                    item.className = 'menu-item product-detail-item';
-                    
+                    item.className = 'menu-item product-detail-item no-arrow';
+
                     // 临时产品样式
                     item.style.borderLeft = '4px solid #ff9800';
                     item.style.backgroundColor = '#fff3e0';
@@ -2309,29 +2312,32 @@ class ProductSelector {
                     item.innerHTML = `
                         <div class="product-detail-info" style="flex: 1;">
                             <div class="product-line-1" style="display: flex; justify-content: space-between; align-items: center;">
-                                <div>
+                                <div style="display: flex; align-items: center;">
                                     <strong class="product-model">${product.product_model}</strong>
                                     <span class="temp-indicator" style="
-                                        background: #ff9800; 
-                                        color: white; 
-                                        padding: 1px 6px; 
-                                        border-radius: 10px; 
-                                        font-size: 10px; 
+                                        background: #ff9800;
+                                        color: white;
+                                        padding: 1px 6px;
+                                        border-radius: 10px;
+                                        font-size: 10px;
                                         font-weight: 500;
                                         margin-left: 8px;
                                     ">临时</span>
                                 </div>
-                                <button class="temp-delete-btn" 
-                                        style="background: none; border: none; color: #dc3545; 
-                                               font-size: 14px; cursor: pointer; padding: 2px; 
-                                               opacity: 0; transition: opacity 0.3s ease, color 0.2s ease;
-                                               display: flex; align-items: center; justify-content: center;
-                                               width: 20px; height: 20px; border-radius: 3px;"
-                                        onmouseover="this.style.color='#c82333'; this.style.backgroundColor='rgba(220, 53, 69, 0.1)'"
-                                        onmouseout="this.style.color='#dc3545'; this.style.backgroundColor='none'"
-                                        title="删除临时产品">
-                                    <i class="fas fa-times"></i>
-                                </button>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span class="product-price" style="font-weight: bold;">${priceText}</span>
+                                    <button class="temp-delete-btn"
+                                            style="background: none; border: none; color: #dc3545;
+                                                   font-size: 14px; cursor: pointer; padding: 2px;
+                                                   opacity: 0; transition: opacity 0.3s ease, color 0.2s ease;
+                                                   display: flex; align-items: center; justify-content: center;
+                                                   width: 20px; height: 20px; border-radius: 3px;"
+                                            onmouseover="this.style.color='#c82333'; this.style.backgroundColor='rgba(220, 53, 69, 0.1)'"
+                                            onmouseout="this.style.color='#dc3545'; this.style.backgroundColor='none'"
+                                            title="删除临时产品">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="product-line-2">
                                 <span class="product-spec">${product.product_desc || '无规格说明'}</span>
@@ -2339,7 +2345,6 @@ class ProductSelector {
                             <div class="product-line-3">
                                 <span class="product-mn">MN: ${product.product_mn || '无'}</span>
                                 <span class="product-brand">品牌: ${product.brand || '未知'}</span>
-                                <span class="product-price" style="color: #ff9800; font-weight: 500;">${priceText}</span>
                             </div>
                         </div>
                     `;

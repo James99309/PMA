@@ -4063,6 +4063,20 @@ def get_product_relations(product_id):
             }
             badge_class = badge_class_map.get(relation.relation_type, 'badge relation-type-badge relation-type-unknown rounded-pill')
 
+            # 检查该产品是否有必选配置或必选互斥配置（嵌套配置）
+            nested_count = ProductRelation.query.filter(
+                ProductRelation.main_product_type == ProductRelation.MAIN_TYPE_PRODUCT,
+                ProductRelation.main_product_id == relation.related_product_id,
+                ProductRelation.is_active == True,
+                db.or_(
+                    ProductRelation.relation_type == 'required_accessory',
+                    db.and_(
+                        ProductRelation.mutual_exclusion_group.isnot(None),
+                        ProductRelation.is_group_required == True
+                    )
+                )
+            ).count()
+
             # 构建关联产品基本信息
             relation_info = {
                 'id': relation.id,
@@ -4079,7 +4093,9 @@ def get_product_relations(product_id):
                 'relation_type_label_class': badge_class,
                 'default_quantity': relation.default_quantity,
                 'is_required': relation.is_required,
-                'is_default': relation.is_default or False  # 是否为互斥组默认选项
+                'is_default': relation.is_default or False,  # 是否为互斥组默认选项
+                'has_nested_configs': nested_count > 0,  # 是否有嵌套配置
+                'nested_count': nested_count  # 嵌套配置数量
             }
 
             # 判断是否属于互斥组

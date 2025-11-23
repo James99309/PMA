@@ -443,6 +443,7 @@ class QuotationDetail(db.Model):
     is_editable = db.Column(db.Boolean, default=True, nullable=False)  # 是否可编辑
     config_type = db.Column(db.String(50), nullable=True)  # 配置类型: 'required_accessory', 'required_mutual', 'recommended', 'optional_mutual'
     config_base_quantity = db.Column(db.Integer, nullable=True)  # 配置基础数量
+    quantity_synced = db.Column(db.Boolean, default=True, nullable=False)  # 配置产品是否同步主产品数量
 
     # 产品明细确认字段 - 暂时注释掉数据库字段，使用会话存储
     # is_confirmed = db.Column(db.Boolean, default=False)  # 是否确认

@@ -1214,6 +1214,7 @@ def create_quotation():
                             new_detail.is_editable = False
                             new_detail.config_type = detail.get('config_type')
                             new_detail.config_base_quantity = int(detail.get('config_base_quantity', 1))
+                            new_detail.quantity_synced = detail.get('quantity_synced', True)  # ✅ 保存同步状态
 
                             # 添加到待处理配置列表
                             pending_configs.append({
@@ -1831,6 +1832,7 @@ def edit_quotation(id):
                                 detail.is_editable = False
                                 detail.config_type = detail_data.get('config_type')
                                 detail.config_base_quantity = int(detail_data.get('config_base_quantity', 1))
+                                detail.quantity_synced = detail_data.get('quantity_synced', True)  # ✅ 保存同步状态
 
                                 # 添加到待处理配置列表
                                 pending_configs.append({

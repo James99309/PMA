@@ -6213,6 +6213,27 @@ tr[data-is-configuration="true"] input.quantity-input:focus {
     box-shadow: none;
 }
 
+/* 配置产品行 - 独立编辑模式（取消同步时）的数量字段样式 */
+tr[data-is-configuration="true"][data-quantity-synced="false"] input.quantity-input {
+    background-color: #ffffff !important;
+    cursor: text;
+    color: #495057;
+    font-style: normal;
+}
+
+tr[data-is-configuration="true"][data-quantity-synced="false"] input.quantity-input:focus {
+    background-color: #ffffff !important;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* 数量同步复选框样式 */
+.sync-quantity-checkbox {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    flex-shrink: 0;
+}
+
 /* 配置产品行的删除按钮保持可见，允许用户删除单个配置 */
 /* 已移除隐藏删除按钮的规则，现在用户可以删除配置产品 */
 
