@@ -1059,9 +1059,9 @@ class ProductSelector {
 
                 // 处理长规格文本，超过30字符换行 - 修复字段映射
                 const specText = product.specification || product.product_spec || product.product_desc || product.spec || '';
-                const formattedSpec = specText.length > 30 ? 
+                const formattedSpec = specText.length > 30 ?
                     specText.replace(/(.{30})/g, '$1<br>') : specText;
-                
+
                 item.innerHTML = `
                     <div class="product-detail-info">
                         <div class="product-line-1" style="display: flex; justify-content: space-between; align-items: center;">

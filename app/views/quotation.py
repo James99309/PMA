@@ -2559,6 +2559,51 @@ def get_product_models():
             'message': str(e)
         }), 500
 
+def parse_code_specs(snapshot):
+    """
+    解析产品编码快照并分离编码规格和非编码规格
+
+    Args:
+        snapshot: 产品的 code_definition_snapshot JSON字符串或字典
+
+    Returns:
+        tuple: (code_specs, non_code_specs) 两个规格列表
+    """
+    code_specs = []
+    non_code_specs = []
+
+    try:
+        # 如果是字符串，解析为字典
+        if isinstance(snapshot, str):
+            import json
+            parsed = json.loads(snapshot)
+        else:
+            parsed = snapshot
+
+        # 提取 code_parts 数组
+        code_parts = parsed.get('code_parts', [])
+
+        for part in code_parts:
+            # 只处理规格字段
+            if part.get('field_type') == 'spec':
+                spec_item = {
+                    'field_name': part.get('field_name', ''),
+                    'value': part.get('value', ''),
+                    'unit': part.get('unit', '')
+                }
+
+                # 根据 use_in_code 标记分类（默认为 True，即编码规格）
+                if part.get('use_in_code', True):
+                    code_specs.append(spec_item)
+                else:
+                    non_code_specs.append(spec_item)
+
+    except Exception as e:
+        logger.warning(f'解析产品编码快照时出错: {str(e)}')
+
+    return code_specs, non_code_specs
+
+
 @quotation.route('/products/specs', methods=['GET'])
 @login_required
 @permission_required('quotation', 'view')
@@ -2602,6 +2647,9 @@ def get_product_specs():
                     else:
                         product_image = '/static/' + p.image_path.lstrip('/')
                 
+                # 解析编码快照，分离编码规格和非编码规格
+                code_specs, non_code_specs = parse_code_specs(p.code_definition_snapshot)
+
                 product_dict = {
                     'id': p.id,
                     'product_name': p.product_name,
@@ -2612,7 +2660,9 @@ def get_product_specs():
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
                     'product_mn': p.product_mn,
                     'currency': p.currency or 'CNY',  # 添加货币字段
-                    'image_path': product_image  # 添加图片路径
+                    'image_path': product_image,  # 添加图片路径
+                    'code_specs': code_specs,  # 编码规格（默认显示）
+                    'non_code_specs': non_code_specs  # 非编码规格（默认折叠）
                 }
                 result.append(product_dict)
                 logger.debug(f'成功处理产品: {p.product_name}, 规格: {p.specification}')

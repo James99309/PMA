@@ -169,16 +169,20 @@ class ProductConfigModal {
                 console.log('  → 解析成功，解析后类型:', typeof parsed);
             }
 
-            // 新格式：从code_parts提取
+            // 新格式：从code_parts提取（仅编码规格）
             if (parsed && parsed.code_parts && Array.isArray(parsed.code_parts)) {
-                console.log(`  ✅ 成功: 从code_parts提取${parsed.code_parts.length}个规格字段`);
-                return parsed.code_parts;
+                // 过滤：只保留编码规格（use_in_code !== false）
+                const codeSpecs = parsed.code_parts.filter(part => part.use_in_code !== false);
+                console.log(`  ✅ 成功: 从code_parts提取${codeSpecs.length}个编码规格（已过滤${parsed.code_parts.length - codeSpecs.length}个非编码规格）`);
+                return codeSpecs;
             }
 
             // 旧格式：直接是数组
             if (Array.isArray(parsed)) {
-                console.log(`  ✅ 成功: 直接使用数组格式 (${parsed.length}个元素)`);
-                return parsed;
+                // 过滤：只保留编码规格（use_in_code !== false）
+                const codeSpecs = parsed.filter(part => part.use_in_code !== false);
+                console.log(`  ✅ 成功: 直接使用数组格式 (${codeSpecs.length}个编码规格，已过滤${parsed.length - codeSpecs.length}个非编码规格)`);
+                return codeSpecs;
             }
 
             console.error('  ❌ 快照格式不匹配，parsed内容:', parsed);

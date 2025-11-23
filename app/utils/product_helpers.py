@@ -153,6 +153,7 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
     """
     try:
         from app.models.product_spec import ProductSpec
+        from app.models.product_code import ProductCodeField
         from app.routes.product_code import get_field_unit
 
         # 构建快照基础结构
@@ -184,11 +185,26 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
             product_id=product.id
         ).order_by(ProductSpec.id).all()
 
-        # 只添加有field_code的规格到快照（编码规格）
-        # 非编码规格不参与MN编码生成，因此不包含在快照中
+        # 只添加有field_code的编码规格到快照
+        # 非编码规格（use_in_code=False）不参与MN编码生成，因此不包含在快照中
         position = 1
         for spec in specs:
             if spec.field_code and spec.field_code.strip():
+                # 查询字段定义，获取 use_in_code 值
+                field_def = ProductCodeField.query.filter_by(
+                    subcategory_id=product.subcategory_id,
+                    name=spec.field_name,
+                    field_type='spec'
+                ).first()
+
+                # 只添加编码规格（use_in_code=True 或未定义的字段）
+                # 跳过明确标记为 use_in_code=False 的非编码规格
+                if field_def and not field_def.use_in_code:
+                    current_app.logger.debug(
+                        f"跳过非编码规格: 产品ID={product.id}, 字段={spec.field_name}, use_in_code=False"
+                    )
+                    continue
+
                 # 查询规格单位
                 unit = get_field_unit(spec.field_name)
 
@@ -199,6 +215,7 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
                     "code": spec.field_code,
                     "value": spec.field_value if spec.field_value else "",
                     "unit": unit,
+                    "use_in_code": field_def.use_in_code if field_def else True,
                     "description": ""
                 })
                 position += 1
