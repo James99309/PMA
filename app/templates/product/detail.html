@@ -163,23 +163,21 @@
         background-color: #fff;
     }
 
-    /* PDF预览样式 */
+    /* 隐藏PDF预览样式 */
+    /*
     .pdf-preview-container {
         border-top: 1px solid #e7e7e7;
         padding-top: 1rem;
         margin-top: 1rem;
     }
-
     .pdf-preview-header {
         margin-bottom: 1rem;
         padding-bottom: 0.5rem;
         border-bottom: 1px solid #f1f1f1;
     }
-
     .pdf-preview-content {
         position: relative;
     }
-
     .pdf-preview-canvas-container {
         position: relative;
         display: inline-block;
@@ -189,13 +187,11 @@
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         background: white;
     }
-
     .pdf-preview-canvas {
         display: block;
         max-width: 100%;
         height: auto;
     }
-
     .pdf-preview-overlay {
         position: absolute;
         top: 0;
@@ -210,49 +206,41 @@
         transition: opacity 0.3s ease;
         cursor: pointer;
     }
-
     .pdf-preview-canvas-container:hover .pdf-preview-overlay {
         opacity: 1;
     }
-
     .pdf-preview-overlay-content {
         color: white;
         text-align: center;
         padding: 1rem;
     }
-
     .pdf-preview-overlay-content i {
         font-size: 2rem;
         margin-bottom: 0.5rem;
         display: block;
     }
-
     .pdf-loading {
         background: #f8f9fa;
         border-radius: 8px;
         border: 1px solid #e7e7e7;
     }
-
     .pdf-error {
         background: #f8f9fa;
         border-radius: 8px;
         border: 1px solid #e7e7e7;
     }
-
-    /* 移动端响应式调整 */
     @media (max-width: 768px) {
         .pdf-preview-canvas {
             max-width: 100%;
         }
-
         .pdf-preview-overlay-content {
             padding: 0.5rem;
         }
-
         .pdf-preview-overlay-content i {
             font-size: 1.5rem;
         }
     }
+    */
 </style>
 {% endblock %}
 
@@ -589,7 +577,8 @@
     </div>
     {% endif %}
 
-    <!-- 第四部分：产品文档上传和展示 -->
+    <!-- 隐藏PDF功能 - 产品文档上传和展示区域 -->
+    <!--
     <div class="row">
         <div class="col-md-12">
             <div class="card">
@@ -597,21 +586,17 @@
                     <h5 class="mb-0">{{ _('产品文档') }}</h5>
                 </div>
                 <div class="card-body">
-                    <!-- 上传/下载按钮区域 -->
                     <div class="text-center mb-3">
-                        <!-- 上传按钮仅有编辑权限时显示 -->
                         {% if has_permission('product', 'edit') %}
                             {{ render_button(_('上传PDF文档'), type='button', color='outline-primary', icon='fas fa-upload', attrs={'id': 'uploadPdfBtn'}) }}
                             <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;">
                         {% endif %}
 
-                        <!-- 下载按钮当有PDF文档时始终显示（无论权限） -->
                         {% if product.pdf_path %}
                             {{ render_button(_('下载'), href=url_for('product_route.download_pdf', id=product.id), color='primary', icon='fas fa-download', attrs={'target': '_blank'}) }}
                         {% endif %}
                     </div>
 
-                    <!-- PDF预览区域 -->
                     {% if product.pdf_path %}
                     <div class="d-flex align-items-center mb-3">
                         <i class="fas fa-file-pdf text-danger fa-3x me-3"></i>
@@ -621,7 +606,6 @@
                         </div>
                     </div>
 
-                    <!-- PDF预览容器 -->
                     <div id="pdfPreviewContainer" class="pdf-preview-container">
                         <div class="pdf-preview-header">
                             <span class="text-muted">{{ _('PDF封面预览') }}</span>
@@ -655,7 +639,6 @@
                         </div>
                     </div>
                     {% else %}
-                    <!-- 当没有PDF文档时显示的占位区域 -->
                     <div class="text-center py-5 bg-light rounded">
                         <i class="fas fa-file-pdf text-muted fa-3x mb-3"></i>
                         <p class="text-muted mb-0">{{ _('暂无产品文档') }}</p>
@@ -668,10 +651,14 @@
             </div>
         </div>
     </div>
+    -->
+    <!-- 隐藏PDF功能结束 -->
 </div>
 
-<!-- PDF.js 库 -->
+<!-- 隐藏PDF.js库 -->
+<!--
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+-->
 
 <script>
 // 编码定义折叠功能
@@ -688,6 +675,8 @@ function toggleCodeDefinition() {
     }
 }
 
+<!-- 隐藏PDF预览JavaScript -->
+<!--
 // PDF预览相关全局变量
 let currentPdfUrl = null;
 
@@ -696,33 +685,19 @@ if (typeof pdfjsLib !== 'undefined') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
 
-/**
- * 加载PDF预览
- */
 function loadPdfPreview() {
-    // 使用专用的PDF预览API端点
     const pdfUrl = '{{ url_for("product_route.get_pdf_preview", id=product.id) if product.pdf_path else "" }}';
-
     if (!pdfUrl) {
         showPdfError();
         return;
     }
-
     currentPdfUrl = pdfUrl;
-
-    // 显示加载状态
     showPdfLoading();
-
-    // 加载PDF
     pdfjsLib.getDocument(pdfUrl).promise.then(function(pdf) {
         console.log('PDF加载成功，页数:', pdf.numPages);
-
-        // 获取第一页
         return pdf.getPage(1);
     }).then(function(page) {
         console.log('获取第一页成功');
-
-        // 渲染页面
         renderPdfPage(page);
     }).catch(function(error) {
         console.error('PDF加载失败:', error);
@@ -730,32 +705,19 @@ function loadPdfPreview() {
     });
 }
 
-/**
- * 渲染PDF页面到Canvas
- */
 function renderPdfPage(page) {
     const canvas = document.getElementById('pdfCanvas');
     const context = canvas.getContext('2d');
-
-    // 设置渲染参数
     const viewport = page.getViewport({ scale: 1.0 });
-
-    // 计算合适的缩放比例（限制最大宽度）
     const maxWidth = 600;
     const scale = Math.min(maxWidth / viewport.width, 1.5);
     const scaledViewport = page.getViewport({ scale: scale });
-
-    // 设置canvas尺寸
     canvas.height = scaledViewport.height;
     canvas.width = scaledViewport.width;
-
-    // 渲染参数
     const renderContext = {
         canvasContext: context,
         viewport: scaledViewport
     };
-
-    // 渲染页面
     page.render(renderContext).promise.then(function() {
         console.log('PDF第一页渲染完成');
         showPdfCanvas();
@@ -765,38 +727,25 @@ function renderPdfPage(page) {
     });
 }
 
-/**
- * 显示加载状态
- */
 function showPdfLoading() {
     document.getElementById('pdfLoading').style.display = 'block';
     document.getElementById('pdfCanvasContainer').style.display = 'none';
     document.getElementById('pdfError').style.display = 'none';
 }
 
-/**
- * 显示PDF Canvas
- */
 function showPdfCanvas() {
     document.getElementById('pdfLoading').style.display = 'none';
     document.getElementById('pdfCanvasContainer').style.display = 'inline-block';
     document.getElementById('pdfError').style.display = 'none';
 }
 
-/**
- * 显示错误状态
- */
 function showPdfError() {
     document.getElementById('pdfLoading').style.display = 'none';
     document.getElementById('pdfCanvasContainer').style.display = 'none';
     document.getElementById('pdfError').style.display = 'block';
 }
 
-/**
- * 在新窗口打开PDF文件
- */
 function openPdfInNewWindow() {
-    // 直接使用PDF预览API在新窗口打开
     const pdfUrl = '{{ url_for("product_route.get_pdf_preview", id=product.id) if product.pdf_path else "" }}';
     if (pdfUrl) {
         window.open(pdfUrl, '_blank');
@@ -804,6 +753,8 @@ function openPdfInNewWindow() {
         console.error('PDF文件不存在');
     }
 }
+-->
+<!-- 隐藏PDF预览JavaScript结束 -->
 
 /**
  * 初始化图片上传功能
@@ -890,64 +841,43 @@ function uploadImage(file) {
     });
 }
 
-/**
- * 初始化PDF上传功能
- */
+<!-- 隐藏PDF上传JavaScript -->
+<!--
 function initPdfUpload() {
     const uploadBtn = document.getElementById('uploadPdfBtn');
     const fileInput = document.getElementById('pdfFileInput');
-
     if (!uploadBtn || !fileInput) {
-        return; // 没有上传按钮或文件输入框（可能没有编辑权限）
+        return;
     }
-
-    // 点击上传按钮时触发文件选择
     uploadBtn.addEventListener('click', function() {
         fileInput.click();
     });
-
-    // 文件选择变化时的处理
     fileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
-
-        // 文件类型验证
         if (file.type !== 'application/pdf') {
             alert('{{ _("请选择PDF文件") }}');
             fileInput.value = '';
             return;
         }
-
-        // 文件大小验证 (12MB)
         const maxSize = 12 * 1024 * 1024;
         if (file.size > maxSize) {
             alert(`{{ _("PDF文件太大！最大允许 12MB，当前文件") }}: ${(file.size / (1024*1024)).toFixed(1)}MB`);
             fileInput.value = '';
             return;
         }
-
-        // 立即开始上传
         uploadPdf(file);
     });
 }
 
-/**
- * 上传PDF函数
- */
 function uploadPdf(file) {
     const uploadBtn = document.getElementById('uploadPdfBtn');
     const fileInput = document.getElementById('pdfFileInput');
-
-    // 禁用按钮并显示上传状态
     uploadBtn.disabled = true;
     uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{{ _("上传中...") }}';
-
-    // 创建 FormData
     const formData = new FormData();
     formData.append('pdf', file);
     formData.append('csrf_token', '{{ csrf_token() }}');
-
-    // 发送上传请求
     fetch('/api/products/{{ product.id }}/upload-files', {
         method: 'POST',
         body: formData
@@ -956,7 +886,6 @@ function uploadPdf(file) {
     .then(data => {
         if (data.success) {
             showTopNotification('{{ _("PDF文档上传成功！页面将自动刷新") }}', 'success', 2000);
-            // 延迟刷新页面显示新PDF，让用户看到成功提示
             setTimeout(() => location.reload(), 2000);
         } else {
             alert('{{ _("上传失败") }}: ' + (data.error || data.message || '{{ _("未知错误") }}'));
@@ -967,12 +896,13 @@ function uploadPdf(file) {
         alert('{{ _("上传过程中发生错误，请重试") }}');
     })
     .finally(() => {
-        // 恢复按钮状态
         uploadBtn.disabled = false;
         uploadBtn.innerHTML = '<i class="fas fa-upload me-1"></i>{{ _("上传PDF文档") }}';
         fileInput.value = '';
     });
 }
+-->
+<!-- 隐藏PDF上传JavaScript结束 -->
 
 /**
  * 确认删除产品
@@ -1033,16 +963,17 @@ function executeDeleteProduct() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('产品详情页面功能已初始化');
 
-    // 检查是否有PDF文件，如果有则自动开始加载预览
-    const pdfContainer = document.getElementById('pdfPreviewContainer');
-    if (pdfContainer) {
-        loadPdfPreview();
-    }
+    // 隐藏PDF预览初始化
+    // const pdfContainer = document.getElementById('pdfPreviewContainer');
+    // if (pdfContainer) {
+    //     loadPdfPreview();
+    // }
 
     // 初始化上传功能（仅有编辑权限时）
     {% if has_permission('product', 'edit') %}
     initImageUpload();
-    initPdfUpload();
+    // 隐藏PDF上传初始化
+    // initPdfUpload();
     {% endif %}
 });
 </script>

@@ -75,7 +75,8 @@
                             </div>
                         </div>
 
-                        <!-- PDF上传 -->
+                        <!-- 隐藏PDF上传 -->
+                        <!--
                         <div class="row mb-3">
                             <div class="col-md-3">
                                 <label for="pdfFile" class="form-label fw-bold">
@@ -90,6 +91,8 @@
                                 </div>
                             </div>
                         </div>
+                        -->
+                        <!-- 隐藏PDF上传结束 -->
 
                         <!-- 提交按钮 -->
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
@@ -149,7 +152,8 @@
                                 </div>
                             </div>
 
-                            <!-- PDF下载 -->
+                            <!-- 隐藏PDF下载预览 -->
+                            <!--
                             <div id="pdfPreview" class="col-md-6" style="display: none;">
                                 <div class="card">
                                     <div class="card-header">
@@ -164,6 +168,7 @@
                                     </div>
                                 </div>
                             </div>
+                            -->
                         </div>
                     </div>
                 </div>
@@ -225,10 +230,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // PDF文件验证
+    // 隐藏PDF文件验证
+    /*
     document.getElementById('pdfFile').addEventListener('change', function(e) {
         const file = e.target.files[0];
-        
+
         if (file) {
             // 验证文件大小
             if (file.size > MAX_FILE_SIZE) {
@@ -236,7 +242,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 e.target.value = '';
                 return;
             }
-            
+
             // 验证文件类型
             if (file.type !== 'application/pdf') {
                 alert('{{ _("请选择 PDF 文件") }}');
@@ -245,15 +251,17 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+    */
     
     form.addEventListener('submit', function(e) {
         e.preventDefault();
         
         // 检查是否选择了文件
         const imageFile = document.getElementById('imageFile').files[0];
-        const pdfFile = document.getElementById('pdfFile').files[0];
-        
-        if (!imageFile && !pdfFile) {
+        // 隐藏PDF文件检查
+        // const pdfFile = document.getElementById('pdfFile').files[0];
+
+        if (!imageFile) {
             alert('{{ _("请至少选择一个文件上传") }}');
             return;
         }
@@ -289,32 +297,38 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.image_url) {
                     details.push('{{ _("图片上传成功") }}');
                 }
+                // 隐藏PDF上传成功提示
+                /*
                 if (data.pdf_url) {
                     details.push('{{ _("PDF上传成功") }}');
                 }
+                */
                 successDetails.textContent = details.join('、');
                 
                 // 显示文件链接
-                if (data.image_url || data.pdf_url) {
+                if (data.image_url) {
                     fileLinks.style.display = 'block';
-                    
+
                     if (data.image_url) {
                         const imagePreview = document.getElementById('imagePreview');
                         const uploadedImage = document.getElementById('uploadedImage');
                         const imageLink = document.getElementById('imageLink');
-                        
+
                         uploadedImage.src = data.image_url;
                         imageLink.href = data.image_url;
                         imagePreview.style.display = 'block';
                     }
-                    
+
+                    // 隐藏PDF预览显示
+                    /*
                     if (data.pdf_url) {
                         const pdfPreview = document.getElementById('pdfPreview');
                         const pdfLink = document.getElementById('pdfLink');
-                        
+
                         pdfLink.href = data.pdf_url;
                         pdfPreview.style.display = 'block';
                     }
+                    */
                 }
             } else {
                 // 显示错误消息
