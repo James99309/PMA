@@ -840,13 +840,13 @@ class ApprovalFlow {
     // 提交审批申请
     async submitForApproval() {
         try {
-            
+
             let apiEndpoint, requestBody = {};
-            
+
             // 批价单特殊处理：需要先保存数据再提交审批
             if (this.objectType === 'pricing_order') {
                 apiEndpoint = `${this.options.apiBasePath}/${this.objectId}/save_and_submit`;
-                
+
                 // 收集批价单页面数据
                 if (typeof window.pricingOrderDataCollection === 'function') {
                     requestBody = window.pricingOrderDataCollection();
@@ -862,15 +862,15 @@ class ApprovalFlow {
                 // 其他对象类型：使用原来的提交方式
                 apiEndpoint = `${this.options.apiBasePath}/${this.objectId}/submit`;
             }
-            
-            
+
+
             const response = await fetch(apiEndpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': this.getCSRFToken()
                 },
-                body: Object.keys(requestBody).length > 0 ? JSON.stringify(requestBody) : undefined
+                body: JSON.stringify(requestBody)  // 始终发送JSON，即使是空对象
             });
             
             const data = await response.json();
@@ -923,13 +923,13 @@ class ApprovalFlow {
     // 重新提交审批
     async resubmitApproval() {
         try {
-            
+
             let apiEndpoint, requestBody = {};
-            
+
             // 批价单特殊处理：没有专门的 resubmit 路由，使用 save_and_submit
             if (this.objectType === 'pricing_order') {
                 apiEndpoint = `${this.options.apiBasePath}/${this.objectId}/save_and_submit`;
-                
+
                 // 收集批价单页面数据
                 if (typeof window.pricingOrderDataCollection === 'function') {
                     requestBody = window.pricingOrderDataCollection();
@@ -945,15 +945,15 @@ class ApprovalFlow {
                 // 其他对象类型：使用原来的重新提交方式
                 apiEndpoint = `${this.options.apiBasePath}/${this.objectId}/resubmit`;
             }
-            
-            
+
+
             const response = await fetch(apiEndpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': this.getCSRFToken()
                 },
-                body: Object.keys(requestBody).length > 0 ? JSON.stringify(requestBody) : undefined
+                body: JSON.stringify(requestBody)  // 始终发送JSON，即使是空对象
             });
             
             const data = await response.json();

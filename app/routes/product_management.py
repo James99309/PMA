@@ -1764,12 +1764,30 @@ def update_product(id):
                 current_app.logger.error(f'删除研发产品PDF文件失败: {str(e)}')
                 flash(_('删除PDF文件失败，请重试'), 'warning')
         
-        # 处理规格字段
+        # 处理规格字段（采用简化方案：删除全部→重建）
         try:
-            # 收集规格数据（使用辅助函数）
-            spec_data_list = _collect_spec_data_for_update()
+            # 1. 先删除所有现有规格（借鉴标准产品的处理方式）
+            current_app.logger.debug(f"删除产品 {dev_product.id} 的所有现有规格")
+            DevProductSpec.query.filter_by(dev_product_id=dev_product.id).delete()
 
-            # 使用标准函数处理规格
+            # 2. 从表单收集新的规格数据（简化逻辑，不再区分update/create）
+            spec_names = request.form.getlist('spec_name[]')
+            spec_values = request.form.getlist('spec_value[]')
+            spec_codes = request.form.getlist('spec_option_codes[]')
+
+            spec_data_list = []
+            for i in range(len(spec_names)):
+                if spec_names[i].strip():  # 只添加非空规格名称
+                    spec_data_list.append({
+                        'field_name': spec_names[i],
+                        'field_value': spec_values[i] if i < len(spec_values) else '',
+                        'field_code': spec_codes[i] if i < len(spec_codes) and spec_codes[i] else None,
+                        'action': 'create'  # 统一标记为创建
+                    })
+
+            current_app.logger.debug(f"收集到 {len(spec_data_list)} 条规格数据，准备重建")
+
+            # 3. 使用标准函数保存所有规格
             success, saved_specs, error_message = save_dev_product_specs(
                 dev_product.id,
                 spec_data_list,
@@ -1779,6 +1797,8 @@ def update_product(id):
             if not success:
                 current_app.logger.error(f"规格处理失败: {error_message}")
                 flash(f'规格处理失败: {error_message}', 'warning')
+            else:
+                current_app.logger.debug(f"成功保存 {len(saved_specs)} 条规格")
 
         except Exception as spec_error:
             current_app.logger.error(f"规格处理异常: {str(spec_error)}")

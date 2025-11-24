@@ -18,12 +18,13 @@
 {% endmacro %}
 
 {# 渲染审批操作区域 #}
-{% macro render_approval_operation_section(object_type, object_id, object_status="draft", current_user_id=None, creator_id=None, title="审批操作", options={}) %}
+{% macro render_approval_operation_section(object_type, object_id, object_status="draft", current_user_id=None, creator_id=None, title="审批操作", options={}, can_submit=None) %}
     {% set is_creator = current_user_id == creator_id %}
-    
-    <!-- 只有创建人且有权限时才显示审批操作区域 -->
-    {% if is_creator %}
-    <div class="card order-card mt-4" id="approvalOperationSection" style="display: none;">
+    {% set has_permission = can_submit if can_submit is not none else is_creator %}
+
+    <!-- 只有有权限的用户才显示审批操作区域（创建人、管理员、厂商负责人等） -->
+    {% if has_permission %}
+    <div class="card order-card mt-4" id="approvalOperationSection">
         <div class="card-header">
             <h5 class="mb-0">
                 <i class="fas fa-cogs me-2"></i>{{ title }}
@@ -35,7 +36,6 @@
                     <div id="approvalOperationInfo">
                         {% if object_status == 'draft' %}
                         <p class="text-muted mb-2">{{ options.get('description', _('创建完成，可以提交审批流程。')) }}</p>
-                        <small class="text-muted">{{ options.get('warning', _('提交后将进入审批流程，无法直接修改。')) }}</small>
                         <div class="mt-2" id="approvalTemplateInfo" style="display: none;">
                             <small class="text-info">
                                 <i class="fas fa-info-circle me-1"></i>
@@ -57,10 +57,10 @@
                     <div id="approvalOperationButtons">
                         <!-- 根据状态显示不同按钮 -->
                         {% if object_status == 'draft' %}
-                        {{ render_button('提交审批', type='button', onclick='submitStandardApproval("' + object_type + '", ' + object_id|string + ')', color='success', icon='fas fa-paper-plane', extra_class='operation-btn-submit') }}
+                        {{ render_button('提交审批', type='button', onclick='confirmSubmitApproval("' + object_type + '", ' + object_id|string + ')', color='success', icon='fas fa-paper-plane', extra_class='operation-btn-submit') }}
                         {% elif object_status == 'pending' %}
                         <div id="pendingOperationButtons">
-                            {{ render_button('召回流程', type='button', onclick='showRecallConfirmModal()', color='warning', icon='fas fa-undo', extra_class='operation-btn-recall') }}
+                            {{ render_button('召回流程', type='button', onclick='confirmRecallApproval()', color='warning', icon='fas fa-undo', extra_class='operation-btn-recall') }}
                         </div>
                         <script>
                         // 页面加载后检查召回权限
@@ -83,7 +83,7 @@
                         });
                         </script>
                         {% elif object_status in ['rejected', 'recalled'] %}
-                        {{ render_button('重新提交', type='button', onclick='confirmResubmitApproval()', color='success', icon='fas fa-redo', extra_class='operation-btn-resubmit') }}
+                        {{ render_button('重新提交', type='button', onclick='confirmResubmitApprovalDialog()', color='success', icon='fas fa-redo', extra_class='operation-btn-resubmit') }}
                         {% endif %}
                     </div>
                 </div>
@@ -94,18 +94,15 @@
 {% endmacro %}
 
 {# 完整的审批流程区域（包含操作和流程图） #}
-{% macro render_complete_approval_section(object_type, object_id, object_status="draft", current_user_id=None, creator_id=None, container_id="approvalFlowSection", options={}) %}
+{% macro render_complete_approval_section(object_type, object_id, object_status="draft", current_user_id=None, creator_id=None, container_id="approvalFlowSection", options={}, can_submit=None) %}
     <!-- 审批操作区域 -->
-    {{ render_approval_operation_section(object_type, object_id, object_status, current_user_id, creator_id, options.get('operation_title', '审批操作'), options) }}
+    {{ render_approval_operation_section(object_type, object_id, object_status, current_user_id, creator_id, options.get('operation_title', '审批操作'), options, can_submit) }}
     
     <!-- 审批流程图 -->
     {{ render_approval_flow_container(object_type, object_id, container_id, options.get('flow_title', '审批流程'), options) }}
     
     <!-- 标准化审批确认模态框 -->
     {{ render_approval_confirm_modal(object_type, object_id) }}
-    
-    <!-- 召回确认模态框 -->
-    {{ render_recall_confirm_modal() }}
     
     <script>
         // 初始化审批流程 - 注释掉避免重复初始化
@@ -488,37 +485,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 {% endmacro %}
 
-{# 召回确认模态框 #}
-{% macro render_recall_confirm_modal() %}
-<!-- 召回确认模态框 -->
-<div class="modal fade" id="recallConfirmModal" tabindex="-1" aria-labelledby="recallConfirmModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="recallConfirmModalLabel">
-                    <i class="fas fa-undo me-2"></i>{{ _('召回审批流程') }}
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-warning">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    <strong>{{ _('注意：') }}</strong>{{ _('召回后审批流程将停止，状态将回到草稿状态。') }}
-                </div>
-                <div class="mb-3">
-                    <label for="recallReason" class="form-label">召回原因</label>
-                    <textarea class="form-control" id="recallReason" rows="3" placeholder="请输入召回原因（可选）" maxlength="200"></textarea>
-                    <small class="form-text text-muted">最多200字符</small>
-                </div>
-            </div>
-            <div class="modal-footer">
-                {{ render_button('取消', type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
-                {{ render_button('确认召回', type='button', color='warning', icon='fas fa-undo', onclick='executeRecallApproval()') }}
-            </div>
-        </div>
-    </div>
-</div>
-{% endmacro %}
 
 {# 渲染审批控制按钮（召回、重新提交） #}
 {% macro render_approval_control_section(object_type, object_id, object_status="draft", current_user_id=None, creator_id=None, options={}) %}
@@ -557,79 +523,6 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
     </div>
     
-    <!-- 召回确认模态框 -->
-    <div class="modal fade" id="recallConfirmModal" tabindex="-1" aria-labelledby="recallConfirmModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="recallConfirmModalLabel">
-                        <i class="fas fa-undo me-2"></i>{{ _('召回审批流程') }}
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        <strong>{{ _('注意：') }}</strong>{{ _('召回后审批流程将停止，状态将回到草稿状态。') }}
-                    </div>
-                    <div class="mb-3">
-                        <label for="recallReason" class="form-label">召回原因</label>
-                        <textarea class="form-control" id="recallReason" rows="3" placeholder="请输入召回原因（可选）" maxlength="200"></textarea>
-                        <small class="form-text text-muted">最多200字符</small>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-warning" onclick="executeRecallApproval()">
-                        <i class="fas fa-undo me-1"></i>确认召回
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // 显示召回确认模态框
-        function showRecallConfirmModal() {
-            const modal = new bootstrap.Modal(document.getElementById('recallConfirmModal'));
-            modal.show();
-        }
-
-        // 执行召回操作
-        async function executeRecallApproval() {
-            const reason = document.getElementById('recallReason').value.trim();
-            const flow = window.approvalFlowInstance;
-            
-            if (flow) {
-                // 关闭模态框
-                const modal = bootstrap.Modal.getInstance(document.getElementById('recallConfirmModal'));
-                if (modal) {
-                    modal.hide();
-                }
-                
-                await flow.recallApproval(reason);
-                updateApprovalControlButtons();
-            }
-        }
-
-        // 确认重新提交
-        function confirmResubmitApproval() {
-            if (confirm('{{ _("确定要重新提交审批吗？重新提交后将重置所有审批历史，重新开始审批流程。") }}')) {
-                executeResubmitApproval();
-            }
-        }
-
-        // 执行重新提交操作
-        async function executeResubmitApproval() {
-            const flow = window.approvalFlowInstance;
-            
-            if (flow) {
-                await flow.resubmitApproval();
-                updateApprovalControlButtons();
-            }
-        }
-
-        // 更新审批控制按钮显示状态
         function updateApprovalControlButtons() {
             console.log('更新审批控制按钮状态');
             

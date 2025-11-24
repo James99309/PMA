@@ -1078,15 +1078,12 @@ w{% extends "base.html" %}
     <div id="basicInfoPermissionMarker" data-can-edit-basic-info="{{ 'true' if can_edit_basic_info else 'false' }}" style="display: none;"></div>
     
     <!-- 审批流程图（仅显示流程图，操作按钮已移至页面顶部） -->
-    {% from 'macros/approval_flow.html' import render_approval_flow_container, render_approval_confirm_modal, render_recall_confirm_modal %}
+    {% from 'macros/approval_flow.html' import render_approval_flow_container, render_approval_confirm_modal %}
     {{ render_approval_flow_container('pricing_order', pricing_order.id, 'pricingOrderApprovalSection', '批价单审批流程') }}
-    
+
     <!-- 审批确认模态框 -->
     {{ render_approval_confirm_modal('pricing_order', pricing_order.id) }}
-    
-    <!-- 召回确认模态框 -->
-    {{ render_recall_confirm_modal() }}
-    
+
     <!-- 通用确认对话框 -->
     {{ render_confirm_dialog('pricingOrderActionDialog') }}
 </div>

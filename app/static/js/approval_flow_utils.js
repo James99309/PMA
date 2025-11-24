@@ -46,27 +46,50 @@ function getApprovalFlowInstance(objectType, objectId) {
 }
 
 /**
- * 提交标准化审批
+ * 显示提交审批确认对话框
+ * @param {string} objectType - 对象类型
+ * @param {number} objectId - 对象ID
+ * @param {object} options - 配置选项
+ */
+function confirmSubmitApproval(objectType, objectId, options = {}) {
+    showConfirmDialog({
+        title: '确认提交审批',
+        message: '确定要提交审批吗？提交后将进入审批流程。',
+        type: 'info',
+        dialogId: 'submitApprovalDialog',
+        onConfirm: function() {
+            submitStandardApproval(objectType, objectId, options);
+        }
+    });
+}
+
+/**
+ * 提交标准化审批（内部执行函数）
  * @param {string} objectType - 对象类型
  * @param {number} objectId - 对象ID
  * @param {object} options - 配置选项
  */
 async function submitStandardApproval(objectType, objectId, options = {}) {
-    if (confirm('确定要提交审批吗？提交后无法直接修改内容。')) {
-        try {
-            // 获取或创建审批流程实例
-            let flow = getApprovalFlowInstance(objectType, objectId);
-            if (!flow) {
-                flow = initStandardApprovalFlow(objectType, objectId, 'approvalFlowSection', options);
-            }
-            
-            // 提交审批
-            await flow.submitForApproval();
-            
-        } catch (error) {
-            console.error('提交审批失败:', error);
-            alert('提交失败：网络错误');
+    try {
+        // 优先使用全局实例（详情页面设置的实例）
+        let flow = window.approvalFlowInstance;
+
+        // 如果全局实例不存在，尝试从Map中查找
+        if (!flow) {
+            flow = getApprovalFlowInstance(objectType, objectId);
         }
+
+        // 如果仍然没有找到，创建新实例
+        if (!flow) {
+            flow = initStandardApprovalFlow(objectType, objectId, 'approvalFlowSection', options);
+        }
+
+        // 提交审批
+        await flow.submitForApproval();
+
+    } catch (error) {
+        console.error('提交审批失败:', error);
+        alert('提交失败：网络错误');
     }
 }
 
@@ -359,7 +382,44 @@ function updateActionButtonsVisibility(statusData) {
 // 改为使用页面刷新机制来更新状态，更加简洁可靠
 
 /**
- * 显示召回确认模态框
+ * 显示召回流程确认对话框
+ */
+function confirmRecallApproval() {
+    showConfirmDialog({
+        title: '确认召回流程',
+        message: '确定要召回审批流程吗？召回后流程将停止，状态将回到草稿状态。',
+        type: 'warning',
+        dialogId: 'recallApprovalDialog',
+        onConfirm: function() {
+            executeRecallApprovalSimple();
+        }
+    });
+}
+
+/**
+ * 执行召回操作（简化版 - 无需理由）
+ */
+async function executeRecallApprovalSimple() {
+    const flow = window.approvalFlowInstance;
+
+    if (flow) {
+        try {
+            await flow.recallApproval('');  // 传空字符串作为理由
+            // 召回成功后动态更新操作区域，然后刷新页面
+            updateOperationSection('draft');
+            // 稍后刷新页面以确保所有状态同步
+            setTimeout(() => location.reload(), 500);
+        } catch (error) {
+            console.error('召回失败:', error);
+            alert('召回失败，请重试');
+        }
+    } else {
+        alert('无法找到审批流程实例');
+    }
+}
+
+/**
+ * 显示召回确认模态框（旧版 - 保留供其他页面使用）
  */
 function showRecallConfirmModal() {
     const modal = new bootstrap.Modal(document.getElementById('recallConfirmModal'));
@@ -401,12 +461,18 @@ async function executeRecallApproval() {
 }
 
 /**
- * 确认重新提交
+ * 显示重新提交确认对话框
  */
-function confirmResubmitApproval() {
-    if (confirm('确定要重新提交审批吗？重新提交后将重置所有审批历史，重新开始审批流程。')) {
-        executeResubmitApproval();
-    }
+function confirmResubmitApprovalDialog() {
+    showConfirmDialog({
+        title: '确认重新提交',
+        message: '确定要重新提交审批吗？重新提交后将重置所有审批历史，重新开始审批流程。',
+        type: 'warning',
+        dialogId: 'resubmitApprovalDialog',
+        onConfirm: function() {
+            executeResubmitApproval();
+        }
+    });
 }
 
 /**

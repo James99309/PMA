@@ -83,18 +83,7 @@
                 </div>
                 <div class="d-flex flex-wrap align-items-center gap-2 flex-shrink-0">
                     {{ ui.render_button(_('返回列表'), href=url_for('project.list_projects'), color='secondary') }}
-                    
-                    <!-- 审批操作按钮 -->
-                    {% if can_submit_approval %}
-                        {% if project.status == 'draft' %}
-                            {{ ui.render_button(_('提交审批'), type='button', color='success', attrs='onclick="submitProjectApproval(' ~ project.id ~ ')"', icon='fas fa-paper-plane') }}
-                        {% elif project.status == 'pending' %}
-                            {{ ui.render_button(_('召回审批'), type='button', color='warning', attrs='onclick="recallProjectApproval(' ~ project.id ~ ')"', icon='fas fa-undo') }}
-                        {% elif project.status in ['rejected', 'recalled'] %}
-                            {{ ui.render_button(_('重新提交'), type='button', color='info', attrs='onclick="resubmitProjectApproval(' ~ project.id ~ ')"', icon='fas fa-redo') }}
-                        {% endif %}
-                    {% endif %}
-                    
+
                     {% if can_edit_project_button %}
                         {{ ui.render_button(_('编辑项目'), href=url_for('project.edit_project', project_id=project.id), color='primary') }}
                     {% endif %}
@@ -399,22 +388,28 @@
     {% if get_object_approval_instance is defined %}
         {% set approval_instance = get_object_approval_instance('project', project.id) %}
         {% set has_authorization_code = project.authorization_code and project.authorization_code.strip() %}
-        
-        
+
+        <!-- 审批操作确认对话框 -->
+        {% from 'macros/ui_helpers.html' import render_confirm_dialog %}
+        {{ render_confirm_dialog('submitApprovalDialog') }}
+        {{ render_confirm_dialog('resubmitApprovalDialog') }}
+        {{ render_confirm_dialog('recallApprovalDialog') }}
+
         <!-- 使用订单审批流程组件显示审批流程 -->
         {{ render_complete_approval_section(
-            'project', 
-            project.id, 
-            project.status|default('draft'), 
-            current_user.id, 
-            project.owner_id, 
+            'project',
+            project.id,
+            project.status|default('draft'),
+            current_user.id,
+            project.owner_id,
             'projectApprovalFlowSection',
             {
                 'operation_title': '项目审批操作',
                 'flow_title': '项目审批流程',
                 'description': '项目创建完成，可以提交审批流程。',
                 'warning': '提交后将进入审批流程，无法直接修改项目信息。'
-            }
+            },
+            can_submit_approval
         ) }}
 
         <!-- 授权编号生成区域：审批通过且无授权编号时显示 -->
@@ -564,24 +559,6 @@
     // 国际化文本
     window.i18nTexts = window.i18nTexts || {};
     Object.assign(window.i18nTexts, {
-        // 提交审批相关
-        submitApprovalTitle: '{{ _("提交审批确认") }}',
-        submitApprovalMessage: '{{ _("确定要提交项目授权审批吗？提交后项目将进入审批流程。") }}',
-        submitApprovalButton: '{{ _("提交审批") }}',
-        submitApprovalSuccess: '{{ _("项目审批已提交，正在刷新页面...") }}',
-        submitApprovalFailed: '{{ _("提交审批失败：") }}',
-        submitApprovalError: '{{ _("提交审批时发生错误：") }}',
-        // 召回审批相关
-        recallApprovalTitle: '{{ _("召回审批确认") }}',
-        recallApprovalMessage: '{{ _("确定要召回项目审批吗？召回后可以重新提交审批。") }}',
-        recallApprovalButton: '{{ _("召回审批") }}',
-        recallSuccess: '{{ _("项目审批已召回，正在刷新页面...") }}',
-        recallFailed: '{{ _("召回审批失败：") }}',
-        recallError: '{{ _("召回审批时发生错误：") }}',
-        // 重新提交审批相关
-        resubmitApprovalTitle: '{{ _("重新提交审批确认") }}',
-        resubmitApprovalMessage: '{{ _("确定要重新提交项目审批吗？") }}',
-        resubmitApprovalButton: '{{ _("重新提交") }}',
         // 行动记录回复相关
         collapse: '{{ _("收起") }}',
         expand: '{{ _("展开") }}',
@@ -819,92 +796,6 @@
     }
 
 
-    // 项目审批相关函数
-    function submitProjectApproval(projectId) {
-        showConfirmDialog({
-            title: window.i18nTexts.submitApprovalTitle,
-            message: window.i18nTexts.submitApprovalMessage,
-            type: 'info',
-            confirmText: window.i18nTexts.submitApprovalButton,
-            cancelText: window.i18nTexts.cancel,
-            dialogId: 'approvalActionDialog',
-            onConfirm: () => {
-                fetch(`/project/api/approval/${projectId}/submit`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify({})
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showTopNotification(window.i18nTexts.submitApprovalSuccess, 'success', 1500, 'approvalNotification');
-                        setTimeout(() => {
-                            location.reload();
-                        }, 1500);
-                    } else {
-                        showTopNotification(window.i18nTexts.submitApprovalFailed + (data.message || window.i18nTexts.unknownError), 'error', 5000, 'approvalNotification');
-                    }
-                })
-                .catch(error => {
-                    console.error('提交审批错误:', error);
-                    showTopNotification(window.i18nTexts.submitApprovalError + error.message, 'error', 5000, 'approvalNotification');
-                });
-            }
-        });
-    }
-
-    function recallProjectApproval(projectId) {
-        showConfirmDialog({
-            title: window.i18nTexts.recallApprovalTitle,
-            message: window.i18nTexts.recallApprovalMessage,
-            type: 'warning',
-            confirmText: window.i18nTexts.recallApprovalButton,
-            cancelText: window.i18nTexts.cancel,
-            dialogId: 'approvalActionDialog',
-            onConfirm: () => {
-                fetch(`/project/api/approval/${projectId}/recall`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token() }}'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showTopNotification(window.i18nTexts.recallSuccess, 'success', 1500, 'approvalNotification');
-                        setTimeout(() => {
-                            location.reload();
-                        }, 1500);
-                    } else {
-                        showTopNotification(window.i18nTexts.recallFailed + (data.message || window.i18nTexts.unknownError), 'error', 5000, 'approvalNotification');
-                    }
-                })
-                .catch(error => {
-                    console.error('召回审批错误:', error);
-                    showTopNotification(window.i18nTexts.recallError + error.message, 'error', 5000, 'approvalNotification');
-                });
-            }
-        });
-    }
-
-    function resubmitProjectApproval(projectId) {
-        showConfirmDialog({
-            title: window.i18nTexts.resubmitApprovalTitle,
-            message: window.i18nTexts.resubmitApprovalMessage,
-            type: 'info',
-            confirmText: window.i18nTexts.resubmitApprovalButton,
-            cancelText: window.i18nTexts.cancel,
-            dialogId: 'approvalActionDialog',
-            onConfirm: () => {
-                submitProjectApproval(projectId);
-            }
-        });
-    }
-
     // 显示更新通知
     function showUpdateNotification(message) {
         const notification = document.createElement('div');
@@ -1006,7 +897,6 @@
 
     // 初始化项目审批流程
     document.addEventListener('DOMContentLoaded', function() {
-        // 初始化项目审批流程组件
         const projectApprovalFlow = new ApprovalFlow('project', {{ project.id }}, {
             containerId: 'projectApprovalFlowSection',
             containerSelector: '#projectApprovalFlowSectionContainer',
@@ -1015,9 +905,9 @@
             enableInteraction: true
         });
 
-        // 设置全局实例以便其他地方调用
-        window.projectApprovalFlowInstance = projectApprovalFlow;
-        
+        // 设置全局实例以便其他地方调用（使用通用名称以兼容工具函数）
+        window.approvalFlowInstance = projectApprovalFlow;
+
         // 初始化审批流程
         projectApprovalFlow.init();
     });
