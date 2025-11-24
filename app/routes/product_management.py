@@ -1415,10 +1415,10 @@ def edit_product(id):
     
     # 获取当前产品分类下的有效规格名称（用于标记快照规格）
     valid_spec_names = set()
-    if dev_product.subcategory_id:
+    if product.subcategory_id:
         from app.models.product_code import ProductCodeField
         valid_fields = ProductCodeField.query.filter_by(
-            subcategory_id=dev_product.subcategory_id
+            subcategory_id=product.subcategory_id
         ).all()
         valid_spec_names = {field.name for field in valid_fields}
 
