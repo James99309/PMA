@@ -399,6 +399,14 @@
                                 <textarea class="form-control" id="description" name="description" rows="3">{{ product.description if product else '' }}</textarea>
                             </div>
                         </div>
+
+                        <!-- 研发用途 -->
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <label for="development_purpose" class="form-label">{{ _('研发用途') }}</label>
+                                <textarea class="form-control" id="development_purpose" name="development_purpose" rows="3" placeholder="{{ _('请输入研发用途') }}">{{ product.development_purpose if product and product.development_purpose else '' }}</textarea>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -940,6 +948,7 @@ document.addEventListener('DOMContentLoaded', function() {
             let existingCode = null;
             let isSaved = false;
             let isSnapshot = false;
+            let existingIncludeInDescription = true;
 
             if (isEditMode && existingSpecs.length > 0) {
                 const existingSpec = existingSpecs.find(s => s.field_name === field.name);
@@ -948,10 +957,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     existingCode = existingSpec.field_code;
                     isSaved = existingSpec.is_saved === true;
                     isSnapshot = existingSpec.is_snapshot === true;
+                    existingIncludeInDescription = existingSpec.include_in_description !== false;
                 }
             }
 
-            const newRow = createStructuredSpecRow(field, index, existingValue, isSaved, existingCode, false, isSnapshot);
+            const newRow = createStructuredSpecRow(field, index, existingValue, isSaved, existingCode, false, isSnapshot, existingIncludeInDescription);
             specsTableBody.appendChild(newRow);
         });
 
@@ -963,6 +973,7 @@ document.addEventListener('DOMContentLoaded', function() {
             let existingCode = null;
             let isSaved = false;
             let isSnapshot = false;
+            let existingIncludeInDescription = true;
 
             if (isEditMode && existingSpecs.length > 0) {
                 const existingSpec = existingSpecs.find(s => s.field_name === field.name);
@@ -971,11 +982,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     existingCode = existingSpec.field_code;
                     isSaved = existingSpec.is_saved === true;
                     isSnapshot = existingSpec.is_snapshot === true;
+                    existingIncludeInDescription = existingSpec.include_in_description !== false;
                 }
             }
 
             // 传入 true 表示这是必填的非编码规格，最后一个参数是 isSnapshot
-            const newRow = createStructuredSpecRow(field, codedSpecs.length + index, existingValue, isSaved, existingCode, true, isSnapshot);
+            const newRow = createStructuredSpecRow(field, codedSpecs.length + index, existingValue, isSaved, existingCode, true, isSnapshot, existingIncludeInDescription);
             specsTableBody.appendChild(newRow);
         });
 
@@ -1000,7 +1012,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 为每个非编码规格创建行
         nonCodedSpecs.forEach(spec => {
-            const newRow = createNonCodeSpecRow();
+            const existingIncludeInDescription = spec.include_in_description !== false;
+            const newRow = createNonCodeSpecRow(existingIncludeInDescription);
             specsTableBody.appendChild(newRow);
 
             // 设置规格名称和值的隐藏字段
@@ -1101,7 +1114,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 创建结构化规格行
-    function createStructuredSpecRow(field, index, existingValue = null, isSaved = false, existingCode = null, isRequiredNonCoded = false, isSnapshot = false) {
+    function createStructuredSpecRow(field, index, existingValue = null, isSaved = false, existingCode = null, isRequiredNonCoded = false, isSnapshot = false, existingIncludeInDescription = true) {
         specRowCounter++;
         const rowId = `spec-row-${specRowCounter}`;
 
@@ -1137,7 +1150,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </td>
                 <td class="text-center">
-                    <input type="checkbox" class="form-check-input include-in-description">
+                    <input type="checkbox" class="form-check-input include-in-description" ${existingIncludeInDescription ? 'checked' : ''}>
                 </td>
                 <td>
                     ${field.use_in_code ? `<span class="badge bg-info me-2">位置${field.position}</span>` : ''}
@@ -1172,7 +1185,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </td>
                 <td class="text-center">
-                    <input type="checkbox" class="form-check-input include-in-description">
+                    <input type="checkbox" class="form-check-input include-in-description" ${existingIncludeInDescription ? 'checked' : ''}>
                 </td>
                 <td>
                     ${field.use_in_code ? `<span class="badge bg-info me-2">位置${field.position}</span>` : ''}
@@ -1392,6 +1405,28 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
 
+        // 处理 include_in_description 复选框状态
+        // 为每个规格行添加对应的隐藏字段，确保未勾选的也能提交
+        const form = document.getElementById('productForm');
+        const rows = document.querySelectorAll('#specs-table-body tr');
+
+        // 移除之前添加的临时隐藏字段
+        form.querySelectorAll('.temp-include-field').forEach(el => el.remove());
+
+        // 为每个规格行添加对应的 include_in_description 状态
+        rows.forEach((row, index) => {
+            const checkbox = row.querySelector('.include-in-description');
+            if (checkbox) {
+                // 添加隐藏字段，值为 '1' (勾选) 或 '0' (未勾选)
+                const hiddenField = document.createElement('input');
+                hiddenField.type = 'hidden';
+                hiddenField.name = 'include_in_description_indexed[]';
+                hiddenField.value = checkbox.checked ? '1' : '0';
+                hiddenField.className = 'temp-include-field';
+                form.appendChild(hiddenField);
+            }
+        });
+
         // 验证通过，提交表单
         document.getElementById('productForm').submit();
     };
@@ -1414,7 +1449,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 创建非编码规格行
-    function createNonCodeSpecRow() {
+    function createNonCodeSpecRow(existingIncludeInDescription = true) {
         specRowCounter++;
         const rowId = `spec-row-${specRowCounter}`;
 
@@ -1444,7 +1479,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             </td>
             <td class="text-center">
-                <input type="checkbox" class="form-check-input include-in-description">
+                <input type="checkbox" class="form-check-input include-in-description" ${existingIncludeInDescription ? 'checked' : ''}>
             </td>
             <td>
                 <span class="badge bg-secondary me-2">非编码</span>

@@ -10,6 +10,7 @@ window.SpecManagement = {
     AutoDescription: {
         descriptionField: null,
         autoToggle: null,
+        isInitializing: true,  // 标识是否正在初始化（避免初始加载规格时触发更新）
 
         /**
          * 初始化自动生成描述功能
@@ -47,6 +48,12 @@ window.SpecManagement = {
                     console.log('[AutoDescription] 编辑模式且已有描述，不自动生成');
                 }
             }
+
+            // 延迟1秒后标记初始化完成，避免初始加载规格时触发更新
+            setTimeout(() => {
+                this.isInitializing = false;
+                console.log('[AutoDescription] 初始化完成，开始监听用户操作');
+            }, 1000);
         },
 
         /**
@@ -68,6 +75,12 @@ window.SpecManagement = {
             document.addEventListener('change', (e) => {
                 // 规格行的"纳入描述"勾选框变化
                 if (e.target.classList.contains('include-in-description')) {
+                    // 初始化期间忽略变化事件
+                    if (this.isInitializing) {
+                        console.log('[AutoDescription] 初始化中，忽略纳入描述变化');
+                        return;
+                    }
+
                     console.log('[AutoDescription] 纳入描述勾选框变化');
                     if (this.autoToggle.checked) {
                         this.updateDescription();
@@ -76,6 +89,12 @@ window.SpecManagement = {
 
                 // 指标选择器变化
                 if (e.target.classList.contains('indicator-select')) {
+                    // 初始化期间忽略变化事件
+                    if (this.isInitializing) {
+                        console.log('[AutoDescription] 初始化中，忽略指标选择器变化');
+                        return;
+                    }
+
                     console.log('[AutoDescription] 指标选择器变化');
                     if (this.autoToggle.checked) {
                         // 延迟更新，等待隐藏字段更新完成

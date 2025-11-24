@@ -37,6 +37,7 @@ class ProductCreationService:
             retail_price = request.form.get('retail_price')
             currency = request.form.get('currency', 'CNY')
             description = request.form.get('description') or ""
+            development_purpose = request.form.get('development_purpose') or ""
             mn_code = request.form.get('mn_code_preview', '').strip()
 
             # 2. 验证必填字段
@@ -73,7 +74,7 @@ class ProductCreationService:
             if product_type == 'research':
                 new_product = ProductCreationService._create_research_product(
                     category_id, subcategory_id, region_id, model, unit,
-                    retail_price_decimal, currency, description, mn_code
+                    retail_price_decimal, currency, description, development_purpose, mn_code
                 )
                 redirect_url = 'product_management.index'
                 success_message = '新产品已成功添加到研发产品库'
@@ -135,7 +136,7 @@ class ProductCreationService:
 
     @staticmethod
     def _create_research_product(category_id, subcategory_id, region_id, model, unit,
-                                retail_price, currency, description, mn_code):
+                                retail_price, currency, description, development_purpose, mn_code):
         """创建研发产品实例"""
         # 直接使用region_id（已统一到ProductCodeField）
         return DevProduct(
@@ -145,6 +146,7 @@ class ProductCreationService:
             name=model,  # 研发产品名称默认使用型号
             model=model,
             description=description,
+            development_purpose=development_purpose,
             unit=unit,
             retail_price=retail_price,
             currency=currency,

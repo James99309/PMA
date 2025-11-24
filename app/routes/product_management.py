@@ -1110,6 +1110,7 @@ def save_dev_product_specs(dev_product_id, spec_data_list, logger=None):
                     if existing_spec and existing_spec.dev_product_id == dev_product_id:
                         existing_spec.field_name = spec_data['field_name']
                         existing_spec.field_value = spec_data['field_value']
+                        existing_spec.include_in_description = spec_data.get('include_in_description', True)
 
                         # 检查该规格字段是否参与编码
                         from app.models.product_code import ProductCodeField
@@ -1150,7 +1151,8 @@ def save_dev_product_specs(dev_product_id, spec_data_list, logger=None):
                         dev_product_id=dev_product_id,
                         field_name=spec_data['field_name'],
                         field_value=spec_data.get('field_value', ''),
-                        field_code=field_code_value
+                        field_code=field_code_value,
+                        include_in_description=spec_data.get('include_in_description', True)
                     )
                     db.session.add(new_spec)
                     logger.debug(f"添加新规格: {spec_data['field_name']} = {spec_data.get('field_value', '')}, 编码: {field_code_value or '无'}")
@@ -1499,7 +1501,8 @@ def edit_product(id):
             'field_code': getattr(spec, 'field_code', None),  # 兼容字段编码
             'field_id': field.id if field else None,  # 添加 field_id（快照规格可能为 None）
             'is_saved': True,
-            'is_snapshot': is_snapshot  # 标记快照规格
+            'is_snapshot': is_snapshot,  # 标记快照规格
+            'include_in_description': getattr(spec, 'include_in_description', True)  # 是否纳入描述
         })
 
     # 获取所有产品地区（使用ProductCodeField，与创建页面一致）
@@ -1586,6 +1589,7 @@ def update_product(id):
         dev_product.model = model
         dev_product.name = model  # 研发产品的name默认使用model
         dev_product.description = request.form.get('description', '')
+        dev_product.development_purpose = request.form.get('development_purpose', '')
         dev_product.unit = request.form.get('unit', '')
         
         retail_price = request.form.get('retail_price', '')
@@ -1774,14 +1778,21 @@ def update_product(id):
             spec_names = request.form.getlist('spec_name[]')
             spec_values = request.form.getlist('spec_value[]')
             spec_codes = request.form.getlist('spec_option_codes[]')
+            include_in_descriptions = request.form.getlist('include_in_description_indexed[]')
 
             spec_data_list = []
             for i in range(len(spec_names)):
                 if spec_names[i].strip():  # 只添加非空规格名称
+                    # 获取对应的 include_in_description 状态
+                    # 使用 indexed 方式，值为 '1' 或 '0'
+                    include_in_desc = (i < len(include_in_descriptions) and
+                                      include_in_descriptions[i] == '1')
+
                     spec_data_list.append({
                         'field_name': spec_names[i],
                         'field_value': spec_values[i] if i < len(spec_values) else '',
                         'field_code': spec_codes[i] if i < len(spec_codes) and spec_codes[i] else None,
+                        'include_in_description': include_in_desc,
                         'action': 'create'  # 统一标记为创建
                     })
 
@@ -2636,6 +2647,52 @@ def download_pdf(id):
         current_app.logger.error(f"下载PDF文件失败: {str(e)}")
         flash(_('下载PDF文件失败'), 'danger')
         return redirect(url_for('product_management.product_detail', id=id))
+
+
+@product_management_bp.route('/<int:id>/export-detail-pdf', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def export_detail_pdf(id):
+    """导出研发产品详情为PDF"""
+    try:
+        from io import BytesIO
+        from app.services.rd_product_pdf_generator import generate_rd_product_pdf
+        from urllib.parse import quote
+
+        # 查询产品
+        dev_product = DevProduct.query.get_or_404(id)
+
+        # 权限检查（可选，根据需求）
+        # if not can_view_product(current_user, dev_product):
+        #     flash('无权限导出此产品', 'danger')
+        #     return redirect(url_for('product_management_bp.product_detail', id=id))
+
+        # 生成PDF
+        result = generate_rd_product_pdf(dev_product)
+
+        # 返回PDF（inline模式，浏览器预览）
+        pdf_io = BytesIO(result['content'])
+        pdf_io.seek(0)
+
+        response = send_file(
+            pdf_io,
+            mimetype='application/pdf',
+            as_attachment=False,  # inline模式
+            download_name=result['filename']
+        )
+
+        # 中文文件名支持
+        encoded_filename = quote(result['filename'].encode('utf-8'))
+        response.headers['Content-Disposition'] = f"inline; filename*=UTF-8''{encoded_filename}"
+
+        current_app.logger.info(f"用户 {current_user.username} 导出了产品PDF: {dev_product.name}")
+        return response
+
+    except Exception as e:
+        current_app.logger.error(f"导出PDF失败: {str(e)}", exc_info=True)
+        flash(f'导出PDF失败: {str(e)}', 'danger')
+        return redirect(url_for('product_management.product_detail', id=id))
+
 
 # 获取规格字段的选项
 @product_management_bp.route('/api/spec-field-options', methods=['GET'])

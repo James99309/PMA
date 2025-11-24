@@ -47,10 +47,6 @@
 
     .product-property {
         margin-bottom: 1.25rem;
-        padding: 0.75rem;
-        background-color: #f8f9fa;
-        border-radius: 6px;
-        border: 1px solid #e9ecef;
     }
 
     .property-label {
@@ -62,28 +58,18 @@
 
     .property-value {
         font-size: 1rem;
-        margin-bottom: 0;
     }
 
     /* 产品图片样式 */
     .product-image-container {
         width: 100%;
-        max-width: 300px; /* 限制最大宽度 */
-        aspect-ratio: 1 / 1; /* 1:1正方形比例 */
+        padding-bottom: 100%; /* 1:1 的比例，形成正方形 */
         position: relative;
         overflow: hidden;
         background-color: #f8f9fa;
         border-radius: 8px;
         margin-bottom: 1.5rem;
         border: 1px solid #e7e7e7;
-        margin: 0 auto; /* 居中显示 */
-    }
-    
-    /* 对于不支持aspect-ratio的浏览器的备选方案 */
-    @supports not (aspect-ratio: 1 / 1) {
-        .product-image-container {
-            padding-bottom: 100%;
-        }
     }
 
     .product-image {
@@ -106,30 +92,10 @@
         width: 100%;
         height: 100%;
         color: #adb5bd;
-        flex-direction: column;
     }
 
     .product-placeholder i {
         font-size: 3rem;
-        margin-bottom: 0.5rem;
-    }
-
-    .product-placeholder span {
-        font-size: 0.85rem;
-        color: #adb5bd;
-        text-align: center;
-    }
-
-    /* 移动端响应式调整 */
-    @media (max-width: 768px) {
-        .product-placeholder i {
-            font-size: 2.5rem;
-        }
-        
-        /* 移动端图片容器调整 */
-        .product-image-container {
-            max-width: 250px;
-        }
     }
 </style>
 {% endblock %}
@@ -198,7 +164,20 @@
         <div class="col-md-12">
             <div class="card product-detail-card">
                 <div class="product-header">
-                    <h2>{{ dev_product.name }}</h2>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h2>{{ dev_product.name }}</h2>
+                        <div>
+                            {% set pdf_export_url = url_for('product_management.export_detail_pdf', id=dev_product.id) %}
+                            <a href="{{ pdf_export_url }}" target="_blank" style="text-decoration: none;">
+                                {{ render_button('导出PDF',
+                                               type='button',
+                                               color='outline-primary',
+                                               size='sm',
+                                               icon='fas fa-file-pdf',
+                                               attrs={'type': 'button'}) }}
+                            </a>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="product-body">
@@ -211,25 +190,16 @@
                                         <!-- Supabase云端图片 -->
                                         <img src="{{ dev_product.image_path }}"
                                              alt="{{ dev_product.name }}"
-                                             class="product-image"
-                                             onerror="this.style.display='none'; this.parentElement.querySelector('.product-placeholder').style.display='flex';">
+                                             class="product-image">
                                     {% else %}
                                         <!-- 本地图片 -->
                                         <img src="{{ url_for('static', filename=dev_product.image_path) }}"
                                              alt="{{ dev_product.name }}"
-                                             class="product-image"
-                                             onerror="this.style.display='none'; this.parentElement.querySelector('.product-placeholder').style.display='flex';">
+                                             class="product-image">
                                     {% endif %}
-                                    <!-- 图片加载失败时的占位符（默认隐藏） -->
-                                    <div class="product-placeholder" style="display: none;">
-                                        <i class="fas fa-exclamation-triangle text-warning"></i>
-                                        <span>{{ _('图片加载失败') }}</span>
-                                        <small class="text-muted mt-1">{{ _('请重新上传图片') }}</small>
-                                    </div>
                                 {% else %}
                                 <div class="product-placeholder">
-                                    <i class="fas fa-image"></i>
-                                    <span>{{ _('暂无产品图片') }}</span>
+                                    <i class="fas fa-box"></i>
                                 </div>
                                 {% endif %}
                             </div>
@@ -316,6 +286,18 @@
                                     <div class="product-property">
                                         <div class="property-label">{{ _('产品描述') }}</div>
                                         <div class="property-value">{{ dev_product.description }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <!-- 研发用途 -->
+                            {% if dev_product.development_purpose %}
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <div class="product-property">
+                                        <div class="property-label">{{ _('研发用途') }}</div>
+                                        <div class="property-value">{{ dev_product.development_purpose }}</div>
                                     </div>
                                 </div>
                             </div>

@@ -17,6 +17,7 @@ class DevProduct(db.Model):
     retail_price = Column(Float)
     currency = Column(String(10), default='CNY')  # 货币类型
     description = Column(Text)
+    development_purpose = Column(Text)  # 研发用途
     image_path = Column(String(255))
     pdf_path = Column(String(255))
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -156,13 +157,14 @@ class DevProduct(db.Model):
 
 class DevProductSpec(db.Model):
     __tablename__ = 'dev_product_specs'
-    
+
     id = Column(Integer, primary_key=True)
     dev_product_id = Column(Integer, ForeignKey('dev_products.id'))
     field_name = Column(String(100))
     field_value = Column(String(255))
     field_code = Column(String(10))  # 规格编码，用于MN号生成
-    
+    include_in_description = Column(Boolean, default=True)  # 是否纳入产品描述
+
     # 关联关系
     product = relationship("DevProduct", back_populates="specs")
     
