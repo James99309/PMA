@@ -31,8 +31,10 @@
                             <tr>
                                 <th>{{ _('MN编号') }}</th>
                                 <th>{{ _('型号') }}</th>
+                                <th>{{ _('产品描述') }}</th>
                                 <th>{{ _('产品名称') }}</th>
                                 <th>{{ _('产品分类') }}</th>
+                                <th>{{ _('销售区域') }}</th>
                                 <th>{{ _('状态') }}</th>
                                 <th>{{ _('零售价') }}</th>
                                 <th>{{ _('更新时间') }}</th>
@@ -48,11 +50,21 @@
                                 <td>
                                     <strong>{{ dev_product.model }}</strong>
                                 </td>
+                                <td class="text-cell" title="{{ dev_product.description or '' }}">
+                                    {% if dev_product.description and dev_product.description|length > 50 %}
+                                        {{ dev_product.description[:50] }}...
+                                    {% else %}
+                                        {{ dev_product.description or '—' }}
+                                    {% endif %}
+                                </td>
                                 <td>
                                     {{ dev_product.subcategory.name if dev_product.subcategory else '—' }}
                                 </td>
                                 <td>
                                     {{ dev_product.category.name if dev_product.category else '—' }}
+                                </td>
+                                <td class="text-cell">
+                                    {{ dev_product.region.name if dev_product.region else '—' }}
                                 </td>
                                 <td>
                                     {{ render_dev_product_status_badge(dev_product.status) }}

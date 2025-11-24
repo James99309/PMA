@@ -68,6 +68,37 @@ def check_product_access(product, current_user):
     
     return False
 
+def can_bypass_product_lock(user):
+    """
+    检查用户是否可以绕过产品锁定限制
+
+    权限规则：
+    1. Admin 角色硬编码拥有绕过锁定的权限
+    2. 拥有 system 级 product_code 编辑权限的角色可以绕过锁定
+
+    参数:
+        user: User 对象
+
+    返回:
+        bool: True 表示可以绕过锁定，False 表示不能
+    """
+    # Admin 硬编码特权
+    if user.role == 'admin':
+        return True
+
+    # 检查是否有 product_code 编辑权限
+    if not user.has_permission('product_code', 'edit'):
+        return False
+
+    # 检查权限级别是否为 system
+    from app.models.role_permissions import RolePermission
+    role_permission = RolePermission.query.filter_by(
+        role=user.role,
+        module='product_code'
+    ).first()
+
+    return role_permission and role_permission.permission_level == 'system'
+
 # 允许的图片扩展名
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
@@ -486,6 +517,14 @@ def index():
                         'sort_type': 'string'
                     },
                     {
+                        'key': 'region',
+                        'field': 'region',
+                        'label': _('销售区域'),
+                        'type': 'text',
+                        'width': '100px',
+                        'sort_type': 'string'
+                    },
+                    {
                         'key': 'model',
                         'field': 'model',
                         'label': _('产品型号'),
@@ -493,6 +532,15 @@ def index():
                         'url_template': '/product-management/{id}',
                         'width': '150px',
                         'sort_type': 'string'
+                    },
+                    {
+                        'key': 'description',
+                        'field': 'description',
+                        'label': _('产品描述'),
+                        'type': 'text',
+                        'width': '100px',
+                        'sort_type': 'string',
+                        'truncate': 50
                     },
                     {
                         'key': 'status',
@@ -616,14 +664,15 @@ def products_list_ajax():
         
         from app.models.role_permissions import RolePermission
         from app.models.user import User
-        
+
         # 构建基础查询
         query = DevProduct.query.options(
             joinedload(DevProduct.category),
             joinedload(DevProduct.subcategory),
-            joinedload(DevProduct.creator)
+            joinedload(DevProduct.creator),
+            joinedload(DevProduct.region)
         )
-        
+
         # 权限控制
         if current_user.role != 'admin':
             permission_level = 'personal'
@@ -727,9 +776,10 @@ def products_list_ajax():
         base_query = DevProduct.query.options(
             joinedload(DevProduct.category),
             joinedload(DevProduct.subcategory),
-            joinedload(DevProduct.creator)
+            joinedload(DevProduct.creator),
+            joinedload(DevProduct.region)
         )
-        
+
         # 应用相同的权限控制
         if current_user.role != 'admin':
             permission_level = 'personal'
@@ -772,6 +822,7 @@ def products_list_ajax():
                     status=product.status or '未设置',
                     category_name=product.category.name if product.category else '-',
                     subcategory_name=product.subcategory.name if product.subcategory else '-',
+                    region_name=product.region.name if product.region else '-',
                     creator_name=creator_name,
                     description=product.description or '',
                     created_at=product.created_at
@@ -791,6 +842,7 @@ def products_list_ajax():
                         {'field': 'mn_code', 'label': '产品料号'},
                         {'field': 'category_name', 'label': '产品分类'},
                         {'field': 'subcategory_name', 'label': '子分类'},
+                        {'field': 'region_name', 'label': '销售区域'},
                         {'field': 'creator_name', 'label': '创建人'},
                         {'field': 'description', 'label': '产品描述'},
                         {'field': 'created_at', 'label': '创建时间', 'format': 'date'}
@@ -814,13 +866,20 @@ def products_list_ajax():
                     
                     created_at = product.created_at.strftime('%Y-%m-%d') if product.created_at else '-'
                     
+                    # 截断产品描述（超过50字符）
+                    description_display = product.description
+                    if description_display and len(description_display) > 50:
+                        description_display = description_display[:50] + '...'
+
                     html_row = f"""
                     <tr>
                         <td>{product.category_name}</td>
                         <td>{product.subcategory_name}</td>
+                        <td>{product.region_name}</td>
                         <td><a href="/product-management/{product.id}" class="text-primary text-decoration-none">{product.model}</a></td>
-                        <td><code class="text-muted">{product.mn_code}</code></td>
+                        <td title="{product.description}">{description_display}</td>
                         <td>{status_badge}</td>
+                        <td><code class="text-muted">{product.mn_code}</code></td>
                         <td>{product.creator_name}</td>
                         <td class="text-muted">{created_at}</td>
                     </tr>
@@ -831,7 +890,7 @@ def products_list_ajax():
             if is_mobile_request():
                 html = '<div class="text-center py-4">暂无符合条件的数据</div>'
             else:
-                html = '<tr><td colspan="7" class="text-center text-muted py-4">暂无符合条件的数据</td></tr>'
+                html = '<tr><td colspan="9" class="text-center text-muted py-4">暂无符合条件的数据</td></tr>'
         
         # 计算是否还有更多数据
         has_more = (offset + limit) < total_count
@@ -854,7 +913,7 @@ def products_list_ajax():
         return jsonify({
             'success': False,
             'error': '加载产品列表失败',
-            'html': '<tr><td colspan="7" class="text-center text-muted py-4">加载数据时出错</td></tr>',
+            'html': '<tr><td colspan="9" class="text-center text-muted py-4">加载数据时出错</td></tr>',
             'has_more': False,
             'total_count': 0,
             'loaded_count': 0
@@ -1481,6 +1540,10 @@ def edit_product(id):
     has_model = bool(product.model and product.model.strip())
     has_specs = len(specs) > 0
 
+    # 检查用户是否可以绕过产品锁定
+    # Admin + system 级 product_code 编辑权限
+    is_admin = can_bypass_product_lock(current_user)
+
     # 使用统一的create.html模板，传递product_type='research'
     return render_template(
         'product/create.html',
@@ -1493,6 +1556,7 @@ def edit_product(id):
         brands=[],  # 研发产品不需要品牌列表
         is_mn_locked=is_mn_locked,
         is_referenced=is_referenced,
+        is_admin=is_admin,
         has_category=has_category,
         has_subcategory=has_subcategory,
         has_region=has_region,
