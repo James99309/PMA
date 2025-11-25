@@ -1,6 +1,7 @@
 """add development_purpose to dev_products
 
 Revision ID: add_development_purpose_20251124
+Revises: 20251115_add_spec_dict_display_order
 Create Date: 2025-11-24
 
 添加 development_purpose 字段到 dev_products 表
@@ -8,6 +9,12 @@ Create Date: 2025-11-24
 """
 from alembic import op
 import sqlalchemy as sa
+
+# revision identifiers, used by Alembic.
+revision = 'add_development_purpose_20251124'
+down_revision = 'add_quantity_synced_20251122'
+branch_labels = None
+depends_on = None
 
 
 def upgrade():

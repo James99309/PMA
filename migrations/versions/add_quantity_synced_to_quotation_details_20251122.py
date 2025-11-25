@@ -1,6 +1,7 @@
 """add quantity_synced to quotation_details
 
 Revision ID: add_quantity_synced_20251122
+Revises: 20251115_add_spec_dict_display_order
 Create Date: 2025-11-22
 
 添加 quantity_synced 字段到 quotation_details 表
@@ -8,6 +9,12 @@ Create Date: 2025-11-22
 """
 from alembic import op
 import sqlalchemy as sa
+
+# revision identifiers, used by Alembic.
+revision = 'add_quantity_synced_20251122'
+down_revision = '20251115_add_spec_dict_display_order'
+branch_labels = None
+depends_on = None
 
 
 def upgrade():

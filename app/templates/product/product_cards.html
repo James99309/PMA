@@ -1,4 +1,4 @@
-{% from 'macros/ui_helpers.html' import render_product_type_badge, render_product_status_badge, render_vendor_badge %}
+{% from 'macros/ui_helpers.html' import render_product_type_badge, render_product_status_badge, render_vendor_badge, render_currency_with_symbol %}
 {% for product in (products if products is defined else items) %}
 <div class="product-card-mobile">
     <div class="product-header">
@@ -74,7 +74,7 @@
             <span class="label">{{ _('零售价') }}:</span>
             <span class="value price">
                 {% if product.retail_price %}
-                    ¥{{ "%.2f"|format(product.retail_price) }}
+                    {{ render_currency_with_symbol(product.retail_price, product.currency) }}
                 {% else %}
                     -
                 {% endif %}

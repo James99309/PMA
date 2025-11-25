@@ -1,4 +1,4 @@
-{% from 'macros/ui_helpers.html' import render_product_type_badge, render_product_status_badge, render_vendor_badge %}
+{% from 'macros/ui_helpers.html' import render_product_type_badge, render_product_status_badge, render_vendor_badge, render_currency_with_symbol %}
 {% from 'macros/file_preview.html' import render_file_preview %}
 {% for product in products %}
 <tr>
@@ -55,7 +55,7 @@
     <td class="text-cell">{{ product.unit or '-' }}</td>
     <td class="number-cell">
         {% if product.retail_price %}
-            ¥{{ "%.2f"|format(product.retail_price) }}
+            {{ render_currency_with_symbol(product.retail_price, product.currency) }}
         {% else %}
             -
         {% endif %}
