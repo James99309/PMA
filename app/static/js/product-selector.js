@@ -893,7 +893,7 @@ class ProductSelector {
                     // 只有1个产品：显示型号、价格和产品描述，添加 no-arrow 类
                     const product = modelGroup.products[0];
                     const price = product.retail_price ? parseFloat(product.retail_price) : null;
-                    const priceText = price ? `¥${price.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '价格面议';
+                    const priceText = price ? this.formatPriceWithCurrency(price, product.currency) : '价格面议';
                     const isDiscontinued = product.status === 'discontinued' || product.status === '停产';
                     const priceClass = isDiscontinued ? 'product-price-discontinued' : 'product-price';
 
@@ -1054,7 +1054,7 @@ class ProductSelector {
                                      product.product_status === 'discontinued' ||
                                      product.product_status === '停产' ||
                                      (product.status && product.status.toLowerCase().includes('discontin'));
-                const priceText = marketPrice ? `¥${parseFloat(marketPrice).toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '价格面议';
+                const priceText = marketPrice ? this.formatPriceWithCurrency(marketPrice, product.currency) : '价格面议';
                 const priceClass = isDiscontinued ? 'product-price-discontinued' : 'product-price';
 
                 // 处理长规格文本，超过30字符换行 - 修复字段映射
@@ -1152,8 +1152,8 @@ class ProductSelector {
                     
                     // 格式化参考价格
                     const referencePrice = product.reference_price || 0;
-                    const priceText = referencePrice > 0 ? 
-                        `参考价: ¥${parseFloat(referencePrice).toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 
+                    const priceText = referencePrice > 0 ?
+                        `参考价: ${this.formatPriceWithCurrency(referencePrice, product.currency)}` :
                         '参考价: 面议';
                     
                     item.innerHTML = `
@@ -1355,7 +1355,7 @@ class ProductSelector {
                 // 检查是否为停产产品
                 const isDiscontinued = product.status === 'discontinued' || product.status === '停产';
                 const priceClass = isDiscontinued ? 'product-price-discontinued' : 'product-price';
-                const priceText = product.retail_price ? `¥${this.formatPrice(product.retail_price)}${isDiscontinued ? ' (停产)' : ''}` : '';
+                const priceText = product.retail_price ? `${this.formatPriceWithCurrency(product.retail_price, product.currency)}${isDiscontinued ? ' (停产)' : ''}` : '';
                 
                 item.innerHTML = `
                     <div class="product-info">
@@ -1457,7 +1457,31 @@ class ProductSelector {
             maximumFractionDigits: 2
         });
     }
-    
+
+    /**
+     * 获取货币符号
+     */
+    getCurrencySymbol(currency) {
+        const symbols = {
+            'CNY': '¥',
+            'USD': '$',
+            'EUR': '€',
+            'GBP': '£',
+            'JPY': '¥',
+            'HKD': 'HK$',
+            'SGD': 'S$'
+        };
+        return symbols[currency] || symbols['CNY'];
+    }
+
+    /**
+     * 格式化价格（带货币符号）
+     */
+    formatPriceWithCurrency(price, currency) {
+        const symbol = this.getCurrencySymbol(currency);
+        return `${symbol}${this.formatPrice(price)}`;
+    }
+
     /**
      * 处理错误
      */
@@ -2305,8 +2329,8 @@ class ProductSelector {
                     
                     // 格式化参考价格
                     const referencePrice = product.reference_price || 0;
-                    const priceText = referencePrice > 0 ? 
-                        `参考价: ¥${parseFloat(referencePrice).toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 
+                    const priceText = referencePrice > 0 ?
+                        `参考价: ${this.formatPriceWithCurrency(referencePrice, product.currency)}` :
                         '参考价: 面议';
                     
                     item.innerHTML = `
