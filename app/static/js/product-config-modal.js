@@ -205,6 +205,7 @@ class ProductConfigModal {
             if (isInitial) {
                 this.remainingProducts = [...products];
                 this.userSelections = {};
+                this.initialSelectablePositions = new Set();  // 新增：记录初始可选字段位置
                 console.log(`🎯 初始分析: ${products.length} 个产品`);
             } else {
                 console.log(`🔄 重新分析: ${products.length} 个剩余产品`);
@@ -244,9 +245,11 @@ class ProductConfigModal {
                 const position = index;
                 const fieldName = field.field_name || field.name;  // 适配新旧字段名
 
-                // 检查该字段是否已被用户选择
+                // 检查该字段是否已被用户手动选择（区分手动和自动选中）
                 // 修复：用户已选字段保持为可选状态，允许用户修改
-                const userSelectedCode = this.userSelections.hasOwnProperty(position)
+                const isUserManualSelection = this.userManualSelections &&
+                                              this.userManualSelections.hasOwnProperty(position);
+                const userSelectedCode = isUserManualSelection
                     ? this.userSelections[position].code
                     : null;
 
@@ -276,20 +279,56 @@ class ProductConfigModal {
                     }
                 });
 
-                // 判断是否有差异（多个选项）或用户已选择
+                // 判断是否有差异（多个选项）
                 const isDifferent = codeOptions.size > 1;
-                // 修复：如果用户已选择，强制标记为可选（允许修改）
-                const showAsSelectable = isDifferent || userSelectedCode !== null;
+
+                // 初始分析时，记录初始可选字段位置
+                if (isInitial && isDifferent) {
+                    this.initialSelectablePositions.add(position);
+                }
+
+                // 检查是否为初始可选字段（即使现在只剩一个选项）
+                const wasInitiallySelectable = this.initialSelectablePositions &&
+                                               this.initialSelectablePositions.has(position);
+
+                // 修复：初始可选字段即使过滤后只剩一个选项，也保持可选状态
+                const showAsSelectable = isDifferent || userSelectedCode !== null || wasInitiallySelectable;
+
+                // 确定字段状态
+                let fieldStatus;
+                if (userSelectedCode) {
+                    fieldStatus = 'user_selected';
+                } else if (isDifferent) {
+                    fieldStatus = 'selectable';
+                } else if (wasInitiallySelectable) {
+                    fieldStatus = 'auto_selected';  // 新状态：初始可选但被过滤成单选
+                } else {
+                    fieldStatus = 'auto_fixed';
+                }
+
+                // 对于auto_selected状态，自动选中唯一的选项并记录到userSelections
+                let autoSelectedCode = null;
+                if (fieldStatus === 'auto_selected' && codeOptions.size === 1) {
+                    const autoOption = codeOptions.values().next().value;
+                    autoSelectedCode = autoOption.code;
+                    // 将auto_selected的值加入userSelections，以便后续过滤使用
+                    this.userSelections[position] = {
+                        code: autoOption.code,
+                        value: autoOption.value,
+                        unit: autoOption.unit || null
+                    };
+                    console.log(`  ✓ 自动选中字段 [${position}]: ${autoOption.value} (${autoOption.code})`);
+                }
 
                 codeAnalysis.push({
                     position: position,
                     fieldName: fieldName,
-                    isDifferent: showAsSelectable,  // 修复：用户已选也显示为可选
-                    status: userSelectedCode ? 'user_selected' : (isDifferent ? 'selectable' : 'auto_fixed'),
+                    isDifferent: showAsSelectable,
+                    status: fieldStatus,
                     options: Array.from(codeOptions.values()),
-                    selectedCode: userSelectedCode,  // 修复：预选中用户已选的值
-                    // 如果所有产品相同且用户未选择，记录该确定的值
-                    fixedValue: (!isDifferent && !userSelectedCode) ? codeOptions.values().next().value : null
+                    selectedCode: userSelectedCode || autoSelectedCode,
+                    // 如果是真正的固定字段（初始就单选），记录确定的值
+                    fixedValue: (!showAsSelectable) ? codeOptions.values().next().value : null
                 });
             });
 
@@ -400,15 +439,22 @@ class ProductConfigModal {
                 input.id = `code-${field.position}-${optIndex}`;
                 input.value = option.code;
 
-                // 修复：如果是用户已选的值，预选中
+                // 修复：如果是用户已选的值或自动选中的值，预选中
                 if (field.selectedCode === option.code) {
                     input.checked = true;
                 }
 
-                // ⚠️ 关键修改：绑定新的事件处理器
-                input.addEventListener('change', () => {
-                    this.onFieldSelect(field.position, option.code, option.value, option.unit);
-                });
+                // auto_selected 状态：禁用radio（因为被过滤自动确定）
+                if (field.status === 'auto_selected') {
+                    input.disabled = true;
+                }
+
+                // ⚠️ 关键修改：绑定新的事件处理器（非禁用状态才绑定）
+                if (!input.disabled) {
+                    input.addEventListener('change', () => {
+                        this.onFieldSelect(field.position, option.code, option.value, option.unit);
+                    });
+                }
 
                 // Label
                 const optionLabel = document.createElement('label');
@@ -426,9 +472,11 @@ class ProductConfigModal {
 
             fieldDiv.appendChild(optionsContainer);
 
-            // 修复：如果是用户已选的字段，添加视觉标记
+            // 修复：根据字段状态添加视觉标记
             if (field.status === 'user_selected') {
                 fieldDiv.classList.add('user-selected');
+            } else if (field.status === 'auto_selected') {
+                fieldDiv.classList.add('auto-selected');
             }
 
             container.appendChild(fieldDiv);
@@ -1782,6 +1830,7 @@ class ProductConfigModal {
         this.selectedProduct = null;
         this.userSelections = {};
         this.userManualSelections = {};  // 用户手动选择的字段标记
+        this.initialSelectablePositions = null;  // 初始可选字段位置
         this.specsFinalized = false;  // 规格是否已确定（待确认状态）
         this.fixedFields = [];
         this.selectableFields = [];
