@@ -205,7 +205,8 @@ class ProductConfigModal {
             if (isInitial) {
                 this.remainingProducts = [...products];
                 this.userSelections = {};
-                this.initialSelectablePositions = new Set();  // 新增：记录初始可选字段位置
+                this.initialSelectablePositions = new Set();  // 记录初始可选字段位置
+                this.initialFieldOptions = new Map();  // 存储每个字段的初始选项
                 console.log(`🎯 初始分析: ${products.length} 个产品`);
             } else {
                 console.log(`🔄 重新分析: ${products.length} 个剩余产品`);
@@ -282,9 +283,10 @@ class ProductConfigModal {
                 // 判断是否有差异（多个选项）
                 const isDifferent = codeOptions.size > 1;
 
-                // 初始分析时，记录初始可选字段位置
+                // 初始分析时，记录初始可选字段位置和选项
                 if (isInitial && isDifferent) {
                     this.initialSelectablePositions.add(position);
+                    this.initialFieldOptions.set(position, Array.from(codeOptions.values()));
                 }
 
                 // 检查是否为初始可选字段（即使现在只剩一个选项）
@@ -320,12 +322,18 @@ class ProductConfigModal {
                     console.log(`  ✓ 自动选中字段 [${position}]: ${autoOption.value} (${autoOption.code})`);
                 }
 
+                // 确定要使用的选项列表：用户选中字段使用初始选项，允许切换
+                let optionsToUse = Array.from(codeOptions.values());
+                if (isUserManualSelection && this.initialFieldOptions && this.initialFieldOptions.has(position)) {
+                    optionsToUse = this.initialFieldOptions.get(position);
+                }
+
                 codeAnalysis.push({
                     position: position,
                     fieldName: fieldName,
                     isDifferent: showAsSelectable,
                     status: fieldStatus,
-                    options: Array.from(codeOptions.values()),
+                    options: optionsToUse,
                     selectedCode: userSelectedCode || autoSelectedCode,
                     // 如果是真正的固定字段（初始就单选），记录确定的值
                     fixedValue: (!showAsSelectable) ? codeOptions.values().next().value : null
@@ -733,13 +741,13 @@ class ProductConfigModal {
                     brandPriceElement.innerHTML = `
                         <div class="d-flex justify-content-between align-items-center">
                             <span class="text-muted">品牌: ${brand}</span>
-                            <span class="fw-bold text-primary">¥${price}</span>
+                            <span class="fw-bold text-primary">${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price}</span>
                         </div>
                     `;
                 } else if (brand) {
                     brandPriceElement.innerHTML = `<span class="text-muted">品牌: ${brand}</span>`;
                 } else if (price) {
-                    brandPriceElement.innerHTML = `<span class="fw-bold text-primary">¥${price}</span>`;
+                    brandPriceElement.innerHTML = `<span class="fw-bold text-primary">${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price}</span>`;
                 } else {
                     brandPriceElement.innerHTML = '';
                 }
@@ -851,13 +859,13 @@ class ProductConfigModal {
                 brandPriceElement.innerHTML = `
                     <div class="d-flex justify-content-between align-items-center">
                         <span class="text-muted">品牌: ${brand}</span>
-                        <span class="fw-bold text-primary">¥${price}</span>
+                        <span class="fw-bold text-primary">${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price}</span>
                     </div>
                 `;
             } else if (brand) {
                 brandPriceElement.innerHTML = `<span class="text-muted">品牌: ${brand}</span>`;
             } else if (price) {
-                brandPriceElement.innerHTML = `<span class="fw-bold text-primary">¥${price}</span>`;
+                brandPriceElement.innerHTML = `<span class="fw-bold text-primary">${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price}</span>`;
             } else {
                 brandPriceElement.innerHTML = '';
             }
@@ -1287,7 +1295,7 @@ class ProductConfigModal {
             const priceDiv = document.createElement('div');
             priceDiv.className = 'config-price';
             priceDiv.style.whiteSpace = 'nowrap';
-            priceDiv.textContent = `¥${price.toFixed(2)}`;
+            priceDiv.textContent = `${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price.toFixed(2)}`;
 
             row1.appendChild(nameDiv);
             row1.appendChild(priceDiv);
@@ -1327,7 +1335,7 @@ class ProductConfigModal {
         } else {
             // 正常配置选择模式：显示价格
             rightSpan.className = 'config-price';
-            rightSpan.textContent = `¥${price.toFixed(2)}`;
+            rightSpan.textContent = `${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price.toFixed(2)}`;
         }
 
         row2.appendChild(leftSpan);
@@ -1831,6 +1839,7 @@ class ProductConfigModal {
         this.userSelections = {};
         this.userManualSelections = {};  // 用户手动选择的字段标记
         this.initialSelectablePositions = null;  // 初始可选字段位置
+        this.initialFieldOptions = null;  // 初始选项列表
         this.specsFinalized = false;  // 规格是否已确定（待确认状态）
         this.fixedFields = [];
         this.selectableFields = [];
