@@ -472,6 +472,21 @@
 
     <!-- 第三部分：产品编码定义说明（可折叠） -->
     {% if product.code_definition_snapshot %}
+    {% set snapshot = product.code_definition_snapshot %}
+    {% set is_legacy_code = snapshot.full_code != product.product_mn %}
+
+    {% if is_legacy_code %}
+    <!-- 历史编码提示 -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="alert alert-warning" role="alert">
+                <i class="fas fa-history me-2"></i>
+                <strong>{{ _('历史编码') }}</strong>：{{ _('该产品MN编号与当前编码规则生成的编码不一致，为历史遗留编码。') }}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- 编码定义说明（MN号与快照一致时显示） -->
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="code-definition-collapse">
@@ -484,7 +499,6 @@
                     </h5>
                 </div>
                 <div class="code-definition-body" id="codeDefinitionBody" style="display: none;">
-                    {% set snapshot = product.code_definition_snapshot %}
 
                     <!-- 基本信息 -->
                     <div class="row mb-4">
@@ -575,6 +589,7 @@
             </div>
         </div>
     </div>
+    {% endif %}
     {% endif %}
 
     <!-- 隐藏PDF功能 - 产品文档上传和展示区域 -->

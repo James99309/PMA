@@ -445,8 +445,10 @@ class ProductConfigModal {
     onFieldSelect(position, code, value, unit = null) {
         console.log(`👉 用户选择字段 [${position}]: ${value} (${code})`);
 
-        // 1. 记录用户选择
+        // 1. 记录用户选择（区分手动选择）
         this.userSelections[position] = { code, value, unit };
+        if (!this.userManualSelections) this.userManualSelections = {};
+        this.userManualSelections[position] = true;  // 标记为手动选择
 
         // 2. 过滤产品列表
         this.filterProductsBySelections();
@@ -461,9 +463,9 @@ class ProductConfigModal {
             this.updateMNDisplay();
 
         } else if (this.remainingProducts.length === 1) {
-            // 只剩一个产品 → 完成确定
-            console.log('✅ 产品已完全确定！');
-            this.checkAndFinalize();
+            // 只剩一个产品 → 显示关联规格选中效果，不自动跳转
+            console.log('✅ 产品规格已完全确定，显示关联效果');
+            this.showFinalizedSpecs();
 
         } else {
             // 还有多个产品 → 重新分析并渲染
@@ -489,6 +491,130 @@ class ProductConfigModal {
 
             return true;  // 所有字段匹配，保留
         });
+    }
+
+    /**
+     * 显示规格确定效果（所有规格禁用+选中）
+     * 用户需要手动点击确认按钮才进入配置选择
+     */
+    showFinalizedSpecs() {
+        if (this.remainingProducts.length !== 1) {
+            console.warn('⚠️ showFinalizedSpecs() 应该只在剩余1个产品时调用');
+            return;
+        }
+
+        // 确定唯一产品
+        this.selectedProduct = this.remainingProducts[0];
+
+        // 自动填充未选择的字段
+        const snapshot = this.parseSnapshot(this.selectedProduct.code_definition_snapshot);
+        snapshot.forEach((field, pos) => {
+            if (!this.userSelections.hasOwnProperty(pos)) {
+                this.userSelections[pos] = {
+                    code: field.code,
+                    value: field.value,
+                    unit: field.unit || null
+                };
+                console.log(`  ✓ 自动关联字段 [${pos}]: ${field.value} (${field.code})`);
+            }
+        });
+
+        // 直接在现有UI上更新状态（不重新渲染，保留可选字段结构）
+        this.renderAllFieldsAsSelected();
+
+        // 更新MN号显示
+        this.updateMNDisplay();
+
+        // 更新标题
+        const titleElement = document.getElementById('codeSelectionTitle');
+        if (titleElement) {
+            titleElement.innerHTML = '<i class="fas fa-check-circle text-success"></i> 规格已确定，请确认';
+        }
+
+        // 显示确认规格按钮
+        this.showSpecConfirmButton();
+
+        // 标记为待确认状态
+        this.specsFinalized = true;
+    }
+
+    /**
+     * 将所有规格字段渲染为禁用+选中状态
+     * 区分用户手动选择和自动关联选中
+     */
+    renderAllFieldsAsSelected() {
+        const container = document.getElementById('codeFieldsContainer');
+        if (!container) return;
+
+        // 遍历所有规格字段容器
+        const fieldContainers = container.querySelectorAll('.spec-field-selectable');
+        fieldContainers.forEach(fieldDiv => {
+            const position = parseInt(fieldDiv.dataset.position);
+            const selection = this.userSelections[position];
+            if (!selection) return;
+
+            const isManual = this.userManualSelections && this.userManualSelections[position];
+
+            // 找到所有单选框
+            const radioInputs = fieldDiv.querySelectorAll('input[type="radio"]');
+            radioInputs.forEach(radio => {
+                if (radio.value === selection.code) {
+                    radio.checked = true;   // 选中
+                    radio.disabled = true;  // 禁用
+                } else {
+                    radio.disabled = true;  // 其他选项也禁用
+                }
+            });
+
+            // 添加视觉提示：区分手动选择和自动关联
+            if (!isManual) {
+                fieldDiv.classList.add('auto-selected');
+            } else {
+                fieldDiv.classList.add('user-selected');
+            }
+        });
+    }
+
+    /**
+     * 显示确认规格按钮
+     */
+    showSpecConfirmButton() {
+        // 修改确认按钮的文本和行为
+        const confirmBtn = document.getElementById('confirmProductSelection');
+        if (confirmBtn) {
+            confirmBtn.innerHTML = '<i class="fas fa-check"></i> 确认规格';
+            confirmBtn.onclick = () => this.confirmSpecsAndLoadConfig();
+        }
+    }
+
+    /**
+     * 确认规格后加载配置
+     */
+    confirmSpecsAndLoadConfig() {
+        if (!this.specsFinalized || !this.selectedProduct) {
+            console.warn('⚠️ 规格未完全确定');
+            return;
+        }
+
+        console.log('✅ 用户确认规格，加载产品配置');
+
+        // 移除禁用状态的视觉提示（可选）
+        const container = document.getElementById('codeFieldsContainer');
+        if (container) {
+            container.querySelectorAll('.auto-selected').forEach(el => {
+                el.classList.remove('auto-selected');
+            });
+        }
+
+        // 加载产品配置
+        this.loadProductConfigurations(this.selectedProduct.id);
+
+        // 重置确认按钮为原来的行为
+        const confirmBtn = document.getElementById('confirmProductSelection');
+        if (confirmBtn) {
+            confirmBtn.innerHTML = '<i class="fas fa-check"></i> 确认选择';
+            confirmBtn.onclick = () => this.confirmSelection();
+        }
     }
 
     /**
@@ -1654,6 +1780,8 @@ class ProductConfigModal {
         this.remainingProducts = [];
         this.selectedProduct = null;
         this.userSelections = {};
+        this.userManualSelections = {};  // 用户手动选择的字段标记
+        this.specsFinalized = false;  // 规格是否已确定（待确认状态）
         this.fixedFields = [];
         this.selectableFields = [];
         this.pendingSpecs = [];
@@ -1694,6 +1822,13 @@ class ProductConfigModal {
 
         // 强制隐藏返回按钮
         if (backBtn) backBtn.style.display = 'none';
+
+        // 重置确认按钮状态
+        const confirmBtn = document.getElementById('confirmProductSelection');
+        if (confirmBtn) {
+            confirmBtn.innerHTML = '<i class="fas fa-check"></i> 确认选择';
+            confirmBtn.onclick = () => this.confirmSelection();
+        }
     }
 
     // ==================== 嵌套配置方法（新增）====================

@@ -602,5 +602,51 @@
     padding: 0.75rem;
   }
 }
+
+/* ============== 规格确定后的样式 ============== */
+
+/* 自动关联选中的规格字段（非用户手动选择） */
+#productConfigModal .spec-field-selectable.auto-selected {
+  background-color: #e8f4fd;
+  border-left: 3px solid #0d6efd;
+  padding-left: 0.75rem;
+  margin-left: -0.75rem;
+  border-radius: 0 4px 4px 0;
+}
+
+/* 自动选中字段的标签提示 */
+#productConfigModal .spec-field-selectable.auto-selected .form-label::after {
+  content: ' (自动关联)';
+  font-size: 0.8rem;
+  color: #0d6efd;
+  font-weight: normal;
+}
+
+/* 用户手动选择的规格字段 */
+#productConfigModal .spec-field-selectable.user-selected {
+  background-color: #d4edda;
+  border-left: 3px solid #28a745;
+  padding-left: 0.75rem;
+  margin-left: -0.75rem;
+  border-radius: 0 4px 4px 0;
+}
+
+/* 禁用状态的单选框标签样式 */
+#productConfigModal .spec-options-list .form-check-input:disabled ~ .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* 禁用但选中的选项保持可见 */
+#productConfigModal .spec-options-list .form-check-input:disabled:checked ~ .form-check-label {
+  opacity: 1;
+  font-weight: 600;
+}
+
+/* 禁用的未选中选项变灰 */
+#productConfigModal .spec-options-list .form-check-input:disabled:not(:checked) ~ .form-check-label::before {
+  border-color: #adb5bd;
+  background: #e9ecef;
+}
 </style>
 {% endmacro %}

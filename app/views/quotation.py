@@ -2429,15 +2429,16 @@ def get_product_categories():
         from app.models.product_code import ProductCategory
 
         # 修复SQL错误：SELECT DISTINCT时，ORDER BY字段必须在SELECT列表中
-        # 按产品分类的业务顺序（ProductCategory.id）排序
+        # 按产品分类的 display_order 排序（与产品列表一致）
         categories = db.session.query(
             ProductCategory.id,
-            ProductCategory.name
+            ProductCategory.name,
+            ProductCategory.display_order
         ).join(
             Product, Product.category_id == ProductCategory.id
         ).filter(
             Product.status != '停产'
-        ).distinct().order_by(ProductCategory.id).all()
+        ).distinct().order_by(ProductCategory.display_order, ProductCategory.id).all()
 
         category_list = [cat[1] for cat in categories]  # cat[1] 是 name
         logger.debug(f'找到 {len(category_list)} 个类别')
@@ -2457,14 +2458,22 @@ def get_products_by_category():
     try:
         category = request.args.get('category', '')
         logger.debug(f'正在获取类别 "{category}" 的产品列表...')
-        
+
         if not category:
             return jsonify([])
-        
-        # 查询指定类别的产品，包括停产产品，添加按ID排序
-        products = Product.query.filter_by(
-            category=category
-        ).order_by(Product.id).all()  # 移除停产过滤，包括所有产品
+
+        # 导入子分类模型用于排序
+        from app.models.product_code import ProductSubcategory
+
+        # 查询指定类别的产品，按子分类 display_order 排序（与产品列表一致）
+        products = Product.query.outerjoin(
+            ProductSubcategory, Product.subcategory_id == ProductSubcategory.id
+        ).filter(
+            Product.category == category
+        ).order_by(
+            ProductSubcategory.display_order.asc().nullslast(),
+            Product.id
+        ).all()
         
         logger.debug(f'找到 {len(products)} 个产品')
         
