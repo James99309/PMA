@@ -501,6 +501,22 @@ class ProductConfigModal {
     onFieldSelect(position, code, value, unit = null) {
         console.log(`👉 用户选择字段 [${position}]: ${value} (${code})`);
 
+        // ✅ 清除非手动选择的字段（自动关联的选择）
+        // 当用户切换选择时，之前自动关联的字段可能与新选择不兼容
+        // 只保留用户手动选择的字段，让系统重新自动关联
+        if (this.userManualSelections) {
+            const newUserSelections = {};
+            for (const [pos, selection] of Object.entries(this.userSelections)) {
+                const posInt = parseInt(pos);
+                // 只保留：当前正在选择的字段 或 之前手动选择的字段
+                if (posInt === position || this.userManualSelections[posInt]) {
+                    newUserSelections[posInt] = selection;
+                }
+            }
+            this.userSelections = newUserSelections;
+            console.log(`  → 清除自动关联字段后，保留 ${Object.keys(this.userSelections).length} 个手动选择`);
+        }
+
         // 1. 记录用户选择（区分手动选择）
         this.userSelections[position] = { code, value, unit };
         if (!this.userManualSelections) this.userManualSelections = {};
