@@ -61,8 +61,8 @@ def dev_product_list():
     # 排序
     dev_products = query.order_by(DevProduct.updated_at.desc()).all()
 
-    # 获取分类列表用于筛选
-    categories = ProductCategory.query.order_by(ProductCategory.name).all()
+    # 获取分类列表用于筛选（按display_order排序）
+    categories = ProductCategory.get_ordered_list()
 
     # 获取所有可能的状态（对应stage_configs.py中的STATUS_TO_STAGE_MAPPING）
     available_statuses = ['调研中', '立项中', '研发中', '申请入库', '已入库', '已取消', '暂停']

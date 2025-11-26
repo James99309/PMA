@@ -118,7 +118,7 @@ def get_product_categories():
             Product, Product.category_id == ProductCategory.id
         ).filter(
             Product.is_discontinued == False
-        ).distinct().order_by(ProductCategory.id).all()
+        ).distinct().order_by(ProductCategory.display_order, ProductCategory.id).all()
 
         # 提取类别名称
         category_list = [cat[0] for cat in categories]

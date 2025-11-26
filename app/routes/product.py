@@ -168,8 +168,9 @@ def product_list():
     if not has_category_join:
         query = query.outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)
 
-    # 添加排序
+    # 添加排序（按分类display_order、子分类display_order、产品型号）
     query = query.order_by(
+        ProductCategory.display_order.asc(),
         ProductCategory.id.asc(),
         ProductSubcategory.display_order.asc(),
         ProductSubcategory.name.asc(),
@@ -199,8 +200,8 @@ def product_list():
     ).all()
     product_types = [{'value': t[0], 'label': t[0]} for t in product_types if t[0]]
     
-    # 从ProductCategory表查询，按ID顺序（与显示顺序一致）
-    categories = ProductCategory.query.order_by(ProductCategory.id).all()
+    # 从ProductCategory表查询，按display_order排序
+    categories = ProductCategory.get_ordered_list()
     categories = [{'value': cat.name, 'label': cat.name} for cat in categories]
     
     brands = db.session.query(Product.brand).distinct().filter(
@@ -655,6 +656,7 @@ def product_list_ajax():
                 query = query.outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)
 
             query = query.order_by(
+                ProductCategory.display_order.asc(),
                 ProductCategory.id.asc(),
                 ProductSubcategory.display_order.asc(),
                 ProductSubcategory.name.asc(),
@@ -839,9 +841,9 @@ def get_product_categories():
     """获取去重后的产品类别列表"""
     try:
         logger.debug('正在获取产品类别列表...')
-        # 直接从ProductCategory表查询,按id排序(业务顺序)
+        # 直接从ProductCategory表查询,按display_order排序
         from app.models.product_code import ProductCategory
-        categories = ProductCategory.query.order_by(ProductCategory.id).all()
+        categories = ProductCategory.get_ordered_list()
 
         # 提取类别名称
         category_list = [cat.name for cat in categories]

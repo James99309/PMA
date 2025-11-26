@@ -4851,7 +4851,7 @@ def get_product_categories_for_order():
             Product, Product.category_id == ProductCategory.id
         ).filter(
             Product.status == 'active'
-        ).distinct().order_by(ProductCategory.id).all()
+        ).distinct().order_by(ProductCategory.display_order, ProductCategory.id).all()
 
         # 提取类别名称
         category_list = [cat[0] for cat in categories]

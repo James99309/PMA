@@ -349,12 +349,14 @@ def index():
         # 获取总数据
         total_products = query.count()
 
-        # 按分类体系排序：分类 → 子分类 → 产品名称 → 型号 → ID
+        # 按分类体系排序：分类display_order → 子分类display_order → 产品名称 → 型号 → ID
         products = query.join(ProductSubcategory, DevProduct.subcategory_id == ProductSubcategory.id)\
                         .join(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)\
                         .order_by(
-                            ProductCategory.code_letter.asc(),
+                            ProductCategory.display_order.asc(),
+                            ProductCategory.id.asc(),
                             ProductSubcategory.display_order.asc(),
+                            ProductSubcategory.id.asc(),
                             DevProduct.name.asc(),  # ✅ 修复：DevProduct使用name字段，不是product_name
                             DevProduct.model.asc(),
                             DevProduct.id.asc()
@@ -746,24 +748,28 @@ def products_list_ajax():
                     print(f"✅ 应用升序排序: {sort_field}")
             else:
                 print(f"❌ 未知排序字段: {sort_field}")
-                # 默认排序：按分类体系
+                # 默认排序：按分类体系（使用display_order）
                 query = query.join(ProductSubcategory, DevProduct.subcategory_id == ProductSubcategory.id)\
                              .join(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)\
                              .order_by(
-                                 ProductCategory.code_letter.asc(),
+                                 ProductCategory.display_order.asc(),
+                                 ProductCategory.id.asc(),
                                  ProductSubcategory.display_order.asc(),
+                                 ProductSubcategory.id.asc(),
                                  DevProduct.name.asc(),  # ✅ 修复：DevProduct使用name字段
                                  DevProduct.model.asc(),
                                  DevProduct.id.asc()
                              )
         else:
             print("📊 使用默认排序: 分类体系排序")
-            # 默认排序：按分类体系
+            # 默认排序：按分类体系（使用display_order）
             query = query.join(ProductSubcategory, DevProduct.subcategory_id == ProductSubcategory.id)\
                          .join(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)\
                          .order_by(
-                             ProductCategory.code_letter.asc(),
+                             ProductCategory.display_order.asc(),
+                             ProductCategory.id.asc(),
                              ProductSubcategory.display_order.asc(),
+                             ProductSubcategory.id.asc(),
                              DevProduct.name.asc(),  # ✅ 修复：DevProduct使用name字段
                              DevProduct.model.asc(),
                              DevProduct.id.asc()
@@ -1460,9 +1466,9 @@ def edit_product(id):
         flash(_('您没有权限编辑此产品'), 'danger')
         return redirect(url_for('product_management.index'))
     
-    # 获取所有产品分类
-    categories = db.session.query(ProductCategory).order_by(ProductCategory.name).all()
-    subcategories = db.session.query(ProductSubcategory).filter_by(category_id=product.category_id).order_by(ProductSubcategory.name).all()
+    # 获取所有产品分类（按display_order排序）
+    categories = ProductCategory.get_ordered_list()
+    subcategories = db.session.query(ProductSubcategory).filter_by(category_id=product.category_id).order_by(ProductSubcategory.display_order, ProductSubcategory.id).all()
     
     # 获取产品规格并添加详细日志
     specs_db = db.session.query(DevProductSpec).filter_by(dev_product_id=id).all()
@@ -4630,8 +4636,8 @@ def get_product_tree():
 
         tree_data = []
 
-        # 查询所有分类（按ID排序）
-        categories = ProductCategory.query.order_by(ProductCategory.id).all()
+        # 查询所有分类（按display_order排序）
+        categories = ProductCategory.get_ordered_list()
 
         for category in categories:
             category_node = {
