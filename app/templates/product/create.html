@@ -208,13 +208,8 @@
                                 <label for="category_id" class="form-label">产品分类 <span class="text-danger">*</span></label>
                                 {% if product and has_category and not is_admin %}
                                 <!-- 编辑模式且有值且非管理员：锁定分类字段 -->
-                                <input type="text" class="form-control" value="{{ product.category.name if product.category else '' }}" disabled>
-                                <!-- 研发产品使用category，标准产品使用category_obj -->
-                                {% if product_type == 'research' %}
-                                    <input type="hidden" id="category_id" name="category_id" value="{{ product.category_id }}" data-code="{{ product.category.code_letter if product.category else '' }}">
-                                {% else %}
-                                    <input type="hidden" id="category_id" name="category_id" value="{{ product.category_id }}" data-code="{{ product.category_obj.code_letter if product.category_obj else '' }}">
-                                {% endif %}
+                                <input type="text" class="form-control" value="{{ product.category_obj.name if product.category_obj else '' }}" disabled>
+                                <input type="hidden" id="category_id" name="category_id" value="{{ product.category_id }}" data-code="{{ product.category_obj.code_letter if product.category_obj else '' }}">
                                 <small class="form-text text-muted">
                                     <i class="fas fa-lock me-1"></i>编辑模式下不可修改产品分类
                                 </small>
