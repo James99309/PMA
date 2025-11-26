@@ -245,23 +245,10 @@ class ProductConfigModal {
                 const fieldName = field.field_name || field.name;  // 适配新旧字段名
 
                 // 检查该字段是否已被用户选择
-                if (this.userSelections.hasOwnProperty(position)) {
-                    // 已选择的字段标记为"用户选择"（显示为已确定）
-                    codeAnalysis.push({
-                        position: position,
-                        fieldName: fieldName,
-                        isDifferent: false,  // 标记为固定
-                        status: 'user_selected',  // 状态标记
-                        fixedValue: {
-                            code: this.userSelections[position].code,
-                            value: this.userSelections[position].value,
-                            unit: this.userSelections[position].unit || null  // 添加单位
-                        },
-                        options: [],
-                        selectedCode: this.userSelections[position].code
-                    });
-                    return;  // 跳过分析，已确定
-                }
+                // 修复：用户已选字段保持为可选状态，允许用户修改
+                const userSelectedCode = this.userSelections.hasOwnProperty(position)
+                    ? this.userSelections[position].code
+                    : null;
 
                 // 收集该位置所有产品的编码值和指标值
                 const codeOptions = new Map();
@@ -289,18 +276,20 @@ class ProductConfigModal {
                     }
                 });
 
-                // 判断是否有差异
+                // 判断是否有差异（多个选项）或用户已选择
                 const isDifferent = codeOptions.size > 1;
+                // 修复：如果用户已选择，强制标记为可选（允许修改）
+                const showAsSelectable = isDifferent || userSelectedCode !== null;
 
                 codeAnalysis.push({
                     position: position,
                     fieldName: fieldName,
-                    isDifferent: isDifferent,
-                    status: isDifferent ? 'selectable' : 'auto_fixed',  // 状态标记
+                    isDifferent: showAsSelectable,  // 修复：用户已选也显示为可选
+                    status: userSelectedCode ? 'user_selected' : (isDifferent ? 'selectable' : 'auto_fixed'),
                     options: Array.from(codeOptions.values()),
-                    selectedCode: null,  // 默认未选择
-                    // 如果所有产品相同，记录该确定的值
-                    fixedValue: !isDifferent ? codeOptions.values().next().value : null
+                    selectedCode: userSelectedCode,  // 修复：预选中用户已选的值
+                    // 如果所有产品相同且用户未选择，记录该确定的值
+                    fixedValue: (!isDifferent && !userSelectedCode) ? codeOptions.values().next().value : null
                 });
             });
 
@@ -411,6 +400,11 @@ class ProductConfigModal {
                 input.id = `code-${field.position}-${optIndex}`;
                 input.value = option.code;
 
+                // 修复：如果是用户已选的值，预选中
+                if (field.selectedCode === option.code) {
+                    input.checked = true;
+                }
+
                 // ⚠️ 关键修改：绑定新的事件处理器
                 input.addEventListener('change', () => {
                     this.onFieldSelect(field.position, option.code, option.value, option.unit);
@@ -431,6 +425,12 @@ class ProductConfigModal {
             });
 
             fieldDiv.appendChild(optionsContainer);
+
+            // 修复：如果是用户已选的字段，添加视觉标记
+            if (field.status === 'user_selected') {
+                fieldDiv.classList.add('user-selected');
+            }
+
             container.appendChild(fieldDiv);
         });
     }
@@ -539,8 +539,8 @@ class ProductConfigModal {
     }
 
     /**
-     * 将所有规格字段渲染为禁用+选中状态
-     * 区分用户手动选择和自动关联选中
+     * 将所有规格字段渲染为选中状态
+     * 区分用户手动选择（可修改）和自动关联选中（禁用）
      */
     renderAllFieldsAsSelected() {
         const container = document.getElementById('codeFieldsContainer');
@@ -560,9 +560,10 @@ class ProductConfigModal {
             radioInputs.forEach(radio => {
                 if (radio.value === selection.code) {
                     radio.checked = true;   // 选中
-                    radio.disabled = true;  // 禁用
-                } else {
-                    radio.disabled = true;  // 其他选项也禁用
+                }
+                // 修复：只有自动关联的字段才禁用，用户手动选择的保持可用
+                if (!isManual) {
+                    radio.disabled = true;  // 自动关联的禁用
                 }
             });
 

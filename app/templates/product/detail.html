@@ -473,7 +473,12 @@
     <!-- 第三部分：产品编码定义说明（可折叠） -->
     {% if product.code_definition_snapshot %}
     {% set snapshot = product.code_definition_snapshot %}
-    {% set is_legacy_code = snapshot.full_code != product.product_mn %}
+    {# 根据规格编码拼接出实际编码，而不是使用snapshot.full_code（它直接复制了product_mn） #}
+    {% set calculated_code = snapshot.category.code_letter ~ snapshot.subcategory.code_letter %}
+    {% for part in snapshot.code_parts %}
+        {% set calculated_code = calculated_code ~ part.code %}
+    {% endfor %}
+    {% set is_legacy_code = calculated_code != product.product_mn %}
 
     {% if is_legacy_code %}
     <!-- 历史编码提示 -->
