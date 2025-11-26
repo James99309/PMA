@@ -501,29 +501,53 @@ class ProductConfigModal {
     onFieldSelect(position, code, value, unit = null) {
         console.log(`👉 用户选择字段 [${position}]: ${value} (${code})`);
 
-        // ✅ 清除非手动选择的字段（自动关联的选择）
-        // 当用户切换选择时，之前自动关联的字段可能与新选择不兼容
-        // 只保留用户手动选择的字段，让系统重新自动关联
+        // ✅ 智能清除不兼容的选择
+        // 步骤1：先只用当前选择过滤产品
+        const currentSelection = { code, value, unit };
+        let compatibleProducts = this.currentProducts.filter(product => {
+            const snapshot = this.parseSnapshot(product.code_definition_snapshot);
+            return snapshot[position]?.code === code;
+        });
+        console.log(`  → 当前选择匹配 ${compatibleProducts.length} 个产品`);
+
+        // 步骤2：验证其他手动选择是否兼容
+        const newUserSelections = {};
+        const newUserManualSelections = {};
+
         if (this.userManualSelections) {
-            const newUserSelections = {};
-            for (const [pos, selection] of Object.entries(this.userSelections)) {
+            for (const [pos, sel] of Object.entries(this.userSelections)) {
                 const posInt = parseInt(pos);
-                // 只保留：当前正在选择的字段 或 之前手动选择的字段
-                if (posInt === position || this.userManualSelections[posInt]) {
-                    newUserSelections[posInt] = selection;
+                if (posInt === position) continue;  // 跳过当前字段
+                if (!this.userManualSelections[posInt]) continue;  // 跳过非手动选择
+
+                // 检查该选择是否在兼容产品中存在
+                const isCompatible = compatibleProducts.some(product => {
+                    const snapshot = this.parseSnapshot(product.code_definition_snapshot);
+                    return snapshot[posInt]?.code === sel.code;
+                });
+
+                if (isCompatible) {
+                    newUserSelections[posInt] = sel;
+                    newUserManualSelections[posInt] = true;
+                    // 进一步过滤产品
+                    compatibleProducts = compatibleProducts.filter(product => {
+                        const snapshot = this.parseSnapshot(product.code_definition_snapshot);
+                        return snapshot[posInt]?.code === sel.code;
+                    });
+                    console.log(`  ✓ 保留兼容选择 [${posInt}]: ${sel.value}`);
+                } else {
+                    console.log(`  ⚠️ 清除不兼容的选择 [${posInt}]: ${sel.value}`);
                 }
             }
-            this.userSelections = newUserSelections;
-            console.log(`  → 清除自动关联字段后，保留 ${Object.keys(this.userSelections).length} 个手动选择`);
         }
 
-        // 1. 记录用户选择（区分手动选择）
-        this.userSelections[position] = { code, value, unit };
-        if (!this.userManualSelections) this.userManualSelections = {};
-        this.userManualSelections[position] = true;  // 标记为手动选择
+        // 步骤3：添加当前选择
+        newUserSelections[position] = currentSelection;
+        newUserManualSelections[position] = true;
 
-        // 2. 过滤产品列表
-        this.filterProductsBySelections();
+        this.userSelections = newUserSelections;
+        this.userManualSelections = newUserManualSelections;
+        this.remainingProducts = compatibleProducts;
 
         console.log(`  → 剩余产品: ${this.remainingProducts.length} 个`);
 
