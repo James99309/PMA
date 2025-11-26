@@ -18,7 +18,7 @@ class ProductSpec(db.Model):
     field_name = Column(String(100), nullable=False)  # 规格名称
     field_value = Column(String(255), nullable=False)  # 规格值
     field_code = Column(String(10), nullable=True)  # 规格编码（用于MN号生成）
-    include_in_description = Column(Boolean, default=True)  # 是否纳入产品描述
+    include_in_description = Column(Boolean, default=False)  # 是否纳入产品描述
     display_order = Column(Integer, default=0)  # 显示顺序
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

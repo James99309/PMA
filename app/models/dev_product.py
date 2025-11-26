@@ -163,7 +163,7 @@ class DevProductSpec(db.Model):
     field_name = Column(String(100))
     field_value = Column(String(255))
     field_code = Column(String(10))  # 规格编码，用于MN号生成
-    include_in_description = Column(Boolean, default=True)  # 是否纳入产品描述
+    include_in_description = Column(Boolean, default=False)  # 是否纳入产品描述
 
     # 关联关系
     product = relationship("DevProduct", back_populates="specs")

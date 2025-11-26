@@ -531,7 +531,8 @@ def edit_product_page(id):
             'field_name': spec.field_name,
             'field_value': spec.field_value,
             'field_code': spec.field_code,
-            'is_saved': True  # 标记为已保存的规格，前端将以只读方式显示
+            'is_saved': True,  # 标记为已保存的规格，前端将以只读方式显示
+            'include_in_description': spec.include_in_description if spec.include_in_description is not None else False
         }
         # 尝试查找对应的ProductCodeField以获取field_id
         field = ProductCodeField.query.filter_by(
@@ -1295,6 +1296,8 @@ def save_product_specs(product_id, spec_data_list, current_logger=None):
                         # 如果是编码规格，更新编码
                         if spec_data.get('field_code'):
                             existing_spec.field_code = spec_data['field_code']
+                        # 更新是否纳入描述
+                        existing_spec.include_in_description = spec_data.get('include_in_description', False)
                         current_logger.debug(f"更新规格: {spec_data['field_name']} = {spec_data['field_value']}")
                         saved_specs.append(existing_spec)
 
@@ -1305,7 +1308,8 @@ def save_product_specs(product_id, spec_data_list, current_logger=None):
                         product_id=product_id,
                         field_name=spec_data['field_name'],
                         field_value=spec_data.get('field_value', ''),
-                        field_code=spec_data.get('field_code') if spec_data.get('field_code') and spec_data.get('field_code') != '0' else None
+                        field_code=spec_data.get('field_code') if spec_data.get('field_code') and spec_data.get('field_code') != '0' else None,
+                        include_in_description=spec_data.get('include_in_description', False)
                     )
                     db.session.add(new_spec)
                     current_logger.debug(f"添加新规格: {spec_data['field_name']} = {spec_data.get('field_value', '')}")
@@ -1621,6 +1625,7 @@ def update_product(id):
         spec_names = request.form.getlist('spec_name[]')
         spec_values = request.form.getlist('spec_value[]')
         spec_codes = request.form.getlist('spec_option_codes[]')
+        include_in_descriptions = request.form.getlist('include_in_description_indexed[]')
 
         # 先删除所有现有规格（简单粗暴但可靠的更新方式）
         from app.models.product_spec import ProductSpec
@@ -1631,10 +1636,14 @@ def update_product(id):
             spec_data_list = []
             for i in range(len(spec_names)):
                 if spec_names[i].strip():
+                    # 获取是否纳入描述的状态，值为 '1' 表示勾选
+                    include_in_desc = (i < len(include_in_descriptions) and
+                                      include_in_descriptions[i] == '1')
                     spec_data_list.append({
                         'field_name': spec_names[i],
                         'field_value': spec_values[i] if i < len(spec_values) else '',
                         'field_code': spec_codes[i] if i < len(spec_codes) and spec_codes[i] != '0' else None,
+                        'include_in_description': include_in_desc,
                         'action': 'create'
                     })
 

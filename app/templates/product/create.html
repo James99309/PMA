@@ -943,7 +943,7 @@ document.addEventListener('DOMContentLoaded', function() {
             let existingCode = null;
             let isSaved = false;
             let isSnapshot = false;
-            let existingIncludeInDescription = true;
+            let existingIncludeInDescription = false;  // 默认不勾选
 
             if (isEditMode && existingSpecs.length > 0) {
                 const existingSpec = existingSpecs.find(s => s.field_name === field.name);
@@ -952,7 +952,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     existingCode = existingSpec.field_code;
                     isSaved = existingSpec.is_saved === true;
                     isSnapshot = existingSpec.is_snapshot === true;
-                    existingIncludeInDescription = existingSpec.include_in_description !== false;
+                    existingIncludeInDescription = existingSpec.include_in_description === true;  // 根据数据库值
                 }
             }
 
@@ -968,7 +968,7 @@ document.addEventListener('DOMContentLoaded', function() {
             let existingCode = null;
             let isSaved = false;
             let isSnapshot = false;
-            let existingIncludeInDescription = true;
+            let existingIncludeInDescription = false;  // 默认不勾选
 
             if (isEditMode && existingSpecs.length > 0) {
                 const existingSpec = existingSpecs.find(s => s.field_name === field.name);
@@ -977,7 +977,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     existingCode = existingSpec.field_code;
                     isSaved = existingSpec.is_saved === true;
                     isSnapshot = existingSpec.is_snapshot === true;
-                    existingIncludeInDescription = existingSpec.include_in_description !== false;
+                    existingIncludeInDescription = existingSpec.include_in_description === true;  // 根据数据库值
                 }
             }
 
@@ -1007,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 为每个非编码规格创建行
         nonCodedSpecs.forEach(spec => {
-            const existingIncludeInDescription = spec.include_in_description !== false;
+            const existingIncludeInDescription = spec.include_in_description === true;  // 根据数据库值
             const newRow = createNonCodeSpecRow(existingIncludeInDescription);
             specsTableBody.appendChild(newRow);
 
@@ -1109,7 +1109,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 创建结构化规格行
-    function createStructuredSpecRow(field, index, existingValue = null, isSaved = false, existingCode = null, isRequiredNonCoded = false, isSnapshot = false, existingIncludeInDescription = true) {
+    function createStructuredSpecRow(field, index, existingValue = null, isSaved = false, existingCode = null, isRequiredNonCoded = false, isSnapshot = false, existingIncludeInDescription = false) {
         specRowCounter++;
         const rowId = `spec-row-${specRowCounter}`;
 
@@ -1444,7 +1444,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 创建非编码规格行
-    function createNonCodeSpecRow(existingIncludeInDescription = true) {
+    function createNonCodeSpecRow(existingIncludeInDescription = false) {
         specRowCounter++;
         const rowId = `spec-row-${specRowCounter}`;
 

@@ -428,11 +428,73 @@ document.addEventListener('DOMContentLoaded', function() {
                 return url.toString();
             },
 
-            // 刷新逻辑：添加指标后刷新整个页面
+            // 动态插入新指标徽章，无需刷新页面
             refreshTarget: function(context, newItem) {
-                console.log('[规格管理] 指标添加成功，刷新页面', newItem);
-                // 刷新页面以显示新添加的指标徽章
-                location.reload();
+                console.log('[规格管理] 指标添加成功，动态插入徽章', newItem);
+
+                // 找到对应 field_id 的表格行
+                const fieldId = context.specFieldId;
+                const fieldName = context.specName;
+                const row = document.querySelector(`#fieldsTableBody tr[data-id="${fieldId}"]`);
+                if (!row) {
+                    console.warn('找不到对应的规格行，刷新页面');
+                    location.reload();
+                    return;
+                }
+
+                // 找到指标列表单元格（第4列）
+                const indicatorCell = row.cells[3];
+                if (!indicatorCell) {
+                    location.reload();
+                    return;
+                }
+
+                // 移除"暂无指标"提示
+                const emptyHint = indicatorCell.querySelector('.text-muted');
+                if (emptyHint && emptyHint.textContent.includes('暂无指标')) {
+                    emptyHint.remove();
+                }
+
+                // 构建新指标徽章 HTML
+                const unit = newItem.unit || '';
+                const unitDisplay = unit ? ` ${unit}` : '';
+                const codeDisplay = newItem.code ? ` (${newItem.code})` : '';
+
+                const badgeHtml = `
+                    <span class="badge bg-primary me-1 mb-1 position-relative" style="padding-right: 28px;">
+                        <a href="javascript:void(0)"
+                           onclick="openOptionModal(${fieldId}, '${fieldName}', '${unit}', 'edit', ${newItem.id})"
+                           class="text-white text-decoration-none"
+                           style="cursor: pointer;"
+                           title="点击编辑指标">
+                            ${newItem.value}${unitDisplay}${codeDisplay}
+                        </a>
+                        <a href="javascript:void(0)"
+                           onclick="event.stopPropagation(); deleteOption(${fieldId}, '${fieldName}', '${unit}', ${newItem.id}, '${newItem.value}')"
+                           class="text-white ms-1 position-absolute"
+                           style="text-decoration: none; cursor: pointer; right: 8px;"
+                           title="删除">
+                            <i class="fas fa-times"></i>
+                        </a>
+                    </span>
+                `;
+
+                // 插入新徽章
+                indicatorCell.insertAdjacentHTML('beforeend', badgeHtml);
+
+                // 更新添加按钮的排除列表（避免重复添加）
+                const addBtn = row.querySelector('button[onclick*="showQuickAddModal"]');
+                if (addBtn) {
+                    const onclickAttr = addBtn.getAttribute('onclick');
+                    // 提取现有的 excludeIds 数组并添加新 ID
+                    const match = onclickAttr.match(/\[([^\]]*)\]/);
+                    if (match) {
+                        const existingIds = match[1] ? match[1].split(',').map(s => s.trim()).filter(s => s) : [];
+                        existingIds.push(newItem.id.toString());
+                        const newOnclick = onclickAttr.replace(/\[[^\]]*\]/, `[${existingIds.join(', ')}]`);
+                        addBtn.setAttribute('onclick', newOnclick);
+                    }
+                }
             }
         });
     }
