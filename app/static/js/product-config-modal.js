@@ -695,12 +695,10 @@ class ProductConfigModal {
 
         console.log('✅ 用户确认规格，加载产品配置');
 
-        // 移除禁用状态的视觉提示（可选）
+        // 隐藏规格选择区域（产品已确定，不再需要显示）
         const container = document.getElementById('codeFieldsContainer');
         if (container) {
-            container.querySelectorAll('.auto-selected').forEach(el => {
-                el.classList.remove('auto-selected');
-            });
+            container.style.display = 'none';
         }
 
         // 加载产品配置

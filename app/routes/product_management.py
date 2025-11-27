@@ -18,7 +18,7 @@ from sqlalchemy.orm import joinedload
 import re
 from PIL import Image
 from app.utils.supabase_client import get_supabase_client
-from app.routes.product_code import get_field_unit
+from app.routes.product_code import get_field_unit, findAvailableCode
 
 # 创建日志记录器
 logger = logging.getLogger(__name__)
@@ -2499,37 +2499,8 @@ def add_spec_option():
         max_position = db.session.query(db.func.max(ProductCodeFieldOption.position))\
             .filter_by(field_id=field_id).scalar() or 0
             
-        # 生成编码
-        existing_options = ProductCodeFieldOption.query.filter_by(field_id=field_id).all()
-        existing_codes = [opt.code for opt in existing_options]
-        
-        # 修改编码生成逻辑，优先使用指标值首字母，然后随机分配
-        # 首先尝试使用指标值的首字母
-        unique_code = None
-
-        # 对于任何指标，首选使用首字母
-        if option_value and isinstance(option_value, str):
-            first_letter = option_value[0].upper()
-            if first_letter.isalpha() and first_letter not in existing_codes:
-                unique_code = first_letter
-
-        # 如果首字母不可用，使用随机分配（避免所有字段都从A开始）
-        if not unique_code:
-            import random
-
-            # 候选字符：A-Z + 1-9 + 0
-            chars = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ') + list('123456789') + ['0']
-
-            # 随机打乱顺序
-            random.shuffle(chars)
-
-            # 从打乱的列表中找到第一个未使用的编码
-            for char in chars:
-                if char not in existing_codes:
-                    unique_code = char
-                    break
-            
-        # 如果所有可能都已被使用，返回错误
+        # 生成编码 - 使用统一函数
+        unique_code = findAvailableCode(field_id)
         if not unique_code:
             return jsonify({'success': False, 'error': '无法生成唯一编码，所有可能的编码已被使用'}), 409
             
@@ -3033,30 +3004,10 @@ def add_spec_field_option():
                 'message': f'指标值 "{value}" 已存在'
             }), 400
 
-        # 生成唯一编码（随机分配，避免所有字段都从A开始）
-        existing_codes = [opt.code for opt in ProductCodeFieldOption.query.filter_by(
-            field_id=spec_field.id
-        ).all() if opt.code]
-
-        # 生成编码逻辑（使用随机打乱，增加MN编码的区分度）
-        import random
-
-        unique_code = None
-        # 候选字符：A-Z + 1-9 + 0
-        chars = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ') + list('123456789') + ['0']
-
-        # 随机打乱顺序（避免所有字段都从A开始）
-        random.shuffle(chars)
-
-        # 从打乱的列表中找到第一个未使用的编码
-        for char in chars:
-            if char not in existing_codes:
-                unique_code = char
-                break
-
-        # 如果所有编码都已使用（理论上不应该发生）
+        # 生成唯一编码 - 使用统一函数
+        unique_code = findAvailableCode(spec_field.id)
         if not unique_code:
-            unique_code = '0'
+            return jsonify({'success': False, 'message': '无法生成唯一编码，所有可能的编码已被使用'}), 500
 
         # 获取当前最大position
         max_position = db.session.query(db.func.max(ProductCodeFieldOption.position))\
