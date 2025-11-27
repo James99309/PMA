@@ -701,6 +701,13 @@ class ProductConfigModal {
             container.style.display = 'none';
         }
 
+        // 显示返回按钮（可以返回到规格选择）
+        const backBtn = document.getElementById('backToConfigSelection');
+        if (backBtn) backBtn.style.display = 'inline-block';
+
+        // 设置当前步骤
+        this.currentStep = 2;
+
         // 加载产品配置
         this.loadProductConfigurations(this.selectedProduct.id);
 
@@ -955,6 +962,7 @@ class ProductConfigModal {
 
         // 标记配置已确认
         this.configConfirmed = true;
+        this.currentStep = 3;
 
         console.log('📋 配置已确认，切换到展示模式');
     }
@@ -1051,23 +1059,29 @@ class ProductConfigModal {
     }
 
     /**
-     * 返回到配置选择界面
+     * 返回上一步（根据当前步骤逐级返回）
      */
     backToConfigSelection() {
-        // 切换视图：显示配置选择区域，隐藏已选配置区域
+        const codeFieldsContainer = document.getElementById('codeFieldsContainer');
         const configArea = document.getElementById('productConfigArea');
         const selectedArea = document.getElementById('selectedConfigsArea');
         const backBtn = document.getElementById('backToConfigSelection');
 
-        if (configArea) configArea.style.display = 'block';
-        if (selectedArea) selectedArea.style.display = 'none';
-        if (backBtn) backBtn.style.display = 'none';
-
-        // 重置确认状态
-        this.configConfirmed = false;
-        this.selectedConfigurations = [];
-
-        console.log('🔙 返回到配置选择界面');
+        if (this.currentStep === 3) {
+            // 从配置确认返回到配置选择
+            if (configArea) configArea.style.display = 'block';
+            if (selectedArea) selectedArea.style.display = 'none';
+            this.configConfirmed = false;
+            this.selectedConfigurations = [];
+            this.currentStep = 2;
+            console.log('🔙 返回到配置选择界面');
+        } else if (this.currentStep === 2) {
+            // 从配置选择返回到规格选择
+            if (codeFieldsContainer) codeFieldsContainer.style.display = '';
+            if (backBtn) backBtn.style.display = 'none';
+            this.currentStep = 1;
+            console.log('🔙 返回到规格选择界面');
+        }
     }
 
     /**
@@ -1884,6 +1898,7 @@ class ProductConfigModal {
         this.pendingSpecs = [];
         this.configConfirmed = false;
         this.selectedConfigurations = [];
+        this.currentStep = 1;  // 1=规格选择, 2=配置选择, 3=配置确认
 
         // 清空内容
         const containers = [
@@ -1900,7 +1915,12 @@ class ProductConfigModal {
 
         containers.forEach(id => {
             const elem = document.getElementById(id);
-            if (elem) elem.innerHTML = '';
+            if (elem) {
+                elem.innerHTML = '';
+                if (id === 'codeFieldsContainer') {
+                    elem.style.display = '';
+                }
+            }
         });
 
         // 重置显示状态
