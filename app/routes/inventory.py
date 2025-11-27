@@ -4846,15 +4846,19 @@ def get_product_categories_for_order():
         from app.models.product import Product
         from app.models.product_code import ProductCategory
 
-        # 从ProductCategory表查询,只返回有生产中产品的类别
-        categories = db.session.query(ProductCategory.name).join(
+        # 与报价单一致：SELECT 包含 display_order 才能 ORDER BY（SQL DISTINCT规则）
+        categories = db.session.query(
+            ProductCategory.id,
+            ProductCategory.name,
+            ProductCategory.display_order
+        ).join(
             Product, Product.category_id == ProductCategory.id
         ).filter(
-            Product.status == 'active'
+            Product.status != '停产'
         ).distinct().order_by(ProductCategory.display_order, ProductCategory.id).all()
 
-        # 提取类别名称
-        category_list = [cat[0] for cat in categories]
+        # 提取类别名称（cat[1] 是 name）
+        category_list = [cat[1] for cat in categories]
 
         logger.debug(f'找到 {len(category_list)} 个类别')
         return jsonify(category_list)
@@ -4880,10 +4884,10 @@ def get_products_by_category_for_order():
         if not category:
             return jsonify([])
         
-        # 查询指定类别的产品
-        products = Product.query.filter_by(
-            category=category,
-            status='active'
+        # 查询指定类别的产品（与报价单一致）
+        products = Product.query.filter(
+            Product.category == category,
+            Product.status != '停产'
         ).order_by(Product.id).all()
         
         logger.debug(f'找到 {len(products)} 个产品')
@@ -4920,6 +4924,126 @@ def get_products_by_category_for_order():
             'error': '获取类别产品列表失败',
             'message': str(e)
         }), 500
+
+
+@inventory.route('/api/products/models', methods=['GET'])
+@login_required
+@permission_required('inventory', 'view')
+def get_product_models_for_order():
+    """获取指定类别和产品名称的型号列表 - 用于订单创建"""
+    try:
+        from app.models.product import Product
+        from decimal import Decimal
+
+        category = request.args.get('category', '')
+        product_name = request.args.get('product_name', '')
+        logger.debug(f'正在获取产品型号，类别: "{category}", 产品名称: "{product_name}"')
+
+        if not category or not product_name:
+            return jsonify([])
+
+        # 查询指定类别和产品名称的产品（与报价单一致）
+        products = Product.query.filter_by(
+            category=category,
+            product_name=product_name
+        ).order_by(Product.id).all()
+
+        logger.debug(f'找到 {len(products)} 个产品')
+
+        def decimal_to_float(obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            return obj
+
+        result = []
+        for p in products:
+            try:
+                product_dict = {
+                    'id': p.id,
+                    'product_name': p.name,
+                    'model': p.model,
+                    'specification': p.specification,
+                    'brand': p.brand,
+                    'unit': p.unit,
+                    'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
+                    'product_mn': p.product_mn,
+                    'currency': p.currency or 'CNY',
+                    'status': p.status
+                }
+                result.append(product_dict)
+            except Exception as e:
+                logger.error(f'处理产品时出错: {p.id} - {str(e)}')
+                continue
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f'获取产品型号列表时出错: {str(e)}')
+        return jsonify({
+            'error': '获取产品型号列表失败',
+            'message': str(e)
+        }), 500
+
+
+@inventory.route('/api/products/specs', methods=['GET'])
+@login_required
+@permission_required('inventory', 'view')
+def get_product_specs_for_order():
+    """获取指定类别、产品名称和型号的规格列表 - 用于订单创建"""
+    try:
+        from app.models.product import Product
+        from decimal import Decimal
+
+        category = request.args.get('category', '')
+        product_name = request.args.get('product_name', '')
+        product_model = request.args.get('model', '') or request.args.get('product_model', '')
+        logger.debug(f'正在获取产品规格，类别: "{category}", 产品名称: "{product_name}", 型号: "{product_model}"')
+
+        if not category or not product_name or not product_model:
+            return jsonify([])
+
+        # 查询指定条件的产品（与报价单一致）
+        products = Product.query.filter_by(
+            category=category,
+            product_name=product_name,
+            model=product_model
+        ).filter(Product.status != '停产').order_by(Product.id).all()
+
+        logger.debug(f'找到 {len(products)} 个产品')
+
+        def decimal_to_float(obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            return obj
+
+        result = []
+        for p in products:
+            try:
+                product_dict = {
+                    'id': p.id,
+                    'product_name': p.name,
+                    'model': p.model,
+                    'specification': p.specification,
+                    'brand': p.brand,
+                    'unit': p.unit,
+                    'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
+                    'product_mn': p.product_mn,
+                    'currency': p.currency or 'CNY'
+                }
+                result.append(product_dict)
+            except Exception as e:
+                logger.error(f'处理产品时出错: {p.id} - {str(e)}')
+                continue
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f'获取产品规格列表时出错: {str(e)}')
+        return jsonify({
+            'error': '获取产品规格列表失败',
+            'message': str(e)
+        }), 500
+
 
 # 订单审批相关API
 # 标准化审批API路由

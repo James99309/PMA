@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 {% from "macros/ui_helpers.html" import render_button %}
+{% from 'macros/product_detail_manager.html' import render_product_detail_table, init_product_detail_scripts %}
+{% from 'macros/product_config_modal.html' import render_product_config_modal %}
 
 {% block head %}
 {{ super() }}
@@ -7,7 +9,6 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
 <style>
 /* 创建订单页面主容器顶部留白，避免被fixed导航遮挡 */
 .container.page-with-fixed-nav {
@@ -17,341 +18,6 @@
     .container.page-with-fixed-nav {
         margin-top: 120px !important;
     }
-}
-
-/* 禁用系统默认的自动完成功能 */
-input.product-name {
-    -webkit-appearance: none !important;
-    -moz-appearance: none !important;
-    appearance: none !important;
-}
-
-/* 隐藏浏览器默认的自动完成下拉按钮 */
-input.product-name::-webkit-contacts-auto-fill-button,
-input.product-name::-webkit-credentials-auto-fill-button {
-    visibility: hidden;
-    display: none !important;
-    pointer-events: none;
-    position: absolute;
-    right: 0;
-}
-
-/* 数量输入框样式 */
-input[type="number"].quantity {
-    min-width: 80px !important;
-    width: 80px !important;
-    text-align: center !important;
-    font-family: 'Roboto Mono', monospace !important;
-    letter-spacing: -0.2px !important;
-}
-
-/* 价格输入框样式 */
-input[type="number"].product-price,
-input[type="number"].discounted-price,
-input[type="number"].subtotal {
-    min-width: 120px;
-    text-align: right;
-    font-family: 'Roboto Mono', monospace;
-    letter-spacing: -0.2px;
-}
-
-/* 折扣率输入框样式 */
-input[type="number"].discount-rate {
-    min-width: 80px !important;
-    width: 80px !important;
-    text-align: right !important;
-    font-family: 'Roboto Mono', monospace !important;
-    letter-spacing: -0.2px !important;
-}
-
-/* 产品名称输入框容器样式 */
-.product-name-container {
-    position: relative;
-    width: 100%;
-}
-
-/* 产品名称输入框样式 */
-.product-name {
-    width: 100% !important;
-    border-radius: 4px !important;
-    border: 1px solid #ced4da !important;
-    background-color: #fff !important;
-    padding: 0.375rem 2rem 0.375rem 0.75rem !important;
-    line-height: 1.5 !important;
-    appearance: none !important;
-    -webkit-appearance: none !important;
-    -moz-appearance: none !important;
-}
-
-/* 下拉箭头样式 */
-.product-name-container::after {
-    content: '▼';
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 12px;
-    color: #666;
-    pointer-events: none;
-}
-
-.product-name:focus {
-    background-color: #fff !important;
-    border-color: #80bdff !important;
-    outline: 0;
-    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
-}
-
-/* 产品选择菜单样式 */
-.product-menu-container {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    z-index: 1000;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    max-height: 400px;
-    overflow: hidden;
-    min-width: 800px; /* 确保菜单有足够宽度 */
-}
-
-.product-menu-content {
-    display: flex;
-    height: 400px;
-}
-
-.menu-column {
-    flex: 1;
-    border-right: 1px solid #eee;
-    overflow-y: auto;
-    min-width: 200px; /* 每列最小宽度，确保12个中文字符宽度 */
-}
-
-.menu-column:last-child {
-    border-right: none;
-}
-
-.menu-item {
-    padding: 8px 12px;
-    cursor: pointer;
-    border-bottom: 1px solid #f5f5f5;
-    font-size: 14px;
-    white-space: normal; /* 允许换行 */
-    word-wrap: break-word; /* 长文本换行 */
-    line-height: 1.4;
-    min-height: 36px; /* 最小高度确保一致性 */
-    display: flex;
-    align-items: center;
-}
-
-.menu-item:hover {
-    background-color: #f8f9fa;
-}
-
-.menu-item.active {
-    background-color: #007bff;
-    color: white;
-}
-
-.menu-loading {
-    padding: 20px;
-    text-align: center;
-    color: #666;
-}
-
-/* 表格容器样式 */
-.table-container {
-    position: relative;
-    margin-right: 60px;
-}
-
-.table-responsive {
-    overflow-x: auto;
-    margin-right: -60px;
-}
-
-/* 表格基础样式 */
-.table {
-    margin-bottom: 0;
-    font-size: 0.875rem;
-}
-
-.table th,
-.table td {
-    white-space: nowrap;
-    vertical-align: middle;
-    padding: 0.4rem 0.5rem;
-}
-
-/* 固定操作列样式 */
-.action-column,
-.table td:last-child {
-    position: sticky;
-    right: 0;
-    background-color: #fff;
-    z-index: 1;
-    width: 60px;
-    min-width: 60px;
-    text-align: center;
-    border-left: 1px solid #dee2e6;
-}
-
-.action-column {
-    background-color: #f8f9fa;
-}
-
-/* 输入框样式优化 */
-.form-control {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.875rem;
-    min-height: 30px;
-    height: calc(1.5em + 0.5rem + 2px);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    overflow: hidden;
-}
-
-/* 数字输入框右对齐 */
-input[type="number"].form-control {
-    text-align: right;
-    font-family: 'Roboto Mono', monospace;
-    letter-spacing: -0.2px;
-    background-color: #fff !important;
-}
-
-/* 表头样式调整 */
-.table thead th {
-    background-color: #f8f9fa;
-    border-bottom: 2px solid #dee2e6;
-    text-align: center;
-    font-size: 0.875rem;
-    font-weight: 600;
-    padding: 0.5rem;
-}
-
-/* 调整按钮样式 */
-.btn-sm {
-    padding: 0.2rem 0.4rem;
-    font-size: 0.875rem;
-}
-
-/* 产品名称列宽度调整 - 放宽以确保内容正常展示 */
-.table th.name-column,
-.table td.name-column {
-    min-width: 250px !important;
-    width: 250px !important;
-}
-
-/* 产品型号列宽度调整 - 放宽以确保内容正常展示 */
-.table th.model-column,
-.table td.model-column {
-    min-width: 200px !important;
-    width: 200px !important;
-}
-
-/* 产品规格列宽度调整 */
-.table th.desc-column,
-.table td.desc-column {
-    min-width: 200px;
-    width: 200px;
-}
-
-/* 价格相关列宽度调整 */
-.table th.price-column,
-.table td.price-column {
-    min-width: 120px;
-    width: 120px;
-    text-align: right;
-}
-
-/* MN列宽度调整 */
-.table th.mn-column,
-.table td.mn-column {
-    min-width: 130px;
-    width: 130px;
-}
-
-/* 品牌列宽度调整 */
-.table th:nth-child(4),
-.table td:nth-child(4) {
-    min-width: 100px;
-    width: 100px;
-}
-
-/* 单位列宽度调整 */
-.table th:nth-child(5),
-.table td:nth-child(5) {
-    min-width: 80px;
-    width: 80px;
-}
-
-/* 折扣率列宽度调整 */
-.table th:nth-child(7),
-.table td:nth-child(7) {
-    min-width: 100px;
-    width: 100px;
-}
-
-/* 数量列宽度调整 */
-.table th:nth-child(9),
-.table td:nth-child(9) {
-    min-width: 80px;
-    width: 80px;
-}
-
-/* 备注列宽度调整 */
-.table th:nth-child(12),
-.table td:nth-child(12) {
-    min-width: 120px;
-    width: 120px;
-}
-
-/* 操作列宽度调整 */
-.table th.action-column,
-.table td.action-column {
-    min-width: 80px;
-    width: 80px;
-    text-align: center;
-}
-
-/* 确保表格输入框填满单元格 */
-.table input.form-control {
-    width: 100%;
-    border: 1px solid #dee2e6;
-    padding: 0.375rem 0.5rem;
-    font-size: 0.875rem;
-}
-
-/* 数字输入框右对齐 */
-.table input[type="number"] {
-    text-align: right;
-}
-
-/* 折扣率输入框样式 */
-.discount-rate {
-    text-align: right !important;
-    padding-right: 8px !important;
-}
-
-/* 公司选择器样式 */
-.company-selector {
-    background: linear-gradient(135deg, #007bff, #0056b3);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 1rem;
-}
-
-.company-selector .form-select {
-    font-size: 1rem;
-    font-weight: 500;
-    background-color: white;
-    color: #495057;
-    border: 1px solid #ced4da;
 }
 
 /* 订单信息卡片样式 */
@@ -371,262 +37,15 @@ input[type="number"].form-control {
     border: 1px solid #ced4da;
 }
 
-/* 总计显示样式 */
-.total-summary {
-    background: linear-gradient(135deg, #ffc107, #e0a800);
-    color: #212529;
-    border: none;
-    border-radius: 8px;
-    padding: 1rem;
-    margin-top: 1rem;
-    font-weight: bold;
+/* 订单总计样式 */
+.order-total-card {
+    background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
 }
 
 .total-amount {
     font-size: 1.5rem;
-    color: #dc3545;
+    color: white;
     font-weight: bold;
-}
-
-/* 响应式调整 */
-@media (max-width: 768px) {
-    .table-container {
-        margin-right: 0;
-    }
-    
-    .table-responsive {
-        margin-right: 0;
-    }
-    
-    .action-column,
-    .table td:last-child {
-        position: static;
-        background-color: transparent;
-    }
-}
-
-/* 加载状态样式 */
-.loading {
-    opacity: 0.6;
-    pointer-events: none;
-}
-
-.spinner-border-sm {
-    width: 1rem;
-    height: 1rem;
-}
-
-/* PC端日期选择器增强样式 - 输入框保持正常，但日历界面放大 */
-@media (min-width: 768px) {
-    /* 输入框保持正常大小，只增强日历图标 */
-    .date-picker-enhanced::-webkit-calendar-picker-indicator {
-        width: 20px !important;
-        height: 20px !important;
-        cursor: pointer;
-        filter: invert(0.5);
-    }
-    
-    /* 放大日期选择器弹出的日历界面 */
-    .date-picker-enhanced::-webkit-calendar-picker-indicator:hover {
-        transform: scale(1.1);
-        transition: transform 0.2s ease;
-    }
-}
-
-/* 全局日期选择器弹出界面样式增强 */
-@media (min-width: 768px) {
-    /* 通过CSS变量来影响日期选择器的显示 */
-    input[type="date"]::-webkit-calendar-picker-indicator {
-        background-size: 18px 18px;
-        background-repeat: no-repeat;
-        background-position: center;
-    }
-    
-    /* 当日期选择器获得焦点时，增加视觉反馈 */
-    input[type="date"]:focus::-webkit-calendar-picker-indicator {
-        filter: invert(0.3);
-        transform: scale(1.05);
-    }
-}
-
-/* 日期选择器激活状态样式 */
-.date-picker-active {
-    border-color: #0C7CD0 !important;
-    box-shadow: 0 0 0 0.2rem rgba(12, 124, 208, 0.25) !important;
-    transform: scale(1.02);
-    transition: all 0.2s ease;
-}
-
-/* 使用CSS变量来尝试影响日期选择器弹出界面 */
-:root {
-    --date-picker-scale: 1;
-}
-
-/* 针对支持的浏览器，尝试放大日期选择器弹出界面 */
-@media (min-width: 768px) {
-    /* 当日期选择器处于活动状态时的样式 */
-    .date-picker-enhanced.date-picker-active {
-        position: relative;
-        z-index: 1050;
-    }
-    
-    /* 尝试通过伪元素来提示用户日期选择器已增强 */
-    .date-picker-enhanced:focus::after {
-        content: "📅 点击选择日期";
-        position: absolute;
-        top: -25px;
-        left: 0;
-        font-size: 12px;
-        color: #0C7CD0;
-        background: white;
-        padding: 2px 6px;
-        border-radius: 4px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        white-space: nowrap;
-        z-index: 1000;
-        pointer-events: none;
-    }
-    
-    /* 为日期输入框添加更好的视觉反馈 */
-    .date-picker-enhanced:hover {
-        border-color: #0C7CD0;
-        transition: border-color 0.2s ease;
-    }
-    
-    /* 增强日期选择器图标的可见性 */
-    .date-picker-enhanced::-webkit-calendar-picker-indicator {
-        opacity: 0.8;
-        transition: opacity 0.2s ease, transform 0.2s ease;
-    }
-    
-    .date-picker-enhanced:hover::-webkit-calendar-picker-indicator {
-        opacity: 1;
-        transform: scale(1.1);
-    }
-}
-
-/* jQuery UI Datepicker 增强样式 - PC端放大日历界面 */
-@media (min-width: 768px) {
-    .enhanced-datepicker {
-        transform: scale(1.3) !important;
-        transform-origin: top left !important;
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
-        border-radius: 8px !important;
-        border: 2px solid #0C7CD0 !important;
-        background: white !important;
-        z-index: 9999 !important;
-    }
-    
-    .enhanced-datepicker .ui-datepicker-header {
-        background: linear-gradient(135deg, #0C7CD0, #0056b3) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 6px 6px 0 0 !important;
-        padding: 8px !important;
-    }
-    
-    .enhanced-datepicker .ui-datepicker-title {
-        color: white !important;
-        font-weight: 600 !important;
-        font-size: 14px !important;
-    }
-    
-    .enhanced-datepicker .ui-datepicker-prev,
-    .enhanced-datepicker .ui-datepicker-next {
-        background: rgba(255, 255, 255, 0.2) !important;
-        border: 1px solid rgba(255, 255, 255, 0.3) !important;
-        border-radius: 4px !important;
-    }
-    
-    .enhanced-datepicker .ui-datepicker-prev:hover,
-    .enhanced-datepicker .ui-datepicker-next:hover {
-        background: rgba(255, 255, 255, 0.3) !important;
-    }
-    
-    .enhanced-datepicker .ui-datepicker-calendar {
-        border-collapse: separate !important;
-        border-spacing: 2px !important;
-        margin: 8px !important;
-    }
-    
-    .enhanced-datepicker .ui-datepicker-calendar td {
-        padding: 2px !important;
-    }
-    
-    .enhanced-datepicker .ui-datepicker-calendar td a {
-        display: block !important;
-        padding: 8px !important;
-        text-align: center !important;
-        border-radius: 6px !important;
-        border: 1px solid transparent !important;
-        font-size: 13px !important;
-        font-weight: 500 !important;
-        transition: all 0.2s ease !important;
-    }
-    
-    .enhanced-datepicker .ui-datepicker-calendar td a:hover {
-        background: #e3f2fd !important;
-        border-color: #0C7CD0 !important;
-        color: #0C7CD0 !important;
-    }
-    
-    .enhanced-datepicker .ui-datepicker-calendar td.ui-datepicker-today a {
-        background: #fff3cd !important;
-        border-color: #ffc107 !important;
-        color: #856404 !important;
-    }
-    
-    .enhanced-datepicker .ui-datepicker-calendar td.ui-datepicker-current-day a,
-    .enhanced-datepicker .ui-datepicker-calendar td a.ui-state-active {
-        background: #0C7CD0 !important;
-        border-color: #0C7CD0 !important;
-        color: white !important;
-    }
-    
-    .enhanced-datepicker .ui-datepicker-buttonpane {
-        background: #f8f9fa !important;
-        border-top: 1px solid #dee2e6 !important;
-        padding: 8px !important;
-        border-radius: 0 0 6px 6px !important;
-    }
-    
-    .enhanced-datepicker .ui-datepicker-buttonpane button {
-        background: #0C7CD0 !important;
-        color: white !important;
-        border: none !important;
-        padding: 6px 12px !important;
-        border-radius: 4px !important;
-        font-size: 12px !important;
-        margin: 0 4px !important;
-        cursor: pointer !important;
-    }
-    
-    .enhanced-datepicker .ui-datepicker-buttonpane button:hover {
-        background: #0056b3 !important;
-    }
-}
-
-/* 日期选择器图标样式 */
-.date-picker-icon {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #6c757d;
-    cursor: pointer;
-    font-size: 16px;
-    transition: color 0.2s ease;
-    pointer-events: auto;
-    z-index: 10;
-}
-
-.date-picker-icon:hover {
-    color: #0C7CD0;
-}
-
-/* 调整包含日期选择器的容器 */
-.col-md-4:has(.date-picker-enhanced) {
-    position: relative;
 }
 </style>
 {% endblock %}
@@ -679,46 +98,136 @@ input[type="number"].form-control {
             </div>
         </div>
 
-        <!-- 产品明细 -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                    <i class="fas fa-list me-2"></i>产品明细
-                </h5>
-                {{ render_button('添加产品', type='button', color='success', size='sm', icon='fas fa-plus', attrs='id="addProductBtn"') }}
-            </div>
-            <div class="card-body p-0">
-                <div class="table-container">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0" id="productTable">
-                            <thead>
-                                <tr>
-                                    <th class="name-column">产品名称</th>
-                                    <th class="model-column">产品型号</th>
-                                    <th class="desc-column">产品规格</th>
-                                    <th style="min-width: 90px;">品牌</th>
-                                    <th style="min-width: 70px;">单位</th>
-                                    <th class="price-column">市场单价</th>
-                                    <th style="min-width: 90px;">折扣率%</th>
-                                    <th class="price-column">单价</th>
-                                    <th style="min-width: 70px;">数量</th>
-                                    <th class="price-column">小计</th>
-                                    <th class="mn-column">MN</th>
-                                    <th>备注</th>
-                                    <th class="action-column" style="min-width: 50px;">操作</th>
-                                </tr>
-                            </thead>
-                            <tbody id="productTableBody">
-                                <!-- 产品行将通过JavaScript动态添加 -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- 产品明细 - 使用统一组件 -->
+        {% set product_config = {
+            "table_id": "orderProductTable",
+            "add_button_id": "addProduct",
+            "grand_total_id": "grandTotal",
+            "apiEndpoints": {
+                "categories": url_for('inventory.get_product_categories_for_order'),
+                "productsByCategory": url_for('inventory.get_products_by_category_for_order'),
+                "productModels": url_for('inventory.get_product_models_for_order'),
+                "productSpecs": url_for('inventory.get_product_specs_for_order')
+            },
+            "calculationRules": {
+                "discountType": "percentage",
+                "currency": "CNY",
+                "decimalPlaces": 2,
+                "autoCalculate": true
+            },
+            "columns": [
+                {
+                    "key": "product_name",
+                    "label": "产品名称",
+                    "type": "product-selector",
+                    "required": true,
+                    "width": "180px"
+                },
+                {
+                    "key": "product_model",
+                    "label": "产品型号",
+                    "type": "text",
+                    "readonly": true,
+                    "width": "150px"
+                },
+                {
+                    "key": "product_desc",
+                    "label": "产品规格",
+                    "type": "text",
+                    "readonly": true,
+                    "width": "200px"
+                },
+                {
+                    "key": "brand",
+                    "label": "品牌",
+                    "type": "text",
+                    "readonly": true,
+                    "width": "100px"
+                },
+                {
+                    "key": "unit",
+                    "label": "单位",
+                    "type": "text",
+                    "readonly": true,
+                    "width": "80px"
+                },
+                {
+                    "key": "market_price",
+                    "label": "市场单价",
+                    "type": "currency",
+                    "readonly": true,
+                    "width": "120px"
+                },
+                {
+                    "key": "discount",
+                    "label": "折扣率(%)",
+                    "type": "percentage",
+                    "width": "100px"
+                },
+                {
+                    "key": "unit_price",
+                    "label": "单价",
+                    "type": "currency",
+                    "width": "120px"
+                },
+                {
+                    "key": "quantity",
+                    "label": "数量",
+                    "type": "number",
+                    "required": true,
+                    "width": "80px"
+                },
+                {
+                    "key": "total_price",
+                    "label": "小计",
+                    "type": "currency",
+                    "readonly": true,
+                    "width": "120px"
+                },
+                {
+                    "key": "product_mn",
+                    "label": "MN",
+                    "type": "text",
+                    "readonly": true,
+                    "width": "100px"
+                },
+                {
+                    "key": "actions",
+                    "label": "操作",
+                    "type": "actions",
+                    "width": "70px"
+                }
+            ],
+            "fieldMapping": {
+                "product_name": "product_name",
+                "product_model": "product_model",
+                "product_desc": "product_desc",
+                "brand": "brand",
+                "unit": "unit",
+                "quantity": "quantity",
+                "market_price": "market_price",
+                "discount": "discount",
+                "unit_price": "unit_price",
+                "total_price": "total_price",
+                "product_mn": "product_mn"
+            },
+            "validators": {
+                "quantity": "val => val > 0",
+                "market_price": "val => val >= 0",
+                "discount": "val => val >= 0 && val <= 1000"
+            },
+            "manual_input": {
+                "enabled": false
+            },
+            "temp_products": {
+                "enabled": false
+            }
+        } %}
+
+        {{ render_product_detail_table(product_config) }}
 
         <!-- 订单总计 -->
-        <div class="card mb-4" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
+        <div class="card mb-4 order-total-card">
             <div class="card-body">
                 <div class="row align-items-center">
                     <div class="col-md-8">
@@ -726,7 +235,7 @@ input[type="number"].form-control {
                         <small class="text-white">总数量：<span id="totalQuantity">0</span> 件</small>
                     </div>
                     <div class="col-md-4 text-end">
-                        <div class="total-amount text-white">
+                        <div class="total-amount">
                             <h4 class="mb-0">¥ <span id="totalAmount">0.00</span></h4>
                         </div>
                     </div>
@@ -743,461 +252,85 @@ input[type="number"].form-control {
     </form>
 </div>
 
+<!-- 产品配置模态框 -->
+{{ render_product_config_modal() }}
+
 {% endblock %}
 
 {% block scripts %}
+<!-- 引用本地JS库文件 -->
+<script src="{{ url_for('static', filename='js/vendor/jquery-ui.min.js') }}"></script>
+
+<!-- 初始化产品明细组件 -->
+{{ init_product_detail_scripts() }}
+
 <script>
 $(document).ready(function() {
     console.log('创建订单页面JavaScript已加载');
-    
-    // 添加产品行
-    $('#addProductBtn').click(function() {
-        console.log('添加产品按钮被点击');
-        addProductRow();
+
+    // 监听ProductDetailManager的数据变化，更新订单总计
+    $(document).on('productDetailChanged', function() {
+        updateOrderTotals();
     });
-    
-    // 删除产品行
-    $(document).on('click', '.remove-product', function() {
-        $(this).closest('tr').remove();
-        updateGrandTotal();
-    });
-    
-    // 数量、折扣率、单价变化时重新计算
-    $(document).on('input', '.quantity, .discount-rate, .discounted-price', function() {
-        const $row = $(this).closest('tr');
-        const inputType = $(this).hasClass('quantity') ? 'quantity' : 
-                         $(this).hasClass('discount-rate') ? 'discount' : 'price';
-        
-        console.log('输入事件触发，字段类型:', inputType, '值:', $(this).val());
-        
-        // 获取基础数据
-        const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || 0;
-        const quantity = parseInt($row.find('.quantity').val()) || 1;
-        const discountRate = parseFloat($row.find('.discount-rate').val()) || 100;
-        const unitPrice = parseFloat($row.find('.discounted-price').val()) || 0;
-        
-        if (inputType === 'discount') {
-            // 折扣率变化：计算新单价和小计
-            const newUnitPrice = marketPrice * (discountRate / 100);
-            const newSubtotal = newUnitPrice * quantity;
-            
-            $row.find('.discounted-price').val(newUnitPrice.toFixed(2)).data('raw-value', newUnitPrice);
-            $row.find('.subtotal').val(formatNumber(newSubtotal.toFixed(2))).data('raw-value', newSubtotal);
-            
-            console.log('折扣率变化 - 新单价:', newUnitPrice, '新小计:', newSubtotal);
-            
-        } else if (inputType === 'price') {
-            // 单价变化：计算新折扣率和小计
-            if (marketPrice > 0) {
-                const newDiscountRate = (unitPrice / marketPrice * 100);
-                $row.find('.discount-rate').val(newDiscountRate.toFixed(1));
-                console.log('单价变化 - 新折扣率:', newDiscountRate);
-            }
-            
-            const newSubtotal = unitPrice * quantity;
-            $row.find('.discounted-price').data('raw-value', unitPrice);
-            $row.find('.subtotal').val(formatNumber(newSubtotal.toFixed(2))).data('raw-value', newSubtotal);
-            
-            console.log('单价变化 - 新小计:', newSubtotal);
-            
-        } else if (inputType === 'quantity') {
-            // 数量变化：重新计算小计（单价和折扣率不变）
-            const currentUnitPrice = parseFloat($row.find('.discounted-price').val()) || 0;
-            const newSubtotal = currentUnitPrice * quantity;
-            
-            $row.find('.subtotal').val(formatNumber(newSubtotal.toFixed(2))).data('raw-value', newSubtotal);
-            
-            console.log('数量变化 - 新小计:', newSubtotal);
-        }
-        
-        // 更新总计
-        updateGrandTotal();
-    });
-    
-    // 表单提交
+
+    // 表单提交处理
     $('#orderForm').submit(function(e) {
         e.preventDefault();
-        
+
+        // 从ProductDetailManager获取产品数据
+        if (!window.productDetailManager) {
+            alert('产品明细组件未初始化');
+            return;
+        }
+
+        const productData = window.productDetailManager.getAllData();
+
         // 验证是否有产品
-        if ($('#productTableBody tr').length === 0) {
+        if (!productData || productData.length === 0) {
             alert('请至少添加一个产品');
             return;
         }
-        
-        // 验证所有产品行
+
+        // 验证所有产品行是否完整
         let isValid = true;
-        $('#productTableBody tr').each(function() {
-            const $row = $(this);
-            const productName = $row.find('.product-name').val();
-            if (!productName) {
+        productData.forEach(function(item, index) {
+            if (!item.product_id || !item.product_name) {
                 isValid = false;
-                $row.find('.product-name').addClass('is-invalid');
             }
         });
-        
+
         if (!isValid) {
             alert('请完整选择所有产品信息');
             return;
         }
-        
-        // 收集表单数据
-        const formData = collectFormData();
-        
+
         // 提交表单
         $('#submitBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>创建中...');
-        
+
         // 创建隐藏字段提交数据
-        createHiddenFields(formData);
-        
+        createHiddenFields(productData);
+
         // 提交原生表单
         this.submit();
     });
-    
-    // 添加产品行
-    function addProductRow() {
-        console.log('开始添加产品行...');
-        
-        const $newRow = $(`
-            <tr class="product-row">
-                <td>
-                    <div class="product-name-container">
-                        <input type="text" class="form-control product-name" name="product_name[]" required placeholder="点击选择产品...">
-                    </div>
-                </td>
-                <td>
-                    <div class="product-model-container">
-                        <input type="text" class="form-control product-model" name="product_model[]" readonly>
-                    </div>
-                </td>
-                <td>
-                    <input type="text" class="form-control product-spec" name="product_spec[]" readonly>
-                </td>
-                <td>
-                    <input type="text" class="form-control product-brand" name="brand[]" readonly>
-                </td>
-                <td>
-                    <input type="text" class="form-control product-unit" name="unit[]" readonly>
-                </td>
-                <td>
-                    <input type="text" class="form-control product-price" name="market_price[]" readonly>
-                </td>
-                <td>
-                    <div class="discount-rate-container">
-                        <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required>
-                    </div>
-                </td>
-                <td>
-                    <input type="number" class="form-control discounted-price" name="unit_price[]" step="0.01" min="0" required>
-                </td>
-                <td>
-                    <input type="number" class="form-control quantity" name="quantity[]" value="1" min="1" required>
-                </td>
-                <td>
-                    <input type="text" class="form-control subtotal" name="total_price[]" readonly>
-                </td>
-                <td>
-                    <input type="text" class="form-control product-mn" name="product_mn[]" readonly>
-                </td>
-                <td>
-                    <input type="text" class="form-control" name="notes[]" placeholder="备注">
-                </td>
-                <td class="action-column">
-                    <button type="button" class="btn btn-danger btn-sm remove-product">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </td>
-                <input type="hidden" class="product-id" name="product_id[]" value="">
-            </tr>
-        `);
-        
-        $('#productTableBody').append($newRow);
-        console.log('产品行已添加到表格');
-        
-        // 初始化产品选择功能
-        initializeProductSelection($newRow.find('.product-name'));
-    }
-    
-    // 初始化产品选择功能
-    function initializeProductSelection($input) {
-        $input.on('click', function() {
-            // 移除已存在的菜单
-            $('.product-menu-container').remove();
-            
-            const $menu = $('<div class="product-menu-container"></div>');
-            const $content = $('<div class="product-menu-content"></div>');
-            const $categories = $('<div class="menu-column"></div>');
-            const $products = $('<div class="menu-column"></div>');
-            const $models = $('<div class="menu-column"></div>');
-            const $specs = $('<div class="menu-column"></div>');
-            
-            $content.append($categories, $products, $models, $specs);
-            $menu.append($content);
-            
-            // 定位菜单
-            const inputOffset = $input.offset();
-            const inputHeight = $input.outerHeight();
-            
-            $menu.css({
-                position: 'absolute',
-                top: inputOffset.top + inputHeight + 'px',
-                left: inputOffset.left + 'px',
-                width: $input.outerWidth() * 4 + 'px',
-                zIndex: 1000
-            });
-            
-            $('body').append($menu);
-            
-            // 加载产品类别
-            $categories.html('<div class="menu-loading">加载中...</div>');
-            
-                         $.ajax({
-                 url: '/inventory/api/products/categories',
-                 method: 'GET',
-                 success: function(categories) {
-                    $categories.empty();
-                    
-                    categories.forEach(function(category) {
-                        $('<div class="menu-item"></div>')
-                            .text(category)
-                            .on('click', function() {
-                                $('.menu-item').removeClass('active');
-                                $(this).addClass('active');
-                                
-                                // 加载该类别的产品
-                                $products.html('<div class="menu-loading">加载中...</div>');
-                                $models.empty();
-                                $specs.empty();
-                                
-                                                                 $.ajax({
-                                     url: '/inventory/api/products/by-category',
-                                     method: 'GET',
-                                     data: { category: category },
-                                     success: function(products) {
-                                        $products.empty();
-                                        
-                                        // 按产品名称分组
-                                        const productGroups = {};
-                                        products.forEach(function(product) {
-                                            if (!productGroups[product.product_name]) {
-                                                productGroups[product.product_name] = [];
-                                            }
-                                            productGroups[product.product_name].push(product);
-                                        });
-                                        
-                                        // 显示产品名称
-                                        Object.keys(productGroups).forEach(function(productName) {
-                                            $('<div class="menu-item"></div>')
-                                                .text(productName)
-                                                .data('products', productGroups[productName])
-                                                .on('click', function() {
-                                                    $('.menu-item').removeClass('active');
-                                                    $(this).addClass('active');
-                                                    
-                                                    const products = $(this).data('products');
-                                                    
-                                                    // 显示型号
-                                                    $models.empty();
-                                                    $specs.empty();
-                                                    
-                                                    // 按型号分组
-                                                    const modelGroups = {};
-                                                    products.forEach(function(product) {
-                                                        if (!modelGroups[product.model]) {
-                                                            modelGroups[product.model] = [];
-                                                        }
-                                                        modelGroups[product.model].push(product);
-                                                    });
-                                                    
-                                                    Object.keys(modelGroups).forEach(function(model) {
-                                                        $('<div class="menu-item"></div>')
-                                                            .text(model)
-                                                            .data('products', modelGroups[model])
-                                                            .on('click', function() {
-                                                                $('.menu-item').removeClass('active');
-                                                                $(this).addClass('active');
-                                                                
-                                                                const modelProducts = $(this).data('products');
-                                                                
-                                                                // 显示规格
-                                                                $specs.empty();
-                                                                
-                                                                modelProducts.forEach(function(product) {
-                                                                    const $specItem = $('<div class="menu-item"></div>');
-                                                                    $specItem.data('product', product);
-                                                                    
-                                                                    const $text = $('<div></div>').css({
-                                                                        whiteSpace: 'normal',
-                                                                        wordBreak: 'break-word',
-                                                                        flex: '1'
-                                                                    });
-                                                                    $text.text(product.specification || '标准规格');
-                                                                    $specItem.append($text);
-                                                                    
-                                                                    $specItem.on('click', function() {
-                                                                        const selectedProduct = $(this).data('product');
-                                                                        $input.val(selectedProduct.product_name);
-                                                                        const $row = $input.closest('tr');
-                                                                        clearProductDetails($row, true);
-                                                                        fillProductDetails($row, selectedProduct);
-                                                                        $menu.remove();
-                                                                    });
-                                                                    
-                                                                    $specs.append($specItem);
-                                                                });
-                                                            })
-                                                            .appendTo($models);
-                                                    });
-                                                })
-                                                .appendTo($products);
-                                        });
-                                    },
-                                    error: function(xhr, status, error) {
-                                        console.error('加载产品失败:', error);
-                                        $products.html('<div class="menu-loading">加载产品失败</div>');
-                                    }
-                                });
-                            })
-                            .appendTo($categories);
-                    });
-                    
-                    // 默认选中第一个类别并触发点击事件
-                    $categories.find('.menu-item:first').click();
-                },
-                error: function(xhr, status, error) {
-                    console.error('加载类别失败:', error);
-                    $categories.html('<div class="menu-loading">加载类别失败</div>');
-                }
-            });
-            
-            // 点击其他区域关闭菜单
-            $(document).one('click', function(e) {
-                if (!$(e.target).closest('.product-menu-container, .product-name').length) {
-                    $menu.remove();
-                }
-            });
-        });
-    }
-    
-    // 清空产品详情字段
-    function clearProductDetails($row, keepName = false) {
-        if (!keepName) {
-            $row.find('.product-name').val('');
-        }
-        
-        // 清空其他字段
-        $row.find('.product-model').val('');
-        $row.find('.product-spec').val('');
-        $row.find('.product-brand').val('');
-        $row.find('.product-unit').val('');
-        $row.find('.product-price').val('').data('raw-value', 0);
-        $row.find('.product-mn').val('');
-        $row.find('.discount-rate').val('100.0');
-        $row.find('.discounted-price').val('').data('raw-value', 0);
-        $row.find('.subtotal').val('').data('raw-value', 0);
-        $row.find('.product-id').val('');
-    }
-    
-    // 填充产品详情
-    function fillProductDetails($row, product) {
-        console.log('填充产品详情，完整产品数据:', JSON.stringify(product, null, 2));
-        
-        // 填充产品型号
-        $row.find('.product-model').val(product.model || '');
-        
-        // 填充产品规格
-        $row.find('.product-spec').val(product.specification || '');
-        
-        // 填充品牌
-        $row.find('.product-brand').val(product.brand || '');
-        
-        // 填充单位
-        $row.find('.product-unit').val(product.unit || '');
-        
-        // 填充MN
-        $row.find('.product-mn').val(product.product_mn || '');
-        
-        // 填充产品ID
-        $row.find('.product-id').val(product.id);
-        
-        // 设置市场价格
-        let price = parseFloat(product.retail_price) || 0;
-        console.log('原始市场价格:', product.retail_price, '解析后:', price);
-        
-        // 设置市场价格字段
-        $row.find('.product-price').val(price);
-        $row.find('.product-price').data('raw-value', price);
-        
-        // 设置单价字段（初始折扣率100%）
-        const $unitPriceField = $row.find('.discounted-price');
-        console.log('设置单价字段: 原始价格=', price);
-        
-        // 关键修复：对于number类型的input，直接设置数值，不要格式化
-        if ($unitPriceField.length > 0) {
-            const field = $unitPriceField[0];
-            console.log('字段类型:', field.type);
-            
-            // 直接设置数值，不格式化
-            console.log('设置前的值:', field.value);
-            field.value = price; // 直接设置数值，不是格式化字符串
-            console.log('设置后的值:', field.value);
-            
-            // 同时设置data属性用于计算
-            $unitPriceField.data('raw-value', price);
-            
-            console.log('单价字段设置成功:', price);
-        }
-        
-        // 设置数量为1
-        $row.find('.quantity').val(1);
-        
-        // 计算小计
-        calculateRowTotal($row);
-        
-        console.log('设置完成 - 单价:', price, '小计:', $row.find('.subtotal').val());
-    }
-    
-    // 计算行价格（简化版，主要用于初始化）
-    function calculateRowTotal($row) {
-        try {
-            const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || 0;
-            const discountRate = parseFloat($row.find('.discount-rate').val()) || 100;
-            const quantity = parseInt($row.find('.quantity').val()) || 1;
-            
-            // 计算单价和小计
-            const unitPrice = marketPrice * (discountRate / 100);
-            const subtotal = unitPrice * quantity;
-            
-            // 更新字段
-            $row.find('.discounted-price').val(unitPrice.toFixed(2)).data('raw-value', unitPrice);
-            $row.find('.subtotal').val(formatNumber(subtotal.toFixed(2))).data('raw-value', subtotal);
-            
-            // 更新总计
-            updateGrandTotal();
-            
-            console.log('初始化行价格: 市场价=', marketPrice, '折扣=', discountRate, '单价=', unitPrice, '数量=', quantity, '小计=', subtotal);
-        } catch (error) {
-            console.error('计算行价格时出错:', error);
-        }
-    }
-    
-    // 更新总计
-    function updateGrandTotal() {
+
+    // 更新订单总计
+    function updateOrderTotals() {
+        if (!window.productDetailManager) return;
+
+        const productData = window.productDetailManager.getAllData();
         let totalQuantity = 0;
         let totalAmount = 0;
-        
-        $('#productTableBody tr').each(function() {
-            const $row = $(this);
-            const quantity = parseInt($row.find('.quantity').val()) || 0;
-            const subtotal = parseFloat($row.find('.subtotal').data('raw-value')) || 0;
-            
-            totalQuantity += quantity;
-            totalAmount += subtotal;
+
+        productData.forEach(function(item) {
+            totalQuantity += parseInt(item.quantity) || 0;
+            totalAmount += parseFloat(item.total_price) || 0;
         });
-        
+
         $('#totalQuantity').text(totalQuantity);
         $('#totalAmount').text(formatNumber(totalAmount));
     }
-    
+
     // 格式化数字为带千位分隔符和两位小数的字符串
     function formatNumber(number) {
         try {
@@ -1205,86 +338,52 @@ $(document).ready(function() {
             if (isNaN(num)) {
                 return '0.00';
             }
-            
-            return num.toLocaleString('zh-CN', { 
-                minimumFractionDigits: 2, 
-                maximumFractionDigits: 2 
+
+            return num.toLocaleString('zh-CN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
             });
         } catch (e) {
             console.error('格式化数字时出错:', e, '输入值:', number);
             return '0.00';
         }
     }
-    
-    // 收集表单数据
-    function collectFormData() {
-        const details = [];
-        
-        $('#productTableBody tr').each(function() {
-            const $row = $(this);
-            const productName = $row.find('.product-name').val();
-            
-            if (!productName) {
-                return true; // 跳过空行
-            }
-            
-            const detail = {
-                product_id: $row.find('.product-id').val(),
-                product_name: productName,
-                product_model: $row.find('.product-model').val() || '',
-                product_desc: $row.find('.product-spec').val() || '',
-                brand: $row.find('.product-brand').val() || '',
-                unit: $row.find('.product-unit').val() || '',
-                market_price: parseFloat($row.find('.product-price').data('raw-value')) || 0,
-                discount_rate: parseFloat($row.find('.discount-rate').val()) || 100,
-                unit_price: parseFloat($row.find('.discounted-price').data('raw-value')) || 0,
-                quantity: parseInt($row.find('.quantity').val()) || 1,
-                total_price: parseFloat($row.find('.subtotal').data('raw-value')) || 0,
-                product_mn: $row.find('.product-mn').val() || '',
-                notes: $row.find('input[name="notes[]"]').val() || ''
-            };
-            
-            details.push(detail);
-        });
-        
-        return { details: details };
-    }
-    
-    // 创建隐藏字段
-    function createHiddenFields(formData) {
+
+    // 创建隐藏字段用于表单提交
+    function createHiddenFields(productData) {
         // 移除之前的隐藏字段
         $('input[name^="product_id[]"], input[name^="quantity[]"], input[name^="unit_price[]"], input[name^="discount[]"]').remove();
-        
+
         // 为每个产品明细创建隐藏字段
-        formData.details.forEach(function(detail, index) {
+        productData.forEach(function(detail) {
             $('<input>').attr({
                 type: 'hidden',
                 name: 'product_id[]',
                 value: detail.product_id
             }).appendTo('#orderForm');
-            
+
             $('<input>').attr({
                 type: 'hidden',
                 name: 'quantity[]',
                 value: detail.quantity
             }).appendTo('#orderForm');
-            
+
             $('<input>').attr({
                 type: 'hidden',
                 name: 'unit_price[]',
                 value: detail.unit_price
             }).appendTo('#orderForm');
-            
+
             $('<input>').attr({
                 type: 'hidden',
                 name: 'discount[]',
-                value: detail.discount_rate
+                value: detail.discount
             }).appendTo('#orderForm');
         });
     }
-    
-    // 初始化时添加一行
-    addProductRow();
+
+    // 初始更新一次总计
+    setTimeout(updateOrderTotals, 500);
 });
 </script>
 {% endblock %}
