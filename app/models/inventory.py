@@ -32,7 +32,7 @@ class Inventory(db.Model):
     )
     
     def __repr__(self):
-        return f'<Inventory {self.company.company_name if self.company else "Unknown"} - {self.product.product_name if self.product else "Unknown"}: {self.quantity}>'
+        return f'<Inventory {self.company.company_name if self.company else "Unknown"} - {self.product.name if self.product else "Unknown"}: {self.quantity}>'
 
 class InventoryTransaction(db.Model):
     """库存变动记录表 - 记录所有入库和出库操作"""
@@ -106,7 +106,7 @@ class SettlementDetail(db.Model):
     product = relationship('Product', backref='settlement_details')
     
     def __repr__(self):
-        return f'<SettlementDetail {self.product.product_name if self.product else "Unknown"}: {self.quantity_settled}>'
+        return f'<SettlementDetail {self.product.name if self.product else "Unknown"}: {self.quantity_settled}>'
 
 class PurchaseOrder(db.Model):
     """订货单表"""

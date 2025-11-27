@@ -2501,7 +2501,7 @@ def get_company_products(company_id):
         for inventory in inventories:
             products.append({
                 'id': inventory.product_id,
-                'product_name': inventory.product.product_name,
+                'product_name': inventory.product.name,
                 'product_model': inventory.product.product_model,
                 'quantity': inventory.quantity,
                 'unit': inventory.unit
@@ -2525,9 +2525,9 @@ def get_company_inventory_details(company_id):
         
         inventory_dict = {}
         for inventory in inventories:
-            inventory_dict[inventory.product.product_name] = {
+            inventory_dict[inventory.product.name] = {
                 'product_id': inventory.product_id,
-                'product_name': inventory.product.product_name,
+                'product_name': inventory.product.name,
                 'product_model': inventory.product.model or '',
                 'product_mn': inventory.product.product_mn or '',
                 'quantity': inventory.quantity,
@@ -3488,7 +3488,7 @@ def create_order():
                                 detail = PurchaseOrderDetail(
                                     order_id=order.id,
                                     product_id=product_id,
-                                    product_name=product.product_name,
+                                    product_name=product.name,
                                     product_model=product.model or '',
                                     product_desc=product.specification or '',
                                     brand=product.brand or '',
@@ -3502,8 +3502,8 @@ def create_order():
                                 order_details.append(detail)
                                 total_quantity += quantity
                                 total_amount += calculated_total
-                                
-                                logger.info(f"成功添加订单明细: {product.product_name}, 数量={quantity}, 单价={unit_price}, 小计={calculated_total}")
+
+                                logger.info(f"成功添加订单明细: {product.name}, 数量={quantity}, 单价={unit_price}, 小计={calculated_total}")
                             else:
                                 logger.warning(f"未找到产品ID: {product_id}")
                         else:
@@ -3628,7 +3628,7 @@ def edit_order(id):
                             detail = PurchaseOrderDetail(
                                 order_id=order.id,
                                 product_id=product_id,
-                                product_name=product.product_name,
+                                product_name=product.name,
                                 product_model=product.product_model or '',
                                 product_desc=product.specification or '',
                                 brand=product.brand or '',
@@ -4086,7 +4086,7 @@ def get_company_inventory(company_id):
         status = get_inventory_status(company_id, inv.product_id)
         result.append({
             'product_id': inv.product_id,
-            'product_name': inv.product.product_name,
+            'product_name': inv.product.name,
             'product_mn': inv.product.product_mn,
             'quantity': inv.quantity,
             'unit': inv.unit,
@@ -4107,7 +4107,7 @@ def get_product_info(product_id):
             'success': True,
             'product': {
                 'id': product.id,
-                'name': product.product_name,
+                'name': product.name,
                 'model': product.product_model,
                 'desc': product.product_desc,
                 'unit': product.unit,

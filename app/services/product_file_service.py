@@ -135,7 +135,7 @@ class ProductFileService:
                 response.raise_for_status()
                 
                 # 处理中文文件名
-                original_filename = f"{product.product_name}.pdf"
+                original_filename = f"{product.name}.pdf"
                 encoded_filename = urllib.parse.quote(original_filename)
                 
                 # 创建强制下载的响应
@@ -157,7 +157,7 @@ class ProductFileService:
                 return send_file(
                     pdf_file_path,
                     as_attachment=True,
-                    download_name=f"{product.product_name}.pdf",
+                    download_name=f"{product.name}.pdf",
                     mimetype='application/pdf'
                 )
                 

@@ -1245,7 +1245,7 @@ def check_mn_code_duplicate(mn_code, exclude_dev_product_id=None, exclude_produc
             duplicate_standard_products.append({
                 'id': product.id,
                 'model': product.model,
-                'name': product.product_name,
+                'name': product.name,
                 'status': product.status,
                 'category': category_name,
                 'type': product.type,
@@ -4182,8 +4182,8 @@ def get_product_relations(product_id):
             relation_info = {
                 'id': relation.id,
                 'related_product_id': relation.related_product_id,
-                'product_name': relation.related_product.product_name or relation.related_product.model or '',
-                'product_model': relation.related_product.model or relation.related_product.product_name or '',
+                'product_name': relation.related_product.name or relation.related_product.model or '',
+                'product_model': relation.related_product.model or relation.related_product.name or '',
                 'product_mn': relation.related_product.product_mn,
                 'brand': relation.related_product.brand or '',  # 品牌
                 'specification': relation.related_product.specification or '',  # 产品描述
@@ -4629,8 +4629,8 @@ def get_product_tree():
                         'id': f'prod_{product.id}',
                         'product_id': product.id,
                         'mn': product.product_mn,
-                        'model': product.model or product.product_name or '',
-                        'name': product.product_name or '',
+                        'model': product.model or product.name or '',
+                        'name': product.name or '',
                         'description': product.specification or '',
                         'type': 'product',
                         'icon': 'fa-microchip',

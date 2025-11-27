@@ -2096,7 +2096,7 @@ def delete_product(id):
             }), 400
         
         # 如果产品未被引用，可以删除
-        product_name = product.product_name
+        product_name = product.name  # 使用智能属性
         
         # 删除产品图片文件（如果存在）
         if product.image_path:
@@ -2191,7 +2191,7 @@ def toggle_product_status(id):
         
         # 记录操作
         status_text = '已停产' if target_status == 'discontinued' else '生产中'
-        logger.info(f'管理员 {current_user.username} 将产品状态更新为 {status_text}: ID={product.id}, 名称={product.product_name}')
+        logger.info(f'管理员 {current_user.username} 将产品状态更新为 {status_text}: ID={product.id}, 名称={product.name}')
         
         return jsonify({
             'success': True,
@@ -2408,7 +2408,7 @@ def update_product_status(id):
         elif target_status == 'upcoming':
             status_text = '待上市'
             
-        logger.info(f'管理员 {current_user.username} 将产品状态更新为 {status_text}: ID={product.id}, 名称={product.product_name}')
+        logger.info(f'管理员 {current_user.username} 将产品状态更新为 {status_text}: ID={product.id}, 名称={product.name}')
         
         return jsonify({
             'success': True,
@@ -2558,11 +2558,8 @@ def get_products_by_subcategory_api():
         # 在Python中过滤子分类（支持新旧数据）
         products = []
         for product in all_products:
-            product_subcategory = None
-            if product.subcategory_obj:
-                product_subcategory = product.subcategory_obj.name
-            elif product.product_name:
-                product_subcategory = product.product_name
+            # 使用智能属性获取产品子分类名称
+            product_subcategory = product.name
 
             if product_subcategory == subcategory:
                 products.append(product)
@@ -2571,7 +2568,7 @@ def get_products_by_subcategory_api():
         model_groups = {}
         for product in products:
             # 使用model字段作为型号
-            model = product.model or product.product_name or '未知型号'
+            model = product.model or product.name or '未知型号'
 
             if model not in model_groups:
                 model_groups[model] = []
@@ -2584,7 +2581,7 @@ def get_products_by_subcategory_api():
             # 构建产品数据
             product_data = {
                 'id': product.id,
-                'product_name': product.product_name,
+                'product_name': product.name,  # 使用智能属性，优先返回subcategory_obj.name
                 'model': product.model,
                 'product_mn': product.product_mn,
                 'specification': product.specification,
@@ -2664,7 +2661,7 @@ def get_product_configurations(product_id):
         for relation in relations:
             if relation.related_product and relation.related_product.status == 'active':
                 related_prod = relation.related_product
-                product_name = related_prod.product_name or '其他配置'
+                product_name = related_prod.name or '其他配置'
 
                 if product_name not in config_groups:
                     config_groups[product_name] = []
@@ -2674,7 +2671,7 @@ def get_product_configurations(product_id):
                     'model': related_prod.model,
                     'product_mn': related_prod.product_mn,
                     'specification': related_prod.specification,
-                    'product_name': related_prod.product_name,
+                    'product_name': related_prod.name,
                     'brand': related_prod.brand,
                     'unit': related_prod.unit,
                     'retail_price': float(related_prod.retail_price) if related_prod.retail_price else None,

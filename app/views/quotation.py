@@ -2393,7 +2393,7 @@ def get_products():
                     'type': p.type,
                     'category': p.category,
                     'product_mn': p.product_mn,
-                    'product_name': p.product_name,
+                    'product_name': p.name,
                     'model': p.model,
                     'specification': p.specification,
                     'brand': p.brand,
@@ -2403,7 +2403,7 @@ def get_products():
                     'currency': p.currency or 'CNY'  # 添加货币信息
                 }
                 result.append(product_dict)
-                logger.debug(f'成功处理产品: {p.product_name}')
+                logger.debug(f'成功处理产品: {p.name}')
             except Exception as e:
                 logger.error(f'处理产品时出错: {p.id} - {str(e)}')
                 continue
@@ -2487,7 +2487,7 @@ def get_products_by_category():
             try:
                 product_dict = {
                     'id': p.id,
-                    'product_name': p.product_name,
+                    'product_name': p.name,
                     'model': p.model,
                     'specification': p.specification,
                     'brand': p.brand,
@@ -2498,7 +2498,7 @@ def get_products_by_category():
                     'currency': p.currency or 'CNY'  # 添加货币字段
                 }
                 result.append(product_dict)
-                logger.debug(f'成功处理产品: {p.product_name}, MN: {p.product_mn}, 货币: {p.currency}')
+                logger.debug(f'成功处理产品: {p.name}, MN: {p.product_mn}, 货币: {p.currency}')
             except Exception as e:
                 logger.error(f'处理产品时出错: {p.id} - {str(e)}')
                 continue
@@ -2543,7 +2543,7 @@ def get_product_models():
             try:
                 product_dict = {
                     'id': p.id,
-                    'product_name': p.product_name,
+                    'product_name': p.name,
                     'model': p.model,
                     'specification': p.specification,
                     'brand': p.brand,
@@ -2554,7 +2554,7 @@ def get_product_models():
                     'status': p.status  # 添加产品状态字段
                 }
                 result.append(product_dict)
-                logger.debug(f'成功处理产品: {p.product_name}, 型号: {p.model}, 货币: {p.currency}')
+                logger.debug(f'成功处理产品: {p.name}, 型号: {p.model}, 货币: {p.currency}')
             except Exception as e:
                 logger.error(f'处理产品时出错: {p.id} - {str(e)}')
                 continue
@@ -2661,7 +2661,7 @@ def get_product_specs():
 
                 product_dict = {
                     'id': p.id,
-                    'product_name': p.product_name,
+                    'product_name': p.name,
                     'model': p.model,  # 修复：使用正确的字段名
                     'specification': p.specification,  # 修复：使用正确的字段名
                     'brand': p.brand,
@@ -2674,7 +2674,7 @@ def get_product_specs():
                     'non_code_specs': non_code_specs  # 非编码规格（默认折叠）
                 }
                 result.append(product_dict)
-                logger.debug(f'成功处理产品: {p.product_name}, 规格: {p.specification}')
+                logger.debug(f'成功处理产品: {p.name}, 规格: {p.specification}')
             except Exception as e:
                 logger.error(f'处理产品时出错: {p.id} - {str(e)}')
                 continue
