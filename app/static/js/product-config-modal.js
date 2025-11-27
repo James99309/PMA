@@ -20,6 +20,7 @@ class ProductConfigModal {
         this.pendingSpecs = [];  // 待定规格列表（使用默认值的字段）
         this.configConfirmed = false;  // 配置是否已确认展示
         this.selectedConfigurations = [];  // 已选择的配置列表
+        this.step2Skipped = false;  // 步骤2是否被跳过（产品无配置时）
         this.init();
     }
 
@@ -1094,14 +1095,45 @@ class ProductConfigModal {
         const backBtn = document.getElementById('backToConfigSelection');
 
         if (this.currentStep === 3) {
-            // 从配置确认返回到配置选择
-            if (configArea) configArea.style.display = 'block';
-            if (selectedArea) selectedArea.style.display = 'none';
-            this.configConfirmed = false;
-            this.selectedConfigurations = [];
-            this.currentStep = 2;
-            this.updateStepIndicator(2);
-            console.log('🔙 返回到配置选择界面');
+            // 从配置确认返回
+            if (this.step2Skipped) {
+                // 步骤2被跳过（无配置），直接返回步骤1
+                this.step2Skipped = false;  // 重置标记
+                this.configConfirmed = false;
+                this.selectedConfigurations = [];
+
+                if (codeFieldsContainer) codeFieldsContainer.style.display = '';
+                if (selectedArea) selectedArea.style.display = 'none';
+                if (backBtn) backBtn.style.display = 'none';
+                if (configArea) configArea.style.display = 'none';
+
+                const codeSelectionTitle = document.getElementById('codeSelectionTitle');
+                if (codeSelectionTitle) codeSelectionTitle.style.display = '';
+
+                this.showSpecConfirmButton();
+
+                if (codeFieldsContainer) {
+                    codeFieldsContainer.querySelectorAll('input[type="radio"]').forEach(radio => {
+                        radio.disabled = false;
+                    });
+                    codeFieldsContainer.querySelectorAll('.spec-field-selectable').forEach(fieldDiv => {
+                        fieldDiv.classList.remove('auto-selected');
+                    });
+                }
+
+                this.currentStep = 1;
+                this.updateStepIndicator(1);
+                console.log('🔙 步骤2被跳过，直接返回规格选择界面');
+            } else {
+                // 正常返回步骤2
+                if (configArea) configArea.style.display = 'block';
+                if (selectedArea) selectedArea.style.display = 'none';
+                this.configConfirmed = false;
+                this.selectedConfigurations = [];
+                this.currentStep = 2;
+                this.updateStepIndicator(2);
+                console.log('🔙 返回到配置选择界面');
+            }
         } else if (this.currentStep === 2) {
             // 从配置选择返回到规格选择
             if (codeFieldsContainer) codeFieldsContainer.style.display = '';
@@ -1247,9 +1279,32 @@ class ProductConfigModal {
                 console.log(`  ✓ 配置加载成功: ${result.total} 个配置`);
                 this.renderConfigurations(result);
             } else {
-                console.log('  ℹ️ 该产品无配置选项');
-                // 隐藏整个配置区域而不是显示提示
+                console.log('  ℹ️ 该产品无配置选项，直接进入确认步骤');
+                // 隐藏配置区域
                 if (configArea) configArea.style.display = 'none';
+
+                // ⭐ 设置空配置并跳转到步骤3
+                this.selectedConfigurations = [];
+                this.configConfirmed = true;
+                this.step2Skipped = true;  // 标记跳过了步骤2
+
+                // 隐藏已选配置区域（无配置时不显示）
+                const selectedArea = document.getElementById('selectedConfigsArea');
+                if (selectedArea) selectedArea.style.display = 'none';
+
+                // 更新按钮为最终确认
+                const confirmBtn = document.getElementById('confirmProductSelection');
+                if (confirmBtn) {
+                    confirmBtn.innerHTML = '<i class="fas fa-check"></i> 确认产品';
+                    confirmBtn.onclick = () => this.executeFinalAddProduct();
+                }
+
+                // 显示返回按钮
+                const backBtn = document.getElementById('backToConfigSelection');
+                if (backBtn) backBtn.style.display = 'inline-block';
+
+                this.currentStep = 3;
+                this.updateStepIndicator(3);
             }
         } catch (error) {
             console.error('❌ 加载配置失败:', error);
@@ -2033,6 +2088,7 @@ class ProductConfigModal {
         this.pendingSpecs = [];
         this.configConfirmed = false;
         this.selectedConfigurations = [];
+        this.step2Skipped = false;  // 重置步骤2跳过标记
         this.currentStep = 1;  // 1=规格选择, 2=配置选择, 3=配置确认
 
         // 更新步骤指示器
