@@ -13,16 +13,33 @@
 {% call render_custom_dialog('productConfigModal', _('产品配置'), icon='fas fa-cog', size='lg') %}
     <!-- 固定顶部区域：产品基本信息 -->
     <div class="modal-fixed-header">
+      <!-- 步骤指示器 -->
+      <div class="config-step-indicator" id="configStepIndicator">
+        <div class="step-item active" data-step="1">
+          <span class="step-number">1</span>
+          <span class="step-title">{{ _('规格选择') }}</span>
+        </div>
+        <div class="step-divider"></div>
+        <div class="step-item" data-step="2">
+          <span class="step-number">2</span>
+          <span class="step-title">{{ _('配置选择') }}</span>
+        </div>
+        <div class="step-divider"></div>
+        <div class="step-item" data-step="3">
+          <span class="step-number">3</span>
+          <span class="step-title">{{ _('产品确认') }}</span>
+        </div>
+      </div>
       <div class="product-basic-info">
         <div class="row">
           <div class="col-md-8">
-            <!-- 第一行：产品名称 + 型号 -->
-            <div class="d-flex align-items-baseline mb-2">
-              <h6 id="configProductName" class="mb-0 me-2">{{ _('产品名称') }}</h6>
-              <span id="configProductModel" class="text-muted"></span>
+            <!-- 第一行：产品名称 -->
+            <h6 id="configProductName" class="mb-2">{{ _('产品名称') }}</h6>
+            <!-- 第二行：型号 + MN号 -->
+            <div class="d-flex align-items-center mb-2">
+              <span id="configProductModel" class="text-dark me-2"></span>
+              <span id="configProductMn"></span>
             </div>
-            <!-- 第二行：MN号 -->
-            <div id="configProductMn" class="mb-2"></div>
             <!-- 第三行：品牌 + 价格 -->
             <div id="configProductBrandPrice" class="mb-2"></div>
             <!-- 第四行：规格说明 -->
@@ -152,6 +169,108 @@
 
 <!-- 产品配置模态框样式 -->
 <style>
+/* ============== 步骤指示器放入标题栏 ============== */
+#productConfigModal .custom-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;  /* 左对齐 */
+  position: relative;
+}
+
+/* 隐藏原标题 */
+#productConfigModal .custom-dialog-header .header-title {
+  display: none;
+}
+
+/* 关闭按钮保持右侧 */
+#productConfigModal .custom-dialog-header .custom-dialog-close {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* 步骤指示器左对齐 */
+#productConfigModal .config-step-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+}
+
+#productConfigModal .config-step-indicator .step-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #adb5bd;
+  transition: color 0.3s ease;
+}
+
+#productConfigModal .config-step-indicator .step-item.active {
+  color: #0d6efd;
+}
+
+#productConfigModal .config-step-indicator .step-item.completed {
+  color: #28a745;
+}
+
+#productConfigModal .config-step-indicator .step-number {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+/* 当前步骤：白底黑字，蓝色边框 */
+#productConfigModal .config-step-indicator .step-item.active .step-number {
+  background: white;
+  color: #212529;
+  border: 2px solid #0d6efd;
+}
+
+/* 已完成步骤：绿底白字 */
+#productConfigModal .config-step-indicator .step-item.completed .step-number {
+  background: #28a745;
+  color: white;
+  border-color: #28a745;
+}
+
+#productConfigModal .config-step-indicator .step-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+#productConfigModal .config-step-indicator .step-divider {
+  width: 40px;
+  height: 2px;
+  background: #dee2e6;
+  margin: 0 0.75rem;
+  transition: background 0.3s ease;
+}
+
+#productConfigModal .config-step-indicator .step-item.completed + .step-divider {
+  background: #28a745;
+}
+
+/* 响应式：移动端隐藏步骤标题 */
+@media (max-width: 576px) {
+  #productConfigModal .config-step-indicator .step-title {
+    display: none;
+  }
+  #productConfigModal .config-step-indicator .step-divider {
+    width: 20px;
+    margin: 0 0.5rem;
+  }
+}
+
 /* 确保对话框主体不会产生滚动条，所有滚动在内部区域处理 */
 #productConfigModal .custom-dialog-body {
   overflow: visible !important;

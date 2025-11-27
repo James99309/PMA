@@ -27,12 +27,10 @@ class ProductConfigModal {
      * 初始化模态框
      */
     init() {
-        // 绑定确认按钮事件
+        // 绑定确认按钮事件（使用onclick以便后续可覆盖）
         const confirmBtn = document.getElementById('confirmProductSelection');
         if (confirmBtn) {
-            confirmBtn.addEventListener('click', () => {
-                this.confirmSelection();
-            });
+            confirmBtn.onclick = () => this.confirmSelection();
         }
 
         // 绑定返回按钮事件
@@ -43,6 +41,9 @@ class ProductConfigModal {
             });
         }
 
+        // 将步骤指示器移动到header区域
+        this.moveStepIndicatorToHeader();
+
         // 扩展自定义对话框关闭函数，添加清理逻辑
         const originalCloseCustomDialog = window.closeCustomDialog;
         window.closeCustomDialog = (dialogId) => {
@@ -51,6 +52,23 @@ class ProductConfigModal {
             }
             originalCloseCustomDialog(dialogId);
         };
+    }
+
+    /**
+     * 将步骤指示器移动到对话框header区域
+     */
+    moveStepIndicatorToHeader() {
+        const modal = document.getElementById(this.modalId);
+        if (!modal) return;
+
+        const stepIndicator = modal.querySelector('.config-step-indicator');
+        const header = modal.querySelector('.custom-dialog-header');
+
+        if (stepIndicator && header) {
+            // 移动到header内部（在关闭按钮之前）
+            header.insertBefore(stepIndicator, header.firstChild);
+            console.log('📍 步骤指示器已移动到header区域');
+        }
     }
 
     /**
@@ -78,10 +96,10 @@ class ProductConfigModal {
         // 重置确认状态
         this.configConfirmed = false;
 
-        // 确保显示配置选择区域，隐藏确认展示区域
+        // Step 1 时隐藏配置区域和确认展示区域
         const configArea = document.getElementById('productConfigArea');
         const selectedArea = document.getElementById('selectedConfigsArea');
-        if (configArea) configArea.style.display = 'block';
+        if (configArea) configArea.style.display = 'none';
         if (selectedArea) selectedArea.style.display = 'none';
 
         // 检测产品数量
@@ -621,12 +639,6 @@ class ProductConfigModal {
         // 更新MN号显示
         this.updateMNDisplay();
 
-        // 更新标题
-        const titleElement = document.getElementById('codeSelectionTitle');
-        if (titleElement) {
-            titleElement.innerHTML = '<i class="fas fa-check-circle text-success"></i> 规格已确定，请确认';
-        }
-
         // 显示确认规格按钮
         this.showSpecConfirmButton();
 
@@ -701,12 +713,23 @@ class ProductConfigModal {
             container.style.display = 'none';
         }
 
+        // 隐藏规格选择标题（步骤2不需要显示）
+        const codeSelectionTitle = document.getElementById('codeSelectionTitle');
+        if (codeSelectionTitle) {
+            codeSelectionTitle.style.display = 'none';
+        }
+
+        // 隐藏已选配置区域（Step 2 时不应显示，只在 Step 3 显示）
+        const selectedArea = document.getElementById('selectedConfigsArea');
+        if (selectedArea) selectedArea.style.display = 'none';
+
         // 显示返回按钮（可以返回到规格选择）
         const backBtn = document.getElementById('backToConfigSelection');
         if (backBtn) backBtn.style.display = 'inline-block';
 
-        // 设置当前步骤
+        // 设置当前步骤并更新指示器
         this.currentStep = 2;
+        this.updateStepIndicator(2);
 
         // 加载产品配置
         this.loadProductConfigurations(this.selectedProduct.id);
@@ -785,14 +808,14 @@ class ProductConfigModal {
                 if (brand && price) {
                     brandPriceElement.innerHTML = `
                         <div class="d-flex justify-content-between align-items-center">
-                            <span class="text-muted">品牌: ${brand}</span>
-                            <span class="fw-bold text-primary">${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price}</span>
+                            <span class="text-muted">${brand}</span>
+                            <span class="fw-bold text-primary">${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price ? parseFloat(price).toLocaleString() : price}</span>
                         </div>
                     `;
                 } else if (brand) {
-                    brandPriceElement.innerHTML = `<span class="text-muted">品牌: ${brand}</span>`;
+                    brandPriceElement.innerHTML = `<span class="text-muted">${brand}</span>`;
                 } else if (price) {
-                    brandPriceElement.innerHTML = `<span class="fw-bold text-primary">${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price}</span>`;
+                    brandPriceElement.innerHTML = `<span class="fw-bold text-primary">${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price ? parseFloat(price).toLocaleString() : price}</span>`;
                 } else {
                     brandPriceElement.innerHTML = '';
                 }
@@ -903,14 +926,14 @@ class ProductConfigModal {
             if (brand && price) {
                 brandPriceElement.innerHTML = `
                     <div class="d-flex justify-content-between align-items-center">
-                        <span class="text-muted">品牌: ${brand}</span>
-                        <span class="fw-bold text-primary">${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price}</span>
+                        <span class="text-muted">${brand}</span>
+                        <span class="fw-bold text-primary">${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price ? parseFloat(price).toLocaleString() : price}</span>
                     </div>
                 `;
             } else if (brand) {
-                brandPriceElement.innerHTML = `<span class="text-muted">品牌: ${brand}</span>`;
+                brandPriceElement.innerHTML = `<span class="text-muted">${brand}</span>`;
             } else if (price) {
-                brandPriceElement.innerHTML = `<span class="fw-bold text-primary">${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price}</span>`;
+                brandPriceElement.innerHTML = `<span class="fw-bold text-primary">${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price ? parseFloat(price).toLocaleString() : price}</span>`;
             } else {
                 brandPriceElement.innerHTML = '';
             }
@@ -960,9 +983,10 @@ class ProductConfigModal {
         if (selectedArea) selectedArea.style.display = 'block';
         if (backBtn) backBtn.style.display = 'inline-block';
 
-        // 标记配置已确认
+        // 标记配置已确认并更新步骤指示器
         this.configConfirmed = true;
         this.currentStep = 3;
+        this.updateStepIndicator(3);
 
         console.log('📋 配置已确认，切换到展示模式');
     }
@@ -982,7 +1006,9 @@ class ProductConfigModal {
         container.innerHTML = '';
 
         if (configurations.length === 0) {
-            container.innerHTML = '<div class="text-muted text-center py-2">未选择任何配置</div>';
+            // 隐藏整个已选配置区域
+            const selectedArea = document.getElementById('selectedConfigsArea');
+            if (selectedArea) selectedArea.style.display = 'none';
             return;
         }
 
@@ -1074,12 +1100,36 @@ class ProductConfigModal {
             this.configConfirmed = false;
             this.selectedConfigurations = [];
             this.currentStep = 2;
+            this.updateStepIndicator(2);
             console.log('🔙 返回到配置选择界面');
         } else if (this.currentStep === 2) {
             // 从配置选择返回到规格选择
             if (codeFieldsContainer) codeFieldsContainer.style.display = '';
+            if (selectedArea) selectedArea.style.display = 'none';
             if (backBtn) backBtn.style.display = 'none';
+
+            // 隐藏配置区域（步骤1不显示）
+            if (configArea) configArea.style.display = 'none';
+
+            // 恢复规格选择标题（返回步骤1时需要显示）
+            const codeSelectionTitle = document.getElementById('codeSelectionTitle');
+            if (codeSelectionTitle) codeSelectionTitle.style.display = '';
+
+            // ⭐ 重置确认按钮为步骤1的行为
+            this.showSpecConfirmButton();
+
+            // ⭐ 重新启用所有规格选择radio按钮
+            if (codeFieldsContainer) {
+                codeFieldsContainer.querySelectorAll('input[type="radio"]').forEach(radio => {
+                    radio.disabled = false;
+                });
+                codeFieldsContainer.querySelectorAll('.spec-field-selectable').forEach(fieldDiv => {
+                    fieldDiv.classList.remove('auto-selected');
+                });
+            }
+
             this.currentStep = 1;
+            this.updateStepIndicator(1);
             console.log('🔙 返回到规格选择界面');
         }
     }
@@ -1198,7 +1248,8 @@ class ProductConfigModal {
                 this.renderConfigurations(result);
             } else {
                 console.log('  ℹ️ 该产品无配置选项');
-                if (noConfigMessage) noConfigMessage.style.display = 'block';
+                // 隐藏整个配置区域而不是显示提示
+                if (configArea) configArea.style.display = 'none';
             }
         } catch (error) {
             console.error('❌ 加载配置失败:', error);
@@ -1347,7 +1398,7 @@ class ProductConfigModal {
             const priceDiv = document.createElement('div');
             priceDiv.className = 'config-price';
             priceDiv.style.whiteSpace = 'nowrap';
-            priceDiv.textContent = `${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price.toFixed(2)}`;
+            priceDiv.textContent = `${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
             row1.appendChild(nameDiv);
             row1.appendChild(priceDiv);
@@ -1387,7 +1438,7 @@ class ProductConfigModal {
         } else {
             // 正常配置选择模式：显示价格
             rightSpan.className = 'config-price';
-            rightSpan.textContent = `${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price.toFixed(2)}`;
+            rightSpan.textContent = `${(document.getElementById('currencySymbol')?.textContent?.trim() || '¥')}${price.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         }
 
         row2.appendChild(leftSpan);
@@ -1680,6 +1731,9 @@ class ProductConfigModal {
                 badgeText: '推荐'
             }));
 
+            // 子配置容器变量（确保每次迭代重置）
+            let nestedContainer = null;
+
             // ⭐ 新增：如果有子配置且为顶层配置（level 0），添加展开按钮和子配置容器
             if (config.has_nested_configs && level === 0) {
                 console.log(`  🔧 为推荐配置产品 ${config.related_product_id} 添加展开按钮 (层级: ${level})`);
@@ -1703,14 +1757,29 @@ class ProductConfigModal {
                 badge.style.display = 'none';
                 label.appendChild(badge);
 
-                // 添加子配置容器
-                const nestedContainer = this.createNestedConfigContainer(config, level);
+                // 创建子配置容器（稍后添加到checkbox和label之后）
+                nestedContainer = this.createNestedConfigContainer(config, level);
                 console.log(`  📦 创建嵌套容器ID: ${nestedContainer.id}`);
-                optionDiv.appendChild(nestedContainer);
+
+                // ⭐ 监听checkbox选中状态变化
+                checkbox.addEventListener('change', (e) => {
+                    console.log(`☑️ [推荐配置] Checkbox状态变化 - 产品ID: ${config.related_product_id}, 选中: ${e.target.checked}`);
+                    if (e.target.checked) {
+                        // 选中时自动展开
+                        this.autoExpandNestedConfig(config.related_product_id, level);
+                    } else {
+                        // 取消选中时折叠
+                        this.collapseNestedConfig(config.related_product_id, level);
+                    }
+                });
             }
 
             optionDiv.appendChild(checkbox);
             optionDiv.appendChild(label);
+            // 子配置容器放在checkbox和label之后（显示在下方）
+            if (nestedContainer) {
+                optionDiv.appendChild(nestedContainer);
+            }
             targetContainer.appendChild(optionDiv);
         });
 
@@ -1795,6 +1864,9 @@ class ProductConfigModal {
                     badgeText: '可选互斥'
                 }));
 
+                // 子配置容器变量（确保每次迭代重置）
+                let nestedContainer = null;
+
                 // ⭐ 新增：如果有子配置且为顶层配置（level 0），添加展开按钮和子配置容器
                 if (product.has_nested_configs && level === 0) {
                     console.log(`  🔧 为可选互斥产品 ${product.related_product_id} 添加展开按钮 (层级: ${level})`);
@@ -1818,14 +1890,44 @@ class ProductConfigModal {
                     badge.style.display = 'none';
                     label.appendChild(badge);
 
-                    // 添加子配置容器
-                    const nestedContainer = this.createNestedConfigContainer(product, level);
+                    // 创建子配置容器（稍后添加到radio和label之后）
+                    nestedContainer = this.createNestedConfigContainer(product, level);
                     console.log(`  📦 创建嵌套容器ID: ${nestedContainer.id}`);
-                    optionDiv.appendChild(nestedContainer);
+
+                    // ⭐ 监听radio选中状态变化
+                    radio.addEventListener('change', (e) => {
+                        console.log(`📻 [可选互斥] Radio状态变化 - 产品ID: ${product.related_product_id}, 选中: ${e.target.checked}`);
+                        if (e.target.checked) {
+                            // 选中时自动展开
+                            this.autoExpandNestedConfig(product.related_product_id, level);
+                        }
+                    });
+
+                    // 监听同组其他radio的change事件，取消选中时收起
+                    const groupName = `optional-mutual-${group.group_id}-${level}`;
+                    document.addEventListener('change', (e) => {
+                        if (e.target.name === groupName && e.target.value != product.related_product_id) {
+                            // 同组其他选项被选中，收起当前产品的嵌套配置
+                            console.log(`📻 [可选互斥] 其他选项被选中，收起产品 ${product.related_product_id} 的嵌套配置`);
+                            this.collapseNestedConfig(product.related_product_id, level);
+                        }
+                    });
+
+                    // 如果当前是默认选中，自动展开
+                    if (radio.checked) {
+                        console.log(`  ✅ [可选互斥] 产品 ${product.related_product_id} 是默认选中，将自动展开`);
+                        setTimeout(() => {
+                            this.autoExpandNestedConfig(product.related_product_id, level);
+                        }, 100);
+                    }
                 }
 
                 optionDiv.appendChild(radio);
                 optionDiv.appendChild(label);
+                // 子配置容器放在radio和label之后（显示在下方）
+                if (nestedContainer) {
+                    optionDiv.appendChild(nestedContainer);
+                }
                 targetContainer.appendChild(optionDiv);
             });
         });
@@ -1882,6 +1984,39 @@ class ProductConfigModal {
 
 
     /**
+     * 更新步骤指示器
+     * @param {number} step - 当前步骤 (1, 2, 或 3)
+     */
+    updateStepIndicator(step) {
+        const indicator = document.getElementById('configStepIndicator');
+        if (!indicator) return;
+
+        const items = indicator.querySelectorAll('.step-item');
+        const dividers = indicator.querySelectorAll('.step-divider');
+
+        items.forEach((item, index) => {
+            const itemStep = index + 1;
+            item.classList.remove('active', 'completed');
+            if (itemStep === step) {
+                item.classList.add('active');
+            } else if (itemStep < step) {
+                item.classList.add('completed');
+            }
+        });
+
+        // 更新分隔线颜色（已完成步骤之后的分隔线变绿）
+        dividers.forEach((divider, index) => {
+            if (index < step - 1) {
+                divider.style.background = '#28a745';
+            } else {
+                divider.style.background = '#dee2e6';
+            }
+        });
+
+        console.log(`📍 步骤指示器更新: Step ${step}`);
+    }
+
+    /**
      * 重置状态
      */
     reset() {
@@ -1899,6 +2034,9 @@ class ProductConfigModal {
         this.configConfirmed = false;
         this.selectedConfigurations = [];
         this.currentStep = 1;  // 1=规格选择, 2=配置选择, 3=配置确认
+
+        // 更新步骤指示器
+        this.updateStepIndicator(1);
 
         // 清空内容
         const containers = [
@@ -1933,8 +2071,8 @@ class ProductConfigModal {
         if (codeSelectionArea) codeSelectionArea.style.display = 'none';
         if (specsArea) specsArea.style.display = 'none';
 
-        // 确保配置选择区域显示，确认展示区域隐藏
-        if (configArea) configArea.style.display = 'block';
+        // Step 1 时隐藏配置区域，只在 Step 2 才显示
+        if (configArea) configArea.style.display = 'none';
         if (selectedArea) selectedArea.style.display = 'none';
 
         // 强制隐藏返回按钮
