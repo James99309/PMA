@@ -768,4 +768,14 @@
   background: #e9ecef;
 }
 </style>
+
+<!-- 国际化文本定义 -->
+<script>
+window.i18nTexts = window.i18nTexts || {};
+Object.assign(window.i18nTexts, {
+    recommended: '{{ _("推荐") }}',
+    required: '{{ _("必选") }}',
+    optionalMutual: '{{ _("可选互斥") }}'
+});
+</script>
 {% endmacro %}

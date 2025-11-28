@@ -1036,11 +1036,11 @@ class ProductConfigModal {
         item.className = 'config-item-simple';  // 所有层级统一使用 config-item-simple，缩进由父容器 sub-config-container 负责
         console.log(`${'  '.repeat(level)}   - 创建item, 类名: ${item.className}`);
 
-        // 根据 relation_type 确定徽章类型
+        // 根据 relation_type 确定徽章类型（使用 i18nTexts 支持国际化）
         const badgeMap = {
-            'required_accessory': { type: 'relation-type-required', text: '必选' },
-            'recommended': { type: 'relation-type-recommended', text: '推荐' },
-            'optional_accessory': { type: 'relation-type-optional-mutual', text: '可选互斥' }
+            'required_accessory': { type: 'relation-type-required', text: window.i18nTexts?.required || '必选' },
+            'recommended': { type: 'relation-type-recommended', text: window.i18nTexts?.recommended || '推荐' },
+            'optional_accessory': { type: 'relation-type-optional-mutual', text: window.i18nTexts?.optionalMutual || '可选互斥' }
         };
 
         const badge = badgeMap[config.relation_type] || { type: '', text: '' };
@@ -1499,12 +1499,19 @@ class ProductConfigModal {
         row2.appendChild(leftSpan);
         row2.appendChild(rightSpan);
 
-        // 第三行：规格说明
+        // 第三行：规格说明（支持差异高亮）
         const row3 = document.createElement('div');
         row3.className = 'text-muted';
         row3.style.fontSize = '0.9rem';
         row3.style.marginTop = '0.25rem';
-        row3.textContent = config.specification || '-';
+
+        // 如果有差异keys且SpecAnalyzer可用，使用高亮显示
+        const specText = config.specification || config.product_desc || '-';
+        if (options.diffKeys && options.diffKeys.size > 0 && window.SpecAnalyzer) {
+            row3.innerHTML = window.SpecAnalyzer.highlightSpecString(specText, options.diffKeys);
+        } else {
+            row3.textContent = specText;
+        }
         console.log('  - 规格说明:', config.specification);
         console.log('  - 第三行文本:', row3.textContent);
 
@@ -1545,10 +1552,10 @@ class ProductConfigModal {
             // 存储完整的产品数据（JSON字符串）
             item.dataset.productData = JSON.stringify(config);
 
-            // 使用通用模板，传递必选徽章
+            // 使用通用模板，传递必选徽章（使用 i18nTexts 支持国际化）
             item.appendChild(this.createConfigItemContent(config, {
                 badgeType: 'relation-type-required',
-                badgeText: '必选'
+                badgeText: window.i18nTexts?.required || '必选'
             }));
 
             // ⭐ 新增：如果有子配置且未超过最大层级，添加展开按钮和子配置容器
@@ -1628,6 +1635,12 @@ class ProductConfigModal {
             const defaultProductId = defaultProduct ? defaultProduct.related_product_id : null;
             console.log(`  🎯 [必选互斥] 组 ${group.group_id} 的默认选中产品ID: ${defaultProductId}`);
 
+            // ⭐ 计算同名产品的规格差异（用于高亮显示）
+            const diffKeys = window.SpecAnalyzer ? window.SpecAnalyzer.findDiffKeys(group.products) : new Set();
+            if (diffKeys.size > 0) {
+                console.log(`  🔍 [必选互斥] 组 ${group.group_id} 发现规格差异:`, [...diffKeys]);
+            }
+
             group.products.forEach((product, index) => {
                 const price = product.retail_product || 0;
 
@@ -1662,10 +1675,11 @@ class ProductConfigModal {
                 label.className = 'form-check-label';
                 label.setAttribute('for', radio.id);
 
-                // 使用通用模板（显示必选互斥徽章）
+                // 使用通用模板（显示必选互斥徽章，传递差异keys用于高亮）
                 label.appendChild(this.createConfigItemContent(product, {
                     badgeType: 'relation-type-required-mutual',
-                    badgeText: '必选互斥'
+                    badgeText: '必选互斥',
+                    diffKeys: diffKeys
                 }));
 
                 optionDiv.appendChild(radio);
@@ -1758,6 +1772,12 @@ class ProductConfigModal {
             targetContainer = container;
         }
 
+        // ⭐ 计算同名产品的规格差异（按产品名称分组）
+        const diffMap = window.SpecAnalyzer ? window.SpecAnalyzer.calculateDiffMap(configs) : new Map();
+        if (diffMap.size > 0) {
+            console.log(`  🔍 [推荐配置] 发现 ${diffMap.size} 个产品有规格差异`);
+        }
+
         configs.forEach((config, idx) => {
             const optionDiv = document.createElement('div');
             optionDiv.className = 'form-check config-option-simple';
@@ -1779,11 +1799,15 @@ class ProductConfigModal {
             label.className = 'form-check-label';
             label.setAttribute('for', checkbox.id);
 
-            // 使用通用模板，传递推荐徽章
+            // 使用通用模板，传递推荐徽章（使用 i18nTexts 支持国际化）
             // API 返回的 config 对象已经包含所有产品字段
+            // 获取该配置的差异keys（基于product id）
+            const configId = config.id || config.related_product_id;
+            const diffKeys = diffMap.get(configId) || new Set();
             label.appendChild(this.createConfigItemContent(config, {
                 badgeType: 'relation-type-recommended',
-                badgeText: '推荐'
+                badgeText: window.i18nTexts?.recommended || '推荐',
+                diffKeys: diffKeys
             }));
 
             // 子配置容器变量（确保每次迭代重置）
@@ -1881,6 +1905,12 @@ class ProductConfigModal {
                 targetContainer = container;
             }
 
+            // ⭐ 计算同名产品的规格差异（用于高亮显示）
+            const diffKeys = window.SpecAnalyzer ? window.SpecAnalyzer.findDiffKeys(group.products) : new Set();
+            if (diffKeys.size > 0) {
+                console.log(`  🔍 [可选互斥] 组 ${group.group_id} 发现规格差异:`, [...diffKeys]);
+            }
+
             // 添加具体选项（移除"不选择"选项）
             group.products.forEach((product, index) => {
                 const price = product.retail_price || 0;
@@ -1912,11 +1942,12 @@ class ProductConfigModal {
                 label.className = 'form-check-label';
                 label.setAttribute('for', radio.id);
 
-                // 使用通用模板（显示可选互斥徽章）
+                // 使用通用模板（显示可选互斥徽章，传递差异keys用于高亮）
                 // API 返回的 product 对象已经包含所有产品字段
                 label.appendChild(this.createConfigItemContent(product, {
                     badgeType: 'relation-type-optional-mutual',
-                    badgeText: '可选互斥'
+                    badgeText: '可选互斥',
+                    diffKeys: diffKeys
                 }));
 
                 // 子配置容器变量（确保每次迭代重置）

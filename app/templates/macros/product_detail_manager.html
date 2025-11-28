@@ -944,6 +944,8 @@
   在使用产品明细组件的页面中调用此宏
 #}
 {% macro init_product_detail_scripts() %}
+<!-- 规格分析工具（必须在 product-config-modal.js 之前加载） -->
+<script src="{{ url_for('static', filename='js/spec-analyzer.js') }}"></script>
 <!-- 产品配置模态框脚本（必须最先加载，被 product-selector.js 依赖） -->
 <script src="{{ url_for('static', filename='js/product-config-modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/product-config-debug.js') }}"></script>

@@ -72,7 +72,7 @@
 <script>
 // 导出产品功能
 function exportProducts() {
-    alert('{{ _("导出功能开发中...") }}');
+    window.location.href = '{{ url_for("product_route.export_products") }}';
 }
 
 document.addEventListener('DOMContentLoaded', function() {

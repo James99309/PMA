@@ -882,6 +882,30 @@ class ProductSelector {
 
             const modelGroups = productsData.model_groups;
 
+            // ⭐ 使用 JSON 快照计算同名产品的规格差异（用于高亮显示）
+            // 按 product_name 分组，然后对每组使用 findDiffPositions 分析
+            const allProducts = modelGroups.flatMap(mg => mg.products);
+            const diffPositionsMap = new Map(); // product.id -> diffPositions
+
+            if (window.SpecAnalyzer) {
+                // 按产品名称分组
+                const groups = window.SpecAnalyzer.groupByName(allProducts, 'product_name');
+
+                // 对每组计算差异位置
+                Object.values(groups).forEach(groupProducts => {
+                    if (groupProducts.length >= 2) {
+                        const withSnapshot = groupProducts.filter(p => p.code_definition_snapshot);
+                        if (withSnapshot.length >= 2) {
+                            const diffPositions = window.SpecAnalyzer.findDiffPositions(groupProducts);
+                            // 将 diffPositions 关联到每个产品
+                            groupProducts.forEach(product => {
+                                diffPositionsMap.set(product.id, diffPositions);
+                            });
+                        }
+                    }
+                });
+            }
+
             // 显示型号列表（去重后的）
             modelGroups.forEach(modelGroup => {
                 const item = document.createElement('div');
@@ -900,13 +924,25 @@ class ProductSelector {
                     // 添加 no-arrow 类隐藏箭头
                     item.classList.add('no-arrow');
 
+                    // ⭐ 用 JSON 快照计算差异字段，然后高亮原始 specification 字符串
+                    // 这样既能准确检测差异，又能保留完整的规格信息（如尺寸）
+                    const diffPositions = diffPositionsMap.get(product.id);
+                    let specHtml = product.specification || '';
+                    if (diffPositions && diffPositions.length > 0 && window.SpecAnalyzer && specHtml) {
+                        // 从快照差异中提取有差异的字段名
+                        const diffKeys = new Set(diffPositions.filter(d => d.isDiff).map(d => d.fieldName));
+                        if (diffKeys.size > 0) {
+                            specHtml = window.SpecAnalyzer.highlightSpecString(specHtml, diffKeys);
+                        }
+                    }
+
                     contentHtml = `
                         <div class="product-info">
                             <div class="product-name" style="display: flex; justify-content: space-between; align-items: center;">
                                 <span>${modelGroup.model}</span>
                                 <span class="${priceClass}" style="font-weight: bold; color: #2196f3;">${priceText}${isDiscontinued ? ' (停产)' : ''}</span>
                             </div>
-                            ${product.specification ? `<div class="product-details">${product.specification}</div>` : ''}
+                            ${specHtml ? `<div class="product-details">${specHtml}</div>` : ''}
                         </div>
                     `;
                 } else {

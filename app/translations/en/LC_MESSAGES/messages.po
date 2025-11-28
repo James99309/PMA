@@ -9545,3 +9545,22 @@ msgstr "Failed to generate identifier"
 
 msgid "所有可用标识符已用完"
 msgstr "All available identifiers have been used"
+
+# ProductConfigModal 产品配置模态框
+msgid "产品配置"
+msgstr "Product Configuration"
+
+msgid "规格选择"
+msgstr "Specification"
+
+msgid "配置选择"
+msgstr "Configuration"
+
+msgid "产品确认"
+msgstr "Confirmation"
+
+msgid "必选"
+msgstr "Required"
+
+msgid "可选互斥"
+msgstr "Optional (Exclusive)"

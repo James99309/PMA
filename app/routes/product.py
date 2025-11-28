@@ -40,8 +40,12 @@ from sqlalchemy import func, and_, or_
 from flask import url_for
 from app.decorators import permission_required  # 添加权限装饰器导入
 import os
+import io
 import uuid
 from PIL import Image
+from flask import send_file
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from werkzeug.utils import secure_filename
 from flask import current_app
 from app.utils.supabase_client import get_supabase_client
@@ -2701,4 +2705,300 @@ def get_product_configurations(product_id):
         return jsonify({
             'success': False,
             'message': f'获取配置失败: {str(e)}'
-        }), 500 
+        }), 500
+
+
+@bp.route('/products/export', methods=['GET'])
+@login_required
+@permission_required('product', 'view')
+def export_products():
+    """导出产品库为Excel文件"""
+    try:
+        from app.models.product_spec import ProductSpec
+
+        # 查询所有产品（排除project类型）
+        products = Product.query.filter(
+            Product.type.in_(['channel', 'third party', 'standard'])
+        ).order_by(Product.created_at.desc()).all()
+
+        # 创建工作簿
+        wb = Workbook()
+
+        # 定义样式
+        header_font = Font(name='微软雅黑', size=11, bold=True, color='FFFFFF')
+        header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+        normal_font = Font(name='微软雅黑', size=10)
+        center_alignment = Alignment(horizontal='center', vertical='center')
+        left_alignment = Alignment(horizontal='left', vertical='center')
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+
+        # ========== Sheet 1: 产品列表 ==========
+        ws_list = wb.active
+        ws_list.title = "产品列表"
+
+        # 产品列表表头
+        list_headers = ['产品类型', '产品类别', '状态', '产品名称', '型号',
+                        '规格', '品牌', '单位', '价格', '货币', 'MN号', '创建时间']
+
+        for col_idx, header in enumerate(list_headers, 1):
+            cell = ws_list.cell(row=1, column=col_idx, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_alignment
+            cell.border = thin_border
+
+        # 状态映射
+        status_map = {
+            'active': '生产中',
+            'discontinued': '已停产',
+            'upcoming': '待上市'
+        }
+
+        # 类型映射
+        type_map = {
+            'standard': '标准产品',
+            'channel': '渠道产品',
+            'third party': '第三方产品'
+        }
+
+        # 填充产品数据
+        for row_idx, product in enumerate(products, 2):
+            # 获取产品名称（优先使用subcategory_obj）
+            product_name = ''
+            if product.subcategory_obj:
+                product_name = product.subcategory_obj.name
+            elif product.product_name:
+                product_name = product.product_name
+
+            # 获取产品类别（优先使用category_obj）
+            category_name = ''
+            if product.category_obj:
+                category_name = product.category_obj.name
+            elif product.category:
+                category_name = product.category
+
+            row_data = [
+                type_map.get(product.type, product.type or ''),
+                category_name,
+                status_map.get(product.status, product.status or ''),
+                product_name,
+                product.model or '',
+                product.specification or '',
+                product.brand or '',
+                product.unit or '',
+                float(product.retail_price) if product.retail_price else '',
+                product.currency or 'CNY',
+                product.product_mn or '',
+                product.created_at.strftime('%Y-%m-%d %H:%M') if product.created_at else ''
+            ]
+
+            for col_idx, value in enumerate(row_data, 1):
+                cell = ws_list.cell(row=row_idx, column=col_idx, value=value)
+                cell.font = normal_font
+                cell.alignment = left_alignment
+                cell.border = thin_border
+
+        # 设置列宽
+        list_column_widths = {'A': 12, 'B': 12, 'C': 10, 'D': 20, 'E': 15,
+                             'F': 40, 'G': 12, 'H': 8, 'I': 12, 'J': 8, 'K': 15, 'L': 18}
+        for col, width in list_column_widths.items():
+            ws_list.column_dimensions[col].width = width
+
+        # ========== Sheet 2-N: 按型号分组的规格表 ==========
+        # 型号到Sheet名称的映射（用于产品列表超链接）
+        model_to_sheet = {}
+
+        # 按型号分组
+        model_groups = {}
+        for product in products:
+            model = product.model
+            if not model:
+                continue
+
+            if model not in model_groups:
+                model_groups[model] = []
+            model_groups[model].append(product)
+
+        used_sheet_names = set(['产品列表'])
+
+        for model, group_products in model_groups.items():
+            # 收集该型号所有产品的规格数据
+            products_specs = []  # [(product, specs_dict), ...]
+            all_spec_names = []  # 收集所有规格名称（保持顺序）
+
+            for product in group_products:
+                specs_dict = {}  # {field_name: {value, use_in_code, field_code}}
+
+                if product.code_definition_snapshot:
+                    snapshot = product.code_definition_snapshot
+                    code_parts = snapshot.get('code_parts', [])
+                    for part in code_parts:
+                        field_name = part.get('field_name', '')
+                        if field_name:
+                            specs_dict[field_name] = {
+                                'value': part.get('value', ''),
+                                'use_in_code': '是' if part.get('use_in_code', False) else '否',
+                                'field_code': part.get('field_code', '') or part.get('code', '')
+                            }
+                            if field_name not in all_spec_names:
+                                all_spec_names.append(field_name)
+                else:
+                    specs = ProductSpec.query.filter_by(product_id=product.id).order_by(ProductSpec.id).all()
+                    for spec in specs:
+                        if spec.field_name:
+                            specs_dict[spec.field_name] = {
+                                'value': spec.field_value or '',
+                                'use_in_code': '是' if spec.field_code else '否',
+                                'field_code': spec.field_code or ''
+                            }
+                            if spec.field_name not in all_spec_names:
+                                all_spec_names.append(spec.field_name)
+
+                if specs_dict:
+                    products_specs.append((product, specs_dict))
+
+            # 如果没有产品有规格数据，跳过
+            if not products_specs or not all_spec_names:
+                continue
+
+            # 生成Sheet名称（型号名，截断到31字符）
+            sheet_name = model
+            sheet_name = sheet_name.replace('/', '_').replace('\\', '_').replace('*', '_')
+            sheet_name = sheet_name.replace('?', '_').replace('[', '_').replace(']', '_')
+            sheet_name = sheet_name.replace(':', '_')
+
+            if len(sheet_name) > 31:
+                sheet_name = sheet_name[:31]
+
+            # 确保sheet名称唯一
+            original_name = sheet_name
+            counter = 1
+            while sheet_name in used_sheet_names:
+                suffix = f"_{counter}"
+                sheet_name = original_name[:31-len(suffix)] + suffix
+                counter += 1
+            used_sheet_names.add(sheet_name)
+
+            # 记录型号到Sheet名称的映射
+            model_to_sheet[model] = sheet_name
+
+            # 创建规格Sheet
+            ws_spec = wb.create_sheet(title=sheet_name)
+
+            # ===== 第1行：型号 + 各产品MN =====
+            # A1: 型号
+            cell = ws_spec.cell(row=1, column=1, value=model)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_alignment
+            cell.border = thin_border
+
+            # 每个产品占3列（指标、是否编码规格、编码号）
+            for idx, (product, _) in enumerate(products_specs):
+                col_start = 2 + idx * 3  # 从第2列开始，每产品占3列
+                # 型号名格式：型号-MN
+                if product.model and product.product_mn:
+                    model_name = f"{product.model}-{product.product_mn}"
+                else:
+                    model_name = product.model or product.product_mn or f'产品{idx+1}'
+
+                # 合并3列显示型号名
+                ws_spec.merge_cells(start_row=1, start_column=col_start, end_row=1, end_column=col_start + 2)
+                cell = ws_spec.cell(row=1, column=col_start, value=model_name)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = center_alignment
+                cell.border = thin_border
+
+                # 为合并区域的其他单元格添加边框
+                for c in range(col_start + 1, col_start + 3):
+                    ws_spec.cell(row=1, column=c).border = thin_border
+
+            # ===== 第2行：列头（规格 + 每型号的三列标题）=====
+            cell = ws_spec.cell(row=2, column=1, value='规格')
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_alignment
+            cell.border = thin_border
+
+            for idx in range(len(products_specs)):
+                col_start = 2 + idx * 3
+                headers = ['指标', '是否编码规格', '编码号']
+                for h_idx, header in enumerate(headers):
+                    cell = ws_spec.cell(row=2, column=col_start + h_idx, value=header)
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = center_alignment
+                    cell.border = thin_border
+
+            # ===== 第3行起：规格数据 =====
+            for row_idx, spec_name in enumerate(all_spec_names, 3):
+                # A列：规格名称
+                cell = ws_spec.cell(row=row_idx, column=1, value=spec_name)
+                cell.font = normal_font
+                cell.alignment = left_alignment
+                cell.border = thin_border
+
+                # 各产品的规格值
+                for p_idx, (product, specs_dict) in enumerate(products_specs):
+                    col_start = 2 + p_idx * 3
+                    spec_data = specs_dict.get(spec_name, {'value': '', 'use_in_code': '', 'field_code': ''})
+
+                    values = [spec_data['value'], spec_data['use_in_code'], spec_data['field_code']]
+                    for v_idx, value in enumerate(values):
+                        cell = ws_spec.cell(row=row_idx, column=col_start + v_idx, value=value)
+                        cell.font = normal_font
+                        cell.alignment = left_alignment
+                        cell.border = thin_border
+
+            # 设置列宽
+            ws_spec.column_dimensions['A'].width = 15  # 规格名称列
+            for idx in range(len(products_specs)):
+                col_start = 2 + idx * 3
+                from openpyxl.utils import get_column_letter
+                ws_spec.column_dimensions[get_column_letter(col_start)].width = 18      # 指标
+                ws_spec.column_dimensions[get_column_letter(col_start + 1)].width = 12  # 是否编码规格
+                ws_spec.column_dimensions[get_column_letter(col_start + 2)].width = 10  # 编码号
+
+        # ========== 为产品列表的产品名称添加超链接 ==========
+        link_font = Font(name='微软雅黑', size=10, color='0066CC', underline='single')
+
+        for row_idx, product in enumerate(products, 2):
+            # 获取型号
+            model = product.model
+
+            # 如果该型号有对应的规格Sheet，添加超链接
+            if model and model in model_to_sheet:
+                sheet_name = model_to_sheet[model]
+                cell = ws_list.cell(row=row_idx, column=5)  # E列是型号
+                cell.hyperlink = f"#'{sheet_name}'!A1"
+                cell.font = link_font
+
+        # 保存到内存
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        # 生成文件名
+        filename = f"产品库导出-{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+
+        logger.info(f"用户 {current_user.username} 导出产品库，共 {len(products)} 个产品")
+
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
+    except Exception as e:
+        logger.error(f"导出产品库失败：{str(e)}")
+        import traceback
+        logger.error(f"错误详情: {traceback.format_exc()}")
+        flash(f'导出失败：{str(e)}', 'danger')
+        return redirect(url_for('product_route.products_page'))

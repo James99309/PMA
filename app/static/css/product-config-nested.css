@@ -180,3 +180,13 @@
     border: none;
     border-top: 1px dashed #dee2e6;
 }
+
+/* ========== 规格差异高亮样式 ========== */
+
+/* 规格差异高亮 - 只有指标值黑色斜体加粗下划线 */
+.spec-diff-highlight {
+    color: #000;                /* 黑色文字 */
+    font-style: italic;         /* 斜体 */
+    font-weight: bold;          /* 加粗 */
+    text-decoration: underline; /* 下划线 */
+}
