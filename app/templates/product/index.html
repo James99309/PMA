@@ -47,7 +47,7 @@
                     {% if current_user.role in ['admin', 'product_manager'] %}
                         {{ render_button(_('新增产品'), url_for('product_route.create_product_page'), color='primary', icon='fas fa-plus') }}
                     {% endif %}
-                    {% if has_permission('product', 'view') %}
+                    {% if current_user.role in ['admin', 'product_manager'] %}
                         {{ render_button(_('导出产品'), '#', color='success', icon='fas fa-file-excel', onclick='exportProducts();') }}
                     {% endif %}
                 </div>

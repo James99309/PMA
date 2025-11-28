@@ -2710,7 +2710,7 @@ def get_product_configurations(product_id):
 
 @bp.route('/products/export', methods=['GET'])
 @login_required
-@permission_required('product', 'view')
+@permission_required('product', 'edit')
 def export_products():
     """导出产品库为Excel文件"""
     try:
