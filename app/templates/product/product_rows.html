@@ -16,6 +16,13 @@
             -
         {% endif %}
     </td>
+    <td class="text-cell">
+        {% if product.subcategory_obj %}
+            {{ product.subcategory_obj.name }}
+        {% else %}
+            -
+        {% endif %}
+    </td>
     <td>
         {{ render_product_status_badge(product.status) }}
     </td>
@@ -23,11 +30,11 @@
         <div class="product-name-container"
              {% if product.image_path %}
              data-image-url="{{ product.image_path }}"
-             data-product-name="{{ product.subcategory_obj.name if product.subcategory_obj else '' }}"
+             data-product-name="{{ product.product_name or '-' }}"
              {% endif %}>
             <a href="{{ url_for('product_route.view_product_detail', id=product.id) }}"
                class="product-name-link">
-                {{ product.subcategory_obj.name if product.subcategory_obj else '-' }}
+                {{ product.product_name or '-' }}
                 {% if product.image_path %}
                     <i class="fas fa-image text-primary ms-1" title="{{ _('有产品图片') }}"></i>
                 {% endif %}

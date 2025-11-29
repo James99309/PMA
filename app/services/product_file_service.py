@@ -10,6 +10,8 @@ from flask import current_app, Response, jsonify
 from flask_login import current_user
 from werkzeug.datastructures import FileStorage
 from app.models.product import Product
+from app.models.dev_product import DevProduct
+from app.models.product_code import ProductSubcategory
 from app.extensions import db
 from app.utils.supabase_client import get_supabase_client
 from app.utils.file_manager import get_file_manager
@@ -111,33 +113,36 @@ class ProductFileService:
     
     def download_pdf(self, product_id: int) -> Response:
         """
-        下载产品PDF文件
-        
+        下载产品PDF文件（支持分类共享）
+
         Args:
             product_id: 产品ID
-            
+
         Returns:
             Response: 文件下载响应
         """
         product = Product.query.get_or_404(product_id)
-        
-        if not product.pdf_path:
+
+        # 获取有效的PDF路径（产品自身或分类共享）
+        effective_pdf = self.get_effective_file_path(product, 'pdf')
+
+        if not effective_pdf:
             return jsonify({'error': '该产品没有PDF文件'}), 404
-        
+
         try:
             # 如果是云端文件，通过代理方式强制下载
-            if product.pdf_path.startswith('http'):
+            if effective_pdf.startswith('http'):
                 import requests
                 import urllib.parse
-                
+
                 # 获取云端文件内容
-                response = requests.get(product.pdf_path, timeout=30)
+                response = requests.get(effective_pdf, timeout=30)
                 response.raise_for_status()
-                
+
                 # 处理中文文件名
-                original_filename = f"{product.name}.pdf"
+                original_filename = f"{product.product_name or product.product_mn}.pdf"
                 encoded_filename = urllib.parse.quote(original_filename)
-                
+
                 # 创建强制下载的响应
                 return Response(
                     response.content,
@@ -149,15 +154,15 @@ class ProductFileService:
                 )
             else:
                 # 处理本地文件
-                pdf_file_path = os.path.join(current_app.static_folder, product.pdf_path)
+                pdf_file_path = os.path.join(current_app.static_folder, effective_pdf)
                 if not os.path.exists(pdf_file_path):
                     return jsonify({'error': 'PDF文件不存在'}), 404
-                
+
                 from flask import send_file
                 return send_file(
                     pdf_file_path,
                     as_attachment=True,
-                    download_name=f"{product.name}.pdf",
+                    download_name=f"{product.product_name or product.product_mn}.pdf",
                     mimetype='application/pdf'
                 )
                 
@@ -167,28 +172,31 @@ class ProductFileService:
     
     def preview_pdf(self, product_id: int) -> Response:
         """
-        预览产品PDF文件
-        
+        预览产品PDF文件（支持分类共享）
+
         Args:
             product_id: 产品ID
-            
+
         Returns:
             Response: PDF预览响应
         """
         product = Product.query.get_or_404(product_id)
-        
-        if not product.pdf_path:
+
+        # 获取有效的PDF路径（产品自身或分类共享）
+        effective_pdf = self.get_effective_file_path(product, 'pdf')
+
+        if not effective_pdf:
             return jsonify({'error': 'PDF文件不存在'}), 404
-        
+
         try:
             # 处理云端文件
-            if product.pdf_path.startswith('http'):
+            if effective_pdf.startswith('http'):
                 import requests
-                
+
                 # 代理方式获取文件内容，确保PDF.js能正常加载
-                response = requests.get(product.pdf_path, timeout=30)
+                response = requests.get(effective_pdf, timeout=30)
                 response.raise_for_status()
-                
+
                 # 返回PDF内容，设置正确的CORS头
                 return Response(
                     response.content,
@@ -203,10 +211,10 @@ class ProductFileService:
                 )
             else:
                 # 处理本地文件
-                pdf_file_path = os.path.join(current_app.static_folder, product.pdf_path)
+                pdf_file_path = os.path.join(current_app.static_folder, effective_pdf)
                 if not os.path.exists(pdf_file_path):
                     return jsonify({'error': 'PDF文件不存在'}), 404
-                
+
                 from flask import send_file
                 return send_file(
                     pdf_file_path,
@@ -215,11 +223,56 @@ class ProductFileService:
                     add_etags=True,      # 启用缓存
                     max_age=3600         # 缓存1小时
                 )
-                
+
         except Exception as e:
             logger.error(f"获取PDF预览内容失败: {str(e)}")
             return jsonify({'error': '获取PDF预览内容失败'}), 500
-    
+
+    def clear_file(self, product_id: int, file_type: str) -> dict:
+        """
+        清除产品文件（仅限产品自身文件，不影响分类共享文件）
+
+        Args:
+            product_id: 产品ID
+            file_type: 'image' 或 'pdf'
+
+        Returns:
+            dict: {'success': bool, 'error': str, 'is_shared': bool}
+        """
+        try:
+            product = Product.query.get_or_404(product_id)
+
+            # 获取产品自身的文件路径
+            file_path = product.image_path if file_type == 'image' else product.pdf_path
+
+            # 检查是否使用子分类共享文件
+            if not file_path:
+                # 检查是否有子分类共享文件
+                if product.subcategory_obj:
+                    subcategory_file = product.subcategory_obj.image_path if file_type == 'image' else product.subcategory_obj.pdf_path
+                    if subcategory_file:
+                        return {'success': False, 'is_shared': True, 'error': '该文件为子分类共享文件，不能从单个产品清除'}
+                return {'success': False, 'error': '没有可清除的文件'}
+
+            # 删除存储中的文件（云端或本地）
+            self.file_manager.delete_product_old_file(file_path, file_type, 'product')
+            logger.info(f"🗑️ 产品 {product_id} {file_type}文件已删除: {file_path}")
+
+            # 清空数据库字段
+            if file_type == 'image':
+                product.image_path = None
+            else:
+                product.pdf_path = None
+
+            db.session.commit()
+            logger.info(f"✅ 产品 {product_id} {file_type}文件清除成功")
+            return {'success': True}
+
+        except Exception as e:
+            logger.error(f"💥 产品 {product_id} {file_type}文件清除失败: {str(e)}", exc_info=True)
+            db.session.rollback()
+            return {'success': False, 'error': f'清除文件失败: {str(e)}'}
+
     def _validate_file(self, file: FileStorage, file_type: str) -> Tuple[bool, str]:
         """
         验证上传文件
@@ -307,6 +360,317 @@ class ProductFileService:
         except Exception as e:
             logger.error(f"💥 文件清理和上传失败: {str(e)}")
             return None
+
+    def upload_file_with_category(self, product_id: int, file: FileStorage, file_type: str,
+                                  update_category: Optional[bool] = None) -> dict:
+        """
+        统一处理图片/PDF上传，支持分类共享
+
+        Args:
+            product_id: 产品ID
+            file: 文件对象
+            file_type: 文件类型 ('image' 或 'pdf')
+            update_category: True=更新分类文件, False=仅产品, None=自动判断
+
+        Returns:
+            dict: {
+                'success': bool,
+                'file_url': str,  # 上传成功的文件URL
+                'need_confirm': bool,  # 是否需要用户确认覆盖分类文件
+                'category_has_file': bool,  # 分类是否已有文件
+                'error': str
+            }
+        """
+        try:
+            logger.info(f"📂 开始上传产品{file_type}: 产品ID={product_id}, 文件={file.filename}")
+
+            # 验证产品存在
+            product = Product.query.get_or_404(product_id)
+
+            # 验证文件
+            is_valid, error_msg = self._validate_file(file, file_type)
+            if not is_valid:
+                return {'success': False, 'error': error_msg}
+
+            # 获取产品子分类（产品名称）
+            subcategory = ProductSubcategory.query.get(product.subcategory_id) if product.subcategory_id else None
+            if not subcategory:
+                return {'success': False, 'error': '产品没有关联子分类'}
+
+            # 获取子分类文件路径
+            subcategory_file_path = subcategory.image_path if file_type == 'image' else subcategory.pdf_path
+            product_file_path = product.image_path if file_type == 'image' else product.pdf_path
+
+            # 场景1：子分类没有文件 → 自动设为子分类文件
+            if not subcategory_file_path:
+                file_url = self._cleanup_and_upload(product, file, file_type)
+                if file_url:
+                    # 设为子分类文件
+                    if file_type == 'image':
+                        subcategory.image_path = file_url
+                    else:
+                        subcategory.pdf_path = file_url
+                    db.session.commit()
+                    logger.info(f"✅ 产品 {product_id} {file_type}上传成功，已设为子分类共享文件: {file_url}")
+                    return {'success': True, 'file_url': file_url, 'set_as_category': True}
+                else:
+                    return {'success': False, 'error': f'{file_type}上传失败'}
+
+            # 场景2：子分类已有文件
+            # 如果 update_category 为 None，需要用户确认
+            if update_category is None:
+                return {
+                    'success': False,
+                    'need_confirm': True,
+                    'category_has_file': True,
+                    'category_file_url': subcategory_file_path,
+                    'message': '子分类已有共享文件，请选择操作方式'
+                }
+
+            # 上传文件
+            file_url = self._cleanup_and_upload(product, file, file_type)
+            if not file_url:
+                return {'success': False, 'error': f'{file_type}上传失败'}
+
+            if update_category:
+                # 用户选择覆盖子分类文件
+                old_subcategory_file = subcategory_file_path
+
+                # 更新子分类文件
+                if file_type == 'image':
+                    subcategory.image_path = file_url
+                else:
+                    subcategory.pdf_path = file_url
+
+                # 清理旧的子分类文件
+                if old_subcategory_file:
+                    self.file_manager.delete_product_old_file(
+                        file_path=old_subcategory_file,
+                        file_type=file_type,
+                        bucket_type='product'
+                    )
+                    logger.info(f"🗑️ 已清理旧子分类{file_type}文件: {old_subcategory_file}")
+
+                db.session.commit()
+                logger.info(f"✅ 产品 {product_id} {file_type}上传成功，已覆盖子分类共享文件: {file_url}")
+                return {'success': True, 'file_url': file_url, 'updated_category': True}
+            else:
+                # 用户选择仅用于此产品
+                if file_type == 'image':
+                    product.image_path = file_url
+                else:
+                    product.pdf_path = file_url
+
+                db.session.commit()
+                logger.info(f"✅ 产品 {product_id} {file_type}上传成功，仅用于此产品: {file_url}")
+                return {'success': True, 'file_url': file_url, 'product_only': True}
+
+        except Exception as e:
+            logger.error(f"💥 产品 {product_id} {file_type}上传异常: {str(e)}", exc_info=True)
+            db.session.rollback()
+            return {'success': False, 'error': f'{file_type}上传错误: {str(e)}'}
+
+    def get_effective_file_path(self, product: Product, file_type: str) -> Optional[str]:
+        """
+        获取产品的有效文件路径（优先产品自身，其次分类共享）
+
+        Args:
+            product: 产品对象
+            file_type: 'image' 或 'pdf'
+
+        Returns:
+            str: 有效的文件路径，没有则返回None
+        """
+        # 优先使用产品自身文件
+        product_file = product.image_path if file_type == 'image' else product.pdf_path
+        if product_file:
+            return product_file
+
+        # 其次使用子分类共享文件
+        if product.subcategory_id:
+            subcategory = ProductSubcategory.query.get(product.subcategory_id)
+            if subcategory:
+                return subcategory.image_path if file_type == 'image' else subcategory.pdf_path
+
+        return None
+
+    def upload_file_with_category_generic(self, product_id: int, file: FileStorage, file_type: str,
+                                          product_type: str = 'standard',
+                                          update_category: Optional[bool] = None) -> dict:
+        """
+        通用文件上传方法，支持标准产品和研发产品
+
+        Args:
+            product_id: 产品ID
+            file: 文件对象
+            file_type: 文件类型 ('image' 或 'pdf')
+            product_type: 产品类型 ('standard' 或 'research')
+            update_category: True=更新分类文件, False=仅产品, None=自动判断
+
+        Returns:
+            dict: 上传结果
+        """
+        try:
+            logger.info(f"📂 开始上传{product_type}产品{file_type}: 产品ID={product_id}, 文件={file.filename}")
+
+            # 根据产品类型获取产品对象
+            if product_type == 'research':
+                product = DevProduct.query.get_or_404(product_id)
+                bucket_type = 'rd_product'
+            else:
+                product = Product.query.get_or_404(product_id)
+                bucket_type = 'product'
+
+            # 验证文件
+            is_valid, error_msg = self._validate_file(file, file_type)
+            if not is_valid:
+                return {'success': False, 'error': error_msg}
+
+            # 获取产品子分类
+            subcategory = ProductSubcategory.query.get(product.subcategory_id) if product.subcategory_id else None
+            if not subcategory:
+                return {'success': False, 'error': '产品没有关联子分类'}
+
+            # 获取子分类文件路径
+            subcategory_file_path = subcategory.image_path if file_type == 'image' else subcategory.pdf_path
+
+            # 场景1：子分类没有文件 → 自动设为子分类文件
+            if not subcategory_file_path:
+                file_url = self._cleanup_and_upload_generic(product, file, file_type, bucket_type)
+                if file_url:
+                    # 设为子分类文件
+                    if file_type == 'image':
+                        subcategory.image_path = file_url
+                    else:
+                        subcategory.pdf_path = file_url
+                    db.session.commit()
+                    logger.info(f"✅ {product_type}产品 {product_id} {file_type}上传成功，已设为子分类共享文件: {file_url}")
+                    return {'success': True, 'file_url': file_url, 'set_as_category': True}
+                else:
+                    return {'success': False, 'error': f'{file_type}上传失败'}
+
+            # 场景2：子分类已有文件
+            if update_category is None:
+                return {
+                    'success': False,
+                    'need_confirm': True,
+                    'category_has_file': True,
+                    'category_file_url': subcategory_file_path,
+                    'message': '子分类已有共享文件，请选择操作方式'
+                }
+
+            # 上传文件
+            file_url = self._cleanup_and_upload_generic(product, file, file_type, bucket_type)
+            if not file_url:
+                return {'success': False, 'error': f'{file_type}上传失败'}
+
+            if update_category:
+                # 用户选择覆盖子分类文件
+                old_subcategory_file = subcategory_file_path
+
+                # 更新子分类文件
+                if file_type == 'image':
+                    subcategory.image_path = file_url
+                else:
+                    subcategory.pdf_path = file_url
+
+                # 清理旧的子分类文件
+                if old_subcategory_file:
+                    self.file_manager.delete_product_old_file(
+                        file_path=old_subcategory_file,
+                        file_type=file_type,
+                        bucket_type=bucket_type
+                    )
+                    logger.info(f"🗑️ 已清理旧子分类{file_type}文件: {old_subcategory_file}")
+
+                db.session.commit()
+                logger.info(f"✅ {product_type}产品 {product_id} {file_type}上传成功，已覆盖子分类共享文件: {file_url}")
+                return {'success': True, 'file_url': file_url, 'updated_category': True}
+            else:
+                # 用户选择仅用于此产品
+                if file_type == 'image':
+                    product.image_path = file_url
+                else:
+                    product.pdf_path = file_url
+
+                db.session.commit()
+                logger.info(f"✅ {product_type}产品 {product_id} {file_type}上传成功，仅用于此产品: {file_url}")
+                return {'success': True, 'file_url': file_url, 'product_only': True}
+
+        except Exception as e:
+            logger.error(f"💥 {product_type}产品 {product_id} {file_type}上传异常: {str(e)}", exc_info=True)
+            db.session.rollback()
+            return {'success': False, 'error': f'{file_type}上传错误: {str(e)}'}
+
+    def _cleanup_and_upload_generic(self, product, file: FileStorage, file_type: str, bucket_type: str) -> Optional[str]:
+        """
+        通用清理并上传文件方法
+
+        Args:
+            product: Product或DevProduct对象
+            file: 文件对象
+            file_type: 'image' 或 'pdf'
+            bucket_type: 'product' 或 'rd_product'
+
+        Returns:
+            str: 上传成功的文件URL，失败返回None
+        """
+        # 获取旧文件路径（用于清理）
+        old_file_path = product.image_path if file_type == 'image' else getattr(product, 'pdf_path', None)
+
+        # 清理旧文件
+        if old_file_path:
+            self.file_manager.delete_product_old_file(
+                file_path=old_file_path,
+                file_type=file_type,
+                bucket_type=bucket_type
+            )
+
+        # 上传新文件
+        return self.file_manager.upload_product_file(
+            file=file,
+            file_type=file_type,
+            bucket_type=bucket_type
+        )
+
+    def get_category_file_status_generic(self, product_id: int, product_type: str = 'standard') -> dict:
+        """
+        获取产品分类文件状态（通用方法）
+
+        Args:
+            product_id: 产品ID
+            product_type: 'standard' 或 'research'
+
+        Returns:
+            dict: 分类文件状态
+        """
+        try:
+            # 根据产品类型获取产品对象
+            if product_type == 'research':
+                product = DevProduct.query.get(product_id)
+            else:
+                product = Product.query.get(product_id)
+
+            if not product:
+                return {'success': False, 'error': '产品不存在'}
+
+            # 获取子分类
+            subcategory = ProductSubcategory.query.get(product.subcategory_id) if product.subcategory_id else None
+            if not subcategory:
+                return {'success': False, 'error': '产品没有关联子分类'}
+
+            return {
+                'success': True,
+                'category_id': subcategory.id,
+                'category_name': subcategory.name,
+                'category_image': subcategory.image_path,
+                'category_pdf': subcategory.pdf_path,
+                'product_image': product.image_path,
+                'product_pdf': getattr(product, 'pdf_path', None)
+            }
+        except Exception as e:
+            logger.error(f"获取分类文件状态失败: {str(e)}")
+            return {'success': False, 'error': str(e)}
 
 
 # 创建全局服务实例

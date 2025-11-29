@@ -56,6 +56,11 @@
                         <input type="text" class="form-control" id="name" name="name" required>
                         <div class="form-text">销售区域的名称，如"中国"、"美国"等</div>
                     </div>
+                    <div class="col-md-6">
+                        <label for="code" class="form-label">区域编码 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control text-uppercase" id="code" name="code" maxlength="1" required style="width: 80px;">
+                        <div class="form-text">单个字母或数字，用于产品编码中标识销售区域</div>
+                    </div>
                 </div>
 
                 <div class="row mb-3">
@@ -68,7 +73,7 @@
 
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle me-1"></i>
-                    销售区域在编码中占用1位，系统会自动生成先字母后数字的逻辑编码，以避免冲突。
+                    销售区域在编码中占用1位，请输入一个唯一的字母或数字作为编码。
                 </div>
             </form>
         </div>

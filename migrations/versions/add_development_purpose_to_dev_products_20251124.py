@@ -18,10 +18,18 @@ depends_on = None
 
 
 def upgrade():
+    # 检查列是否已存在
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [c['name'] for c in inspector.get_columns('dev_products')]
+
     # 添加 development_purpose 字段
-    op.add_column('dev_products',
-        sa.Column('development_purpose', sa.Text(), nullable=True))
-    print('✅ 成功添加 development_purpose 字段到 dev_products 表')
+    if 'development_purpose' not in columns:
+        op.add_column('dev_products',
+            sa.Column('development_purpose', sa.Text(), nullable=True))
+        print('✅ 成功添加 development_purpose 字段到 dev_products 表')
+    else:
+        print('⏭️ development_purpose 字段已存在，跳过')
 
 
 def downgrade():

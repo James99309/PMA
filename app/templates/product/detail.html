@@ -283,20 +283,22 @@
                         <!-- 产品图片区域 -->
                         <div class="col-md-4">
                             <div class="product-image-container">
-                                {% if product.image_path %}
-                                    {% if product.image_path.startswith('http') %}
+                                {# 优先显示产品图片，其次显示分类共享图片 #}
+                                {% set effective_image = product.image_path or (product.subcategory_obj.image_path if product.subcategory_obj else None) %}
+                                {% if effective_image %}
+                                    {% if effective_image.startswith('http') %}
                                         <!-- Supabase云端图片 -->
-                                        <img src="{{ product.image_path }}"
+                                        <img src="{{ effective_image }}"
                                              alt="{{ product.subcategory_obj.name if product.subcategory_obj else product.product_mn }}"
                                              class="product-image">
-                                    {% elif product.image_path.startswith('/storage/') %}
+                                    {% elif effective_image.startswith('/storage/') %}
                                         <!-- 新版本地存储图片 -->
-                                        <img src="{{ product.image_path }}"
+                                        <img src="{{ effective_image }}"
                                              alt="{{ product.subcategory_obj.name if product.subcategory_obj else product.product_mn }}"
                                              class="product-image">
                                     {% else %}
                                         <!-- 旧版本地图片 -->
-                                        <img src="{{ url_for('static', filename='uploads/products/' + product.image_path) }}"
+                                        <img src="{{ url_for('static', filename='uploads/products/' + effective_image) }}"
                                              alt="{{ product.subcategory_obj.name if product.subcategory_obj else product.product_mn }}"
                                              class="product-image">
                                     {% endif %}
@@ -307,11 +309,14 @@
                                 {% endif %}
                             </div>
 
-                            <!-- 图片上传按钮（仅在有编辑权限时显示） -->
+                            <!-- 图片上传和清除按钮（仅在有编辑权限时显示） -->
                             {% if has_permission('product', 'edit') %}
                             <div class="mt-2 text-center">
                                 {{ render_button(_('上传图片'), type='button', color='outline-primary', size='sm', icon='fas fa-upload', attrs={'id': 'uploadImageBtn'}) }}
                                 <input type="file" id="imageFileInput" accept="image/jpeg,image/jpg,image/png,image/gif" style="display: none;">
+                                {% if product.image_path %}
+                                    {{ render_button(_('清除'), type='button', color='outline-danger', size='sm', icon='fas fa-trash', attrs={'id': 'clearImageBtn'}) }}
+                                {% endif %}
                             </div>
                             {% endif %}
                         </div>
@@ -345,6 +350,24 @@
                                             {% endif %}
                                         </div>
                                     </div>
+
+                                    <div class="product-property">
+                                        <div class="property-label">{{ _('产品系列') }}</div>
+                                        <div class="property-value">
+                                            {% if product.subcategory_obj %}
+                                                {{ product.subcategory_obj.name }}
+                                            {% else %}
+                                                {{ _('无') }}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+
+                                    {% if product.product_name %}
+                                    <div class="product-property">
+                                        <div class="property-label">{{ _('产品名称') }}</div>
+                                        <div class="property-value">{{ product.product_name }}</div>
+                                    </div>
+                                    {% endif %}
 
                                     <div class="product-property">
                                         <div class="property-label">{{ _('品牌') }}</div>
@@ -480,17 +503,7 @@
     {% endfor %}
     {% set is_legacy_code = calculated_code != product.product_mn %}
 
-    {% if is_legacy_code %}
-    <!-- 历史编码提示 -->
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="alert alert-warning" role="alert">
-                <i class="fas fa-history me-2"></i>
-                <strong>{{ _('历史编码') }}</strong>：{{ _('该产品MN编号与当前编码规则生成的编码不一致，为历史遗留编码。') }}
-            </div>
-        </div>
-    </div>
-    {% else %}
+    {% if not is_legacy_code %}
     <!-- 编码定义说明（MN号与快照一致时显示） -->
     <div class="row mb-4">
         <div class="col-md-12">
@@ -597,8 +610,8 @@
     {% endif %}
     {% endif %}
 
-    <!-- 隐藏PDF功能 - 产品文档上传和展示区域 -->
-    <!--
+    <!-- PDF功能 - 产品文档上传和展示区域（支持分类共享） -->
+    {% set effective_pdf = product.pdf_path or (product.subcategory_obj.pdf_path if product.subcategory_obj else None) %}
     <div class="row">
         <div class="col-md-12">
             <div class="card">
@@ -612,50 +625,35 @@
                             <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;">
                         {% endif %}
 
-                        {% if product.pdf_path %}
+                        {% if effective_pdf %}
                             {{ render_button(_('下载'), href=url_for('product_route.download_pdf', id=product.id), color='primary', icon='fas fa-download', attrs={'target': '_blank'}) }}
+                        {% endif %}
+
+                        {% if has_permission('product', 'edit') %}
+                            {% if product.pdf_path %}
+                                {{ render_button(_('清除'), type='button', color='outline-danger', icon='fas fa-trash', attrs={'id': 'clearPdfBtn'}) }}
+                            {% endif %}
                         {% endif %}
                     </div>
 
-                    {% if product.pdf_path %}
-                    <div class="d-flex align-items-center mb-3">
-                        <i class="fas fa-file-pdf text-danger fa-3x me-3"></i>
-                        <div class="flex-grow-1">
-                            <h6 class="mb-1">{{ product.pdf_path.split('/')[-1].split('_', 1)[-1] if '_' in product.pdf_path.split('/')[-1] else product.pdf_path.split('/')[-1] }}</h6>
-                            <small class="text-muted">{{ _('PDF文档') }}</small>
+                    {% if effective_pdf %}
+                    <!-- PDF预览区域 -->
+                    <div id="pdfPreviewContainer" class="text-center mt-3">
+                        <div id="pdfLoading" class="py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">{{ _('加载中...') }}</span>
+                            </div>
+                            <p class="text-muted mt-2 mb-0">{{ _('正在加载PDF预览...') }}</p>
                         </div>
-                    </div>
-
-                    <div id="pdfPreviewContainer" class="pdf-preview-container">
-                        <div class="pdf-preview-header">
-                            <span class="text-muted">{{ _('PDF封面预览') }}</span>
-                            <small class="ms-2 text-info">{{ _('点击预览图可在新窗口查看完整PDF') }}</small>
+                        <div id="pdfCanvasContainer" style="display: none; cursor: pointer;" onclick="openPdfInNewWindow()" title="{{ _('点击查看完整PDF') }}">
+                            <canvas id="pdfCanvas" class="border rounded shadow-sm" style="max-width: 100%;"></canvas>
+                            <p class="text-muted small mt-2 mb-0">
+                                <i class="fas fa-search-plus me-1"></i>{{ _('点击预览查看完整PDF') }}
+                            </p>
                         </div>
-                        <div class="pdf-preview-content">
-                            <div class="pdf-loading" id="pdfLoading">
-                                <div class="d-flex justify-content-center align-items-center" style="height: 200px;">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">{{ _('加载中...') }}</span>
-                                    </div>
-                                    <span class="ms-2">{{ _('加载PDF预览中...') }}</span>
-                                </div>
-                            </div>
-                            <div class="pdf-preview-canvas-container" id="pdfCanvasContainer" style="display: none;">
-                                <canvas id="pdfCanvas" class="pdf-preview-canvas"></canvas>
-                                <div class="pdf-preview-overlay" onclick="openPdfInNewWindow()">
-                                    <div class="pdf-preview-overlay-content">
-                                        <i class="fas fa-external-link-alt"></i>
-                                        <span>{{ _('点击在新窗口查看') }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="pdf-error" id="pdfError" style="display: none;">
-                                <div class="text-center text-muted py-4">
-                                    <i class="fas fa-exclamation-triangle text-warning fa-2x mb-2"></i>
-                                    <div>{{ _('PDF预览加载失败') }}</div>
-                                    <small>{{ _('请尝试直接下载文件查看') }}</small>
-                                </div>
-                            </div>
+                        <div id="pdfError" style="display: none;" class="py-4">
+                            <i class="fas fa-exclamation-triangle text-warning fa-2x mb-2"></i>
+                            <p class="text-muted mb-0">{{ _('无法加载PDF预览') }}</p>
                         </div>
                     </div>
                     {% else %}
@@ -671,14 +669,14 @@
             </div>
         </div>
     </div>
-    -->
-    <!-- 隐藏PDF功能结束 -->
+    <!-- PDF功能结束 -->
 </div>
 
-<!-- 隐藏PDF.js库 -->
-<!--
+<!-- PDF.js库 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
--->
+
+<!-- 分类文件上传公共工具 -->
+<script src="{{ url_for('static', filename='js/category-file-upload.js') }}"></script>
 
 <script>
 // 编码定义折叠功能
@@ -695,8 +693,6 @@ function toggleCodeDefinition() {
     }
 }
 
-<!-- 隐藏PDF预览JavaScript -->
-<!--
 // PDF预览相关全局变量
 let currentPdfUrl = null;
 
@@ -706,7 +702,8 @@ if (typeof pdfjsLib !== 'undefined') {
 }
 
 function loadPdfPreview() {
-    const pdfUrl = '{{ url_for("product_route.get_pdf_preview", id=product.id) if product.pdf_path else "" }}';
+    // 使用effective_pdf（支持分类共享）
+    const pdfUrl = '{{ url_for("product_route.get_pdf_preview", id=product.id) if effective_pdf else "" }}';
     if (!pdfUrl) {
         showPdfError();
         return;
@@ -766,15 +763,49 @@ function showPdfError() {
 }
 
 function openPdfInNewWindow() {
-    const pdfUrl = '{{ url_for("product_route.get_pdf_preview", id=product.id) if product.pdf_path else "" }}';
+    // 使用effective_pdf（支持分类共享）
+    const pdfUrl = '{{ url_for("product_route.get_pdf_preview", id=product.id) if effective_pdf else "" }}';
     if (pdfUrl) {
         window.open(pdfUrl, '_blank');
     } else {
         console.error('PDF文件不存在');
     }
 }
--->
-<!-- 隐藏PDF预览JavaScript结束 -->
+
+/**
+ * 初始化分类文件上传工具
+ */
+CategoryFileUpload.init({
+    productId: {{ product.id }},
+    categoryStatusUrl: '/api/products/{{ product.id }}/category-file-status',
+    uploadImageUrl: '/api/products/{{ product.id }}/upload-image',
+    uploadPdfUrl: '/api/products/{{ product.id }}/upload-pdf',
+    categoryName: '{{ product.category_obj.name if product.category_obj else "" }}',
+    csrfToken: '{{ csrf_token() }}',
+    translations: {
+        image: '{{ _("图片") }}',
+        pdf: 'PDF',
+        uploadImage: '{{ _("上传图片") }}',
+        uploadPdf: '{{ _("上传PDF") }}',
+        uploading: '{{ _("上传中...") }}',
+        uploadSuccess: '{{ _("上传成功！") }}',
+        uploadFailed: '{{ _("上传失败") }}',
+        unknownError: '{{ _("未知错误") }}',
+        uploadError: '{{ _("上传过程中发生错误，请重试") }}',
+        categoryHasShared: '{{ _("分类已有共享") }}',
+        category: '{{ _("分类") }}',
+        hasShared: '{{ _("已有共享") }}',
+        chooseAction: '{{ _("，请选择操作方式：") }}',
+        overwriteCategory: '{{ _("覆盖分类文件") }}',
+        overwriteCategoryDesc: '{{ _("更新分类共享文件，所有使用分类文件的产品都会更新") }}',
+        productOnly: '{{ _("仅用于此产品") }}',
+        productOnlyDesc: '{{ _("仅保存到此产品，不影响其他产品") }}',
+        cancel: '{{ _("取消") }}',
+        setAsCategory: '{{ _("（已设为分类共享文件）") }}',
+        updatedCategory: '{{ _("（已覆盖分类共享文件）") }}',
+        productOnlyResult: '{{ _("（仅用于此产品）") }}'
+    }
+});
 
 /**
  * 初始化图片上传功能
@@ -783,16 +814,12 @@ function initImageUpload() {
     const uploadBtn = document.getElementById('uploadImageBtn');
     const fileInput = document.getElementById('imageFileInput');
 
-    if (!uploadBtn || !fileInput) {
-        return; // 没有上传按钮或文件输入框（可能没有编辑权限）
-    }
+    if (!uploadBtn || !fileInput) return;
 
-    // 点击上传按钮时触发文件选择
     uploadBtn.addEventListener('click', function() {
         fileInput.click();
     });
 
-    // 文件选择变化时的处理
     fileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -800,7 +827,7 @@ function initImageUpload() {
         // 文件类型验证
         const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
         if (!allowedTypes.includes(file.type)) {
-            alert('{{ _("\u4e0d\u652f\u6301\u7684\u56fe\u7247\u683c\u5f0f\uff01\u8bf7\u9009\u62e9 JPG\u3001PNG \u6216 GIF \u6587\u4ef6") }}');
+            alert('{{ _("不支持的图片格式！请选择 JPG、PNG 或 GIF 文件") }}');
             fileInput.value = '';
             return;
         }
@@ -808,121 +835,59 @@ function initImageUpload() {
         // 文件大小验证 (12MB)
         const maxSize = 12 * 1024 * 1024;
         if (file.size > maxSize) {
-            alert(`{{ _("\u56fe\u7247\u6587\u4ef6\u592a\u5927\uff01\u6700\u5927\u5141\u8bb8 12MB\uff0c\u5f53\u524d\u6587\u4ef6") }}: ${(file.size / (1024*1024)).toFixed(1)}MB`);
+            alert(`{{ _("图片文件太大！最大允许 12MB，当前文件") }}: ${(file.size / (1024*1024)).toFixed(1)}MB`);
             fileInput.value = '';
             return;
         }
 
-        // 立即开始上传
-        uploadImage(file);
+        // 使用公共工具上传
+        CategoryFileUpload.checkAndUpload(file, 'image');
     });
 }
 
 /**
- * 上传图片函数
+ * 上传图片函数（向后兼容）
  */
 function uploadImage(file) {
-    const uploadBtn = document.getElementById('uploadImageBtn');
-    const fileInput = document.getElementById('imageFileInput');
-
-    // 禁用按钮并显示上传状态
-    uploadBtn.disabled = true;
-    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{{ _("\u4e0a\u4f20\u4e2d...") }}';
-
-    // 创建 FormData
-    const formData = new FormData();
-    formData.append('image', file);
-    formData.append('csrf_token', '{{ csrf_token() }}');
-
-    // 发送上传请求
-    fetch('/api/products/{{ product.id }}/upload-files', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showTopNotification('{{ _("\u56fe\u7247\u4e0a\u4f20\u6210\u529f\uff01\u9875\u9762\u5c06\u81ea\u52a8\u5237\u65b0") }}', 'success', 2000);
-            // 延迟刷新页面显示新图片，让用户看到成功提示
-            setTimeout(() => location.reload(), 2000);
-        } else {
-            alert('{{ _("\u4e0a\u4f20\u5931\u8d25") }}: ' + (data.error || data.message || '{{ _("\u672a\u77e5\u9519\u8bef") }}'));
-        }
-    })
-    .catch(error => {
-        console.error('上传错误:', error);
-        alert('{{ _("\u4e0a\u4f20\u8fc7\u7a0b\u4e2d\u53d1\u751f\u9519\u8bef\uff0c\u8bf7\u91cd\u8bd5") }}');
-    })
-    .finally(() => {
-        // 恢复按钮状态
-        uploadBtn.disabled = false;
-        uploadBtn.innerHTML = '<i class="fas fa-upload me-1"></i>{{ _("\u4e0a\u4f20\u56fe\u7247") }}';
-        fileInput.value = '';
-    });
+    CategoryFileUpload.checkAndUpload(file, 'image');
 }
 
-<!-- 隐藏PDF上传JavaScript -->
-<!--
+/**
+ * 初始化PDF上传功能（使用分类共享）
+ */
 function initPdfUpload() {
     const uploadBtn = document.getElementById('uploadPdfBtn');
     const fileInput = document.getElementById('pdfFileInput');
-    if (!uploadBtn || !fileInput) {
-        return;
-    }
+
+    if (!uploadBtn || !fileInput) return;
+
     uploadBtn.addEventListener('click', function() {
         fileInput.click();
     });
+
     fileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
+
+        // 文件类型验证
         if (file.type !== 'application/pdf') {
             alert('{{ _("请选择PDF文件") }}');
             fileInput.value = '';
             return;
         }
+
+        // 文件大小验证 (12MB)
         const maxSize = 12 * 1024 * 1024;
         if (file.size > maxSize) {
             alert(`{{ _("PDF文件太大！最大允许 12MB，当前文件") }}: ${(file.size / (1024*1024)).toFixed(1)}MB`);
             fileInput.value = '';
             return;
         }
-        uploadPdf(file);
-    });
-}
 
-function uploadPdf(file) {
-    const uploadBtn = document.getElementById('uploadPdfBtn');
-    const fileInput = document.getElementById('pdfFileInput');
-    uploadBtn.disabled = true;
-    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{{ _("上传中...") }}';
-    const formData = new FormData();
-    formData.append('pdf', file);
-    formData.append('csrf_token', '{{ csrf_token() }}');
-    fetch('/api/products/{{ product.id }}/upload-files', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showTopNotification('{{ _("PDF文档上传成功！页面将自动刷新") }}', 'success', 2000);
-            setTimeout(() => location.reload(), 2000);
-        } else {
-            alert('{{ _("上传失败") }}: ' + (data.error || data.message || '{{ _("未知错误") }}'));
-        }
-    })
-    .catch(error => {
-        console.error('上传错误:', error);
-        alert('{{ _("上传过程中发生错误，请重试") }}');
-    })
-    .finally(() => {
-        uploadBtn.disabled = false;
-        uploadBtn.innerHTML = '<i class="fas fa-upload me-1"></i>{{ _("上传PDF文档") }}';
-        fileInput.value = '';
+        // 使用公共工具上传（支持分类共享）
+        CategoryFileUpload.checkAndUpload(file, 'pdf');
     });
 }
--->
-<!-- 隐藏PDF上传JavaScript结束 -->
 
 /**
  * 确认删除产品
@@ -979,21 +944,70 @@ function executeDeleteProduct() {
     });
 }
 
+/**
+ * 清除产品文件（图片或PDF）
+ * @param {string} fileType - 'image' 或 'pdf'
+ */
+function clearProductFile(fileType) {
+    const titles = {
+        image: '{{ _("确认清除图片") }}',
+        pdf: '{{ _("确认清除PDF") }}'
+    };
+    const messages = {
+        image: '{{ _("确定要清除此图片吗？此操作不可撤销。") }}',
+        pdf: '{{ _("确定要清除此PDF文档吗？此操作不可撤销。") }}'
+    };
+    const successMsgs = {
+        image: '{{ _("图片已清除") }}',
+        pdf: '{{ _("PDF已清除") }}'
+    };
+
+    showDeleteConfirm({
+        title: titles[fileType],
+        message: messages[fileType],
+        dialogId: 'clearFileDialog',
+        onConfirm: function() {
+            fetch(`/api/products/{{ product.id }}/clear-${fileType}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showTopNotification(successMsgs[fileType], 'success');
+                    location.reload();
+                } else {
+                    showTopNotification(data.error || '{{ _("清除失败") }}', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('清除文件失败:', error);
+                showTopNotification('{{ _("清除过程中发生错误") }}', 'error');
+            });
+        }
+    });
+}
+
 // 页面加载完成后的初始化
 document.addEventListener('DOMContentLoaded', function() {
     console.log('产品详情页面功能已初始化');
 
-    // 隐藏PDF预览初始化
-    // const pdfContainer = document.getElementById('pdfPreviewContainer');
-    // if (pdfContainer) {
-    //     loadPdfPreview();
-    // }
+    // PDF预览初始化
+    const pdfContainer = document.getElementById('pdfPreviewContainer');
+    if (pdfContainer) {
+        loadPdfPreview();
+    }
 
     // 初始化上传功能（仅有编辑权限时）
     {% if has_permission('product', 'edit') %}
     initImageUpload();
-    // 隐藏PDF上传初始化
-    // initPdfUpload();
+    initPdfUpload();
+
+    // 绑定清除按钮事件
+    document.getElementById('clearImageBtn')?.addEventListener('click', () => clearProductFile('image'));
+    document.getElementById('clearPdfBtn')?.addEventListener('click', () => clearProductFile('pdf'));
     {% endif %}
 });
 </script>
@@ -1804,5 +1818,18 @@ tr.mutual-group-product-row:hover {
 <!-- 标准确认对话框 -->
 {{ render_confirm_dialog('deleteRelationDialog') }}
 {{ render_confirm_dialog('deleteMutualGroupDialog') }}
+{{ render_confirm_dialog('clearFileDialog') }}
+
+<!-- 分类文件上传选择对话框 -->
+{% call render_custom_dialog('categoryFileConfirmDialog', _('分类已有共享文件'), icon='fas fa-question-circle', size='default') %}
+    <div id="categoryFileConfirmContent">
+        <!-- 内容由JS动态填充 -->
+    </div>
+    <div class="custom-dialog-actions">
+        {{ render_button(_('取消'), type='button', color='secondary', onclick='closeCustomDialog("categoryFileConfirmDialog")') }}
+        {{ render_button(_('用于自身'), type='button', color='outline-primary', icon='fas fa-user', attrs={'id': 'btnProductOnly'}) }}
+        {{ render_button(_('覆盖分类'), type='button', color='primary', icon='fas fa-share-alt', attrs={'id': 'btnUpdateCategory'}) }}
+    </div>
+{% endcall %}
 
 {% endblock %}

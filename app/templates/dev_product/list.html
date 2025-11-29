@@ -58,7 +58,7 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {{ dev_product.subcategory.name if dev_product.subcategory else '—' }}
+                                    {{ dev_product.name or '—' }}
                                 </td>
                                 <td>
                                     {{ dev_product.category.name if dev_product.category else '—' }}

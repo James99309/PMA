@@ -108,6 +108,7 @@
     #modelDropdown .dropdown-item.active .model-meta {
         color: rgba(255, 255, 255, 0.8);
     }
+
 </style>
 {% endblock %}
 
@@ -188,7 +189,7 @@
                                     <option value="">-- {{ _('请选择产品类型') }} --</option>
                                     <option value="third_party" {% if product and product.type == 'third_party' %}selected{% endif %}>{{ _('第三方产品') }}</option>
                                     <option value="channel" {% if product and product.type == 'channel' %}selected{% endif %}>{{ _('渠道产品') }}</option>
-                                    <option value="project" {% if product and product.type == 'project' %}selected{% endif %}>{{ _('项目定制') }}</option>
+                                    <option value="project" {% if product and product.type == 'project' %}selected{% endif %}>{{ _('项目产品') }}</option>
                                 </select>
                             </div>
                             <div class="col-md-6">
@@ -227,7 +228,7 @@
                                 {% endif %}
                             </div>
                             <div class="col-md-6">
-                                <label for="subcategory_id" class="form-label">{{ _('产品名称') }} <span class="text-danger">*</span></label>
+                                <label for="subcategory_id" class="form-label">{{ _('产品系列') }} <span class="text-danger">*</span></label>
                                 {% if product and has_subcategory and not is_admin %}
                                 <!-- 编辑模式且有值且非管理员：锁定产品名称字段 -->
                                 {% set subcategory_relation = product.subcategory_obj if product.subcategory_obj is defined else product.subcategory %}
@@ -239,7 +240,7 @@
                                     <input type="hidden" id="subcategory_id" name="subcategory_id" value="{{ product.subcategory_id }}" data-letter="{{ product.subcategory_obj.code_letter if product.subcategory_obj else '' }}">
                                 {% endif %}
                                 <small class="form-text text-muted">
-                                    <i class="fas fa-lock me-1"></i>编辑模式下不可修改产品名称
+                                    <i class="fas fa-lock me-1"></i>编辑模式下不可修改产品系列
                                 </small>
                                 {% elif product and not product.subcategory_id and not is_admin %}
                                 <!-- 历史产品且非管理员：无新字段，显示只读（提示需要迁移） -->
@@ -258,7 +259,7 @@
                                     {% endfor %}
                                     {% if has_permission('product_code', 'edit') %}
                                     <option value="__ADD_NEW_SUBCATEGORY__" style="color: #0d6efd; font-weight: 500;">
-                                        ➕ {{ _('添加新产品名称') }}
+                                        ➕ {{ _('添加新产品系列') }}
                                     </option>
                                     {% endif %}
                                     {% endif %}
@@ -269,7 +270,7 @@
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="region_id" class="form-label">销售区域</label>
+                                <label for="region_id" class="form-label">销售区域 <span class="text-danger">*</span></label>
                                 {% if product and is_mn_locked and has_region and not is_admin %}
                                 <!-- 锁定且有值且非管理员：禁用显示 -->
                                 {% set region_relation = product.region_obj if product.region_obj is defined else product.region %}
@@ -277,7 +278,7 @@
                                 <input type="hidden" id="region_id" name="region_id" value="{{ product.region_id if product.region_id else '' }}" data-code="{{ region_relation.code_letter if region_relation else '0' }}">
                                 {% else %}
                                 <!-- 创建/未锁定/值为空/管理员：允许选择 -->
-                                <select class="form-select" id="region_id" name="region_id">
+                                <select class="form-select" id="region_id" name="region_id" required>
                                     <option value="">-- 请选择销售区域 --</option>
                                     {% for region in regions %}
                                     <option value="{{ region.id if region.id is defined else region['id'] }}"
@@ -303,7 +304,7 @@
                                            {% if not product %}disabled{% endif %}
                                            required
                                            autocomplete="off"
-                                           placeholder="请先选择产品名称">
+                                           placeholder="请先选择产品系列">
                                     <div id="modelDropdown" class="dropdown-menu w-100" style="display:none; max-height:200px; overflow-y:auto;">
                                         <!-- 型号选项将由JavaScript动态生成 -->
                                     </div>
@@ -311,36 +312,50 @@
                             </div>
                         </div>
 
-                        {% if product_type == 'standard' %}
-                        <!-- 标准产品特有字段：品牌 -->
+                        <!-- 产品名称和单位（研发产品必填，标准产品可选） -->
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="brand" class="form-label">品牌</label>
-                                <input type="text"
-                                       class="form-control"
-                                       id="brand"
-                                       name="brand"
-                                       list="brand-list"
-                                       value="{{ product.brand if product else '' }}"
-                                       placeholder="输入品牌名称或从列表选择">
-                                <datalist id="brand-list">
-                                    {% for brand in brands %}
-                                    <option value="{{ brand }}">
-                                    {% endfor %}
-                                </datalist>
-                                <small class="form-text text-muted">可直接输入或从现有品牌中选择</small>
+                                <label for="product_name_input" class="form-label">
+                                    {{ _('产品名称') }}
+                                    {% if product_type == 'research' %}<span class="text-danger">*</span>{% endif %}
+                                </label>
+                                <input type="text" class="form-control" id="product_name_input"
+                                       name="{% if product_type == 'research' %}name{% else %}product_name{% endif %}"
+                                       value="{% if product_type == 'research' %}{{ product.name if product else '' }}{% else %}{{ product.product_name if product else '' }}{% endif %}"
+                                       placeholder="{{ _('输入或选择产品名称') }}"
+                                       {% if product_type == 'research' %}required{% endif %}
+                                       list="productNameList"
+                                       maxlength="100">
+                                <datalist id="productNameList"></datalist>
+                                <small class="form-text text-muted">
+                                    {{ _('可从当前分类下已有产品名称中选择') }}
+                                </small>
                             </div>
                             <div class="col-md-6">
-                                <label for="unit" class="form-label">单位</label>
-                                <input type="text" class="form-control" id="unit" name="unit" value="{{ product.unit if product else '' }}">
+                                <label for="unit" class="form-label">{{ _('单位') }}</label>
+                                <input type="text" class="form-control" id="unit" name="unit"
+                                       value="{{ product.unit if product else '' }}"
+                                       placeholder="{{ _('如：台、个、套') }}"
+                                       list="unitList">
+                                <datalist id="unitList"></datalist>
                             </div>
                         </div>
 
-                        <!-- 厂商产品标记 -->
+                        {% if product_type == 'standard' %}
+                        <!-- 标准产品特有字段：品牌和厂商标记 -->
                         <div class="row mb-3">
-                            <div class="col-md-12">
+                            <div class="col-md-6">
+                                <label for="brand" class="form-label">品牌</label>
+                                <input type="text" class="form-control" id="brand" name="brand"
+                                       value="{{ product.brand if product else '' }}"
+                                       placeholder="输入品牌名称或从列表选择"
+                                       list="brandList">
+                                <datalist id="brandList"></datalist>
+                                <small class="form-text text-muted">可直接输入或从现有品牌中选择</small>
+                            </div>
+                            <div class="col-md-6">
                                 <label class="form-label">{{ _('产品标记') }}</label>
-                                <div class="form-check">
+                                <div class="form-check mt-2">
                                     <input type="checkbox"
                                            class="form-check-input"
                                            id="is_vendor_product"
@@ -350,14 +365,6 @@
                                         {{ _('厂商产品') }}
                                     </label>
                                 </div>
-                            </div>
-                        </div>
-                        {% else %}
-                        <!-- 研发产品只需单位字段 -->
-                        <div class="row mb-3">
-                            <div class="col-md-3">
-                                <label for="unit" class="form-label">单位</label>
-                                <input type="text" class="form-control" id="unit" name="unit" value="{{ product.unit if product else '' }}">
                             </div>
                         </div>
                         {% endif %}
@@ -395,13 +402,15 @@
                             </div>
                         </div>
 
-                        <!-- 研发用途 -->
+                        {% if product_type == 'research' %}
+                        <!-- 研发用途（仅研发产品显示） -->
                         <div class="row mb-3">
                             <div class="col-md-12">
                                 <label for="development_purpose" class="form-label">{{ _('研发用途') }}</label>
                                 <textarea class="form-control" id="development_purpose" name="development_purpose" rows="3" placeholder="{{ _('请输入研发用途') }}">{{ product.development_purpose if product and product.development_purpose else '' }}</textarea>
                             </div>
                         </div>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -631,6 +640,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 加载产品型号列表
                 loadProductModels(subcategoryId);
 
+                // 加载产品名称选项
+                loadProductNames(subcategoryId);
+
                 // 只在创建模式下清空规格表格
                 if (!isEditMode) {
                     specsTableBody.innerHTML = '';
@@ -646,7 +658,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 禁用产品型号输入框
                 if (productModelInput && !isEditMode) {
                     productModelInput.disabled = true;
-                    productModelInput.placeholder = '请先选择产品名称';
+                    productModelInput.placeholder = '请先选择产品系列';
                 }
 
                 // 隐藏下拉菜单
@@ -764,6 +776,38 @@ document.addEventListener('DOMContentLoaded', function() {
                 modelDropdown.style.display = 'none';
             }
         });
+    }
+
+    /**
+     * 通用 datalist 加载函数
+     * @param {string} datalistId - datalist元素ID
+     * @param {string} apiUrl - API地址
+     * @param {string} dataKey - API返回数据的key
+     */
+    function loadDatalist(datalistId, apiUrl, dataKey) {
+        fetch(apiUrl)
+            .then(r => r.json())
+            .then(data => {
+                const list = document.getElementById(datalistId);
+                if (!list) return;
+                list.innerHTML = '';
+                const items = data[dataKey] || [];
+                items.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item;
+                    list.appendChild(option);
+                });
+            })
+            .catch(e => console.error('加载失败:', e));
+    }
+
+    // 页面加载时初始化单位和品牌下拉
+    loadDatalist('unitList', '/product-management/api/units', 'units');
+    loadDatalist('brandList', '/api/products/brands', 'brands');
+
+    // 加载产品名称选项（子分类变化时调用）
+    function loadProductNames(subcategoryId) {
+        loadDatalist('productNameList', `/product-management/api/subcategory/${subcategoryId}/product-names`, 'names');
     }
 
     // 加载规格字段
@@ -935,8 +979,17 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // 1. 先渲染编码规格（按position排序）
-        codedSpecs.sort((a, b) => (a.position || 0) - (b.position || 0));
+        // 1. 先渲染编码规格（按position排序，继承字段优先）
+        codedSpecs.sort((a, b) => {
+            // 位置不同时按位置排序
+            if ((a.position || 0) !== (b.position || 0)) {
+                return (a.position || 0) - (b.position || 0);
+            }
+            // 位置相同时，继承字段排在前面
+            if (a.is_inherited && !b.is_inherited) return -1;
+            if (!a.is_inherited && b.is_inherited) return 1;
+            return 0;
+        });
         codedSpecs.forEach((field, index) => {
             // 查找已保存的规格值
             let existingValue = null;
@@ -960,8 +1013,17 @@ document.addEventListener('DOMContentLoaded', function() {
             specsTableBody.appendChild(newRow);
         });
 
-        // 2. 再渲染必填的非编码规格（按position排序）
-        requiredNonCodedSpecs.sort((a, b) => (a.position || 999) - (b.position || 999));
+        // 2. 再渲染必填的非编码规格（按position排序，继承字段优先）
+        requiredNonCodedSpecs.sort((a, b) => {
+            // 位置不同时按位置排序
+            if ((a.position || 999) !== (b.position || 999)) {
+                return (a.position || 999) - (b.position || 999);
+            }
+            // 位置相同时，继承字段排在前面
+            if (a.is_inherited && !b.is_inherited) return -1;
+            if (!a.is_inherited && b.is_inherited) return 1;
+            return 0;
+        });
         requiredNonCodedSpecs.forEach((field, index) => {
             // 查找已保存的规格值
             let existingValue = null;
@@ -1709,8 +1771,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const effectiveSpecCodes = lastNonZeroIndex >= 0 ? usedCodes.slice(0, lastNonZeroIndex + 1) : [];
 
-        // 构造完整的MN编码
-        const mnCode = `${categoryLetter}${subcategoryLetter}${regionCode}${effectiveSpecCodes.join('')}`;
+        // 构造完整的MN编码：地区 + 分类 + 子分类 + 规格编码
+        const mnCode = `${regionCode}${categoryLetter}${subcategoryLetter}${effectiveSpecCodes.join('')}`;
         mnPreview.textContent = mnCode;
 
         // [调试5] 确认MN是否计算成功

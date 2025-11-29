@@ -37,9 +37,11 @@ class ProductSubcategory(db.Model):
     code_letter = Column(String(1), nullable=False)  # 产品名称标识符
     description = Column(Text)  # 描述
     display_order = Column(Integer, default=0)  # 在所属分类中的排序位置（从1开始）
+    image_path = Column(String(500))  # 子分类共享图片
+    pdf_path = Column(String(500))    # 子分类共享PDF
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
+
     # 关联字段
     fields = db.relationship('ProductCodeField', backref='subcategory', lazy='dynamic', cascade="all, delete-orphan")
     product_codes = db.relationship('ProductCode', backref='subcategory', lazy='dynamic')
@@ -95,11 +97,17 @@ class ProductRegion(db.Model):
         return f'<ProductRegion {self.name} ({self.code_letter})>'
 
 class ProductCodeField(db.Model):
-    """产品编码字段模型"""
+    """产品编码字段模型
+
+    支持两种级别的字段定义：
+    - 分类级字段：category_id 有值，subcategory_id 为空，所有子分类继承
+    - 子分类级字段：subcategory_id 有值，category_id 为空，仅该子分类使用
+    """
     __tablename__ = 'product_code_fields'
-    
+
     id = Column(Integer, primary_key=True)
-    subcategory_id = Column(Integer, ForeignKey('product_subcategories.id'), nullable=False)
+    category_id = Column(Integer, ForeignKey('product_categories.id'), nullable=True)  # 分类级字段
+    subcategory_id = Column(Integer, ForeignKey('product_subcategories.id'), nullable=True)  # 子分类级字段
     name = Column(String(100), nullable=False)  # 字段名称
     code = Column(String(10), nullable=True)  # 字段编码，用于标识
     description = Column(Text, nullable=True)  # 字段说明
@@ -110,29 +118,89 @@ class ProductCodeField(db.Model):
     use_in_code = Column(Boolean, default=True)  # 是否用于产品编码
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
+
     # 关联字段
+    category = db.relationship('ProductCategory', backref=db.backref('code_fields', lazy='dynamic'))
     options = db.relationship('ProductCodeFieldOption', backref='field', lazy='dynamic', cascade="all, delete-orphan")
-    
+
+    @property
+    def is_category_level(self):
+        """是否为分类级字段"""
+        return self.category_id is not None and self.subcategory_id is None
+
+    @classmethod
+    def get_category_fields(cls, category_id):
+        """获取分类级别的编码字段"""
+        return cls.query.filter_by(
+            category_id=category_id,
+            subcategory_id=None
+        ).order_by(cls.position).all()
+
+    @classmethod
+    def get_subcategory_fields(cls, subcategory_id):
+        """获取子分类级别的编码字段"""
+        return cls.query.filter_by(
+            subcategory_id=subcategory_id
+        ).order_by(cls.position).all()
+
+    @classmethod
+    def get_all_fields_for_subcategory(cls, subcategory_id):
+        """获取子分类的所有字段（包括继承的分类级字段）"""
+        from app.models.product_code import ProductSubcategory
+        subcategory = ProductSubcategory.query.get(subcategory_id)
+        if not subcategory:
+            return {'inherited': [], 'own': []}
+
+        inherited = cls.get_category_fields(subcategory.category_id)
+        own = cls.get_subcategory_fields(subcategory_id)
+
+        return {'inherited': inherited, 'own': own}
+
     def __repr__(self):
-        return f'<ProductCodeField {self.name} ({self.field_type})>'
+        level = 'category' if self.is_category_level else 'subcategory'
+        return f'<ProductCodeField {self.name} ({self.field_type}, {level})>'
 
 class ProductCodeFieldOption(db.Model):
-    """产品编码字段选项模型"""
+    """产品编码字段选项模型
+
+    新架构：引用模式
+    - spec_option_id: 引用 SpecificationOption 中的指标
+    - value/code: 保留用于兼容，迁移完成后可通过 spec_option 获取
+
+    当 spec_option_id 有值时，value 和 code 应从关联的 spec_option 获取
+    """
     __tablename__ = 'product_code_field_options'
-    
+
     id = Column(Integer, primary_key=True)
     field_id = Column(Integer, ForeignKey('product_code_fields.id'), nullable=False)
-    value = Column(String(100), nullable=False)  # 选项值
-    code = Column(String(10), nullable=False)  # 选项编码
+    spec_option_id = Column(Integer, ForeignKey('specification_options.id'), nullable=True)  # 引用规格指标
+    value = Column(String(100), nullable=True)  # 选项值（兼容字段，迁移后可空）
+    code = Column(String(10), nullable=True)  # 选项编码（兼容字段，迁移后可空）
     description = Column(Text)  # 描述
-    is_active = Column(Boolean, default=True)  # 是否活跃
-    position = Column(Integer, default=0)  # 排序位置
+    is_active = Column(Boolean, default=True)  # 是否活跃（本地启用/禁用）
+    position = Column(Integer, default=0)  # 排序位置（本地排序）
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
+
+    # 关系：引用的规格指标
+    spec_option = db.relationship('SpecificationOption')
+
+    @property
+    def effective_value(self):
+        """获取有效的指标值（优先使用引用的规格指标）"""
+        if self.spec_option:
+            return self.spec_option.value
+        return self.value
+
+    @property
+    def effective_code(self):
+        """获取有效的编码（优先使用引用的规格指标）"""
+        if self.spec_option:
+            return self.spec_option.code
+        return self.code
+
     def __repr__(self):
-        return f'<ProductCodeFieldOption {self.value} ({self.code})>'
+        return f'<ProductCodeFieldOption {self.effective_value} ({self.effective_code})>'
 
 class ProductCode(db.Model):
     """产品编码模型"""
@@ -274,6 +342,9 @@ class SpecificationDictionary(db.Model):
     display_order = Column(Integer, nullable=False, default=0, index=True)  # 显示排序（用于拖拽排序）
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # 关系：规格下的指标选项
+    options = db.relationship('SpecificationOption', backref='spec', lazy='dynamic', cascade="all, delete-orphan")
+
     def to_dict(self):
         """转换为字典格式"""
         return {
@@ -286,3 +357,44 @@ class SpecificationDictionary(db.Model):
 
     def __repr__(self):
         return f'<SpecificationDictionary {self.name}>'
+
+
+class SpecificationOption(db.Model):
+    """规格指标 - 存储规格字典下的具体指标值和编码
+
+    每个规格（如"频率范围"）可以有多个指标选项（如"400-450"、"134-174"），
+    每个指标有唯一的编码，由智能编码规则自动生成。
+
+    分类和子分类的规格字段只引用这些指标，不独立存储。
+    """
+    __tablename__ = 'specification_options'
+
+    id = Column(Integer, primary_key=True)
+    spec_id = Column(Integer, ForeignKey('specification_dictionary.id'), nullable=False)  # 所属规格
+    value = Column(String(100), nullable=False)  # 指标值，如"400-450"
+    code = Column(String(10), nullable=False)  # 指标编码，如"4"（智能生成）
+    description = Column(Text)  # 描述
+    is_active = Column(Boolean, default=True)  # 是否活跃
+    position = Column(Integer, default=0)  # 排序位置
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # 唯一约束：同一规格下指标值唯一
+    __table_args__ = (
+        db.UniqueConstraint('spec_id', 'value', name='uq_spec_option_value'),
+    )
+
+    def to_dict(self):
+        """转换为字典格式"""
+        return {
+            'id': self.id,
+            'spec_id': self.spec_id,
+            'value': self.value,
+            'code': self.code,
+            'description': self.description,
+            'is_active': self.is_active,
+            'position': self.position,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+    def __repr__(self):
+        return f'<SpecificationOption {self.value} ({self.code})>'

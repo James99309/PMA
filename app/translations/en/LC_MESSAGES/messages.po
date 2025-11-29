@@ -9564,3 +9564,13 @@ msgstr "Required"
 
 msgid "可选互斥"
 msgstr "Optional (Exclusive)"
+
+# 分类文件上传对话框
+msgid "分类已有共享文件"
+msgstr "Category Has Shared File"
+
+msgid "用于自身"
+msgstr "Use for This Product"
+
+msgid "覆盖分类"
+msgstr "Override Category"

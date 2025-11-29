@@ -415,6 +415,12 @@
                 description: description
             };
 
+            // 如果选择了已有的规格指标，传递 spec_option_id
+            if (this.selectedExistingItem && this.selectedExistingItem.id) {
+                requestData.spec_option_id = this.selectedExistingItem.id;
+                console.log('传递已有指标引用, spec_option_id:', this.selectedExistingItem.id);
+            }
+
             // 添加相关ID（如果需要）
             if (this.context.relatedId) {
                 requestData.related_id = this.context.relatedId;

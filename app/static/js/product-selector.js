@@ -939,7 +939,7 @@ class ProductSelector {
                     contentHtml = `
                         <div class="product-info">
                             <div class="product-name" style="display: flex; justify-content: space-between; align-items: center;">
-                                <span>${modelGroup.model}</span>
+                                <span><span style="font-weight: bold;">${product.product_name || ''}</span> <span style="font-style: italic; font-size: 0.85em;">${modelGroup.model}</span></span>
                                 <span class="${priceClass}" style="font-weight: bold; color: #2196f3;">${priceText}${isDiscontinued ? ' (停产)' : ''}</span>
                             </div>
                             ${specHtml ? `<div class="product-details">${specHtml}</div>` : ''}
@@ -947,9 +947,10 @@ class ProductSelector {
                     `;
                 } else {
                     // 多个产品：不显示价格，显示"点击选择"提示，保留箭头
+                    const firstProduct = modelGroup.products[0];
                     contentHtml = `
                         <div class="product-info">
-                            <div class="product-name">${modelGroup.model}</div>
+                            <div class="product-name"><span style="font-weight: bold;">${firstProduct.product_name || ''}</span> <span style="font-style: italic; font-size: 0.85em;">${modelGroup.model}</span></div>
                             <div class="product-details" style="color: #6c757d; font-style: italic;">点击选择 (${modelGroup.count} 个产品)</div>
                         </div>
                     `;

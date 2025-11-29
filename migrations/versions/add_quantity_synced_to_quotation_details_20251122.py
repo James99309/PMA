@@ -18,11 +18,19 @@ depends_on = None
 
 
 def upgrade():
+    # 检查列是否已存在
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [c['name'] for c in inspector.get_columns('quotation_details')]
+
     # 添加 quantity_synced 字段，默认值为 True（同步）
-    op.add_column('quotation_details',
-        sa.Column('quantity_synced', sa.Boolean(),
-                  nullable=False, server_default='1'))
-    print('✅ 成功添加 quantity_synced 字段到 quotation_details 表')
+    if 'quantity_synced' not in columns:
+        op.add_column('quotation_details',
+            sa.Column('quantity_synced', sa.Boolean(),
+                      nullable=False, server_default='1'))
+        print('✅ 成功添加 quantity_synced 字段到 quotation_details 表')
+    else:
+        print('⏭️ quantity_synced 字段已存在，跳过')
 
 
 def downgrade():

@@ -33,6 +33,7 @@ class ProductCreationService:
             subcategory_id = request.form.get('subcategory_id')
             region_id = request.form.get('region_id') or None
             model = request.form.get('product_model')  # 表单字段名是product_model
+            product_name = request.form.get('name') or None  # 独立的产品名称字段（研发产品）
             unit = request.form.get('unit') or ""
             retail_price = request.form.get('retail_price')
             currency = request.form.get('currency', 'CNY')
@@ -45,6 +46,11 @@ class ProductCreationService:
             if not category_id:
                 missing_fields.append('产品分类')
             if not subcategory_id:
+                missing_fields.append('产品系列')
+            if not region_id:
+                missing_fields.append('销售区域')
+            # 研发产品必填产品名称
+            if product_type == 'research' and not product_name:
                 missing_fields.append('产品名称')
             if not model:
                 missing_fields.append('产品型号')
@@ -73,7 +79,7 @@ class ProductCreationService:
             # 5. 根据产品类型创建产品实例
             if product_type == 'research':
                 new_product = ProductCreationService._create_research_product(
-                    category_id, subcategory_id, region_id, model, unit,
+                    category_id, subcategory_id, region_id, model, product_name, unit,
                     retail_price_decimal, currency, description, development_purpose, mn_code
                 )
                 redirect_url = 'product_management.index'
@@ -135,7 +141,7 @@ class ProductCreationService:
             return ProductCreationService._redirect_to_create_page(product_type)
 
     @staticmethod
-    def _create_research_product(category_id, subcategory_id, region_id, model, unit,
+    def _create_research_product(category_id, subcategory_id, region_id, model, product_name, unit,
                                 retail_price, currency, description, development_purpose, mn_code):
         """创建研发产品实例"""
         # 直接使用region_id（已统一到ProductCodeField）
@@ -143,7 +149,7 @@ class ProductCreationService:
             category_id=category_id,
             subcategory_id=subcategory_id,
             region_id=region_id if region_id else None,
-            name=model,  # 研发产品名称默认使用型号
+            name=product_name if product_name else model,  # 优先使用独立产品名称，否则使用型号
             model=model,
             description=description,
             development_purpose=development_purpose,

@@ -92,9 +92,18 @@
     </div>
 
     <div class="card mb-4">
-        <div class="card-header">
-            <i class="fas fa-list me-1"></i>
-            {{ subcategory.name }} ({{ subcategory.code_letter }}) 规格列表
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>
+                <i class="fas fa-list me-1"></i>
+                {{ subcategory.name }} ({{ subcategory.code_letter }}) 规格列表
+            </span>
+            {% if inherited_fields %}
+            <a href="{{ url_for('product_code.category_fields', id=subcategory.parent_category.id) }}"
+               class="btn btn-sm btn-outline-info"
+               title="管理分类级通用规格">
+                <i class="fas fa-cog me-1"></i>管理通用规格
+            </a>
+            {% endif %}
         </div>
         <div class="card-body">
             <table class="table table-bordered table-striped">
@@ -109,9 +118,44 @@
                     </tr>
                 </thead>
                 <tbody id="fieldsTableBody">
-                    {% for field in fields %}
+                    {# 按编码/非编码分组显示，顺序：继承编码 → 子分类编码 → 继承非编码 → 子分类非编码 #}
+                    {% set row_index = namespace(value=1) %}
+
+                    {# 1. 继承的编码规格 #}
+                    {% for field in inherited_fields if field.use_in_code %}
+                    <tr class="table-light">
+                        <td>{{ row_index.value }}{% set row_index.value = row_index.value + 1 %}</td>
+                        <td>
+                            {{ field.name }}
+                            <span class="badge bg-info ms-1" title="继承自{{ subcategory.parent_category.name }}分类">继承</span>
+                        </td>
+                        <td class="position-cell">
+                            <span class="badge bg-success">位置{{ field.position }}</span>
+                        </td>
+                        <td>
+                            {% if field.options %}
+                                {% for option in field.options %}
+                                    {% if option.is_active %}
+                                    <span class="badge bg-secondary me-1 mb-1">
+                                        {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
+                                    </span>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">暂无指标</span>
+                            {% endif %}
+                        </td>
+                        <td>-</td>
+                        <td class="text-center text-muted">
+                            <i class="fas fa-lock" title="继承规格，请在分类级管理"></i>
+                        </td>
+                    </tr>
+                    {% endfor %}
+
+                    {# 2. 子分类的编码规格 #}
+                    {% for field in fields if field.use_in_code %}
                     <tr data-id="{{ field.id }}">
-                        <td>{{ loop.index }}</td>
+                        <td>{{ row_index.value }}{% set row_index.value = row_index.value + 1 %}</td>
                         <td>
                             {% if not field.is_used %}
                             <a href="javascript:void(0)" onclick="fieldManager.openModal('edit', {{ field.id }})" class="text-primary" style="cursor: pointer;">
@@ -122,11 +166,7 @@
                             {% endif %}
                         </td>
                         <td class="position-cell">
-                            {% if field.use_in_code %}
                             <span class="badge bg-success position-badge">位置{{ field.position }}</span>
-                            {% else %}
-                            <span class="badge bg-secondary position-badge">未纳入编码</span>
-                            {% endif %}
                         </td>
                         <td>
                             {% if field.options %}
@@ -134,7 +174,7 @@
                                     {% if option.is_used %}
                                         {# 已使用的指标：显示锁定图标，不可编辑删除 #}
                                         <span class="badge bg-secondary me-1 mb-1 position-relative">
-                                            {{ option.value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.code %} ({{ option.code }}){% endif %}
+                                            {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
                                             <span class="text-white ms-1" title="此指标已被产品使用，无法修改或删除">
                                                 <i class="fas fa-lock"></i>
                                             </span>
@@ -147,10 +187,10 @@
                                                class="text-white text-decoration-none"
                                                style="cursor: pointer;"
                                                title="点击编辑指标">
-                                                {{ option.value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.code %} ({{ option.code }}){% endif %}
+                                                {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
                                             </a>
                                             <a href="javascript:void(0)"
-                                               onclick="event.stopPropagation(); deleteOption({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', {{ option.id }}, '{{ option.value }}')"
+                                               onclick="event.stopPropagation(); deleteOption({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', {{ option.id }}, '{{ option.effective_value }}')"
                                                class="text-white ms-1 position-absolute"
                                                style="text-decoration: none; cursor: pointer; right: 8px;"
                                                title="删除">
@@ -160,9 +200,9 @@
                                     {% else %}
                                         {# 已禁用的指标：显示重新启用按钮 #}
                                         <span class="badge bg-secondary me-1 mb-1 position-relative">
-                                            {{ option.value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.code %} ({{ option.code }}){% endif %}
+                                            {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
                                             <a href="javascript:void(0)"
-                                               onclick="toggleOptionStatus({{ option.id }}, '{{ option.value }}', false)"
+                                               onclick="toggleOptionStatus({{ option.id }}, '{{ option.effective_value }}', false)"
                                                class="text-white ms-1"
                                                style="text-decoration: none; cursor: pointer;"
                                                title="重新启用">
@@ -196,11 +236,131 @@
                             {% endif %}
                         </td>
                     </tr>
-                    {% else %}
+                    {% endfor %}
+
+                    {# 3. 继承的非编码规格 #}
+                    {% for field in inherited_fields if not field.use_in_code %}
+                    <tr class="table-light">
+                        <td>{{ row_index.value }}{% set row_index.value = row_index.value + 1 %}</td>
+                        <td>
+                            {{ field.name }}
+                            <span class="badge bg-info ms-1" title="继承自{{ subcategory.parent_category.name }}分类">继承</span>
+                        </td>
+                        <td class="position-cell">
+                            <span class="badge bg-secondary">未纳入编码</span>
+                        </td>
+                        <td>
+                            {% if field.options %}
+                                {% for option in field.options %}
+                                    {% if option.is_active %}
+                                    <span class="badge bg-secondary me-1 mb-1">
+                                        {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
+                                    </span>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">暂无指标</span>
+                            {% endif %}
+                        </td>
+                        <td>-</td>
+                        <td class="text-center text-muted">
+                            <i class="fas fa-lock" title="继承规格，请在分类级管理"></i>
+                        </td>
+                    </tr>
+                    {% endfor %}
+
+                    {# 4. 子分类的非编码规格 #}
+                    {% for field in fields if not field.use_in_code %}
+                    <tr data-id="{{ field.id }}">
+                        <td>{{ row_index.value }}{% set row_index.value = row_index.value + 1 %}</td>
+                        <td>
+                            {% if not field.is_used %}
+                            <a href="javascript:void(0)" onclick="fieldManager.openModal('edit', {{ field.id }})" class="text-primary" style="cursor: pointer;">
+                                {{ field.name }}
+                            </a>
+                            {% else %}
+                            {{ field.name }}
+                            {% endif %}
+                        </td>
+                        <td class="position-cell">
+                            <span class="badge bg-secondary position-badge">未纳入编码</span>
+                        </td>
+                        <td>
+                            {% if field.options %}
+                                {% for option in field.options %}
+                                    {% if option.is_used %}
+                                        {# 已使用的指标：显示锁定图标，不可编辑删除 #}
+                                        <span class="badge bg-secondary me-1 mb-1 position-relative">
+                                            {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
+                                            <span class="text-white ms-1" title="此指标已被产品使用，无法修改或删除">
+                                                <i class="fas fa-lock"></i>
+                                            </span>
+                                        </span>
+                                    {% elif option.is_active %}
+                                        {# 激活且未使用的指标：可点击编辑，可删除 #}
+                                        <span class="badge bg-primary me-1 mb-1 position-relative" style="padding-right: 28px;">
+                                            <a href="javascript:void(0)"
+                                               onclick="openOptionModal({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', 'edit', {{ option.id }})"
+                                               class="text-white text-decoration-none"
+                                               style="cursor: pointer;"
+                                               title="点击编辑指标">
+                                                {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
+                                            </a>
+                                            <a href="javascript:void(0)"
+                                               onclick="event.stopPropagation(); deleteOption({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', {{ option.id }}, '{{ option.effective_value }}')"
+                                               class="text-white ms-1 position-absolute"
+                                               style="text-decoration: none; cursor: pointer; right: 8px;"
+                                               title="删除">
+                                                <i class="fas fa-times"></i>
+                                            </a>
+                                        </span>
+                                    {% else %}
+                                        {# 已禁用的指标：显示重新启用按钮 #}
+                                        <span class="badge bg-secondary me-1 mb-1 position-relative">
+                                            {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
+                                            <a href="javascript:void(0)"
+                                               onclick="toggleOptionStatus({{ option.id }}, '{{ option.effective_value }}', false)"
+                                               class="text-white ms-1"
+                                               style="text-decoration: none; cursor: pointer;"
+                                               title="重新启用">
+                                                <i class="fas fa-check"></i>
+                                            </a>
+                                        </span>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">暂无指标</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ field.created_at.strftime('%Y-%m-%d') if field.created_at else '未知' }}</td>
+                        <td class="text-center">
+                            {# 收集当前字段的所有选项ID（用于排除） #}
+                            {% set exclude_option_ids = [] %}
+                            {% for option in field.options.all() %}
+                                {% set _ = exclude_option_ids.append(option.id) %}
+                            {% endfor %}
+                            <button onclick="window.IndicatorQuickAdd.showQuickAddModal('{{ field.name }}', {{ field.id }}, null, {{ exclude_option_ids }})" class="btn btn-sm btn-info" title="添加指标">
+                                <i class="fas fa-list"></i>
+                            </button>
+                            {% if not field.is_used %}
+                            <button onclick="fieldManager.confirmDelete({{ field.id }}, '{{ field.name }}')" class="btn btn-sm btn-danger" title="删除">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            {% else %}
+                            <button type="button" class="btn btn-sm btn-secondary" disabled title="此规格已被产品使用，无法删除">
+                                <i class="fas fa-lock"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+
+                    {# 如果没有任何规格（包括继承的）才显示空提示 #}
+                    {% if not inherited_fields and not fields %}
                     <tr>
                         <td colspan="6" class="text-center">暂无规格，请添加</td>
                     </tr>
-                    {% endfor %}
+                    {% endif %}
                 </tbody>
             </table>
         </div>

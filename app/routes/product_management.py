@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, render_template_string, request, j
 from flask_babel import gettext as _
 from flask_login import login_required, current_user
 from app import db
-from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField, ProductCodeFieldOption
+from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField, ProductCodeFieldOption, SpecificationDictionary, SpecificationOption
 from app.models.dev_product import DevProduct, DevProductSpec
 from app.permissions import admin_required, product_manager_required, permission_required, has_permission
 from sqlalchemy.exc import IntegrityError
@@ -18,7 +18,8 @@ from sqlalchemy.orm import joinedload
 import re
 from PIL import Image
 from app.utils.supabase_client import get_supabase_client
-from app.routes.product_code import get_field_unit, findAvailableCode
+from app.routes.product_code import get_field_unit
+from app.routes.spec_dictionary import generate_smart_code
 
 # 创建日志记录器
 logger = logging.getLogger(__name__)
@@ -1009,21 +1010,21 @@ def get_region_options():
 
 # 生成MN编码（旧版本，保留以兼容）
 def generate_mn_code(category, subcategory, region_code):
-    # MN编码格式：XYZ XXXXX 
-    # X: 分类编码, Y: 子分类编码, Z: 销售区域编码, XXXXX: 5位自动生成的唯一标识符
-    
+    # MN编码格式：ZXY XXXXX
+    # Z: 销售区域编码, X: 分类编码, Y: 子分类编码, XXXXX: 5位自动生成的唯一标识符
+
     # 生成5位随机字符（大写字母+数字）
     chars = string.ascii_uppercase + string.digits
     unique_part = ''.join(random.choice(chars) for _ in range(5))
-    
-    # 构建MN编码
-    mn_code = f"{category.code_letter}{subcategory.code_letter}{region_code}{unique_part}"
-    
+
+    # 构建MN编码：地区 + 分类 + 子分类 + 唯一标识符
+    mn_code = f"{region_code}{category.code_letter}{subcategory.code_letter}{unique_part}"
+
     # 检查是否已存在，如果存在则重新生成
     while DevProduct.query.filter_by(mn_code=mn_code).first():
         unique_part = ''.join(random.choice(chars) for _ in range(5))
-        mn_code = f"{category.code_letter}{subcategory.code_letter}{region_code}{unique_part}"
-    
+        mn_code = f"{region_code}{category.code_letter}{subcategory.code_letter}{unique_part}"
+
     return mn_code
 
 # 统一的MN编码生成函数（基于规格position）
@@ -1061,9 +1062,9 @@ def generate_mn_code_from_specs(category, subcategory, region_code, specs_data):
     else:
         effective_spec_codes = []
     
-    # 生成MN编码
-    mn_code = f"{category.code_letter}{subcategory.code_letter}{region_code}{''.join(effective_spec_codes)}"
-    
+    # 生成MN编码：地区 + 分类 + 子分类 + 规格编码
+    mn_code = f"{region_code}{category.code_letter}{subcategory.code_letter}{''.join(effective_spec_codes)}"
+
     return mn_code
 
 # 标准的研发产品规格处理函数
@@ -1590,10 +1591,16 @@ def update_product(id):
         old_values = ChangeTracker.capture_old_values(dev_product)
         
         # 更新基本信息
-        # 注意：研发产品的name字段通常跟model一致，或者从subcategory获取
         model = request.form.get('product_model')  # 表单字段名是product_model
+        product_name = request.form.get('name') or None  # 独立的产品名称字段（必填）
+
+        # 验证产品名称必填
+        if not product_name:
+            flash(_('产品名称为必填项'), 'danger')
+            return redirect(url_for('product_management.edit_product', id=id))
+
         dev_product.model = model
-        dev_product.name = model  # 研发产品的name默认使用model
+        dev_product.name = product_name
         dev_product.description = request.form.get('description', '')
         dev_product.development_purpose = request.form.get('development_purpose', '')
         dev_product.unit = request.form.get('unit', '')
@@ -1605,12 +1612,12 @@ def update_product(id):
         currency = request.form.get('currency', 'CNY')
         dev_product.currency = currency
 
-        # 更新销售区域
+        # 更新销售区域（必填）
         region_id = request.form.get('region_id') or None
-        if region_id:
-            dev_product.region_id = int(region_id)
-        else:
-            dev_product.region_id = None
+        if not region_id:
+            flash(_('销售区域为必填项'), 'danger')
+            return redirect(url_for('product_management.edit_product', id=id))
+        dev_product.region_id = int(region_id)
 
         dev_product.updated_at = datetime.now()
         
@@ -2179,18 +2186,15 @@ def get_models_by_subcategory(subcategory_id):
                     'source': 'dev'
                 })
         
-        # 2. 从标准产品库中查找匹配产品名称且是厂商品牌的产品型号
+        # 2. 从标准产品库中查找该子分类下的产品型号
         from app.models.product import Product
-        products = Product.query.filter_by(
-            product_name=subcategory.name,
-            is_vendor_product=True  # 只显示厂商品牌的产品
-        ).all()
-        
+        products = Product.query.filter_by(subcategory_id=subcategory_id).all()
+
         for product in products:
             if product.model:  # 确保型号不为空
                 result.append({
                     'model': product.model,
-                    'library_type': '标准产品库', 
+                    'library_type': '标准产品库',
                     'status': product.status or '未知',
                     'source': 'standard'
                 })
@@ -2216,22 +2220,92 @@ def get_models_by_subcategory(subcategory_id):
     except Exception as e:
         return jsonify({'error': f'获取产品型号失败: {str(e)}'}), 500
 
+# 根据子分类ID获取产品名称列表
+@product_management_bp.route('/api/subcategory/<int:subcategory_id>/product-names', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def get_product_names_by_subcategory(subcategory_id):
+    """根据子分类ID获取产品名称列表（从研发产品库和标准产品库）"""
+    try:
+        names = set()
+
+        # 1. 从研发产品库中获取产品名称
+        dev_products = DevProduct.query.filter_by(subcategory_id=subcategory_id).all()
+        for dev_product in dev_products:
+            if dev_product.name:
+                names.add(dev_product.name)
+
+        # 2. 从标准产品库中获取产品名称
+        from app.models.product import Product
+        products = Product.query.filter_by(subcategory_id=subcategory_id).all()
+        for product in products:
+            if product.product_name:
+                names.add(product.product_name)
+
+        return jsonify({'names': list(names)})
+    except Exception as e:
+        return jsonify({'error': f'获取产品名称失败: {str(e)}'}), 500
+
+# 获取所有产品单位列表（去重）
+@product_management_bp.route('/api/units', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def get_all_units():
+    """获取所有产品单位列表（从研发产品库和标准产品库去重）"""
+    try:
+        units = set()
+
+        # 1. 从研发产品库中获取单位
+        dev_products = DevProduct.query.filter(DevProduct.unit.isnot(None), DevProduct.unit != '').all()
+        for dev_product in dev_products:
+            if dev_product.unit:
+                units.add(dev_product.unit.strip())
+
+        # 2. 从标准产品库中获取单位
+        from app.models.product import Product
+        products = Product.query.filter(Product.unit.isnot(None), Product.unit != '').all()
+        for product in products:
+            if product.unit:
+                units.add(product.unit.strip())
+
+        # 排序后返回
+        return jsonify({'units': sorted(list(units))})
+    except Exception as e:
+        return jsonify({'error': f'获取单位列表失败: {str(e)}'}), 500
+
 # 根据子分类ID获取规格字段列表
 @product_management_bp.route('/api/subcategory/<int:subcategory_id>/spec-fields', methods=['GET'])
 @login_required
 @permission_required('product_code', 'view')
 def get_spec_fields_by_subcategory(subcategory_id):
-    """根据子分类ID获取规格字段列表"""
+    """根据子分类ID获取规格字段列表（包括继承的分类级规格）"""
     try:
-        # 查找该子分类下的所有规格类型字段（包括编码和非编码规格）
-        spec_fields = ProductCodeField.query.filter(
+        # 获取子分类信息以获取其所属分类ID
+        subcategory = ProductSubcategory.query.get(subcategory_id)
+        if not subcategory:
+            return jsonify({'error': '子分类不存在'}), 404
+
+        # 1. 查询继承的分类级规格字段
+        inherited_fields = ProductCodeField.query.filter(
+            ProductCodeField.category_id == subcategory.category_id,
+            ProductCodeField.subcategory_id.is_(None),
+            ProductCodeField.field_type == 'spec'
+        ).order_by(ProductCodeField.position).all()
+
+        # 2. 查询子分类自己的规格字段
+        own_fields = ProductCodeField.query.filter(
             ProductCodeField.subcategory_id == subcategory_id,
             ProductCodeField.field_type == 'spec'
         ).order_by(ProductCodeField.position).all()
-        
+
+        # 合并字段列表，继承字段在前
+        spec_fields = inherited_fields + own_fields
+        inherited_field_ids = {f.id for f in inherited_fields}
+
         # 处理结果
         result = []
         for field in spec_fields:
+            is_inherited = field.id in inherited_field_ids
             field_data = {
                 'id': field.id,
                 'name': field.name,
@@ -2239,21 +2313,22 @@ def get_spec_fields_by_subcategory(subcategory_id):
                 'position': field.position,
                 'is_required': field.is_required,
                 'use_in_code': field.use_in_code,
+                'is_inherited': is_inherited,  # 标记是否为继承字段
                 'options': []
             }
-            
+
             # 获取字段选项
             options = ProductCodeFieldOption.query.filter_by(field_id=field.id).order_by(ProductCodeFieldOption.position).all()
             for option in options:
                 field_data['options'].append({
                     'id': option.id,
-                    'value': option.value,
-                    'code': option.code
+                    'value': option.effective_value,
+                    'code': option.effective_code
                 })
-                
+
             result.append(field_data)
-        
-        current_app.logger.debug(f"获取子分类 {subcategory_id} 的规格字段成功，找到 {len(result)} 个字段")
+
+        current_app.logger.debug(f"获取子分类 {subcategory_id} 的规格字段成功，找到 {len(result)} 个字段（继承: {len(inherited_fields)}, 自有: {len(own_fields)}）")
         return jsonify({'spec_fields': result})
     except Exception as e:
         current_app.logger.error(f"获取子分类 {subcategory_id} 的规格字段失败: {str(e)}")
@@ -2330,24 +2405,42 @@ def get_all_spec_fields():
 @login_required
 @permission_required('product_code', 'view')
 def get_spec_structure(subcategory_id):
-    """获取该产品名称下的规格结构（按position排序）"""
+    """获取该产品名称下的规格结构（包括继承的分类级规格，按position排序）"""
     try:
-        # 查询该子分类下的所有规格字段：
-        # 1. 编码规格（use_in_code = True 或 NULL）
-        # 2. 必填的非编码规格（use_in_code = False AND is_required = True）
         from sqlalchemy import or_, and_
-        spec_fields = ProductCodeField.query.filter(
+
+        # 获取子分类信息以获取其所属分类ID
+        subcategory = ProductSubcategory.query.get(subcategory_id)
+        if not subcategory:
+            return jsonify({'error': '子分类不存在'}), 404
+
+        # 查询条件：编码规格 或 必填的非编码规格
+        spec_condition = or_(
+            ProductCodeField.use_in_code == True,
+            ProductCodeField.use_in_code.is_(None),
+            and_(
+                ProductCodeField.use_in_code == False,
+                ProductCodeField.is_required == True
+            )
+        )
+
+        # 1. 查询继承的分类级规格字段（category_id有值，subcategory_id为None）
+        inherited_fields = ProductCodeField.query.filter(
+            ProductCodeField.category_id == subcategory.category_id,
+            ProductCodeField.subcategory_id.is_(None),
+            ProductCodeField.field_type == 'spec',
+            spec_condition
+        ).order_by(ProductCodeField.position).all()
+
+        # 2. 查询子分类自己的规格字段
+        own_fields = ProductCodeField.query.filter(
             ProductCodeField.subcategory_id == subcategory_id,
             ProductCodeField.field_type == 'spec',
-            or_(
-                ProductCodeField.use_in_code == True,
-                ProductCodeField.use_in_code.is_(None),
-                and_(
-                    ProductCodeField.use_in_code == False,
-                    ProductCodeField.is_required == True
-                )
-            )
+            spec_condition
         ).order_by(ProductCodeField.position).all()
+
+        # 合并字段列表，继承字段在前
+        spec_fields = inherited_fields + own_fields
         
         # 查询该子分类下是否已有产品使用了这些规格
         existing_products = db.session.query(DevProduct).filter_by(
@@ -2377,13 +2470,17 @@ def get_spec_structure(subcategory_id):
                         }
         
         # 构建返回结果
+        # 创建继承字段ID集合，用于标记
+        inherited_field_ids = {f.id for f in inherited_fields}
+
         result = {
             'spec_fields': [],
             'has_existing_products': len(existing_products) > 0,
             'position_mapping': position_spec_mapping
         }
-        
+
         for field in spec_fields:
+            is_inherited = field.id in inherited_field_ids
             field_data = {
                 'id': field.id,
                 'name': field.name,
@@ -2391,6 +2488,7 @@ def get_spec_structure(subcategory_id):
                 'position': field.position,
                 'is_required': field.is_required,
                 'use_in_code': field.use_in_code,
+                'is_inherited': is_inherited,  # 标记是否为继承字段
                 'is_used_by_existing_products': field.position in used_positions,
                 'options': []
             }
@@ -2404,14 +2502,14 @@ def get_spec_structure(subcategory_id):
             for option in options:
                 field_data['options'].append({
                     'id': option.id,
-                    'value': option.value,
-                    'code': option.code,
+                    'value': option.effective_value,
+                    'code': option.effective_code,
                     'description': option.description
                 })
-                
+
             result['spec_fields'].append(field_data)
         
-        current_app.logger.debug(f"获取子分类 {subcategory_id} 的规格结构成功，找到 {len(result['spec_fields'])} 个字段，现有产品: {result['has_existing_products']}")
+        current_app.logger.debug(f"获取子分类 {subcategory_id} 的规格结构成功，找到 {len(result['spec_fields'])} 个字段（继承: {len(inherited_fields)}, 自有: {len(own_fields)}），现有产品: {result['has_existing_products']}")
         return jsonify(result)
         
     except Exception as e:
@@ -2495,34 +2593,56 @@ def add_spec_option():
                 'message': '选项已存在'
             })
         
+        # 查找规格字典
+        spec_name = field.name
+        spec_dict = SpecificationDictionary.query.filter_by(name=spec_name).first()
+        if not spec_dict:
+            return jsonify({'success': False, 'error': f'规格 {spec_name} 不在规格字典中'}), 400
+
+        # 检查指标是否已存在于规格字典
+        existing_spec_opt = SpecificationOption.query.filter_by(
+            spec_id=spec_dict.id, value=option_value
+        ).first()
+
+        if existing_spec_opt:
+            spec_option = existing_spec_opt
+        else:
+            # 生成智能编码并创建规格指标
+            unique_code = generate_smart_code(spec_dict.id, option_value)
+            if not unique_code:
+                return jsonify({'success': False, 'error': '无法生成唯一编码，所有可能的编码已被使用'}), 409
+
+            spec_option = SpecificationOption(
+                spec_id=spec_dict.id,
+                value=option_value,
+                code=unique_code,
+                is_active=True
+            )
+            db.session.add(spec_option)
+            db.session.flush()
+
         # 查找当前最大排序位置
         max_position = db.session.query(db.func.max(ProductCodeFieldOption.position))\
             .filter_by(field_id=field_id).scalar() or 0
-            
-        # 生成编码 - 使用统一函数
-        unique_code = findAvailableCode(field_id)
-        if not unique_code:
-            return jsonify({'success': False, 'error': '无法生成唯一编码，所有可能的编码已被使用'}), 409
-            
-        # 创建新选项
+
+        # 创建字段选项引用
         new_option = ProductCodeFieldOption(
             field_id=field_id,
-            value=option_value,
-            code=unique_code,
+            spec_option_id=spec_option.id,
             description=f'从产品 {product_model} 自动添加的指标',
             position=max_position + 1
         )
-        
+
         db.session.add(new_option)
         db.session.commit()
-        
+
         # 返回新选项信息
         return jsonify({
             'success': True,
             'option': {
                 'id': new_option.id,
-                'value': new_option.value,
-                'code': new_option.code
+                'value': spec_option.value,
+                'code': spec_option.code
             },
             'message': '新指标添加成功'
         })
@@ -2560,8 +2680,8 @@ def get_field_options(field_id):
         for option in options:
             option_list.append({
                 'id': option.id,
-                'value': option.value,
-                'code': option.code,
+                'value': option.effective_value,
+                'code': option.effective_code,
                 'description': option.description,
                 'position': option.position
             })
@@ -2718,8 +2838,8 @@ def get_spec_field_options():
         for option in options:
             options_data.append({
                 'id': option.id,
-                'value': option.value,
-                'code': option.code,
+                'value': option.effective_value,  # 使用 effective_value 获取正确的值
+                'code': option.effective_code,    # 使用 effective_code 获取正确的编码
                 'description': option.description,
                 'is_active': option.is_active  # 添加启用状态
             })
@@ -2938,8 +3058,8 @@ def get_available_spec_options():
         for option in options:
             options_data.append({
                 'id': option.id,
-                'value': option.value,
-                'code': option.code,
+                'value': option.effective_value,
+                'code': option.effective_code,
                 'description': option.description or '',
                 'is_active': option.is_active,
                 'unit': field_unit
@@ -2992,10 +3112,41 @@ def add_spec_field_option():
                 'message': '找不到对应的规格字段'
             }), 404
 
-        # 检查是否已存在相同的指标值
+        # 查找规格字典
+        spec_dict = SpecificationDictionary.query.filter_by(name=spec_name).first()
+        if not spec_dict:
+            return jsonify({
+                'success': False,
+                'message': f'规格 {spec_name} 不在规格字典中'
+            }), 400
+
+        # 检查指标是否已存在于规格字典
+        existing_spec_opt = SpecificationOption.query.filter_by(
+            spec_id=spec_dict.id, value=value
+        ).first()
+
+        if existing_spec_opt:
+            spec_option = existing_spec_opt
+        else:
+            # 生成智能编码并创建规格指标
+            unique_code = generate_smart_code(spec_dict.id, value)
+            if not unique_code:
+                return jsonify({'success': False, 'message': '无法生成唯一编码，所有可能的编码已被使用'}), 500
+
+            spec_option = SpecificationOption(
+                spec_id=spec_dict.id,
+                value=value,
+                code=unique_code,
+                description=description,
+                is_active=True
+            )
+            db.session.add(spec_option)
+            db.session.flush()
+
+        # 检查是否已存在相同的字段选项引用
         existing_option = ProductCodeFieldOption.query.filter_by(
             field_id=spec_field.id,
-            value=value
+            spec_option_id=spec_option.id
         ).first()
 
         if existing_option:
@@ -3004,20 +3155,14 @@ def add_spec_field_option():
                 'message': f'指标值 "{value}" 已存在'
             }), 400
 
-        # 生成唯一编码 - 使用统一函数
-        unique_code = findAvailableCode(spec_field.id)
-        if not unique_code:
-            return jsonify({'success': False, 'message': '无法生成唯一编码，所有可能的编码已被使用'}), 500
-
         # 获取当前最大position
         max_position = db.session.query(db.func.max(ProductCodeFieldOption.position))\
             .filter_by(field_id=spec_field.id).scalar() or 0
 
-        # 创建新选项
+        # 创建字段选项引用
         new_option = ProductCodeFieldOption(
             field_id=spec_field.id,
-            value=value,
-            code=unique_code,
+            spec_option_id=spec_option.id,
             description=description or f'快速添加的指标',
             is_active=True,
             position=max_position + 1
@@ -3026,7 +3171,7 @@ def add_spec_field_option():
         db.session.add(new_option)
         db.session.commit()
 
-        current_app.logger.info(f"快速添加指标成功: {spec_name} - {value} ({unique_code})")
+        current_app.logger.info(f"快速添加指标成功: {spec_name} - {value} ({spec_option.code})")
 
         # 获取规格单位
         field_unit = get_field_unit(spec_field.name)
@@ -3036,8 +3181,8 @@ def add_spec_field_option():
             'message': '指标添加成功',
             'new_item': {
                 'id': new_option.id,
-                'value': new_option.value,
-                'code': new_option.code,
+                'value': spec_option.value,
+                'code': spec_option.code,
                 'description': new_option.description,
                 'unit': field_unit
             }
@@ -3118,8 +3263,8 @@ def get_spec_field_options_by_id(field_id):
         for option in options:
             option_data = {
                 'id': option.id,
-                'value': option.value,
-                'code': option.code,
+                'value': option.effective_value,  # 使用 effective_value 获取正确的值
+                'code': option.effective_code,    # 使用 effective_code 获取正确的编码
                 'description': option.description
             }
             options_data.append(option_data)
@@ -3189,65 +3334,157 @@ def check_mn_code_duplicate_api():
 @login_required
 @permission_required('product_code', 'edit')
 def upload_rd_product_image(product_id):
-    """上传研发产品图片"""
+    """上传研发产品图片（支持分类共享）
+
+    参数:
+        update_category: true=覆盖分类文件, false=仅用于此产品, 不传=检查是否需要确认
+    """
     try:
         # 获取产品
         dev_product = DevProduct.query.get_or_404(product_id)
-        
+
         # 检查权限：只有管理员或产品创建者可以上传图片
         if current_user.role != 'admin' and current_user.id != dev_product.created_by:
             return jsonify({'success': False, 'error': '您没有权限上传此产品的图片'}), 403
-        
+
         # 检查是否有图片文件
         if 'image' not in request.files:
             return jsonify({'success': False, 'error': '请选择图片文件'}), 400
-        
+
         image_file = request.files['image']
         if image_file.filename == '':
             return jsonify({'success': False, 'error': '请选择图片文件'}), 400
-        
+
         # 验证文件类型
         allowed_extensions = {'jpg', 'jpeg', 'png', 'gif'}
-        if not ('.' in image_file.filename and 
+        if not ('.' in image_file.filename and
                 image_file.filename.rsplit('.', 1)[1].lower() in allowed_extensions):
             return jsonify({'success': False, 'error': '不支持的图片格式！请选择 JPG、PNG 或 GIF 文件'}), 400
-        
+
         # 验证文件大小 (12MB)
         max_size = 12 * 1024 * 1024
         image_file.seek(0, 2)  # 移动到文件末尾
         file_size = image_file.tell()
         image_file.seek(0)  # 回到文件开始
-        
+
         if file_size > max_size:
             return jsonify({
-                'success': False, 
+                'success': False,
                 'error': f'图片文件太大！最大允许 12MB，当前文件: {file_size / (1024*1024):.1f}MB'
             }), 400
-        
+
+        # 获取 update_category 参数
+        update_category_str = request.form.get('update_category')
+        if update_category_str is None:
+            update_category = None  # 需要检查是否需要确认
+        else:
+            update_category = update_category_str.lower() == 'true'
+
+        # 获取分类信息
+        category = ProductCategory.query.get(dev_product.category_id) if dev_product.category_id else None
+
         # 使用Supabase服务上传图片
         from app.utils.supabase_client import get_supabase_client
         supabase_client = get_supabase_client()
-        
-        if supabase_client:
-            # 上传到Supabase
+
+        if not supabase_client:
+            return jsonify({'success': False, 'error': '云端存储服务不可用'}), 500
+
+        # 分类共享逻辑
+        if category:
+            category_image = category.image_path
+
+            # 场景1：分类没有图片 → 自动设为分类图片
+            if not category_image:
+                image_url = supabase_client.upload_product_file(dev_product.id, image_file, 'image', 'rd_product')
+                if image_url:
+                    category.image_path = image_url
+                    dev_product.updated_at = datetime.now()
+                    db.session.commit()
+                    current_app.logger.info(f"研发产品 {dev_product.id} 图片上传成功，已设为分类共享文件: {image_url}")
+                    return jsonify({'success': True, 'image_url': image_url, 'set_as_category': True})
+                else:
+                    return jsonify({'success': False, 'error': '上传到云端存储失败'}), 500
+
+            # 场景2：分类已有图片
+            if update_category is None:
+                return jsonify({
+                    'success': False,
+                    'need_confirm': True,
+                    'category_has_file': True,
+                    'category_file_url': category_image,
+                    'message': '分类已有共享图片，请选择操作方式'
+                })
+
+            # 上传图片
             image_url = supabase_client.upload_product_file(dev_product.id, image_file, 'image', 'rd_product')
-            if image_url:
-                # 更新数据库
+            if not image_url:
+                return jsonify({'success': False, 'error': '上传到云端存储失败'}), 500
+
+            if update_category:
+                # 覆盖分类图片
+                category.image_path = image_url
+                dev_product.updated_at = datetime.now()
+                db.session.commit()
+                current_app.logger.info(f"研发产品 {dev_product.id} 图片上传成功，已覆盖分类共享文件: {image_url}")
+                return jsonify({'success': True, 'image_url': image_url, 'updated_category': True})
+            else:
+                # 仅用于此产品
                 dev_product.image_path = image_url
                 dev_product.updated_at = datetime.now()
                 db.session.commit()
-                
+                current_app.logger.info(f"研发产品 {dev_product.id} 图片上传成功，仅用于此产品: {image_url}")
+                return jsonify({'success': True, 'image_url': image_url, 'product_only': True})
+
+        else:
+            # 没有分类，直接上传到产品
+            image_url = supabase_client.upload_product_file(dev_product.id, image_file, 'image', 'rd_product')
+            if image_url:
+                dev_product.image_path = image_url
+                dev_product.updated_at = datetime.now()
+                db.session.commit()
                 current_app.logger.info(f"研发产品 {dev_product.id} 图片上传成功: {image_url}")
                 return jsonify({'success': True, 'image_url': image_url})
             else:
                 return jsonify({'success': False, 'error': '上传到云端存储失败'}), 500
-        else:
-            return jsonify({'success': False, 'error': '云端存储服务不可用'}), 500
-            
+
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"上传研发产品图片失败: {str(e)}")
         return jsonify({'success': False, 'error': f'上传失败: {str(e)}'}), 500
+
+
+# 获取研发产品分类文件状态
+@product_management_bp.route('/api/rd-products/<int:product_id>/category-file-status', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def get_rd_product_category_file_status(product_id):
+    """获取研发产品分类的文件状态（用于判断是否需要确认覆盖）"""
+    dev_product = DevProduct.query.get_or_404(product_id)
+    if not dev_product.category_id:
+        return jsonify({
+            'success': True,
+            'has_category': False,
+            'category_image': None,
+            'category_pdf': None
+        })
+
+    category = ProductCategory.query.get(dev_product.category_id)
+    if not category:
+        return jsonify({
+            'success': True,
+            'has_category': False,
+            'category_image': None,
+            'category_pdf': None
+        })
+
+    return jsonify({
+        'success': True,
+        'has_category': True,
+        'category_name': category.name,
+        'category_image': category.image_path,
+        'category_pdf': category.pdf_path
+    })
 
 # 更新研发产品阶段
 @product_management_bp.route('/api/rd-products/<int:product_id>/update-stage', methods=['POST'])
@@ -4182,8 +4419,8 @@ def get_product_relations(product_id):
             relation_info = {
                 'id': relation.id,
                 'related_product_id': relation.related_product_id,
-                'product_name': relation.related_product.name or relation.related_product.model or '',
-                'product_model': relation.related_product.model or relation.related_product.name or '',
+                'product_name': relation.related_product.product_name or relation.related_product.model or '',
+                'product_model': relation.related_product.model or relation.related_product.product_name or '',
                 'product_mn': relation.related_product.product_mn,
                 'brand': relation.related_product.brand or '',  # 品牌
                 'specification': relation.related_product.specification or '',  # 产品描述

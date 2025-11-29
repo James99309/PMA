@@ -229,7 +229,7 @@ def product_list():
         'ajax_mode': True,                      # 启用AJAX模式
         'ajax_endpoint': url_for('product_route.product_list_ajax'),
         'ajax_target': 'productTableBody',
-        'ajax_columns': 12,
+        'ajax_columns': 13,
         'dynamic_reset_button': True,           # 启用动态重置按钮
         'adaptive_width': True,
         'adaptive_button_layout': True,
@@ -352,6 +352,7 @@ def product_list():
             'columns': [
                 {'key': 'type', 'field': 'type', 'label': _('产品类型'), 'width': '100px', 'sort_type': 'string'},
                 {'key': 'category', 'field': 'category', 'label': _('产品类别'), 'width': '120px', 'sort_type': 'string'},
+                {'key': 'subcategory', 'field': 'subcategory', 'label': _('子分类'), 'width': '120px', 'sort_type': 'string'},
                 {'key': 'status', 'field': 'status', 'label': _('状态'), 'width': '100px', 'sort_type': 'string'},
                 {'key': 'product_name', 'field': 'product_name', 'label': _('产品名称'), 'width': '180px', 'sort_type': 'string'},
                 {'key': 'model', 'field': 'model', 'label': _('型号'), 'width': '120px', 'sort_type': 'string'},
@@ -396,15 +397,17 @@ def create():
         region_id = request.form.get('region_id') or None
         product_model = request.form.get('product_model')
         product_mn = request.form.get('product_mn')
+        product_name = request.form.get('product_name') or None  # 独立的产品名称字段
         brand = request.form.get('brand') or None
         unit = request.form.get('unit')
         retail_price = request.form.get('retail_price')
         currency = request.form.get('currency', 'CNY')
         description = request.form.get('description')
+        is_vendor_product = request.form.get('is_vendor_product') == 'on'
 
         # 验证必填字段
-        if not all([category_id, subcategory_id, product_model, product_mn]):
-            flash('请填写所有必填字段', 'error')
+        if not all([category_id, subcategory_id, region_id, product_model, product_mn]):
+            flash('请填写所有必填字段（包括销售区域）', 'error')
             return redirect(url_for('product_route.create_product_page'))
 
         # 验证MN号全局唯一性（跨研发库和产品库）
@@ -443,13 +446,15 @@ def create():
             region_id=int(region_id) if region_id else None,
             model=product_model,
             product_mn=product_mn,
+            product_name=product_name,  # 独立的产品名称
             brand=brand,
             unit=unit,
             retail_price=retail_price,
             currency=currency,
             specification=description,  # 使用旧字段存储描述
             source_type='manual',  # 手动创建
-            owner_id=current_user.id
+            owner_id=current_user.id,
+            is_vendor_product=is_vendor_product
         )
 
         # 保存产品以获取ID
@@ -1034,31 +1039,109 @@ def get_product_models():
 @login_required
 @permission_required('product', 'edit')
 def upload_product_image(product_id):
-    """上传产品图片"""
+    """上传产品图片（支持分类共享）
+
+    参数:
+        update_category: true=覆盖分类文件, false=仅用于此产品, 不传=检查是否需要确认
+    """
     file_service = get_product_file_service()
     image_file = request.files.get('image')
-    
+
     if not image_file or not image_file.filename:
         return jsonify({'success': False, 'error': '请选择要上传的图片文件'}), 400
-    
-    result = file_service.upload_image(product_id, image_file)
-    status_code = 200 if result['success'] else 400
+
+    # 获取 update_category 参数
+    update_category_str = request.form.get('update_category')
+    if update_category_str is None:
+        update_category = None  # 需要检查是否需要确认
+    else:
+        update_category = update_category_str.lower() == 'true'
+
+    result = file_service.upload_file_with_category(product_id, image_file, 'image', update_category)
+    status_code = 200 if result.get('success') or result.get('need_confirm') else 400
     return jsonify(result), status_code
 
 @bp.route('/api/products/<int:product_id>/upload-pdf', methods=['POST'])
 @login_required
 @permission_required('product', 'edit')
 def upload_product_pdf(product_id):
-    """上传产品PDF文档"""
+    """上传产品PDF文档（支持分类共享）
+
+    参数:
+        update_category: true=覆盖分类文件, false=仅用于此产品, 不传=检查是否需要确认
+    """
     file_service = get_product_file_service()
     pdf_file = request.files.get('pdf')
-    
+
     if not pdf_file or not pdf_file.filename:
         return jsonify({'success': False, 'error': '请选择要上传的PDF文件'}), 400
-    
-    result = file_service.upload_pdf(product_id, pdf_file)
-    status_code = 200 if result['success'] else 400
+
+    # 获取 update_category 参数
+    update_category_str = request.form.get('update_category')
+    if update_category_str is None:
+        update_category = None  # 需要检查是否需要确认
+    else:
+        update_category = update_category_str.lower() == 'true'
+
+    result = file_service.upload_file_with_category(product_id, pdf_file, 'pdf', update_category)
+    status_code = 200 if result.get('success') or result.get('need_confirm') else 400
     return jsonify(result), status_code
+
+
+@bp.route('/api/products/<int:product_id>/clear-image', methods=['POST'])
+@login_required
+@permission_required('product', 'edit')
+def clear_product_image(product_id):
+    """清除产品图片（仅清除产品自身文件，不影响分类共享文件）"""
+    file_service = get_product_file_service()
+    result = file_service.clear_file(product_id, 'image')
+    status_code = 200 if result.get('success') else 400
+    return jsonify(result), status_code
+
+
+@bp.route('/api/products/<int:product_id>/clear-pdf', methods=['POST'])
+@login_required
+@permission_required('product', 'edit')
+def clear_product_pdf(product_id):
+    """清除产品PDF（仅清除产品自身文件，不影响分类共享文件）"""
+    file_service = get_product_file_service()
+    result = file_service.clear_file(product_id, 'pdf')
+    status_code = 200 if result.get('success') else 400
+    return jsonify(result), status_code
+
+
+@bp.route('/api/products/<int:product_id>/category-file-status', methods=['GET'])
+@login_required
+@permission_required('product', 'view')
+def get_category_file_status(product_id):
+    """获取产品分类的文件状态（用于判断是否需要确认覆盖）"""
+    from app.models.product_code import ProductCategory
+
+    product = Product.query.get_or_404(product_id)
+    if not product.category_id:
+        return jsonify({
+            'success': True,
+            'has_category': False,
+            'category_image': None,
+            'category_pdf': None
+        })
+
+    category = ProductCategory.query.get(product.category_id)
+    if not category:
+        return jsonify({
+            'success': True,
+            'has_category': False,
+            'category_image': None,
+            'category_pdf': None
+        })
+
+    return jsonify({
+        'success': True,
+        'has_category': True,
+        'category_name': category.name,
+        'category_image': category.image_path,
+        'category_pdf': category.pdf_path
+    })
 
 @bp.route('/api/products/<int:product_id>/upload-files', methods=['POST'])
 @login_required
@@ -1572,6 +1655,7 @@ def update_product(id):
         product_type = request.form.get('type') or None
         product_status = request.form.get('status', 'active')
         product_model = request.form.get('product_model')
+        product_name = request.form.get('product_name') or None  # 独立的产品名称字段
         brand = request.form.get('brand') or None
         unit = request.form.get('unit')
         retail_price = request.form.get('retail_price')
@@ -1590,11 +1674,15 @@ def update_product(id):
         if not product_model:
             flash('请填写产品型号', 'error')
             return redirect(url_for('product_route.edit_product_page', id=id))
+        if not region_id and not product.region_id:
+            flash('销售区域为必填项', 'error')
+            return redirect(url_for('product_route.edit_product_page', id=id))
 
         # 更新产品基本信息
         product.type = product_type
         product.status = product_status
         product.model = product_model
+        product.product_name = product_name  # 独立的产品名称
         product.brand = brand
         product.unit = unit
         product.currency = currency
@@ -2305,9 +2393,9 @@ def get_product_brands():
         
         # 排序品牌列表
         brand_list.sort()
-        
+
         logger.debug(f'找到 {len(brand_list)} 个品牌')
-        return jsonify(brand_list)
+        return jsonify({'brands': brand_list})
         
     except Exception as e:
         logger.error(f'获取产品品牌列表时出错: {str(e)}')
@@ -2585,7 +2673,7 @@ def get_products_by_subcategory_api():
             # 构建产品数据
             product_data = {
                 'id': product.id,
-                'product_name': product.name,  # 使用智能属性，优先返回subcategory_obj.name
+                'product_name': product.product_name,  # 使用独立的产品名称字段
                 'model': product.model,
                 'product_mn': product.product_mn,
                 'specification': product.specification,
@@ -2665,7 +2753,7 @@ def get_product_configurations(product_id):
         for relation in relations:
             if relation.related_product and relation.related_product.status == 'active':
                 related_prod = relation.related_product
-                product_name = related_prod.name or '其他配置'
+                product_name = related_prod.product_name or '其他配置'
 
                 if product_name not in config_groups:
                     config_groups[product_name] = []
@@ -2675,7 +2763,7 @@ def get_product_configurations(product_id):
                     'model': related_prod.model,
                     'product_mn': related_prod.product_mn,
                     'specification': related_prod.specification,
-                    'product_name': related_prod.name,
+                    'product_name': related_prod.product_name,
                     'brand': related_prod.brand,
                     'unit': related_prod.unit,
                     'retail_price': float(related_prod.retail_price) if related_prod.retail_price else None,

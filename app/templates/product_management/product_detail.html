@@ -185,17 +185,25 @@
                         <!-- 产品图片区域 -->
                         <div class="col-md-4">
                             <div class="product-image-container">
-                                {% if dev_product.image_path %}
-                                    {% if dev_product.image_path.startswith('http') %}
+                                {# 优先显示产品图片，其次显示分类共享图片 #}
+                                {% set effective_image = dev_product.image_path or (dev_product.category.image_path if dev_product.category else None) %}
+                                {% if effective_image %}
+                                    {% if effective_image.startswith('http') %}
                                         <!-- Supabase云端图片 -->
-                                        <img src="{{ dev_product.image_path }}"
+                                        <img src="{{ effective_image }}"
                                              alt="{{ dev_product.name }}"
                                              class="product-image">
                                     {% else %}
                                         <!-- 本地图片 -->
-                                        <img src="{{ url_for('static', filename=dev_product.image_path) }}"
+                                        <img src="{{ url_for('static', filename=effective_image) }}"
                                              alt="{{ dev_product.name }}"
                                              class="product-image">
+                                    {% endif %}
+                                    {# 显示图片来源提示 #}
+                                    {% if not dev_product.image_path and dev_product.category and dev_product.category.image_path %}
+                                    <small class="text-muted d-block text-center mt-1">
+                                        <i class="fas fa-share-alt"></i> {{ _('分类共享图片') }}
+                                    </small>
                                     {% endif %}
                                 {% else %}
                                 <div class="product-placeholder">
@@ -223,9 +231,16 @@
                                     </div>
 
                                     <div class="product-property">
-                                        <div class="property-label">{{ _('子分类') }}</div>
+                                        <div class="property-label">{{ _('产品系列') }}</div>
                                         <div class="property-value">{{ dev_product.subcategory.name if dev_product.subcategory else _('暂无') }}</div>
                                     </div>
+
+                                    {% if dev_product.name %}
+                                    <div class="product-property">
+                                        <div class="property-label">{{ _('产品名称') }}</div>
+                                        <div class="property-value">{{ dev_product.name }}</div>
+                                    </div>
+                                    {% endif %}
 
                                     <div class="product-property">
                                         <div class="property-label">{{ _('产品型号') }}</div>
@@ -530,21 +545,19 @@ function initDeleteConfirmation() {
 function initImageUpload() {
     const uploadBtn = document.getElementById('uploadImageBtn');
     const fileInput = document.getElementById('imageFileInput');
-    
+
     if (!uploadBtn || !fileInput) {
-        return; // 没有上传按钮或文件输入框（可能没有编辑权限）
+        return;
     }
-    
-    // 点击上传按钮时触发文件选择
+
     uploadBtn.addEventListener('click', function() {
         fileInput.click();
     });
-    
-    // 文件选择变化时的处理
+
     fileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
-        
+
         // 文件类型验证
         const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
         if (!allowedTypes.includes(file.type)) {
@@ -552,7 +565,7 @@ function initImageUpload() {
             fileInput.value = '';
             return;
         }
-        
+
         // 文件大小验证 (12MB)
         const maxSize = 12 * 1024 * 1024;
         if (file.size > maxSize) {
@@ -560,64 +573,48 @@ function initImageUpload() {
             fileInput.value = '';
             return;
         }
-        
-        // 立即开始上传
+
         uploadImage(file);
     });
 }
 
 /**
- * 上传图片函数
+ * 上传图片
  */
 function uploadImage(file) {
     const uploadBtn = document.getElementById('uploadImageBtn');
     const fileInput = document.getElementById('imageFileInput');
-    
-    // 禁用按钮并显示上传状态
+
+    if (!uploadBtn) return;
+
     uploadBtn.disabled = true;
-    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{{ _("上传中...") }}';
-    
-    // 创建 FormData
+    uploadBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>{{ _("上传中...") }}`;
+
     const formData = new FormData();
     formData.append('image', file);
     formData.append('csrf_token', '{{ csrf_token() }}');
-    
-    // 发送上传请求
+
     fetch('/product-management/api/rd-products/{{ dev_product.id }}/upload-image', {
         method: 'POST',
         body: formData
     })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-            return response.json();
-        } else {
-            return response.text().then(text => {
-                throw new Error(`服务器返回了非JSON响应: ${text}`);
-            });
-        }
-    })
+    .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('{{ _("图片上传成功！页面将自动刷新") }}');
-            // 延迟刷新页面显示新图片，让用户看到成功提示
-            setTimeout(() => location.reload(), 1500);
+            alert('{{ _("图片上传成功！") }}');
+            setTimeout(() => location.reload(), 1000);
         } else {
             alert('{{ _("上传失败") }}: ' + (data.error || data.message || '{{ _("未知错误") }}'));
         }
     })
     .catch(error => {
         console.error('上传错误:', error);
-        alert('{{ _("上传过程中发生错误，请重试") }}: ' + error.message);
+        alert('{{ _("上传过程中发生错误，请重试") }}');
     })
     .finally(() => {
-        // 恢复按钮状态
         uploadBtn.disabled = false;
-        uploadBtn.innerHTML = '<i class="fas fa-upload me-1"></i>{{ _("上传图片") }}';
-        fileInput.value = '';
+        uploadBtn.innerHTML = `<i class="fas fa-upload me-1"></i>{{ _("上传图片") }}`;
+        if (fileInput) fileInput.value = '';
     });
 }
 

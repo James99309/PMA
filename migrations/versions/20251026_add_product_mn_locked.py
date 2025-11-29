@@ -22,16 +22,24 @@ depends_on = None
 
 def upgrade():
     """添加MN锁定字段"""
-    # 为products表添加is_mn_locked字段
-    # 默认值为False（新产品不锁定）
-    op.add_column('products', sa.Column('is_mn_locked', sa.Boolean(), nullable=True, server_default='0'))
+    # 检查列是否已存在
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [c['name'] for c in inspector.get_columns('products')]
 
-    # 将所有现有产品的MN设置为锁定状态（保护已有产品）
-    # 这样可以防止意外修改已有产品的MN编码
-    op.execute("UPDATE products SET is_mn_locked = TRUE")
+    if 'is_mn_locked' not in columns:
+        # 为products表添加is_mn_locked字段
+        # 默认值为False（新产品不锁定）
+        op.add_column('products', sa.Column('is_mn_locked', sa.Boolean(), nullable=True, server_default='0'))
 
-    print("✅ 已为products表添加is_mn_locked字段")
-    print("✅ 已将所有现有产品的MN编码设置为锁定状态")
+        # 将所有现有产品的MN设置为锁定状态（保护已有产品）
+        # 这样可以防止意外修改已有产品的MN编码
+        op.execute("UPDATE products SET is_mn_locked = TRUE")
+
+        print("✅ 已为products表添加is_mn_locked字段")
+        print("✅ 已将所有现有产品的MN编码设置为锁定状态")
+    else:
+        print("⏭️ is_mn_locked 字段已存在，跳过")
 
 
 def downgrade():
