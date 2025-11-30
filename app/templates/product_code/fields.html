@@ -107,22 +107,22 @@
             </span>
         </div>
         <div class="card-body">
+            {# 序号计数器 - 在表格外层定义，确保跨 tbody 连续 #}
+            {% set row_index = namespace(value=1) %}
             <table class="table table-bordered table-striped">
                 <thead>
                     <tr>
                         <th width="8%">序号</th>
-                        <th width="18%">规格名称</th>
+                        <th width="20%">规格名称</th>
                         <th width="12%">编码位置</th>
                         <th>指标列表</th>
-                        <th width="12%">创建时间</th>
                         <th width="15%">操作</th>
                     </tr>
                 </thead>
-                <tbody id="fieldsTableBody">
-                    {# 按编码/非编码分组显示，顺序：继承编码 → 子分类编码 → 继承非编码 → 子分类非编码 #}
-                    {% set row_index = namespace(value=1) %}
+                <tbody id="codingFieldsBody">
+                    {# 按编码/非编码分组显示，编码规格在此 tbody #}
 
-                    {# 1. 继承的编码规格 #}
+                    {# 1. 继承的编码规格 - 不可拖拽，在前 #}
                     {% for field in inherited_fields if field.use_in_code %}
                     <tr class="table-light">
                         <td>{{ row_index.value }}{% set row_index.value = row_index.value + 1 %}</td>
@@ -146,12 +146,11 @@
                                 <span class="text-muted">暂无指标</span>
                             {% endif %}
                         </td>
-                        <td>-</td>
                         <td></td>
                     </tr>
                     {% endfor %}
 
-                    {# 2. 子分类的编码规格 #}
+                    {# 2. 子分类的编码规格 - 可拖拽，在后 #}
                     {% for field in fields if field.use_in_code %}
                     <tr data-id="{{ field.id }}">
                         <td>
@@ -219,7 +218,6 @@
                                 <span class="text-muted">暂无指标</span>
                             {% endif %}
                         </td>
-                        <td>{{ field.created_at.strftime('%Y-%m-%d') if field.created_at else '未知' }}</td>
                         <td class="text-center">
                             {# 收集当前字段的所有选项ID（用于排除） #}
                             {% set exclude_option_ids = [] %}
@@ -242,36 +240,16 @@
                     </tr>
                     {% endfor %}
 
-                    {# 3. 继承的非编码规格 #}
-                    {% for field in inherited_fields if not field.use_in_code %}
-                    <tr class="table-light">
-                        <td>{{ row_index.value }}{% set row_index.value = row_index.value + 1 %}</td>
-                        <td>
-                            {{ field.name }}
-                            <span class="rounded-circle bg-info d-inline-block ms-1" style="width: 8px; height: 8px;" title="继承自{{ subcategory.parent_category.name }}分类"></span>
-                        </td>
-                        <td class="position-cell">
-                            <span class="badge bg-secondary">未纳入编码</span>
-                        </td>
-                        <td>
-                            {% if field.options %}
-                                {% for option in field.options %}
-                                    {% if option.is_active %}
-                                    <span class="badge bg-secondary me-1 mb-1">
-                                        {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
-                                    </span>
-                                    {% endif %}
-                                {% endfor %}
-                            {% else %}
-                                <span class="text-muted">暂无指标</span>
-                            {% endif %}
-                        </td>
-                        <td>-</td>
-                        <td></td>
+                    {# 如果没有任何编码规格才显示提示 #}
+                    {% set has_coding = (inherited_fields|selectattr('use_in_code')|list|length > 0) or (fields|selectattr('use_in_code')|list|length > 0) %}
+                    {% if not has_coding %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">暂无编码规格</td>
                     </tr>
-                    {% endfor %}
-
-                    {# 4. 子分类的非编码规格 #}
+                    {% endif %}
+                </tbody>
+                <tbody id="nonCodingFieldsBody">
+                    {# 3. 子分类的非编码规格 - 可拖拽，在前 #}
                     {% for field in fields if not field.use_in_code %}
                     <tr data-id="{{ field.id }}">
                         <td>
@@ -290,7 +268,7 @@
                             {% endif %}
                         </td>
                         <td class="position-cell">
-                            <span class="badge bg-secondary position-badge">未纳入编码</span>
+                            <span class="rounded-circle bg-secondary d-inline-block" style="width: 8px; height: 8px;" title="未纳入编码"></span>
                         </td>
                         <td>
                             {% if field.options %}
@@ -339,7 +317,6 @@
                                 <span class="text-muted">暂无指标</span>
                             {% endif %}
                         </td>
-                        <td>{{ field.created_at.strftime('%Y-%m-%d') if field.created_at else '未知' }}</td>
                         <td class="text-center">
                             {# 收集当前字段的所有选项ID（用于排除） #}
                             {% set exclude_option_ids = [] %}
@@ -362,10 +339,39 @@
                     </tr>
                     {% endfor %}
 
-                    {# 如果没有任何规格（包括继承的）才显示空提示 #}
-                    {% if not inherited_fields and not fields %}
+                    {# 4. 继承的非编码规格 - 不可拖拽，在后 #}
+                    {% for field in inherited_fields if not field.use_in_code %}
+                    <tr class="table-light">
+                        <td>{{ row_index.value }}{% set row_index.value = row_index.value + 1 %}</td>
+                        <td>
+                            {{ field.name }}
+                            <span class="rounded-circle bg-info d-inline-block ms-1" style="width: 8px; height: 8px;" title="继承自{{ subcategory.parent_category.name }}分类"></span>
+                        </td>
+                        <td class="position-cell">
+                            <span class="rounded-circle bg-secondary d-inline-block" style="width: 8px; height: 8px;" title="未纳入编码"></span>
+                        </td>
+                        <td>
+                            {% if field.options %}
+                                {% for option in field.options %}
+                                    {% if option.is_active %}
+                                    <span class="badge bg-secondary me-1 mb-1">
+                                        {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
+                                    </span>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">暂无指标</span>
+                            {% endif %}
+                        </td>
+                        <td></td>
+                    </tr>
+                    {% endfor %}
+
+                    {# 如果没有任何非编码规格才显示提示 #}
+                    {% set has_non_coding = (inherited_fields|rejectattr('use_in_code')|list|length > 0) or (fields|rejectattr('use_in_code')|list|length > 0) %}
+                    {% if not has_non_coding %}
                     <tr>
-                        <td colspan="6" class="text-center">暂无规格，请添加</td>
+                        <td colspan="5" class="text-center text-muted">暂无非编码规格</td>
                     </tr>
                     {% endif %}
                 </tbody>
@@ -424,7 +430,7 @@
 
             <!-- 必填项 -->
             <div class="form-check mb-3">
-                <input type="checkbox" class="form-check-input" id="fieldRequired">
+                <input type="checkbox" class="form-check-input" id="fieldRequired" checked>
                 <label class="form-check-label" for="fieldRequired">
                     必填项
                 </label>
@@ -607,7 +613,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 找到对应 field_id 的表格行
                 const fieldId = context.specFieldId;
                 const fieldName = context.specName;
-                const row = document.querySelector(`#fieldsTableBody tr[data-id="${fieldId}"]`);
+                const row = document.querySelector(`#codingFieldsBody tr[data-id="${fieldId}"], #nonCodingFieldsBody tr[data-id="${fieldId}"]`);
                 if (!row) {
                     console.warn('找不到对应的规格行，刷新页面');
                     location.reload();
@@ -684,18 +690,67 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
 <script src="{{ url_for('static', filename='js/sortable-list.js') }}"></script>
 <script>
+// 自定义函数：更新整个表格的序号（跨 tbody 连续）
+function updateAllRowNumbers() {
+    let rowNum = 1;
+
+    // 辅助函数：更新单行序号
+    function updateRowNumber(row) {
+        // 跳过占位行（没有 data-id 且不是继承行）
+        if (!row.hasAttribute('data-id') && !row.classList.contains('table-light')) {
+            return;
+        }
+        const firstCell = row.querySelector('td:first-child');
+        if (firstCell) {
+            // 保留拖拽手柄，只更新序号文本
+            const textNodes = Array.from(firstCell.childNodes).filter(
+                node => node.nodeType === Node.TEXT_NODE
+            );
+            textNodes.forEach(node => node.remove());
+            firstCell.appendChild(document.createTextNode(rowNum.toString()));
+            rowNum++;
+        }
+    }
+
+    // 先更新编码部分
+    document.querySelectorAll('#codingFieldsBody tr').forEach(updateRowNumber);
+
+    // 再更新非编码部分（序号继续）
+    document.querySelectorAll('#nonCodingFieldsBody tr').forEach(updateRowNumber);
+}
+
+// 检查是否允许移动到目标位置（阻止拖到继承规格前面）
+function canMoveToPosition(evt, tbodyId) {
+    const related = evt.related;  // 目标位置的行
+    if (!related) return true;
+
+    // 如果目标行是继承行（无 data-id），不允许移动到它前面
+    if (!related.hasAttribute('data-id')) {
+        return false;
+    }
+
+    return true;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
-    initSortableList('fieldsTableBody', '/product-code/api/subcategory/{{ subcategory.id }}/update-fields-order', {
+    // 编码规格排序 - 子分类规格不能拖到继承规格前面
+    initSortableList('codingFieldsBody', '/product-code/api/subcategory/{{ subcategory.id }}/update-fields-order', {
         handle: '.drag-handle',
         animation: 150,
-        // 只允许拖动有 data-id 属性的行（非继承字段）
         filter: 'tr:not([data-id])',
         preventOnFilter: true,
-        // 保存成功后更新位置徽章显示（位置+3显示实际编码位置）
+        extraData: { field_type: 'coding' },
+        updateRowNumbers: false,  // 禁用内置重编号，使用自定义函数
+        onMove: function(evt) {
+            return canMoveToPosition(evt, 'codingFieldsBody');
+        },
         onSuccess: function(result) {
+            // 更新跨 tbody 连续序号
+            updateAllRowNumbers();
+            // 更新编码位置徽章
             if (result.positions) {
                 result.positions.forEach(function(item) {
-                    const row = document.querySelector(`tr[data-id="${item.id}"]`);
+                    const row = document.querySelector(`#codingFieldsBody tr[data-id="${item.id}"]`);
                     if (row) {
                         const positionBadge = row.querySelector('.position-badge');
                         if (positionBadge && item.use_in_code) {
@@ -704,6 +759,23 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
             }
+        }
+    });
+
+    // 非编码规格排序 - 继承规格在后面，子分类可自由排序
+    initSortableList('nonCodingFieldsBody', '/product-code/api/subcategory/{{ subcategory.id }}/update-fields-order', {
+        handle: '.drag-handle',
+        animation: 150,
+        filter: 'tr:not([data-id])',
+        preventOnFilter: true,
+        extraData: { field_type: 'non_coding' },
+        updateRowNumbers: false,  // 禁用内置重编号，使用自定义函数
+        onMove: function(evt) {
+            return canMoveToPosition(evt, 'nonCodingFieldsBody');
+        },
+        onSuccess: function(result) {
+            // 更新跨 tbody 连续序号
+            updateAllRowNumbers();
         }
     });
 });

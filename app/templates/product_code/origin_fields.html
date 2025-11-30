@@ -61,7 +61,6 @@
                         <th>区域名称</th>
                         <th>编码</th>
                         <th>说明</th>
-                        <th>创建时间</th>
                         <th>操作</th>
                     </tr>
                 </thead>
@@ -72,7 +71,6 @@
                         <td>{{ field.name }}</td>
                         <td><code>{{ field.code }}</code></td>
                         <td>{{ field.description }}</td>
-                        <td>{{ field.created_at.strftime('%Y-%m-%d') if field.created_at else '未知' }}</td>
                         <td class="text-center">
                             {% if not field.is_used %}
                             <a href="{{ url_for('product_code.edit_origin_field', id=field.id) }}" class="btn btn-sm btn-warning" title="编辑">
@@ -93,7 +91,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="text-center">暂无区域信息，请添加</td>
+                        <td colspan="5" class="text-center">暂无区域信息，请添加</td>
                     </tr>
                     {% endfor %}
                 </tbody>

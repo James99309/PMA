@@ -55,7 +55,6 @@
                         <th width="220">分类名称</th>
                         <th width="100">分类标识符</th>
                         <th>描述</th>
-                        <th width="150">创建时间</th>
                         <th width="180">操作</th>
                     </tr>
                 </thead>
@@ -77,7 +76,6 @@
                         </td>
                         <td>{{ category.code_letter }}</td>
                         <td>{{ category.description if category.description }}</td>
-                        <td>{{ category.created_at.strftime('%Y-%m-%d %H:%M') if category.created_at }}</td>
                         <td class="text-center">
                             <a href="{{ url_for('product_code.category_fields', id=category.id) }}" class="btn btn-sm btn-outline-primary" title="通用编码">
                                 <i class="fas fa-code"></i>

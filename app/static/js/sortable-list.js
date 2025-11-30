@@ -68,9 +68,13 @@ function initSortableList(tbodyId, updateUrl, options = {}) {
         animation: options.animation || 150,      // 动画时长
         onSuccess: options.onSuccess || null,     // 成功回调
         onError: options.onError || null,         // 失败回调
+        onMove: options.onMove || null,           // 移动验证回调，返回false阻止移动
         extractId: options.extractId || ((row) => row.dataset.id),  // ID提取函数
         autoReload: options.autoReload !== false, // 失败时自动刷新（默认true）
-        updateRowNumbers: options.updateRowNumbers !== false  // 是否更新序号列（默认true）
+        updateRowNumbers: options.updateRowNumbers !== false,  // 是否更新序号列（默认true）
+        extraData: options.extraData || {},       // 额外数据，将合并到请求体中
+        filter: options.filter || null,           // 过滤选择器，匹配的元素不能被拖拽
+        preventOnFilter: options.preventOnFilter !== false  // 阻止对过滤元素的拖拽操作
     };
 
     /**
@@ -104,16 +108,30 @@ function initSortableList(tbodyId, updateUrl, options = {}) {
         });
     }
 
-    // 初始化 Sortable
-    const sortable = new Sortable(tbody, {
+    // 构建 Sortable 配置
+    const sortableConfig = {
         animation: config.animation,
         handle: config.handle,
         ghostClass: 'sortable-ghost',
         dragClass: 'sortable-drag',
-        chosenClass: 'sortable-chosen',
+        chosenClass: 'sortable-chosen'
+    };
 
-        // 拖拽结束事件
-        onEnd: async function(evt) {
+    // 添加过滤配置
+    if (config.filter) {
+        sortableConfig.filter = config.filter;
+        sortableConfig.preventOnFilter = config.preventOnFilter;
+    }
+
+    // 添加移动验证回调
+    if (config.onMove) {
+        sortableConfig.onMove = function(evt) {
+            return config.onMove(evt);
+        };
+    }
+
+    // 拖拽结束事件
+    sortableConfig.onEnd = async function(evt) {
             // 立即更新序号列
             updateRowNumbers();
 
@@ -153,7 +171,7 @@ function initSortableList(tbodyId, updateUrl, options = {}) {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': csrfToken
                     },
-                    body: JSON.stringify({ items: items })
+                    body: JSON.stringify({ items: items, ...config.extraData })
                 });
 
                 const result = await response.json();
@@ -214,8 +232,10 @@ function initSortableList(tbodyId, updateUrl, options = {}) {
                     }, 2000);
                 }
             }
-        }
-    });
+    };
+
+    // 初始化 Sortable
+    const sortable = new Sortable(tbody, sortableConfig);
 
     console.log(`[SortableList] 已初始化拖拽排序: #${tbodyId}`);
     return sortable;

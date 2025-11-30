@@ -1632,21 +1632,29 @@ def update_fields_order(id):
             current_app.logger.error("没有有效的字段ID")
             return jsonify({"success": False, "error": "没有有效的字段ID属于此子类别"}), 400
         
-        # 编码位置计算：前3位是固定的（区域+分类+子分类），规格从位置4开始
-        FIXED_PREFIX_POSITIONS = 3  # 区域、分类、子分类占用前3位
+        # 获取字段类型参数：coding（编码规格）或 non_coding（非编码规格）
+        field_type = data.get('field_type', 'coding')
 
-        # 获取继承字段（分类级字段）的最大位置
-        inherited_fields = ProductCodeField.get_category_fields(subcategory.category_id)
-        inherited_code_fields = [f for f in inherited_fields if f.use_in_code]
-
-        if inherited_code_fields:
-            # 子分类字段从继承字段之后开始
-            start_position = max(f.position for f in inherited_code_fields) + 1
+        if field_type == 'non_coding':
+            # 非编码规格：独立的位置序列，从1开始
+            start_position = 1
+            current_app.logger.info(f"非编码规格排序，起始位置: {start_position}")
         else:
-            # 没有继承字段，从位置4开始（前3位是固定前缀）
-            start_position = FIXED_PREFIX_POSITIONS + 1
+            # 编码规格：位置计算，前3位是固定的（区域+分类+子分类），规格从位置4开始
+            FIXED_PREFIX_POSITIONS = 3  # 区域、分类、子分类占用前3位
 
-        current_app.logger.info(f"继承字段数量: {len(inherited_code_fields)}, 子分类字段起始位置: {start_position}")
+            # 获取继承字段（分类级字段）的最大位置
+            inherited_fields = ProductCodeField.get_category_fields(subcategory.category_id)
+            inherited_code_fields = [f for f in inherited_fields if f.use_in_code]
+
+            if inherited_code_fields:
+                # 子分类字段从继承字段之后开始
+                start_position = max(f.position for f in inherited_code_fields) + 1
+            else:
+                # 没有继承字段，从位置4开始（前3位是固定前缀）
+                start_position = FIXED_PREFIX_POSITIONS + 1
+
+            current_app.logger.info(f"编码规格排序，继承字段数量: {len(inherited_code_fields)}, 起始位置: {start_position}")
 
         # 更新位置值（编码位置从继承字段之后开始）
         try:

@@ -92,10 +92,9 @@
                 <thead>
                     <tr>
                         <th width="8%">序号</th>
-                        <th width="18%">规格名称</th>
+                        <th width="20%">规格名称</th>
                         <th width="12%">编码位置</th>
                         <th>指标列表</th>
-                        <th width="12%">创建时间</th>
                         <th width="15%">操作</th>
                     </tr>
                 </thead>
@@ -121,7 +120,7 @@
                             {% if field.use_in_code %}
                             <span class="badge bg-success position-badge">位置{{ field.position }}</span>
                             {% else %}
-                            <span class="badge bg-secondary position-badge">未纳入编码</span>
+                            <span class="rounded-circle bg-secondary d-inline-block" style="width: 8px; height: 8px;" title="未纳入编码"></span>
                             {% endif %}
                         </td>
                         <td>
@@ -168,7 +167,6 @@
                                 <span class="text-muted">暂无指标</span>
                             {% endif %}
                         </td>
-                        <td>{{ field.created_at.strftime('%Y-%m-%d') if field.created_at else '未知' }}</td>
                         <td class="text-center">
                             {% set exclude_option_ids = [] %}
                             {% for option in field.options.all() %}
@@ -190,7 +188,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="text-center text-muted">
+                        <td colspan="5" class="text-center text-muted">
                             <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
                             暂无通用编码规格，点击上方"添加规格"按钮开始配置
                         </td>

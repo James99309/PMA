@@ -52,10 +52,9 @@
                 <thead>
                     <tr>
                         <th width="6%">序号</th>
-                        <th width="25%">产品名称</th>
-                        <th width="12%">标识符</th>
-                        <th width="20%">创建时间</th>
-                        <th width="15%">操作</th>
+                        <th width="30%">产品名称</th>
+                        <th width="15%">标识符</th>
+                        <th width="20%">操作</th>
                     </tr>
                 </thead>
                 <tbody id="subcategoryTableBody">
@@ -75,7 +74,6 @@
                             {% endif %}
                         </td>
                         <td>{{ subcategory.code_letter }}</td>
-                        <td>{{ subcategory.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                         <td class="text-center">
                             <a href="{{ url_for('product_code.subcategory_fields', id=subcategory.id) }}" class="btn btn-sm btn-info" title="规格管理">
                                 <i class="fas fa-list"></i>
@@ -93,7 +91,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" class="text-center">暂无产品名称，请添加</td>
+                        <td colspan="4" class="text-center">暂无产品名称，请添加</td>
                     </tr>
                     {% endfor %}
                 </tbody>
