@@ -2744,19 +2744,34 @@ def get_products_by_subcategory_api():
             if product_subcategory == subcategory:
                 products.append(product)
 
-        # 按型号分组
-        model_groups = {}
+        # 按产品名称分组（原按型号分组）
+        name_groups = {}
         for product in products:
-            # 使用model字段作为型号
-            model = product.model or product.name or '未知型号'
+            # 使用product_name作为分组键
+            name = product.product_name or product.model or '未命名产品'
 
-            if model not in model_groups:
-                model_groups[model] = []
+            if name not in name_groups:
+                name_groups[name] = []
 
             # 获取产品配置数量
             from app.models.product_relation import ProductRelation
             config_relations = ProductRelation.get_relations_for_product(product.id)
             config_count = len(config_relations)
+
+            # 计算有效图片路径（三级引用：产品自身 > 同名产品 > 子分类）
+            effective_image = product.image_path
+            if not effective_image and product.product_name and product.subcategory_id:
+                sibling = Product.query.filter(
+                    Product.subcategory_id == product.subcategory_id,
+                    Product.product_name == product.product_name,
+                    Product.id != product.id,
+                    Product.image_path.isnot(None),
+                    Product.image_path != ''
+                ).first()
+                if sibling:
+                    effective_image = sibling.image_path
+            if not effective_image and product.subcategory_obj:
+                effective_image = product.subcategory_obj.image_path
 
             # 构建产品数据
             product_data = {
@@ -2772,25 +2787,27 @@ def get_products_by_subcategory_api():
                 'status': product.status,
                 'code_definition_snapshot': product.code_definition_snapshot,
                 'image_path': product.image_path,
+                'effective_image': effective_image,  # 三级引用图片
                 'config_count': config_count,
                 'has_configurations': config_count > 0
             }
 
-            model_groups[model].append(product_data)
+            name_groups[name].append(product_data)
 
         # 构建返回结果
         result = []
-        for model, products_list in model_groups.items():
+        for name, products_list in name_groups.items():
             result.append({
-                'model': model,
+                'product_name': name,  # 产品名称
+                'model': name,         # 保持兼容
                 'count': len(products_list),
                 'products': products_list
             })
 
-        # 按型号名称排序
-        result.sort(key=lambda x: x['model'])
+        # 按产品名称排序
+        result.sort(key=lambda x: x['product_name'])
 
-        logger.info(f'查询 {category}/{subcategory} 下的产品，共 {len(result)} 个型号，{len(products)} 个产品')
+        logger.info(f'查询 {category}/{subcategory} 下的产品，共 {len(result)} 个产品名称，{len(products)} 个产品')
 
         return jsonify({
             'success': True,
@@ -2892,9 +2909,9 @@ def export_products():
     try:
         from app.models.product_spec import ProductSpec
 
-        # 查询所有产品（排除project类型）
+        # 查询所有产品（排除已删除的）
         products = Product.query.filter(
-            Product.type.in_(['channel', 'third party', 'standard'])
+            Product.is_deleted == False
         ).order_by(Product.created_at.desc()).all()
 
         # 创建工作簿
@@ -2985,25 +3002,29 @@ def export_products():
         for col, width in list_column_widths.items():
             ws_list.column_dimensions[col].width = width
 
-        # ========== Sheet 2-N: 按型号分组的规格表 ==========
-        # 型号到Sheet名称的映射（用于产品列表超链接）
-        model_to_sheet = {}
+        # ========== Sheet 2-N: 按子分类分组的规格表 ==========
+        # 子分类到Sheet名称的映射（用于产品列表超链接）
+        subcategory_to_sheet = {}
 
-        # 按型号分组
-        model_groups = {}
+        # 按子分类分组
+        subcategory_groups = {}
         for product in products:
-            model = product.model
-            if not model:
+            # 获取子分类名称
+            subcategory_name = product.subcategory_obj.name if product.subcategory_obj else None
+            if not subcategory_name:
                 continue
 
-            if model not in model_groups:
-                model_groups[model] = []
-            model_groups[model].append(product)
+            subcategory_id = product.subcategory_id or 0
+            key = (subcategory_id, subcategory_name)
+
+            if key not in subcategory_groups:
+                subcategory_groups[key] = []
+            subcategory_groups[key].append(product)
 
         used_sheet_names = set(['产品列表'])
 
-        for model, group_products in model_groups.items():
-            # 收集该型号所有产品的规格数据
+        for (subcategory_id, subcategory_name), group_products in subcategory_groups.items():
+            # 收集该子分类所有产品的规格数据
             products_specs = []  # [(product, specs_dict), ...]
             all_spec_names = []  # 收集所有规格名称（保持顺序）
 
@@ -3035,15 +3056,15 @@ def export_products():
                             if spec.field_name not in all_spec_names:
                                 all_spec_names.append(spec.field_name)
 
-                if specs_dict:
-                    products_specs.append((product, specs_dict))
+                # 即使没有规格也添加产品（规格留空）
+                products_specs.append((product, specs_dict))
 
-            # 如果没有产品有规格数据，跳过
-            if not products_specs or not all_spec_names:
+            # 如果子分类下没有产品，跳过
+            if not products_specs:
                 continue
 
-            # 生成Sheet名称（型号名，截断到31字符）
-            sheet_name = model
+            # 生成Sheet名称（子分类名，截断到31字符）
+            sheet_name = subcategory_name
             sheet_name = sheet_name.replace('/', '_').replace('\\', '_').replace('*', '_')
             sheet_name = sheet_name.replace('?', '_').replace('[', '_').replace(']', '_')
             sheet_name = sheet_name.replace(':', '_')
@@ -3060,15 +3081,15 @@ def export_products():
                 counter += 1
             used_sheet_names.add(sheet_name)
 
-            # 记录型号到Sheet名称的映射
-            model_to_sheet[model] = sheet_name
+            # 记录子分类到Sheet名称的映射
+            subcategory_to_sheet[subcategory_id] = sheet_name
 
             # 创建规格Sheet
             ws_spec = wb.create_sheet(title=sheet_name)
 
-            # ===== 第1行：型号 + 各产品MN =====
-            # A1: 型号
-            cell = ws_spec.cell(row=1, column=1, value=model)
+            # ===== 第1行：子分类名 + 各产品型号-MN =====
+            # A1: 子分类名
+            cell = ws_spec.cell(row=1, column=1, value=subcategory_name)
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = center_alignment
@@ -3145,13 +3166,13 @@ def export_products():
         link_font = Font(name='微软雅黑', size=10, color='0066CC', underline='single')
 
         for row_idx, product in enumerate(products, 2):
-            # 获取型号
-            model = product.model
+            # 获取子分类ID
+            subcategory_id = product.subcategory_id
 
-            # 如果该型号有对应的规格Sheet，添加超链接
-            if model and model in model_to_sheet:
-                sheet_name = model_to_sheet[model]
-                cell = ws_list.cell(row=row_idx, column=5)  # E列是型号
+            # 如果该子分类有对应的规格Sheet，添加超链接
+            if subcategory_id and subcategory_id in subcategory_to_sheet:
+                sheet_name = subcategory_to_sheet[subcategory_id]
+                cell = ws_list.cell(row=row_idx, column=4)  # D列是产品名称
                 cell.hyperlink = f"#'{sheet_name}'!A1"
                 cell.font = link_font
 

@@ -569,7 +569,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (window.IndicatorQuickAdd) {
         // 自定义配置：规格管理页面添加指标后刷新整个页面
         window.IndicatorQuickAdd.configure({
-            // 自定义获取已有项目URL：仅返回产品使用值
+            // 自定义获取已有项目URL：使用规格字典API，只返回规格字典中定义的指标
             getExistingItemsUrl: function(context) {
                 console.log('[规格管理] 自定义getExistingItemsUrl调用', {
                     specFieldId: context.specFieldId,
@@ -577,34 +577,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     context: context
                 });
 
-                if (!context.specFieldId) {
-                    console.warn('[规格管理] specFieldId为空，无法构建URL');
+                if (!context.specName) {
+                    console.warn('[规格管理] specName为空，无法构建URL');
                     return null;
                 }
 
-                const url = new URL('/product-management/api/spec-field-options/available', window.location.origin);
-                const subcategoryId = document.getElementById('subcategory_id')?.value;
-
-                console.log('[规格管理] subcategory_id:', subcategoryId);
-
-                if (subcategoryId) {
-                    url.searchParams.append('subcategory_id', subcategoryId);
-                }
-                // 同时传递field_id和spec_name，优先使用spec_name汇总所有同名字段的选项
-                url.searchParams.append('field_id', context.specFieldId);
-                if (context.specName) {
-                    url.searchParams.append('spec_name', context.specName);
-                }
-                url.searchParams.append('include_inactive', 'false');
-
-                // 添加已使用的指标ID列表（用于排除）
-                if (context.excludeIds && context.excludeIds.length > 0) {
-                    url.searchParams.append('exclude_ids', context.excludeIds.join(','));
-                    console.log('[规格管理] 排除的指标ID:', context.excludeIds);
-                }
-
-                // 返回预定义指标选项，而不是产品使用值
-                // url.searchParams.append('include_product_values', 'true');
+                // 使用规格字典 API，只返回规格字典中定义的指标（避免历史数据导致的重复）
+                const url = new URL(`/api/spec-dictionary/options/by-name/${encodeURIComponent(context.specName)}`, window.location.origin);
+                url.searchParams.append('active_only', 'true');
 
                 console.log('[规格管理] 构建的URL:', url.toString());
                 return url.toString();

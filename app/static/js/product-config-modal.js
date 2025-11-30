@@ -892,7 +892,7 @@ class ProductConfigModal {
         // 产品图片
         const imgElement = document.getElementById('configProductImage');
         if (imgElement) {
-            imgElement.src = product.image_path || '/static/images/no-image.png';
+            imgElement.src = product.effective_image || product.image_path || '/static/images/no-image.png';
             imgElement.alt = product.product_name || '产品图片';
         }
 
@@ -989,7 +989,45 @@ class ProductConfigModal {
         this.currentStep = 3;
         this.updateStepIndicator(3);
 
+        // 显示编码规格（复用 renderFields 的数据）
+        this.showCodeSpecsInConfirmation();
+
         console.log('📋 配置已确认，切换到展示模式');
+    }
+
+    /**
+     * 在确认页面显示编码规格
+     * 复用 Step 1 的固定字段数据，使用相同的两栏网格布局
+     */
+    showCodeSpecsInConfirmation() {
+        const container = document.getElementById('codeSpecsGrid');
+        const wrapper = document.getElementById('configProductCodeSpecs');
+        if (!container || !wrapper) return;
+
+        container.innerHTML = '';
+
+        // 使用已有的 fixedFields 数据（Step 1 已解析）
+        if (this.fixedFields && this.fixedFields.length > 0) {
+            this.fixedFields.forEach(field => {
+                const fieldDiv = document.createElement('div');
+                fieldDiv.className = 'spec-field-fixed';
+
+                const unitText = field.fixedValue.unit ? ` ${field.fixedValue.unit}` : '';
+
+                fieldDiv.innerHTML = `
+                    <div class="spec-field-label">${field.fieldName}:</div>
+                    <div class="spec-field-value">${field.fixedValue.value}${unitText}</div>
+                `;
+
+                container.appendChild(fieldDiv);
+            });
+
+            wrapper.style.display = 'block';
+        } else {
+            wrapper.style.display = 'none';
+        }
+
+        console.log(`📋 编码规格已显示: ${this.fixedFields?.length || 0} 个字段`);
     }
 
     /**
@@ -1305,6 +1343,9 @@ class ProductConfigModal {
 
                 this.currentStep = 3;
                 this.updateStepIndicator(3);
+
+                // 显示编码规格
+                this.showCodeSpecsInConfirmation();
             }
         } catch (error) {
             console.error('❌ 加载配置失败:', error);
@@ -2161,6 +2202,10 @@ class ProductConfigModal {
         // Step 1 时隐藏配置区域，只在 Step 2 才显示
         if (configArea) configArea.style.display = 'none';
         if (selectedArea) selectedArea.style.display = 'none';
+
+        // 隐藏编码规格区域（Step 3 时显示）
+        const codeSpecsWrapper = document.getElementById('configProductCodeSpecs');
+        if (codeSpecsWrapper) codeSpecsWrapper.style.display = 'none';
 
         // 强制隐藏返回按钮
         if (backBtn) backBtn.style.display = 'none';

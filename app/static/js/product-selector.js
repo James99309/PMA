@@ -939,9 +939,10 @@ class ProductSelector {
                     contentHtml = `
                         <div class="product-info">
                             <div class="product-name" style="display: flex; justify-content: space-between; align-items: center;">
-                                <span><span style="font-weight: bold;">${product.product_name || ''}</span> <span style="font-style: italic; font-size: 0.85em;">${modelGroup.model}</span></span>
+                                <span style="font-weight: bold;">${modelGroup.product_name || product.product_name || ''}</span>
                                 <span class="${priceClass}" style="font-weight: bold; color: #2196f3;">${priceText}${isDiscontinued ? ' (停产)' : ''}</span>
                             </div>
+                            ${product.model ? `<div class="product-model" style="font-size: 0.85em; color: #666;">${product.model}</div>` : ''}
                             ${specHtml ? `<div class="product-details">${specHtml}</div>` : ''}
                         </div>
                     `;
@@ -950,8 +951,8 @@ class ProductSelector {
                     const firstProduct = modelGroup.products[0];
                     contentHtml = `
                         <div class="product-info">
-                            <div class="product-name"><span style="font-weight: bold;">${firstProduct.product_name || ''}</span> <span style="font-style: italic; font-size: 0.85em;">${modelGroup.model}</span></div>
-                            <div class="product-details" style="color: #6c757d; font-style: italic;">点击选择 (${modelGroup.count} 个产品)</div>
+                            <div class="product-name" style="font-weight: bold;">${modelGroup.product_name || firstProduct.product_name || ''}</div>
+                            <div class="product-details" style="color: #6c757d; font-style: italic;">点击选择 (${modelGroup.count} 个型号/规格)</div>
                         </div>
                     `;
                 }
@@ -976,13 +977,13 @@ class ProductSelector {
     }
 
     /**
-     * 选择型号 - 新增方法：处理单/多产品逻辑
+     * 选择产品组 - 处理单/多产品逻辑（按产品名称分组）
      */
     selectModel(modelGroup, category, subcategory) {
         const products = modelGroup.products;
 
         if (!products || products.length === 0) {
-            console.error('型号下没有产品');
+            console.error('产品组下没有产品');
             return;
         }
 
@@ -1000,22 +1001,24 @@ class ProductSelector {
                 this.openProductConfigModal({
                     category: category,
                     subcategory: subcategory,
+                    product_name: modelGroup.product_name,
                     model: modelGroup.model,
                     products: products
                 });
             } else {
                 // 无配置 → 直接选择
-                console.log('型号下只有1个产品且无配置，直接选择:', product);
+                console.log('产品组下只有1个产品且无配置，直接选择:', product);
                 if (this.config.onSelect && this.currentInput) {
                     this.config.onSelect(product, this.currentInput);
                 }
             }
         } else {
             // 情况2：有多个产品，打开配置模态框
-            console.log('型号下有多个产品，打开配置模态框:', products);
+            console.log('产品组下有多个产品，打开配置模态框:', products);
             this.openProductConfigModal({
                 category: category,
                 subcategory: subcategory,
+                product_name: modelGroup.product_name,
                 model: modelGroup.model,
                 products: products
             });
