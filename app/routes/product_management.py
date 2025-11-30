@@ -3042,7 +3042,7 @@ def get_available_spec_options():
         options = list(seen_values.values())
 
         # 按position排序（如果有的话）
-        options.sort(key=lambda x: (x.position if x.position is not None else 9999, x.value))
+        options.sort(key=lambda x: (x.position if x.position is not None else 9999, x.value if x.value is not None else ''))
 
         # 获取规格单位
         field_name = all_fields[0].name
