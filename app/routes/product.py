@@ -2908,6 +2908,7 @@ def export_products():
     """导出产品库为Excel文件"""
     try:
         from app.models.product_spec import ProductSpec
+        from app.routes.product_code import get_field_unit
 
         # 查询所有产品
         products = Product.query.order_by(Product.created_at.desc()).all()
@@ -3027,7 +3028,7 @@ def export_products():
             all_spec_names = []  # 收集所有规格名称（保持顺序）
 
             for product in group_products:
-                specs_dict = {}  # {field_name: {value, use_in_code, field_code}}
+                specs_dict = {}  # {field_name: {value, use_in_code, field_code, unit}}
 
                 if product.code_definition_snapshot:
                     snapshot = product.code_definition_snapshot
@@ -3035,8 +3036,12 @@ def export_products():
                     for part in code_parts:
                         field_name = part.get('field_name', '')
                         if field_name:
+                            unit = get_field_unit(field_name)
+                            value = part.get('value', '')
+                            # 合并值和单位显示
+                            display_value = f"{value} {unit}" if value and unit else value
                             specs_dict[field_name] = {
-                                'value': part.get('value', ''),
+                                'value': display_value,
                                 'use_in_code': '是' if part.get('use_in_code', False) else '否',
                                 'field_code': part.get('field_code', '') or part.get('code', '')
                             }
@@ -3046,8 +3051,12 @@ def export_products():
                     specs = ProductSpec.query.filter_by(product_id=product.id).order_by(ProductSpec.id).all()
                     for spec in specs:
                         if spec.field_name:
+                            unit = get_field_unit(spec.field_name)
+                            value = spec.field_value or ''
+                            # 合并值和单位显示
+                            display_value = f"{value} {unit}" if value and unit else value
                             specs_dict[spec.field_name] = {
-                                'value': spec.field_value or '',
+                                'value': display_value,
                                 'use_in_code': '是' if spec.field_code else '否',
                                 'field_code': spec.field_code or ''
                             }
@@ -3151,7 +3160,7 @@ def export_products():
                         cell.alignment = left_alignment
                         cell.border = thin_border
 
-            # 设置列宽
+            # 设置列宽并隐藏"是否编码规格"和"编码号"列
             ws_spec.column_dimensions['A'].width = 15  # 规格名称列
             for idx in range(len(products_specs)):
                 col_start = 2 + idx * 3
@@ -3159,6 +3168,9 @@ def export_products():
                 ws_spec.column_dimensions[get_column_letter(col_start)].width = 18      # 指标
                 ws_spec.column_dimensions[get_column_letter(col_start + 1)].width = 12  # 是否编码规格
                 ws_spec.column_dimensions[get_column_letter(col_start + 2)].width = 10  # 编码号
+                # 隐藏"是否编码规格"和"编码号"列
+                ws_spec.column_dimensions[get_column_letter(col_start + 1)].hidden = True
+                ws_spec.column_dimensions[get_column_letter(col_start + 2)].hidden = True
 
         # ========== 为产品列表的产品名称添加超链接 ==========
         link_font = Font(name='微软雅黑', size=10, color='0066CC', underline='single')
