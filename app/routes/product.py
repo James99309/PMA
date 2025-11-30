@@ -2909,10 +2909,8 @@ def export_products():
     try:
         from app.models.product_spec import ProductSpec
 
-        # 查询所有产品（排除已删除的）
-        products = Product.query.filter(
-            Product.is_deleted == False
-        ).order_by(Product.created_at.desc()).all()
+        # 查询所有产品
+        products = Product.query.order_by(Product.created_at.desc()).all()
 
         # 创建工作簿
         wb = Workbook()
