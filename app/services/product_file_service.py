@@ -472,7 +472,7 @@ class ProductFileService:
 
     def get_effective_file_path(self, product: Product, file_type: str) -> Optional[str]:
         """
-        获取产品的有效文件路径（优先产品自身，其次分类共享）
+        获取产品的有效文件路径（三级引用：产品自身 > 同名产品 > 子分类共享）
 
         Args:
             product: 产品对象
@@ -481,12 +481,25 @@ class ProductFileService:
         Returns:
             str: 有效的文件路径，没有则返回None
         """
-        # 优先使用产品自身文件
+        # 优先级1：产品自身文件
         product_file = product.image_path if file_type == 'image' else product.pdf_path
         if product_file:
             return product_file
 
-        # 其次使用子分类共享文件
+        # 优先级2：同一子分类下相同product_name的产品
+        if product.product_name and product.subcategory_id:
+            file_field = Product.image_path if file_type == 'image' else Product.pdf_path
+            sibling = Product.query.filter(
+                Product.subcategory_id == product.subcategory_id,
+                Product.product_name == product.product_name,
+                Product.id != product.id,
+                file_field.isnot(None),
+                file_field != ''
+            ).first()
+            if sibling:
+                return sibling.image_path if file_type == 'image' else sibling.pdf_path
+
+        # 优先级3：子分类共享文件
         if product.subcategory_id:
             subcategory = ProductSubcategory.query.get(product.subcategory_id)
             if subcategory:

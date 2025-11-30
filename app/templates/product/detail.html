@@ -279,8 +279,7 @@
                         <!-- 产品图片区域 -->
                         <div class="col-md-4">
                             <div class="product-image-container">
-                                {# 优先显示产品图片，其次显示分类共享图片 #}
-                                {% set effective_image = product.image_path or (product.subcategory_obj.image_path if product.subcategory_obj else None) %}
+                                {# 三级引用：产品自身 > 同名产品 > 子分类共享图片（由后端计算） #}
                                 {% if effective_image %}
                                     {% if effective_image.startswith('http') %}
                                         <!-- Supabase云端图片 -->
@@ -599,8 +598,7 @@
     {% endif %}
     {% endif %}
 
-    <!-- PDF功能 - 产品文档上传和展示区域（支持分类共享） -->
-    {% set effective_pdf = product.pdf_path or (product.subcategory_obj.pdf_path if product.subcategory_obj else None) %}
+    <!-- PDF功能 - 产品文档上传和展示区域（三级引用：产品自身 > 同名产品 > 子分类共享，由后端计算） -->
     <div class="row">
         <div class="col-md-12">
             <div class="card">

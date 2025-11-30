@@ -159,7 +159,7 @@ def product_list():
     
     # 执行查询：按分类体系排序
     # 避免重复JOIN（如果前面的搜索/筛选已经JOIN，则不再重复）
-    from app.models.product_code import ProductCategory, ProductSubcategory
+    # 注意：ProductCategory, ProductSubcategory 已在文件顶部导入
 
     # 检查是否已经JOIN了这些表
     query_str = str(query.statement.compile()) if hasattr(query, 'statement') else str(query)
@@ -677,7 +677,7 @@ def product_list_ajax():
         # 执行查询
         products = query.all()
         total_count = len(products)
-        
+
         # 统计数据
         active_count = len([p for p in products if p.status == 'active'])
         discontinued_count = len([p for p in products if p.status == 'discontinued'])
@@ -2433,7 +2433,42 @@ def view_product_detail(id):
             spec_dict['unit'] = get_field_unit(spec.field_name)
             product_specs.append(spec_dict)
 
-        return render_template('product/detail.html', product=product, product_specs=product_specs)
+        # 计算有效图片路径（三级引用：产品自身 > 同名产品 > 子分类）
+        effective_image = product.image_path
+        if not effective_image and product.product_name and product.subcategory_id:
+            # 查找同一子分类下相同product_name的产品
+            sibling = Product.query.filter(
+                Product.subcategory_id == product.subcategory_id,
+                Product.product_name == product.product_name,
+                Product.id != product.id,
+                Product.image_path.isnot(None),
+                Product.image_path != ''
+            ).first()
+            if sibling:
+                effective_image = sibling.image_path
+        if not effective_image and product.subcategory_obj:
+            effective_image = product.subcategory_obj.image_path
+
+        # 计算有效PDF路径（三级引用：产品自身 > 同名产品 > 子分类）
+        effective_pdf = product.pdf_path
+        if not effective_pdf and product.product_name and product.subcategory_id:
+            sibling = Product.query.filter(
+                Product.subcategory_id == product.subcategory_id,
+                Product.product_name == product.product_name,
+                Product.id != product.id,
+                Product.pdf_path.isnot(None),
+                Product.pdf_path != ''
+            ).first()
+            if sibling:
+                effective_pdf = sibling.pdf_path
+        if not effective_pdf and product.subcategory_obj:
+            effective_pdf = product.subcategory_obj.pdf_path
+
+        return render_template('product/detail.html',
+                               product=product,
+                               product_specs=product_specs,
+                               effective_image=effective_image,
+                               effective_pdf=effective_pdf)
     except Exception as e:
         logger.error(f'查看产品详情页面时出错: {str(e)}')
         flash(_('查看产品详情失败: %s') % str(e), 'danger')
