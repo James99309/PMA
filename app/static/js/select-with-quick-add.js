@@ -238,17 +238,27 @@
                 .then(data => {
                     console.log('[SelectWithQuickAdd] 解析后的数据:', data);
 
-                    // 保存字段单位并更新显示
-                    this.currentFieldUnit = data.field_unit || '';
+                    // 保存字段单位并更新显示（兼容多种API格式）
+                    // - 旧格式: { field_unit: 'MHz', options: [...] }
+                    // - 新格式（规格字典API）: { success: true, data: [...], spec: { unit: 'MHz' } }
+                    this.currentFieldUnit = data.field_unit || (data.spec && data.spec.unit) || '';
                     this.updateUnitDisplay(this.currentFieldUnit);
 
-                    const items = data.options || data.items || [];
+                    // 兼容多种API返回格式
+                    let items = data.options || data.data || data.items || [];
                     console.log('[SelectWithQuickAdd] 提取的items数组:', items);
-                    console.log('[SelectWithQuickAdd] items数量:', items.length);
+                    console.log('[SelectWithQuickAdd] items原始数量:', items.length);
+
+                    // 客户端过滤已选择的指标（排除excludeIds中的项目）
+                    if (SelectWithQuickAdd.context.excludeIds && SelectWithQuickAdd.context.excludeIds.length > 0) {
+                        const excludeSet = new Set(SelectWithQuickAdd.context.excludeIds.map(id => parseInt(id)));
+                        items = items.filter(item => !excludeSet.has(parseInt(item.id)));
+                        console.log('[SelectWithQuickAdd] 过滤后items数量:', items.length, '(排除了', excludeSet.size, '个已选择的)');
+                    }
 
                     if (items.length === 0) {
                         console.warn('[SelectWithQuickAdd] items为空，显示提示信息');
-                        container.innerHTML = '<small class="text-muted">暂无已有项目</small>';
+                        container.innerHTML = '<small class="text-muted">暂无可选指标（所有指标已被选择）</small>';
                         return;
                     }
 
@@ -643,17 +653,12 @@
         },
 
         getExistingItemsUrl: function(context) {
-            if (!context.relatedId || !context.specName) return null;
-            // 使用新的/available API，可以排除已选择的指标
-            const url = new URL('/product-management/api/spec-field-options/available', window.location.origin);
-            url.searchParams.append('subcategory_id', context.relatedId);
-            url.searchParams.append('spec_name', context.specName);
-            url.searchParams.append('include_inactive', 'false');  // 只显示启用的指标
+            // 只需要规格名称即可获取全局指标（从规格字典获取）
+            if (!context.specName) return null;
 
-            // 添加已选择的指标ID列表（用于排除）
-            if (context.excludeIds && context.excludeIds.length > 0) {
-                url.searchParams.append('exclude_ids', context.excludeIds.join(','));
-            }
+            // 使用规格字典API获取全局指标，不依赖subcategory_id
+            const url = new URL(`/api/spec-dictionary/options/by-name/${encodeURIComponent(context.specName)}`, window.location.origin);
+            url.searchParams.append('active_only', 'true');  // 只显示启用的指标
 
             return url.toString();
         },

@@ -168,11 +168,13 @@
                             {% endif %}
                         </td>
                         <td class="text-center">
-                            {% set exclude_option_ids = [] %}
+                            {% set exclude_spec_option_ids = [] %}
                             {% for option in field.options.all() %}
-                                {% set _ = exclude_option_ids.append(option.id) %}
+                                {% if option.spec_option_id %}
+                                    {% set _ = exclude_spec_option_ids.append(option.spec_option_id) %}
+                                {% endif %}
                             {% endfor %}
-                            <button onclick="window.IndicatorQuickAdd.showQuickAddModal('{{ field.name }}', {{ field.id }}, null, {{ exclude_option_ids }})" class="btn btn-sm btn-info" title="添加指标">
+                            <button onclick="window.IndicatorQuickAdd.showQuickAddModal('{{ field.name }}', {{ field.id }}, null, {{ exclude_spec_option_ids }})" class="btn btn-sm btn-info" title="添加指标">
                                 <i class="fas fa-list"></i>
                             </button>
                             {% if not field.is_used %}
