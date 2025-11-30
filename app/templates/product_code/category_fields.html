@@ -383,31 +383,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 return categoryIdInput ? categoryIdInput.value : null;
             },
 
+            // 使用规格字典 API，只返回规格字典中定义的指标（避免历史数据导致的重复）
             getExistingItemsUrl: function(context) {
                 console.log('[分类级规格管理] 自定义getExistingItemsUrl调用', context);
 
-                if (!context.specFieldId) {
-                    console.warn('[分类级规格管理] specFieldId为空，无法构建URL');
+                if (!context.specName) {
+                    console.warn('[分类级规格管理] specName为空，无法构建URL');
                     return null;
                 }
 
-                const url = new URL('/product-management/api/spec-field-options/available', window.location.origin);
-                const categoryId = document.getElementById('category_id')?.value;
-
-                console.log('[分类级规格管理] category_id:', categoryId);
-
-                if (categoryId) {
-                    url.searchParams.append('category_id', categoryId);
-                }
-                url.searchParams.append('field_id', context.specFieldId);
-                if (context.specName) {
-                    url.searchParams.append('spec_name', context.specName);
-                }
-                url.searchParams.append('include_inactive', 'false');
-
-                if (context.excludeIds && context.excludeIds.length > 0) {
-                    url.searchParams.append('exclude_ids', context.excludeIds.join(','));
-                }
+                // 使用规格字典 API，只返回规格字典中定义的指标
+                const url = new URL(`/api/spec-dictionary/options/by-name/${encodeURIComponent(context.specName)}`, window.location.origin);
+                url.searchParams.append('active_only', 'true');
 
                 console.log('[分类级规格管理] 构建的URL:', url.toString());
                 return url.toString();
