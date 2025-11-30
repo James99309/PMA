@@ -27,17 +27,16 @@
         {{ render_product_status_badge(product.status) }}
     </td>
     <td class="product-name-cell">
+        {# 确定显示的图片URL：优先产品图片，其次子分类图片 #}
+        {% set display_image = product.image_path or (product.subcategory_obj.image_path if product.subcategory_obj else None) %}
         <div class="product-name-container"
-             {% if product.image_path %}
-             data-image-url="{{ product.image_path }}"
+             {% if display_image %}
+             data-image-url="{{ display_image }}"
              data-product-name="{{ product.product_name or '-' }}"
              {% endif %}>
             <a href="{{ url_for('product_route.view_product_detail', id=product.id) }}"
                class="product-name-link">
                 {{ product.product_name or '-' }}
-                {% if product.image_path %}
-                    <i class="fas fa-image text-primary ms-1" title="{{ _('有产品图片') }}"></i>
-                {% endif %}
                 <!-- 隐藏PDF图标 -->
                 <!--
                 {% if product.pdf_path %}

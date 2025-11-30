@@ -270,12 +270,8 @@
         <div class="col-md-12">
             <div class="card product-detail-card mb-4">
                 <div class="product-header">
-                    <h2>{{ product.subcategory_obj.name if product.subcategory_obj else product.product_mn }}</h2>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="ml-2">MN: {{ product.product_mn }}</span>
-                        </div>
-                    </div>
+                    <h2>{{ product.product_name or product.product_mn }}</h2>
+                    <div class="h5 mt-1" style="margin-left: 0.5em; font-weight: normal;">{{ product.model or '-' }}</div>
                 </div>
 
                 <div class="product-body">
@@ -336,11 +332,6 @@
                                     </div>
 
                                     <div class="product-property">
-                                        <div class="property-label">{{ _('产品型号') }}</div>
-                                        <div class="property-value">{{ product.model or _('无') }}</div>
-                                    </div>
-
-                                    <div class="product-property">
                                         <div class="property-label">{{ _('产品分类') }}</div>
                                         <div class="property-value">
                                             {% if product.subcategory_obj and product.subcategory_obj.parent_category %}
@@ -362,12 +353,10 @@
                                         </div>
                                     </div>
 
-                                    {% if product.product_name %}
                                     <div class="product-property">
-                                        <div class="property-label">{{ _('产品名称') }}</div>
-                                        <div class="property-value">{{ product.product_name }}</div>
+                                        <div class="property-label">{{ _('产品MN') }}</div>
+                                        <div class="property-value">{{ product.product_mn or '-' }}</div>
                                     </div>
-                                    {% endif %}
 
                                     <div class="product-property">
                                         <div class="property-label">{{ _('品牌') }}</div>
