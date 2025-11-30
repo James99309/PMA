@@ -131,7 +131,7 @@
                             <span class="rounded-circle bg-info d-inline-block ms-1" style="width: 8px; height: 8px;" title="继承自{{ subcategory.parent_category.name }}分类"></span>
                         </td>
                         <td class="position-cell">
-                            <span class="badge bg-success">位置{{ field.position + 3 }}</span>
+                            <span class="badge bg-success">位置{{ field.position }}</span>
                         </td>
                         <td>
                             {% if field.options %}
@@ -170,7 +170,7 @@
                             {% endif %}
                         </td>
                         <td class="position-cell">
-                            <span class="badge bg-success position-badge">位置{{ field.position + 3 }}</span>
+                            <span class="badge bg-success position-badge">位置{{ field.position }}</span>
                         </td>
                         <td>
                             {% if field.options %}
@@ -699,7 +699,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (row) {
                         const positionBadge = row.querySelector('.position-badge');
                         if (positionBadge && item.use_in_code) {
-                            positionBadge.textContent = '位置' + (item.position + 3);
+                            positionBadge.textContent = '位置' + item.position;
                         }
                     }
                 });

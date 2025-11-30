@@ -119,7 +119,7 @@
                         </td>
                         <td class="position-cell">
                             {% if field.use_in_code %}
-                            <span class="badge bg-success position-badge">位置{{ field.position + 3 }}</span>
+                            <span class="badge bg-success position-badge">位置{{ field.position }}</span>
                             {% else %}
                             <span class="badge bg-secondary position-badge">未纳入编码</span>
                             {% endif %}
@@ -447,7 +447,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (row) {
                         const positionBadge = row.querySelector('.position-badge');
                         if (positionBadge && item.use_in_code) {
-                            positionBadge.textContent = '位置' + (item.position + 3);
+                            positionBadge.textContent = '位置' + item.position;
                         }
                     }
                 });
