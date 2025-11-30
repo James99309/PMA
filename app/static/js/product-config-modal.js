@@ -793,6 +793,12 @@ class ProductConfigModal {
             // 完全确定
             const product = this.remainingProducts[0];
 
+            // 更新型号（修复：规格选择后型号未更新的问题）
+            const modelElement = document.getElementById('configProductModel');
+            if (modelElement) {
+                modelElement.textContent = product.product_model || product.model || '未知';
+            }
+
             // 更新MN号（简洁版，品牌价格规格已移到独立区域）
             mnElement.innerHTML = `
                 <span class="mn-badge confirmed">
