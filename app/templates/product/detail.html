@@ -269,9 +269,27 @@
     <div class="row">
         <div class="col-md-12">
             <div class="card product-detail-card mb-4">
-                <div class="product-header">
-                    <h2>{{ product.product_name or product.product_mn }}</h2>
-                    <div class="h5 mt-1" style="margin-left: 0.5em; font-weight: normal;">{{ product.model or '-' }}</div>
+                <div class="product-header d-flex justify-content-between align-items-start">
+                    <div>
+                        <h2>{{ product.product_name or product.product_mn }}</h2>
+                        <div class="h5 mt-1" style="margin-left: 0.5em; font-weight: normal;">{{ product.model or '-' }}</div>
+                    </div>
+                    <div class="product-nav-buttons d-flex gap-2">
+                        <a href="{% if prev_product_id %}{{ url_for('product_route.view_product_detail', id=prev_product_id) }}{% else %}#{% endif %}"
+                           class="btn btn-outline-secondary btn-sm rounded-circle d-flex align-items-center justify-content-center{% if not prev_product_id %} disabled{% endif %}"
+                           style="width: 36px; height: 36px;"
+                           {% if not prev_product_id %}tabindex="-1" aria-disabled="true"{% endif %}
+                           title="{{ _('上一个产品') }}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                        <a href="{% if next_product_id %}{{ url_for('product_route.view_product_detail', id=next_product_id) }}{% else %}#{% endif %}"
+                           class="btn btn-outline-secondary btn-sm rounded-circle d-flex align-items-center justify-content-center{% if not next_product_id %} disabled{% endif %}"
+                           style="width: 36px; height: 36px;"
+                           {% if not next_product_id %}tabindex="-1" aria-disabled="true"{% endif %}
+                           title="{{ _('下一个产品') }}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </div>
                 </div>
 
                 <div class="product-body">

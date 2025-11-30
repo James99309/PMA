@@ -27,11 +27,10 @@
         {{ render_product_status_badge(product.status) }}
     </td>
     <td class="product-name-cell">
-        {# 确定显示的图片URL：优先产品图片，其次子分类图片 #}
-        {% set display_image = product.image_path or (product.subcategory_obj.image_path if product.subcategory_obj else None) %}
+        {# 三级引用：产品自身 > 同名产品 > 子分类（由后端计算 product.effective_image） #}
         <div class="product-name-container"
-             {% if display_image %}
-             data-image-url="{{ display_image }}"
+             {% if product.effective_image %}
+             data-image-url="{{ product.effective_image }}"
              data-product-name="{{ product.product_name or '-' }}"
              {% endif %}>
             <a href="{{ url_for('product_route.view_product_detail', id=product.id) }}"

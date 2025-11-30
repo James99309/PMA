@@ -185,6 +185,23 @@ def product_list():
     # 执行查询
     products = query.all()
 
+    # 计算有效图片路径（三级引用：产品自身 > 同名产品 > 子分类）
+    for product in products:
+        effective_image = product.image_path
+        if not effective_image and product.product_name and product.subcategory_id:
+            sibling = Product.query.filter(
+                Product.subcategory_id == product.subcategory_id,
+                Product.product_name == product.product_name,
+                Product.id != product.id,
+                Product.image_path.isnot(None),
+                Product.image_path != ''
+            ).first()
+            if sibling:
+                effective_image = sibling.image_path
+        if not effective_image and product.subcategory_obj:
+            effective_image = product.subcategory_obj.image_path
+        product.effective_image = effective_image
+
     # 统计数据
     total_count = len(products)
     active_count = len([p for p in products if p.status == 'active'])
@@ -677,6 +694,23 @@ def product_list_ajax():
         # 执行查询
         products = query.all()
         total_count = len(products)
+
+        # 计算有效图片路径（三级引用：产品自身 > 同名产品 > 子分类）
+        for product in products:
+            effective_image = product.image_path
+            if not effective_image and product.product_name and product.subcategory_id:
+                sibling = Product.query.filter(
+                    Product.subcategory_id == product.subcategory_id,
+                    Product.product_name == product.product_name,
+                    Product.id != product.id,
+                    Product.image_path.isnot(None),
+                    Product.image_path != ''
+                ).first()
+                if sibling:
+                    effective_image = sibling.image_path
+            if not effective_image and product.subcategory_obj:
+                effective_image = product.subcategory_obj.image_path
+            product.effective_image = effective_image
 
         # 统计数据
         active_count = len([p for p in products if p.status == 'active'])
@@ -2464,11 +2498,30 @@ def view_product_detail(id):
         if not effective_pdf and product.subcategory_obj:
             effective_pdf = product.subcategory_obj.pdf_path
 
+        # 计算上一个/下一个产品ID（按列表页排序）
+        all_product_ids = db.session.query(Product.id)\
+            .outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)\
+            .outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)\
+            .order_by(
+                ProductCategory.display_order.asc(),
+                ProductCategory.id.asc(),
+                ProductSubcategory.display_order.asc(),
+                ProductSubcategory.name.asc(),
+                Product.model.asc(),
+                Product.id.asc()
+            ).all()
+        product_ids = [p.id for p in all_product_ids]
+        current_index = product_ids.index(product.id) if product.id in product_ids else -1
+        prev_product_id = product_ids[current_index - 1] if current_index > 0 else None
+        next_product_id = product_ids[current_index + 1] if current_index < len(product_ids) - 1 else None
+
         return render_template('product/detail.html',
                                product=product,
                                product_specs=product_specs,
                                effective_image=effective_image,
-                               effective_pdf=effective_pdf)
+                               effective_pdf=effective_pdf,
+                               prev_product_id=prev_product_id,
+                               next_product_id=next_product_id)
     except Exception as e:
         logger.error(f'查看产品详情页面时出错: {str(e)}')
         flash(_('查看产品详情失败: %s') % str(e), 'danger')
