@@ -1210,9 +1210,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     <input type="checkbox" class="form-check-input include-in-description" ${existingIncludeInDescription ? 'checked' : ''}>
                 </td>
                 <td>
-                    ${field.use_in_code ? `<span class="badge bg-info me-2">位置${field.position}</span>` : ''}
-                    ${!field.use_in_code ? '<span class="badge bg-secondary me-2">非编码</span>' : ''}
-                    ${(field.is_required || isRequiredNonCoded) ? '<span class="badge bg-danger">必填</span>' : ''}
+                    ${field.use_in_code ? `<span class="badge bg-success me-2">位置${field.position}</span>` : ''}
+                    ${!field.use_in_code ? '<span class="rounded-circle bg-secondary d-inline-block me-2" style="width: 8px; height: 8px;" title="非编码"></span>' : ''}
+                    ${(field.is_required || isRequiredNonCoded) ? '<span class="rounded-circle bg-danger d-inline-block me-2" style="width: 8px; height: 8px;" title="必填"></span>' : ''}
                     ${isSnapshot ? `<button type="button" class="btn btn-outline-danger btn-sm ms-2" onclick="removeSpecRow('${rowId}')"><i class="fas fa-trash"></i></button>` : ''}
                 </td>
             `;
@@ -1245,9 +1245,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     <input type="checkbox" class="form-check-input include-in-description" ${existingIncludeInDescription ? 'checked' : ''}>
                 </td>
                 <td>
-                    ${field.use_in_code ? `<span class="badge bg-info me-2">位置${field.position}</span>` : ''}
-                    ${!field.use_in_code ? '<span class="badge bg-secondary me-2">非编码</span>' : ''}
-                    ${(field.is_required || isRequiredNonCoded) ? '<span class="badge bg-danger me-2">必填</span>' : ''}
+                    ${field.use_in_code ? `<span class="badge bg-success me-2">位置${field.position}</span>` : ''}
+                    ${!field.use_in_code ? '<span class="rounded-circle bg-secondary d-inline-block me-2" style="width: 8px; height: 8px;" title="非编码"></span>' : ''}
+                    ${(field.is_required || isRequiredNonCoded) ? '<span class="rounded-circle bg-danger d-inline-block me-2" style="width: 8px; height: 8px;" title="必填"></span>' : ''}
                     ${isMNLocked && existingValue ? '<span class="badge bg-secondary"><i class="fas fa-lock me-1"></i>已锁定</span>' : ''}
                     ${isMNLocked && !existingValue ? '<span class="badge bg-warning"><i class="fas fa-lock me-1"></i>锁定(可补充)</span>' : ''}
                     ${isSnapshot ? `<button type="button" class="btn btn-outline-danger btn-sm ms-2" onclick="removeSpecRow('${rowId}')"><i class="fas fa-trash"></i></button>` : ''}
@@ -1539,7 +1539,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <input type="checkbox" class="form-check-input include-in-description" ${existingIncludeInDescription ? 'checked' : ''}>
             </td>
             <td>
-                <span class="badge bg-secondary me-2">非编码</span>
+                <span class="rounded-circle bg-secondary d-inline-block me-2" style="width: 8px; height: 8px;" title="非编码"></span>
                 <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeSpecRow('${rowId}')">
                     <i class="fas fa-trash"></i>
                 </button>

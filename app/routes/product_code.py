@@ -107,6 +107,137 @@ def get_field_unit(field_name):
     spec = SpecificationDictionary.query.filter_by(name=field_name).first()
     return spec.unit if spec else None
 
+
+def recalculate_coding_positions(category_id=None, subcategory_id=None, commit=True):
+    """
+    重新计算所有规格的位置：编码规格从4开始连续排列，非编码规格从14开始
+
+    Args:
+        category_id (int): 分类ID（用于分类级字段）
+        subcategory_id (int): 子分类ID（用于子分类级字段）
+        commit (bool): 是否自动提交
+
+    Returns:
+        bool: 是否进行了修正
+    """
+    FIXED_PREFIX_POSITIONS = 3  # 前3位是固定前缀
+    NON_CODING_START = 14  # 非编码规格从14开始
+
+    if category_id and not subcategory_id:
+        # 分类级字段
+        base_filter = [
+            ProductCodeField.category_id == category_id,
+            ProductCodeField.subcategory_id == None
+        ]
+        start_position = FIXED_PREFIX_POSITIONS + 1  # 位置4
+
+    elif subcategory_id:
+        # 子分类级字段
+        subcategory = ProductSubcategory.query.get(subcategory_id)
+        base_filter = [ProductCodeField.subcategory_id == subcategory_id]
+        start_position = FIXED_PREFIX_POSITIONS + 1  # 默认位置4
+
+        if subcategory and subcategory.category_id:
+            # 获取继承的编码规格最大位置
+            inherited_max = db.session.query(db.func.max(ProductCodeField.position)).filter(
+                ProductCodeField.category_id == subcategory.category_id,
+                ProductCodeField.subcategory_id == None,
+                ProductCodeField.use_in_code == True
+            ).scalar()
+            if inherited_max:
+                start_position = inherited_max + 1
+    else:
+        return False
+
+    # 获取编码规格
+    code_fields = ProductCodeField.query.filter(
+        *base_filter,
+        ProductCodeField.use_in_code == True
+    ).order_by(ProductCodeField.position).all()
+
+    # 获取非编码规格
+    non_code_fields = ProductCodeField.query.filter(
+        *base_filter,
+        ProductCodeField.use_in_code == False
+    ).order_by(ProductCodeField.position).all()
+
+    needs_fix = False
+
+    # 修正编码规格位置（从 start_position 开始）
+    for idx, field in enumerate(code_fields):
+        expected_position = start_position + idx
+        if field.position != expected_position:
+            needs_fix = True
+            field.position = expected_position
+
+    # 修正非编码规格位置（从 NON_CODING_START 开始）
+    for idx, field in enumerate(non_code_fields):
+        expected_position = NON_CODING_START + idx
+        if field.position != expected_position:
+            needs_fix = True
+            field.position = expected_position
+
+    if needs_fix and commit:
+        db.session.commit()
+
+    return needs_fix
+
+
+def get_next_coding_position(category_id=None, subcategory_id=None, exclude_field_id=None):
+    """
+    获取下一个可用的编码规格位置
+
+    Args:
+        category_id (int): 分类ID
+        subcategory_id (int): 子分类ID
+        exclude_field_id (int): 排除的字段ID（用于更新场景）
+
+    Returns:
+        int: 下一个可用位置
+    """
+    FIXED_PREFIX_POSITIONS = 3
+
+    if category_id and not subcategory_id:
+        # 分类级字段
+        query = db.session.query(db.func.max(ProductCodeField.position)).filter(
+            ProductCodeField.category_id == category_id,
+            ProductCodeField.subcategory_id == None,
+            ProductCodeField.use_in_code == True
+        )
+        if exclude_field_id:
+            query = query.filter(ProductCodeField.id != exclude_field_id)
+
+        max_position = query.scalar()
+        return FIXED_PREFIX_POSITIONS + 1 if max_position is None else max_position + 1
+
+    elif subcategory_id:
+        # 子分类级字段：从继承字段之后开始
+        subcategory = ProductSubcategory.query.get(subcategory_id)
+        start_position = FIXED_PREFIX_POSITIONS + 1
+
+        if subcategory and subcategory.category_id:
+            inherited_max = db.session.query(db.func.max(ProductCodeField.position)).filter(
+                ProductCodeField.category_id == subcategory.category_id,
+                ProductCodeField.subcategory_id == None,
+                ProductCodeField.use_in_code == True
+            ).scalar()
+            if inherited_max:
+                start_position = inherited_max + 1
+
+        # 获取子分类自己的编码字段数量
+        query = ProductCodeField.query.filter(
+            ProductCodeField.subcategory_id == subcategory_id,
+            ProductCodeField.use_in_code == True
+        )
+        if exclude_field_id:
+            query = query.filter(ProductCodeField.id != exclude_field_id)
+
+        count = query.count()
+        return start_position + count
+
+    return FIXED_PREFIX_POSITIONS + 1
+
+
 # ============================================================================
 # 路由函数
 # ============================================================================
@@ -547,6 +678,9 @@ def category_fields(id):
     # 获取分类级编码字段
     fields = ProductCodeField.get_category_fields(id)
 
+    # 自动修正编码规格位置
+    recalculate_coding_positions(category_id=id)
+
     # 检查每个规格是否被使用
     for field in fields:
         # 检查是否被任何子分类的产品使用
@@ -909,6 +1043,9 @@ def subcategory_fields(id):
             ).first() is not None
 
             option.is_used = used_in_product_code or used_in_dev_option or used_in_formal_option
+
+    # 自动修正子分类编码规格位置
+    recalculate_coding_positions(subcategory_id=id)
 
     # 检查是否有任何非继承字段被使用（用于控制排序功能）
     any_own_field_used = any(getattr(field, 'is_used', False) for field in fields)
@@ -2581,7 +2718,7 @@ def update_field(field_id):
                 'message': f'规格"{name}"已存在于当前产品分类中'
             }), 400
 
-        # 如果use_in_code状态发生变化，重新计算position
+        # 如果use_in_code状态发生变化，重新计算所有字段位置
         if field.use_in_code != use_in_code:
             if use_in_code:
                 # 变为纳入编码，检查位置是否已满
@@ -2597,18 +2734,19 @@ def update_field(field_id):
                         'message': '规格编码位置已满（最多10个位置）'
                     }), 400
 
-                # 分配新的编码位置
-                field.position = 4 + active_code_fields_count
-            else:
-                # 变为不纳入编码，使用大的position值
-                max_position = db.session.query(db.func.max(ProductCodeField.position))\
-                    .filter_by(subcategory_id=field.subcategory_id).scalar() or 100
-                field.position = max_position + 1
-
-        # 更新字段属性
-        field.name = name
-        field.is_required = is_required
-        field.use_in_code = use_in_code
+            # 更新字段属性（先更新 use_in_code）
+            field.name = name
+            field.is_required = is_required
+            field.use_in_code = use_in_code
+            field.position = 999  # 临时分配大位置，稍后统一重算
+            db.session.flush()  # 先保存变化
+            # 重新计算所有字段位置（编码4+，非编码14+）
+            recalculate_coding_positions(subcategory_id=field.subcategory_id, commit=False)
+        else:
+            # 更新字段属性（use_in_code 未变化）
+            field.name = name
+            field.is_required = is_required
+            field.use_in_code = use_in_code
 
         db.session.commit()
 
@@ -3950,9 +4088,13 @@ def create_category_field():
 
         # 如果没有指定位置，计算新位置
         if position is None:
-            max_position = db.session.query(db.func.max(ProductCodeField.position))\
-                .filter_by(category_id=category_id, subcategory_id=None).scalar()
-            position = 4 if max_position is None else max_position + 1
+            if use_in_code:
+                position = get_next_coding_position(category_id=category_id)
+            else:
+                # 非编码规格：使用位置14+
+                max_position = db.session.query(db.func.max(ProductCodeField.position))\
+                    .filter_by(category_id=category_id, subcategory_id=None).scalar() or 13
+                position = max(max_position + 1, 14)
 
         # 创建新字段
         new_field = ProductCodeField(
@@ -4015,7 +4157,19 @@ def update_category_field(field_id):
         if 'is_required' in data:
             field.is_required = data['is_required']
         if 'use_in_code' in data:
-            field.use_in_code = data['use_in_code']
+            new_use_in_code = data['use_in_code']
+            old_use_in_code = field.use_in_code
+
+            # 如果 use_in_code 状态发生变化，需要重新计算所有字段位置
+            if new_use_in_code != old_use_in_code:
+                field.use_in_code = new_use_in_code
+                # 临时分配一个大位置，稍后统一重算
+                field.position = 999
+                db.session.flush()  # 先保存 use_in_code 变化
+                # 重新计算所有字段位置（编码4+，非编码14+）
+                recalculate_coding_positions(category_id=field.category_id, commit=False)
+            else:
+                field.use_in_code = new_use_in_code
 
         db.session.commit()
 

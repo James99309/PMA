@@ -1441,8 +1441,8 @@ def get_product_specs(product_id):
         # 验证产品存在性
         product = Product.query.get_or_404(product_id)
 
-        # 获取产品规格
-        specs = ProductSpec.query.filter_by(product_id=product_id).all()
+        # 获取产品规格（按 display_order 排序，确保与子分类规格顺序一致）
+        specs = ProductSpec.query.filter_by(product_id=product_id).order_by(ProductSpec.display_order).all()
 
         # 转换为字典并添加position信息
         spec_list = []
