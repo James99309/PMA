@@ -74,6 +74,14 @@
         <span id="errorMessage">保存顺序时发生错误</span>
     </div>
 
+    {% if any_field_used and fields %}
+    <!-- 排序锁定提示 -->
+    <div class="alert alert-info mb-4">
+        <i class="fas fa-lock me-1"></i>
+        部分规格已被产品使用，排序功能已锁定。如需调整排序，请先移除相关产品的规格引用。
+    </div>
+    {% endif %}
+
     <div class="card mb-4">
         <div class="card-header">
             <i class="fas fa-code me-1"></i>
@@ -94,7 +102,12 @@
                 <tbody id="fieldsTableBody">
                     {% for field in fields %}
                     <tr data-id="{{ field.id }}">
-                        <td>{{ loop.index }}</td>
+                        <td>
+                            {% if not any_field_used %}
+                            <i class="fas fa-grip-vertical drag-handle text-muted me-2" style="cursor: grab;"></i>
+                            {% endif %}
+                            {{ loop.index }}
+                        </td>
                         <td>
                             {% if not field.is_used %}
                             <a href="javascript:void(0)" onclick="categoryFieldManager.openModal('edit', {{ field.id }})" class="text-primary" style="cursor: pointer;">
@@ -106,7 +119,7 @@
                         </td>
                         <td class="position-cell">
                             {% if field.use_in_code %}
-                            <span class="badge bg-success position-badge">位置{{ field.position }}</span>
+                            <span class="badge bg-success position-badge">位置{{ field.position + 3 }}</span>
                             {% else %}
                             <span class="badge bg-secondary position-badge">未纳入编码</span>
                             {% endif %}
@@ -219,16 +232,21 @@
                 </small>
             </div>
 
-            <!-- 规格名称 -->
+            <!-- 规格名称（复选框列表） -->
             <div class="mb-3">
-                <label for="fieldName" class="form-label">
+                <label class="form-label">
                     规格名称 <span class="text-danger">*</span>
+                    <small class="text-muted">（可多选）</small>
                 </label>
-                <select id="fieldName" class="form-select" required>
-                    <option value="">-- 请选择规格 --</option>
-                </select>
-                <div class="invalid-feedback">
-                    请选择规格名称
+                <!-- 已选择的规格徽章 -->
+                <div id="selectedSpecsBadges" class="mb-2 d-flex flex-wrap" style="min-height: 24px; max-width: 100%; overflow: hidden;">
+                    <!-- 徽章由JS动态填充 -->
+                </div>
+                <div id="fieldNameList" class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                    <!-- 复选框列表由JS动态填充 -->
+                </div>
+                <div class="invalid-feedback" id="fieldNameError" style="display: none;">
+                    请至少选择一个规格
                 </div>
             </div>
 
@@ -409,4 +427,37 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- 产品代码指标管理器（复用） -->
 <script src="{{ url_for('static', filename='js/product-code-option-manager.js') }}"></script>
+
+{% if not any_field_used and fields %}
+<!-- 拖拽排序功能 -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+<script src="{{ url_for('static', filename='js/sortable-list.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化拖拽排序
+    initSortableList('fieldsTableBody', '/product-code/api/category/{{ category.id }}/update-fields-order', {
+        handle: '.drag-handle',
+        animation: 150,
+        onSuccess: function(result) {
+            console.log('[分类规格排序] 排序已保存', result);
+            // 即时更新位置徽章（位置+3显示实际编码位置）
+            if (result.positions) {
+                result.positions.forEach(function(item) {
+                    const row = document.querySelector('tr[data-id="' + item.id + '"]');
+                    if (row) {
+                        const positionBadge = row.querySelector('.position-badge');
+                        if (positionBadge && item.use_in_code) {
+                            positionBadge.textContent = '位置' + (item.position + 3);
+                        }
+                    }
+                });
+            }
+        },
+        onError: function(error) {
+            console.error('[分类规格排序] 保存失败', error);
+        }
+    });
+});
+</script>
+{% endif %}
 {% endblock %}

@@ -11,6 +11,7 @@ class ProductCodeCategoryFieldManager {
         this.currentSearchKeyword = '';  // 当前搜索关键词
         this.allAvailableSpecs = [];     // 所有可用规格（未过滤）
         this.searchBoxInitialized = false; // 搜索框是否已初始化
+        this.selectedSpecs = new Set();  // 已选中的规格名称
 
         // 初始化事件监听
         this.initEventListeners();
@@ -73,11 +74,15 @@ class ProductCodeCategoryFieldManager {
     }
 
     /**
-     * 过滤并渲染规格选项
+     * 过滤并渲染规格选项（复选框列表 + 徽章）
      */
     filterAndRenderSpecs() {
-        const selectElement = document.getElementById('fieldName');
-        if (!selectElement) return;
+        const listContainer = document.getElementById('fieldNameList');
+        const badgesContainer = document.getElementById('selectedSpecsBadges');
+        if (!listContainer) return;
+
+        // 渲染已选择的徽章
+        this.renderSelectedBadges();
 
         // 过滤规格列表
         let filteredSpecs = this.allAvailableSpecs;
@@ -88,16 +93,44 @@ class ProductCodeCategoryFieldManager {
             );
         }
 
-        // 清空并重新填充选项
-        selectElement.innerHTML = '<option value="">-- 请选择规格 --</option>';
-        filteredSpecs.forEach(spec => {
-            const option = document.createElement('option');
-            option.value = spec.name;
-            option.textContent = spec.unit
-                ? `${spec.name} (${spec.unit})`
-                : spec.name;
-            selectElement.appendChild(option);
-        });
+        // 清空并重新填充复选框列表
+        listContainer.innerHTML = '';
+
+        if (filteredSpecs.length === 0) {
+            listContainer.innerHTML = '<div class="text-muted text-center py-2">未找到匹配的规格</div>';
+        } else {
+            const self = this;
+            filteredSpecs.forEach((spec, index) => {
+                const div = document.createElement('div');
+                div.className = 'form-check';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'form-check-input';
+                checkbox.id = `spec_${index}`;
+                checkbox.value = spec.name;
+                checkbox.checked = this.selectedSpecs.has(spec.name);
+
+                // 监听复选框变化
+                checkbox.addEventListener('change', function() {
+                    if (this.checked) {
+                        self.selectedSpecs.add(spec.name);
+                    } else {
+                        self.selectedSpecs.delete(spec.name);
+                    }
+                    self.renderSelectedBadges();
+                });
+
+                const label = document.createElement('label');
+                label.className = 'form-check-label';
+                label.htmlFor = `spec_${index}`;
+                label.textContent = spec.unit ? `${spec.name} (${spec.unit})` : spec.name;
+
+                div.appendChild(checkbox);
+                div.appendChild(label);
+                listContainer.appendChild(div);
+            });
+        }
 
         // 更新搜索提示
         const hint = document.getElementById('fieldSpecSearchHint');
@@ -108,11 +141,50 @@ class ProductCodeCategoryFieldManager {
         } else if (hint) {
             hint.style.display = 'none';
         }
+    }
 
-        // 如果没有匹配结果
-        if (filteredSpecs.length === 0 && this.currentSearchKeyword) {
-            selectElement.innerHTML = '<option value="">未找到匹配的规格</option>';
+    /**
+     * 渲染已选择的规格徽章
+     */
+    renderSelectedBadges() {
+        const badgesContainer = document.getElementById('selectedSpecsBadges');
+        if (!badgesContainer) return;
+
+        badgesContainer.innerHTML = '';
+
+        if (this.selectedSpecs.size === 0) {
+            badgesContainer.innerHTML = '<small class="text-muted">未选择任何规格</small>';
+            return;
         }
+
+        const self = this;
+        this.selectedSpecs.forEach(specName => {
+            const badge = document.createElement('span');
+            badge.className = 'badge bg-primary me-1 mb-1';
+            badge.style.cursor = 'pointer';
+            badge.innerHTML = `${specName} <i class="fas fa-times ms-1"></i>`;
+            badge.title = '点击移除';
+
+            badge.addEventListener('click', function() {
+                self.selectedSpecs.delete(specName);
+                self.renderSelectedBadges();
+                // 同步更新复选框状态
+                const listContainer = document.getElementById('fieldNameList');
+                if (listContainer) {
+                    const checkbox = listContainer.querySelector(`input[value="${specName}"]`);
+                    if (checkbox) checkbox.checked = false;
+                }
+            });
+
+            badgesContainer.appendChild(badge);
+        });
+    }
+
+    /**
+     * 获取已选中的规格名称列表
+     */
+    getSelectedSpecNames() {
+        return Array.from(this.selectedSpecs);
     }
 
     /**
@@ -223,9 +295,15 @@ class ProductCodeCategoryFieldManager {
 
             // 填充表单
             document.getElementById('fieldId').value = field.id;
-            document.getElementById('fieldName').value = field.name;
             document.getElementById('fieldRequired').checked = field.is_required;
             document.getElementById('fieldUseInCode').checked = field.use_in_code;
+
+            // 设置选中的规格（编辑时只有一个）
+            this.selectedSpecs.clear();
+            this.selectedSpecs.add(field.name);
+
+            // 更新显示
+            this.filterAndRenderSpecs();
 
         } catch (error) {
             console.error('加载字段数据失败:', error);
@@ -240,32 +318,51 @@ class ProductCodeCategoryFieldManager {
         document.getElementById('fieldForm').reset();
         document.getElementById('fieldId').value = '';
 
+        // 清空选中的规格
+        this.selectedSpecs.clear();
+
         // 移除验证样式
         const form = document.getElementById('fieldForm');
         form.classList.remove('was-validated');
-        document.getElementById('fieldName').classList.remove('is-invalid');
+
+        // 清除复选框选中状态
+        const listContainer = document.getElementById('fieldNameList');
+        if (listContainer) {
+            listContainer.classList.remove('is-invalid', 'border-danger');
+            const checkboxes = listContainer.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = false);
+        }
+
+        const errorDiv = document.getElementById('fieldNameError');
+        if (errorDiv) errorDiv.style.display = 'none';
+
+        // 更新徽章显示
+        this.renderSelectedBadges();
     }
 
     /**
-     * 验证表单
+     * 验证表单（复选框列表）
      * @returns {boolean} 验证是否通过
      */
     validateForm() {
-        const nameSelect = document.getElementById('fieldName');
-        const name = nameSelect.value.trim();
+        const selectedNames = this.getSelectedSpecNames();
+        const listContainer = document.getElementById('fieldNameList');
+        const errorDiv = document.getElementById('fieldNameError');
 
-        if (!name) {
-            nameSelect.classList.add('is-invalid');
-            this.showError('请选择规格名称');
+        if (selectedNames.length === 0) {
+            if (listContainer) listContainer.classList.add('is-invalid', 'border-danger');
+            if (errorDiv) errorDiv.style.display = 'block';
+            this.showError('请至少选择一个规格');
             return false;
         }
 
-        nameSelect.classList.remove('is-invalid');
+        if (listContainer) listContainer.classList.remove('is-invalid', 'border-danger');
+        if (errorDiv) errorDiv.style.display = 'none';
         return true;
     }
 
     /**
-     * 保存字段（统一处理创建和编辑）
+     * 保存字段（支持多选批量创建）
      */
     async saveField() {
         // 验证表单
@@ -273,43 +370,76 @@ class ProductCodeCategoryFieldManager {
             return;
         }
 
-        const name = document.getElementById('fieldName').value.trim();
+        const selectedNames = this.getSelectedSpecNames();
         const isRequired = document.getElementById('fieldRequired').checked;
         const useInCode = document.getElementById('fieldUseInCode').checked;
 
-        const data = {
-            category_id: this.categoryId,
-            name: name,
-            is_required: isRequired,
-            use_in_code: useInCode
-        };
-
         try {
-            let url, method;
             if (this.currentMode === 'add') {
-                url = '/product-code/api/category-fields';
-                method = 'POST';
+                // 添加模式：批量创建多个字段
+                let successCount = 0;
+                let failedNames = [];
+
+                for (const name of selectedNames) {
+                    const data = {
+                        category_id: this.categoryId,
+                        name: name,
+                        is_required: isRequired,
+                        use_in_code: useInCode
+                    };
+
+                    const response = await fetch('/product-code/api/category-fields', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        successCount++;
+                    } else {
+                        failedNames.push(name);
+                    }
+                }
+
+                if (failedNames.length > 0) {
+                    this.showError(`部分规格添加失败: ${failedNames.join(', ')}`);
+                }
+
+                if (successCount > 0) {
+                    closeCustomDialog('fieldModal');
+                    location.reload();
+                }
+
             } else {
-                url = `/product-code/api/category-fields/${this.currentFieldId}`;
-                method = 'PUT';
-            }
+                // 编辑模式：只更新单个字段
+                const name = selectedNames[0];  // 编辑时只取第一个
+                const data = {
+                    category_id: this.categoryId,
+                    name: name,
+                    is_required: isRequired,
+                    use_in_code: useInCode
+                };
 
-            const response = await fetch(url, {
-                method: method,
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(data)
-            });
+                const response = await fetch(`/product-code/api/category-fields/${this.currentFieldId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
 
-            const result = await response.json();
+                const result = await response.json();
 
-            if (result.success) {
-                closeCustomDialog('fieldModal');
-                // 直接刷新页面
-                location.reload();
-            } else {
-                this.showError(result.message);
+                if (result.success) {
+                    closeCustomDialog('fieldModal');
+                    location.reload();
+                } else {
+                    this.showError(result.message);
+                }
             }
 
         } catch (error) {

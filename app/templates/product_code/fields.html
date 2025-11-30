@@ -91,19 +91,20 @@
         <span id="errorMessage">保存顺序时发生错误</span>
     </div>
 
+    <!-- 排序锁定提示 -->
+    {% if any_own_field_used and fields %}
+    <div class="alert alert-info mb-4">
+        <i class="fas fa-lock me-1"></i>
+        部分规格已被产品使用，排序功能已锁定。
+    </div>
+    {% endif %}
+
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <span>
                 <i class="fas fa-list me-1"></i>
                 {{ subcategory.name }} ({{ subcategory.code_letter }}) 规格列表
             </span>
-            {% if inherited_fields %}
-            <a href="{{ url_for('product_code.category_fields', id=subcategory.parent_category.id) }}"
-               class="btn btn-sm btn-outline-info"
-               title="管理分类级通用规格">
-                <i class="fas fa-cog me-1"></i>管理通用规格
-            </a>
-            {% endif %}
         </div>
         <div class="card-body">
             <table class="table table-bordered table-striped">
@@ -127,10 +128,10 @@
                         <td>{{ row_index.value }}{% set row_index.value = row_index.value + 1 %}</td>
                         <td>
                             {{ field.name }}
-                            <span class="badge bg-info ms-1" title="继承自{{ subcategory.parent_category.name }}分类">继承</span>
+                            <span class="rounded-circle bg-info d-inline-block ms-1" style="width: 8px; height: 8px;" title="继承自{{ subcategory.parent_category.name }}分类"></span>
                         </td>
                         <td class="position-cell">
-                            <span class="badge bg-success">位置{{ field.position }}</span>
+                            <span class="badge bg-success">位置{{ field.position + 3 }}</span>
                         </td>
                         <td>
                             {% if field.options %}
@@ -146,16 +147,19 @@
                             {% endif %}
                         </td>
                         <td>-</td>
-                        <td class="text-center text-muted">
-                            <i class="fas fa-lock" title="继承规格，请在分类级管理"></i>
-                        </td>
+                        <td></td>
                     </tr>
                     {% endfor %}
 
                     {# 2. 子分类的编码规格 #}
                     {% for field in fields if field.use_in_code %}
                     <tr data-id="{{ field.id }}">
-                        <td>{{ row_index.value }}{% set row_index.value = row_index.value + 1 %}</td>
+                        <td>
+                            {% if not any_own_field_used %}
+                            <i class="fas fa-grip-vertical drag-handle text-muted me-2" style="cursor: grab;"></i>
+                            {% endif %}
+                            {{ row_index.value }}{% set row_index.value = row_index.value + 1 %}
+                        </td>
                         <td>
                             {% if not field.is_used %}
                             <a href="javascript:void(0)" onclick="fieldManager.openModal('edit', {{ field.id }})" class="text-primary" style="cursor: pointer;">
@@ -166,7 +170,7 @@
                             {% endif %}
                         </td>
                         <td class="position-cell">
-                            <span class="badge bg-success position-badge">位置{{ field.position }}</span>
+                            <span class="badge bg-success position-badge">位置{{ field.position + 3 }}</span>
                         </td>
                         <td>
                             {% if field.options %}
@@ -244,7 +248,7 @@
                         <td>{{ row_index.value }}{% set row_index.value = row_index.value + 1 %}</td>
                         <td>
                             {{ field.name }}
-                            <span class="badge bg-info ms-1" title="继承自{{ subcategory.parent_category.name }}分类">继承</span>
+                            <span class="rounded-circle bg-info d-inline-block ms-1" style="width: 8px; height: 8px;" title="继承自{{ subcategory.parent_category.name }}分类"></span>
                         </td>
                         <td class="position-cell">
                             <span class="badge bg-secondary">未纳入编码</span>
@@ -263,16 +267,19 @@
                             {% endif %}
                         </td>
                         <td>-</td>
-                        <td class="text-center text-muted">
-                            <i class="fas fa-lock" title="继承规格，请在分类级管理"></i>
-                        </td>
+                        <td></td>
                     </tr>
                     {% endfor %}
 
                     {# 4. 子分类的非编码规格 #}
                     {% for field in fields if not field.use_in_code %}
                     <tr data-id="{{ field.id }}">
-                        <td>{{ row_index.value }}{% set row_index.value = row_index.value + 1 %}</td>
+                        <td>
+                            {% if not any_own_field_used %}
+                            <i class="fas fa-grip-vertical drag-handle text-muted me-2" style="cursor: grab;"></i>
+                            {% endif %}
+                            {{ row_index.value }}{% set row_index.value = row_index.value + 1 %}
+                        </td>
                         <td>
                             {% if not field.is_used %}
                             <a href="javascript:void(0)" onclick="fieldManager.openModal('edit', {{ field.id }})" class="text-primary" style="cursor: pointer;">
@@ -397,16 +404,21 @@
                 </small>
             </div>
 
-            <!-- 规格名称 -->
+            <!-- 规格名称（复选框列表） -->
             <div class="mb-3">
-                <label for="fieldName" class="form-label">
+                <label class="form-label">
                     规格名称 <span class="text-danger">*</span>
+                    <small class="text-muted">（可多选）</small>
                 </label>
-                <select id="fieldName" class="form-select" required>
-                    <option value="">-- 请选择规格 --</option>
-                </select>
-                <div class="invalid-feedback">
-                    请选择规格名称
+                <!-- 已选择的规格徽章 -->
+                <div id="selectedSpecsBadges" class="mb-2 d-flex flex-wrap" style="min-height: 24px; max-width: 100%; overflow: hidden;">
+                    <!-- 徽章由JS动态填充 -->
+                </div>
+                <div id="fieldNameList" class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                    <!-- 复选框列表由JS动态填充 -->
+                </div>
+                <div class="invalid-feedback" id="fieldNameError" style="display: none;">
+                    请至少选择一个规格
                 </div>
             </div>
 
@@ -666,4 +678,35 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- 产品代码指标管理器 -->
 <script src="{{ url_for('static', filename='js/product-code-option-manager.js') }}"></script>
+
+{% if not any_own_field_used and fields %}
+<!-- 排序功能 -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+<script src="{{ url_for('static', filename='js/sortable-list.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initSortableList('fieldsTableBody', '/product-code/api/subcategory/{{ subcategory.id }}/update-fields-order', {
+        handle: '.drag-handle',
+        animation: 150,
+        // 只允许拖动有 data-id 属性的行（非继承字段）
+        filter: 'tr:not([data-id])',
+        preventOnFilter: true,
+        // 保存成功后更新位置徽章显示（位置+3显示实际编码位置）
+        onSuccess: function(result) {
+            if (result.positions) {
+                result.positions.forEach(function(item) {
+                    const row = document.querySelector(`tr[data-id="${item.id}"]`);
+                    if (row) {
+                        const positionBadge = row.querySelector('.position-badge');
+                        if (positionBadge && item.use_in_code) {
+                            positionBadge.textContent = '位置' + (item.position + 3);
+                        }
+                    }
+                });
+            }
+        }
+    });
+});
+</script>
+{% endif %}
 {% endblock %}

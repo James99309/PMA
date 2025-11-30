@@ -20,42 +20,79 @@ product_code_bp = Blueprint('product_code', __name__, url_prefix='/product-code'
 # 辅助函数
 # ============================================================================
 
-def check_field_used_in_subcategory(field_name, subcategory_id):
+def check_field_used_in_subcategory(field_name, subcategory_id, field_id=None):
     """
-    检查规格字段是否在指定子分类的产品中被使用（研发库+产品库）
+    检查规格字段是否在指定子分类的产品中被使用
+
+    判断条件（必须全部满足）：
+    1. 字段名匹配
+    2. 位置匹配（产品快照中的位置 = 当前规格定义的位置）
+    3. 编码匹配（产品使用的编码是当前规格选项中定义的编码）
 
     Args:
         field_name (str): 规格字段名称
         subcategory_id (int): 子分类ID
+        field_id (int, optional): 字段ID，用于获取位置和选项编码
 
     Returns:
         bool: 如果被使用返回True，否则返回False
     """
-    # 检查研发库
-    used_in_dev = db.session.execute(
-        text("""
-            SELECT 1 FROM dev_product_specs dps
-            INNER JOIN dev_products dp ON dps.dev_product_id = dp.id
-            WHERE dps.field_name = :field_name
-            AND dp.subcategory_id = :subcategory_id
-            LIMIT 1
-        """),
-        {"field_name": field_name, "subcategory_id": subcategory_id}
-    ).first() is not None
+    # 获取字段的当前位置和有效编码列表
+    if field_id:
+        field = ProductCodeField.query.get(field_id)
+    else:
+        field = ProductCodeField.query.filter_by(
+            name=field_name,
+            subcategory_id=subcategory_id,
+            field_type='spec'
+        ).first()
 
-    # 检查产品库
-    used_in_product = db.session.execute(
-        text("""
-            SELECT 1 FROM product_specs ps
-            INNER JOIN products p ON ps.product_id = p.id
-            WHERE ps.field_name = :field_name
-            AND p.subcategory_id = :subcategory_id
-            LIMIT 1
-        """),
-        {"field_name": field_name, "subcategory_id": subcategory_id}
-    ).first() is not None
+    if not field:
+        return False
 
-    return used_in_dev or used_in_product
+    current_position = field.position
+
+    # 获取该字段所有有效的选项编码
+    valid_codes = set()
+    for option in field.options:
+        if option.code and option.is_active:
+            valid_codes.add(option.code)
+
+    # 如果没有定义任何编码选项，则不算被使用
+    if not valid_codes:
+        return False
+
+    # 检查产品库的编码快照
+    products = db.session.execute(
+        text("""
+            SELECT code_definition_snapshot
+            FROM products
+            WHERE subcategory_id = :subcategory_id
+            AND code_definition_snapshot IS NOT NULL
+        """),
+        {"subcategory_id": subcategory_id}
+    ).fetchall()
+
+    for (snapshot,) in products:
+        if not snapshot or 'code_parts' not in snapshot:
+            continue
+
+        for part in snapshot.get('code_parts', []):
+            # 条件1：字段名匹配
+            if part.get('field_name') != field_name:
+                continue
+            # 条件2：位置匹配
+            if part.get('position') != current_position:
+                continue
+            # 条件3：编码匹配（产品使用的编码是当前有效编码之一）
+            part_code = part.get('code', '')
+            if part_code and part_code in valid_codes:
+                return True
+
+    # 研发产品没有编码快照，暂不检查
+    # 研发产品的规格变更不影响排序功能
+
+    return False
 
 def get_field_unit(field_name):
     """
@@ -531,10 +568,14 @@ def category_fields(id):
     # 获取该分类下的子分类数量
     subcategory_count = ProductSubcategory.query.filter_by(category_id=id).count()
 
+    # 检查是否有任何字段被使用（用于控制排序功能）
+    any_field_used = any(getattr(field, 'is_used', False) for field in fields)
+
     return render_template('product_code/category_fields.html',
                            category=category,
                            fields=fields,
-                           subcategory_count=subcategory_count)
+                           subcategory_count=subcategory_count,
+                           any_field_used=any_field_used)
 
 # ============================================================================
 # 已废弃的子分类（产品名称）路由 - 已替换为模态框API
@@ -869,10 +910,14 @@ def subcategory_fields(id):
 
             option.is_used = used_in_product_code or used_in_dev_option or used_in_formal_option
 
+    # 检查是否有任何非继承字段被使用（用于控制排序功能）
+    any_own_field_used = any(getattr(field, 'is_used', False) for field in fields)
+
     return render_template('product_code/fields.html',
                            subcategory=subcategory,
                            fields=fields,
-                           inherited_fields=inherited_fields)
+                           inherited_fields=inherited_fields,
+                           any_own_field_used=any_own_field_used)
 
 # ============================================================================
 # 已废弃的路由 - 已迁移到模态框API模式
@@ -1515,10 +1560,20 @@ def update_fields_order(id):
             current_app.logger.error("无法解析JSON数据")
             return jsonify({"success": False, "error": "无法解析JSON数据"}), 400
         
-        # 获取字段ID列表
-        field_ids = data.get('field_ids', [])
-        current_app.logger.info(f"字段ID列表: {field_ids}, 类型: {type(field_ids)}")
-        
+        # 支持两种格式：sortable-list.js 的 {items: [{id, order}]} 或原有的 {field_ids: []}
+        if 'items' in data:
+            # sortable-list.js 格式: {items: [{id, order}]}
+            items = sorted(data['items'], key=lambda x: x.get('order', 0))
+            field_ids = [item['id'] for item in items]
+            current_app.logger.info(f"使用items格式，转换后的字段ID列表: {field_ids}")
+        elif 'field_ids' in data:
+            # 原有格式: {field_ids: []}
+            field_ids = data.get('field_ids', [])
+            current_app.logger.info(f"使用field_ids格式，字段ID列表: {field_ids}")
+        else:
+            current_app.logger.error("未提供有效的请求格式")
+            return jsonify({"success": False, "error": "请提供 items 或 field_ids 参数"}), 400
+
         if not field_ids:
             current_app.logger.error("未提供字段ID列表或列表为空")
             return jsonify({"success": False, "error": "未提供字段ID列表"}), 400
@@ -1544,40 +1599,29 @@ def update_fields_order(id):
         existing_field_ids = set(field.id for field in existing_fields)
         current_app.logger.info(f"现有字段ID: {existing_field_ids}")
         
-        # 检查哪些规格字段已被当前子分类的产品引用（通过DevProductSpec表）
-        from app.models.dev_product import DevProductSpec, DevProduct
-        referenced_field_names = set()
-
-        referenced_specs = db.session.query(DevProductSpec.field_name)\
-            .join(DevProduct, DevProductSpec.dev_product_id == DevProduct.id)\
-            .filter(DevProduct.subcategory_id == id)\
-            .distinct().all()
-
-        for spec in referenced_specs:
-            referenced_field_names.add(spec.field_name.lower())
-        
+        # 使用新的严格检查逻辑：字段名+位置+编码都匹配才算被引用
         valid_field_ids = []
         invalid_field_ids = []
         blocked_field_ids = []  # 被引用无法修改排序的字段
-        
+
         for field_id in field_ids:
             if field_id in existing_field_ids:
-                # 检查这个字段是否已被产品引用
+                # 使用新的严格检查逻辑
                 field = next((f for f in existing_fields if f.id == field_id), None)
-                if field and field.name.lower() in referenced_field_names:
+                if field and check_field_used_in_subcategory(field.name, id, field.id):
                     blocked_field_ids.append(field_id)
                     current_app.logger.warning(f"字段 '{field.name}' (ID: {field_id}) 已被产品引用，不允许修改排序")
                 else:
                     valid_field_ids.append(field_id)
             else:
                 invalid_field_ids.append(field_id)
-        
+
         # 如果有被引用的字段，返回错误
         if blocked_field_ids:
             blocked_fields = [f for f in existing_fields if f.id in blocked_field_ids]
             blocked_names = [f.name for f in blocked_fields]
             return jsonify({
-                "success": False, 
+                "success": False,
                 "error": f"以下规格字段已被产品引用，不允许修改排序: {', '.join(blocked_names)}"
             }), 400
         
@@ -1588,14 +1632,31 @@ def update_fields_order(id):
             current_app.logger.error("没有有效的字段ID")
             return jsonify({"success": False, "error": "没有有效的字段ID属于此子类别"}), 400
         
-        # 更新位置值
+        # 编码位置计算：前3位是固定的（区域+分类+子分类），规格从位置4开始
+        FIXED_PREFIX_POSITIONS = 3  # 区域、分类、子分类占用前3位
+
+        # 获取继承字段（分类级字段）的最大位置
+        inherited_fields = ProductCodeField.get_category_fields(subcategory.category_id)
+        inherited_code_fields = [f for f in inherited_fields if f.use_in_code]
+
+        if inherited_code_fields:
+            # 子分类字段从继承字段之后开始
+            start_position = max(f.position for f in inherited_code_fields) + 1
+        else:
+            # 没有继承字段，从位置4开始（前3位是固定前缀）
+            start_position = FIXED_PREFIX_POSITIONS + 1
+
+        current_app.logger.info(f"继承字段数量: {len(inherited_code_fields)}, 子分类字段起始位置: {start_position}")
+
+        # 更新位置值（编码位置从继承字段之后开始）
         try:
             with db.session.begin_nested():  # 创建保存点
-                for position, field_id in enumerate(valid_field_ids):
+                for idx, field_id in enumerate(valid_field_ids):
+                    new_position = start_position + idx
                     db.session.execute(
                         update(ProductCodeField)
                         .where(ProductCodeField.id == field_id)
-                        .values(position=position)
+                        .values(position=new_position)
                     )
             
             db.session.commit()
@@ -1630,6 +1691,93 @@ def update_fields_order(id):
         db.session.rollback()
         current_app.logger.error(f"更新规格顺序时出错: {str(e)}")
         return jsonify({"success": False, "error": f"更新规格顺序时出错: {str(e)}"}), 500
+
+
+@product_code_bp.route('/api/category/<int:id>/update-fields-order', methods=['POST'])
+@login_required
+@product_manager_required
+def update_category_fields_order(id):
+    """更新分类级规格字段的顺序
+
+    如果任何字段已被产品引用，则拒绝排序操作
+    """
+    if not request.is_json:
+        return jsonify({"success": False, "message": "请求必须是JSON格式"}), 400
+
+    try:
+        data = request.get_json()
+        items = data.get('items', [])
+
+        if not items:
+            return jsonify({"success": False, "message": "未提供排序数据"}), 400
+
+        # 验证分类存在
+        category = ProductCategory.query.get_or_404(id)
+
+        # 获取分类级字段（subcategory_id为NULL，category_id为当前分类）
+        existing_fields = ProductCodeField.query.filter(
+            ProductCodeField.category_id == id,
+            ProductCodeField.subcategory_id.is_(None)
+        ).all()
+        existing_field_ids = {field.id for field in existing_fields}
+
+        # 检查是否有任何字段被产品引用
+        for field in existing_fields:
+            used_count = db.session.execute(
+                text("""
+                    SELECT COUNT(*) FROM dev_product_specs dps
+                    INNER JOIN dev_products dp ON dps.dev_product_id = dp.id
+                    INNER JOIN product_subcategories ps ON dp.subcategory_id = ps.id
+                    WHERE dps.field_name = :field_name
+                    AND ps.category_id = :category_id
+                """),
+                {"field_name": field.name, "category_id": id}
+            ).scalar() or 0
+
+            if used_count > 0:
+                return jsonify({
+                    "success": False,
+                    "message": f"规格「{field.name}」已被产品使用，无法调整排序"
+                }), 400
+
+        # 验证所有提交的字段ID都属于这个分类
+        for item in items:
+            field_id = int(item.get('id', 0))
+            if field_id not in existing_field_ids:
+                return jsonify({
+                    "success": False,
+                    "message": f"字段ID {field_id} 不属于此分类"
+                }), 400
+
+        # 编码位置计算：前3位是固定的（区域+分类+子分类），规格从位置4开始
+        FIXED_PREFIX_POSITIONS = 3
+
+        # 更新字段顺序并收集位置信息（位置从4开始）
+        positions = []
+        for item in items:
+            field_id = int(item.get('id'))
+            new_order = int(item.get('order'))
+            # 位置从4开始（前3位是固定前缀）
+            new_position = FIXED_PREFIX_POSITIONS + new_order + 1
+
+            field = ProductCodeField.query.get(field_id)
+            if field:
+                field.position = new_position
+                positions.append({
+                    'id': field_id,
+                    'position': new_position,
+                    'use_in_code': field.use_in_code
+                })
+
+        db.session.commit()
+
+        return jsonify({"success": True, "message": "排序已保存", "positions": positions})
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"更新分类规格顺序时出错: {str(e)}")
+        return jsonify({"success": False, "message": f"保存失败: {str(e)}"}), 500
+
 
 @product_code_bp.route('/api/category/<int:id>/update-subcategories-order', methods=['POST'])
 @login_required
@@ -3230,14 +3378,6 @@ def update_category_api(category_id):
     """更新产品分类"""
     try:
         category = ProductCategory.query.get_or_404(category_id)
-
-        # 检查是否已被使用
-        subcategories_count = ProductSubcategory.query.filter_by(category_id=category_id).count()
-        if subcategories_count > 0:
-            return jsonify({
-                'success': False,
-                'message': '该分类已被子分类使用，无法编辑'
-            }), 400
 
         data = request.get_json()
         name = data.get('name', '').strip()
