@@ -1236,7 +1236,14 @@ def expense_detail(id):
     ).get_or_404(id)
     
     # 检查访问权限
-    if not can_edit_data(expense_obj, current_user):
+    from app.utils.access_control import has_approval_permission
+    can_view = can_edit_data(expense_obj, current_user)
+
+    # 如果没有编辑权限，检查是否有审批权限（审批人需要能查看报销单详情）
+    if not can_view:
+        can_view = has_approval_permission(current_user, expense_obj)
+
+    if not can_view:
         flash(_('您没有权限查看此报销单'), 'error')
         return redirect(url_for('expense.expense_list'))
     
