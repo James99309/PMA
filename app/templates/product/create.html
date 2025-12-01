@@ -187,7 +187,7 @@
                                 <label for="type" class="form-label">{{ _('产品类型') }}</label>
                                 <select class="form-select" id="type" name="type">
                                     <option value="">-- {{ _('请选择产品类型') }} --</option>
-                                    <option value="third_party" {% if product and product.type in ['third_party', 'third party', '第三方产品'] %}selected{% endif %}>{{ _('第三方产品') }}</option>
+                                    <option value="third party" {% if product and product.type in ['third_party', 'third party', '第三方产品'] %}selected{% endif %}>{{ _('第三方产品') }}</option>
                                     <option value="channel" {% if product and product.type in ['channel', '渠道产品'] %}selected{% endif %}>{{ _('渠道产品') }}</option>
                                     <option value="project" {% if product and product.type in ['project', '项目产品'] %}selected{% endif %}>{{ _('项目产品') }}</option>
                                 </select>
