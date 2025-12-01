@@ -3323,6 +3323,7 @@ def export_products():
 def public_product_info(product_mn):
     """公开产品信息页面（无需登录）"""
     from app.models.product_spec import ProductSpec
+    from app.models.dictionary import Dictionary
 
     # 根据 product_mn 查找产品
     product = Product.query.filter_by(product_mn=product_mn).first()
@@ -3331,6 +3332,16 @@ def public_product_info(product_mn):
 
     # 获取规格数据
     specs = ProductSpec.query.filter_by(product_id=product.id).order_by(ProductSpec.display_order).all()
+
+    # 获取厂商信息（通过品牌名查找）
+    vendor_info = None
+    if product.brand:
+        vendor = Dictionary.query.filter_by(type='company', key=product.brand).first()
+        if vendor and vendor.website:
+            vendor_info = {
+                'name': vendor.value,  # 公司全称
+                'website': vendor.website
+            }
 
     # 获取单位信息
     from app.routes.product_code import get_field_unit
@@ -3346,7 +3357,8 @@ def public_product_info(product_mn):
 
     return render_template('product/public_info.html',
                            product=product,
-                           specs=specs_with_unit)
+                           specs=specs_with_unit,
+                           vendor_info=vendor_info)
 
 
 @bp.route('/products/<int:id>/qrcode')
