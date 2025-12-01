@@ -496,10 +496,11 @@ def create_app(config_class=Config):
         """检查登录状态和角色一致性"""
         # 排除不需要登录的路径
         excluded_paths = [
-            '/auth/login', '/auth/logout', '/auth/register', 
+            '/auth/login', '/auth/logout', '/auth/register',
             '/auth/forgot-password', '/auth/reset-password',
             '/auth/activate', '/static', '/api/version',
-            '/language/current', '/language/switch', '/storage'
+            '/language/current', '/language/switch', '/storage',
+            '/p/'  # 产品公开信息页面（二维码扫描）
         ]
         
         # 检查当前路径是否需要登录
