@@ -481,31 +481,8 @@ class ProductFileService:
         Returns:
             str: 有效的文件路径，没有则返回None
         """
-        # 优先级1：产品自身文件
-        product_file = product.image_path if file_type == 'image' else product.pdf_path
-        if product_file:
-            return product_file
-
-        # 优先级2：同一子分类下相同product_name的产品
-        if product.product_name and product.subcategory_id:
-            file_field = Product.image_path if file_type == 'image' else Product.pdf_path
-            sibling = Product.query.filter(
-                Product.subcategory_id == product.subcategory_id,
-                Product.product_name == product.product_name,
-                Product.id != product.id,
-                file_field.isnot(None),
-                file_field != ''
-            ).first()
-            if sibling:
-                return sibling.image_path if file_type == 'image' else sibling.pdf_path
-
-        # 优先级3：子分类共享文件
-        if product.subcategory_id:
-            subcategory = ProductSubcategory.query.get(product.subcategory_id)
-            if subcategory:
-                return subcategory.image_path if file_type == 'image' else subcategory.pdf_path
-
-        return None
+        from app.utils.product_helpers import get_effective_file
+        return get_effective_file(product, file_type)
 
     def upload_file_with_category_generic(self, product_id: int, file: FileStorage, file_type: str,
                                           product_type: str = 'standard',

@@ -185,22 +185,10 @@ def product_list():
     # 执行查询
     products = query.all()
 
-    # 计算有效图片路径（三级引用：产品自身 > 同名产品 > 子分类）
+    # 计算有效图片路径（三级引用）
+    from app.utils.product_helpers import get_effective_image
     for product in products:
-        effective_image = product.image_path
-        if not effective_image and product.product_name and product.subcategory_id:
-            sibling = Product.query.filter(
-                Product.subcategory_id == product.subcategory_id,
-                Product.product_name == product.product_name,
-                Product.id != product.id,
-                Product.image_path.isnot(None),
-                Product.image_path != ''
-            ).first()
-            if sibling:
-                effective_image = sibling.image_path
-        if not effective_image and product.subcategory_obj:
-            effective_image = product.subcategory_obj.image_path
-        product.effective_image = effective_image
+        product.effective_image = get_effective_image(product)
 
     # 统计数据
     total_count = len(products)
@@ -704,22 +692,10 @@ def product_list_ajax():
         products = query.all()
         total_count = len(products)
 
-        # 计算有效图片路径（三级引用：产品自身 > 同名产品 > 子分类）
+        # 计算有效图片路径（三级引用）
+        from app.utils.product_helpers import get_effective_image
         for product in products:
-            effective_image = product.image_path
-            if not effective_image and product.product_name and product.subcategory_id:
-                sibling = Product.query.filter(
-                    Product.subcategory_id == product.subcategory_id,
-                    Product.product_name == product.product_name,
-                    Product.id != product.id,
-                    Product.image_path.isnot(None),
-                    Product.image_path != ''
-                ).first()
-                if sibling:
-                    effective_image = sibling.image_path
-            if not effective_image and product.subcategory_obj:
-                effective_image = product.subcategory_obj.image_path
-            product.effective_image = effective_image
+            product.effective_image = get_effective_image(product)
 
         # 统计数据
         active_count = len([p for p in products if p.status == 'active'])
@@ -2525,36 +2501,10 @@ def view_product_detail(id):
             spec_dict['unit'] = get_field_unit(spec.field_name)
             product_specs.append(spec_dict)
 
-        # 计算有效图片路径（三级引用：产品自身 > 同名产品 > 子分类）
-        effective_image = product.image_path
-        if not effective_image and product.product_name and product.subcategory_id:
-            # 查找同一子分类下相同product_name的产品
-            sibling = Product.query.filter(
-                Product.subcategory_id == product.subcategory_id,
-                Product.product_name == product.product_name,
-                Product.id != product.id,
-                Product.image_path.isnot(None),
-                Product.image_path != ''
-            ).first()
-            if sibling:
-                effective_image = sibling.image_path
-        if not effective_image and product.subcategory_obj:
-            effective_image = product.subcategory_obj.image_path
-
-        # 计算有效PDF路径（三级引用：产品自身 > 同名产品 > 子分类）
-        effective_pdf = product.pdf_path
-        if not effective_pdf and product.product_name and product.subcategory_id:
-            sibling = Product.query.filter(
-                Product.subcategory_id == product.subcategory_id,
-                Product.product_name == product.product_name,
-                Product.id != product.id,
-                Product.pdf_path.isnot(None),
-                Product.pdf_path != ''
-            ).first()
-            if sibling:
-                effective_pdf = sibling.pdf_path
-        if not effective_pdf and product.subcategory_obj:
-            effective_pdf = product.subcategory_obj.pdf_path
+        # 计算有效图片和PDF路径（三级引用）
+        from app.utils.product_helpers import get_effective_image, get_effective_pdf
+        effective_image = get_effective_image(product)
+        effective_pdf = get_effective_pdf(product)
 
         # 计算上一个/下一个产品ID（按列表页排序）
         all_product_ids = db.session.query(Product.id)\
@@ -2816,20 +2766,9 @@ def get_products_by_subcategory_api():
             config_relations = ProductRelation.get_relations_for_product(product.id)
             config_count = len(config_relations)
 
-            # 计算有效图片路径（三级引用：产品自身 > 同名产品 > 子分类）
-            effective_image = product.image_path
-            if not effective_image and product.product_name and product.subcategory_id:
-                sibling = Product.query.filter(
-                    Product.subcategory_id == product.subcategory_id,
-                    Product.product_name == product.product_name,
-                    Product.id != product.id,
-                    Product.image_path.isnot(None),
-                    Product.image_path != ''
-                ).first()
-                if sibling:
-                    effective_image = sibling.image_path
-            if not effective_image and product.subcategory_obj:
-                effective_image = product.subcategory_obj.image_path
+            # 计算有效图片路径（三级引用）
+            from app.utils.product_helpers import get_effective_image
+            effective_image = get_effective_image(product)
 
             # 构建产品数据
             product_data = {
@@ -3333,15 +3272,22 @@ def public_product_info(product_mn):
     # 获取规格数据
     specs = ProductSpec.query.filter_by(product_id=product.id).order_by(ProductSpec.display_order).all()
 
-    # 获取厂商信息（通过品牌名查找）
+    # 计算有效图片路径（三级引用）
+    from app.utils.product_helpers import get_effective_image
+    effective_image = get_effective_image(product)
+
+    # 获取厂商信息（查找标记为 is_vendor=True 的厂商企业）
     vendor_info = None
-    if product.brand:
-        vendor = Dictionary.query.filter_by(type='company', key=product.brand).first()
-        if vendor and vendor.website:
-            vendor_info = {
-                'name': vendor.value,  # 公司全称
-                'website': vendor.website
-            }
+    vendor = Dictionary.query.filter_by(
+        type='company',
+        is_vendor=True,
+        is_active=True
+    ).first()
+    if vendor and vendor.website:
+        vendor_info = {
+            'name': vendor.value,  # 公司全称
+            'website': vendor.website
+        }
 
     # 获取单位信息
     from app.routes.product_code import get_field_unit
@@ -3357,6 +3303,7 @@ def public_product_info(product_mn):
 
     return render_template('product/public_info.html',
                            product=product,
+                           effective_image=effective_image,
                            specs=specs_with_unit,
                            vendor_info=vendor_info)
 

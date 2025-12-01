@@ -132,9 +132,9 @@
 </head>
 <body>
     <div class="product-card">
-        {% if product.image_path %}
+        {% if effective_image %}
         <div class="product-image-container">
-            <img src="{{ product.image_path }}" alt="{{ product.product_name }}" class="product-image">
+            <img src="{{ effective_image }}" alt="{{ product.subcategory_obj.name if product.subcategory_obj else product.product_name }}" class="product-image">
         </div>
         {% endif %}
 

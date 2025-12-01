@@ -1,13 +1,67 @@
 """产品查询辅助函数
 
 提供统一的产品查询方法，支持新旧product_name字段的兼容查询
-同时提供产品编码定义快照生成功能
+同时提供产品编码定义快照生成功能和三级文件引用获取功能
 """
 from sqlalchemy import or_
 from app.models.product import Product
 from app.models.product_code import ProductSubcategory
 from datetime import datetime
 from flask import current_app
+
+
+def get_effective_file(product, file_type='image'):
+    """
+    获取产品的有效文件路径（三级引用：产品自身 > 同名产品 > 子分类）
+
+    Args:
+        product: Product对象
+        file_type: 'image' 或 'pdf'
+
+    Returns:
+        str | None: 有效的文件路径
+    """
+    # 确定字段名
+    if file_type == 'image':
+        product_field = product.image_path
+        model_field = Product.image_path
+    else:
+        product_field = product.pdf_path
+        model_field = Product.pdf_path
+
+    # 优先级1：产品自身文件
+    if product_field:
+        return product_field
+
+    # 优先级2：同一子分类下相同product_name的产品
+    if product.product_name and product.subcategory_id:
+        sibling = Product.query.filter(
+            Product.subcategory_id == product.subcategory_id,
+            Product.product_name == product.product_name,
+            Product.id != product.id,
+            model_field.isnot(None),
+            model_field != ''
+        ).first()
+        if sibling:
+            return sibling.image_path if file_type == 'image' else sibling.pdf_path
+
+    # 优先级3：子分类共享文件
+    if product.subcategory_obj:
+        subcategory_field = product.subcategory_obj.image_path if file_type == 'image' else product.subcategory_obj.pdf_path
+        if subcategory_field:
+            return subcategory_field
+
+    return None
+
+
+def get_effective_image(product):
+    """获取产品的有效图片路径（三级引用）"""
+    return get_effective_file(product, 'image')
+
+
+def get_effective_pdf(product):
+    """获取产品的有效PDF路径（三级引用）"""
+    return get_effective_file(product, 'pdf')
 
 
 def find_product_by_name_and_model(product_name, model):
@@ -157,11 +211,13 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
         from app.routes.product_code import get_field_unit
 
         # 构建快照基础结构
+        # 注意: full_code 字段已废弃，保留仅为兼容旧代码
+        # 真正的规格MN应使用 product.spec_mn 字段
         snapshot = {
             "version": "1.0",
             "source": source,
             "generated_at": datetime.utcnow().isoformat(),
-            "full_code": product.product_mn,
+            "full_code": product.spec_mn or product.product_mn,  # 废弃字段，优先使用spec_mn
             "category": {
                 "id": product.category_id,
                 "name": product.category_obj.name if product.category_obj else "",

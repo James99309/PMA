@@ -543,11 +543,12 @@
                 <div class="code-definition-body" id="codeDefinitionBody" style="display: none;">
 
                     <!-- 基本信息 -->
+                    <!-- 注意: snapshot.full_code 已废弃，优先使用 product.spec_mn -->
                     <div class="row mb-4">
                         <div class="col-md-3">
-                            <strong>{{ _('完整编码') }}:</strong>
+                            <strong>{{ _('规格MN') }}:</strong>
                             <p class="mb-0 text-primary fs-5">
-                                <code>{{ snapshot.full_code }}</code>
+                                <code>{{ product.spec_mn or snapshot.full_code or '-' }}</code>
                             </p>
                         </div>
                         <div class="col-md-3">

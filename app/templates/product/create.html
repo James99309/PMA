@@ -164,8 +164,8 @@
                                 <h6 class="card-title mb-1">{{ _('规格MN编码预览') }}</h6>
                                 <div id="mn_code_preview" class="h4 mb-0 font-monospace">
                                     {% if product %}
-                                        {# 研发产品使用 mn_code，标准产品使用 product_mn #}
-                                        {{ product.mn_code if product.mn_code is defined else product.product_mn or '--' }}
+                                        {# 标准产品优先使用 spec_mn，研发产品使用 mn_code，如果都没有则显示空等待JS计算 #}
+                                        {{ product.spec_mn if product.spec_mn else (product.mn_code if product.mn_code is defined else '') }}
                                     {% else %}
                                         --
                                     {% endif %}
