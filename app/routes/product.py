@@ -413,7 +413,9 @@ def create():
         subcategory_id = request.form.get('subcategory_id')
         region_id = request.form.get('region_id') or None
         product_model = request.form.get('product_model')
-        product_mn = request.form.get('product_mn')
+        # 新产品：从前端获取 spec_mn 作为初始 product_mn
+        spec_mn_from_form = request.form.get('spec_mn')
+        product_mn = request.form.get('product_mn') or spec_mn_from_form
         product_name = request.form.get('product_name') or None  # 独立的产品名称字段
         brand = request.form.get('brand') or None
         unit = request.form.get('unit')
@@ -424,8 +426,7 @@ def create():
 
         # 验证必填字段
         if not all([category_id, subcategory_id, region_id, product_model, product_mn]):
-            flash('请填写所有必填字段（包括销售区域）', 'error')
-            return redirect(url_for('product_route.create_product_page'))
+            return jsonify({'success': False, 'message': '请填写所有必填字段（包括销售区域）'}), 400
 
         # 验证MN号全局唯一性（跨研发库和产品库）
         from app.routes.product_management import check_mn_code_duplicate
@@ -441,16 +442,14 @@ def create():
                 error_parts.append(f"产品库: {std_models}")
 
             error_msg = f"MN编号 {product_mn} 已被以下产品使用：" + "；".join(error_parts)
-            flash(error_msg, 'error')
-            return redirect(url_for('product_route.create_product_page'))
+            return jsonify({'success': False, 'message': error_msg}), 400
 
         # 处理零售价格
         if retail_price:
             try:
                 retail_price = Decimal(retail_price)
             except (InvalidOperation, ValueError):
-                flash('零售价格格式不正确', 'error')
-                return redirect(url_for('product_route.create_product_page'))
+                return jsonify({'success': False, 'message': '零售价格格式不正确'}), 400
         else:
             retail_price = Decimal('0.00')
 
@@ -499,25 +498,35 @@ def create():
                 success, saved_specs, error = save_product_specs(new_product.id, spec_data_list)
                 if not success:
                     db.session.rollback()
-                    flash(f'保存规格数据失败: {error}', 'error')
-                    return redirect(url_for('product_route.create_product_page'))
+                    return jsonify({'success': False, 'message': f'保存规格数据失败: {error}'}), 400
 
                 logger.debug(f'保存了 {len(saved_specs)} 条规格数据')
+
+                # 规格保存成功后，生成规格MN
+                from app.utils.product_helpers import generate_spec_mn
+                spec_mn = generate_spec_mn(new_product)
+                if spec_mn:
+                    new_product.spec_mn = spec_mn
+                    # 新产品：product_mn 也设置为规格MN（如果还没有设置）
+                    if not new_product.product_mn:
+                        new_product.product_mn = spec_mn
+                    logger.debug(f'生成规格MN: {spec_mn}, product_mn: {new_product.product_mn}')
 
         # 提交事务
         db.session.commit()
 
-        logger.info(f'产品创建成功: ID={new_product.id}, MN={new_product.product_mn}, 型号={new_product.model}')
-        flash('产品创建成功', 'success')
+        logger.info(f'产品创建成功: ID={new_product.id}, MN={new_product.product_mn}, spec_mn={new_product.spec_mn}, 型号={new_product.model}')
 
-        # 重定向到产品列表
-        return redirect(url_for('product_route.product_list'))
+        return jsonify({
+            'success': True,
+            'message': '产品创建成功',
+            'redirect': url_for('product_route.product_list')
+        })
 
     except Exception as e:
         db.session.rollback()
         logger.error(f'创建产品时出错: {str(e)}', exc_info=True)
-        flash(f'创建产品失败: {str(e)}', 'error')
-        return redirect(url_for('product_route.create_product_page'))
+        return jsonify({'success': False, 'message': f'创建产品失败: {str(e)}'}), 500
 
 @bp.route('/products/<int:id>/edit', methods=['GET'])
 @login_required
@@ -1682,8 +1691,7 @@ def update_product(id):
 
         # 检查权限
         if product.owner_id != current_user.id and current_user.role not in ['admin', 'product_manager']:
-            flash('您没有权限编辑此产品', 'error')
-            return redirect(url_for('product_route.product_list'))
+            return jsonify({'success': False, 'message': '您没有权限编辑此产品'}), 403
 
         # 获取表单数据（新版字段）
         product_type = request.form.get('type') or None
@@ -1706,11 +1714,9 @@ def update_product(id):
 
         # 验证必填字段
         if not product_model:
-            flash('请填写产品型号', 'error')
-            return redirect(url_for('product_route.edit_product_page', id=id))
+            return jsonify({'success': False, 'message': '请填写产品型号'}), 400
         if not region_id and not product.region_id:
-            flash('销售区域为必填项', 'error')
-            return redirect(url_for('product_route.edit_product_page', id=id))
+            return jsonify({'success': False, 'message': '销售区域为必填项'}), 400
 
         # 更新产品基本信息
         product.type = product_type
@@ -1741,8 +1747,7 @@ def update_product(id):
             try:
                 product.retail_price = Decimal(retail_price)
             except (InvalidOperation, ValueError):
-                flash('零售价格格式不正确', 'error')
-                return redirect(url_for('product_route.edit_product_page', id=id))
+                return jsonify({'success': False, 'message': '零售价格格式不正确'}), 400
         else:
             product.retail_price = Decimal('0.00')
 
@@ -1778,11 +1783,10 @@ def update_product(id):
                 success, saved_specs, error = save_product_specs(product.id, spec_data_list)
                 if not success:
                     db.session.rollback()
-                    flash(f'保存规格数据失败: {error}', 'error')
-                    return redirect(url_for('product_route.edit_product_page', id=id))
+                    return jsonify({'success': False, 'message': f'保存规格数据失败: {error}'}), 400
 
                 # 更新编码定义快照（保存规格成功后）
-                from app.utils.product_helpers import generate_product_snapshot
+                from app.utils.product_helpers import generate_product_snapshot, generate_spec_mn
                 snapshot = generate_product_snapshot(
                     product=product,
                     source="manual_update"
@@ -1794,34 +1798,88 @@ def update_product(id):
                     # 快照更新失败不阻止产品编辑，只记录警告
                     logger.warning(f'快照更新跳过: 产品ID={product.id}（规格数据可能不完整）')
 
-                # 只有在MN未锁定时才更新MN编码（管理员例外）
-                if not product.is_mn_locked or current_user.role == 'admin':
-                    new_mn = request.form.get('product_mn')
-                    if new_mn and new_mn.strip() and new_mn != product.product_mn:
-                        # 验证MN唯一性
-                        from app.routes.product_management import check_mn_code_duplicate
-                        duplicate_info = check_mn_code_duplicate(new_mn, exclude_product_id=product.id)
-                        if duplicate_info['exists']:
-                            flash(f'MN编号 {new_mn} 已存在，无法更新', 'warning')
+                # 更新规格MN（无论快照是否更新成功）
+                # 保存旧的 spec_mn 用于同步判断
+                old_spec_mn = product.spec_mn
+
+                spec_mn = generate_spec_mn(product)
+                if spec_mn:
+                    product.spec_mn = spec_mn
+                    logger.debug(f'更新规格MN: {spec_mn}')
+
+                    # 只有在 MN 未锁定时才考虑同步 product_mn
+                    if not product.is_mn_locked:
+                        # 如果 product_mn 与旧 spec_mn 一致，说明是自动同步的，继续同步
+                        if product.product_mn == old_spec_mn:
+                            product.product_mn = spec_mn
+                            logger.debug(f'同步更新 product_mn: {spec_mn}')
                         else:
-                            product.product_mn = new_mn
-                            logger.info(f'更新产品MN编码: ID={product.id}, 旧MN={product.product_mn} -> 新MN={new_mn}')
-                else:
-                    logger.debug(f'产品 ID={product.id} MN已锁定，跳过MN编码更新')
+                            logger.debug(f'product_mn ({product.product_mn}) 与 old_spec_mn ({old_spec_mn}) 不一致，保留历史值')
+                    else:
+                        logger.debug(f'产品 ID={product.id} MN已锁定，跳过 product_mn 同步')
 
         # 提交事务
         db.session.commit()
 
         logger.info(f'产品更新成功: ID={product.id}, MN={product.product_mn}, 型号={product.model}')
-        flash('产品更新成功', 'success')
 
-        return redirect(url_for('product_route.view_product_detail', id=product.id))
+        # 返回JSON响应（前端使用AJAX提交）
+        return jsonify({
+            'success': True,
+            'message': '产品更新成功',
+            'redirect': url_for('product_route.view_product_detail', id=product.id)
+        })
 
     except Exception as e:
         db.session.rollback()
         logger.error(f'更新产品时出错: {str(e)}', exc_info=True)
-        flash(f'更新产品失败: {str(e)}', 'error')
-        return redirect(url_for('product_route.edit_product_page', id=id))
+        return jsonify({
+            'success': False,
+            'message': f'更新产品失败: {str(e)}'
+        }), 500
+
+
+@bp.route('/products/<int:id>/unlock-mn', methods=['POST'])
+@login_required
+@permission_required('product', 'edit')
+def unlock_product_mn(id):
+    """管理员解锁产品MN编码"""
+    # 只有管理员可以解锁
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '只有管理员可以解锁MN编码'}), 403
+
+    product = Product.query.get_or_404(id)
+
+    if not product.is_mn_locked:
+        return jsonify({'success': False, 'message': '该产品的MN编码未锁定'}), 400
+
+    product.is_mn_locked = False
+    db.session.commit()
+
+    logger.info(f'管理员 {current_user.username} 解锁了产品 ID={id} 的MN编码')
+    return jsonify({'success': True, 'message': 'MN编码已解锁'})
+
+
+@bp.route('/products/<int:id>/lock-mn', methods=['POST'])
+@login_required
+@permission_required('product', 'edit')
+def lock_product_mn(id):
+    """管理员锁定产品MN编码"""
+    # 只有管理员可以锁定
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '只有管理员可以锁定MN编码'}), 403
+
+    product = Product.query.get_or_404(id)
+
+    if product.is_mn_locked:
+        return jsonify({'success': False, 'message': '该产品的MN编码已锁定'}), 400
+
+    product.is_mn_locked = True
+    db.session.commit()
+
+    logger.info(f'管理员 {current_user.username} 锁定了产品 ID={id} 的MN编码')
+    return jsonify({'success': True, 'message': 'MN编码已锁定'})
+
 
 @bp.route('/api/products/<int:id>/update', methods=['POST'])
 @login_required
@@ -3259,3 +3317,112 @@ def export_products():
         logger.error(f"错误详情: {traceback.format_exc()}")
         flash(f'导出失败：{str(e)}', 'danger')
         return redirect(url_for('product_route.products_page'))
+
+
+@bp.route('/p/<string:product_mn>')
+def public_product_info(product_mn):
+    """公开产品信息页面（无需登录）"""
+    from app.models.product_spec import ProductSpec
+
+    # 根据 product_mn 查找产品
+    product = Product.query.filter_by(product_mn=product_mn).first()
+    if not product:
+        return render_template('product/public_not_found.html', product_mn=product_mn), 404
+
+    # 获取规格数据
+    specs = ProductSpec.query.filter_by(product_id=product.id).order_by(ProductSpec.display_order).all()
+
+    # 获取单位信息
+    from app.routes.product_code import get_field_unit
+    specs_with_unit = []
+    for spec in specs:
+        unit = get_field_unit(spec.field_name) or ''
+        specs_with_unit.append({
+            'name': spec.field_name,
+            'value': spec.field_value or '-',
+            'unit': unit,
+            'code': spec.field_code
+        })
+
+    return render_template('product/public_info.html',
+                           product=product,
+                           specs=specs_with_unit)
+
+
+@bp.route('/products/<int:id>/qrcode')
+@login_required
+@permission_required('product', 'view')
+def generate_product_qrcode(id):
+    """生成产品二维码（包含产品信息文本和详情页URL）"""
+    import qrcode
+    from io import BytesIO
+    from app.models.product_spec import ProductSpec
+
+    try:
+        product = Product.query.get_or_404(id)
+
+        if not product.product_mn:
+            return jsonify({'error': '产品MN编码为空，无法生成二维码'}), 400
+
+        # 构建产品信息文本
+        lines = []
+
+        # 产品名称和型号
+        product_name = product.subcategory_obj.name if product.subcategory_obj else (product.product_name or '未知产品')
+        lines.append(f"产品: {product_name}")
+        lines.append(f"型号: {product.model or '-'}")
+        lines.append(f"MN: {product.product_mn}")
+
+        # 品牌
+        if product.brand:
+            lines.append(f"品牌: {product.brand}")
+
+        # 获取规格数据
+        specs = ProductSpec.query.filter_by(product_id=product.id).order_by(ProductSpec.display_order).all()
+        if specs:
+            lines.append("---规格---")
+            from app.routes.product_code import get_field_unit
+            for spec in specs:
+                value = spec.field_value or '-'
+                unit = get_field_unit(spec.field_name) or ''
+                if unit:
+                    lines.append(f"{spec.field_name}: {value} {unit}")
+                else:
+                    lines.append(f"{spec.field_name}: {value}")
+
+        # 添加详情页URL
+        lines.append("")
+        public_url = url_for('product_route.public_product_info',
+                             product_mn=product.product_mn,
+                             _external=True)
+        lines.append(f"详情: {public_url}")
+
+        # 合并为文本
+        qr_content = "\n".join(lines)
+
+        # 生成二维码
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=2,
+        )
+        qr.add_data(qr_content)
+        qr.make(fit=True)
+
+        img = qr.make_image(fill_color="black", back_color="white")
+
+        # 返回图片
+        buffer = BytesIO()
+        img.save(buffer, format='PNG')
+        buffer.seek(0)
+
+        return send_file(
+            buffer,
+            mimetype='image/png',
+            as_attachment=False
+        )
+
+    except Exception as e:
+        logger.error(f"生成产品二维码失败: {str(e)}")
+        return jsonify({'error': str(e)}), 500

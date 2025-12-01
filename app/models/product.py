@@ -28,6 +28,9 @@ class Product(db.Model):
     # 产品编码定义快照字段
     code_definition_snapshot = db.Column(db.JSON)  # 编码生成时的完整定义快照（避免编码表变化导致历史数据丢失）
 
+    # 规格自动生成的MN编码
+    spec_mn = db.Column(db.String(50))  # 根据规格自动计算的MN编码
+
     # 产品分类体系字段（与研发库一致）
     category_id = db.Column(db.Integer, db.ForeignKey('product_categories.id'))
     subcategory_id = db.Column(db.Integer, db.ForeignKey('product_subcategories.id'))
@@ -78,6 +81,24 @@ class Product(db.Model):
         if self.category_obj:
             return self.category_obj.name
         return self.category or ''
+
+    @property
+    def display_mn(self):
+        """返回显示用的MN编号
+
+        显示逻辑：
+        - 如果没有规格MN：返回产品MN
+        - 如果没有产品MN或两者相同：返回规格MN
+        - 如果两者不同：返回 "产品MN [规格MN]" 格式
+
+        Returns:
+            str: 显示用的MN编号
+        """
+        if not self.spec_mn:
+            return self.product_mn or ''
+        if not self.product_mn or self.product_mn == self.spec_mn:
+            return self.spec_mn
+        return f"{self.product_mn} [{self.spec_mn}]"
 
     def __repr__(self):
         return f'<Product {self.name} ({self.product_mn})>' 

@@ -17,10 +17,10 @@
     </div>
     
     <div class="product-details">
-        {% if product.product_mn %}
+        {% if product.display_mn %}
         <div class="detail-row">
             <span class="label">{{ _('型号') }}:</span>
-            <span class="value">{{ product.product_mn }}</span>
+            <span class="value">{{ product.display_mn }}</span>
         </div>
         {% endif %}
         

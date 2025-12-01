@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% from 'macros/ui_helpers.html' import render_button %}
+{% from 'macros/ui_helpers.html' import render_button, render_top_notification %}
 {% from 'macros/ui_modals.html' import render_select_quick_add_modal %}
 
 {% block title %}{% if product %}{{ _('编辑产品') }}{% else %}{{ _('新增研发产品' if product_type == 'research' else '新增产品') }}{% endif %}{% endblock %}
@@ -113,6 +113,7 @@
 {% endblock %}
 
 {% block content %}
+{{ render_top_notification() }}
 <div class="container-fluid page-with-fixed-nav">
     <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
     <div class="page-header-with-actions mb-4">
@@ -155,12 +156,12 @@
                 <!-- 产品类型：research=研发产品, standard=标准产品 -->
                 <input type="hidden" name="product_type" value="{{ product_type if product_type else 'standard' }}">
 
-                <!-- MN编码预览 - 移至选项卡上方 -->
+                <!-- 规格MN编码预览 - 移至选项卡上方 -->
                 <div class="row mb-4">
                     <div class="col-12">
                         <div class="card bg-light">
                             <div class="card-body py-2">
-                                <h6 class="card-title mb-1">{{ _('MN编码预览') }}</h6>
+                                <h6 class="card-title mb-1">{{ _('规格MN编码预览') }}</h6>
                                 <div id="mn_code_preview" class="h4 mb-0 font-monospace">
                                     {% if product %}
                                         {# 研发产品使用 mn_code，标准产品使用 product_mn #}
@@ -512,7 +513,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 编辑模式：加载现有规格数据和锁定状态
     const existingSpecs = {{ specs|tojson|safe if specs else '[]' }};
     window.existingSpecs = existingSpecs;  // 暴露到全局供调试
-    const isMNLocked = {{ 'true' if (product and is_mn_locked and not is_admin) else 'false' }};
+    // isMNLocked 已移除 - MN锁定只影响保存时产品MN是否同步，不影响编辑功能
     const isEditMode = {{ 'true' if product else 'false' }};
     const isAdmin = {{ 'true' if is_admin else 'false' }};
     const productType = '{{ product_type if product_type else "standard" }}';
@@ -1233,8 +1234,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td>
                     <div class="indicator-input-container">
                         <select class="form-control indicator-select"
-                                data-row-id="${rowId}"
-                                ${isMNLocked && existingValue ? 'disabled' : ''}>
+                                data-row-id="${rowId}">
                             <option value="">-- 请选择指标值 --</option>
                         </select>
                         <input type="hidden" name="spec_value[]" value="">
@@ -1248,8 +1248,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     ${field.use_in_code ? `<span class="badge bg-success me-2">位置${field.position}</span>` : ''}
                     ${!field.use_in_code ? '<span class="rounded-circle bg-secondary d-inline-block me-2" style="width: 8px; height: 8px;" title="非编码"></span>' : ''}
                     ${(field.is_required || isRequiredNonCoded) ? '<span class="rounded-circle bg-danger d-inline-block me-2" style="width: 8px; height: 8px;" title="必填"></span>' : ''}
-                    ${isMNLocked && existingValue ? '<span class="badge bg-secondary"><i class="fas fa-lock me-1"></i>已锁定</span>' : ''}
-                    ${isMNLocked && !existingValue ? '<span class="badge bg-warning"><i class="fas fa-lock me-1"></i>锁定(可补充)</span>' : ''}
                     ${isSnapshot ? `<button type="button" class="btn btn-outline-danger btn-sm ms-2" onclick="removeSpecRow('${rowId}')"><i class="fas fa-trash"></i></button>` : ''}
                 </td>
             `;
@@ -1283,8 +1281,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     SpecManagement.loadIndicatorOptionsForSpec(row, field.name, field.id, existingValue);
                 }
 
-                // 如果未锁定，或者锁定但没有已有值（可补充），则允许修改（但快照规格总是禁用）
-                if ((!isMNLocked || (isMNLocked && !existingValue)) && !isSnapshot) {
+                // 规格指标始终可编辑（MN锁定只影响保存时产品MN是否同步，不影响编辑）
+                // 只有快照规格不可编辑
+                if (!isSnapshot) {
                     indicatorSelect.disabled = false;
 
                     // 绑定选择事件
@@ -1332,18 +1331,15 @@ document.addEventListener('DOMContentLoaded', function() {
                             时间戳: new Date().toISOString()
                         });
 
-                        // 更新MN编码预览
-                        // 研发库：总是更新MN（包括编辑模式，因为还在研发配置阶段）
-                        // 产品库：仅创建模式更新MN（编辑模式下MN已定型）
-                        if (productType === 'research' || !isEditMode) {
-                            updateMNCodePreview();
-                        }
+                        // 更新MN编码预览（规格MN）
+                        // 规格MN预览始终实时更新，不受产品MN锁定状态影响
+                        // MN锁定只影响保存时产品MN是否同步规格MN
+                        updateMNCodePreview();
 
                         // 验证保存按钮状态
                         validateSaveButton();
                     });
                 }
-                // 如果锁定且有已有值，保持禁用状态（已在HTML中设置）
             }
         }
 
@@ -1484,8 +1480,46 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // 验证通过，提交表单
-        document.getElementById('productForm').submit();
+        // 检查MN编码重复
+        const mnPreview = document.getElementById('mn_code_preview');
+        const currentMNCode = mnPreview ? mnPreview.textContent.trim() : '';
+
+        if (currentMNCode && currentMNCode !== '请选择产品分类和子分类') {
+            // 构建请求数据，编辑模式时排除当前产品自己
+            const checkData = { mn_code: currentMNCode };
+            if (isEditMode && currentProductId) {
+                checkData.exclude_product_id = currentProductId;
+            }
+
+            // 检查编码是否已存在
+            fetch('/product-management/api/check-mn-code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+                },
+                body: JSON.stringify(checkData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.exists) {
+                    showTopNotification('MN编码 "' + currentMNCode + '" 已存在于' + (data.source === 'dev' ? '研发产品库' : '正式产品库') + '中，请调整规格指标后再保存。', 'error');
+                    return;  // 重复则停止，不提交
+                } else {
+                    // 编码不重复，AJAX提交表单
+                    submitFormAjax(form);
+                }
+            })
+            .catch(error => {
+                console.error('检查MN编码失败:', error);
+                if (confirm('无法验证MN编码唯一性，是否继续保存？')) {
+                    submitFormAjax(form);
+                }
+            });
+        } else {
+            // 没有生成MN编码，直接AJAX提交
+            submitFormAjax(form);
+        }
     };
 
     // 检查非编码规格可用性
@@ -1619,28 +1653,16 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // [调试3] 确认是否被编辑锁定阻止
-        console.log('[调试3] 检查编辑锁定:', {
+        // [调试3] 确认编辑模式状态
+        console.log('[调试3] 检查编辑模式:', {
             isEditMode: isEditMode,
             productType: productType,
-            是否被锁定: (isEditMode && productType !== 'research'),
             时间戳: new Date().toISOString()
         });
 
-        // 产品库编辑模式：MN编号完全锁定，不允许任何重新计算
-        // 研发库编辑模式：允许MN更新（研发配置阶段）
-        if (isEditMode && productType !== 'research') {
-            // 确保显示原始MN值（如果预览区域被清空了）
-            const currentMN = mnPreview.textContent.trim();
-            if (!currentMN || currentMN === '请选择产品分类和子分类' || currentMN === '--') {
-                // 尝试从隐藏字段获取原始MN（研发产品用mn_code，标准产品用product_mn）
-                const originalMN = '{{ product.mn_code if product and product.mn_code is defined else (product.product_mn if product else "") }}';
-                if (originalMN) {
-                    mnPreview.textContent = originalMN;
-                }
-            }
-            return;  // 产品库编辑模式下完全禁止重新计算MN
-        }
+        // 规格MN预览：允许在所有模式下实时计算预览
+        // 注意：这里只是预览显示，实际保存到 spec_mn 字段
+        // product_mn 的同步逻辑由后端根据 is_mn_locked 和 old_spec_mn 判断
 
         // 计算当前状态的哈希值，用于缓存检查
         const specCodes = Array.from(specsTableBody.querySelectorAll('input[name="spec_option_codes[]"]'))
@@ -1787,9 +1809,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // 存储到隐藏字段，用于后端保存
-        // 研发产品使用 mn_code_preview，标准产品使用 product_mn
+        // 研发产品使用 mn_code_preview，标准产品使用 spec_mn
         // productType 已在全局定义（第505行），直接使用
-        const mnFieldName = productType === 'research' ? 'mn_code_preview' : 'product_mn';
+        const mnFieldName = productType === 'research' ? 'mn_code_preview' : 'spec_mn';
 
         let mnCodeInput = form.querySelector(`input[name="${mnFieldName}"]`);
         if (!mnCodeInput) {
@@ -1920,70 +1942,44 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('[MN初始化] 编辑模式，保留原有MN编码，不重新计算');
     }
 
-    // 表单提交逻辑
-    form.addEventListener('submit', function(event) {
-        event.preventDefault();
-
-        // 验证必填字段
-        const categoryId = document.getElementById('category_id').value;
-        const selectedSubcategoryId = document.getElementById('subcategory_id').value;
-        const model = document.getElementById('product_model').value.trim();
-
-        if (!categoryId || !selectedSubcategoryId || !model) {
-            alert('请填写所有必填字段！');
-            return;
+    // AJAX表单提交函数（保留表单数据，使用通用通知）
+    // 挂载到 window 以便 submitProductForm 可以调用
+    window.submitFormAjax = function(form) {
+        const formData = new FormData(form);
+        const submitBtn = document.getElementById('submit-btn');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{{ _("保存中...") }}';
         }
 
-        // 验证规格表格数据
-        const specsInterfaceDiv = document.getElementById('specs-interface');
-        if (specsInterfaceDiv && specsInterfaceDiv.style.display !== 'none') {
-            const specRows = specsTableBody.querySelectorAll('tr');
-            for (let row of specRows) {
-                const specInput = row.querySelector('.spec-input');
-                if (specInput && !specInput.value.trim()) {
-                    alert('请为所有规格行输入或选择规格名称！');
-                    return;
+        fetch(form.action, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showTopNotification(data.message, 'success', 2000);
+                setTimeout(() => {
+                    window.location.href = data.redirect;
+                }, 2000);
+            } else {
+                showTopNotification(data.message, 'error');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-save me-1"></i>{{ _("保存产品") }}';
                 }
             }
-        }
-
-        // 检查MN编码重复
-        const mnPreview = document.getElementById('mn_code_preview');
-        const currentMNCode = mnPreview ? mnPreview.textContent.trim() : '';
-
-        if (currentMNCode && currentMNCode !== '请选择产品分类和子分类') {
-            // 检查编码是否已存在
-            fetch('/product-management/api/check-mn-code', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
-                },
-                body: JSON.stringify({
-                    mn_code: currentMNCode
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.exists) {
-                    alert('警告：MN编码 "' + currentMNCode + '" 已存在于' + (data.source === 'dev' ? '研发产品库' : '正式产品库') + '中，请调整规格指标后再保存。');
-                    return;
-                } else {
-                    // 编码不重复，提交表单
-                    form.submit();
-                }
-            })
-            .catch(error => {
-                console.error('检查MN编码失败:', error);
-                if (confirm('无法验证MN编码唯一性，是否继续保存？')) {
-                    form.submit();
-                }
-            });
-        } else {
-            // 没有生成MN编码，直接提交
-            form.submit();
-        }
-    });
+        })
+        .catch(error => {
+            console.error('提交表单失败:', error);
+            showTopNotification('{{ _("提交失败，请稍后重试") }}', 'error');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-save me-1"></i>{{ _("保存产品") }}';
+            }
+        });
+    };
 
     // 编辑模式初始化：只绑定事件，不重新加载数据
     if (isEditMode) {

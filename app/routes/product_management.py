@@ -3294,9 +3294,13 @@ def check_mn_code_duplicate_api():
 
         # 优先检查正式产品库（产品库新建应先检查产品库）
         from app.models.product import Product
-        formal_product = Product.query.filter(
+        formal_query = Product.query.filter(
             Product.product_mn == mn_code
-        ).first()
+        )
+        # 编辑模式时排除当前产品自己
+        if exclude_product_id:
+            formal_query = formal_query.filter(Product.id != exclude_product_id)
+        formal_product = formal_query.first()
 
         # 如果产品库已存在，立即返回，不再检查研发库
         if formal_product:

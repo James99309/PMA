@@ -371,8 +371,25 @@
                                     </div>
 
                                     <div class="product-property">
-                                        <div class="property-label">{{ _('产品MN') }}</div>
-                                        <div class="property-value">{{ product.product_mn or '-' }}</div>
+                                        <div class="property-label">
+                                            {{ _('产品MN') }}
+                                            {% if current_user.role == 'admin' %}
+                                                {% if product.is_mn_locked %}
+                                                <i class="fas fa-lock text-danger ms-2" style="cursor: pointer;"
+                                                   onclick="confirmUnlockMN()" title="{{ _('点击解锁MN编码') }}"></i>
+                                                {% else %}
+                                                <i class="fas fa-lock-open text-success ms-2" style="cursor: pointer;"
+                                                   onclick="confirmLockMN()" title="{{ _('点击锁定MN编码') }}"></i>
+                                                {% endif %}
+                                            {% else %}
+                                                {% if product.is_mn_locked %}
+                                                <i class="fas fa-lock text-danger ms-2" title="{{ _('MN编码已锁定') }}"></i>
+                                                {% else %}
+                                                <i class="fas fa-lock-open text-success ms-2" title="{{ _('MN编码未锁定') }}"></i>
+                                                {% endif %}
+                                            {% endif %}
+                                        </div>
+                                        <div class="property-value">{{ product.display_mn or '-' }}</div>
                                     </div>
 
                                     <div class="product-property">
@@ -396,18 +413,19 @@
                                     </div>
 
                                     <div class="product-property">
-                                        <div class="property-label">{{ _('数据所有者') }}</div>
-                                        <div class="property-value">{{ product.owner.username if product.owner else _('未指定') }}</div>
-                                    </div>
-
-                                    <div class="product-property">
-                                        <div class="property-label">{{ _('创建时间') }}</div>
-                                        <div class="property-value">{{ product.created_at.strftime('%Y-%m-%d %H:%M:%S') if product.created_at else _('未知') }}</div>
-                                    </div>
-
-                                    <div class="product-property">
                                         <div class="property-label">{{ _('更新时间') }}</div>
                                         <div class="property-value">{{ product.updated_at.strftime('%Y-%m-%d %H:%M:%S') if product.updated_at else _('未知') }}</div>
+                                    </div>
+
+                                    <!-- 产品二维码 -->
+                                    <div class="product-property">
+                                        <div class="property-label">{{ _('产品二维码') }}</div>
+                                        <div class="property-value">
+                                            <img src="{{ url_for('product_route.generate_product_qrcode', id=product.id) }}"
+                                                 alt="{{ _('产品二维码') }}"
+                                                 class="product-qrcode"
+                                                 style="width: 120px; height: 120px; border: 1px solid #dee2e6; border-radius: 4px;">
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -891,6 +909,52 @@ function initPdfUpload() {
 
         // 使用公共工具上传（支持分类共享）
         CategoryFileUpload.checkAndUpload(file, 'pdf');
+    });
+}
+
+/**
+ * 切换MN编码锁定状态（仅管理员可用）
+ */
+function confirmUnlockMN() { toggleMNLock(false); }
+function confirmLockMN() { toggleMNLock(true); }
+
+function toggleMNLock(lock) {
+    const config = lock ? {
+        title: '{{ _("确认锁定") }}',
+        message: '{{ _("确定要锁定此产品的MN编码吗？锁定后MN编码将不会自动更新。") }}',
+        confirmText: '{{ _("锁定") }}',
+        url: '{{ url_for("product_route.lock_product_mn", id=product.id) }}',
+        successMsg: '{{ _("MN编码已锁定") }}'
+    } : {
+        title: '{{ _("确认解锁") }}',
+        message: '{{ _("确定要解锁此产品的MN编码吗？解锁后MN编码将可以被修改。") }}',
+        confirmText: '{{ _("解锁") }}',
+        url: '{{ url_for("product_route.unlock_product_mn", id=product.id) }}',
+        successMsg: '{{ _("MN编码已解锁") }}'
+    };
+
+    showDeleteConfirm({
+        title: config.title,
+        message: config.message,
+        confirmText: config.confirmText,
+        cancelText: '{{ _("取消") }}',
+        onConfirm: () => {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]');
+            fetch(config.url, {
+                method: 'POST',
+                headers: csrfToken ? {'X-CSRFToken': csrfToken.content} : {}
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showTopNotification(config.successMsg, 'success', 2000);
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    showTopNotification(data.message, 'error');
+                }
+            })
+            .catch(() => showTopNotification('{{ _("操作失败，请稍后重试") }}', 'error'));
+        }
     });
 }
 

@@ -224,3 +224,108 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
     except Exception as e:
         current_app.logger.error(f"编码快照生成失败: 产品ID={product.id}, 错误={str(e)}")
         return None
+
+
+def generate_spec_mn(product):
+    """
+    根据产品规格生成规格MN编码
+
+    读取产品的规格数据，按照编码规则生成规格MN。
+    格式：区域编码 + 分类编码 + 子分类编码 + 规格编码序列
+
+    Args:
+        product: Product对象，必须已保存到数据库且有ID
+
+    Returns:
+        str | None: 生成的规格MN编码，失败返回None
+    """
+    try:
+        from app.models.product_spec import ProductSpec
+        from app.models.product_code import ProductCodeField
+
+        # 验证必要的分类信息
+        if not product.category_obj or not product.subcategory_obj:
+            current_app.logger.warning(
+                f"无法生成规格MN: 产品ID={product.id}缺少分类信息"
+            )
+            return None
+
+        # 获取区域编码
+        region_code = ""
+        if product.region_obj:
+            region_code = product.region_obj.code or ""
+            # 处理"?"情况
+            if region_code == "?":
+                from app.models.product_code import ProductCodeFieldOption
+                option = ProductCodeFieldOption.query.filter_by(
+                    field_id=product.region_obj.id
+                ).first()
+                region_code = option.code if option else "0"
+
+        # 获取分类和子分类编码
+        category_code = product.category_obj.code_letter or ""
+        subcategory_code = product.subcategory_obj.code_letter or ""
+
+        # 获取产品规格（按display_order排序）
+        specs = ProductSpec.query.filter_by(
+            product_id=product.id
+        ).order_by(ProductSpec.display_order, ProductSpec.id).all()
+
+        # 收集规格编码数据
+        specs_data = []
+        for spec in specs:
+            # 查询字段定义，获取position
+            # 编码定义由分类级和子分类级两部分组成：
+            # - 分类级字段：category_id有值，subcategory_id为None
+            # - 子分类级字段：subcategory_id有值
+
+            # 查询分类级字段
+            cat_field = ProductCodeField.query.filter_by(
+                category_id=product.category_id,
+                subcategory_id=None,
+                name=spec.field_name,
+                field_type='spec'
+            ).first()
+
+            # 查询子分类级字段
+            subcat_field = ProductCodeField.query.filter_by(
+                subcategory_id=product.subcategory_id,
+                name=spec.field_name,
+                field_type='spec'
+            ).first()
+
+            # 优先使用子分类级，回退到分类级
+            field_def = subcat_field or cat_field
+
+            # 只处理参与编码的规格（use_in_code=True）且有编码值的规格
+            if field_def and field_def.use_in_code and spec.field_code and spec.field_code.strip():
+                position = field_def.position if field_def else 999
+                specs_data.append({
+                    'position': position,
+                    'code': spec.field_code.strip()
+                })
+
+        # 按position排序
+        specs_data.sort(key=lambda x: x.get('position', 999))
+
+        # 提取前10个规格编码
+        spec_codes = [s.get('code', '0') for s in specs_data[:10]]
+
+        # 去掉末尾的'0'
+        while spec_codes and spec_codes[-1] == '0':
+            spec_codes.pop()
+
+        # 生成规格MN：区域 + 分类 + 子分类 + 规格编码
+        spec_mn = f"{region_code}{category_code}{subcategory_code}{''.join(spec_codes)}"
+
+        current_app.logger.debug(
+            f"生成规格MN成功: 产品ID={product.id}, spec_mn={spec_mn}"
+        )
+
+        return spec_mn if spec_mn else None
+
+    except Exception as e:
+        current_app.logger.error(
+            f"生成规格MN失败: 产品ID={product.id}, 错误={str(e)}"
+        )
+        return None
