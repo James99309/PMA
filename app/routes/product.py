@@ -2910,8 +2910,50 @@ def export_products():
         from app.models.product_spec import ProductSpec
         from app.routes.product_code import get_field_unit
 
-        # 查询所有产品
-        products = Product.query.order_by(Product.created_at.desc()).all()
+        # 辅助函数：获取产品规格的展示文本（优先从 ProductSpec 表，回退到 specification 字段）
+        def get_product_spec_display(product, ProductSpec_model, get_unit_func):
+            """获取产品规格的展示文本"""
+            # 优先从 code_definition_snapshot 获取
+            if product.code_definition_snapshot:
+                snapshot = product.code_definition_snapshot
+                code_parts = snapshot.get('code_parts', [])
+                spec_parts = []
+                for part in code_parts:
+                    field_name = part.get('field_name', '')
+                    value = part.get('value', '')
+                    if field_name and value:
+                        unit = get_unit_func(field_name) if get_unit_func else ''
+                        display_value = f"{value} {unit}" if unit else value
+                        spec_parts.append(f"{field_name}: {display_value}")
+                if spec_parts:
+                    return '; '.join(spec_parts)
+
+            # 然后从 ProductSpec 表获取
+            specs = ProductSpec_model.query.filter_by(product_id=product.id).order_by(ProductSpec_model.display_order).all()
+            if specs:
+                spec_parts = []
+                for spec in specs:
+                    if spec.field_name and spec.field_value:
+                        unit = get_unit_func(spec.field_name) if get_unit_func else ''
+                        display_value = f"{spec.field_value} {unit}" if unit else spec.field_value
+                        spec_parts.append(f"{spec.field_name}: {display_value}")
+                if spec_parts:
+                    return '; '.join(spec_parts)
+
+            # 最后回退到 specification 字段
+            return product.specification or ''
+
+        # 查询所有产品（按分类体系排序，与产品列表页一致）
+        products = Product.query\
+            .outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)\
+            .outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)\
+            .order_by(
+                ProductCategory.display_order.asc(),
+                ProductCategory.id.asc(),
+                ProductSubcategory.display_order.asc(),
+                ProductSubcategory.id.asc(),
+                Product.id.asc()
+            ).all()
 
         # 创建工作簿
         wb = Workbook()
@@ -2933,8 +2975,8 @@ def export_products():
         ws_list = wb.active
         ws_list.title = "产品列表"
 
-        # 产品列表表头
-        list_headers = ['产品类型', '产品类别', '状态', '产品名称', '型号',
+        # 产品列表表头（子分类 = 产品系列，产品名称 = 产品本身名称）
+        list_headers = ['产品类型', '产品类别', '状态', '子分类', '产品名称', '型号',
                         '规格', '品牌', '单位', '价格', '货币', 'MN号', '创建时间']
 
         for col_idx, header in enumerate(list_headers, 1):
@@ -2960,12 +3002,10 @@ def export_products():
 
         # 填充产品数据
         for row_idx, product in enumerate(products, 2):
-            # 获取产品名称（优先使用subcategory_obj）
-            product_name = ''
+            # 获取子分类名称（产品系列）
+            subcategory_name = ''
             if product.subcategory_obj:
-                product_name = product.subcategory_obj.name
-            elif product.product_name:
-                product_name = product.product_name
+                subcategory_name = product.subcategory_obj.name
 
             # 获取产品类别（优先使用category_obj）
             category_name = ''
@@ -2978,9 +3018,10 @@ def export_products():
                 type_map.get(product.type, product.type or ''),
                 category_name,
                 status_map.get(product.status, product.status or ''),
-                product_name,
+                subcategory_name,                   # 子分类（产品系列）
+                product.product_name or '',         # 产品名称（产品本身的名称）
                 product.model or '',
-                product.specification or '',
+                get_product_spec_display(product, ProductSpec, get_field_unit),  # 从 ProductSpec 表获取规格
                 product.brand or '',
                 product.unit or '',
                 float(product.retail_price) if product.retail_price else '',
@@ -2995,9 +3036,10 @@ def export_products():
                 cell.alignment = left_alignment
                 cell.border = thin_border
 
-        # 设置列宽
-        list_column_widths = {'A': 12, 'B': 12, 'C': 10, 'D': 20, 'E': 15,
-                             'F': 40, 'G': 12, 'H': 8, 'I': 12, 'J': 8, 'K': 15, 'L': 18}
+        # 设置列宽（增加了子分类列，共13列）
+        # A:产品类型, B:产品类别, C:状态, D:子分类, E:产品名称, F:型号, G:规格, H:品牌, I:单位, J:价格, K:货币, L:MN号, M:创建时间
+        list_column_widths = {'A': 12, 'B': 12, 'C': 10, 'D': 18, 'E': 20, 'F': 15,
+                             'G': 40, 'H': 12, 'I': 8, 'J': 12, 'K': 8, 'L': 15, 'M': 18}
         for col, width in list_column_widths.items():
             ws_list.column_dimensions[col].width = width
 
@@ -3182,7 +3224,7 @@ def export_products():
             # 如果该子分类有对应的规格Sheet，添加超链接
             if subcategory_id and subcategory_id in subcategory_to_sheet:
                 sheet_name = subcategory_to_sheet[subcategory_id]
-                cell = ws_list.cell(row=row_idx, column=4)  # D列是产品名称
+                cell = ws_list.cell(row=row_idx, column=4)  # D列是子分类
                 cell.hyperlink = f"#'{sheet_name}'!A1"
                 cell.font = link_font
 
