@@ -373,7 +373,11 @@
                                             "parent_item_id": (detail.parent_item_id or none),
                                             "config_type": (detail.config_type or "")|string,
                                             "config_base_quantity": (detail.config_base_quantity or none),
-                                            "quantity_synced": (detail.quantity_synced if detail.quantity_synced is not none else true)|string|lower
+                                            "quantity_synced": (detail.quantity_synced if detail.quantity_synced is not none else true)|string|lower,
+                                            "configured_specs": detail.configured_specs,
+                                            "configured_mn": (detail.configured_mn or "")|string,
+                                            "price_adjustment_total": (detail.price_adjustment_total or 0)|int,
+                                            "pending_product_creation": (detail.pending_product_creation or false)
                                         } %}
                                         {% if existing_details.append(detail_data) %}{% endif %}
                                     {% endfor %}

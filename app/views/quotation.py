@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_babel import gettext as _, ngettext
 from app.models.quotation import Quotation, QuotationDetail
+from app.models.product_code import ProductCodeField, ProductCodeFieldOption, ProductSubcategory
 from app.models.project import Project
 from app.models.customer import Company, Contact
 from app.models.product import Product  # 添加产品模型导入
@@ -1684,13 +1685,23 @@ def edit_quotation(id):
                     # 获取产品明细数据 - 支持JSON格式和传统表单格式
                     import json
                     product_details_json = request.form.get('product_details')
-                    
+
                     if product_details_json:
                         # 新版：从JSON字段获取数据
                         try:
                             product_details = json.loads(product_details_json)
                             if not product_details:
                                 raise ValueError('请至少添加一个产品')
+
+                            # 🔍 调试：打印配置相关字段
+                            for idx, pd in enumerate(product_details):
+                                current_app.logger.info(f'[DEBUG] 明细 {idx}: product_mn={pd.get("product_mn")}, '
+                                    f'configured_mn={pd.get("configured_mn")}, '
+                                    f'pending_product_creation={pd.get("pending_product_creation")}, '
+                                    f'configured_specs类型={type(pd.get("configured_specs"))}')
+                                if pd.get('configured_specs'):
+                                    current_app.logger.info(f'[DEBUG] 明细 {idx} configured_specs内容: {pd.get("configured_specs")}')
+
                         except json.JSONDecodeError as e:
                             raise ValueError(f'产品数据格式错误：{str(e)}')
                     else:
@@ -1825,6 +1836,25 @@ def edit_quotation(id):
                                 currency=detail_currency
                             )
 
+                            # 处理动态规格配置字段（用于创建研发产品）
+                            configured_specs_str = detail_data.get('configured_specs')
+                            if configured_specs_str:
+                                if isinstance(configured_specs_str, str):
+                                    try:
+                                        detail.configured_specs = json.loads(configured_specs_str)
+                                    except json.JSONDecodeError:
+                                        detail.configured_specs = None
+                                else:
+                                    detail.configured_specs = configured_specs_str
+
+                            detail.configured_mn = str(detail_data.get('configured_mn', '')).strip() or None
+                            detail.price_adjustment_total = int(detail_data.get('price_adjustment_total', 0) or 0)
+                            pending_creation = detail_data.get('pending_product_creation', False)
+                            if isinstance(pending_creation, str):
+                                detail.pending_product_creation = pending_creation.lower() == 'true'
+                            else:
+                                detail.pending_product_creation = bool(pending_creation)
+
                             # 处理配置产品相关字段
                             is_configuration = detail_data.get('is_configuration', False)
                             if is_configuration:
@@ -1940,7 +1970,16 @@ def edit_quotation(id):
                         current_app.logger.warning(f"更新项目活跃度失败: {str(activity_err)}")
                         
                 db.session.commit()
-                
+
+                # 检查并创建配置产品到研发产品库
+                try:
+                    created_products = create_products_from_configured_specs(quotation)
+                    if created_products:
+                        db.session.commit()  # 提交研发产品的更改
+                        current_app.logger.info(f'报价单 {quotation.id} 创建了 {len(created_products)} 个研发产品')
+                except Exception as e:
+                    current_app.logger.error(f'创建研发产品失败: {str(e)}')
+
                 flash(_('报价单更新成功！'), 'success')
                 return redirect(url_for('quotation.view_quotation', id=quotation.id))
                 
@@ -2393,6 +2432,7 @@ def get_products():
                     'type': p.type,
                     'category': p.category,
                     'product_mn': p.product_mn,
+                    'spec_mn': p.spec_mn,  # 完整规格MN（用于可配置字段计算）
                     'product_name': p.name,
                     'model': p.model,
                     'specification': p.specification,
@@ -2494,6 +2534,7 @@ def get_products_by_category():
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
                     'product_mn': p.product_mn,
+                    'spec_mn': p.spec_mn,  # 完整规格MN（用于可配置字段计算）
                     'status': p.status,  # 添加产品状态
                     'currency': p.currency or 'CNY'  # 添加货币字段
                 }
@@ -2550,6 +2591,7 @@ def get_product_models():
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
                     'product_mn': p.product_mn,
+                    'spec_mn': p.spec_mn,  # 完整规格MN（用于可配置字段计算）
                     'currency': p.currency or 'CNY',  # 添加货币字段
                     'status': p.status  # 添加产品状态字段
                 }
@@ -2668,6 +2710,7 @@ def get_product_specs():
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
                     'product_mn': p.product_mn,
+                    'spec_mn': p.spec_mn,  # 完整规格MN（用于可配置字段计算）
                     'currency': p.currency or 'CNY',  # 添加货币字段
                     'image_path': product_image,  # 添加图片路径
                     'code_specs': code_specs,  # 编码规格（默认显示）
@@ -3465,6 +3508,27 @@ def save_quotation(id):
                             product_mn = f"TEMP_{detail.get('temp_product_id', 'MANUAL')}"
                         current_app.logger.info(f'第 {index+1} 行 - 检测到临时产品，标识: {product_mn}')
                     
+                    # 处理动态规格配置数据
+                    configured_specs = detail.get('configured_specs')
+                    configured_mn = detail.get('configured_mn')
+                    price_adjustment_total = 0
+                    pending_product_creation = False
+
+                    # 🔍 调试：打印原始数据
+                    current_app.logger.info(f'🔍 [DEBUG] 第 {index+1} 行原始数据:')
+                    current_app.logger.info(f'🔍 [DEBUG]   configured_specs = {configured_specs}')
+                    current_app.logger.info(f'🔍 [DEBUG]   configured_mn = {configured_mn}')
+                    current_app.logger.info(f'🔍 [DEBUG]   pending_product_creation = {detail.get("pending_product_creation")}')
+                    current_app.logger.info(f'🔍 [DEBUG]   detail keys = {list(detail.keys())}')
+
+                    if configured_specs:
+                        try:
+                            price_adjustment_total = int(detail.get('price_adjustment_total', 0))
+                        except (ValueError, TypeError):
+                            price_adjustment_total = 0
+                        pending_product_creation = detail.get('pending_product_creation', False)
+                        current_app.logger.info(f'第 {index+1} 行 - 动态规格配置: MN={configured_mn}, 价格增量={price_adjustment_total}分, 需创建新产品={pending_product_creation}')
+
                     # 创建新明细 - 直接保存前端数据，不进行重新计算
                     new_detail = QuotationDetail(
                         quotation_id=id,
@@ -3479,7 +3543,12 @@ def save_quotation(id):
                         unit_price=unit_price,     # 直接使用前端的单价
                         total_price=total_price,   # 直接使用前端的小计
                         product_mn=product_mn,     # 包含临时产品标识的料号
-                        currency=data.get('currency', 'CNY')
+                        currency=data.get('currency', 'CNY'),
+                        # 动态规格配置字段
+                        configured_specs=configured_specs,
+                        configured_mn=configured_mn,
+                        price_adjustment_total=price_adjustment_total,
+                        pending_product_creation=pending_product_creation
                     )
                     
                     # 只计算植入小计，不修改其他价格字段
@@ -3525,6 +3594,16 @@ def save_quotation(id):
                 current_app.logger.info('准备提交所有更改到数据库...')
                 db.session.commit()
                 current_app.logger.info('数据库更改提交成功')
+
+                # 处理需要创建新研发产品的明细项
+                try:
+                    created_products = create_products_from_configured_specs(quotation)
+                    if created_products:
+                        current_app.logger.info(f'报价单 {quotation.id} 保存时创建了 {len(created_products)} 个研发产品')
+                except Exception as create_err:
+                    current_app.logger.error(f'创建研发产品失败: {str(create_err)}')
+                    # 不影响报价单保存成功
+
             except Exception as commit_error:
                 db.session.rollback()
                 error_type = type(commit_error).__name__
@@ -3824,7 +3903,7 @@ def toggle_product_detail_confirmation(quotation_id):
             quotation.set_confirmation_badge('#28a745', current_user.id)
             action = 'confirmed'
             message = '已确认产品明细'
-        
+
         # 保存到数据库
         db.session.commit()
         
@@ -4173,3 +4252,649 @@ def debug_permissions():
     
     return jsonify(debug_info)
 
+
+# ============================================================================
+# 动态规格配置 API
+# ============================================================================
+
+@quotation.route('/api/subcategory/<int:subcategory_id>/spec-field-options', methods=['GET'])
+@login_required
+@csrf.exempt
+def get_subcategory_spec_field_options(subcategory_id):
+    """
+    获取子分类的所有规格字段及其选项（包括继承的分类级字段）
+
+    用于报价单步骤1规格选择时：
+    - 可配置字段(allow_quotation_config=True)：显示全部指标选项
+    - 非可配置字段：前端仍从现有产品中提取选项
+
+    Args:
+        subcategory_id: 子分类ID
+
+    Returns:
+        JSON: {
+            success: bool,
+            data: {
+                subcategory_id: int,
+                spec_fields: [
+                    {
+                        field_name: str,
+                        position: int,
+                        use_in_code: bool,
+                        allow_quotation_config: bool,  # 是否可配置
+                        options: [  # 全部激活的指标选项
+                            {code: str, value: str, price_adjustment: int}
+                        ]
+                    }
+                ]
+            }
+        }
+    """
+    try:
+        # 使用现有方法获取所有字段（包括继承的分类级字段）
+        all_fields = ProductCodeField.get_all_fields_for_subcategory(subcategory_id)
+
+        # 合并继承字段和自有字段，筛选纳入编码的
+        spec_fields = [
+            f for f in (all_fields['inherited'] + all_fields['own'])
+            if f.use_in_code
+        ]
+
+        result_fields = []
+        for field in spec_fields:
+            # 获取该字段的所有激活选项
+            options = []
+            # 获取字段的单位（从规格字典中获取）
+            field_unit = None
+            for option in field.options:
+                if not option.is_active:
+                    continue
+
+                # 获取单位（从 spec_option.spec.unit 获取）
+                if not field_unit and option.spec_option and option.spec_option.spec:
+                    field_unit = option.spec_option.spec.unit
+
+                options.append({
+                    'code': option.effective_code or '',
+                    'value': option.effective_value,
+                    'price_adjustment': option.price_adjustment or 0
+                })
+
+            # 按值排序
+            options.sort(key=lambda x: x['value'])
+
+            result_fields.append({
+                'field_name': field.name,
+                'position': field.position,
+                'use_in_code': field.use_in_code,
+                'allow_quotation_config': field.allow_quotation_config or False,
+                'unit': field_unit,  # 字段的单位（从规格字典获取）
+                'options': options
+            })
+
+        # 按 position 排序
+        result_fields.sort(key=lambda x: x['position'])
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'subcategory_id': subcategory_id,
+                'spec_fields': result_fields
+            }
+        })
+
+    except Exception as e:
+        current_app.logger.error(f'获取子分类规格字段选项失败: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'获取失败: {str(e)}'
+        }), 500
+
+
+@quotation.route('/api/product/<int:product_id>/configurable-specs', methods=['GET'])
+@login_required
+@csrf.exempt
+def get_configurable_specs(product_id):
+    """
+    获取产品可配置的规格字段及其选项
+
+    根据产品所属的子分类，返回该子分类下定义的可配置规格字段选项。
+    可配置性在子分类级别控制：只有在 ProductCodeFieldOption 表中
+    subcategory_id 匹配且 allow_quotation_config=True 的选项才会返回。
+
+    Args:
+        product_id: 产品ID
+
+    Returns:
+        JSON: {
+            success: bool,
+            data: {
+                product_id: int,
+                product_name: str,
+                spec_mn: str,  # 当前MN编码
+                subcategory_id: int,
+                configurable_fields: [
+                    {
+                        field_id: int,
+                        field_name: str,
+                        field_unit: str,
+                        position: int,
+                        current_value: str,  # 产品当前的规格值
+                        current_code: str,   # 产品当前的编码字符
+                        options: [
+                            {
+                                option_id: int,
+                                value: str,
+                                code: str,
+                                price_adjustment: int,  # 价格增量（分）
+                                is_current: bool  # 是否是当前产品使用的选项
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    """
+    try:
+        # 获取产品
+        product = Product.query.get(product_id)
+        if not product:
+            return jsonify({
+                'success': False,
+                'message': '产品不存在'
+            }), 404
+
+        subcategory_id = product.subcategory_id
+        if not subcategory_id:
+            return jsonify({
+                'success': False,
+                'message': '产品未关联子分类，无法获取可配置规格'
+            }), 400
+
+        # 获取产品的编码快照，用于确定当前规格值
+        code_snapshot = product.code_definition_snapshot or {}
+        code_parts = code_snapshot.get('code_parts', [])
+
+        # 构建字段名到当前值/编码的映射
+        current_specs = {}
+        for part in code_parts:
+            field_name = part.get('field_name')
+            if field_name:
+                current_specs[field_name] = {
+                    'value': part.get('value', ''),
+                    'code': part.get('code', '')
+                }
+
+        # 使用现有的模型方法获取所有字段（包括继承的分类级字段）
+        all_fields = ProductCodeField.get_all_fields_for_subcategory(subcategory_id)
+        if not all_fields['inherited'] and not all_fields['own']:
+            # 子分类不存在或无字段
+            pass
+
+        # 合并继承字段和自有字段
+        all_field_list = all_fields['inherited'] + all_fields['own']
+
+        result_fields = []
+        for field in all_field_list:
+            if not field.use_in_code:
+                continue
+
+            # 获取该字段在子分类级的可配置选项
+            # 如果子分类没有定义该字段的选项，或没有启用 allow_quotation_config，则跳过
+            subcategory_options = field.get_options_for_subcategory(subcategory_id)
+            if not subcategory_options:
+                continue
+
+            current_spec = current_specs.get(field.name, {})
+            current_value = current_spec.get('value', '')
+            current_code = current_spec.get('code', '')
+
+            # 使用子分类级选项
+            options = []
+            for option in subcategory_options:
+                option_value = option.effective_value
+                option_code = option.effective_code
+
+                options.append({
+                    'option_id': option.id,
+                    'value': option_value,
+                    'code': option_code or '',
+                    'price_adjustment': option.price_adjustment or 0,
+                    'is_current': (option_value == current_value)
+                })
+
+            # 按值排序选项
+            options.sort(key=lambda x: x['value'])
+
+            result_fields.append({
+                'field_id': field.id,
+                'field_name': field.name,
+                'field_unit': field.unit or '',
+                'position': field.position,
+                'current_value': current_value,
+                'current_code': current_code,
+                'options': options
+            })
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'product_id': product.id,
+                'product_name': product.name,
+                'spec_mn': product.spec_mn or '',
+                'subcategory_id': subcategory_id,
+                'configurable_fields': result_fields
+            }
+        })
+
+    except Exception as e:
+        current_app.logger.error(f'获取可配置规格失败: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'获取失败: {str(e)}'
+        }), 500
+
+
+@quotation.route('/api/product/<int:product_id>/calculate-mn', methods=['POST'])
+@login_required
+@csrf.exempt
+def calculate_configured_mn(product_id):
+    """
+    根据配置的规格选项计算新的MN编码
+
+    Args:
+        product_id: 产品ID
+
+    Request Body:
+        {
+            "spec_config": {
+                "field_name_1": "option_value_1",
+                "field_name_2": "option_value_2",
+                ...
+            }
+        }
+
+    Returns:
+        JSON: {
+            success: bool,
+            data: {
+                original_mn: str,           # 原始MN
+                configured_mn: str,         # 配置后的MN
+                price_adjustment_total: int, # 总价格增量（分）
+                existing_product_id: int|null,  # 如果已存在相同MN的产品，返回其ID
+                existing_product_price: int|null,  # 已存在产品的价格（分）
+                is_new_product: bool,       # 是否需要创建新产品
+                spec_details: [             # 配置详情
+                    {
+                        field_name: str,
+                        original_value: str,
+                        configured_value: str,
+                        original_code: str,
+                        configured_code: str,
+                        price_adjustment: int
+                    }
+                ]
+            }
+        }
+    """
+    try:
+        # 获取产品
+        product = Product.query.get(product_id)
+        if not product:
+            return jsonify({
+                'success': False,
+                'message': '产品不存在'
+            }), 404
+
+        data = request.get_json()
+        spec_config = data.get('spec_config', {})
+
+        if not spec_config:
+            return jsonify({
+                'success': False,
+                'message': '请提供规格配置'
+            }), 400
+
+        subcategory_id = product.subcategory_id
+        if not subcategory_id:
+            return jsonify({
+                'success': False,
+                'message': '产品未关联子分类'
+            }), 400
+
+        # 获取产品的编码快照
+        code_snapshot = product.code_definition_snapshot or {}
+        code_parts = code_snapshot.get('code_parts', [])
+
+        # 构建字段名到当前值/编码的映射
+        current_specs = {}
+        for part in code_parts:
+            field_name = part.get('field_name')
+            if field_name:
+                current_specs[field_name] = {
+                    'value': part.get('value', ''),
+                    'code': part.get('code', ''),
+                    'position': part.get('position', 999)
+                }
+
+        # 获取原始MN的各部分
+        original_mn = product.spec_mn or ''
+
+        # 使用现有的模型方法获取所有字段（包括继承的分类级字段）
+        all_fields = ProductCodeField.get_all_fields_for_subcategory(subcategory_id)
+
+        # 合并继承字段和自有字段，然后筛选可配置的
+        configurable_fields = [
+            f for f in (all_fields['inherited'] + all_fields['own'])
+            if f.use_in_code and f.allow_quotation_config
+        ]
+
+        # 构建字段名到字段对象的映射
+        field_map = {f.name: f for f in configurable_fields}
+
+        # 计算配置后的编码和价格增量
+        spec_details = []
+        total_price_adjustment = 0
+
+        # 复制原始MN用于修改
+        mn_chars = list(original_mn) if original_mn else []
+
+        for field_name, configured_value in spec_config.items():
+            field = field_map.get(field_name)
+            if not field:
+                continue  # 跳过非可配置字段
+
+            current_spec = current_specs.get(field_name, {})
+            original_value = current_spec.get('value', '')
+            original_code = current_spec.get('code', '')
+            # 使用code_snapshot中的实际MN位置，而不是字段的排序位置
+            position = current_spec.get('position')
+
+            if position is None:
+                continue  # 没有位置信息则跳过
+
+            # 查找配置值对应的选项
+            configured_option = None
+            for option in field.options:
+                if option.is_active and option.effective_value == configured_value:
+                    configured_option = option
+                    break
+
+            if not configured_option:
+                return jsonify({
+                    'success': False,
+                    'message': f'规格"{field_name}"的值"{configured_value}"不在可选范围内'
+                }), 400
+
+            configured_code = configured_option.effective_code or ''
+            price_adjustment = configured_option.price_adjustment or 0
+
+            # 更新MN中对应位置的编码字符
+            if position < len(mn_chars) and configured_code:
+                mn_chars[position] = configured_code
+
+            # 记录详情
+            spec_details.append({
+                'field_name': field_name,
+                'original_value': original_value,
+                'configured_value': configured_value,
+                'original_code': original_code,
+                'configured_code': configured_code,
+                'price_adjustment': price_adjustment
+            })
+
+            # 累计价格增量（只有当值发生变化时才计算增量差）
+            if original_value != configured_value:
+                # 找到原始值对应的选项，获取其价格增量
+                original_price_adjustment = 0
+                for option in field.options:
+                    if option.is_active and option.effective_value == original_value:
+                        original_price_adjustment = option.price_adjustment or 0
+                        break
+
+                # 价格变化 = 新选项增量 - 原选项增量
+                total_price_adjustment += (price_adjustment - original_price_adjustment)
+
+        configured_mn = ''.join(mn_chars)
+
+        # 检查是否已存在相同MN的产品
+        existing_product = None
+        existing_product_id = None
+        existing_product_price = None
+        is_new_product = True
+
+        if configured_mn:
+            existing_product = Product.query.filter(
+                Product.spec_mn == configured_mn,
+                Product.is_deleted == False
+            ).first()
+
+            if existing_product:
+                is_new_product = False
+                existing_product_id = existing_product.id
+                existing_product_price = existing_product.unit_price
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'original_mn': original_mn,
+                'configured_mn': configured_mn,
+                'price_adjustment_total': total_price_adjustment,
+                'existing_product_id': existing_product_id,
+                'existing_product_price': existing_product_price,
+                'is_new_product': is_new_product,
+                'spec_details': spec_details
+            }
+        })
+
+    except Exception as e:
+        current_app.logger.error(f'计算配置MN失败: {str(e)}')
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'message': f'计算失败: {str(e)}'
+        }), 500
+
+
+def create_products_from_configured_specs(quotation):
+    """
+    从报价单明细中的配置规格创建研发产品
+
+    遍历报价单的所有明细项，找到标记为 pending_product_creation=True 的项，
+    基于原产品和配置的规格创建新的研发产品（DevProduct）。
+    新创建的研发产品状态为"立项中"。
+
+    Args:
+        quotation: 报价单对象
+
+    Returns:
+        list: 创建的新研发产品列表
+    """
+    from app.models.dev_product import DevProduct, DevProductSpec
+    from datetime import datetime
+
+    current_app.logger.info(f'[DEBUG] create_products_from_configured_specs 被调用，报价单ID={quotation.id}，明细数={len(quotation.details)}')
+
+    created_products = []
+
+    for detail in quotation.details:
+        # 🔍 调试：打印每个明细的配置字段
+        current_app.logger.info(f'[DEBUG] 明细 {detail.id}: pending_product_creation={detail.pending_product_creation}, '
+            f'configured_mn={detail.configured_mn}, configured_specs={detail.configured_specs}')
+
+        # 检查是否需要创建新产品
+        if not detail.pending_product_creation:
+            continue
+
+        if not detail.configured_specs or not detail.configured_mn:
+            current_app.logger.warning(f'明细 {detail.id} 标记需创建产品但缺少配置数据')
+            continue
+
+        configured_mn = detail.configured_mn
+
+        # 1. 检查研发产品库是否已存在相同MN
+        existing_dev_product = DevProduct.query.filter(
+            DevProduct.mn_code == configured_mn
+        ).first()
+
+        if existing_dev_product:
+            current_app.logger.info(f'配置的MN {configured_mn} 已存在研发产品 {existing_dev_product.id}，跳过创建')
+
+            # 追加报价单引用到 development_purpose
+            quotation_no = quotation.quotation_number
+            current_purpose = existing_dev_product.development_purpose or ''
+            if quotation_no not in current_purpose:
+                if '引用:' in current_purpose:
+                    # 已有引用记录，追加
+                    existing_dev_product.development_purpose = f'{current_purpose}, {quotation_no}'
+                else:
+                    # 首次添加引用
+                    existing_dev_product.development_purpose = f'{current_purpose}\n引用: {quotation_no}'
+                current_app.logger.info(f'研发产品 {existing_dev_product.id} 追加报价单引用: {quotation_no}')
+
+            detail.pending_product_creation = False
+            continue
+
+        # 2. 检查标准产品库是否已存在相同MN
+        existing_product = Product.query.filter(
+            Product.spec_mn == configured_mn,
+            Product.status != 'deleted'
+        ).first()
+
+        if existing_product:
+            current_app.logger.info(f'配置的MN {configured_mn} 已存在标准产品 {existing_product.id}，跳过创建')
+            detail.pending_product_creation = False
+            continue
+
+        # 3. 获取原产品信息
+        configured_specs = detail.configured_specs or {}
+        original_product_id = configured_specs.get('original_product_id')
+
+        if not original_product_id:
+            # 尝试从product_mn反向查找
+            if detail.product_mn and not detail.product_mn.startswith('TEMP_'):
+                original_product = Product.query.filter(
+                    Product.spec_mn == detail.product_mn,
+                    Product.status != 'deleted'
+                ).first()
+                if original_product:
+                    original_product_id = original_product.id
+
+        if not original_product_id:
+            current_app.logger.warning(f'明细 {detail.id} 无法找到原产品')
+            continue
+
+        original_product = Product.query.get(original_product_id)
+        if not original_product:
+            current_app.logger.warning(f'原产品 {original_product_id} 不存在')
+            continue
+
+        try:
+            # 4. 创建研发产品
+            current_time = datetime.now()
+            price_adjustment = detail.price_adjustment_total or 0
+
+            # 计算新价格（price_adjustment 是分，retail_price 是元）
+            original_price = float(original_product.retail_price or 0)
+            new_price = original_price + (price_adjustment / 100)
+
+            # 初始化阶段历史（立项阶段）
+            initial_stage_history = [{
+                'stage': 'planning',
+                'startDate': current_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'endDate': None,
+                'user_id': current_user.id,
+                'description': f'从报价单 {quotation.quotation_number} 配置创建'
+            }]
+
+            new_dev_product = DevProduct(
+                name=original_product.name,
+                model=original_product.model,
+                category_id=original_product.category_id,
+                subcategory_id=original_product.subcategory_id,
+                region_id=original_product.region_id,
+                unit=original_product.unit,
+                currency=original_product.currency or 'CNY',
+                mn_code=configured_mn,
+                status='立项中',
+                retail_price=new_price,
+                development_purpose=f'从报价单 {quotation.quotation_number} 配置创建',
+                # ⭐ 优先使用配置后的描述，否则使用报价单明细描述或原产品规格
+                description=configured_specs.get('configured_description') or detail.product_desc or original_product.specification,
+                created_by=current_user.id,
+                owner_id=current_user.id,
+                created_at=current_time,
+                stage_history=initial_stage_history,
+                image_path=original_product.image_path
+            )
+
+            db.session.add(new_dev_product)
+            db.session.flush()  # 获取新产品ID
+
+            # 5. 创建规格记录
+            # 首先从原产品复制基础规格
+            from app.models.product_spec import ProductSpec
+            original_specs = ProductSpec.query.filter_by(product_id=original_product_id).all()
+
+            # 构建配置选择的映射（fieldName -> 配置值）
+            price_details = configured_specs.get('price_details', [])
+            configurable_selections = configured_specs.get('configurable_selections', {})
+
+            # 从 price_details 构建字段名到配置值的映射
+            configured_values = {}
+            for pd in price_details:
+                field_name = pd.get('fieldName', '')
+                if field_name:
+                    configured_values[field_name] = {
+                        'value': pd.get('value', ''),
+                        'code': ''  # price_details 中没有 code，需要从 configurable_selections 获取
+                    }
+
+            # 从 configurable_selections 补充 code 信息
+            # configurable_selections 的 key 是字段ID，需要通过查询获取字段名
+            from app.models.product_code import ProductCodeField
+            for field_id, selection in configurable_selections.items():
+                field = ProductCodeField.query.get(int(field_id))
+                if field and field.name in configured_values:
+                    configured_values[field.name]['code'] = selection.get('code', '')
+
+            current_app.logger.info(f'[DEBUG] 配置值映射: {configured_values}')
+
+            # 复制原产品规格，替换配置的值
+            for orig_spec in original_specs:
+                field_name = orig_spec.field_name
+                field_value = orig_spec.field_value
+                field_code = orig_spec.field_code
+
+                # 如果该字段有配置值，使用配置值
+                if field_name in configured_values:
+                    field_value = configured_values[field_name].get('value', field_value)
+                    field_code = configured_values[field_name].get('code', field_code)
+                    current_app.logger.info(f'[DEBUG] 字段 {field_name} 使用配置值: value={field_value}, code={field_code}')
+
+                dev_spec = DevProductSpec(
+                    dev_product_id=new_dev_product.id,
+                    field_name=field_name,
+                    field_value=field_value,
+                    field_code=field_code,
+                    include_in_description=True
+                )
+                db.session.add(dev_spec)
+
+            current_app.logger.info(f'[DEBUG] 复制了 {len(original_specs)} 个规格到研发产品')
+
+            # 6. 更新明细项
+            detail.pending_product_creation = False
+            detail.product_mn = configured_mn  # 更新为新的MN
+
+            created_products.append(new_dev_product)
+            current_app.logger.info(f'成功创建研发产品: ID={new_dev_product.id}, MN={configured_mn}, 状态=立项中')
+
+        except Exception as e:
+            current_app.logger.error(f'创建研发产品失败: {str(e)}')
+            import traceback
+            current_app.logger.error(traceback.format_exc())
+            continue
+
+    return created_products

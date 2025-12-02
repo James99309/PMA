@@ -1,6 +1,5 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_button, render_custom_dialog, render_confirm_dialog %}
-{% from 'macros/ui_modals.html' import render_select_quick_add_modal %}
 
 {% block title %}{{ category.name }} - 通用编码规格{% endblock %}
 
@@ -92,9 +91,8 @@
                 <thead>
                     <tr>
                         <th width="8%">序号</th>
-                        <th width="20%">规格名称</th>
-                        <th width="12%">编码位置</th>
-                        <th>指标列表</th>
+                        <th width="30%">规格名称</th>
+                        <th width="15%">编码位置</th>
                         <th width="15%">操作</th>
                     </tr>
                 </thead>
@@ -123,60 +121,7 @@
                             <span class="rounded-circle bg-secondary d-inline-block" style="width: 8px; height: 8px;" title="未纳入编码"></span>
                             {% endif %}
                         </td>
-                        <td>
-                            {% if field.options %}
-                                {% for option in field.options %}
-                                    {% if option.is_used %}
-                                        <span class="badge bg-secondary me-1 mb-1 position-relative">
-                                            {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
-                                            <span class="text-white ms-1" title="此指标已被产品使用，无法修改或删除">
-                                                <i class="fas fa-lock"></i>
-                                            </span>
-                                        </span>
-                                    {% elif option.is_active %}
-                                        <span class="badge bg-primary me-1 mb-1 position-relative" style="padding-right: 28px;">
-                                            <a href="javascript:void(0)"
-                                               onclick="openCategoryOptionModal({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', 'edit', {{ option.id }})"
-                                               class="text-white text-decoration-none"
-                                               style="cursor: pointer;"
-                                               title="点击编辑指标">
-                                                {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
-                                            </a>
-                                            <a href="javascript:void(0)"
-                                               onclick="event.stopPropagation(); deleteCategoryOption({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', {{ option.id }}, '{{ option.effective_value }}')"
-                                               class="text-white ms-1 position-absolute"
-                                               style="text-decoration: none; cursor: pointer; right: 8px;"
-                                               title="删除">
-                                                <i class="fas fa-times"></i>
-                                            </a>
-                                        </span>
-                                    {% else %}
-                                        <span class="badge bg-secondary me-1 mb-1 position-relative">
-                                            {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
-                                            <a href="javascript:void(0)"
-                                               onclick="toggleCategoryOptionStatus({{ option.id }}, '{{ option.effective_value }}', false)"
-                                               class="text-white ms-1"
-                                               style="text-decoration: none; cursor: pointer;"
-                                               title="重新启用">
-                                                <i class="fas fa-check"></i>
-                                            </a>
-                                        </span>
-                                    {% endif %}
-                                {% endfor %}
-                            {% else %}
-                                <span class="text-muted">暂无指标</span>
-                            {% endif %}
-                        </td>
                         <td class="text-center">
-                            {% set exclude_spec_option_ids = [] %}
-                            {% for option in field.options.all() %}
-                                {% if option.spec_option_id %}
-                                    {% set _ = exclude_spec_option_ids.append(option.spec_option_id) %}
-                                {% endif %}
-                            {% endfor %}
-                            <button onclick="window.IndicatorQuickAdd.showQuickAddModal('{{ field.name }}', {{ field.id }}, null, {{ exclude_spec_option_ids }})" class="btn btn-sm btn-info" title="添加指标">
-                                <i class="fas fa-list"></i>
-                            </button>
                             {% if not field.is_used %}
                             <button onclick="categoryFieldManager.confirmDelete({{ field.id }}, '{{ field.name }}')" class="btn btn-sm btn-danger" title="删除">
                                 <i class="fas fa-trash"></i>
@@ -190,7 +135,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" class="text-center text-muted">
+                        <td colspan="4" class="text-center text-muted">
                             <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
                             暂无通用编码规格，点击上方"添加规格"按钮开始配置
                         </td>
@@ -266,6 +211,15 @@
                 </label>
             </div>
 
+            <!-- 允许报价配置 - 已下沉到子分类级别管理，分类级不再显示此选项 -->
+            <!-- 保留元素结构以兼容现有JS代码，但始终隐藏 -->
+            <div class="form-check mb-3" id="allowQuotationConfigGroup" style="display: none !important;">
+                <input type="checkbox" class="form-check-input" id="fieldAllowQuotationConfig" disabled>
+                <label class="form-check-label" for="fieldAllowQuotationConfig">
+                    允许报价配置（已移至子分类级别）
+                </label>
+            </div>
+
             <!-- 按钮组 -->
             <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
                 {{ render_button('取消', onclick='closeCustomDialog("fieldModal")', color='secondary', icon='fas fa-times') }}
@@ -274,37 +228,8 @@
         </form>
     {% endcall %}
 
-    <!-- 指标添加模态框 - 使用SelectWithQuickAdd通用框架 -->
-    {{ render_select_quick_add_modal() }}
-
-    <!-- 指标编辑模态框 -->
-    {% call render_custom_dialog('optionModal', '编辑指标', icon='fas fa-edit', size='md') %}
-        <form id="optionForm">
-            <input type="hidden" id="optionId">
-
-            <!-- 指标名称 -->
-            <div class="mb-3">
-                <label for="optionValue" class="form-label">
-                    指标名称 <span class="text-danger">*</span>
-                </label>
-                <input type="text" class="form-control" id="optionValue" required>
-                <div class="invalid-feedback">
-                    请输入指标名称
-                </div>
-                <div class="form-text" id="unitHint"></div>
-            </div>
-
-            <!-- 按钮组 -->
-            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                {{ render_button('取消', onclick='closeCustomDialog("optionModal")', color='secondary', icon='fas fa-times') }}
-                {{ render_button('保存', onclick='categoryOptionManager.saveOption()', color='primary', icon='fas fa-save') }}
-            </div>
-        </form>
-    {% endcall %}
-
     <!-- 删除确认对话框 -->
     {{ render_confirm_dialog('deleteFieldDialog') }}
-    {{ render_confirm_dialog('deleteOptionDialog') }}
 
 </div>
 {% endblock %}
@@ -315,105 +240,10 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('分类级通用编码规格管理页面已加载');
 });
-
-// 全局函数：切换指标启用/禁用状态
-function toggleCategoryOptionStatus(optionId, optionValue, isActive) {
-    const action = isActive ? '禁用' : '启用';
-
-    showDeleteConfirm({
-        title: `确认${action}指标`,
-        message: `确定要${action}指标"${optionValue}"吗？`,
-        dialogId: 'deleteOptionDialog',
-        onConfirm: async () => {
-            try {
-                const response = await fetch(`/product-code/api/options/${optionId}/toggle`, {
-                    method: 'PATCH'
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    location.reload();
-                } else {
-                    if (typeof showTopNotification === 'function') {
-                        showTopNotification(result.message, 'error', 5000);
-                    } else {
-                        alert(result.message);
-                    }
-                }
-            } catch (error) {
-                console.error(`${action}指标失败:`, error);
-                if (typeof showTopNotification === 'function') {
-                    showTopNotification(`${action}失败，请重试`, 'error', 5000);
-                } else {
-                    alert(`${action}失败，请重试`);
-                }
-            }
-        }
-    });
-}
-
-// 打开分类级指标编辑模态框
-function openCategoryOptionModal(fieldId, fieldName, unit, mode, optionId) {
-    // 使用子分类页面的同样逻辑
-    if (typeof openOptionModal === 'function') {
-        openOptionModal(fieldId, fieldName, unit, mode, optionId);
-    }
-}
-
-// 删除分类级指标
-function deleteCategoryOption(fieldId, fieldName, unit, optionId, optionValue) {
-    if (typeof deleteOption === 'function') {
-        deleteOption(fieldId, fieldName, unit, optionId, optionValue);
-    }
-}
-</script>
-
-<!-- SelectWithQuickAdd通用框架 -->
-<script src="{{ url_for('static', filename='js/select-with-quick-add.js') }}"></script>
-
-<!-- 配置 SelectWithQuickAdd -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    if (window.IndicatorQuickAdd) {
-        window.IndicatorQuickAdd.configure({
-            // 分类级页面：使用 category_id 替代 subcategory_id
-            getRelatedId: function() {
-                const categoryIdInput = document.getElementById('category_id');
-                return categoryIdInput ? categoryIdInput.value : null;
-            },
-
-            // 使用规格字典 API，只返回规格字典中定义的指标（避免历史数据导致的重复）
-            getExistingItemsUrl: function(context) {
-                console.log('[分类级规格管理] 自定义getExistingItemsUrl调用', context);
-
-                if (!context.specName) {
-                    console.warn('[分类级规格管理] specName为空，无法构建URL');
-                    return null;
-                }
-
-                // 使用规格字典 API，只返回规格字典中定义的指标
-                const url = new URL(`/api/spec-dictionary/options/by-name/${encodeURIComponent(context.specName)}`, window.location.origin);
-                url.searchParams.append('active_only', 'true');
-
-                console.log('[分类级规格管理] 构建的URL:', url.toString());
-                return url.toString();
-            },
-
-            refreshTarget: function(context, newItem) {
-                console.log('[分类级规格管理] 指标添加成功，刷新页面');
-                location.reload();
-            }
-        });
-    }
-});
 </script>
 
 <!-- 分类级字段管理器 -->
 <script src="{{ url_for('static', filename='js/product-code-category-field-manager.js') }}"></script>
-
-<!-- 产品代码指标管理器（复用） -->
-<script src="{{ url_for('static', filename='js/product-code-option-manager.js') }}"></script>
 
 {% if not any_field_used and fields %}
 <!-- 拖拽排序功能 -->

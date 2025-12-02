@@ -445,6 +445,12 @@ class QuotationDetail(db.Model):
     config_base_quantity = db.Column(db.Integer, nullable=True)  # 配置基础数量
     quantity_synced = db.Column(db.Boolean, default=True, nullable=False)  # 配置产品是否同步主产品数量
 
+    # 动态规格配置字段
+    configured_specs = db.Column(db.JSON, nullable=True)  # 配置规格快照，格式见计划文档
+    configured_mn = db.Column(db.String(50), nullable=True)  # 配置后的MN编码
+    price_adjustment_total = db.Column(db.Integer, default=0)  # 总价格增量（分）
+    pending_product_creation = db.Column(db.Boolean, default=False)  # 是否需要在确认时创建新产品
+
     # 产品明细确认字段 - 暂时注释掉数据库字段，使用会话存储
     # is_confirmed = db.Column(db.Boolean, default=False)  # 是否确认
     # confirmed_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # 确认人

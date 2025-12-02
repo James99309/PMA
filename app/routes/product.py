@@ -2776,6 +2776,7 @@ def get_products_by_subcategory_api():
                 'product_name': product.product_name,  # 使用独立的产品名称字段
                 'model': product.model,
                 'product_mn': product.product_mn,
+                'spec_mn': product.spec_mn,  # 完整规格MN（用于可配置字段计算）
                 'specification': product.specification,
                 'brand': product.brand,
                 'unit': product.unit,

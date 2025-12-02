@@ -93,6 +93,67 @@
         </div>
       </div>
 
+      <!-- 动态规格配置区域（产品确定后显示，允许修改规格生成新MN） -->
+      <div id="dynamicSpecConfigArea" style="display: none;">
+        <hr class="section-divider">
+        <h6 class="mb-3">
+          <i class="fas fa-sliders-h text-warning"></i> {{ _('规格定制') }}
+          <small class="text-muted">{{ _('(可选) 调整规格生成新产品') }}</small>
+        </h6>
+
+        <!-- 可配置规格列表 -->
+        <div id="configurableSpecsList" class="configurable-specs-list">
+          <!-- 可配置规格将动态生成 -->
+        </div>
+
+        <!-- 配置结果预览 -->
+        <div id="specConfigPreview" class="spec-config-preview mt-3" style="display: none;">
+          <div class="preview-header d-flex justify-content-between align-items-center">
+            <span class="fw-bold">
+              <i class="fas fa-eye"></i> {{ _('配置预览') }}
+            </span>
+            <span id="previewPriceAdjustment" class="badge bg-info"></span>
+          </div>
+          <div class="preview-content mt-2">
+            <div class="row">
+              <div class="col-6">
+                <small class="text-muted">{{ _('原MN') }}</small>
+                <div id="previewOriginalMn" class="fw-bold">-</div>
+              </div>
+              <div class="col-6">
+                <small class="text-muted">{{ _('新MN') }}</small>
+                <div id="previewConfiguredMn" class="fw-bold text-primary">-</div>
+              </div>
+            </div>
+            <div id="previewExistingProduct" class="mt-2" style="display: none;">
+              <div class="alert alert-success mb-0 py-2">
+                <i class="fas fa-check-circle"></i>
+                <span id="previewExistingMessage">{{ _('已存在相同规格产品') }}</span>
+              </div>
+            </div>
+            <div id="previewNewProduct" class="mt-2" style="display: none;">
+              <div class="alert alert-warning mb-0 py-2">
+                <i class="fas fa-plus-circle"></i>
+                {{ _('将在确认报价单时创建新产品') }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 加载中状态 -->
+        <div id="specConfigLoading" class="text-center py-3" style="display: none;">
+          <div class="spinner-border spinner-border-sm text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <span class="ms-2 text-muted">{{ _('正在加载可配置规格...') }}</span>
+        </div>
+
+        <!-- 无可配置规格提示 -->
+        <div id="noConfigurableSpecs" class="text-center text-muted py-3" style="display: none;">
+          <i class="fas fa-info-circle"></i> {{ _('该产品暂无可定制规格') }}
+        </div>
+      </div>
+
       <!-- 产品配置区域（产品确定后显示） -->
       <div id="productConfigArea" style="display: none;">
         <hr class="section-divider">
@@ -456,6 +517,13 @@
   flex: 1;
 }
 
+/* 可配置规格样式 - 黑色斜体 */
+#productConfigModal .spec-field-configurable .spec-field-label,
+#productConfigModal .spec-field-configurable .spec-field-value {
+  font-style: italic;
+  color: #000 !important;
+}
+
 /* 可选字段样式（需要选择） */
 #productConfigModal .spec-field-selectable {
   margin-bottom: 1.5rem;
@@ -756,6 +824,65 @@
   border-radius: 0 4px 4px 0;
 }
 
+/* ============== 可配置字段视觉标记 ============== */
+
+/* 可配置字段容器样式 */
+#productConfigModal .spec-field-selectable.configurable-field {
+  background-color: #fff8e1;
+  border-left: 3px solid #f39c12;
+  padding-left: 0.75rem;
+  margin-left: -0.75rem;
+  border-radius: 0 4px 4px 0;
+}
+
+/* 可配置字段标记 - 橘色圆圈 */
+#productConfigModal .configurable-indicator {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #f39c12;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* 自动关联标记 - 蓝色圆圈 */
+#productConfigModal .auto-linked-indicator {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #3498db;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* 可配置字段占位提示 */
+#productConfigModal .configurable-fields-placeholder {
+  padding: 1rem;
+  margin-top: 0.5rem;
+  background-color: #f8f9fa;
+  border: 1px dashed #dee2e6;
+  border-radius: 8px;
+  text-align: center;
+}
+
+#productConfigModal .configurable-fields-placeholder .placeholder-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+#productConfigModal .configurable-fields-placeholder i {
+  font-size: 1rem;
+}
+
+/* 移除自动选中字段的"自动关联"文字后缀（改用蓝色圆圈） */
+#productConfigModal .spec-field-selectable.configurable-field.auto-selected .form-label::after {
+  content: none;
+}
+
 /* 禁用状态的单选框标签样式 */
 #productConfigModal .spec-options-list .form-check-input:disabled ~ .form-check-label {
   cursor: not-allowed;
@@ -772,6 +899,139 @@
 #productConfigModal .spec-options-list .form-check-input:disabled:not(:checked) ~ .form-check-label::before {
   border-color: #adb5bd;
   background: #e9ecef;
+}
+
+/* ============== 动态规格配置区域样式 ============== */
+
+/* 可配置规格列表 */
+#productConfigModal .configurable-specs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* 单个可配置规格项 */
+#productConfigModal .configurable-spec-item {
+  padding: 0.75rem 1rem;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  background: #f8f9fa;
+  transition: border-color 0.2s ease;
+}
+
+#productConfigModal .configurable-spec-item:hover {
+  border-color: #0d6efd;
+}
+
+#productConfigModal .configurable-spec-item.spec-changed {
+  border-color: #ffc107;
+  background: #fffbeb;
+}
+
+/* 规格项标题行 */
+#productConfigModal .configurable-spec-item .spec-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+#productConfigModal .configurable-spec-item .spec-name {
+  font-weight: 600;
+  color: #495057;
+}
+
+#productConfigModal .configurable-spec-item .spec-current {
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+
+#productConfigModal .configurable-spec-item .spec-current .current-value {
+  font-weight: 600;
+  color: #28a745;
+}
+
+/* 规格选项列表 */
+#productConfigModal .configurable-spec-item .spec-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* 规格选项按钮样式 */
+#productConfigModal .configurable-spec-item .spec-option-btn {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid #dee2e6;
+  border-radius: 20px;
+  background: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+#productConfigModal .configurable-spec-item .spec-option-btn:hover {
+  border-color: #0d6efd;
+  background: #e7f1ff;
+}
+
+#productConfigModal .configurable-spec-item .spec-option-btn.active {
+  border-color: #0d6efd;
+  background: #0d6efd;
+  color: white;
+}
+
+#productConfigModal .configurable-spec-item .spec-option-btn.is-current {
+  border-color: #28a745;
+}
+
+#productConfigModal .configurable-spec-item .spec-option-btn.is-current.active {
+  background: #28a745;
+  border-color: #28a745;
+}
+
+/* 价格增量标签 */
+#productConfigModal .configurable-spec-item .price-badge {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 10px;
+  margin-left: 0.25rem;
+}
+
+#productConfigModal .configurable-spec-item .price-badge.positive {
+  background: #fff3cd;
+  color: #856404;
+}
+
+#productConfigModal .configurable-spec-item .price-badge.negative {
+  background: #d4edda;
+  color: #155724;
+}
+
+/* 配置预览区域 */
+#productConfigModal .spec-config-preview {
+  padding: 1rem;
+  border: 2px solid #0d6efd;
+  border-radius: 8px;
+  background: #e7f1ff;
+}
+
+#productConfigModal .spec-config-preview .preview-header {
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(13, 110, 253, 0.2);
+}
+
+/* 响应式调整 */
+@media (max-width: 576px) {
+  #productConfigModal .configurable-spec-item .spec-options {
+    flex-direction: column;
+  }
+
+  #productConfigModal .configurable-spec-item .spec-option-btn {
+    justify-content: center;
+  }
 }
 </style>
 

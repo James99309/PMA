@@ -1,0 +1,45 @@
+{% from 'macros/ui_helpers.html' import render_button, render_custom_dialog %}
+
+{# 指标编辑模态框 - 供 fields.html 和 category_fields.html 复用 #}
+{% macro render_option_edit_modal() %}
+    {% call render_custom_dialog('optionModal', '编辑指标', icon='fas fa-edit', size='md') %}
+        <form id="optionForm">
+            <input type="hidden" id="optionId">
+            <input type="hidden" id="optionFieldId">
+
+            <!-- 指标名称 -->
+            <div class="mb-3">
+                <label for="optionValue" class="form-label">
+                    指标名称 <span class="text-danger">*</span>
+                </label>
+                <input type="text" class="form-control" id="optionValue" required>
+                <div class="invalid-feedback">
+                    请输入指标名称
+                </div>
+                <div class="form-text" id="unitHint"></div>
+            </div>
+
+            <!-- 价格增量 - 仅当字段允许报价配置时显示 -->
+            <div class="mb-3" id="priceAdjustmentGroup" style="display: none;">
+                <label for="optionPriceAdjustment" class="form-label">
+                    价格增量
+                    <small class="text-muted">（元）</small>
+                </label>
+                <div class="input-group">
+                    <span class="input-group-text">¥</span>
+                    <input type="number" class="form-control" id="optionPriceAdjustment"
+                           step="0.01" placeholder="0.00" value="0">
+                </div>
+                <div class="form-text">
+                    正数=加价，负数=减价，0=基准价（无增量）
+                </div>
+            </div>
+
+            <!-- 按钮组 -->
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                {{ render_button('取消', onclick='closeCustomDialog("optionModal")', color='secondary', icon='fas fa-times') }}
+                {{ render_button('保存', onclick='optionManager.saveOption()', color='primary', icon='fas fa-save') }}
+            </div>
+        </form>
+    {% endcall %}
+{% endmacro %}

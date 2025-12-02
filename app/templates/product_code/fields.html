@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_button, render_custom_dialog, render_confirm_dialog %}
 {% from 'macros/ui_modals.html' import render_select_quick_add_modal %}
+{% from 'macros/product_code_macros.html' import render_option_edit_modal %}
 
 {% block title %}{{ subcategory.name }} - 规格管理{% endblock %}
 
@@ -124,29 +125,78 @@
 
                     {# 1. 继承的编码规格 - 不可拖拽，在前 #}
                     {% for field in inherited_fields if field.use_in_code %}
-                    <tr class="table-light">
+                    {% set field_allow_config = inherited_field_allow_config.get(field.id, false) if inherited_field_allow_config else false %}
+                    <tr class="table-light" data-inherited-field-id="{{ field.id }}" data-allow-config="{{ field_allow_config|tojson }}">
                         <td>{{ row_index.value }}{% set row_index.value = row_index.value + 1 %}</td>
                         <td>
-                            {{ field.name }}
+                            <a href="javascript:void(0)" class="text-decoration-underline text-dark"
+                               onclick="openInheritedFieldConfigModal({{ field.id }}, '{{ field.name }}', {{ field_allow_config|tojson }})"
+                               title="点击配置报价选项">
+                                {{ field.name }}
+                            </a>
                             <span class="rounded-circle bg-info d-inline-block ms-1" style="width: 8px; height: 8px;" title="继承自{{ subcategory.parent_category.name }}分类"></span>
+                            {% if field_allow_config %}
+                            <span class="rounded-circle bg-success d-inline-block ms-1" style="width: 8px; height: 8px;" title="已启用报价配置"></span>
+                            {% endif %}
                         </td>
                         <td class="position-cell">
                             <span class="badge bg-success">位置{{ field.position }}</span>
                         </td>
                         <td>
-                            {% if field.options %}
-                                {% for option in field.options %}
-                                    {% if option.is_active %}
-                                    <span class="badge bg-secondary me-1 mb-1">
-                                        {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
-                                    </span>
+                            {# 显示子分类级别的指标（由 inherited_field_options 提供） #}
+                            {% set subcategory_options = inherited_field_options.get(field.id, []) if inherited_field_options else [] %}
+                            {% if subcategory_options %}
+                                {% for option in subcategory_options %}
+                                    {% if option.is_used %}
+                                        {# 已使用的指标：锁定指标值和编码，但允许修改价格 #}
+                                        <span class="badge bg-secondary me-1 mb-1 position-relative">
+                                            <a href="javascript:void(0)"
+                                               onclick="openOptionModal({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', 'edit', {{ option.id }}, {{ field_allow_config|tojson }}, {{ option.price_adjustment|default(0) }}, true)"
+                                               class="text-white text-decoration-none" style="cursor: pointer;" title="点击编辑价格（指标值已锁定）">
+                                                {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}{% if option.price_adjustment and option.price_adjustment != 0 %}<small class="ms-1 opacity-75">{{ '+' if option.price_adjustment > 0 else '' }}{{ (option.price_adjustment / 100)|int }}元</small>{% endif %}
+                                            </a>
+                                            <span class="text-white ms-1" title="此指标已被产品使用，指标值已锁定"><i class="fas fa-lock"></i></span>
+                                        </span>
+                                    {% elif option.is_active %}
+                                        <span class="badge bg-primary me-1 mb-1 position-relative" style="padding-right: 28px;">
+                                            <a href="javascript:void(0)"
+                                               onclick="openOptionModal({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', 'edit', {{ option.id }}, {{ field_allow_config|tojson }}, {{ option.price_adjustment|default(0) }})"
+                                               class="text-white text-decoration-none" style="cursor: pointer;" title="点击编辑指标">
+                                                {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}{% if option.price_adjustment and option.price_adjustment != 0 %}<small class="ms-1 opacity-75">{{ '+' if option.price_adjustment > 0 else '' }}{{ (option.price_adjustment / 100)|int }}元</small>{% endif %}
+                                            </a>
+                                            <a href="javascript:void(0)"
+                                               onclick="event.stopPropagation(); deleteOption({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', {{ option.id }}, '{{ option.effective_value }}')"
+                                               class="text-white ms-1 position-absolute" style="text-decoration: none; cursor: pointer; right: 8px;" title="删除">
+                                                <i class="fas fa-times"></i>
+                                            </a>
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary me-1 mb-1 position-relative">
+                                            {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
+                                            <a href="javascript:void(0)"
+                                               onclick="toggleOptionStatus({{ option.id }}, '{{ option.effective_value }}', false)"
+                                               class="text-white ms-1" style="text-decoration: none; cursor: pointer;" title="已禁用，点击重新启用">
+                                                <i class="fas fa-ban"></i>
+                                            </a>
+                                        </span>
                                     {% endif %}
                                 {% endfor %}
                             {% else %}
-                                <span class="text-muted">暂无指标</span>
-                            {% endif %}
+                                                            {% endif %}
                         </td>
-                        <td></td>
+                        <td>
+                            {# 添加子分类级指标按钮 - 复用现有的 IndicatorQuickAdd #}
+                            {% set exclude_spec_option_ids = [] %}
+                            {% set subcategory_options_for_exclude = inherited_field_options.get(field.id, []) if inherited_field_options else [] %}
+                            {% for option in subcategory_options_for_exclude %}
+                                {% if option.spec_option_id %}
+                                    {% set _ = exclude_spec_option_ids.append(option.spec_option_id) %}
+                                {% endif %}
+                            {% endfor %}
+                            <button onclick="window.IndicatorQuickAdd.showQuickAddModal('{{ field.name }}', {{ field.id }}, {{ subcategory.id }}, {{ exclude_spec_option_ids }})" class="btn btn-sm btn-info" title="添加指标">
+                                <i class="fas fa-list"></i>
+                            </button>
+                        </td>
                     </tr>
                     {% endfor %}
 
@@ -167,6 +217,9 @@
                             {% else %}
                             {{ field.name }}
                             {% endif %}
+                            {% if field.allow_quotation_config %}
+                            <span class="rounded-circle bg-success d-inline-block ms-1" style="width: 8px; height: 8px;" title="已启用报价配置"></span>
+                            {% endif %}
                         </td>
                         <td class="position-cell">
                             <span class="badge bg-success position-badge">位置{{ field.position }}</span>
@@ -175,10 +228,16 @@
                             {% if field.options %}
                                 {% for option in field.options %}
                                     {% if option.is_used %}
-                                        {# 已使用的指标：显示锁定图标，不可编辑删除 #}
+                                        {# 已使用的指标：锁定指标值和编码，但允许修改价格 #}
                                         <span class="badge bg-secondary me-1 mb-1 position-relative">
-                                            {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
-                                            <span class="text-white ms-1" title="此指标已被产品使用，无法修改或删除">
+                                            <a href="javascript:void(0)"
+                                               onclick="openOptionModal({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', 'edit', {{ option.id }}, {{ field.allow_quotation_config|default(false)|tojson }}, {{ option.price_adjustment|default(0) }}, true)"
+                                               class="text-white text-decoration-none"
+                                               style="cursor: pointer;"
+                                               title="点击编辑价格（指标值已锁定）">
+                                                {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}{% if option.price_adjustment and option.price_adjustment != 0 %}<small class="ms-1 opacity-75">{{ '+' if option.price_adjustment > 0 else '' }}{{ (option.price_adjustment / 100)|int }}元</small>{% endif %}
+                                            </a>
+                                            <span class="text-white ms-1" title="此指标已被产品使用，指标值已锁定">
                                                 <i class="fas fa-lock"></i>
                                             </span>
                                         </span>
@@ -186,11 +245,11 @@
                                         {# 激活且未使用的指标：可点击编辑，可删除 #}
                                         <span class="badge bg-primary me-1 mb-1 position-relative" style="padding-right: 28px;">
                                             <a href="javascript:void(0)"
-                                               onclick="openOptionModal({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', 'edit', {{ option.id }})"
+                                               onclick="openOptionModal({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', 'edit', {{ option.id }}, {{ field.allow_quotation_config|default(false)|tojson }}, {{ option.price_adjustment|default(0) }})"
                                                class="text-white text-decoration-none"
                                                style="cursor: pointer;"
                                                title="点击编辑指标">
-                                                {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
+                                                {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}{% if option.price_adjustment and option.price_adjustment != 0 %}<small class="ms-1 opacity-75">{{ '+' if option.price_adjustment > 0 else '' }}{{ (option.price_adjustment / 100)|int }}元</small>{% endif %}
                                             </a>
                                             <a href="javascript:void(0)"
                                                onclick="event.stopPropagation(); deleteOption({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', {{ option.id }}, '{{ option.effective_value }}')"
@@ -215,10 +274,9 @@
                                     {% endif %}
                                 {% endfor %}
                             {% else %}
-                                <span class="text-muted">暂无指标</span>
-                            {% endif %}
+                                                            {% endif %}
                         </td>
-                        <td class="text-center">
+                        <td>
                             {# 收集当前字段的所有规格选项ID（用于排除） #}
                             {% set exclude_spec_option_ids = [] %}
                             {% for option in field.options.all() %}
@@ -278,7 +336,7 @@
                                     {% if option.is_used %}
                                         {# 已使用的指标：显示锁定图标，不可编辑删除 #}
                                         <span class="badge bg-secondary me-1 mb-1 position-relative">
-                                            {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
+                                            {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}{% if option.price_adjustment and option.price_adjustment != 0 %}<small class="ms-1 opacity-75">{{ '+' if option.price_adjustment > 0 else '' }}{{ (option.price_adjustment / 100)|int }}元</small>{% endif %}
                                             <span class="text-white ms-1" title="此指标已被产品使用，无法修改或删除">
                                                 <i class="fas fa-lock"></i>
                                             </span>
@@ -287,11 +345,11 @@
                                         {# 激活且未使用的指标：可点击编辑，可删除 #}
                                         <span class="badge bg-primary me-1 mb-1 position-relative" style="padding-right: 28px;">
                                             <a href="javascript:void(0)"
-                                               onclick="openOptionModal({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', 'edit', {{ option.id }})"
+                                               onclick="openOptionModal({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', 'edit', {{ option.id }}, {{ field.allow_quotation_config|default(false)|tojson }}, {{ option.price_adjustment|default(0) }})"
                                                class="text-white text-decoration-none"
                                                style="cursor: pointer;"
                                                title="点击编辑指标">
-                                                {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
+                                                {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}{% if option.price_adjustment and option.price_adjustment != 0 %}<small class="ms-1 opacity-75">{{ '+' if option.price_adjustment > 0 else '' }}{{ (option.price_adjustment / 100)|int }}元</small>{% endif %}
                                             </a>
                                             <a href="javascript:void(0)"
                                                onclick="event.stopPropagation(); deleteOption({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', {{ option.id }}, '{{ option.effective_value }}')"
@@ -316,10 +374,9 @@
                                     {% endif %}
                                 {% endfor %}
                             {% else %}
-                                <span class="text-muted">暂无指标</span>
-                            {% endif %}
+                                                            {% endif %}
                         </td>
-                        <td class="text-center">
+                        <td>
                             {# 收集当前字段的所有规格选项ID（用于排除） #}
                             {% set exclude_spec_option_ids = [] %}
                             {% for option in field.options.all() %}
@@ -345,7 +402,7 @@
 
                     {# 4. 继承的非编码规格 - 不可拖拽，在后 #}
                     {% for field in inherited_fields if not field.use_in_code %}
-                    <tr class="table-light">
+                    <tr class="table-light" data-inherited-field-id="{{ field.id }}">
                         <td>{{ row_index.value }}{% set row_index.value = row_index.value + 1 %}</td>
                         <td>
                             {{ field.name }}
@@ -355,19 +412,55 @@
                             <span class="rounded-circle bg-secondary d-inline-block" style="width: 8px; height: 8px;" title="未纳入编码"></span>
                         </td>
                         <td>
-                            {% if field.options %}
-                                {% for option in field.options %}
-                                    {% if option.is_active %}
-                                    <span class="badge bg-secondary me-1 mb-1">
-                                        {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
-                                    </span>
+                            {# 显示子分类级别的指标 #}
+                            {% set subcategory_options = inherited_field_options.get(field.id, []) if inherited_field_options else [] %}
+                            {% if subcategory_options %}
+                                {% for option in subcategory_options %}
+                                    {% if option.is_used %}
+                                        <span class="badge bg-secondary me-1 mb-1 position-relative">
+                                            {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
+                                            <span class="text-white ms-1" title="此指标已被产品使用"><i class="fas fa-lock"></i></span>
+                                        </span>
+                                    {% elif option.is_active %}
+                                        <span class="badge bg-primary me-1 mb-1 position-relative" style="padding-right: 28px;">
+                                            <a href="javascript:void(0)"
+                                               onclick="openOptionModal({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', 'edit', {{ option.id }}, false, {{ option.price_adjustment|default(0) }})"
+                                               class="text-white text-decoration-none" style="cursor: pointer;" title="点击编辑指标">
+                                                {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
+                                            </a>
+                                            <a href="javascript:void(0)"
+                                               onclick="event.stopPropagation(); deleteOption({{ field.id }}, '{{ field.name }}', '{{ field.unit or '' }}', {{ option.id }}, '{{ option.effective_value }}')"
+                                               class="text-white ms-1 position-absolute" style="text-decoration: none; cursor: pointer; right: 8px;" title="删除">
+                                                <i class="fas fa-times"></i>
+                                            </a>
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary me-1 mb-1 position-relative">
+                                            {{ option.effective_value }}{% if field.unit %} {{ field.unit }}{% endif %}{% if option.effective_code %} ({{ option.effective_code }}){% endif %}
+                                            <a href="javascript:void(0)"
+                                               onclick="toggleOptionStatus({{ option.id }}, '{{ option.effective_value }}', false)"
+                                               class="text-white ms-1" style="text-decoration: none; cursor: pointer;" title="已禁用，点击重新启用">
+                                                <i class="fas fa-ban"></i>
+                                            </a>
+                                        </span>
                                     {% endif %}
                                 {% endfor %}
                             {% else %}
-                                <span class="text-muted">暂无指标</span>
-                            {% endif %}
+                                                            {% endif %}
                         </td>
-                        <td></td>
+                        <td>
+                            {# 添加子分类级指标按钮 #}
+                            {% set exclude_spec_option_ids = [] %}
+                            {% set subcategory_options_for_exclude = inherited_field_options.get(field.id, []) if inherited_field_options else [] %}
+                            {% for option in subcategory_options_for_exclude %}
+                                {% if option.spec_option_id %}
+                                    {% set _ = exclude_spec_option_ids.append(option.spec_option_id) %}
+                                {% endif %}
+                            {% endfor %}
+                            <button onclick="window.IndicatorQuickAdd.showQuickAddModal('{{ field.name }}', {{ field.id }}, {{ subcategory.id }}, {{ exclude_spec_option_ids }})" class="btn btn-sm btn-info" title="添加指标">
+                                <i class="fas fa-list"></i>
+                            </button>
+                        </td>
                     </tr>
                     {% endfor %}
 
@@ -382,6 +475,7 @@
             </table>
         </div>
     </div>
+
 
     <!-- 隐藏的子分类ID输入 -->
     <input type="hidden" id="subcategory_id" value="{{ subcategory.id }}">
@@ -444,7 +538,15 @@
             <div class="form-check mb-3">
                 <input type="checkbox" class="form-check-input" id="fieldUseInCode">
                 <label class="form-check-label" for="fieldUseInCode">
-                    纳入编码（自动勾选必填项）
+                    纳入编码
+                </label>
+            </div>
+
+            <!-- 允许报价配置 - 仅当勾选"纳入编码"时显示 -->
+            <div class="form-check mb-3" id="allowQuotationConfigGroup" style="display: none;">
+                <input type="checkbox" class="form-check-input" id="fieldAllowQuotationConfig">
+                <label class="form-check-label" for="fieldAllowQuotationConfig">
+                    允许报价配置
                 </label>
             </div>
 
@@ -459,27 +561,34 @@
     <!-- 指标添加模态框 - 使用SelectWithQuickAdd通用框架（显示已有指标列表） -->
     {{ render_select_quick_add_modal() }}
 
-    <!-- 指标编辑模态框 - 保留旧版用于编辑已有指标 -->
-    {% call render_custom_dialog('optionModal', '编辑指标', icon='fas fa-edit', size='md') %}
-        <form id="optionForm">
-            <input type="hidden" id="optionId">
+    <!-- 指标编辑模态框 - 使用公共宏 -->
+    {{ render_option_edit_modal() }}
 
-            <!-- 指标名称 -->
+    <!-- 继承规格配置模态框 - 只允许修改"允许报价配置" -->
+    {% call render_custom_dialog('inheritedFieldConfigModal', '继承规格配置', icon='fas fa-cog', size='sm') %}
+        <form id="inheritedFieldConfigForm">
+            <input type="hidden" id="inheritedFieldId">
+
+            <!-- 规格名称（只读） -->
             <div class="mb-3">
-                <label for="optionValue" class="form-label">
-                    指标名称 <span class="text-danger">*</span>
+                <label class="form-label">规格名称</label>
+                <div class="form-control bg-light" id="inheritedFieldName" style="cursor: not-allowed;"></div>
+                <small class="text-muted">继承自分类，不可修改</small>
+            </div>
+
+            <!-- 允许报价配置 -->
+            <div class="form-check mb-3">
+                <input type="checkbox" class="form-check-input" id="inheritedFieldAllowQuotationConfig">
+                <label class="form-check-label" for="inheritedFieldAllowQuotationConfig">
+                    允许报价配置
+                    <small class="text-muted d-block">勾选后，该规格的指标可设置价格增量，并在报价单中显示为可选项</small>
                 </label>
-                <input type="text" class="form-control" id="optionValue" required>
-                <div class="invalid-feedback">
-                    请输入指标名称
-                </div>
-                <div class="form-text" id="unitHint"></div>
             </div>
 
             <!-- 按钮组 -->
             <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                {{ render_button('取消', onclick='closeCustomDialog("optionModal")', color='secondary', icon='fas fa-times') }}
-                {{ render_button('保存', onclick='optionManager.saveOption()', color='primary', icon='fas fa-save') }}
+                {{ render_button('取消', onclick='closeCustomDialog("inheritedFieldConfigModal")', color='secondary', icon='fas fa-times') }}
+                {{ render_button('保存', onclick='saveInheritedFieldConfig()', color='primary', icon='fas fa-save') }}
             </div>
         </form>
     {% endcall %}
@@ -497,6 +606,61 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('规格管理页面已加载');
 });
+
+// ============================================================================
+// 继承规格配置相关函数
+// ============================================================================
+
+// 打开继承规格配置模态框
+function openInheritedFieldConfigModal(fieldId, fieldName, allowConfig) {
+    document.getElementById('inheritedFieldId').value = fieldId;
+    document.getElementById('inheritedFieldName').textContent = fieldName;
+    document.getElementById('inheritedFieldAllowQuotationConfig').checked = allowConfig;
+    showCustomDialog('inheritedFieldConfigModal');
+}
+
+// 保存继承规格配置
+async function saveInheritedFieldConfig() {
+    const fieldId = document.getElementById('inheritedFieldId').value;
+    const allowConfig = document.getElementById('inheritedFieldAllowQuotationConfig').checked;
+    const subcategoryId = document.getElementById('subcategory_id').value;
+
+    try {
+        const response = await fetch(`/product-code/api/subcategory/${subcategoryId}/inherited-field/${fieldId}/config`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                allow_quotation_config: allowConfig
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            closeCustomDialog('inheritedFieldConfigModal');
+            location.reload();
+        } else {
+            if (typeof showTopNotification === 'function') {
+                showTopNotification(result.message, 'error', 5000);
+            } else {
+                alert(result.message);
+            }
+        }
+    } catch (error) {
+        console.error('保存配置失败:', error);
+        if (typeof showTopNotification === 'function') {
+            showTopNotification('保存失败，请重试', 'error', 5000);
+        } else {
+            alert('保存失败，请重试');
+        }
+    }
+}
+
+// ============================================================================
+// 其他全局函数
+// ============================================================================
 
 // 返回到新产品页面的函数
 function returnToNewProduct() {
@@ -594,10 +758,16 @@ document.addEventListener('DOMContentLoaded', function() {
             refreshTarget: function(context, newItem) {
                 console.log('[规格管理] 指标添加成功，动态插入徽章', newItem);
 
-                // 找到对应 field_id 的表格行
+                // 找到对应 field_id 的表格行（支持子分类自有规格和继承规格）
                 const fieldId = context.specFieldId;
                 const fieldName = context.specName;
-                const row = document.querySelector(`#codingFieldsBody tr[data-id="${fieldId}"], #nonCodingFieldsBody tr[data-id="${fieldId}"]`);
+                let row = document.querySelector(`#codingFieldsBody tr[data-id="${fieldId}"], #nonCodingFieldsBody tr[data-id="${fieldId}"]`);
+
+                // 如果找不到自有规格行，尝试查找继承规格行
+                if (!row) {
+                    row = document.querySelector(`#codingFieldsBody tr[data-inherited-field-id="${fieldId}"], #nonCodingFieldsBody tr[data-inherited-field-id="${fieldId}"]`);
+                }
+
                 if (!row) {
                     console.warn('找不到对应的规格行，刷新页面');
                     location.reload();
@@ -765,4 +935,5 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endif %}
+
 {% endblock %}

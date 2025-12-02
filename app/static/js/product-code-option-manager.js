@@ -3,22 +3,27 @@
  * 管理产品规格指标的增删改查操作（模态框模式）
  */
 class ProductCodeOptionManager {
-    constructor(fieldId, fieldName, fieldUnit) {
+    constructor(fieldId, fieldName, fieldUnit, allowQuotationConfig = false, isLocked = false) {
         this.fieldId = fieldId;
         this.fieldName = fieldName;
         this.fieldUnit = fieldUnit;  // 规格单位
+        this.allowQuotationConfig = allowQuotationConfig;  // 是否允许报价配置（控制价格增量字段显示）
+        this.isLocked = isLocked;  // 是否锁定指标值（已被产品使用）
         this.currentMode = null;  // 'add' or 'edit'
         this.currentOptionId = null;
+        this.currentPriceAdjustment = 0;  // 当前价格增量（分）
     }
 
     /**
      * 打开模态框（统一入口）
      * @param {string} mode - 'add' 或 'edit'
      * @param {number|null} optionId - 指标ID（编辑时使用）
+     * @param {number} priceAdjustment - 价格增量（分，编辑时使用）
      */
-    async openModal(mode = 'add', optionId = null) {
+    async openModal(mode = 'add', optionId = null, priceAdjustment = 0) {
         this.currentMode = mode;
         this.currentOptionId = optionId;
+        this.currentPriceAdjustment = priceAdjustment || 0;
 
         // 设置标题
         const title = mode === 'add' ? '添加指标' : '编辑指标';
@@ -34,6 +39,25 @@ class ProductCodeOptionManager {
             unitHint.innerHTML = `<i class="fas fa-info-circle me-1"></i>单位会自动添加：<strong>${this.fieldUnit}</strong>`;
         } else {
             unitHint.textContent = '';
+        }
+
+        // 控制价格增量字段的显示
+        const priceAdjustmentGroup = document.getElementById('priceAdjustmentGroup');
+        if (priceAdjustmentGroup) {
+            priceAdjustmentGroup.style.display = this.allowQuotationConfig ? 'block' : 'none';
+        }
+
+        // 控制指标名称输入框的锁定状态
+        const optionValueInput = document.getElementById('optionValue');
+        if (optionValueInput) {
+            optionValueInput.disabled = this.isLocked;
+            if (this.isLocked) {
+                optionValueInput.title = '此指标已被产品使用，无法修改';
+                optionValueInput.style.cursor = 'not-allowed';
+            } else {
+                optionValueInput.title = '';
+                optionValueInput.style.cursor = '';
+            }
         }
 
         try {
@@ -70,6 +94,16 @@ class ProductCodeOptionManager {
             document.getElementById('optionId').value = option.id;
             document.getElementById('optionValue').value = option.value;
 
+            // 填充价格增量（如果允许报价配置）
+            if (this.allowQuotationConfig) {
+                const priceAdjustmentInput = document.getElementById('optionPriceAdjustment');
+                if (priceAdjustmentInput) {
+                    // 从API获取的是分，转换为元显示
+                    const priceAdjustmentYuan = (option.price_adjustment || this.currentPriceAdjustment || 0) / 100;
+                    priceAdjustmentInput.value = priceAdjustmentYuan.toFixed(2);
+                }
+            }
+
         } catch (error) {
             console.error('加载指标数据失败:', error);
             throw error;
@@ -87,6 +121,12 @@ class ProductCodeOptionManager {
         const form = document.getElementById('optionForm');
         form.classList.remove('was-validated');
         document.getElementById('optionValue').classList.remove('is-invalid');
+
+        // 重置价格增量
+        const priceAdjustmentInput = document.getElementById('optionPriceAdjustment');
+        if (priceAdjustmentInput) {
+            priceAdjustmentInput.value = '0.00';
+        }
     }
 
     /**
@@ -121,6 +161,15 @@ class ProductCodeOptionManager {
         const data = {
             value: value
         };
+
+        // 如果允许报价配置，添加价格增量（元转换为分）
+        if (this.allowQuotationConfig) {
+            const priceAdjustmentInput = document.getElementById('optionPriceAdjustment');
+            if (priceAdjustmentInput) {
+                const priceYuan = parseFloat(priceAdjustmentInput.value) || 0;
+                data.price_adjustment = Math.round(priceYuan * 100);  // 转换为分
+            }
+        }
 
         try {
             let url, method;
@@ -231,13 +280,16 @@ let optionManager;
  * @param {string} fieldUnit - 规格单位
  * @param {string} mode - 模式：'add' 或 'edit'（默认 'add'）
  * @param {number|null} optionId - 指标ID（编辑模式时使用）
+ * @param {boolean} allowQuotationConfig - 是否允许报价配置（控制价格增量字段显示）
+ * @param {number} priceAdjustment - 当前价格增量（分，编辑模式时使用）
+ * @param {boolean} isLocked - 是否锁定指标值（已被产品使用，只允许修改价格）
  */
-window.openOptionModal = function(fieldId, fieldName, fieldUnit, mode = 'add', optionId = null) {
+window.openOptionModal = function(fieldId, fieldName, fieldUnit, mode = 'add', optionId = null, allowQuotationConfig = false, priceAdjustment = 0, isLocked = false) {
     // 初始化管理器
-    optionManager = new ProductCodeOptionManager(fieldId, fieldName, fieldUnit || '');
+    optionManager = new ProductCodeOptionManager(fieldId, fieldName, fieldUnit || '', allowQuotationConfig, isLocked);
 
     // 打开模态框（支持添加和编辑模式）
-    optionManager.openModal(mode, optionId);
+    optionManager.openModal(mode, optionId, priceAdjustment);
 };
 
 /**

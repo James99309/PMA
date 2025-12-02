@@ -116,6 +116,7 @@ class ProductCodeField(db.Model):
     max_length = Column(Integer, default=1)  # 字段编码最大长度
     is_required = Column(Boolean, default=True)  # 是否必填
     use_in_code = Column(Boolean, default=True)  # 是否用于产品编码
+    allow_quotation_config = Column(Boolean, default=False)  # 是否允许在报价单中动态配置
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -156,12 +157,41 @@ class ProductCodeField(db.Model):
 
         return {'inherited': inherited, 'own': own}
 
+    def is_configurable_for_subcategory(self, subcategory_id):
+        """检查该字段在特定子分类下是否允许报价配置
+
+        通过检查是否存在 allow_quotation_config=True 的子分类级选项来判断
+        """
+        option = ProductCodeFieldOption.query.filter_by(
+            field_id=self.id,
+            subcategory_id=subcategory_id,
+            allow_quotation_config=True,
+            is_active=True
+        ).first()
+        return option is not None
+
+    def get_options_for_subcategory(self, subcategory_id):
+        """获取该字段在特定子分类下的可用选项（用于报价配置）
+
+        返回 subcategory_id 匹配且 allow_quotation_config=True 的选项
+        """
+        return ProductCodeFieldOption.query.filter_by(
+            field_id=self.id,
+            subcategory_id=subcategory_id,
+            allow_quotation_config=True,
+            is_active=True
+        ).order_by(ProductCodeFieldOption.position).all()
+
     def __repr__(self):
         level = 'category' if self.is_category_level else 'subcategory'
         return f'<ProductCodeField {self.name} ({self.field_type}, {level})>'
 
 class ProductCodeFieldOption(db.Model):
     """产品编码字段选项模型
+
+    支持两级选项定义：
+    - 分类级选项：subcategory_id 为空，用于产品编码生成
+    - 子分类级选项：subcategory_id 有值，用于报价可配置功能
 
     新架构：引用模式
     - spec_option_id: 引用 SpecificationOption 中的指标
@@ -173,17 +203,21 @@ class ProductCodeFieldOption(db.Model):
 
     id = Column(Integer, primary_key=True)
     field_id = Column(Integer, ForeignKey('product_code_fields.id'), nullable=False)
+    subcategory_id = Column(Integer, ForeignKey('product_subcategories.id'), nullable=True)  # 子分类ID（空=分类级）
     spec_option_id = Column(Integer, ForeignKey('specification_options.id'), nullable=True)  # 引用规格指标
     value = Column(String(100), nullable=True)  # 选项值（兼容字段，迁移后可空）
     code = Column(String(10), nullable=True)  # 选项编码（兼容字段，迁移后可空）
     description = Column(Text)  # 描述
     is_active = Column(Boolean, default=True)  # 是否活跃（本地启用/禁用）
     position = Column(Integer, default=0)  # 排序位置（本地排序）
+    price_adjustment = Column(Integer, default=0)  # 价格增量（单位：分），正数加价，负数减价
+    allow_quotation_config = Column(Boolean, default=False)  # 是否允许报价配置（子分类级选项使用）
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
-    # 关系：引用的规格指标
+    # 关系
     spec_option = db.relationship('SpecificationOption')
+    subcategory = db.relationship('ProductSubcategory', backref=db.backref('field_options', lazy='dynamic'))
 
     @property
     def effective_value(self):

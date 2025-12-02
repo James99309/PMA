@@ -20,14 +20,28 @@ class ProductCodeFieldManager {
      * 初始化事件监听器
      */
     initEventListeners() {
-        // 纳入编码复选框变化时，自动勾选必填项
+        // 纳入编码复选框变化时，自动勾选必填项，并控制「允许报价配置」显示
         const useInCodeCheckbox = document.getElementById('fieldUseInCode');
         const requiredCheckbox = document.getElementById('fieldRequired');
+        const allowQuotationConfigGroup = document.getElementById('allowQuotationConfigGroup');
+        const allowQuotationConfigCheckbox = document.getElementById('fieldAllowQuotationConfig');
 
         if (useInCodeCheckbox && requiredCheckbox) {
             useInCodeCheckbox.addEventListener('change', function() {
                 if (this.checked) {
                     requiredCheckbox.checked = true;
+                    // 显示「允许报价配置」选项
+                    if (allowQuotationConfigGroup) {
+                        allowQuotationConfigGroup.style.display = 'block';
+                    }
+                } else {
+                    // 隐藏并取消勾选「允许报价配置」
+                    if (allowQuotationConfigGroup) {
+                        allowQuotationConfigGroup.style.display = 'none';
+                    }
+                    if (allowQuotationConfigCheckbox) {
+                        allowQuotationConfigCheckbox.checked = false;
+                    }
                 }
             });
         }
@@ -296,6 +310,27 @@ class ProductCodeFieldManager {
             document.getElementById('fieldRequired').checked = field.is_required;
             document.getElementById('fieldUseInCode').checked = field.use_in_code;
 
+            // 设置「允许报价配置」复选框和显示状态
+            const allowQuotationConfigGroup = document.getElementById('allowQuotationConfigGroup');
+            const allowQuotationConfigCheckbox = document.getElementById('fieldAllowQuotationConfig');
+            if (field.use_in_code) {
+                // 纳入编码时显示「允许报价配置」选项
+                if (allowQuotationConfigGroup) {
+                    allowQuotationConfigGroup.style.display = 'block';
+                }
+                if (allowQuotationConfigCheckbox) {
+                    allowQuotationConfigCheckbox.checked = field.allow_quotation_config || false;
+                }
+            } else {
+                // 非纳入编码时隐藏
+                if (allowQuotationConfigGroup) {
+                    allowQuotationConfigGroup.style.display = 'none';
+                }
+                if (allowQuotationConfigCheckbox) {
+                    allowQuotationConfigCheckbox.checked = false;
+                }
+            }
+
             // 设置选中的规格（编辑时只有一个）
             this.selectedSpecs.clear();
             this.selectedSpecs.add(field.name);
@@ -334,6 +369,16 @@ class ProductCodeFieldManager {
         const errorDiv = document.getElementById('fieldNameError');
         if (errorDiv) errorDiv.style.display = 'none';
 
+        // 重置「允许报价配置」选项
+        const allowQuotationConfigGroup = document.getElementById('allowQuotationConfigGroup');
+        const allowQuotationConfigCheckbox = document.getElementById('fieldAllowQuotationConfig');
+        if (allowQuotationConfigGroup) {
+            allowQuotationConfigGroup.style.display = 'none';
+        }
+        if (allowQuotationConfigCheckbox) {
+            allowQuotationConfigCheckbox.checked = false;
+        }
+
         // 更新徽章显示
         this.renderSelectedBadges();
     }
@@ -371,6 +416,8 @@ class ProductCodeFieldManager {
         const selectedNames = this.getSelectedSpecNames();
         const isRequired = document.getElementById('fieldRequired').checked;
         const useInCode = document.getElementById('fieldUseInCode').checked;
+        const allowQuotationConfigCheckbox = document.getElementById('fieldAllowQuotationConfig');
+        const allowQuotationConfig = useInCode && allowQuotationConfigCheckbox ? allowQuotationConfigCheckbox.checked : false;
 
         try {
             if (this.currentMode === 'add') {
@@ -383,7 +430,8 @@ class ProductCodeFieldManager {
                         subcategory_id: this.subcategoryId,
                         name: name,
                         is_required: isRequired,
-                        use_in_code: useInCode
+                        use_in_code: useInCode,
+                        allow_quotation_config: allowQuotationConfig
                     };
 
                     const response = await fetch('/product-code/api/fields', {
@@ -419,7 +467,8 @@ class ProductCodeFieldManager {
                     subcategory_id: this.subcategoryId,
                     name: name,
                     is_required: isRequired,
-                    use_in_code: useInCode
+                    use_in_code: useInCode,
+                    allow_quotation_config: allowQuotationConfig
                 };
 
                 const response = await fetch(`/product-code/api/fields/${this.currentFieldId}`, {

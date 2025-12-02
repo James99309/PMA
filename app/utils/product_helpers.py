@@ -246,17 +246,29 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
         position = 1
         for spec in specs:
             # 查询字段定义，获取 use_in_code 值
+            # 先查子分类级字段
             field_def = ProductCodeField.query.filter_by(
                 subcategory_id=product.subcategory_id,
                 name=spec.field_name,
                 field_type='spec'
             ).first()
 
+            # 如果找不到，再查分类级字段
+            if not field_def and product.category_id:
+                field_def = ProductCodeField.query.filter(
+                    ProductCodeField.category_id == product.category_id,
+                    ProductCodeField.subcategory_id.is_(None),
+                    ProductCodeField.name == spec.field_name,
+                    ProductCodeField.field_type == 'spec'
+                ).first()
+
             # 查询规格单位
             unit = get_field_unit(spec.field_name)
 
             # 判断是否为编码规格
-            use_in_code = field_def.use_in_code if field_def else bool(spec.field_code and spec.field_code.strip())
+            # 如果找到字段定义，使用其 use_in_code 值
+            # 如果找不到字段定义，默认为 False（非编码规格）
+            use_in_code = field_def.use_in_code if field_def else False
 
             snapshot["code_parts"].append({
                 "position": position,

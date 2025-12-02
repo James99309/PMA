@@ -448,13 +448,21 @@ class ProductDetailManager {
      */
     handleProductSelect(productData, inputElement) {
         // 兼容性处理：判断是新格式（带配置）还是旧格式（单产品）
-        const isNewFormat = productData && (productData.mainProduct || productData.configurations);
+        const isNewFormat = productData && (productData.mainProduct || productData.configurations || productData.dynamicSpecConfig);
         const product = isNewFormat ? productData.mainProduct : productData;
         const configurations = isNewFormat ? (productData.configurations || []) : [];
+        const dynamicSpecConfig = isNewFormat ? productData.dynamicSpecConfig : null;
+        const configurableSpecConfig = isNewFormat ? productData.configurableSpecConfig : null;
 
         console.log('🔄 处理产品选择:', product.product_name);
         if (configurations.length > 0) {
             console.log(`📦 包含 ${configurations.length} 个配置产品`);
+        }
+        if (dynamicSpecConfig) {
+            console.log(`🔧 包含动态规格配置: ${dynamicSpecConfig.original_mn} → ${dynamicSpecConfig.configured_mn}`);
+        }
+        if (configurableSpecConfig && configurableSpecConfig.price_adjustment_total) {
+            console.log(`💰 可配置字段价格增量: +¥${(configurableSpecConfig.price_adjustment_total / 100).toFixed(2)}`);
         }
 
         const row = inputElement.closest('tr');
@@ -465,6 +473,22 @@ class ProductDetailManager {
 
         // 填充主产品数据
         this.fillProductData(row, product);
+
+        // 处理动态规格配置（如果有）
+        if (dynamicSpecConfig) {
+            this.applyDynamicSpecConfig(row, dynamicSpecConfig);
+        }
+
+        // 处理可配置字段价格增量（如果有配置数据或spec_mn变化）
+        // 注意：即使 price_adjustment_total 为0，如果有 spec_mn 变化也需要处理
+        if (configurableSpecConfig && (configurableSpecConfig.price_adjustment_total || configurableSpecConfig.spec_mn)) {
+            // 补充原产品ID（用于创建研发产品时追溯）
+            configurableSpecConfig.original_product_id = product.id;
+            console.log('🔧 [DEBUG] 处理可配置字段配置:', configurableSpecConfig);
+            this.applyConfigurableSpecPriceAdjustment(row, configurableSpecConfig);
+        } else {
+            console.log('🔧 [DEBUG] 无可配置字段配置或配置为空:', configurableSpecConfig);
+        }
 
         // 处理手动输入模式的字段状态
         if (product.is_temp || product.status === 'temp') {
@@ -1755,6 +1779,31 @@ class ProductDetailManager {
             }
         }
 
+        // 收集动态规格配置数据（如果有）
+        const specConfig = this.getDynamicSpecConfig(row);
+        // 🔍 调试：检查 dataset 属性
+        console.log('🔍 [DEBUG] getRowData - row.dataset:', {
+            configuredSpecs: row.dataset.configuredSpecs,
+            configuredMn: row.dataset.configuredMn,
+            pendingProductCreation: row.dataset.pendingProductCreation
+        });
+        console.log('🔍 [DEBUG] getRowData - specConfig:', specConfig);
+
+        if (specConfig) {
+            data.configured_specs = specConfig.configured_specs;
+            data.configured_mn = specConfig.configured_mn;
+            data.price_adjustment_total = specConfig.price_adjustment_total;
+            data.pending_product_creation = specConfig.pending_product_creation;
+
+            console.log('🔧 收集动态规格配置:', {
+                configured_mn: data.configured_mn,
+                price_adjustment: data.price_adjustment_total,
+                pending_creation: data.pending_product_creation
+            });
+        } else {
+            console.log('🔍 [DEBUG] getRowData - 没有动态规格配置');
+        }
+
         return data;
     }
     
@@ -1822,6 +1871,31 @@ class ProductDetailManager {
                 quantityInput.style.backgroundColor = quantitySynced ? '' : '#ffffff';
                 console.log(`🔧 恢复数量输入框状态: readOnly=${quantitySynced}`);
             }
+        }
+
+        // ✅ 恢复动态规格配置（编辑时保持配置数据）
+        // 🔍 调试：打印配置数据检查
+        console.log('🔍 [DEBUG] 检查动态规格配置数据:');
+        console.log('🔍 [DEBUG]   configured_specs:', data.configured_specs, typeof data.configured_specs);
+        console.log('🔍 [DEBUG]   configured_mn:', data.configured_mn, typeof data.configured_mn);
+        console.log('🔍 [DEBUG]   pending_product_creation:', data.pending_product_creation, typeof data.pending_product_creation);
+
+        if (data.configured_specs && data.configured_mn) {
+            console.log('🔧 恢复动态规格配置:', data.configured_mn);
+            const specConfig = {
+                original_product_id: data.original_product_id,
+                original_mn: data.original_mn,
+                configured_mn: data.configured_mn,
+                spec_config: typeof data.configured_specs === 'string'
+                    ? JSON.parse(data.configured_specs)
+                    : data.configured_specs,
+                price_adjustment_total: data.price_adjustment_total || 0,
+                is_new_product: data.pending_product_creation === true || data.pending_product_creation === 'true'
+            };
+            this.applyDynamicSpecConfig(row, specConfig);
+            console.log('✅ 动态规格配置恢复完成, specConfig:', specConfig);
+        } else {
+            console.log('🔍 [DEBUG] 没有动态规格配置数据需要恢复');
         }
 
         console.log('✅ 行数据填充完成');
@@ -2659,6 +2733,154 @@ class ProductDetailManager {
         if (this.productSelector) {
             this.productSelector.destroy();
         }
+    }
+
+    // ============== 动态规格配置功能 ==============
+
+    /**
+     * 应用动态规格配置到行
+     * @param {HTMLElement} row - 表格行元素
+     * @param {Object} config - 动态规格配置数据
+     */
+    applyDynamicSpecConfig(row, config) {
+        console.log('🔧 应用动态规格配置到行:', config);
+
+        // 存储配置数据到行的dataset中（JSON字符串）
+        row.dataset.configuredSpecs = JSON.stringify(config.spec_config);
+        row.dataset.configuredMn = config.configured_mn;
+        row.dataset.originalMn = config.original_mn;
+        row.dataset.priceAdjustmentTotal = config.price_adjustment_total;
+        row.dataset.pendingProductCreation = config.is_new_product ? 'true' : 'false';
+        row.dataset.originalProductId = config.original_product_id;
+
+        // 如果是新MN（需要创建新产品），更新行显示
+        if (config.is_new_product) {
+            // 更新MN显示为配置后的MN
+            const mnInput = row.querySelector('[name*="product_mn"]');
+            if (mnInput) {
+                mnInput.value = config.configured_mn;
+            }
+
+            // 添加视觉标识
+            row.classList.add('spec-configured');
+
+            // 在MN单元格添加标识
+            const mnCell = row.querySelector('.mn-cell, td:nth-child(6)');
+            if (mnCell) {
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-warning ms-1';
+                badge.title = '规格已定制，将在确认时创建新产品';
+                badge.innerHTML = '<i class="fas fa-cog"></i>';
+                mnCell.appendChild(badge);
+            }
+        } else if (config.existing_product_id) {
+            // 已存在相同MN的产品，更新为已存在产品
+            row.dataset.existingProductId = config.existing_product_id;
+        }
+
+        // 如果有价格增量，可以选择更新价格（可选）
+        if (config.price_adjustment_total !== 0) {
+            console.log(`  💰 价格增量: ${config.price_adjustment_total / 100} 元`);
+            // 注意：是否自动更新价格取决于业务需求
+            // 这里暂不自动修改价格，保持原产品价格
+        }
+
+        console.log('  ✅ 动态规格配置已应用');
+    }
+
+    /**
+     * 应用可配置字段价格增量到行
+     * @param {HTMLElement} row - 表格行元素
+     * @param {Object} config - 可配置字段配置数据
+     */
+    applyConfigurableSpecPriceAdjustment(row, config) {
+        // 存储配置数据到行的dataset中
+        row.dataset.configurableSpecConfig = JSON.stringify(config);
+
+        // 如果有规格MN，更新product_mn字段
+        if (config.spec_mn) {
+            this.setFieldValueByKey(row, 'product_mn', config.spec_mn);
+            console.log(`📝 设置规格MN: ${config.spec_mn}`);
+
+            // ⭐ 设置配置数据用于保存（统一数据格式）
+            // 将可配置字段配置转换为统一的配置数据格式
+            row.dataset.configuredMn = config.spec_mn;
+            row.dataset.configuredSpecs = JSON.stringify({
+                source: 'configurable_spec',
+                original_product_id: config.original_product_id || null,
+                configurable_selections: config.configurable_selections || {},
+                price_details: config.price_details || [],
+                // ⭐ 新增：保存配置后的描述
+                configured_description: config.configured_description || ''
+            });
+            row.dataset.priceAdjustmentTotal = config.price_adjustment_total || 0;
+            // 标记为需要创建新产品
+            row.dataset.pendingProductCreation = 'true';
+            row.dataset.originalProductId = config.original_product_id || '';
+
+            // ⭐ 如果有配置后的描述，更新产品描述字段
+            if (config.configured_description) {
+                this.setFieldValueByKey(row, 'product_desc', config.configured_description);
+                console.log(`📝 设置配置后的描述: ${config.configured_description.substring(0, 50)}...`);
+            }
+
+            console.log('✅ 可配置字段配置已保存到 dataset:', {
+                configuredMn: row.dataset.configuredMn,
+                pendingProductCreation: row.dataset.pendingProductCreation,
+                originalProductId: row.dataset.originalProductId,
+                hasConfiguredDescription: !!config.configured_description
+            });
+        }
+
+        const adjustmentTotal = config.price_adjustment_total || 0;
+        if (adjustmentTotal === 0) {
+            return;
+        }
+
+        row.dataset.configurablePriceAdjustment = adjustmentTotal;
+
+        // 价格增量以分为单位，需要转换为元
+        const adjustmentInYuan = adjustmentTotal / 100;
+
+        // 更新市场价（同时更新 data-raw-value 和显示值）
+        const marketPriceInput = row.querySelector('.market_price-input');
+        if (marketPriceInput) {
+            // 获取原始值（CNY）
+            const currentRawPrice = parseFloat(marketPriceInput.dataset.rawValue || marketPriceInput.value) || 0;
+            const newRawPrice = currentRawPrice + adjustmentInYuan;
+
+            // 更新原始值
+            marketPriceInput.dataset.rawValue = newRawPrice;
+
+            // 更新显示值（考虑货币转换）
+            if (this.currentCurrency && this.currentCurrency !== 'CNY') {
+                const displayPrice = this.convertAmountLocally(newRawPrice, 'CNY', this.currentCurrency);
+                marketPriceInput.value = parseFloat(displayPrice).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            } else {
+                marketPriceInput.value = parseFloat(newRawPrice).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            }
+        }
+    }
+
+    /**
+     * 获取行的动态规格配置数据（用于保存）
+     * @param {HTMLElement} row - 表格行元素
+     * @returns {Object|null} 配置数据或null
+     */
+    getDynamicSpecConfig(row) {
+        if (!row.dataset.configuredSpecs || !row.dataset.configuredMn) {
+            return null;
+        }
+
+        return {
+            configured_specs: JSON.parse(row.dataset.configuredSpecs),
+            configured_mn: row.dataset.configuredMn,
+            original_mn: row.dataset.originalMn,
+            price_adjustment_total: parseInt(row.dataset.priceAdjustmentTotal) || 0,
+            pending_product_creation: row.dataset.pendingProductCreation === 'true',
+            original_product_id: parseInt(row.dataset.originalProductId) || null,
+            existing_product_id: row.dataset.existingProductId ? parseInt(row.dataset.existingProductId) : null
+        };
     }
 }
 

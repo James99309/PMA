@@ -22,6 +22,7 @@ class ProductCodeCategoryFieldManager {
      */
     initEventListeners() {
         // 纳入编码复选框变化时，自动勾选必填项
+        // 注意：「允许报价配置」已下沉到子分类级别管理，分类级不再控制
         const useInCodeCheckbox = document.getElementById('fieldUseInCode');
         const requiredCheckbox = document.getElementById('fieldRequired');
 
@@ -30,6 +31,7 @@ class ProductCodeCategoryFieldManager {
                 if (this.checked) {
                     requiredCheckbox.checked = true;
                 }
+                // 「允许报价配置」已下沉到子分类级别，不再在分类级控制显示/隐藏
             });
         }
     }
@@ -298,6 +300,8 @@ class ProductCodeCategoryFieldManager {
             document.getElementById('fieldRequired').checked = field.is_required;
             document.getElementById('fieldUseInCode').checked = field.use_in_code;
 
+            // 「允许报价配置」已下沉到子分类级别管理，分类级不再显示/设置
+
             // 设置选中的规格（编辑时只有一个）
             this.selectedSpecs.clear();
             this.selectedSpecs.add(field.name);
@@ -336,6 +340,8 @@ class ProductCodeCategoryFieldManager {
         const errorDiv = document.getElementById('fieldNameError');
         if (errorDiv) errorDiv.style.display = 'none';
 
+        // 「允许报价配置」已下沉到子分类级别管理，分类级不再重置
+
         // 更新徽章显示
         this.renderSelectedBadges();
     }
@@ -373,6 +379,7 @@ class ProductCodeCategoryFieldManager {
         const selectedNames = this.getSelectedSpecNames();
         const isRequired = document.getElementById('fieldRequired').checked;
         const useInCode = document.getElementById('fieldUseInCode').checked;
+        // 「允许报价配置」已下沉到子分类级别，分类级不再发送此参数
 
         try {
             if (this.currentMode === 'add') {
@@ -386,6 +393,7 @@ class ProductCodeCategoryFieldManager {
                         name: name,
                         is_required: isRequired,
                         use_in_code: useInCode
+                        // allow_quotation_config 已下沉到子分类级别
                     };
 
                     const response = await fetch('/product-code/api/category-fields', {
@@ -422,6 +430,7 @@ class ProductCodeCategoryFieldManager {
                     name: name,
                     is_required: isRequired,
                     use_in_code: useInCode
+                    // allow_quotation_config 已下沉到子分类级别
                 };
 
                 const response = await fetch(`/product-code/api/category-fields/${this.currentFieldId}`, {

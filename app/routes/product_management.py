@@ -1482,13 +1482,25 @@ def edit_product(id):
         specs_db = product_specs
     
     # 获取当前产品分类下的有效规格名称（用于标记快照规格）
+    # 需要同时查询：分类级继承字段 + 子分类级字段
     valid_spec_names = set()
     if product.subcategory_id:
         from app.models.product_code import ProductCodeField
-        valid_fields = ProductCodeField.query.filter_by(
-            subcategory_id=product.subcategory_id
+        # 子分类级字段
+        subcat_fields = ProductCodeField.query.filter_by(
+            subcategory_id=product.subcategory_id,
+            field_type='spec'
         ).all()
-        valid_spec_names = {field.name for field in valid_fields}
+        valid_spec_names = {field.name for field in subcat_fields}
+
+        # 分类级继承字段
+        if product.category_id:
+            cat_fields = ProductCodeField.query.filter(
+                ProductCodeField.category_id == product.category_id,
+                ProductCodeField.subcategory_id.is_(None),
+                ProductCodeField.field_type == 'spec'
+            ).all()
+            valid_spec_names |= {field.name for field in cat_fields}
 
     # 将DevProductSpec对象转换为可JSON序列化的字典列表
     # 标记哪些是快照规格（不在当前规格定义中的历史数据）
@@ -3112,6 +3124,12 @@ def add_spec_field_option():
                 'message': '找不到对应的规格字段'
             }), 404
 
+        # 判断是分类级字段还是子分类级字段
+        # 分类级字段：is_category_level=True，需要为子分类创建选项（带 subcategory_id）
+        # 子分类级字段：is_category_level=False，创建字段选项（不带 subcategory_id）
+        is_inherited_field = spec_field.is_category_level
+        target_subcategory_id = int(subcategory_id) if is_inherited_field else None
+
         # 查找规格字典
         spec_dict = SpecificationDictionary.query.filter_by(name=spec_name).first()
         if not spec_dict:
@@ -3143,9 +3161,10 @@ def add_spec_field_option():
             db.session.add(spec_option)
             db.session.flush()
 
-        # 检查是否已存在相同的字段选项引用
+        # 检查是否已存在相同的字段选项引用（需要区分子分类）
         existing_option = ProductCodeFieldOption.query.filter_by(
             field_id=spec_field.id,
+            subcategory_id=target_subcategory_id,
             spec_option_id=spec_option.id
         ).first()
 
@@ -3155,13 +3174,14 @@ def add_spec_field_option():
                 'message': f'指标值 "{value}" 已存在'
             }), 400
 
-        # 获取当前最大position
+        # 获取当前最大position（区分子分类）
         max_position = db.session.query(db.func.max(ProductCodeFieldOption.position))\
-            .filter_by(field_id=spec_field.id).scalar() or 0
+            .filter_by(field_id=spec_field.id, subcategory_id=target_subcategory_id).scalar() or 0
 
         # 创建字段选项引用
         new_option = ProductCodeFieldOption(
             field_id=spec_field.id,
+            subcategory_id=target_subcategory_id,
             spec_option_id=spec_option.id,
             description=description or f'快速添加的指标',
             is_active=True,
