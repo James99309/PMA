@@ -4306,10 +4306,26 @@ def get_subcategory_spec_field_options(subcategory_id):
             options = []
             # 获取字段的单位（从规格字典中获取）
             field_unit = None
-            for option in field.options:
-                if not option.is_active:
-                    continue
 
+            # 判断是否为继承字段（分类级字段，subcategory_id为None）
+            is_inherited_field = field.subcategory_id is None
+
+            # 根据字段类型决定选项过滤方式
+            if is_inherited_field:
+                # 继承字段：必须按当前子分类ID过滤选项
+                field_options = ProductCodeFieldOption.query.filter_by(
+                    field_id=field.id,
+                    subcategory_id=subcategory_id,
+                    is_active=True
+                ).order_by(ProductCodeFieldOption.position).all()
+            else:
+                # 子分类自有字段：获取所有激活选项
+                field_options = ProductCodeFieldOption.query.filter_by(
+                    field_id=field.id,
+                    is_active=True
+                ).order_by(ProductCodeFieldOption.position).all()
+
+            for option in field_options:
                 # 获取单位（从 spec_option.spec.unit 获取）
                 if not field_unit and option.spec_option and option.spec_option.spec:
                     field_unit = option.spec_option.spec.unit
