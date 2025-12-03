@@ -289,7 +289,7 @@ class SupabaseBackupService:
         if db_type == 'sp8d':
             expected_filename = f'pma_db_sp8d_backup_{timestamp}.sql'
         else:
-            expected_filename = f'pma_db_ovs_backup_simple_{timestamp}.sql'
+            expected_filename = f'pma_db_ovs_backup_{timestamp}.sql'
 
         # 精确查找文件
         filepath = os.path.join(self.backup_dir, expected_filename)
@@ -307,7 +307,7 @@ class SupabaseBackupService:
             f'pma_db_local_backup_{timestamp}.sql',
             f'pma_db_local_backup_{timestamp}.db',   # SQLite
             f'pma_db_sp8d_backup_{timestamp}.sql',
-            f'pma_db_ovs_backup_simple_{timestamp}.sql',
+            f'pma_db_ovs_backup_{timestamp}.sql',
             f'pma_db_unknown_backup_{timestamp}.sql'
         ]
 
