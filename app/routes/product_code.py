@@ -1972,6 +1972,68 @@ def update_category_fields_order(id):
         return jsonify({"success": False, "message": f"保存失败: {str(e)}"}), 500
 
 
+@product_code_bp.route('/api/field/<int:field_id>/update-options-order', methods=['POST'])
+@login_required
+@product_manager_required
+def update_options_order(field_id):
+    """更新字段选项（指标）的排序顺序
+
+    支持子分类自有字段和继承字段的指标排序。
+    对于继承字段，需要传入 subcategory_id 参数。
+    """
+    if not request.is_json:
+        return jsonify({"success": False, "message": "请求必须是JSON格式"}), 400
+
+    try:
+        data = request.get_json()
+        option_ids = data.get('option_ids', [])
+        subcategory_id = data.get('subcategory_id')  # 用于继承字段
+
+        if not option_ids:
+            return jsonify({"success": False, "message": "未提供排序数据"}), 400
+
+        # 确保所有ID都是整数
+        try:
+            option_ids = [int(oid) for oid in option_ids]
+        except (ValueError, TypeError):
+            return jsonify({"success": False, "message": "选项ID必须是整数"}), 400
+
+        # 验证字段存在
+        field = ProductCodeField.query.get(field_id)
+        if not field:
+            return jsonify({"success": False, "message": "字段不存在"}), 404
+
+        # 更新选项的排序位置
+        current_app.logger.info(f"开始更新指标排序: field_id={field_id}, option_ids={option_ids}, subcategory_id={subcategory_id}")
+        updated_options = []
+        for position, option_id in enumerate(option_ids, 1):
+            option = ProductCodeFieldOption.query.get(option_id)
+            if option and option.field_id == field_id:
+                # 如果是继承字段的子分类级选项，验证 subcategory_id
+                if subcategory_id and option.subcategory_id:
+                    if option.subcategory_id != int(subcategory_id):
+                        current_app.logger.info(f"跳过选项 {option_id}: subcategory_id 不匹配 ({option.subcategory_id} != {subcategory_id})")
+                        continue
+                old_position = option.position
+                option.position = position
+                updated_options.append(f"option_id={option_id}, old_pos={old_position}, new_pos={position}")
+                current_app.logger.info(f"更新选项 {option_id}: position {old_position} -> {position}")
+
+        db.session.commit()
+
+        current_app.logger.info(f"指标排序已更新: field_id={field_id}, 更新了 {len(updated_options)} 个选项")
+
+        return jsonify({
+            "success": True,
+            "message": "排序已更新"
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"更新指标排序时出错: {str(e)}")
+        return jsonify({"success": False, "message": f"保存失败: {str(e)}"}), 500
+
+
 @product_code_bp.route('/api/category/<int:id>/update-subcategories-order', methods=['POST'])
 @login_required
 @product_manager_required

@@ -368,35 +368,56 @@ class ProductConfigModal {
             });
 
             // 🆕 使用已加载的可配置字段信息处理 codeAnalysis
-            // 对于可配置字段（产品差异或固定），用规格定义中的全部选项替换
+            // 对于可配置字段：用规格定义中的全部选项替换
+            // 对于非可配置但有差异的字段：按规格定义的顺序重排现有选项
             if (this.specFieldMap && this.specFieldMap.size > 0) {
                 codeAnalysis.forEach(field => {
                     const specField = this.specFieldMap.get(field.fieldName);
-                    if (specField && specField.allow_quotation_config && specField.options.length > 0) {
-                        // 标记为可配置字段
-                        field.isConfigurable = true;
+                    if (specField && specField.options.length > 0) {
+                        if (specField.allow_quotation_config) {
+                            // 可配置字段：用规格定义的全部选项替换
+                            field.isConfigurable = true;
 
-                        // 保存原始选项（现有产品使用的值）
-                        const originalCode = field.fixedValue?.code || (field.options.length > 0 ? field.options[0].code : null);
+                            // 保存原始选项（现有产品使用的值）
+                            const originalCode = field.fixedValue?.code || (field.options.length > 0 ? field.options[0].code : null);
 
-                        // 用规格定义的全部选项替换
-                        // 使用字段级别的单位（specField.unit）
-                        field.options = specField.options.map(opt => ({
-                            code: opt.code,
-                            value: opt.value,
-                            unit: specField.unit || null,  // 使用字段的单位
-                            price_adjustment: opt.price_adjustment,
-                            hasExistingProduct: opt.code === originalCode
-                        }));
+                            // 用规格定义的全部选项替换
+                            // 使用字段级别的单位（specField.unit）
+                            field.options = specField.options.map(opt => ({
+                                code: opt.code,
+                                value: opt.value,
+                                unit: specField.unit || null,  // 使用字段的单位
+                                price_adjustment: opt.price_adjustment,
+                                hasExistingProduct: opt.code === originalCode
+                            }));
 
-                        // 可配置字段强制设为可选（即使原来是固定字段）
-                        if (specField.options.length > 1) {
-                            field.isDifferent = true;
-                            field.status = 'configurable';
-                            // 如果原来是固定字段，保留固定值作为默认选中
-                            if (field.fixedValue) {
-                                field.selectedCode = field.fixedValue.code;
-                                field.autoLinkedCode = field.fixedValue.code;
+                            // 可配置字段强制设为可选（即使原来是固定字段）
+                            if (specField.options.length > 1) {
+                                field.isDifferent = true;
+                                field.status = 'configurable';
+                                // 如果原来是固定字段，保留固定值作为默认选中
+                                if (field.fixedValue) {
+                                    field.selectedCode = field.fixedValue.code;
+                                    field.autoLinkedCode = field.fixedValue.code;
+                                }
+                            }
+                        } else if (field.isDifferent && field.options.length > 1) {
+                            // 非可配置但有差异的字段：按 API 返回的顺序（position）重排现有选项
+                            const existingCodes = new Set(field.options.map(o => o.code));
+                            const sortedOptions = specField.options
+                                .filter(opt => existingCodes.has(opt.code))
+                                .map(opt => {
+                                    // 保留现有选项的完整信息（包括 count 等）
+                                    const existing = field.options.find(o => o.code === opt.code);
+                                    return existing || {
+                                        code: opt.code,
+                                        value: opt.value,
+                                        unit: specField.unit || null
+                                    };
+                                });
+                            // 只有当所有选项都找到时才替换（确保不丢失选项）
+                            if (sortedOptions.length === field.options.length) {
+                                field.options = sortedOptions;
                             }
                         }
                     }

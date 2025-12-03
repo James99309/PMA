@@ -4325,6 +4325,11 @@ def get_subcategory_spec_field_options(subcategory_id):
                     is_active=True
                 ).order_by(ProductCodeFieldOption.position).all()
 
+            # 【调试】记录选项排序信息
+            current_app.logger.info(f"【调试】字段 {field.name} (id={field.id}, is_inherited={is_inherited_field}) 的选项:")
+            for idx, opt in enumerate(field_options):
+                current_app.logger.info(f"  [{idx}] option_id={opt.id}, value={opt.effective_value}, code={opt.effective_code}, position={opt.position}")
+
             for option in field_options:
                 # 获取单位（从 spec_option.spec.unit 获取）
                 if not field_unit and option.spec_option and option.spec_option.spec:
@@ -4336,8 +4341,7 @@ def get_subcategory_spec_field_options(subcategory_id):
                     'price_adjustment': option.price_adjustment or 0
                 })
 
-            # 按值排序
-            options.sort(key=lambda x: x['value'])
+            # 保持数据库查询时的position排序，不再按值字母排序
 
             result_fields.append({
                 'field_name': field.name,
@@ -4479,8 +4483,7 @@ def get_configurable_specs(product_id):
                     'is_current': (option_value == current_value)
                 })
 
-            # 按值排序选项
-            options.sort(key=lambda x: x['value'])
+            # 保持数据库查询时的position排序，不再按值字母排序
 
             result_fields.append({
                 'field_id': field.id,

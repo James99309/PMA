@@ -129,6 +129,11 @@ class ProductCodeField(db.Model):
         """是否为分类级字段"""
         return self.category_id is not None and self.subcategory_id is None
 
+    @property
+    def options_sorted(self):
+        """返回按position排序的选项列表"""
+        return self.options.order_by(ProductCodeFieldOption.position).all()
+
     @classmethod
     def get_category_fields(cls, category_id):
         """获取分类级别的编码字段"""

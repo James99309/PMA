@@ -124,13 +124,15 @@
         background-color: #e9ecef;
     }
 
-    /* 编码说明折叠区域样式 */
+    /* 通用折叠区域样式 */
+    .collapsible-section,
     .code-definition-collapse {
         border: 1px solid #dee2e6;
         border-radius: 8px;
         overflow: hidden;
     }
 
+    .collapsible-header,
     .code-definition-header {
         background-color: #f8f9fa;
         padding: 1rem 1.5rem;
@@ -139,10 +141,12 @@
         transition: background-color 0.2s;
     }
 
+    .collapsible-header:hover,
     .code-definition-header:hover {
         background-color: #e9ecef;
     }
 
+    .collapsible-header h5,
     .code-definition-header h5 {
         margin: 0;
         display: flex;
@@ -150,17 +154,23 @@
         justify-content: space-between;
     }
 
+    .collapsible-header .toggle-icon,
     .code-definition-header .toggle-icon {
         transition: transform 0.3s;
     }
 
+    .collapsible-header .toggle-icon.rotated,
     .code-definition-header .toggle-icon.rotated {
         transform: rotate(180deg);
     }
 
+    .collapsible-body,
+    .code-definition-body {
+        background-color: #fff;
+    }
+
     .code-definition-body {
         padding: 1.5rem;
-        background-color: #fff;
     }
 
     /* 隐藏PDF预览样式 */
@@ -446,17 +456,18 @@
         </div>
     </div>
 
-    <!-- 第二部分：产品规格 -->
+    <!-- 第二部分：产品规格（可折叠，默认折叠） -->
     {% if product_specs and product_specs|length > 0 %}
     <div class="row mb-4">
         <div class="col-md-12">
-            <div class="card">
-                <div class="card-header bg-light">
-                    <h5 class="mb-0">
-                        <i class="fas fa-cogs me-2"></i>{{ _('产品规格') }}
+            <div class="collapsible-section">
+                <div class="collapsible-header" onclick="toggleSection('productSpecs')">
+                    <h5>
+                        <span><i class="fas fa-cogs me-2"></i>{{ _('产品规格') }}</span>
+                        <i class="fas fa-chevron-down toggle-icon" id="productSpecsToggleIcon"></i>
                     </h5>
                 </div>
-                <div class="card-body p-0">
+                <div class="collapsible-body" id="productSpecsBody" style="display: none;">
                     <div class="table-responsive">
                         <table class="table specs-table mb-0">
                             <thead>
@@ -486,34 +497,44 @@
     </div>
     {% endif %}
 
-    <!-- 关联产品配置区域 -->
-    <div class="row mb-4">
+    <!-- 关联产品配置区域（可折叠，默认折叠，无数据时隐藏） -->
+    <div class="row mb-4" id="productRelationsSection" style="display: none;">
         <div class="col-md-12">
-            {{ render_detail_list(
-                container_id='productRelationsList',
-                title='关联产品配置',
-                icon='fa-link',
-                api_url=url_for('product_management.get_product_relations', product_id=product.id),
-                columns=[
-                    {'key': 'product_name', 'label': _('产品名称'), 'width': '25%'},
-                    {'key': 'product_model', 'label': _('型号'), 'width': '20%'},
-                    {'key': 'product_mn', 'label': _('MN编号'), 'width': '20%'},
-                    {'key': 'relation_type_label', 'label': _('配置类型'), 'width': '15%', 'align': 'center', 'type': 'badge'},
-                    {'key': 'default_quantity', 'label': _('配置数量'), 'width': '10%', 'align': 'center'}
-                ],
-                actions=[
-                    {'type': 'delete', 'label': _('删除'), 'confirm': _('确认删除此关联产品？')}
-                ],
-                add_button_html=render_button(
-                    text=_('添加关联产品'),
-                    color='primary',
-                    size='sm',
-                    onclick='openAddRelationModal()',
-                    type='button'
-                ) if current_user.role in ['admin', 'product_manager'] else '',
-                empty_message=_('暂无关联产品配置'),
-                show_actions=current_user.role in ['admin', 'product_manager']
-            ) }}
+            <div class="collapsible-section">
+                <div class="collapsible-header" onclick="toggleSection('productRelations')">
+                    <h5>
+                        <span><i class="fas fa-link me-2"></i>{{ _('关联产品配置') }}</span>
+                        <i class="fas fa-chevron-down toggle-icon" id="productRelationsToggleIcon"></i>
+                    </h5>
+                </div>
+                <div class="collapsible-body" id="productRelationsBody" style="display: none;">
+                    {{ render_detail_list(
+                        container_id='productRelationsList',
+                        title='',
+                        icon='',
+                        api_url=url_for('product_management.get_product_relations', product_id=product.id),
+                        columns=[
+                            {'key': 'product_name', 'label': _('产品名称'), 'width': '25%'},
+                            {'key': 'product_model', 'label': _('型号'), 'width': '20%'},
+                            {'key': 'product_mn', 'label': _('MN编号'), 'width': '20%'},
+                            {'key': 'relation_type_label', 'label': _('配置类型'), 'width': '15%', 'align': 'center', 'type': 'badge'},
+                            {'key': 'default_quantity', 'label': _('配置数量'), 'width': '10%', 'align': 'center'}
+                        ],
+                        actions=[
+                            {'type': 'delete', 'label': _('删除'), 'confirm': _('确认删除此关联产品？')}
+                        ],
+                        add_button_html=render_button(
+                            text=_('添加关联产品'),
+                            color='primary',
+                            size='sm',
+                            onclick='openAddRelationModal()',
+                            type='button'
+                        ) if current_user.role in ['admin', 'product_manager'] else '',
+                        empty_message=_('暂无关联产品配置'),
+                        show_actions=current_user.role in ['admin', 'product_manager']
+                    ) }}
+                </div>
+            </div>
         </div>
     </div>
 
@@ -704,17 +725,24 @@
 
 <script>
 // 编码定义折叠功能
-function toggleCodeDefinition() {
-    const body = document.getElementById('codeDefinitionBody');
-    const icon = document.getElementById('codeToggleIcon');
+// 通用折叠函数
+function toggleSection(sectionName) {
+    const body = document.getElementById(sectionName + 'Body');
+    const icon = document.getElementById(sectionName + 'ToggleIcon');
 
-    if (body.style.display === 'none') {
-        body.style.display = 'block';
-        icon.classList.add('rotated');
-    } else {
-        body.style.display = 'none';
-        icon.classList.remove('rotated');
+    if (body && icon) {
+        if (body.style.display === 'none') {
+            body.style.display = 'block';
+            icon.classList.add('rotated');
+        } else {
+            body.style.display = 'none';
+            icon.classList.remove('rotated');
+        }
     }
+}
+
+function toggleCodeDefinition() {
+    toggleSection('codeDefinition');
 }
 
 // PDF预览相关全局变量
@@ -1573,6 +1601,13 @@ window.render_productRelationsList_rows = function(data) {
     // 检查是否有数据
     const hasNormalData = data.data && data.data.length > 0;
     const hasGroups = data.groups && Object.keys(data.groups).length > 0;
+    const hasData = hasNormalData || hasGroups;
+
+    // 控制整个区域的显示/隐藏（有数据才显示）
+    const sectionContainer = document.getElementById('productRelationsSection');
+    if (sectionContainer) {
+        sectionContainer.style.display = hasData ? 'block' : 'none';
+    }
 
     if (!hasNormalData && !hasGroups) {
         // 显示空状态
