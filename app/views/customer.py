@@ -131,22 +131,26 @@ def get_countries_regions():
                    "Thai Binh", "Thanh Hoa", "Thua Thien Hue", "Tra Vinh", "Tuyen Quang", "Vinh Long", "Vinh Phuc", "Yen Bai"]
         },
         "TH": {
-            "zh": ["曼谷", "春武里府", "北榄府", "暖武里府", "巴吞他尼府", "龙仔厝府", "北碧府", "猜也奔府", 
-                   "彰化府", "清莱府", "清迈府", "春蓬府", "甘烹碧府", "华富里府", "来兴府", "南奔府", 
-                   "南邦府", "廊开府", "洛坤府", "洛武里府", "湄宏顺府", "马哈沙拉堪府", "莫达汉府", 
-                   "那空那育府", "那空拍侬府", "那空叻差是玛府", "那空沙旺府", "那空是贪玛叻府", 
-                   "楠府", "呵叻府", "廊曼府", "巴真府", "北大年府", "攀牙府", "博他仑府", "碧武里府", 
+            "zh": ["曼谷", "春武里府", "北榄府", "暖武里府", "巴吞他尼府", "龙仔厝府", "北碧府", "猜也奔府",
+                   "彰化府", "清莱府", "清迈府", "春蓬府", "甘烹碧府", "华富里府", "来兴府", "南奔府",
+                   "南邦府", "廊开府", "洛坤府", "洛武里府", "湄宏顺府", "马哈沙拉堪府", "莫达汉府",
+                   "那空那育府", "那空拍侬府", "那空叻差是玛府", "那空沙旺府", "那空是贪玛叻府",
+                   "楠府", "呵叻府", "廊曼府", "巴真府", "北大年府", "攀牙府", "博他仑府", "碧武里府",
                    "佛丕府", "佛统府", "普吉府", "叻丕府", "罗勇府", "沙缴府", "桑卡府", "沙敦府",
-                   "信武里府", "四色菊府", "素可泰府", "素林府", "素叻府", "达府", "董里府", "陶公府", 
+                   "信武里府", "四色菊府", "素可泰府", "素林府", "素叻府", "达府", "董里府", "陶公府",
                    "程逸府", "乌隆府", "乌泰他尼府", "惹拉府", "也拉府", "益梭通府"],
-            "en": ["Bangkok", "Chonburi", "Samut Prakan", "Nonthaburi", "Pathum Thani", "Samut Sakhon", "Kanchanaburi", "Chachoengsao", 
-                   "Chanthaburi", "Chiang Rai", "Chiang Mai", "Chumphon", "Kamphaeng Phet", "Lopburi", "Loei", "Lamphun", 
-                   "Lampang", "Nong Khai", "Nakhon Si Thammarat", "Lopburi", "Mae Hong Son", "Maha Sarakham", "Mukdahan", 
-                   "Nakhon Nayok", "Nakhon Phanom", "Nakhon Ratchasima", "Nakhon Sawan", "Nakhon Si Thammarat", 
-                   "Nan", "Nong Bua Lamphu", "Nong Khai", "Prachinburi", "Pattani", "Phang Nga", "Phatthalung", "Phetchaburi", 
-                   "Phetchabun", "Nakhon Pathom", "Phuket", "Ratchaburi", "Rayong", "Sa Kaeo", "Sakon Nakhon", "Satun", 
-                   "Sing Buri", "Sisaket", "Sukhothai", "Surin", "Surat Thani", "Tak", "Trang", "Trat", 
+            "en": ["Bangkok", "Chonburi", "Samut Prakan", "Nonthaburi", "Pathum Thani", "Samut Sakhon", "Kanchanaburi", "Chachoengsao",
+                   "Chanthaburi", "Chiang Rai", "Chiang Mai", "Chumphon", "Kamphaeng Phet", "Lopburi", "Loei", "Lamphun",
+                   "Lampang", "Nong Khai", "Nakhon Si Thammarat", "Lopburi", "Mae Hong Son", "Maha Sarakham", "Mukdahan",
+                   "Nakhon Nayok", "Nakhon Phanom", "Nakhon Ratchasima", "Nakhon Sawan", "Nakhon Si Thammarat",
+                   "Nan", "Nong Bua Lamphu", "Nong Khai", "Prachinburi", "Pattani", "Phang Nga", "Phatthalung", "Phetchaburi",
+                   "Phetchabun", "Nakhon Pathom", "Phuket", "Ratchaburi", "Rayong", "Sa Kaeo", "Sakon Nakhon", "Satun",
+                   "Sing Buri", "Sisaket", "Sukhothai", "Surin", "Surat Thani", "Tak", "Trang", "Trat",
                    "Ubon Ratchathani", "Udon Thani", "Uthai Thani", "Yala", "Yala", "Yasothon"]
+        },
+        "SG": {
+            "zh": ["新加坡"],
+            "en": ["Singapore"]
         }
     }
     

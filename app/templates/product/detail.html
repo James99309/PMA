@@ -497,8 +497,8 @@
     </div>
     {% endif %}
 
-    <!-- 关联产品配置区域（可折叠，默认折叠，无数据时隐藏） -->
-    <div class="row mb-4" id="productRelationsSection" style="display: none;">
+    <!-- 关联产品配置区域（可折叠，默认折叠） -->
+    <div class="row mb-4" id="productRelationsSection">
         <div class="col-md-12">
             <div class="collapsible-section">
                 <div class="collapsible-header" onclick="toggleSection('productRelations')">
@@ -1601,18 +1601,11 @@ window.render_productRelationsList_rows = function(data) {
     // 检查是否有数据
     const hasNormalData = data.data && data.data.length > 0;
     const hasGroups = data.groups && Object.keys(data.groups).length > 0;
-    const hasData = hasNormalData || hasGroups;
 
-    // 控制整个区域的显示/隐藏（有数据才显示）
-    const sectionContainer = document.getElementById('productRelationsSection');
-    if (sectionContainer) {
-        sectionContainer.style.display = hasData ? 'block' : 'none';
-    }
-
+    // 无数据时显示空状态
     if (!hasNormalData && !hasGroups) {
-        // 显示空状态
         mainContainer.innerHTML = `
-            <div class="text-center py-5 text-muted">
+            <div class="text-center py-4 text-muted">
                 <i class="fas fa-inbox fa-3x mb-3"></i>
                 <p class="mb-0">{{ _("暂无关联产品配置") }}</p>
             </div>
