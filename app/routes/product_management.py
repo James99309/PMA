@@ -2330,7 +2330,17 @@ def get_spec_fields_by_subcategory(subcategory_id):
             }
 
             # 获取字段选项
-            options = ProductCodeFieldOption.query.filter_by(field_id=field.id).order_by(ProductCodeFieldOption.position).all()
+            # 对于继承字段（分类级字段），需要按当前子分类过滤选项
+            if is_inherited:
+                options = ProductCodeFieldOption.query.filter_by(
+                    field_id=field.id,
+                    subcategory_id=subcategory_id
+                ).order_by(ProductCodeFieldOption.position).all()
+            else:
+                options = ProductCodeFieldOption.query.filter_by(
+                    field_id=field.id
+                ).order_by(ProductCodeFieldOption.position).all()
+
             for option in options:
                 field_data['options'].append({
                     'id': option.id,
@@ -2506,10 +2516,21 @@ def get_spec_structure(subcategory_id):
             }
             
             # 获取字段选项
-            options = ProductCodeFieldOption.query.filter_by(
-                field_id=field.id,
-                is_active=True
-            ).order_by(ProductCodeFieldOption.position).all()
+            # 对于继承字段（分类级字段），需要按当前子分类过滤选项
+            # 对于自有字段（子分类级字段），subcategory_id为None
+            if is_inherited:
+                # 分类级继承字段：只获取当前子分类的选项
+                options = ProductCodeFieldOption.query.filter_by(
+                    field_id=field.id,
+                    subcategory_id=subcategory_id,
+                    is_active=True
+                ).order_by(ProductCodeFieldOption.position).all()
+            else:
+                # 子分类自有字段：选项的subcategory_id为None
+                options = ProductCodeFieldOption.query.filter_by(
+                    field_id=field.id,
+                    is_active=True
+                ).order_by(ProductCodeFieldOption.position).all()
             
             for option in options:
                 field_data['options'].append({
