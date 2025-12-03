@@ -2834,38 +2834,71 @@ def get_spec_field_options():
         subcategory_id = request.args.get('subcategory_id', type=int)
         spec_name = request.args.get('spec_name', '').strip()
         field_id = request.args.get('field_id', type=int)
-        
+
         if not subcategory_id or not spec_name:
             return jsonify({'options': []})
-        
+
+        # 判断是否为继承字段（分类级字段）
+        is_inherited_field = False
+
         # 优先使用field_id查找，否则通过名称查找
         if field_id:
             field = ProductCodeField.query.get(field_id)
+            if field:
+                # 判断是否为继承字段
+                is_inherited_field = field.subcategory_id is None
         else:
+            # 先查子分类级字段
             field = ProductCodeField.query.filter_by(
                 subcategory_id=subcategory_id,
                 name=spec_name,
                 field_type='spec'
             ).first()
-        
+
+            # 如果没找到，查分类级继承字段
+            if not field:
+                subcategory = ProductSubcategory.query.get(subcategory_id)
+                if subcategory and subcategory.category_id:
+                    field = ProductCodeField.query.filter(
+                        ProductCodeField.category_id == subcategory.category_id,
+                        ProductCodeField.subcategory_id.is_(None),
+                        ProductCodeField.name == spec_name,
+                        ProductCodeField.field_type == 'spec'
+                    ).first()
+                    if field:
+                        is_inherited_field = True
+
         if not field:
             return jsonify({'options': []})
-        
+
         # 获取该字段的选项
         # 支持可选参数 include_inactive：是否包含禁用的指标
         include_inactive = request.args.get('include_inactive', 'false').lower() == 'true'
 
-        if include_inactive:
-            # 返回所有指标（包括禁用的）
-            options = ProductCodeFieldOption.query.filter_by(
-                field_id=field.id
-            ).order_by(ProductCodeFieldOption.position).all()
+        # 对于继承字段（分类级字段），需要按当前子分类过滤选项
+        if is_inherited_field:
+            if include_inactive:
+                options = ProductCodeFieldOption.query.filter_by(
+                    field_id=field.id,
+                    subcategory_id=subcategory_id
+                ).order_by(ProductCodeFieldOption.position).all()
+            else:
+                options = ProductCodeFieldOption.query.filter_by(
+                    field_id=field.id,
+                    subcategory_id=subcategory_id,
+                    is_active=True
+                ).order_by(ProductCodeFieldOption.position).all()
         else:
-            # 只返回启用的指标（默认行为）
-            options = ProductCodeFieldOption.query.filter_by(
-                field_id=field.id,
-                is_active=True
-            ).order_by(ProductCodeFieldOption.position).all()
+            # 子分类自有字段，获取所有选项
+            if include_inactive:
+                options = ProductCodeFieldOption.query.filter_by(
+                    field_id=field.id
+                ).order_by(ProductCodeFieldOption.position).all()
+            else:
+                options = ProductCodeFieldOption.query.filter_by(
+                    field_id=field.id,
+                    is_active=True
+                ).order_by(ProductCodeFieldOption.position).all()
         
         options_data = []
         for option in options:
@@ -2942,32 +2975,45 @@ def get_available_spec_options():
         # 检查是否仅返回产品使用值
         include_product_values = request.args.get('include_product_values', 'false').lower() == 'true'
 
-        # 优先使用spec_name查询所有同名字段（跨产品汇总模式）
+        # 查找规格字段（优先使用field_id，然后按子分类查找）
         all_fields = []
-        if spec_name:
-            all_fields = ProductCodeField.query.filter_by(
-                name=spec_name,
-                field_type='spec'
-            ).all()
-            current_app.logger.info(f"[调试] 按规格名称'{spec_name}'查询到 {len(all_fields)} 个字段")
+        target_field = None
+        is_inherited_field = False
 
-        # 备用：使用field_id查找单个字段
-        elif field_id:
-            field = ProductCodeField.query.get(field_id)
-            if field:
-                all_fields = [field]
-                current_app.logger.info(f"[调试] 按field_id={field_id}查询到字段: {field.name}")
+        # 优先使用field_id查找
+        if field_id:
+            target_field = ProductCodeField.query.get(field_id)
+            if target_field:
+                all_fields = [target_field]
+                # 判断是否为继承字段（分类级字段）
+                is_inherited_field = target_field.subcategory_id is None
+                current_app.logger.info(f"[调试] 按field_id={field_id}查询到字段: {target_field.name}, 继承字段: {is_inherited_field}")
 
-        # 兼容旧逻辑：通过产品分类和名称查找
+        # 通过子分类和规格名称查找
         elif subcategory_id and spec_name:
-            field = ProductCodeField.query.filter_by(
+            # 先查子分类级字段
+            target_field = ProductCodeField.query.filter_by(
                 subcategory_id=subcategory_id,
                 name=spec_name,
                 field_type='spec'
             ).first()
-            if field:
-                all_fields = [field]
-                current_app.logger.info(f"[调试] 按产品分类查询到字段: {field.name}")
+
+            # 如果没找到，查分类级继承字段
+            if not target_field:
+                subcategory = ProductSubcategory.query.get(subcategory_id)
+                if subcategory and subcategory.category_id:
+                    target_field = ProductCodeField.query.filter(
+                        ProductCodeField.category_id == subcategory.category_id,
+                        ProductCodeField.subcategory_id.is_(None),
+                        ProductCodeField.name == spec_name,
+                        ProductCodeField.field_type == 'spec'
+                    ).first()
+                    if target_field:
+                        is_inherited_field = True
+
+            if target_field:
+                all_fields = [target_field]
+                current_app.logger.info(f"[调试] 按子分类查询到字段: {target_field.name}, 继承字段: {is_inherited_field}")
 
         if not all_fields:
             current_app.logger.warning(f"[调试] 未找到任何字段")
@@ -3042,13 +3088,25 @@ def get_available_spec_options():
                 'field_unit': field_unit
             })
 
-        # 原有逻辑：获取预定义选项（现在从多个字段汇总）
+        # 原有逻辑：获取预定义选项
         include_inactive = request.args.get('include_inactive', 'false').lower() == 'true'
 
-        # 汇总所有字段的预定义选项并去重
+        # 获取字段选项（需要按子分类过滤）
         seen_values = {}  # {value: option对象}
         for field in all_fields:
-            for option in field.options:
+            # 对于继承字段（分类级字段），需要按当前子分类过滤选项
+            if is_inherited_field and subcategory_id:
+                options_query = ProductCodeFieldOption.query.filter_by(
+                    field_id=field.id,
+                    subcategory_id=subcategory_id
+                )
+            else:
+                # 子分类自有字段，获取所有选项
+                options_query = ProductCodeFieldOption.query.filter_by(
+                    field_id=field.id
+                )
+
+            for option in options_query.all():
                 # 过滤已删除的选项（兼容有/无is_deleted字段的情况）
                 if hasattr(option, 'is_deleted') and option.is_deleted:
                     continue
