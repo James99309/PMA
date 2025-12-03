@@ -3142,83 +3142,75 @@ def export_products():
             # 创建规格Sheet
             ws_spec = wb.create_sheet(title=sheet_name)
 
-            # ===== 第1行：子分类名 + 各产品型号-MN =====
-            # A1: 子分类名
+            # ===== 第1行：规格名称栏头 + 各产品型号 =====
+            # A1: 子分类名（作为行标题）
             cell = ws_spec.cell(row=1, column=1, value=subcategory_name)
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = center_alignment
             cell.border = thin_border
 
-            # 每个产品占3列（指标、是否编码规格、编码号）
+            # 每个产品占1列，第1行放型号
             for idx, (product, _) in enumerate(products_specs):
-                col_start = 2 + idx * 3  # 从第2列开始，每产品占3列
-                # 型号名格式：型号-MN
-                if product.model and product.product_mn:
-                    model_name = f"{product.model}-{product.product_mn}"
-                else:
-                    model_name = product.model or product.product_mn or f'产品{idx+1}'
-
-                # 合并3列显示型号名
-                ws_spec.merge_cells(start_row=1, start_column=col_start, end_row=1, end_column=col_start + 2)
-                cell = ws_spec.cell(row=1, column=col_start, value=model_name)
+                col = 2 + idx  # 从第2列开始
+                model_name = product.model or f'产品{idx+1}'
+                cell = ws_spec.cell(row=1, column=col, value=model_name)
                 cell.font = header_font
                 cell.fill = header_fill
                 cell.alignment = center_alignment
                 cell.border = thin_border
 
-                # 为合并区域的其他单元格添加边框
-                for c in range(col_start + 1, col_start + 3):
-                    ws_spec.cell(row=1, column=c).border = thin_border
-
-            # ===== 第2行：列头（规格 + 每型号的三列标题）=====
-            cell = ws_spec.cell(row=2, column=1, value='规格')
+            # ===== 第2行：MN编号 =====
+            cell = ws_spec.cell(row=2, column=1, value='MN编号')
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = center_alignment
             cell.border = thin_border
 
-            for idx in range(len(products_specs)):
-                col_start = 2 + idx * 3
-                headers = ['指标', '是否编码规格', '编码号']
-                for h_idx, header in enumerate(headers):
-                    cell = ws_spec.cell(row=2, column=col_start + h_idx, value=header)
-                    cell.font = header_font
-                    cell.fill = header_fill
-                    cell.alignment = center_alignment
-                    cell.border = thin_border
+            for idx, (product, _) in enumerate(products_specs):
+                col = 2 + idx
+                cell = ws_spec.cell(row=2, column=col, value=product.product_mn or '')
+                cell.font = normal_font
+                cell.alignment = center_alignment
+                cell.border = thin_border
 
-            # ===== 第3行起：规格数据 =====
-            for row_idx, spec_name in enumerate(all_spec_names, 3):
+            # ===== 第3行：Spec MN =====
+            cell = ws_spec.cell(row=3, column=1, value='Spec MN')
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_alignment
+            cell.border = thin_border
+
+            for idx, (product, _) in enumerate(products_specs):
+                col = 2 + idx
+                cell = ws_spec.cell(row=3, column=col, value=product.spec_mn or '')
+                cell.font = normal_font
+                cell.alignment = center_alignment
+                cell.border = thin_border
+
+            # ===== 第4行起：规格数据（规格名 + 各产品的指标值）=====
+            for row_idx, spec_name in enumerate(all_spec_names, 4):
                 # A列：规格名称
                 cell = ws_spec.cell(row=row_idx, column=1, value=spec_name)
                 cell.font = normal_font
                 cell.alignment = left_alignment
                 cell.border = thin_border
 
-                # 各产品的规格值
+                # 各产品的规格值（每个产品1列，只放指标值）
                 for p_idx, (product, specs_dict) in enumerate(products_specs):
-                    col_start = 2 + p_idx * 3
+                    col = 2 + p_idx  # 每个产品1列
                     spec_data = specs_dict.get(spec_name, {'value': '', 'use_in_code': '', 'field_code': ''})
+                    cell = ws_spec.cell(row=row_idx, column=col, value=spec_data['value'])
+                    cell.font = normal_font
+                    cell.alignment = left_alignment
+                    cell.border = thin_border
 
-                    values = [spec_data['value'], spec_data['use_in_code'], spec_data['field_code']]
-                    for v_idx, value in enumerate(values):
-                        cell = ws_spec.cell(row=row_idx, column=col_start + v_idx, value=value)
-                        cell.font = normal_font
-                        cell.alignment = left_alignment
-                        cell.border = thin_border
-
-            # 设置列宽并隐藏"是否编码规格"和"编码号"列
+            # 设置列宽
             ws_spec.column_dimensions['A'].width = 15  # 规格名称列
+            from openpyxl.utils import get_column_letter
             for idx in range(len(products_specs)):
-                col_start = 2 + idx * 3
-                from openpyxl.utils import get_column_letter
-                ws_spec.column_dimensions[get_column_letter(col_start)].width = 18      # 指标
-                ws_spec.column_dimensions[get_column_letter(col_start + 1)].width = 12  # 是否编码规格
-                ws_spec.column_dimensions[get_column_letter(col_start + 2)].width = 10  # 编码号
-                # 隐藏"是否编码规格"和"编码号"列
-                ws_spec.column_dimensions[get_column_letter(col_start + 1)].hidden = True
-                ws_spec.column_dimensions[get_column_letter(col_start + 2)].hidden = True
+                col = 2 + idx  # 每个产品1列
+                ws_spec.column_dimensions[get_column_letter(col)].width = 18  # 指标值列
 
         # ========== 为产品列表的产品名称添加超链接 ==========
         link_font = Font(name='微软雅黑', size=10, color='0066CC', underline='single')
