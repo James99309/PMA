@@ -2,7 +2,7 @@
 产品创建统一服务
 提供research产品和standard产品的统一创建逻辑
 """
-from flask import request, flash, redirect, url_for, current_app
+from flask import request, flash, redirect, url_for, current_app, jsonify
 from flask_login import current_user
 from decimal import Decimal, InvalidOperation
 from app.extensions import db
@@ -17,6 +17,20 @@ class ProductCreationService:
     """统一的产品创建服务（研发产品 + 标准产品）"""
 
     @staticmethod
+    def _is_ajax_request():
+        """判断是否是AJAX请求"""
+        return request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
+               'application/json' in request.headers.get('Accept', '')
+
+    @staticmethod
+    def _json_response(success, message, redirect_url=None):
+        """返回JSON响应"""
+        response = {'success': success, 'message': message}
+        if redirect_url:
+            response['redirect'] = redirect_url
+        return jsonify(response)
+
+    @staticmethod
     def save_product(product_type='research'):
         """
         统一保存产品逻辑
@@ -25,8 +39,10 @@ class ProductCreationService:
             product_type (str): 产品类型 'research' 或 'standard'
 
         Returns:
-            Flask Response: 重定向响应
+            Flask Response: JSON响应（AJAX）或重定向响应（普通表单提交）
         """
+        is_ajax = ProductCreationService._is_ajax_request()
+
         try:
             # 1. 通用字段获取
             category_id = request.form.get('category_id')
@@ -56,9 +72,12 @@ class ProductCreationService:
                 missing_fields.append('产品型号')
 
             if missing_fields:
-                flash(f'请填写以下必填字段: {", ".join(missing_fields)}', 'danger')
+                error_msg = f'请填写以下必填字段: {", ".join(missing_fields)}'
                 current_app.logger.warning(f'创建产品验证失败 - 缺失字段: {missing_fields}')
                 current_app.logger.debug(f'表单数据: category_id={category_id}, subcategory_id={subcategory_id}, model={model}')
+                if is_ajax:
+                    return ProductCreationService._json_response(False, error_msg)
+                flash(error_msg, 'danger')
                 return ProductCreationService._redirect_to_create_page(product_type)
 
             # 3. 验证MN编码唯一性（跨库）
@@ -67,13 +86,19 @@ class ProductCreationService:
                 duplicate_check = check_mn_code_duplicate_internal(mn_code, exclude_dev_product_id=None)
                 if duplicate_check['is_duplicate']:
                     duplicate_info = ProductCreationService._format_duplicate_info(duplicate_check)
-                    flash(f'MN编号 {mn_code} 已存在重复产品！\n\n重复产品详细信息:\n{duplicate_info}', 'danger')
+                    error_msg = f'MN编号 {mn_code} 已存在重复产品！\n\n重复产品详细信息:\n{duplicate_info}'
+                    if is_ajax:
+                        return ProductCreationService._json_response(False, error_msg)
+                    flash(error_msg, 'danger')
                     return ProductCreationService._redirect_to_create_page(product_type)
 
             # 4. 处理零售价格
             retail_price_decimal = ProductCreationService._parse_retail_price(retail_price)
             if retail_price and retail_price_decimal is None:
-                flash('零售价格格式不正确', 'danger')
+                error_msg = '零售价格格式不正确'
+                if is_ajax:
+                    return ProductCreationService._json_response(False, error_msg)
+                flash(error_msg, 'danger')
                 return ProductCreationService._redirect_to_create_page(product_type)
 
             # 5. 根据产品类型创建产品实例
@@ -109,7 +134,10 @@ class ProductCreationService:
             success = ProductCreationService._save_product_specs(new_product.id, product_type)
             if not success:
                 db.session.rollback()
-                flash('保存规格数据失败', 'danger')
+                error_msg = '保存规格数据失败'
+                if is_ajax:
+                    return ProductCreationService._json_response(False, error_msg)
+                flash(error_msg, 'danger')
                 return ProductCreationService._redirect_to_create_page(product_type)
 
             # 7.5. 生成编码定义快照（仅标准产品，研发产品在入库时生成）
@@ -130,14 +158,20 @@ class ProductCreationService:
             db.session.commit()
 
             current_app.logger.info(f'产品创建成功: ID={new_product.id}, MN={mn_code}, 型号={model}, 类型={product_type}')
-            flash(success_message, 'success')
 
+            # 根据请求类型返回不同响应
+            if is_ajax:
+                return ProductCreationService._json_response(True, success_message, url_for(redirect_url))
+            flash(success_message, 'success')
             return redirect(url_for(redirect_url))
 
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f'创建产品失败: {str(e)}', exc_info=True)
-            flash(f'创建产品失败: {str(e)}', 'danger')
+            error_msg = f'创建产品失败: {str(e)}'
+            if is_ajax:
+                return ProductCreationService._json_response(False, error_msg)
+            flash(error_msg, 'danger')
             return ProductCreationService._redirect_to_create_page(product_type)
 
     @staticmethod

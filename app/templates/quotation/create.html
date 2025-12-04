@@ -762,7 +762,12 @@ function submitQuotationAsJson(productDetails) {
                 parent_row_id: detail.parent_row_id || null,
                 row_id: detail.row_id || null,
                 config_type: detail.config_type || null,
-                config_base_quantity: detail.config_base_quantity || null
+                config_base_quantity: detail.config_base_quantity || null,
+                // 动态规格配置字段（用于创建研发产品）
+                configured_specs: detail.configured_specs || null,
+                configured_mn: detail.configured_mn || '',
+                price_adjustment_total: detail.price_adjustment_total || 0,
+                pending_product_creation: detail.pending_product_creation || false
             })),
             return_to: $('input[name="return_to"]').val() || ''
         };

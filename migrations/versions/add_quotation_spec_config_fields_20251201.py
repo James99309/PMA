@@ -24,53 +24,62 @@ depends_on = None
 
 
 def upgrade():
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    inspector = inspect(bind)
+
+    # 获取各表的现有列
+    pcf_columns = [col['name'] for col in inspector.get_columns('product_code_fields')]
+    pcfo_columns = [col['name'] for col in inspector.get_columns('product_code_field_options')]
+    qd_columns = [col['name'] for col in inspector.get_columns('quotation_details')]
+
     # 1. ProductCodeField 添加 allow_quotation_config 字段
-    try:
+    if 'allow_quotation_config' not in pcf_columns:
         op.add_column('product_code_fields',
             sa.Column('allow_quotation_config', sa.Boolean(), nullable=True, server_default='false'))
-        print("✓ 添加 product_code_fields.allow_quotation_config 字段成功")
-    except Exception as e:
-        print(f"⚠ product_code_fields.allow_quotation_config 字段可能已存在: {e}")
+        print("✅ 添加 product_code_fields.allow_quotation_config 字段成功")
+    else:
+        print("⏭️ product_code_fields.allow_quotation_config 字段已存在，跳过")
 
     # 2. ProductCodeFieldOption 添加 price_adjustment 字段
-    try:
+    if 'price_adjustment' not in pcfo_columns:
         op.add_column('product_code_field_options',
             sa.Column('price_adjustment', sa.Integer(), nullable=True, server_default='0'))
-        print("✓ 添加 product_code_field_options.price_adjustment 字段成功")
-    except Exception as e:
-        print(f"⚠ product_code_field_options.price_adjustment 字段可能已存在: {e}")
+        print("✅ 添加 product_code_field_options.price_adjustment 字段成功")
+    else:
+        print("⏭️ product_code_field_options.price_adjustment 字段已存在，跳过")
 
     # 3. QuotationDetail 添加 configured_specs 字段 (JSON)
-    try:
+    if 'configured_specs' not in qd_columns:
         op.add_column('quotation_details',
             sa.Column('configured_specs', sa.JSON(), nullable=True))
-        print("✓ 添加 quotation_details.configured_specs 字段成功")
-    except Exception as e:
-        print(f"⚠ quotation_details.configured_specs 字段可能已存在: {e}")
+        print("✅ 添加 quotation_details.configured_specs 字段成功")
+    else:
+        print("⏭️ quotation_details.configured_specs 字段已存在，跳过")
 
     # 4. QuotationDetail 添加 configured_mn 字段
-    try:
+    if 'configured_mn' not in qd_columns:
         op.add_column('quotation_details',
             sa.Column('configured_mn', sa.String(50), nullable=True))
-        print("✓ 添加 quotation_details.configured_mn 字段成功")
-    except Exception as e:
-        print(f"⚠ quotation_details.configured_mn 字段可能已存在: {e}")
+        print("✅ 添加 quotation_details.configured_mn 字段成功")
+    else:
+        print("⏭️ quotation_details.configured_mn 字段已存在，跳过")
 
     # 5. QuotationDetail 添加 price_adjustment_total 字段
-    try:
+    if 'price_adjustment_total' not in qd_columns:
         op.add_column('quotation_details',
             sa.Column('price_adjustment_total', sa.Integer(), nullable=True, server_default='0'))
-        print("✓ 添加 quotation_details.price_adjustment_total 字段成功")
-    except Exception as e:
-        print(f"⚠ quotation_details.price_adjustment_total 字段可能已存在: {e}")
+        print("✅ 添加 quotation_details.price_adjustment_total 字段成功")
+    else:
+        print("⏭️ quotation_details.price_adjustment_total 字段已存在，跳过")
 
     # 6. QuotationDetail 添加 pending_product_creation 字段
-    try:
+    if 'pending_product_creation' not in qd_columns:
         op.add_column('quotation_details',
             sa.Column('pending_product_creation', sa.Boolean(), nullable=True, server_default='false'))
-        print("✓ 添加 quotation_details.pending_product_creation 字段成功")
-    except Exception as e:
-        print(f"⚠ quotation_details.pending_product_creation 字段可能已存在: {e}")
+        print("✅ 添加 quotation_details.pending_product_creation 字段成功")
+    else:
+        print("⏭️ quotation_details.pending_product_creation 字段已存在，跳过")
 
 
 def downgrade():

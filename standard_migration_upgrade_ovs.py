@@ -93,17 +93,18 @@ def check_current_status():
     """检查当前迁移状态"""
     print_header("步骤2: 检查当前迁移状态")
 
-    success, output = run_command(
-        ['flask', 'db', 'current'],
-        "查询OVS当前迁移版本",
-        timeout=30
-    )
-
-    if success and output:
-        print(f"✅ 查询成功")
-        return True
-    else:
-        print("⚠️  无法查询迁移状态，将继续升级流程")
+    # 直接使用SQLAlchemy查询当前版本
+    try:
+        from sqlalchemy import create_engine, text
+        engine = create_engine(OVS_DB_URL)
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT version_num FROM alembic_version"))
+            version = result.scalar()
+            print(f"✅ OVS当前迁移版本: {version}")
+            return True
+    except Exception as e:
+        print(f"⚠️  无法查询迁移状态: {e}")
+        print("   将继续升级流程")
         return True  # 继续执行，不中断
 
 
@@ -125,15 +126,32 @@ def execute_upgrade():
     """执行数据库升级"""
     print_header("步骤4: 执行数据库升级")
 
-    print("🚀 开始执行Flask-Migrate升级...")
-    success, output = run_command(
-        ['flask', 'db', 'upgrade'],
-        "执行 flask db upgrade",
-        timeout=600
-    )
+    print("🚀 开始执行Alembic迁移升级...")
 
-    if not success:
-        print("\n❌ 升级失败！")
+    # 直接使用Alembic API执行迁移，绕过Flask加载问题
+    try:
+        from alembic.config import Config
+        from alembic import command
+
+        # 配置Alembic
+        alembic_cfg = Config('migrations/alembic.ini')
+        alembic_cfg.set_main_option('script_location', 'migrations')
+        alembic_cfg.set_main_option('sqlalchemy.url', OVS_DB_URL)
+
+        # 设置环境变量供env.py使用
+        os.environ['DATABASE_URL'] = OVS_DB_URL
+
+        # 执行升级
+        command.upgrade(alembic_cfg, 'head')
+
+        print("\n✅ 升级成功！")
+        return True
+
+    except Exception as e:
+        print(f"\n❌ 升级失败！")
+        print(f"\n错误信息: {e}")
+        import traceback
+        traceback.print_exc()
         print("\n可能的原因:")
         print("   1. 迁移文件有错误")
         print("   2. 数据库结构冲突")
@@ -144,31 +162,32 @@ def execute_upgrade():
         print("   3. 如需回滚，使用备份恢复数据库")
         return False
 
-    print("\n✅ 升级成功！")
-    return True
-
 
 def verify_result():
     """验证升级结果"""
     print_header("步骤5: 验证升级结果")
 
-    # 检查最终版本
+    # 检查最终版本 - 直接使用SQLAlchemy查询
     print("🔍 检查升级后的迁移版本...")
-    success, output = run_command(
-        ['flask', 'db', 'current'],
-        "查询升级后版本",
-        timeout=30
-    )
-
-    if success:
-        print("✅ 版本查询成功")
+    try:
+        from sqlalchemy import create_engine, text
+        engine = create_engine(OVS_DB_URL)
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT version_num FROM alembic_version"))
+            version = result.scalar()
+            print(f"✅ OVS当前版本: {version}")
+    except Exception as e:
+        print(f"⚠️  无法查询版本: {e}")
 
     # 运行Schema对比
     print("\n🔍 运行Schema对比验证...")
-    subprocess.run(
-        ['python3', 'scripts/temp/compare_local_ovs_schemas.py'],
-        env={**os.environ, 'DATABASE_URL': OVS_DB_URL}
-    )
+    try:
+        subprocess.run(
+            ['python3', 'scripts/temp/compare_local_ovs_schemas.py'],
+            env={**os.environ, 'DATABASE_URL': OVS_DB_URL}
+        )
+    except Exception as e:
+        print(f"⚠️  Schema对比脚本运行失败: {e}")
 
     return True
 

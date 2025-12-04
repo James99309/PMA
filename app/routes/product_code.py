@@ -4547,15 +4547,20 @@ def add_subcategory_field_option(subcategory_id, field_id):
     """
     为子分类的字段添加可配置选项
 
+    新架构：所有指标值统一存储在 SpecificationOption 中，
+    ProductCodeFieldOption 只创建引用关系。
+
     Request Body:
         {
-            "spec_option_id": int,           # 规格字典选项ID（可选）
-            "value": str,                    # 选项值（spec_option_id 为空时必填）
-            "code": str,                     # 编码字符（可选）
+            "spec_option_id": int,           # 规格字典选项ID（可选，优先使用）
+            "value": str,                    # 选项值（spec_option_id 为空时必填，会自动在规格字典中创建）
+            "description": str,              # 描述（可选）
             "price_adjustment": int,         # 价格增量（分）
             "allow_quotation_config": bool   # 是否允许报价配置
         }
     """
+    from app.routes.spec_dictionary import generate_smart_code
+
     try:
         # 验证子分类存在
         subcategory = ProductSubcategory.query.get(subcategory_id)
@@ -4582,41 +4587,81 @@ def add_subcategory_field_option(subcategory_id, field_id):
         data = request.get_json()
         spec_option_id = data.get('spec_option_id')
         value = data.get('value', '').strip()
-        code = data.get('code', '').strip()
+        description = data.get('description', '').strip()
         price_adjustment = data.get('price_adjustment', 0)
         allow_quotation_config = data.get('allow_quotation_config', True)
 
-        # 如果有规格字典选项ID，从规格字典获取值
+        # 如果提供了 spec_option_id，直接使用已有的规格字典指标
         if spec_option_id:
-            from app.models.spec_dictionary import SpecOption
-            spec_option = SpecOption.query.get(spec_option_id)
+            spec_option = SpecificationOption.query.get(spec_option_id)
             if not spec_option:
                 return jsonify({
                     'success': False,
                     'message': '规格字典选项不存在'
                 }), 404
-            # 规格字典选项的值作为默认值
+            value = spec_option.value
+        else:
+            # 没有提供 spec_option_id，需要在规格字典中查找或创建
             if not value:
-                value = spec_option.value
-            if not code:
-                code = spec_option.code or ''
+                return jsonify({
+                    'success': False,
+                    'message': '选项值不能为空'
+                }), 400
 
-        if not value:
-            return jsonify({
-                'success': False,
-                'message': '选项值不能为空'
-            }), 400
+            # 只有 spec 类型的字段需要规格字典
+            if field.field_type == 'spec':
+                # 查找对应的规格字典
+                spec_dict = SpecificationDictionary.query.filter_by(name=field.name).first()
+                if not spec_dict:
+                    return jsonify({
+                        'success': False,
+                        'message': f'规格 "{field.name}" 不在规格字典中，请先在规格管理中添加'
+                    }), 400
 
-        # 检查是否已存在相同的选项
-        existing = ProductCodeFieldOption.query.filter_by(
-            field_id=field_id,
-            subcategory_id=subcategory_id
-        ).filter(
-            db.or_(
-                ProductCodeFieldOption.value == value,
-                ProductCodeFieldOption.spec_option_id == spec_option_id
-            ) if spec_option_id else ProductCodeFieldOption.value == value
-        ).first()
+                # 检查指标是否已存在于规格字典
+                spec_option = SpecificationOption.query.filter_by(
+                    spec_id=spec_dict.id,
+                    value=value
+                ).first()
+
+                if not spec_option:
+                    # 在规格字典中创建新指标
+                    unique_code = generate_smart_code(spec_dict.id, value)
+                    if not unique_code:
+                        return jsonify({
+                            'success': False,
+                            'message': '无法生成唯一编码，编码空间已用尽'
+                        }), 500
+
+                    spec_option = SpecificationOption(
+                        spec_id=spec_dict.id,
+                        value=value,
+                        code=unique_code,
+                        description=description if description else None,
+                        is_active=True
+                    )
+                    db.session.add(spec_option)
+                    db.session.flush()
+
+                spec_option_id = spec_option.id
+            else:
+                # 非 spec 类型字段（如 origin_location），不需要规格字典
+                spec_option = None
+                spec_option_id = None
+
+        # 检查是否已存在相同的选项（通过 spec_option_id 或 value）
+        if spec_option_id:
+            existing = ProductCodeFieldOption.query.filter_by(
+                field_id=field_id,
+                subcategory_id=subcategory_id,
+                spec_option_id=spec_option_id
+            ).first()
+        else:
+            existing = ProductCodeFieldOption.query.filter_by(
+                field_id=field_id,
+                subcategory_id=subcategory_id,
+                value=value
+            ).first()
 
         if existing:
             return jsonify({
@@ -4630,13 +4675,14 @@ def add_subcategory_field_option(subcategory_id, field_id):
             subcategory_id=subcategory_id
         ).scalar() or 0
 
-        # 创建子分类级选项
+        # 创建子分类级选项（使用规格字典引用）
         new_option = ProductCodeFieldOption(
             field_id=field_id,
             subcategory_id=subcategory_id,
             spec_option_id=spec_option_id,
-            value=value if not spec_option_id else None,  # 如有规格字典引用则不存储值
-            code=code if not spec_option_id else None,
+            value=value if not spec_option_id else None,  # 有引用时不冗余存储
+            code=spec_option.code if spec_option else None,
+            description=description if description else None,
             price_adjustment=price_adjustment,
             allow_quotation_config=allow_quotation_config,
             position=max_position + 1,
@@ -4654,7 +4700,8 @@ def add_subcategory_field_option(subcategory_id, field_id):
                 'value': new_option.effective_value,
                 'code': new_option.effective_code or '',
                 'price_adjustment': new_option.price_adjustment or 0,
-                'allow_quotation_config': new_option.allow_quotation_config
+                'allow_quotation_config': new_option.allow_quotation_config,
+                'spec_option_id': spec_option_id
             }
         })
 

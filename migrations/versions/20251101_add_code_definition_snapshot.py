@@ -20,13 +20,19 @@ depends_on = None
 
 def upgrade():
     """添加 code_definition_snapshot 字段到 products 表"""
-    # 添加 JSON 字段存储编码定义快照
-    op.add_column('products',
-        sa.Column('code_definition_snapshot', JSON, nullable=True)
-    )
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    existing_columns = [col['name'] for col in inspector.get_columns('products')]
 
-    print("✅ 已添加 code_definition_snapshot 字段到 products 表")
-    print("   该字段用于永久保存产品编码的完整含义，避免编码表变化导致历史数据丢失")
+    # 添加 JSON 字段存储编码定义快照
+    if 'code_definition_snapshot' not in existing_columns:
+        op.add_column('products',
+            sa.Column('code_definition_snapshot', JSON, nullable=True)
+        )
+        print("✅ 已添加 code_definition_snapshot 字段到 products 表")
+    else:
+        print("⏭️ code_definition_snapshot 字段已存在，跳过")
 
 
 def downgrade():

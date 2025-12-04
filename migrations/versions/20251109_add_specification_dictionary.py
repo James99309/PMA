@@ -37,62 +37,80 @@ depends_on = None
 
 def upgrade():
     """创建规格字典表并添加初始数据"""
+    from sqlalchemy import inspect, text
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    existing_tables = inspector.get_table_names()
 
-    # 创建 specification_dictionary 表
-    op.create_table('specification_dictionary',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('name', sa.String(length=100), nullable=False),
-        sa.Column('unit', sa.String(length=20), nullable=True),
-        sa.Column('is_active', sa.Boolean(), nullable=True),
-        sa.Column('created_at', sa.DateTime(), nullable=True),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('name')
-    )
+    # 检查表是否已存在
+    if 'specification_dictionary' not in existing_tables:
+        # 创建 specification_dictionary 表
+        op.create_table('specification_dictionary',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('name', sa.String(length=100), nullable=False),
+            sa.Column('unit', sa.String(length=20), nullable=True),
+            sa.Column('is_active', sa.Boolean(), nullable=True),
+            sa.Column('created_at', sa.DateTime(), nullable=True),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('name')
+        )
+        print("✅ specification_dictionary 表创建成功")
 
-    # 添加索引提升查询性能
-    op.create_index('idx_spec_dict_active', 'specification_dictionary', ['is_active'], unique=False)
-    op.create_index('idx_spec_dict_name', 'specification_dictionary', ['name'], unique=True)
+        # 添加索引提升查询性能
+        op.create_index('idx_spec_dict_active', 'specification_dictionary', ['is_active'], unique=False)
+        op.create_index('idx_spec_dict_name', 'specification_dictionary', ['name'], unique=True)
+        print("✅ 创建索引成功")
 
-    print("✅ specification_dictionary 表创建成功")
+        # 插入初始常用规格数据
+        from sqlalchemy.sql import table, column
+        from sqlalchemy import String, Integer, Boolean, DateTime
 
-    # 插入初始常用规格数据
-    from sqlalchemy.sql import table, column
-    from sqlalchemy import String, Integer, Boolean, DateTime
+        spec_dict_table = table('specification_dictionary',
+            column('name', String),
+            column('unit', String),
+            column('is_active', Boolean),
+            column('created_at', DateTime)
+        )
 
-    spec_dict_table = table('specification_dictionary',
-        column('name', String),
-        column('unit', String),
-        column('is_active', Boolean),
-        column('created_at', DateTime)
-    )
+        initial_specs = [
+            {'name': '频率范围', 'unit': 'MHz', 'is_active': True},
+            {'name': '输出功率', 'unit': 'dBm', 'is_active': True},
+            {'name': '工作温度', 'unit': '℃', 'is_active': True},
+            {'name': '接口类型', 'unit': None, 'is_active': True},
+            {'name': '防护等级', 'unit': None, 'is_active': True},
+            {'name': '工作电压', 'unit': 'V', 'is_active': True},
+            {'name': '尺寸', 'unit': 'mm', 'is_active': True},
+            {'name': '重量', 'unit': 'kg', 'is_active': True},
+            {'name': '增益', 'unit': 'dB', 'is_active': True},
+            {'name': '带宽', 'unit': 'MHz', 'is_active': True},
+            {'name': '噪声系数', 'unit': 'dB', 'is_active': True},
+            {'name': '功耗', 'unit': 'W', 'is_active': True},
+            {'name': '存储温度', 'unit': '℃', 'is_active': True},
+            {'name': '湿度范围', 'unit': '%RH', 'is_active': True},
+            {'name': '传输距离', 'unit': 'm', 'is_active': True},
+        ]
 
-    initial_specs = [
-        {'name': '频率范围', 'unit': 'MHz', 'is_active': True},
-        {'name': '输出功率', 'unit': 'dBm', 'is_active': True},
-        {'name': '工作温度', 'unit': '℃', 'is_active': True},
-        {'name': '接口类型', 'unit': None, 'is_active': True},
-        {'name': '防护等级', 'unit': None, 'is_active': True},
-        {'name': '工作电压', 'unit': 'V', 'is_active': True},
-        {'name': '尺寸', 'unit': 'mm', 'is_active': True},
-        {'name': '重量', 'unit': 'kg', 'is_active': True},
-        {'name': '增益', 'unit': 'dB', 'is_active': True},
-        {'name': '带宽', 'unit': 'MHz', 'is_active': True},
-        {'name': '噪声系数', 'unit': 'dB', 'is_active': True},
-        {'name': '功耗', 'unit': 'W', 'is_active': True},
-        {'name': '存储温度', 'unit': '℃', 'is_active': True},
-        {'name': '湿度范围', 'unit': '%RH', 'is_active': True},
-        {'name': '传输距离', 'unit': 'm', 'is_active': True},
-    ]
+        # 添加创建时间并批量插入
+        current_time = datetime.utcnow()
+        for spec in initial_specs:
+            spec['created_at'] = current_time
 
-    # 添加创建时间并批量插入
-    current_time = datetime.utcnow()
-    for spec in initial_specs:
-        spec['created_at'] = current_time
+        op.bulk_insert(spec_dict_table, initial_specs)
 
-    op.bulk_insert(spec_dict_table, initial_specs)
+        print(f"✅ 已添加 {len(initial_specs)} 条初始规格数据")
+    else:
+        print("⏭️ specification_dictionary 表已存在，跳过创建")
 
-    print(f"✅ 已添加 {len(initial_specs)} 条初始规格数据")
-    print("   包括：频率范围、输出功率、工作温度、接口类型、防护等级等")
+        # 检查索引是否存在
+        result = bind.execute(text("SELECT indexname FROM pg_indexes WHERE tablename = 'specification_dictionary' AND indexname = 'idx_spec_dict_active'"))
+        if not result.fetchone():
+            op.create_index('idx_spec_dict_active', 'specification_dictionary', ['is_active'], unique=False)
+            print("✅ 创建索引 idx_spec_dict_active 成功")
+
+        result = bind.execute(text("SELECT indexname FROM pg_indexes WHERE tablename = 'specification_dictionary' AND indexname = 'idx_spec_dict_name'"))
+        if not result.fetchone():
+            op.create_index('idx_spec_dict_name', 'specification_dictionary', ['name'], unique=True)
+            print("✅ 创建索引 idx_spec_dict_name 成功")
 
 
 def downgrade():

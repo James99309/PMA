@@ -30,45 +30,63 @@ depends_on = None
 
 def upgrade():
     """创建产品关联表"""
+    from sqlalchemy import inspect, text
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    existing_tables = inspector.get_table_names()
 
-    # 创建 product_relations 表
-    op.create_table(
-        'product_relations',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('main_product_type', sa.String(length=20), nullable=False,
-                  comment='主产品类型: subcategory(子分类级) 或 product(产品级)'),
-        sa.Column('main_product_id', sa.Integer(), nullable=False,
-                  comment='主产品ID: 子分类ID或产品ID'),
-        sa.Column('related_product_id', sa.Integer(), nullable=False,
-                  comment='关联产品ID: 指向products表'),
-        sa.Column('relation_type', sa.String(length=50), nullable=False,
-                  comment='关联类型: required_accessory, optional_accessory, recommended, alternative'),
-        sa.Column('display_name', sa.String(length=100), nullable=True,
-                  comment='显示名称（可选，为空则使用产品名称）'),
-        sa.Column('default_quantity', sa.Integer(), nullable=False, server_default='1',
-                  comment='默认数量: 主产品1台对应多少台配件'),
-        sa.Column('is_required', sa.Boolean(), nullable=False, server_default='0',
-                  comment='是否必选配件'),
-        sa.Column('display_order', sa.Integer(), nullable=False, server_default='0',
-                  comment='显示顺序: 数字越小越靠前'),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1',
-                  comment='是否启用'),
-        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP'),
-                  comment='创建时间'),
-        sa.PrimaryKeyConstraint('id'),
-        sa.ForeignKeyConstraint(['related_product_id'], ['products.id'],
-                               name='fk_product_relations_related_product',
-                               ondelete='CASCADE'),
-        comment='产品关联配置表'
-    )
+    # 检查表是否已存在
+    if 'product_relations' not in existing_tables:
+        # 创建 product_relations 表
+        op.create_table(
+            'product_relations',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('main_product_type', sa.String(length=20), nullable=False,
+                      comment='主产品类型: subcategory(子分类级) 或 product(产品级)'),
+            sa.Column('main_product_id', sa.Integer(), nullable=False,
+                      comment='主产品ID: 子分类ID或产品ID'),
+            sa.Column('related_product_id', sa.Integer(), nullable=False,
+                      comment='关联产品ID: 指向products表'),
+            sa.Column('relation_type', sa.String(length=50), nullable=False,
+                      comment='关联类型: required_accessory, optional_accessory, recommended, alternative'),
+            sa.Column('display_name', sa.String(length=100), nullable=True,
+                      comment='显示名称（可选，为空则使用产品名称）'),
+            sa.Column('default_quantity', sa.Integer(), nullable=False, server_default='1',
+                      comment='默认数量: 主产品1台对应多少台配件'),
+            sa.Column('is_required', sa.Boolean(), nullable=False, server_default='0',
+                      comment='是否必选配件'),
+            sa.Column('display_order', sa.Integer(), nullable=False, server_default='0',
+                      comment='显示顺序: 数字越小越靠前'),
+            sa.Column('is_active', sa.Boolean(), nullable=False, server_default='1',
+                      comment='是否启用'),
+            sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP'),
+                      comment='创建时间'),
+            sa.PrimaryKeyConstraint('id'),
+            sa.ForeignKeyConstraint(['related_product_id'], ['products.id'],
+                                   name='fk_product_relations_related_product',
+                                   ondelete='CASCADE'),
+            comment='产品关联配置表'
+        )
+        print("✅ product_relations 表创建成功")
+    else:
+        print("⏭️ product_relations 表已存在，跳过")
 
-    # 创建索引
-    op.create_index('idx_product_relations_main', 'product_relations',
-                    ['main_product_type', 'main_product_id'], unique=False)
-    op.create_index('idx_product_relations_related', 'product_relations',
-                    ['related_product_id'], unique=False)
+    # 检查并创建索引
+    result = bind.execute(text("SELECT indexname FROM pg_indexes WHERE tablename = 'product_relations' AND indexname = 'idx_product_relations_main'"))
+    if not result.fetchone():
+        op.create_index('idx_product_relations_main', 'product_relations',
+                        ['main_product_type', 'main_product_id'], unique=False)
+        print("✅ 创建索引 idx_product_relations_main 成功")
+    else:
+        print("⏭️ 索引 idx_product_relations_main 已存在，跳过")
 
-    print("✅ product_relations 表创建成功")
+    result = bind.execute(text("SELECT indexname FROM pg_indexes WHERE tablename = 'product_relations' AND indexname = 'idx_product_relations_related'"))
+    if not result.fetchone():
+        op.create_index('idx_product_relations_related', 'product_relations',
+                        ['related_product_id'], unique=False)
+        print("✅ 创建索引 idx_product_relations_related 成功")
+    else:
+        print("⏭️ 索引 idx_product_relations_related 已存在，跳过")
 
 
 def downgrade():

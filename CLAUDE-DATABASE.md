@@ -197,6 +197,143 @@ flask db migrate -m "迁移描述"
 - ✅ **索引处理** - 检查索引删除/创建操作
 - ✅ **字段约束** - 验证字段类型和约束变更
 - ✅ **回滚逻辑** - 确保 downgrade() 函数正确
+- ✅ **幂等性检查** - **必须添加安全检查防止重复执行出错**
+
+### **⚠️ 迁移安全检查规范（必须遵守）**
+
+为确保迁移文件可以在不同环境（SP8D、OVS、本地）安全执行，**所有新迁移文件必须添加幂等性检查**。
+
+#### **标准安全检查模板**
+
+```python
+def upgrade():
+    """迁移升级函数"""
+    from sqlalchemy import inspect, text
+    bind = op.get_bind()
+    inspector = inspect(bind)
+
+    # ===== 1. 检查字段是否存在 =====
+    existing_columns = [col['name'] for col in inspector.get_columns('table_name')]
+
+    if 'new_column' not in existing_columns:
+        op.add_column('table_name',
+            sa.Column('new_column', sa.String(50), nullable=True))
+        print("✅ 添加 new_column 字段成功")
+    else:
+        print("⏭️ new_column 字段已存在，跳过")
+
+    # ===== 2. 检查表是否存在 =====
+    existing_tables = inspector.get_table_names()
+
+    if 'new_table' not in existing_tables:
+        op.create_table('new_table',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('name', sa.String(100), nullable=False),
+            sa.PrimaryKeyConstraint('id')
+        )
+        print("✅ 创建 new_table 表成功")
+    else:
+        print("⏭️ new_table 表已存在，跳过")
+
+    # ===== 3. 检查索引是否存在 =====
+    result = bind.execute(text(
+        "SELECT indexname FROM pg_indexes WHERE indexname = 'idx_name'"
+    ))
+    if not result.fetchone():
+        op.create_index('idx_name', 'table_name', ['column_name'])
+        print("✅ 创建索引 idx_name 成功")
+    else:
+        print("⏭️ 索引 idx_name 已存在，跳过")
+
+    # ===== 4. 检查外键约束是否存在 =====
+    result = bind.execute(text("""
+        SELECT constraint_name FROM information_schema.table_constraints
+        WHERE table_name = 'table_name'
+        AND constraint_name = 'fk_constraint_name'
+    """))
+    if not result.fetchone():
+        op.create_foreign_key('fk_constraint_name',
+            'table_name', 'ref_table', ['column'], ['id'])
+        print("✅ 添加外键约束成功")
+    else:
+        print("⏭️ 外键约束已存在，跳过")
+```
+
+#### **快速检查辅助函数**
+
+在迁移文件中可以定义这些辅助函数简化代码：
+
+```python
+def column_exists(table_name, column_name):
+    """检查字段是否存在"""
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = [c['name'] for c in inspector.get_columns(table_name)]
+    return column_name in columns
+
+def table_exists(table_name):
+    """检查表是否存在"""
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    return table_name in inspector.get_table_names()
+
+def index_exists(index_name):
+    """检查索引是否存在"""
+    bind = op.get_bind()
+    result = bind.execute(sa.text(
+        f"SELECT indexname FROM pg_indexes WHERE indexname = '{index_name}'"
+    ))
+    return result.fetchone() is not None
+
+def constraint_exists(table_name, constraint_name):
+    """检查约束是否存在"""
+    bind = op.get_bind()
+    result = bind.execute(sa.text(f"""
+        SELECT constraint_name FROM information_schema.table_constraints
+        WHERE table_name = '{table_name}' AND constraint_name = '{constraint_name}'
+    """))
+    return result.fetchone() is not None
+```
+
+#### **不安全的写法（禁止）**
+
+```python
+# ❌ 错误示例 - 直接添加，没有检查
+def upgrade():
+    op.add_column('table', sa.Column('field', sa.String(50)))  # 会报错：字段已存在
+    op.create_table('new_table', ...)  # 会报错：表已存在
+    op.create_index('idx_name', ...)   # 会报错：索引已存在
+```
+
+#### **安全的写法（必须）**
+
+```python
+# ✅ 正确示例 - 先检查再操作
+def upgrade():
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    columns = [c['name'] for c in inspector.get_columns('table')]
+
+    if 'field' not in columns:
+        op.add_column('table', sa.Column('field', sa.String(50)))
+        print("✅ 添加字段成功")
+    else:
+        print("⏭️ 字段已存在，跳过")
+```
+
+#### **当前数据库版本状态（2025-12-03）**
+
+| 数据库 | 当前版本 | 状态 |
+|--------|----------|------|
+| **本地** | `be0fcb982e76` | ✅ Head |
+| **OVS** | `be0fcb982e76` | ✅ 已同步 |
+| **SP8D** | `20251129_fix_region_fk` | 需检查 |
+
+**重要提醒**：
+- 未来所有新迁移必须以 `be0fcb982e76` 为基础
+- 所有新迁移文件必须包含安全检查
+- 运行迁移前先备份数据库
 
 ### **已知冲突类型及处理**
 

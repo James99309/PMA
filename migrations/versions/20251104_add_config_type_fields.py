@@ -31,25 +31,37 @@ depends_on = None
 
 def upgrade():
     """添加配置产品类型和基础数量字段"""
+    from sqlalchemy import inspect, text
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    existing_columns = [col['name'] for col in inspector.get_columns('quotation_details')]
 
     # 添加 config_type 字段
-    op.add_column('quotation_details',
-                  sa.Column('config_type', sa.String(50), nullable=True,
-                           comment='配置类型: required_accessory/required_mutual/recommended/optional_mutual'))
+    if 'config_type' not in existing_columns:
+        op.add_column('quotation_details',
+                      sa.Column('config_type', sa.String(50), nullable=True,
+                               comment='配置类型: required_accessory/required_mutual/recommended/optional_mutual'))
+        print("✅ 添加 config_type 字段成功")
+    else:
+        print("⏭️ config_type 字段已存在，跳过")
 
     # 添加 config_base_quantity 字段
-    op.add_column('quotation_details',
-                  sa.Column('config_base_quantity', sa.Integer(), nullable=True,
-                           comment='配置基础数量（用于计算: 主产品数量 × 配置基础数量）'))
+    if 'config_base_quantity' not in existing_columns:
+        op.add_column('quotation_details',
+                      sa.Column('config_base_quantity', sa.Integer(), nullable=True,
+                               comment='配置基础数量（用于计算: 主产品数量 × 配置基础数量）'))
+        print("✅ 添加 config_base_quantity 字段成功")
+    else:
+        print("⏭️ config_base_quantity 字段已存在，跳过")
 
     # 添加索引以提升查询性能
-    op.create_index('idx_quotation_details_config_type', 'quotation_details',
-                    ['config_type'], unique=False)
-
-    print("✅ quotation_details 表配置字段添加成功")
-    print("   - 添加 config_type 字段（配置类型）")
-    print("   - 添加 config_base_quantity 字段（配置基础数量）")
-    print("   - 添加 config_type 索引")
+    result = bind.execute(text("SELECT indexname FROM pg_indexes WHERE tablename = 'quotation_details' AND indexname = 'idx_quotation_details_config_type'"))
+    if not result.fetchone():
+        op.create_index('idx_quotation_details_config_type', 'quotation_details',
+                        ['config_type'], unique=False)
+        print("✅ 创建索引 idx_quotation_details_config_type 成功")
+    else:
+        print("⏭️ 索引 idx_quotation_details_config_type 已存在，跳过")
 
 
 def downgrade():

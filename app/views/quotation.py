@@ -1208,6 +1208,25 @@ def create_quotation():
                             currency=data.get('currency', 'CNY')  # 添加明细货币字段
                         )
 
+                        # 处理动态规格配置字段（用于创建研发产品）
+                        configured_specs_str = detail.get('configured_specs')
+                        if configured_specs_str:
+                            if isinstance(configured_specs_str, str):
+                                try:
+                                    new_detail.configured_specs = json.loads(configured_specs_str)
+                                except json.JSONDecodeError:
+                                    new_detail.configured_specs = None
+                            else:
+                                new_detail.configured_specs = configured_specs_str
+
+                        new_detail.configured_mn = str(detail.get('configured_mn', '')).strip() or None
+                        new_detail.price_adjustment_total = int(detail.get('price_adjustment_total', 0) or 0)
+                        pending_creation = detail.get('pending_product_creation', False)
+                        if isinstance(pending_creation, str):
+                            new_detail.pending_product_creation = pending_creation.lower() == 'true'
+                        else:
+                            new_detail.pending_product_creation = bool(pending_creation)
+
                         # 处理配置产品相关字段
                         is_configuration = detail.get('is_configuration', False)
                         if is_configuration:
@@ -1301,7 +1320,16 @@ def create_quotation():
                     
                     # 注意：项目金额更新交由SQLAlchemy事件监听器处理，此处无需手动更新
                     current_app.logger.info('项目报价金额将由事件监听器自动更新')
-                    
+
+                    # 检查并创建配置产品到研发产品库
+                    try:
+                        created_products = create_products_from_configured_specs(quotation)
+                        if created_products:
+                            db.session.commit()  # 提交研发产品的更改
+                            current_app.logger.info(f'报价单 {quotation.id} 创建了 {len(created_products)} 个研发产品')
+                    except Exception as e:
+                        current_app.logger.error(f'创建研发产品失败: {str(e)}')
+
                     # 异步触发报价单创建通知，避免阻塞响应
                     try:
                         from app.utils.notification_helpers import trigger_event_notification

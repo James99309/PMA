@@ -2763,16 +2763,6 @@ class ProductDetailManager {
 
             // 添加视觉标识
             row.classList.add('spec-configured');
-
-            // 在MN单元格添加标识
-            const mnCell = row.querySelector('.mn-cell, td:nth-child(6)');
-            if (mnCell) {
-                const badge = document.createElement('span');
-                badge.className = 'badge bg-warning ms-1';
-                badge.title = '规格已定制，将在确认时创建新产品';
-                badge.innerHTML = '<i class="fas fa-cog"></i>';
-                mnCell.appendChild(badge);
-            }
         } else if (config.existing_product_id) {
             // 已存在相同MN的产品，更新为已存在产品
             row.dataset.existingProductId = config.existing_product_id;

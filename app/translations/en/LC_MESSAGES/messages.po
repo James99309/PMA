@@ -9574,3 +9574,12 @@ msgstr "Use for This Product"
 
 msgid "覆盖分类"
 msgstr "Override Category"
+
+# 产品详情-关联产品配置
+#: app/templates/product/detail.html:506
+msgid "关联产品配置"
+msgstr "Linked Product Configuration"
+
+#: app/templates/product/detail.html:533 app/templates/product/detail.html:1610
+msgid "暂无关联产品配置"
+msgstr "No linked product configuration"

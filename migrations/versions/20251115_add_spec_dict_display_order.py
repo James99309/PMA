@@ -18,26 +18,40 @@ depends_on = None
 
 def upgrade():
     """添加display_order字段并初始化现有数据"""
-    # 1. 添加display_order字段（允许NULL）
-    op.add_column('specification_dictionary',
-                  sa.Column('display_order', sa.Integer(), nullable=True))
+    from sqlalchemy import inspect, text
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    existing_columns = [col['name'] for col in inspector.get_columns('specification_dictionary')]
 
-    # 2. 为现有记录初始化display_order值（使用ID作为初始排序）
-    op.execute("""
-        UPDATE specification_dictionary
-        SET display_order = id
-        WHERE display_order IS NULL
-    """)
+    if 'display_order' not in existing_columns:
+        # 1. 添加display_order字段（允许NULL）
+        op.add_column('specification_dictionary',
+                      sa.Column('display_order', sa.Integer(), nullable=True))
 
-    # 3. 将字段设置为NOT NULL
-    op.alter_column('specification_dictionary', 'display_order',
-                    existing_type=sa.Integer(),
-                    nullable=False)
+        # 2. 为现有记录初始化display_order值（使用ID作为初始排序）
+        op.execute("""
+            UPDATE specification_dictionary
+            SET display_order = id
+            WHERE display_order IS NULL
+        """)
 
-    # 4. 添加索引以提升查询性能
-    op.create_index(op.f('ix_specification_dictionary_display_order'),
-                    'specification_dictionary', ['display_order'],
-                    unique=False)
+        # 3. 将字段设置为NOT NULL
+        op.alter_column('specification_dictionary', 'display_order',
+                        existing_type=sa.Integer(),
+                        nullable=False)
+        print("✅ 添加 display_order 字段成功")
+    else:
+        print("⏭️ display_order 字段已存在，跳过")
+
+    # 4. 添加索引以提升查询性能（检查是否存在）
+    result = bind.execute(text("SELECT indexname FROM pg_indexes WHERE tablename = 'specification_dictionary' AND indexname = 'ix_specification_dictionary_display_order'"))
+    if not result.fetchone():
+        op.create_index(op.f('ix_specification_dictionary_display_order'),
+                        'specification_dictionary', ['display_order'],
+                        unique=False)
+        print("✅ 创建索引成功")
+    else:
+        print("⏭️ 索引已存在，跳过")
 
 
 def downgrade():

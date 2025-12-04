@@ -1400,31 +1400,38 @@ def _collect_spec_data_for_update() -> list:
     return spec_data_list
 
 
-def _handle_ajax_file_upload_response(success: bool, message: str = None, error: Exception = None) -> tuple:
-    """
-    处理AJAX文件上传响应
+def _is_ajax_request():
+    """判断是否是AJAX请求"""
+    return request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
+           'application/json' in request.headers.get('Accept', '')
 
-    检测请求是否为AJAX文件上传请求，如果是则返回JSON响应
+
+def _handle_ajax_file_upload_response(success: bool, message: str = None, error: Exception = None, redirect_url: str = None) -> tuple:
+    """
+    处理AJAX响应（支持所有AJAX请求，不仅限于文件上传）
+
+    检测请求是否为AJAX请求，如果是则返回JSON响应
 
     Args:
         success: 操作是否成功
         message: 成功或错误消息
         error: 异常对象（可选）
+        redirect_url: 重定向URL（可选，成功时使用）
 
     Returns:
         (is_handled, response)
         - is_handled=True时表示已处理，response为JSON响应对象
         - is_handled=False时调用方应继续正常流程
     """
-    is_ajax_request = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
-    has_file_upload = 'product_image' in request.files or 'product_pdf' in request.files
-
-    if is_ajax_request and has_file_upload:
+    if _is_ajax_request():
         if success:
-            return True, jsonify({
+            response_data = {
                 'success': True,
-                'message': message or _('文件上传成功！')
-            })
+                'message': message or _('操作成功！')
+            }
+            if redirect_url:
+                response_data['redirect'] = redirect_url
+            return True, jsonify(response_data)
         else:
             return True, jsonify({
                 'success': False,
@@ -1850,19 +1857,23 @@ def update_product(id):
         except Exception as track_err:
             current_app.logger.warning(f"记录产品变更历史失败: {str(track_err)}")
         
-        # 检查是否为AJAX文件上传请求（使用辅助函数）
-        is_handled, response = _handle_ajax_file_upload_response(success=True)
+        # 检查是否为AJAX请求（使用辅助函数）
+        is_handled, response = _handle_ajax_file_upload_response(
+            success=True,
+            message=_('产品更新成功！'),
+            redirect_url=url_for('product_management.product_detail', id=id)
+        )
         if is_handled:
             return response
 
         flash(_('产品更新成功！'), 'success')
         return redirect(url_for('product_management.product_detail', id=id))
-        
+
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f'更新产品失败: {str(e)}', exc_info=True)
 
-        # 检查是否为AJAX文件上传请求（使用辅助函数）
+        # 检查是否为AJAX请求（使用辅助函数）
         is_handled, response = _handle_ajax_file_upload_response(success=False, error=e)
         if is_handled:
             return response
