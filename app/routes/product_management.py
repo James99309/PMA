@@ -3448,11 +3448,7 @@ def check_mn_code_duplicate_api():
 @login_required
 @permission_required('product_code', 'edit')
 def upload_rd_product_image(product_id):
-    """上传研发产品图片（支持分类共享）
-
-    参数:
-        update_category: true=覆盖分类文件, false=仅用于此产品, 不传=检查是否需要确认
-    """
+    """上传研发产品图片（独立存储，不与子分类共享）"""
     try:
         # 获取产品
         dev_product = DevProduct.query.get_or_404(product_id)
@@ -3487,16 +3483,6 @@ def upload_rd_product_image(product_id):
                 'error': f'图片文件太大！最大允许 12MB，当前文件: {file_size / (1024*1024):.1f}MB'
             }), 400
 
-        # 获取 update_category 参数
-        update_category_str = request.form.get('update_category')
-        if update_category_str is None:
-            update_category = None  # 需要检查是否需要确认
-        else:
-            update_category = update_category_str.lower() == 'true'
-
-        # 获取分类信息
-        category = ProductCategory.query.get(dev_product.category_id) if dev_product.category_id else None
-
         # 使用Supabase服务上传图片
         from app.utils.supabase_client import get_supabase_client
         supabase_client = get_supabase_client()
@@ -3504,63 +3490,16 @@ def upload_rd_product_image(product_id):
         if not supabase_client:
             return jsonify({'success': False, 'error': '云端存储服务不可用'}), 500
 
-        # 分类共享逻辑
-        if category:
-            category_image = category.image_path
-
-            # 场景1：分类没有图片 → 自动设为分类图片
-            if not category_image:
-                image_url = supabase_client.upload_product_file(dev_product.id, image_file, 'image', 'rd_product')
-                if image_url:
-                    category.image_path = image_url
-                    dev_product.updated_at = datetime.now()
-                    db.session.commit()
-                    current_app.logger.info(f"研发产品 {dev_product.id} 图片上传成功，已设为分类共享文件: {image_url}")
-                    return jsonify({'success': True, 'image_url': image_url, 'set_as_category': True})
-                else:
-                    return jsonify({'success': False, 'error': '上传到云端存储失败'}), 500
-
-            # 场景2：分类已有图片
-            if update_category is None:
-                return jsonify({
-                    'success': False,
-                    'need_confirm': True,
-                    'category_has_file': True,
-                    'category_file_url': category_image,
-                    'message': '分类已有共享图片，请选择操作方式'
-                })
-
-            # 上传图片
-            image_url = supabase_client.upload_product_file(dev_product.id, image_file, 'image', 'rd_product')
-            if not image_url:
-                return jsonify({'success': False, 'error': '上传到云端存储失败'}), 500
-
-            if update_category:
-                # 覆盖分类图片
-                category.image_path = image_url
-                dev_product.updated_at = datetime.now()
-                db.session.commit()
-                current_app.logger.info(f"研发产品 {dev_product.id} 图片上传成功，已覆盖分类共享文件: {image_url}")
-                return jsonify({'success': True, 'image_url': image_url, 'updated_category': True})
-            else:
-                # 仅用于此产品
-                dev_product.image_path = image_url
-                dev_product.updated_at = datetime.now()
-                db.session.commit()
-                current_app.logger.info(f"研发产品 {dev_product.id} 图片上传成功，仅用于此产品: {image_url}")
-                return jsonify({'success': True, 'image_url': image_url, 'product_only': True})
-
+        # 直接上传到研发产品（独立存储，不与子分类共享）
+        image_url = supabase_client.upload_product_file(dev_product.id, image_file, 'image', 'rd_product')
+        if image_url:
+            dev_product.image_path = image_url
+            dev_product.updated_at = datetime.now()
+            db.session.commit()
+            current_app.logger.info(f"研发产品 {dev_product.id} 图片上传成功: {image_url}")
+            return jsonify({'success': True, 'image_url': image_url})
         else:
-            # 没有分类，直接上传到产品
-            image_url = supabase_client.upload_product_file(dev_product.id, image_file, 'image', 'rd_product')
-            if image_url:
-                dev_product.image_path = image_url
-                dev_product.updated_at = datetime.now()
-                db.session.commit()
-                current_app.logger.info(f"研发产品 {dev_product.id} 图片上传成功: {image_url}")
-                return jsonify({'success': True, 'image_url': image_url})
-            else:
-                return jsonify({'success': False, 'error': '上传到云端存储失败'}), 500
+            return jsonify({'success': False, 'error': '上传到云端存储失败'}), 500
 
     except Exception as e:
         db.session.rollback()
@@ -3568,14 +3507,17 @@ def upload_rd_product_image(product_id):
         return jsonify({'success': False, 'error': f'上传失败: {str(e)}'}), 500
 
 
-# 获取研发产品分类文件状态
+# 获取研发产品子分类文件状态
 @product_management_bp.route('/api/rd-products/<int:product_id>/category-file-status', methods=['GET'])
 @login_required
 @permission_required('product_code', 'view')
 def get_rd_product_category_file_status(product_id):
-    """获取研发产品分类的文件状态（用于判断是否需要确认覆盖）"""
+    """获取研发产品子分类的文件状态（用于判断是否需要确认覆盖）
+
+    注意：image_path 和 pdf_path 属性在 ProductSubcategory 上，不在 ProductCategory 上
+    """
     dev_product = DevProduct.query.get_or_404(product_id)
-    if not dev_product.category_id:
+    if not dev_product.subcategory_id:
         return jsonify({
             'success': True,
             'has_category': False,
@@ -3583,8 +3525,8 @@ def get_rd_product_category_file_status(product_id):
             'category_pdf': None
         })
 
-    category = ProductCategory.query.get(dev_product.category_id)
-    if not category:
+    subcategory = ProductSubcategory.query.get(dev_product.subcategory_id)
+    if not subcategory:
         return jsonify({
             'success': True,
             'has_category': False,
@@ -3595,9 +3537,9 @@ def get_rd_product_category_file_status(product_id):
     return jsonify({
         'success': True,
         'has_category': True,
-        'category_name': category.name,
-        'category_image': category.image_path,
-        'category_pdf': category.pdf_path
+        'category_name': subcategory.name,
+        'category_image': subcategory.image_path,
+        'category_pdf': subcategory.pdf_path
     })
 
 # 更新研发产品阶段

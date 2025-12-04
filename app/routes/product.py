@@ -1133,11 +1133,14 @@ def clear_product_pdf(product_id):
 @login_required
 @permission_required('product', 'view')
 def get_category_file_status(product_id):
-    """获取产品分类的文件状态（用于判断是否需要确认覆盖）"""
-    from app.models.product_code import ProductCategory
+    """获取产品子分类的文件状态（用于判断是否需要确认覆盖）
+
+    注意：image_path 和 pdf_path 属性在 ProductSubcategory 上，不在 ProductCategory 上
+    """
+    from app.models.product_code import ProductSubcategory
 
     product = Product.query.get_or_404(product_id)
-    if not product.category_id:
+    if not product.subcategory_id:
         return jsonify({
             'success': True,
             'has_category': False,
@@ -1145,8 +1148,8 @@ def get_category_file_status(product_id):
             'category_pdf': None
         })
 
-    category = ProductCategory.query.get(product.category_id)
-    if not category:
+    subcategory = ProductSubcategory.query.get(product.subcategory_id)
+    if not subcategory:
         return jsonify({
             'success': True,
             'has_category': False,
@@ -1157,9 +1160,9 @@ def get_category_file_status(product_id):
     return jsonify({
         'success': True,
         'has_category': True,
-        'category_name': category.name,
-        'category_image': category.image_path,
-        'category_pdf': category.pdf_path
+        'category_name': subcategory.name,
+        'category_image': subcategory.image_path,
+        'category_pdf': subcategory.pdf_path
     })
 
 @bp.route('/api/products/<int:product_id>/upload-files', methods=['POST'])

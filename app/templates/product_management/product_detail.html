@@ -185,8 +185,8 @@
                         <!-- 产品图片区域 -->
                         <div class="col-md-4">
                             <div class="product-image-container">
-                                {# 优先显示产品图片，其次显示分类共享图片 #}
-                                {% set effective_image = dev_product.image_path or (dev_product.category.image_path if dev_product.category else None) %}
+                                {# 优先显示产品图片，其次显示子分类共享图片 #}
+                                {% set effective_image = dev_product.image_path or (dev_product.subcategory.image_path if dev_product.subcategory else None) %}
                                 {% if effective_image %}
                                     {% if effective_image.startswith('http') %}
                                         <!-- Supabase云端图片 -->
@@ -200,9 +200,9 @@
                                              class="product-image">
                                     {% endif %}
                                     {# 显示图片来源提示 #}
-                                    {% if not dev_product.image_path and dev_product.category and dev_product.category.image_path %}
+                                    {% if not dev_product.image_path and dev_product.subcategory and dev_product.subcategory.image_path %}
                                     <small class="text-muted d-block text-center mt-1">
-                                        <i class="fas fa-share-alt"></i> {{ _('分类共享图片') }}
+                                        <i class="fas fa-share-alt"></i> {{ _('子分类共享图片') }}
                                     </small>
                                     {% endif %}
                                 {% else %}
@@ -601,15 +601,15 @@ function uploadImage(file) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('{{ _("图片上传成功！") }}');
-            setTimeout(() => location.reload(), 1000);
+            showTopNotification('{{ _("图片上传成功！") }}', 'success', 2000);
+            setTimeout(() => location.reload(), 2000);
         } else {
-            alert('{{ _("上传失败") }}: ' + (data.error || data.message || '{{ _("未知错误") }}'));
+            showTopNotification('{{ _("上传失败") }}: ' + (data.error || data.message || '{{ _("未知错误") }}'), 'error');
         }
     })
     .catch(error => {
         console.error('上传错误:', error);
-        alert('{{ _("上传过程中发生错误，请重试") }}');
+        showTopNotification('{{ _("上传过程中发生错误，请重试") }}', 'error');
     })
     .finally(() => {
         uploadBtn.disabled = false;
