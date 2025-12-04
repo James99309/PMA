@@ -525,7 +525,17 @@ class ProductConfigModal {
                 options: f.options?.map(o => ({code: o.code, value: o.value}))
             })));
             this.productDifferenceFields.forEach(field => {
-                this.renderSelectableField(container, field, false);
+                // 🆕 对于初始可选字段，使用保存的完整选项（修复切换后选项丢失的问题）
+                if (this.initialFieldOptions && this.initialFieldOptions.has(field.position)) {
+                    const initialOptions = this.initialFieldOptions.get(field.position);
+                    // 临时替换选项进行渲染
+                    const originalOptions = field.options;
+                    field.options = initialOptions;
+                    this.renderSelectableField(container, field, false);
+                    field.options = originalOptions;  // 恢复原选项
+                } else {
+                    this.renderSelectableField(container, field, false);
+                }
             });
         }
 
