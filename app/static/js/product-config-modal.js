@@ -980,9 +980,9 @@ class ProductConfigModal {
             return null;
         }
 
-        // 如果没有可配置字段选择，直接返回原始 spec_mn
+        // 如果没有可配置字段选择，返回null（保留原始product_mn）
         if (!this.configurableSelections || Object.keys(this.configurableSelections).length === 0) {
-            return originalSpecMn;
+            return null;
         }
 
         // 将 spec_mn 转换为字符数组
@@ -1002,7 +1002,14 @@ class ProductConfigModal {
             }
         }
 
-        return mnChars.join('');
+        const generatedMn = mnChars.join('');
+
+        // 如果生成的MN与原始spec_mn相同，返回null（保留原始product_mn）
+        if (generatedMn === originalSpecMn) {
+            return null;
+        }
+
+        return generatedMn;
     }
 
     /**
@@ -1722,6 +1729,8 @@ class ProductConfigModal {
         this.calculateConfigurablePriceAdjustment();
 
         // ⭐ 修改：准备产品数据，包含配置信息和动态规格配置
+        const generatedSpecMn = this.generateSpecMn();
+
         const productData = {
             mainProduct: {
                 ...this.selectedProduct,
@@ -1734,7 +1743,7 @@ class ProductConfigModal {
                 price_adjustment_total: this.configurablePriceAdjustment || 0,
                 price_details: this.configurablePriceDetails || [],
                 configurable_selections: this.configurableSelections || {},
-                spec_mn: this.generateSpecMn(),  // 生成的规格MN
+                spec_mn: generatedSpecMn,  // 生成的规格MN
                 // ⭐ 传递更新后的描述（配置确认页面显示的描述）
                 configured_description: document.getElementById('configProductSpec')?.textContent?.trim() || ''
             }
