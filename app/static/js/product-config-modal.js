@@ -432,6 +432,24 @@ class ProductConfigModal {
             this.productDifferenceFields = this.selectableFields.filter(field => !field.isConfigurable);
             this.configurableSelectableFields = this.selectableFields.filter(field => field.isConfigurable);
 
+            // 🔍 DEBUG: 分析完成后记录字段状态
+            console.log('🔍 DEBUG analyzeAndShowCodeSelection 完成:', {
+                isInitial,
+                productsCount: products.length,
+                productDifferenceFields: this.productDifferenceFields.map(f => ({
+                    fieldName: f.fieldName,
+                    position: f.position,
+                    optionsCount: f.options?.length,
+                    options: f.options?.map(o => ({code: o.code, value: o.value}))
+                })),
+                configurableSelectableFields: this.configurableSelectableFields.map(f => ({
+                    fieldName: f.fieldName,
+                    position: f.position,
+                    optionsCount: f.options?.length,
+                    options: f.options?.map(o => ({code: o.code, value: o.value}))
+                }))
+            });
+
             // 显示产品数量
             const productCountElem = document.getElementById('productCount');
             if (productCountElem) {
@@ -499,6 +517,13 @@ class ProductConfigModal {
 
         // 2. 渲染产品差异字段（非可配置，必须先选）
         if (this.productDifferenceFields && this.productDifferenceFields.length > 0) {
+            // 🔍 DEBUG: 渲染前记录产品差异字段状态
+            console.log('🔍 DEBUG renderFields 产品差异字段:', this.productDifferenceFields.map(f => ({
+                fieldName: f.fieldName,
+                position: f.position,
+                optionsCount: f.options?.length,
+                options: f.options?.map(o => ({code: o.code, value: o.value}))
+            })));
             this.productDifferenceFields.forEach(field => {
                 this.renderSelectableField(container, field, false);
             });
@@ -775,6 +800,16 @@ class ProductConfigModal {
             // 只剩一个产品 → 显示关联规格选中效果，不自动跳转
             console.log('✅ 产品规格已完全确定，显示关联效果');
 
+            // 🔍 DEBUG: 进入 showFinalizedSpecs 前记录状态
+            console.log('🔍 DEBUG 进入 showFinalizedSpecs 前:', {
+                remainingProductId: this.remainingProducts[0]?.id,
+                productDifferenceFields: this.productDifferenceFields?.map(f => ({
+                    fieldName: f.fieldName,
+                    optionsCount: f.options?.length,
+                    options: f.options?.map(o => ({code: o.code, value: o.value}))
+                }))
+            });
+
             // 🆕 检测产品是否变化，如果变化则重置可配置规格状态
             const newProduct = this.remainingProducts[0];
             if (this.selectedProduct && this.selectedProduct.id !== newProduct.id) {
@@ -789,6 +824,12 @@ class ProductConfigModal {
         } else {
             // 还有多个产品 → 重新分析并渲染
             console.log(`🔄 继续筛选 (剩余 ${this.remainingProducts.length} 个产品)`);
+
+            // 🔍 DEBUG: 进入 analyzeAndShowCodeSelection 前记录状态
+            console.log('🔍 DEBUG 进入 analyzeAndShowCodeSelection 前:', {
+                remainingProductsCount: this.remainingProducts.length,
+                remainingProductIds: this.remainingProducts.map(p => p.id)
+            });
 
             // 🆕 多产品情况下也重置可配置规格状态（因为还未确定最终产品）
             this.configurableSelections = {};
