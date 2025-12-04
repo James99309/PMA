@@ -2979,8 +2979,13 @@ def get_expense_approval_flow(expense_id):
         # 获取报销单 - 使用直接查询，然后进行权限检查
         expense_obj = Expense.query.get_or_404(expense_id)
         
-        # 检查访问权限
-        if not can_edit_data(expense_obj, current_user):
+        # 检查访问权限 - 创建者或审批人都可以查看
+        from app.utils.access_control import has_approval_permission
+        can_view = can_edit_data(expense_obj, current_user)
+        if not can_view:
+            can_view = has_approval_permission(current_user, expense_obj)
+
+        if not can_view:
             return jsonify({
                 'success': False,
                 'message': '您没有权限查看此报销单的审批流程'
