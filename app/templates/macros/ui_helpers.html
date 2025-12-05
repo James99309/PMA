@@ -8442,7 +8442,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">
-            {% if icon %}<i class="fas {{ icon }} me-2"></i>{% endif %}{{ _(title) }}
+            {% if icon %}<i class="fas {{ icon }} me-2"></i>{% endif %}{% if title %}{{ _(title) }}{% endif %}
         </h5>
         {% if add_button_html and show_actions %}
             {{ add_button_html | safe }}
