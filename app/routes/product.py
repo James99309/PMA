@@ -3312,10 +3312,9 @@ def public_product_info(product_mn):
 @login_required
 @permission_required('product', 'view')
 def generate_product_qrcode(id):
-    """生成产品二维码（包含产品信息文本和详情页URL）"""
+    """生成产品二维码（仅包含详情页URL，兼容所有扫描器）"""
     import qrcode
     from io import BytesIO
-    from app.models.product_spec import ProductSpec
 
     try:
         product = Product.query.get_or_404(id)
@@ -3326,63 +3325,13 @@ def generate_product_qrcode(id):
         # 获取当前语言设置
         lang = session.get('language', 'zh')
 
-        # 标签国际化映射
-        labels = {
-            'zh': {
-                'product': '产品',
-                'model': '型号',
-                'brand': '品牌',
-                'specs': '---规格---',
-                'details': '详情',
-                'unknown': '未知产品'
-            },
-            'en': {
-                'product': 'Product',
-                'model': 'Model',
-                'brand': 'Brand',
-                'specs': '---Specs---',
-                'details': 'Details',
-                'unknown': 'Unknown'
-            }
-        }
-        l = labels.get(lang, labels['zh'])
-
-        # 构建产品信息文本
-        lines = []
-
-        # 产品名称和型号
-        product_name = product.subcategory_obj.name if product.subcategory_obj else (product.product_name or l['unknown'])
-        lines.append(f"{l['product']}: {product_name}")
-        lines.append(f"{l['model']}: {product.model or '-'}")
-        lines.append(f"MN: {product.product_mn}")
-
-        # 品牌
-        if product.brand:
-            lines.append(f"{l['brand']}: {product.brand}")
-
-        # 获取规格数据
-        specs = ProductSpec.query.filter_by(product_id=product.id).order_by(ProductSpec.display_order).all()
-        if specs:
-            lines.append(l['specs'])
-            from app.routes.product_code import get_field_unit
-            for spec in specs:
-                value = spec.field_value or '-'
-                unit = get_field_unit(spec.field_name) or ''
-                if unit:
-                    lines.append(f"{spec.field_name}: {value} {unit}")
-                else:
-                    lines.append(f"{spec.field_name}: {value}")
-
-        # 添加详情页URL（附带语言参数）
-        lines.append("")
-        public_url = url_for('product_route.public_product_info',
+        # 生成详情页URL（附带语言参数）
+        # 注：只使用URL作为二维码内容，确保iPhone等扫描器兼容性
+        # 产品详细信息在扫描后打开的网页上查看
+        qr_content = url_for('product_route.public_product_info',
                              product_mn=product.product_mn,
                              lang=lang,
                              _external=True)
-        lines.append(f"{l['details']}: {public_url}")
-
-        # 合并为文本
-        qr_content = "\n".join(lines)
 
         # 生成二维码
         qr = qrcode.QRCode(

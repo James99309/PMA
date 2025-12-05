@@ -65,7 +65,7 @@
             -
         {% endif %}
     </td>
-    <td class="text-cell">{{ product.display_mn or '-' }}</td>
+    <td class="text-cell">{{ product.product_mn or '-' }}</td>
     <td>{{ product.created_at.strftime('%Y-%m-%d %H:%M') if product.created_at else '-' }}</td>
 </tr>
 {% endfor %}
