@@ -4123,6 +4123,20 @@ a:focus .badge.badge-transparent.expense-number-badge {
     border-color: rgba(204, 231, 255, var(--badge-border-opacity)) !important; /* 蓝色边框 */
 }
 
+.data-list-table .badge.relation-type-optional,
+.badge.relation-type-optional {
+    background-color: rgba(209, 231, 221, var(--badge-bg-opacity)) !important; /* 绿色背景 */
+    color: rgba(15, 81, 50, var(--badge-text-opacity)) !important; /* 绿色系文字 */
+    border-color: rgba(209, 231, 221, var(--badge-border-opacity)) !important; /* 绿色边框 */
+}
+
+.data-list-table .badge.relation-type-alternative,
+.badge.relation-type-alternative {
+    background-color: rgba(255, 243, 205, var(--badge-bg-opacity)) !important; /* 黄色背景 */
+    color: rgba(133, 100, 4, var(--badge-text-opacity)) !important; /* 黄色系文字 */
+    border-color: rgba(255, 243, 205, var(--badge-border-opacity)) !important; /* 黄色边框 */
+}
+
 .data-list-table .badge.relation-type-unknown,
 .badge.relation-type-unknown {
     background-color: rgba(226, 227, 229, var(--badge-bg-opacity)) !important; /* 灰色系背景 */

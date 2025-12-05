@@ -2250,7 +2250,7 @@ class ProductConfigModal {
                 // 使用通用模板（显示必选互斥徽章，传递差异keys用于高亮）
                 label.appendChild(this.createConfigItemContent(product, {
                     badgeType: 'relation-type-required-mutual',
-                    badgeText: '必选互斥',
+                    badgeText: window.i18nTexts?.requiredMutual || '必选互斥',
                     diffKeys: diffKeys
                 }));
 
@@ -2518,7 +2518,7 @@ class ProductConfigModal {
                 // API 返回的 product 对象已经包含所有产品字段
                 label.appendChild(this.createConfigItemContent(product, {
                     badgeType: 'relation-type-optional-mutual',
-                    badgeText: '可选互斥',
+                    badgeText: window.i18nTexts?.optionalMutual || '可选互斥',
                     diffKeys: diffKeys
                 }));
 

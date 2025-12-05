@@ -1039,9 +1039,12 @@
 <script>
 window.i18nTexts = window.i18nTexts || {};
 Object.assign(window.i18nTexts, {
-    recommended: '{{ _("推荐") }}',
-    required: '{{ _("必选") }}',
-    optionalMutual: '{{ _("可选互斥") }}'
+    recommended: '{{ "Recommend" if session.get("language") == "en" else "推荐" }}',
+    required: '{{ "Required" if session.get("language") == "en" else "必选" }}',
+    requiredMutual: '{{ "Req.Excl" if session.get("language") == "en" else "必选互斥" }}',
+    optionalMutual: '{{ "Opt.Excl" if session.get("language") == "en" else "可选互斥" }}',
+    optional: '{{ "Optional" if session.get("language") == "en" else "可选配件" }}',
+    alternative: '{{ "Alt" if session.get("language") == "en" else "替代产品" }}'
 });
 </script>
 {% endmacro %}

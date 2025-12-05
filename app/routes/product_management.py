@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, render_template_string, request, jsonify, redirect, url_for, flash, current_app, send_file, Response
+from flask import Blueprint, render_template, render_template_string, request, jsonify, redirect, url_for, flash, current_app, send_file, Response, session
 from flask_babel import gettext as _
 from flask_login import login_required, current_user
 from app import db
@@ -4441,6 +4441,17 @@ def get_product_relations(product_id):
         normal_relations = []
         mutual_groups = {}
 
+        # 徽章文字国际化映射
+        lang = session.get('language', 'zh')
+        badge_label_map = {
+            'required_accessory': {'zh': '必选', 'en': 'Required'},
+            'mutual_exclusion_required': {'zh': '必选互斥', 'en': 'Req.Excl'},
+            'mutual_exclusion_optional': {'zh': '可选互斥', 'en': 'Opt.Excl'},
+            'optional_accessory': {'zh': '可选配件', 'en': 'Optional'},
+            'recommended': {'zh': '推荐', 'en': 'Recommend'},
+            'alternative': {'zh': '替代产品', 'en': 'Alt'}
+        }
+
         for relation in relations_query:
             if not relation.related_product:
                 continue
@@ -4483,7 +4494,7 @@ def get_product_relations(product_id):
                 'retail_price': float(relation.related_product.retail_price) if relation.related_product.retail_price else 0,  # 市场价格
                 'unit': relation.related_product.unit or 'Set',  # 单位
                 'relation_type': relation.relation_type,
-                'relation_type_label': ProductRelation.get_relation_type_label(relation.relation_type),
+                'relation_type_label': badge_label_map.get(relation.relation_type, {}).get(lang, relation.relation_type),
                 'relation_type_label_class': badge_class,
                 'default_quantity': relation.default_quantity,
                 'is_required': relation.is_required,
@@ -4510,7 +4521,7 @@ def get_product_relations(product_id):
                         'is_required': is_required,
                         'selection_mode': relation.group_selection_mode or 'single',
                         'badge_class': group_badge_class,  # 添加徽章样式类
-                        'badge_label': '必选互斥' if is_required else '可选互斥',  # 添加徽章文字
+                        'badge_label': badge_label_map.get('mutual_exclusion_required' if is_required else 'mutual_exclusion_optional', {}).get(lang, '互斥'),  # 添加徽章文字
                         'products': []
                     }
 

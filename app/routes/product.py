@@ -3260,10 +3260,13 @@ def public_product_info(product_mn):
     from app.models.product_spec import ProductSpec
     from app.models.dictionary import Dictionary
 
+    # 获取语言参数（从URL参数，默认中文）
+    lang = request.args.get('lang', 'zh')
+
     # 根据 product_mn 查找产品
     product = Product.query.filter_by(product_mn=product_mn).first()
     if not product:
-        return render_template('product/public_not_found.html', product_mn=product_mn), 404
+        return render_template('product/public_not_found.html', product_mn=product_mn, lang=lang), 404
 
     # 获取规格数据
     specs = ProductSpec.query.filter_by(product_id=product.id).order_by(ProductSpec.display_order).all()
@@ -3301,7 +3304,8 @@ def public_product_info(product_mn):
                            product=product,
                            effective_image=effective_image,
                            specs=specs_with_unit,
-                           vendor_info=vendor_info)
+                           vendor_info=vendor_info,
+                           lang=lang)
 
 
 @bp.route('/products/<int:id>/qrcode')
@@ -3319,23 +3323,47 @@ def generate_product_qrcode(id):
         if not product.product_mn:
             return jsonify({'error': '产品MN编码为空，无法生成二维码'}), 400
 
+        # 获取当前语言设置
+        lang = session.get('language', 'zh')
+
+        # 标签国际化映射
+        labels = {
+            'zh': {
+                'product': '产品',
+                'model': '型号',
+                'brand': '品牌',
+                'specs': '---规格---',
+                'details': '详情',
+                'unknown': '未知产品'
+            },
+            'en': {
+                'product': 'Product',
+                'model': 'Model',
+                'brand': 'Brand',
+                'specs': '---Specs---',
+                'details': 'Details',
+                'unknown': 'Unknown'
+            }
+        }
+        l = labels.get(lang, labels['zh'])
+
         # 构建产品信息文本
         lines = []
 
         # 产品名称和型号
-        product_name = product.subcategory_obj.name if product.subcategory_obj else (product.product_name or '未知产品')
-        lines.append(f"产品: {product_name}")
-        lines.append(f"型号: {product.model or '-'}")
+        product_name = product.subcategory_obj.name if product.subcategory_obj else (product.product_name or l['unknown'])
+        lines.append(f"{l['product']}: {product_name}")
+        lines.append(f"{l['model']}: {product.model or '-'}")
         lines.append(f"MN: {product.product_mn}")
 
         # 品牌
         if product.brand:
-            lines.append(f"品牌: {product.brand}")
+            lines.append(f"{l['brand']}: {product.brand}")
 
         # 获取规格数据
         specs = ProductSpec.query.filter_by(product_id=product.id).order_by(ProductSpec.display_order).all()
         if specs:
-            lines.append("---规格---")
+            lines.append(l['specs'])
             from app.routes.product_code import get_field_unit
             for spec in specs:
                 value = spec.field_value or '-'
@@ -3345,12 +3373,13 @@ def generate_product_qrcode(id):
                 else:
                     lines.append(f"{spec.field_name}: {value}")
 
-        # 添加详情页URL
+        # 添加详情页URL（附带语言参数）
         lines.append("")
         public_url = url_for('product_route.public_product_info',
                              product_mn=product.product_mn,
+                             lang=lang,
                              _external=True)
-        lines.append(f"详情: {public_url}")
+        lines.append(f"{l['details']}: {public_url}")
 
         # 合并为文本
         qr_content = "\n".join(lines)

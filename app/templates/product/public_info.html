@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="{{ 'en' if lang == 'en' else 'zh-CN' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -139,7 +139,7 @@
         {% endif %}
 
         <div class="product-header">
-            <h1>{{ product.subcategory_obj.name if product.subcategory_obj else (product.product_name or '未命名产品') }}</h1>
+            <h1>{{ product.subcategory_obj.name if product.subcategory_obj else (product.product_name or ('Unnamed' if lang == 'en' else '未命名产品')) }}</h1>
             <div class="model">{{ product.model or '-' }}</div>
             <div class="mn-code">
                 <i class="fas fa-barcode me-1"></i>
@@ -150,15 +150,15 @@
         <div class="product-body">
             <!-- 基本信息 -->
             <div class="info-section">
-                <div class="section-title"><i class="fas fa-info-circle me-1"></i> 基本信息</div>
+                <div class="section-title"><i class="fas fa-info-circle me-1"></i> {{ 'Basic Info' if lang == 'en' else '基本信息' }}</div>
 
                 {% if product.brand %}
                 <div class="info-row">
-                    <span class="info-label">品牌</span>
+                    <span class="info-label">{{ 'Brand' if lang == 'en' else '品牌' }}</span>
                     <span class="info-value">
                         <span class="brand-badge">{{ product.brand }}</span>
                         {% if product.is_vendor_product %}
-                        <span class="badge bg-info ms-1" style="font-size: 0.7rem;">厂商</span>
+                        <span class="badge bg-info ms-1" style="font-size: 0.7rem;">{{ 'Vendor' if lang == 'en' else '厂商' }}</span>
                         {% endif %}
                     </span>
                 </div>
@@ -166,21 +166,21 @@
 
                 {% if product.category_obj %}
                 <div class="info-row">
-                    <span class="info-label">产品分类</span>
+                    <span class="info-label">{{ 'Category' if lang == 'en' else '产品分类' }}</span>
                     <span class="info-value">{{ product.category_obj.name }}</span>
                 </div>
                 {% endif %}
 
                 {% if product.subcategory_obj %}
                 <div class="info-row">
-                    <span class="info-label">产品系列</span>
+                    <span class="info-label">{{ 'Series' if lang == 'en' else '产品系列' }}</span>
                     <span class="info-value">{{ product.subcategory_obj.name }}</span>
                 </div>
                 {% endif %}
 
                 {% if product.unit %}
                 <div class="info-row">
-                    <span class="info-label">计量单位</span>
+                    <span class="info-label">{{ 'Unit' if lang == 'en' else '计量单位' }}</span>
                     <span class="info-value">{{ product.unit }}</span>
                 </div>
                 {% endif %}
@@ -188,7 +188,7 @@
 
             <!-- 规格参数 -->
             <div class="info-section">
-                <div class="section-title"><i class="fas fa-cogs me-1"></i> 规格参数</div>
+                <div class="section-title"><i class="fas fa-cogs me-1"></i> {{ 'Specifications' if lang == 'en' else '规格参数' }}</div>
 
                 {% if specs and specs|length > 0 %}
                     {% for spec in specs %}
@@ -202,7 +202,7 @@
                     {% endfor %}
                 {% else %}
                     <div class="no-specs">
-                        <i class="fas fa-inbox"></i> 暂无规格参数
+                        <i class="fas fa-inbox"></i> {{ 'No specifications' if lang == 'en' else '暂无规格参数' }}
                     </div>
                 {% endif %}
             </div>
@@ -210,7 +210,7 @@
             <!-- 规格说明 -->
             {% if product.specification %}
             <div class="info-section">
-                <div class="section-title"><i class="fas fa-file-alt me-1"></i> 规格说明</div>
+                <div class="section-title"><i class="fas fa-file-alt me-1"></i> {{ 'Description' if lang == 'en' else '规格说明' }}</div>
                 <div style="color: #666; font-size: 0.9rem; line-height: 1.6;">
                     {{ product.specification }}
                 </div>
@@ -219,11 +219,11 @@
         </div>
 
         <div class="footer">
-            <i class="fas fa-qrcode me-1"></i> 扫码查看产品信息
+            <i class="fas fa-qrcode me-1"></i> {{ 'Scan for product info' if lang == 'en' else '扫码查看产品信息' }}
             {% if vendor_info and vendor_info.website %}
             <div class="mt-2">
                 <a href="{{ vendor_info.website }}" target="_blank" rel="noopener noreferrer" class="vendor-link">
-                    <i class="fas fa-globe me-1"></i>{{ vendor_info.name or '官网' }}
+                    <i class="fas fa-globe me-1"></i>{{ vendor_info.name or ('Website' if lang == 'en' else '官网') }}
                 </a>
             </div>
             {% endif %}

@@ -2644,7 +2644,7 @@ msgstr ""
 #: app/templates/customer/merge_tool_new.html:301
 #: app/templates/customer/merge_tool_optimized.html:508
 msgid "合并预览"
-msgstr ""
+msgstr "MergePreview"
 
 #: app/templates/customer/merge_tool.html:279
 #: app/templates/customer/merge_tool_clean.html:279
@@ -2771,7 +2771,7 @@ msgstr "Loading data..."
 #: app/templates/customer/merge_tool_new.html:433
 #: app/templates/customer/merge_tool_optimized.html:552
 msgid "确认合并"
-msgstr ""
+msgstr "ConfirmMerge"
 
 #: app/templates/customer/merge_tool.html:429
 #: app/templates/customer/merge_tool_clean.html:429
@@ -2900,7 +2900,7 @@ msgstr "Customer created successfully!"
 
 #: app/templates/customer/merge_tool.html:763
 msgid "合并统计："
-msgstr ""
+msgstr "MergeStatistics："
 
 #: app/templates/customer/merge_tool.html:764
 #, fuzzy
@@ -2987,12 +2987,12 @@ msgstr ""
 #: app/templates/customer/merge_tool_enhanced.html:320
 #: app/templates/customer/merge_tool_optimized.html:533
 msgid "确认合并操作"
-msgstr ""
+msgstr "ConfirmMergeActions"
 
 #: app/templates/customer/merge_tool_enhanced.html:326
 #: app/templates/customer/merge_tool_optimized.html:539
 msgid "警告："
-msgstr ""
+msgstr "Warning："
 
 #: app/templates/customer/merge_tool_enhanced.html:327
 msgid "此操作不可撤销！合并后，被合并的客户将被删除，其所有数据将转移到目标客户。"
@@ -3079,7 +3079,7 @@ msgstr "Submitting..."
 #: app/templates/customer/merge_tool_enhanced.html:653
 #: app/templates/customer/merge_tool_optimized.html:1283
 msgid "合并成功！"
-msgstr ""
+msgstr "MergeSuccess！"
 
 #: app/templates/customer/merge_tool_enhanced.html:661
 #: app/templates/customer/merge_tool_optimized.html:1291
@@ -3127,7 +3127,7 @@ msgstr ""
 
 #: app/templates/customer/merge_tool_optimized.html:488
 msgid "合并设置"
-msgstr ""
+msgstr "MergeSettings"
 
 #: app/templates/customer/merge_tool_optimized.html:494
 msgid "当前选择"
@@ -3557,7 +3557,7 @@ msgstr "Invoice"
 #: app/templates/expense/create_expense.html:596
 #, python-brace-format
 msgid "默认：{customerName}-{name}-{time}"
-msgstr ""
+msgstr "Default：{customerName}-{name}-{time}"
 
 #: app/templates/expense/create_expense.html:598
 #: app/templates/expense/edit_expense.html:481
@@ -3634,7 +3634,7 @@ msgstr "Save Failed"
 #: app/templates/quotation/create.html:371
 #, python-brace-format
 msgid "API请求失败: {status}"
-msgstr ""
+msgstr "APIRequest Failed: {status}"
 
 #: app/templates/expense/create_expense.html:615
 msgid "至少需要保留一条报销明细"
@@ -3697,7 +3697,7 @@ msgstr "Add Expense Details"
 
 #: app/templates/expense/create_expense.html:1158
 msgid "默认客户名称-账号-YYDDHHS"
-msgstr ""
+msgstr "DefaultCustomer Name-Account-YYDDHHS"
 
 #: app/templates/expense/create_expense.html:1162
 msgid "将自动生成：报销说明前6字-账号-YYMMDDHHS"
@@ -3957,7 +3957,7 @@ msgstr "Status"
 #: app/templates/expense/expense_detail.html:43
 #: app/templates/inventory/order_detail.html:41
 msgid "待处理"
-msgstr ""
+msgstr "Pending"
 
 #: app/templates/expense/expense_detail.html:44
 #: app/templates/inventory/order_detail.html:42
@@ -4714,7 +4714,7 @@ msgstr ""
 
 #: app/templates/macros/approval_macros.html:1016
 msgid "设置确认"
-msgstr ""
+msgstr "SettingsConfirm"
 
 #: app/templates/macros/approval_macros.html:1018
 #, fuzzy
@@ -4760,15 +4760,15 @@ msgstr ""
 
 #: app/templates/macros/approval_macros.html:1157
 msgid "点击选择颜色"
-msgstr ""
+msgstr "ClickSelectColor"
 
 #: app/templates/macros/approval_macros.html:1161
 msgid "预览"
-msgstr ""
+msgstr "Preview"
 
 #: app/templates/macros/approval_macros.html:1169
 msgid "确认设置"
-msgstr ""
+msgstr "ConfirmSettings"
 
 #: app/templates/macros/approval_macros.html:1185
 msgid "确定要清除确认徽章吗？"
@@ -4845,7 +4845,7 @@ msgstr ""
 
 #: app/templates/macros/approval_macros.html:1374
 msgid "召回原因（可选）"
-msgstr ""
+msgstr "RecallReason（Optional）"
 
 #: app/templates/macros/approval_macros.html:1375
 #, fuzzy
@@ -4958,7 +4958,7 @@ msgstr "Confirm Import"
 
 #: app/templates/macros/file_preview.html:39
 msgid "预览图片"
-msgstr ""
+msgstr "PreviewImage"
 
 #: app/templates/macros/file_preview.html:50
 #: app/templates/product/upload_files.html:146
@@ -4994,7 +4994,7 @@ msgstr ""
 
 #: app/templates/macros/file_preview.html:128
 msgid "文件预览"
-msgstr ""
+msgstr "File Preview"
 
 #: app/templates/macros/filter_search.html:33
 #: app/templates/macros/filter_search.html:106
@@ -5102,7 +5102,7 @@ msgstr "Temporary products have no market price and discount"
 
 #: app/templates/macros/product_detail_manager.html:124
 msgid "第"
-msgstr ""
+msgstr "Page"
 
 #: app/templates/macros/product_detail_manager.html:125
 msgid "行的"
@@ -5779,7 +5779,7 @@ msgstr "Product Details"
 #: app/templates/product_management/product_detail_backup.html:390
 #: app/templates/product_management/product_detail_backup.html:720
 msgid "上传图片"
-msgstr ""
+msgstr "Upload Image"
 
 #: app/templates/product/detail.html:291
 msgid "厂商"
@@ -5801,9 +5801,8 @@ msgid "产品文档"
 msgstr "Product Documentation"
 
 #: app/templates/product/detail.html:346 app/templates/product/detail.html:704
-#, fuzzy
 msgid "上传PDF文档"
-msgstr "PDF Document"
+msgstr "Upload PDF"
 
 #: app/templates/product/detail.html:362
 #: app/templates/product_management/product_detail_backup.html:503
@@ -5812,38 +5811,35 @@ msgstr "PDF Document"
 
 #: app/templates/product/detail.html:369
 msgid "PDF封面预览"
-msgstr ""
+msgstr "PDF Preview"
 
 #: app/templates/product/detail.html:370
 msgid "点击预览图可在新窗口查看完整PDF"
-msgstr ""
+msgstr "Click preview to view full PDF in new window"
 
 #: app/templates/product/detail.html:378
-#, fuzzy
 msgid "加载PDF预览中..."
-msgstr "Loading..."
+msgstr "Loading PDF..."
 
 #: app/templates/product/detail.html:386
 msgid "点击在新窗口查看"
-msgstr ""
+msgstr "Click to view"
 
 #: app/templates/product/detail.html:393
-#, fuzzy
 msgid "PDF预览加载失败"
-msgstr "Loading Failed"
+msgstr "PDF Load Failed"
 
 #: app/templates/product/detail.html:394
 msgid "请尝试直接下载文件查看"
-msgstr ""
+msgstr "Try downloading the file"
 
 #: app/templates/product/detail.html:403
-#, fuzzy
 msgid "暂无产品文档"
-msgstr "Product Documentation"
+msgstr "No Documents"
 
 #: app/templates/product/detail.html:405
 msgid "点击上方\"上传PDF文档\"按钮添加产品文档"
-msgstr ""
+msgstr "Click 'Upload PDF' above to add documents"
 
 #: app/templates/product/detail.html:564
 #: app/templates/product/upload_files.html:209
@@ -5956,7 +5952,7 @@ msgstr ""
 
 #: app/templates/product/file_preview_demo.html:117
 msgid "图片文件"
-msgstr ""
+msgstr "ImageFile"
 
 #: app/templates/product/file_preview_demo.html:132
 #, fuzzy
@@ -6027,7 +6023,7 @@ msgstr ""
 
 #: app/templates/product/file_preview_demo.html:284
 msgid "文件类型：image, pdf, auto"
-msgstr ""
+msgstr "FileType：image, pdf, auto"
 
 #: app/templates/product/file_preview_demo.html:290
 msgid "预览尺寸：small, medium, large"
@@ -6092,15 +6088,15 @@ msgstr "Product Lib"
 
 #: app/templates/product/upload_files.html:13
 msgid "上传图片和PDF文件"
-msgstr ""
+msgstr "Upload ImageandPDFFile"
 
 #: app/templates/product/upload_files.html:30
 msgid "文件上传"
-msgstr ""
+msgstr "FileUpload"
 
 #: app/templates/product/upload_files.html:41
 msgid "产品ID"
-msgstr ""
+msgstr "ProductID"
 
 #: app/templates/product/upload_files.html:52
 #: app/templates/product/upload_files.html:139
@@ -6114,7 +6110,7 @@ msgstr "Image"
 #: app/templates/quotation/edit_new.html:444
 #: app/templates/quotation/edit_new.html:480
 msgid "可选"
-msgstr ""
+msgstr "Optional"
 
 #: app/templates/product/upload_files.html:60
 #: app/templates/product/upload_files.html:89
@@ -6123,7 +6119,7 @@ msgstr ""
 
 #: app/templates/product/upload_files.html:60
 msgid "最大"
-msgstr ""
+msgstr "Maximum"
 
 #: app/templates/product/upload_files.html:60
 msgid "自动优化为"
@@ -6136,7 +6132,7 @@ msgstr ""
 
 #: app/templates/product/upload_files.html:67
 msgid "图片预览"
-msgstr ""
+msgstr "Image Preview"
 
 #: app/templates/product/upload_files.html:82
 #: app/templates/product/upload_files.html:156
@@ -6160,7 +6156,7 @@ msgstr "Success"
 
 #: app/templates/product/upload_files.html:242
 msgid "请选择 PDF 文件"
-msgstr ""
+msgstr "Please select PDF File"
 
 #: app/templates/product/upload_files.html:257
 msgid "请至少选择一个文件上传"
@@ -6168,11 +6164,11 @@ msgstr ""
 
 #: app/templates/product/upload_files.html:290
 msgid "图片上传成功"
-msgstr ""
+msgstr "ImageUploadSuccess"
 
 #: app/templates/product/upload_files.html:293
 msgid "PDF上传成功"
-msgstr ""
+msgstr "PDFUploadSuccess"
 
 #: app/templates/product_analysis/analysis.html:209
 #: app/views/product_analysis.py:434
@@ -6301,16 +6297,16 @@ msgstr "Specifications"
 #: app/templates/product_management/product_detail.html:321
 #: app/templates/product_management/product_detail_backup.html:527
 msgid "指标"
-msgstr ""
+msgstr "Spec"
 
 #: app/templates/product_management/product_detail.html:340
 #: app/templates/product_management/product_detail_backup.html:553
 msgid "暂无规格信息"
-msgstr ""
+msgstr "No Specifications"
 
 #: app/templates/product_management/product_detail.html:341
 msgid "产品规格信息将在产品编辑时添加"
-msgstr ""
+msgstr "Specifications will be added when editing product"
 
 #: app/templates/product_management/product_detail_backup.html:333
 #: app/templates/product_management/product_detail_backup.html:432
@@ -7430,19 +7426,19 @@ msgstr "All Representatives"
 
 #: app/templates/user/detail.html:228
 msgid "是"
-msgstr ""
+msgstr "Yes"
 
 #: app/templates/user/detail.html:228
 msgid "否"
-msgstr ""
+msgstr "No"
 
 #: app/templates/user/detail.html:229
 msgid "激活"
-msgstr ""
+msgstr "Activate"
 
 #: app/templates/user/detail.html:229
 msgid "禁用"
-msgstr ""
+msgstr "Disable"
 
 #: app/templates/user/detail.html:233
 #, fuzzy
@@ -7570,7 +7566,7 @@ msgstr "User"
 
 #: app/templates/user/edit.html:129
 msgid "选择角色"
-msgstr ""
+msgstr "SelectRole"
 
 #: app/templates/user/edit.html:133
 #, fuzzy
@@ -7755,7 +7751,7 @@ msgstr "Module"
 
 #: app/templates/user/profile.html:200
 msgid "权限级别"
-msgstr ""
+msgstr "PermissionLevel"
 
 #: app/templates/user/profile.html:201
 msgid "查看"
@@ -8123,7 +8119,7 @@ msgstr ""
 
 #: app/views/expense.py:2490
 msgid "预览发票文件名失败"
-msgstr ""
+msgstr "PreviewInvoiceFile NameFailed"
 
 #: app/views/expense.py:2628
 #, fuzzy
@@ -8416,808 +8412,268 @@ msgstr "Personal information updated successfully"
 msgid "更新失败"
 msgstr "Update failed"
 
-#~ msgid "简体中文"
-#~ msgstr "Simplified Chinese"
 
-#~ msgid "English"
-#~ msgstr "English"
 
-#~ msgid "医疗"
-#~ msgstr "Healthcare"
 
-#~ msgid "潜在客户"
-#~ msgstr "Potential"
 
-#~ msgid "已关闭"
-#~ msgstr "Closed"
 
-#~ msgid "客户列表"
-#~ msgstr "Customer List"
 
-#~ msgid "搜索企业名称..."
-#~ msgstr "Search company name..."
 
-#~ msgid "输入企业名称进行搜索，可查看所有企业的基本信息（含非自己的客户）"
-#~ msgstr ""
-#~ "Enter company name to search, view "
-#~ "basic information of all companies "
-#~ "(including non-own customers)"
 
-#~ msgid "输入联系人姓名搜索，点击可跳转到相应企业"
-#~ msgstr "Enter contact name to search, click to jump to corresponding company"
 
-#~ msgid "请填写沟通情况"
-#~ msgstr "Please fill in communication details"
 
-#~ msgid "的历史行动记录"
-#~ msgstr "'s action history"
 
-#~ msgid "该联系人暂无历史行动记录"
-#~ msgstr "This contact has no action history"
 
-#~ msgid "行动记录统计"
-#~ msgstr "Action Statistics"
 
-#~ msgid "总共记录了"
-#~ msgstr "Total recorded"
 
-#~ msgid "次沟通行动"
-#~ msgstr "communication actions"
 
-#~ msgid "历史沟通记录"
-#~ msgstr "Communication History"
 
-#~ msgid "上次沟通"
-#~ msgstr "Last Communication"
 
-#~ msgid "正在加载工作记录..."
-#~ msgstr "Loading work records..."
 
-#~ msgid "最近5天内没有工作记录"
-#~ msgstr "No work records in the last 5 days"
 
-#~ msgid "显示最近5天的工作记录"
-#~ msgstr "Show work records from the last 5 days"
 
-#~ msgid "显示统计总览"
-#~ msgstr "Show Statistics Overview"
 
-#~ msgid "只看自己"
-#~ msgstr "My Projects Only"
 
-#~ msgid "已召回"
-#~ msgstr "Recalled"
 
-#~ msgid "参与单位"
-#~ msgstr "Participating"
 
-#~ msgid "请选择设计院及顾问"
-#~ msgstr "Please select consultant"
 
-#~ msgid "请选择总承包单位"
-#~ msgstr "Please select main contractor"
 
-#~ msgid "请选择系统集成商"
-#~ msgstr "Please select system integrator"
 
-#~ msgid "请选择经销商"
-#~ msgstr "Please select dealer"
 
-#~ msgid "搜索项目名称或授权编号..."
-#~ msgstr "Search project name or authorization code..."
 
-#~ msgid "清除搜索"
-#~ msgstr "Clear Search"
 
 # 编辑报价单页面新增翻译
-#~ msgid "-- 请选择客户 --"
-#~ msgstr "-- Please select customer --"
 
-#~ msgid "-- 请选择型号 --"
-#~ msgstr "-- Please select model --"
 
-#~ msgid "其他项目"
-#~ msgstr "Other Projects"
 
-#~ msgid "请添加至少一个有效的产品明细"
-#~ msgstr "Please add at least one valid product detail"
 
-#~ msgid "加载产品明细数据失败，请手动添加产品"
-#~ msgstr "Failed to load product details, please add products manually"
 
-#~ msgid "暂无报价单数据"
-#~ msgstr "No quotation data"
 
-#~ msgid "删除报价单"
-#~ msgstr "Delete Quotation"
 
 #~ msgid "报价单号"
 #~ msgstr "Quotation Number"
 
-#~ msgid "报价金额"
-#~ msgstr "Quotation Amount"
 
-#~ msgid "报价日期"
-#~ msgstr "Quotation Date"
 
-#~ msgid "有效期"
-#~ msgstr "Valid Until"
 
-#~ msgid "产品信息"
-#~ msgstr "Product Information"
 
-#~ msgid "税率"
-#~ msgstr "Tax Rate"
 
-#~ msgid "含税金额"
-#~ msgstr "Tax Inclusive Amount"
 
-#~ msgid "库存数量"
-#~ msgstr "Stock Quantity"
 
-#~ msgid "在售"
-#~ msgstr "Active"
 
-#~ msgid "停售"
-#~ msgstr "Inactive"
 
-#~ msgid "暂无产品数据"
-#~ msgstr "No product data"
 
-#~ msgid "搜索产品..."
-#~ msgstr "Search..."
 
-#~ msgid "产品代码"
-#~ msgstr "Product Code"
 
-#~ msgid "标准价格"
-#~ msgstr "Standard Price"
 
-#~ msgid "最低价格"
-#~ msgstr "Minimum Price"
 
-#~ msgid "最高价格"
-#~ msgstr "Maximum Price"
 
-#~ msgid "供应商"
-#~ msgstr "Supplier"
 
-#~ msgid "制造商"
-#~ msgstr "Manufacturer"
 
-#~ msgid "产品重量"
-#~ msgstr "Product Weight"
 
-#~ msgid "产品尺寸"
-#~ msgstr "Dimensions"
 
-#~ msgid "保修期"
-#~ msgstr "Warranty Period"
 
-#~ msgid "使用说明"
-#~ msgstr "Usage Instructions"
 
-#~ msgid "安装指南"
-#~ msgstr "Installation Guide"
 
-#~ msgid "维护保养"
-#~ msgstr "Maintenance"
 
-#~ msgid "输入关键词搜索产品名称、MN号、型号、品牌、类别等"
-#~ msgstr ""
-#~ "Enter keywords to search product name,"
-#~ " MN number, model, brand, category, "
-#~ "etc."
 
-#~ msgid "支持搜索产品名称、MN号、型号、品牌、产品类型、产品类别等字段"
-#~ msgstr ""
-#~ "Supports searching product name, MN "
-#~ "number, model, brand, product type, "
-#~ "product category and other fields"
 
-#~ msgid "生产状态"
-#~ msgstr "Status"
 
-#~ msgid "加载更多数据..."
-#~ msgstr "Loading more data..."
 
-#~ msgid "全部数据已加载完成"
-#~ msgstr "All data has been loaded"
 
-#~ msgid "项目阶段跟踪"
-#~ msgstr "Stage Tracking"
 
-#~ msgid "预计交付时间"
-#~ msgstr "Delivery"
 
-#~ msgid "暂无相关项目"
-#~ msgstr "No related projects"
 
-#~ msgid "查看更多"
-#~ msgstr "View More"
 
-#~ msgid "申请授权编号"
-#~ msgstr "Apply for Authorization Code"
 
-#~ msgid "申请时间"
-#~ msgstr "Application Time"
 
-#~ msgid "处理意见"
-#~ msgstr "Processing Comments"
 
-#~ msgid "阈值"
-#~ msgstr "Threshold"
 
-#~ msgid "相关单位"
-#~ msgstr "Organizations"
 
-#~ msgid "统计分析"
-#~ msgstr "Analysis"
 
-#~ msgid "项目概览"
-#~ msgstr "Overview"
 
-#~ msgid "阶段分析"
-#~ msgstr "Stage Analysis"
 
-#~ msgid "报价分析"
-#~ msgstr "Quotation Analysis"
 
-#~ msgid "时间分析"
-#~ msgstr "Time Analysis"
 
-#~ msgid "本月内项目状态有推进的统计"
-#~ msgstr "Statistics of projects with status progress this month"
 
-#~ msgid "当前已签约的项目统计"
-#~ msgstr "Statistics of currently signed projects"
 
-#~ msgid "当前处于失败状态的项目统计"
-#~ msgstr "Statistics of projects currently in failed status"
 
-#~ msgid "当前处于搁置状态的项目统计"
-#~ msgstr "Statistics of projects currently in suspended status"
 
-#~ msgid "当前处于发现阶段的项目统计"
-#~ msgstr "Statistics of projects currently in discovery stage"
 
-#~ msgid "当前处于植入阶段的项目统计"
-#~ msgstr "Statistics of projects currently in implementation stage"
 
-#~ msgid "当前处于招标前阶段的项目统计"
-#~ msgstr "Statistics of projects currently in pre-tender stage"
 
-#~ msgid "报价编号"
-#~ msgstr "Quotation Number"
 
-#~ msgid "暂无可见企业数据。"
-#~ msgstr "No visible company data."
 
-#~ msgid "暂无可见企业数据"
-#~ msgstr "No visible company data"
 
-#~ msgid "字典管理"
-#~ msgstr "Role"
 
-#~ msgid "退出系统"
-#~ msgstr "Logout"
 
-#~ msgid "最近跟进"
-#~ msgstr "Last Follow-up"
 
-#~ msgid "普通联系人"
-#~ msgstr "Regular Contact"
 
-#~ msgid "记录时间"
-#~ msgstr "Record Time"
 
-#~ msgid "跟进人"
-#~ msgstr "Follow-up By"
 
-#~ msgid "通信记录"
-#~ msgstr "Communication Record"
 
-#~ msgid "客户共享设置"
-#~ msgstr "Customer Sharing Settings"
 
-#~ msgid "共享联系人"
-#~ msgstr "Share Contacts"
 
-#~ msgid "同时共享该客户下的所有联系人"
-#~ msgstr "Also share all contacts under this customer"
 
-#~ msgid "创建批价单错误"
-#~ msgstr "Error creating pricing order"
 
-#~ msgid "区域"
-#~ msgstr "Region"
 
-#~ msgid "地址"
-#~ msgstr "Address"
 
-#~ msgid "显示项目总览"
-#~ msgstr "Show Overview"
 
-#~ msgid "隐藏项目总览"
-#~ msgstr "Hide Overview"
 
-#~ msgid "相关单位:"
-#~ msgstr "Related Units:"
 
-#~ msgid "设计院:"
-#~ msgstr "Design Institute:"
 
-#~ msgid "系统集成:"
-#~ msgstr "System Integration:"
 
-#~ msgid "经销商:"
-#~ msgstr "Dealer:"
 
-#~ msgid "管理员"
-#~ msgstr "Administrator"
 
-#~ msgid "业务管理员"
-#~ msgstr "Business Administrator"
 
-#~ msgid "财务总监"
-#~ msgstr "Finance Director"
 
-#~ msgid "销售总监"
-#~ msgstr "Sales Director"
 
-#~ msgid "厂商用户"
-#~ msgstr "Vendor User"
 
-#~ msgid "客户销售"
-#~ msgstr "Customer Sales"
 
-#~ msgid "产品经理"
-#~ msgstr "Product Manager"
 
-#~ msgid "服务经理"
-#~ msgstr "Service Manager"
 
-#~ msgid "总客户"
-#~ msgstr "Total Customers"
 
-#~ msgid "完全结算"
-#~ msgstr "Fully Settled"
 
-#~ msgid "部分结算"
-#~ msgstr "Partially Settled"
 
-#~ msgid "待结算"
-#~ msgstr "Pending Settlement"
 
-#~ msgid "已结算"
-#~ msgstr "Settled"
 
-#~ msgid "请选择或搜索直接用户"
-#~ msgstr "Please select or search direct users"
 
-#~ msgid "请选择或搜索设计院及顾问"
-#~ msgstr "Please select or search design institutes and consultants"
 
-#~ msgid "请选择或搜索总承包单位"
-#~ msgstr "Please select or search general contractors"
 
-#~ msgid "请选择或搜索系统集成商"
-#~ msgstr "Please select or search system integrators"
 
-#~ msgid "请选择或搜索经销商"
-#~ msgstr "Please select or search dealers"
 
-#~ msgid "选择项目后自动填充"
-#~ msgstr "Auto-filled after project selection"
 
-#~ msgid "使用通用产品明细组件"
-#~ msgstr "Using generic product detail component"
 
-#~ msgid "表格可横向滚动查看更多内容"
-#~ msgstr "Table can be scrolled horizontally to view more content"
 
-#~ msgid "折扣率%"
-#~ msgstr "Discount Rate %"
 
-#~ msgid "折扣率(%)"
-#~ msgstr "Discount Rate (%%)"
 
-#~ msgid "没有找到项目"
-#~ msgstr "No projects found"
 
-#~ msgid "获取项目列表失败"
-#~ msgstr "Failed to get project list"
 
-#~ msgid "请求超时，请刷新页面重试"
-#~ msgstr "Request timeout, please refresh and try again"
 
-#~ msgid "内部项目"
-#~ msgstr "Internal Project"
 
-#~ msgid "合作伙伴项目"
-#~ msgstr "Partner Project"
 
-#~ msgid "战略项目"
-#~ msgstr "Strategic Project"
 
-#~ msgid "方案设计"
-#~ msgstr "Solution Design"
 
-#~ msgid "方案提交"
-#~ msgstr "Proposal Submission"
 
-#~ msgid "合同签署"
-#~ msgstr "Contract Signing"
 
-#~ msgid "项目实施"
-#~ msgstr "Project Implementation"
 
-#~ msgid "项目交付"
-#~ msgstr "Project Delivery"
 
-#~ msgid "项目结束"
-#~ msgstr "Project Closure"
 
-#~ msgid "正在加载项目信息"
-#~ msgstr "Loading project information"
 
-#~ msgid "加载项目信息失败"
-#~ msgstr "Failed to load project information"
 
-#~ msgid "项目不存在或已被删除"
-#~ msgstr "Project does not exist or has been deleted"
 
-#~ msgid "没有权限访问该项目"
-#~ msgstr "No permission to access this project"
 
-#~ msgid "服务器内部错误"
-#~ msgstr "Internal server error"
 
-#~ msgid "请求超时"
-#~ msgstr "Request timeout"
 
-#~ msgid "请选择左侧类别"
-#~ msgstr "Please select a category on the left"
 
-#~ msgid "请选择产品型号"
-#~ msgstr "Please select a product model"
 
-#~ msgid "无产品类别"
-#~ msgstr "No product categories"
 
-#~ msgid "此类别下无产品"
-#~ msgstr "No products in this category"
 
-#~ msgid "此产品下无型号"
-#~ msgstr "No models for this product"
 
-#~ msgid "此型号下无规格"
-#~ msgstr "No specifications for this model"
 
-#~ msgid "默认规格"
-#~ msgstr "Default specification"
 
-#~ msgid "加载产品失败"
-#~ msgstr "Failed to load products"
 
-#~ msgid "加载类别失败"
-#~ msgstr "Failed to load categories"
 
-#~ msgid "加载项目信息时出错"
-#~ msgstr "Error loading project information"
 
-#~ msgid "是否要将所有价格从"
-#~ msgstr "Do you want to convert all prices from"
 
-#~ msgid "转换为"
-#~ msgstr "to"
 
-#~ msgid "价格转换失败，请重试"
-#~ msgstr "Price conversion failed, please try again"
 
-#~ msgid "销售重点"
-#~ msgstr "Sales Focus"
 
-#~ msgid "渠道跟进"
-#~ msgstr "Channel Follow-up"
 
-#~ msgid "客户服务"
-#~ msgstr "Customer Service"
 
-#~ msgid "概念验证"
-#~ msgstr "Proof of Concept"
 
-#~ msgid "初步接触"
-#~ msgstr "Initial Contact"
 
-#~ msgid "需求分析"
-#~ msgstr "Requirements Analysis"
 
-#~ msgid "商务谈判"
-#~ msgstr "Business Negotiation"
 
-#~ msgid "验收测试"
-#~ msgstr "Acceptance Testing"
 
-#~ msgid "维护支持"
-#~ msgstr "Maintenance Support"
 
-#~ msgid "暂停"
-#~ msgstr "On Hold"
 
-#~ msgid "业务机会"
-#~ msgstr "Business Opportunity"
 
-#~ msgid "搜索成功，找到"
-#~ msgstr "Search successful, found"
 
-#~ msgid "中国"
-#~ msgstr "China"
 
-#~ msgid "美国"
-#~ msgstr "United States"
 
-#~ msgid "德国"
-#~ msgstr "Germany"
 
-#~ msgid "日本"
-#~ msgstr "Japan"
 
-#~ msgid "韩国"
-#~ msgstr "South Korea"
 
-#~ msgid "新加坡"
-#~ msgstr "Singapore"
 
-#~ msgid "马来西亚"
-#~ msgstr "Malaysia"
 
-#~ msgid "泰国"
-#~ msgstr "Thailand"
 
-#~ msgid "点击选择/取消，支持滚动"
-#~ msgstr "Click to select/cancel, scrolling supported"
 
-#~ msgid "待入库"
-#~ msgstr "Pending Receipt"
 
-#~ msgid "部分入库"
-#~ msgstr "Partially Received"
 
-#~ msgid "全部入库"
-#~ msgstr "Fully Received"
 
-#~ msgid "已执行"
-#~ msgstr "Executed"
 
-#~ msgid "低库存"
-#~ msgstr "Low Stock"
 
-#~ msgid "正常"
-#~ msgstr "Normal"
 
-#~ msgid "充足"
-#~ msgstr "Sufficient"
 
-#~ msgid "全部公司"
-#~ msgstr "All Companies"
 
-#~ msgid "入库状态"
-#~ msgstr "Inventory Status"
 
-#~ msgid "订单号或公司名称"
-#~ msgstr "Order Number or Company Name"
 
-#~ msgid "结算单号、项目名称或产品名称"
-#~ msgstr "Settlement Number, Project Name or Product Name"
 
-#~ msgid "结算单公司"
-#~ msgstr "Settlement Company"
 
-#~ msgid "全部目标公司"
-#~ msgstr "All Target Companies"
 
-#~ msgid "结算目标公司"
-#~ msgstr "Settlement Target Company"
 
-#~ msgid "结算状态"
-#~ msgstr "Settlement Status"
 
-#~ msgid "结算公司"
-#~ msgstr "Settlement Company"
 
-#~ msgid "Search"
-#~ msgstr "搜索"
 
-#~ msgid "Settlement order number or project name"
-#~ msgstr "结算单编号或项目名称"
 
-#~ msgid "Settlement Company"
-#~ msgstr "结算公司"
 
-#~ msgid "All Companies"
-#~ msgstr "全部公司"
 
-#~ msgid "Settlement Status"
-#~ msgstr "结算状态"
 
-#~ msgid "结算单编号或项目名称"
-#~ msgstr "Settlement order number or project name"
 
-#~ msgid "MN号、型号或产品名称"
-#~ msgstr "MN number, model or product name"
 
-#~ msgid "库存状态"
-#~ msgstr "Stock Status"
 
-#~ msgid "全部公司（聚合视图）"
-#~ msgstr "All Companies (Aggregate View)"
 
-#~ msgid "全部拥有者"
-#~ msgstr "All Owners"
 
-#~ msgid "订单列表"
-#~ msgstr "Order List"
 
-#~ msgid "全部订单"
-#~ msgstr "All Orders"
 
-#~ msgid "订单日期"
-#~ msgstr "Order Date"
 
-#~ msgid "预期日期"
-#~ msgstr "Expected Date"
 
-#~ msgid "总数量"
-#~ msgstr "Total Quantity"
 
-#~ msgid "暂无订单数据"
-#~ msgstr "No order data"
 
-#~ msgid "订单列表分页"
-#~ msgstr "Order List Pagination"
 
-#~ msgid "结算明细列表"
-#~ msgstr "Settlement Detail List"
 
-#~ msgid "暂无结算明细数据"
-#~ msgstr "No settlement detail data"
 
-#~ msgid "确认标记此项为已结算"
-#~ msgstr "Confirm to mark this item as settled"
 
-#~ msgid "总结算单数"
-#~ msgstr "Total Settlement Orders"
 
-#~ msgid "结算单列表"
-#~ msgstr "Settlement Order List"
 
-#~ msgid "结算单编号"
-#~ msgstr "Settlement Order Number"
 
-#~ msgid "结算情况"
-#~ msgstr "Settlement Status"
 
-#~ msgid "无公司"
-#~ msgstr "No Company"
 
-#~ msgid "暂无结算单记录"
-#~ msgstr "No settlement order records"
 
-#~ msgid "结算明细列表分页"
-#~ msgstr "Settlement Detail List Pagination"
 
-#~ msgid "标记已结算"
-#~ msgstr "Mark as Settled"
 
-#~ msgid "结算时间"
-#~ msgstr "Settlement Time"
 
-#~ msgid "万"
-#~ msgstr "10K"
 
-#~ msgid "本月结算"
-#~ msgstr "This Month Settlement"
 
-#~ msgid "产品MN"
-#~ msgstr "Product MN"
 
-#~ msgid "总结算"
-#~ msgstr "Total Settlements"
 
-#~ msgid "全部明细"
-#~ msgstr "All Details"
 
-#~ msgid "订单号"
-#~ msgstr "Order Number"
 
-#~ msgid "渠道经理"
-#~ msgstr "Channel Manager"
 
-#~ msgid "首页"
-#~ msgstr "Home"
 
-#~ msgid "报销单列表"
-#~ msgstr "Expense List"
 
-#~ msgid "报销标题"
-#~ msgstr "Expense Title"
 
-#~ msgid "归属部门"
-#~ msgstr "Department"
 
-#~ msgid "个人费用"
-#~ msgstr "Personal Expense"
 
-#~ msgid "全部科目"
-#~ msgstr "All Categories"
 
-#~ msgid "自动共享相关项目"
-#~ msgstr "Auto-share Related Projects"
 
-#~ msgid "包括该客户作为最终用户、经销商、承包商、集成商、设计院的项目（仅查看权限）"
-#~ msgstr ""
-#~ "Include projects where this customer is"
-#~ " the end user, dealer, contractor, "
-#~ "integrator, or design institute (view-"
-#~ "only permission)"
 
-#~ msgid "统计图表功能将在通用组件稳定后重新集成"
-#~ msgstr ""
-#~ "Statistics chart function will be "
-#~ "reintegrated after the universal components"
-#~ " stabilize"
 
-#~ msgid "创建批价单"
-#~ msgstr "Create Pricing Order"
 
-#~ msgid "全部拥有人"
-#~ msgstr "All Owners"
 
-#~ msgid "个报价单吗？此操作无法撤销。"
-#~ msgstr "quotations? This operation cannot be undone."
 
-#~ msgid "输入项目名称或授权码进行搜索"
-#~ msgstr "Enter project name or authorization code to search"
 
-#~ msgid "折扣率(%%)"
-#~ msgstr "Discount Rate (%%)"
 
-#~ msgid "新产品已成功添加到研发产品库，自定义规格字段也已同步到产品分类模块"
-#~ msgstr ""
-#~ "New product has been successfully added"
-#~ " to the development product library, "
-#~ "and custom specification fields have "
-#~ "been synchronized to the product "
-#~ "classification module"
 
-#~ msgid "文件名必须是英文字符（字母、数字、点、下划线、连字符）"
-#~ msgstr ""
-#~ "Filename must contain only English "
-#~ "characters (letters, numbers, dots, "
-#~ "underscores, hyphens)"
 
 # Performance management page translations - added 2025-08-02
-#~ msgid "统计概览"
-#~ msgstr "Statistics Overview"
 
-#~ msgid "深加报销明细"
-#~ msgstr "Add Expense Details"
 
-#~ msgid "从文件选择"
-#~ msgstr "Select from File"
 
-#~ msgid "拍照上传"
-#~ msgstr "Take Photo"
 
-#~ msgid "拍照上传发票"
-#~ msgstr "Take Photo for Invoice"
 
-#~ msgid "拍照"
-#~ msgstr "Capture"
 
-#~ msgid "活跃度"
-#~ msgstr "Activity Status"
 
 
 # Pricing Order List Page Translations - Added 2025-10-31
@@ -9583,3 +9039,578 @@ msgstr "Linked Product Configuration"
 #: app/templates/product/detail.html:533 app/templates/product/detail.html:1610
 msgid "暂无关联产品配置"
 msgstr "No linked product configuration"
+
+
+# ===== 自动添加 (2025-12-05 10:25) =====
+
+msgid "(可选) 调整规格生成新产品"
+msgstr ""
+
+msgid "MN编号"
+msgstr "MN Number"
+
+msgid "MN编码已解锁"
+msgstr ""
+
+msgid "MN编码已锁定"
+msgstr ""
+
+msgid "MN编码未锁定"
+msgstr ""
+
+msgid "PDF已清除"
+msgstr ""
+
+msgid "上一个产品"
+msgstr ""
+
+msgid "上传PDF"
+msgstr "UploadPDF"
+
+msgid "上传成功！"
+msgstr "UploadSuccess！"
+
+msgid "下一个产品"
+msgstr ""
+
+msgid "下载备份"
+msgstr "DownloadBackup"
+
+msgid "个备份文件"
+msgstr "BackupFile"
+
+msgid "互斥组名称"
+msgstr "Mutual Exclusion GroupName"
+
+msgid "互斥组至少需要2个产品"
+msgstr ""
+
+msgid "互斥组至少需要选择2个产品"
+msgstr ""
+
+msgid "互斥组（可选）"
+msgstr "Mutual Exclusion Group（Optional）"
+
+msgid "互斥组（必选）"
+msgstr ""
+
+msgid "产品二维码"
+msgstr "Product QR Code"
+
+msgid "产品名称为必填项"
+msgstr ""
+
+msgid "产品已成功删除！"
+msgstr ""
+
+msgid "产品标记"
+msgstr ""
+
+msgid "产品系列"
+msgstr "Product Series"
+
+msgid "产品编码定义说明"
+msgstr ""
+
+msgid "仅保存到此产品，不影响其他产品"
+msgstr ""
+
+msgid "仅用于此产品"
+msgstr ""
+
+msgid "位置"
+msgstr "Position"
+
+msgid "例如：电源线规格"
+msgstr ""
+
+msgid "保存失败，请重试"
+msgstr ""
+
+msgid "保存并选择"
+msgstr ""
+
+msgid "入库审批流程"
+msgstr "Stock InApproval Process"
+
+msgid "关于此项目的详细说明"
+msgstr ""
+
+msgid "分类"
+msgstr "Category"
+
+msgid "分类已有共享"
+msgstr ""
+
+msgid "删除互斥组"
+msgstr "DeleteMutual Exclusion Group"
+
+msgid "删除产品时发生错误"
+msgstr ""
+
+msgid "删除备份"
+msgstr "DeleteBackup"
+
+msgid "删除成功"
+msgstr "DeleteSuccess"
+
+msgid "删除过程中发生错误，请重试"
+msgstr ""
+
+msgid "刷新"
+msgstr "Refresh"
+
+msgid "加载产品树失败，请刷新页面重试"
+msgstr ""
+
+msgid "加载列表失败，请刷新页面重试"
+msgstr ""
+
+msgid "加载备份列表失败："
+msgstr ""
+
+msgid "加载更多"
+msgstr "Load More"
+
+msgid "厂商产品"
+msgstr ""
+
+msgid "原MN"
+msgstr ""
+
+msgid "原产地"
+msgstr ""
+
+msgid "发起入库审批"
+msgstr ""
+
+msgid "发起失败"
+msgstr ""
+
+msgid "可从当前分类下已有产品名称中选择"
+msgstr ""
+
+msgid "名称"
+msgstr "Name"
+
+msgid "吗？此操作不可恢复。"
+msgstr ""
+
+msgid "含义"
+msgstr ""
+
+msgid "图片上传成功！"
+msgstr "ImageUploadSuccess！"
+
+msgid "图片已清除"
+msgstr ""
+
+msgid "备份"
+msgstr "Backup"
+
+msgid "备份失败"
+msgstr "BackupFailed"
+
+msgid "备份失败：未生成备份文件"
+msgstr ""
+
+msgid "备份完成！"
+msgstr ""
+
+msgid "备份年龄"
+msgstr ""
+
+msgid "备份总数"
+msgstr ""
+
+msgid "备份文件列表"
+msgstr ""
+
+msgid "备份文件名"
+msgstr "BackupFile Name"
+
+msgid "备份时间"
+msgstr "BackupTime"
+
+msgid "如：台、个、套"
+msgstr ""
+
+msgid "子分类共享图片"
+msgstr ""
+
+msgid "字段名称"
+msgstr ""
+
+msgid "字段类型"
+msgstr ""
+
+msgid "存储使用"
+msgstr ""
+
+msgid "审批流程已发起！页面即将刷新..."
+msgstr ""
+
+msgid "审批流程模板ID无效"
+msgstr ""
+
+msgid "审批通过后，研发产品将自动转入产品库。"
+msgstr ""
+
+msgid "将使用审批流程"
+msgstr ""
+
+msgid "将在确认报价单时创建新产品"
+msgstr ""
+
+msgid "工作记录"
+msgstr ""
+
+msgid "工作记录列表"
+msgstr ""
+
+msgid "已停产的产品不会在报价单中显示"
+msgstr ""
+
+msgid "已加载全部记录"
+msgstr ""
+
+msgid "已存在相同规格产品"
+msgstr ""
+
+msgid "已有共享"
+msgstr ""
+
+msgid "已有项目"
+msgstr ""
+
+msgid "已选配置"
+msgstr ""
+
+msgid "当前筛选条件下没有工作记录"
+msgstr ""
+
+msgid "当项目拥有人不是厂商企业账户时，可以指定厂商销售负责人"
+msgstr ""
+
+msgid "必选配件"
+msgstr "Required Accessory"
+
+msgid "所有产品均已添加，无可选产品"
+msgstr ""
+
+msgid "推荐配件"
+msgstr "Recommended Accessory"
+
+msgid "描述"
+msgstr "Description"
+
+msgid "提交失败，请稍后重试"
+msgstr "Submit Failed，Please try again later"
+
+msgid "搜索产品型号或名称..."
+msgstr "SearchProductModelorName..."
+
+msgid "操作失败"
+msgstr "ActionsFailed"
+
+msgid "操作失败，请稍后重试"
+msgstr "Operation Failed，Please try again later"
+
+msgid "操作成功！"
+msgstr "ActionsSuccess！"
+
+msgid "数据库"
+msgstr ""
+
+msgid "数据库备份管理"
+msgstr ""
+
+msgid "数据库类型"
+msgstr ""
+
+msgid "文件名"
+msgstr "File Name"
+
+msgid "文件大小"
+msgstr "File Size"
+
+msgid "新MN"
+msgstr ""
+
+msgid "无法加载PDF预览"
+msgstr ""
+
+msgid "无默认"
+msgstr "NoneDefault"
+
+msgid "暂无工作记录"
+msgstr ""
+
+msgid "暂无研发产品记录"
+msgstr ""
+
+msgid "更新分类共享文件，所有使用分类文件的产品都会更新"
+msgstr ""
+
+msgid "最后备份"
+msgstr ""
+
+msgid "未选择任何产品"
+msgstr ""
+
+msgid "未配置API地址"
+msgstr ""
+
+msgid "本地"
+msgstr ""
+
+msgid "正在创建备份..."
+msgstr ""
+
+msgid "正在删除备份..."
+msgstr ""
+
+msgid "正在加载PDF预览..."
+msgstr "LoadingPDFPreview..."
+
+msgid "正在加载产品数据..."
+msgstr ""
+
+msgid "正在加载可配置规格..."
+msgstr ""
+
+msgid "正在加载配置选项..."
+msgstr "LoadingConfigurationOptions..."
+
+msgid "正在启动备份任务..."
+msgstr ""
+
+msgid "正在清理旧备份..."
+msgstr ""
+
+msgid "此操作不可恢复，请再次点击删除按钮确认操作。"
+msgstr ""
+
+msgid "此编码定义为产品创建时的快照，记录了编码各位的完整含义，确保历史数据可追溯。"
+msgstr ""
+
+msgid "没有可用的审批流程模板"
+msgstr ""
+
+msgid "添加关联产品"
+msgstr "AddRelated Products"
+
+msgid "添加新产品系列"
+msgstr ""
+
+msgid "添加新区域"
+msgstr ""
+
+msgid "清理失败"
+msgstr ""
+
+msgid "清理完成，删除了"
+msgstr ""
+
+msgid "清理旧备份"
+msgstr ""
+
+msgid "清除过程中发生错误"
+msgstr ""
+
+msgid "点击查看完整PDF"
+msgstr ""
+
+msgid "点击解锁MN编码"
+msgstr "ClickUnlockMN Code"
+
+msgid "点击选择"
+msgstr "ClickSelect"
+
+msgid "点击锁定MN编码"
+msgstr "ClickLockMN Code"
+
+msgid "点击预览查看完整PDF"
+msgstr ""
+
+msgid "生成时间"
+msgstr "Generated Time"
+
+msgid "用户主动删除"
+msgstr ""
+
+msgid "研发产品列表"
+msgstr ""
+
+msgid "研发产品库"
+msgstr ""
+
+msgid "研发用途"
+msgstr ""
+
+msgid "确定"
+msgstr "OK"
+
+msgid "确定要删除备份文件"
+msgstr "Are you sure you want toDeleteBackupFile"
+
+msgid "确定要删除此产品吗？删除后将无法恢复，请谨慎操作。"
+msgstr ""
+
+msgid "确定要清理超过30天的旧备份吗？此操作不可恢复。"
+msgstr ""
+
+msgid "确定要清除此PDF文档吗？此操作不可撤销。"
+msgstr ""
+
+msgid "确定要清除此图片吗？此操作不可撤销。"
+msgstr ""
+
+msgid "确定要立即创建备份吗？这可能需要几分钟时间。"
+msgstr ""
+
+msgid "确定要解锁此产品的MN编码吗？解锁后MN编码将可以被修改。"
+msgstr ""
+
+msgid "确定要锁定此产品的MN编码吗？锁定后MN编码将不会自动更新。"
+msgstr ""
+
+msgid "确认删除整个互斥组及其所有产品？此操作不可撤销。"
+msgstr ""
+
+msgid "确认删除此关联产品？"
+msgstr ""
+
+msgid "确认发起"
+msgstr ""
+
+msgid "确认清除PDF"
+msgstr "ConfirmClearPDF"
+
+msgid "确认清除图片"
+msgstr "ConfirmClearImage"
+
+msgid "确认要发起入库审批流程吗？"
+msgstr ""
+
+msgid "确认解锁"
+msgstr "Confirm Unlock"
+
+msgid "确认选择"
+msgstr "ConfirmSelect"
+
+msgid "确认锁定"
+msgstr "Confirm Lock"
+
+msgid "立即备份"
+msgstr ""
+
+msgid "系统检测到多个审批流程模板，请联系管理员配置默认模板。"
+msgstr ""
+
+msgid "编码值"
+msgstr ""
+
+msgid "编码组成明细"
+msgstr ""
+
+msgid "网络错误，请稍后重试"
+msgstr "Network Error，Please try again later"
+
+msgid "补充"
+msgstr ""
+
+msgid "覆盖分类文件"
+msgstr ""
+
+msgid "规格MN"
+msgstr "SpecificationsMN"
+
+msgid "规格MN编码预览"
+msgstr "Spec MN CodePreview"
+
+msgid "规格定制"
+msgstr ""
+
+msgid "解锁"
+msgstr "Unlock"
+
+msgid "警告：该研发产品已入库"
+msgstr ""
+
+msgid "该产品暂无可定制规格"
+msgstr ""
+
+msgid "该产品暂无配置选项"
+msgstr ""
+
+msgid "请至少选择一个产品"
+msgstr ""
+
+msgid "请输入互斥组名称"
+msgstr "Please enterMutual Exclusion GroupName"
+
+msgid "请输入研发用途"
+msgstr ""
+
+msgid "请选择产品类型"
+msgstr "Please selectProduct Type"
+
+msgid "请选择产品规格"
+msgstr "Please selectProduct Specifications"
+
+msgid "输入或选择产品名称"
+msgstr ""
+
+msgid "输入新名称或搜索已有项目"
+msgstr ""
+
+msgid "进度"
+msgstr ""
+
+msgid "选择厂商销售负责人"
+msgstr ""
+
+msgid "选择已有项目或输入创建新的"
+msgstr ""
+
+msgid "配置数量"
+msgstr "ConfigurationQuantity"
+
+msgid "配置类型"
+msgstr "ConfigurationType"
+
+msgid "配置预览"
+msgstr "ConfigurationPreview"
+
+msgid "销售区域为必填项"
+msgstr ""
+
+msgid "锁定"
+msgstr "Lock"
+
+msgid "默认选项"
+msgstr "DefaultOptions"
+
+msgid "（仅用于此产品）"
+msgstr ""
+
+msgid "（已覆盖分类共享文件）"
+msgstr ""
+
+msgid "（已设为分类共享文件）"
+msgstr ""
+
+msgid "，产品库中有 %d 个关联产品。删除后这些产品将失去来源追溯。"
+msgstr ""
+
+msgid "，请选择操作方式："
+msgstr "，Please selectActionsMethod："
+
+# 从废弃条目恢复
+msgid "产品MN"
+msgstr "Product MN"
+
+# 从废弃条目恢复
+msgid "暂无产品数据"
+msgstr "No product data"

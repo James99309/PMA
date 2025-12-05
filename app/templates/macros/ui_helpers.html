@@ -3245,7 +3245,11 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
 
     {% set type_map = {
         'required_accessory': {'zh': '必选', 'en': 'Required', 'css_class': 'relation-type-required'},
-        'recommended': {'zh': '推荐', 'en': 'Recommended', 'css_class': 'relation-type-recommended'}
+        'mutual_exclusion_required': {'zh': '必选互斥', 'en': 'Req.Excl', 'css_class': 'relation-type-required-mutual'},
+        'mutual_exclusion_optional': {'zh': '可选互斥', 'en': 'Opt.Excl', 'css_class': 'relation-type-optional-mutual'},
+        'optional_accessory': {'zh': '可选配件', 'en': 'Optional', 'css_class': 'relation-type-optional'},
+        'recommended': {'zh': '推荐', 'en': 'Recommend', 'css_class': 'relation-type-recommended'},
+        'alternative': {'zh': '替代产品', 'en': 'Alt', 'css_class': 'relation-type-alternative'}
     } %}
 
     {% set type_config = type_map.get(relation_type, {'zh': relation_type or '未知', 'en': relation_type or 'Unknown', 'css_class': 'relation-type-unknown'}) %}
