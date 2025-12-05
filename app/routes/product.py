@@ -16,7 +16,7 @@ except (ImportError, AttributeError):
         return current_app.json.loads(*args, **kwargs)
 
 # 分开导入其他组件
-from flask import Blueprint, request, render_template, flash, redirect, url_for
+from flask import Blueprint, request, render_template, flash, redirect, url_for, session
 from flask_babel import gettext as _
 import logging
 
