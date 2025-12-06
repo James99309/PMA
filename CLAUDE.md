@@ -1,5 +1,43 @@
 # PMA 项目开发规则 - Claude AI 助手指南
 
+## 🏢 项目概述
+
+**PMA (Project Management Application)** 是一个企业级项目管理系统，基于 Flask 框架构建，提供完整的业务流程管理功能。
+
+### **核心功能模块**
+| 模块 | 功能描述 | 路由文件 |
+|------|----------|----------|
+| **客户管理** | 公司/联系人管理、客户合并、数据共享 | `customer.py` |
+| **项目管理** | 项目生命周期、审批流程、项目统计 | `project.py` |
+| **产品管理** | 产品目录、规格管理、产品代码 | `product.py`, `product_code.py` |
+| **报价管理** | 报价单、定价订单、批量结算 | `pricing_order.py` |
+| **库存管理** | 订单、出入库、库存追踪 | `inventory.py` |
+| **报销管理** | 费用报销、审批流程 | `expense.py` |
+| **审批流程** | 多级审批、条件分支、审批模板 | `approval.py` |
+| **研发产品** | 研发产品管理、版本控制 | `dev_product.py` |
+
+### **技术栈概览**
+
+| 层级 | 技术 | 版本 |
+|------|------|------|
+| **后端框架** | Flask | 3.1.0 |
+| **ORM** | SQLAlchemy | 2.0.40 |
+| **数据库** | PostgreSQL | (Supabase/Render/Local) |
+| **迁移工具** | Alembic | 1.15.2 |
+| **认证** | Flask-Login + JWT | 0.6.3 / 4.7.1 |
+| **国际化** | Flask-Babel | 4.0.0 |
+| **前端** | Bootstrap 5 + Vanilla JS | - |
+| **文件存储** | Supabase Storage / Aliyun OSS | - |
+| **PDF生成** | ReportLab / WeasyPrint | 4.4.2 / 65.1 |
+
+### **项目规模统计**
+- **Python文件**: 179个 (模型38 + 路由17 + 服务21 + 工具21 + 其他)
+- **HTML模板**: 197个 (含25个宏组件)
+- **JavaScript**: 57个模块
+- **数据模型**: 38个核心模型
+
+---
+
 ## 📚 文档结构
 
 本规则文档已拆分为多个专门文件，便于查找和维护：
@@ -17,6 +55,122 @@
 - **Claude AI助手**: 需要时请主动读取相应的专门规范文件
 - **开发人员**: 根据具体需求查阅对应文档
 - **更新维护**: 各专门规范独立更新，降低冲突
+
+---
+
+## 🗂️ 代码架构
+
+### **目录结构**
+```
+PMA/
+├── app/                          # 主应用目录
+│   ├── __init__.py              # 应用工厂（1300+行）
+│   ├── models/                  # SQLAlchemy模型（38个文件）
+│   │   ├── user.py             # 用户、权限、归属关系
+│   │   ├── company.py          # 客户/公司
+│   │   ├── project.py          # 项目
+│   │   ├── product.py          # 产品
+│   │   ├── approval.py         # 审批流程
+│   │   └── ...
+│   ├── routes/                  # 路由蓝图（17个文件）
+│   │   ├── auth.py             # 认证路由
+│   │   ├── customer.py         # 客户管理
+│   │   ├── project.py          # 项目管理
+│   │   ├── inventory.py        # 库存管理（230KB）
+│   │   └── ...
+│   ├── services/                # 业务逻辑层（21个文件）
+│   │   ├── approval_service.py # 审批服务
+│   │   ├── email_service.py    # 邮件服务
+│   │   └── ...
+│   ├── utils/                   # 工具函数（21个文件）
+│   │   ├── access_control.py   # 权限控制核心
+│   │   ├── decorators.py       # 装饰器
+│   │   └── ...
+│   ├── templates/               # Jinja2模板（197个文件）
+│   │   ├── base.html           # 基础模板
+│   │   ├── macros/             # 宏组件（25个）
+│   │   │   ├── ui_helpers.html # 核心UI组件（10000+行）
+│   │   │   ├── approval_flow.html
+│   │   │   └── ...
+│   │   └── [modules]/          # 模块模板
+│   ├── static/                  # 静态资源
+│   │   ├── js/                 # JavaScript（57个文件）
+│   │   │   ├── filter-search.js       # 筛选搜索组件
+│   │   │   ├── data-list.js           # 数据列表组件
+│   │   │   ├── approval_flow.js       # 审批流程
+│   │   │   ├── product-selector.js    # 产品选择器（110KB）
+│   │   │   └── ...
+│   │   ├── css/                # 样式文件（12个）
+│   │   └── images/
+│   ├── api/v1/                  # REST API端点（12个文件）
+│   └── translations/            # 国际化翻译文件
+├── migrations/                  # Alembic迁移文件
+├── scripts/                     # 脚本目录
+│   ├── temp/                   # 临时脚本
+│   ├── active/                 # 活跃工具
+│   └── archived/               # 历史归档
+├── tests/                       # 测试文件
+├── docs/                        # 文档目录
+├── logs/                        # 日志目录
+├── data/                        # 数据目录
+├── cloud_db_backups/            # 云端数据库备份
+├── run.py                       # 应用入口
+├── config.py                    # 配置文件
+├── wsgi.py                      # WSGI入口
+└── CLAUDE*.md                   # 开发规范文档（7个）
+```
+
+### **核心模型关系**
+
+```
+User (用户)
+  ├── Affiliation (归属关系) ─── 上下级/部门关系
+  ├── Permission (权限) ─── 模块+操作权限
+  └── Settings (设置)
+
+Company (客户/公司) ─── SharingMixin
+  ├── Contact (联系人)
+  ├── Project (项目) ─── SharingMixin
+  │   ├── Approval (审批记录)
+  │   └── ProjectScoring (项目评分)
+  ├── Quotation (报价单)
+  └── Order (订单)
+
+Product (产品)
+  ├── ProductCode (产品代码)
+  ├── ProductSpec (产品规格)
+  └── ProductCategory (产品分类)
+
+Expense (报销单) ─── 特殊权限控制（非SharingMixin）
+  ├── ExpenseItem (报销明细)
+  └── Approval (审批记录)
+```
+
+### **权限控制架构**
+
+```python
+# 数据归属级别（SharingMixin模型）
+system     → 管理员可查看所有数据
+company    → 同公司所有用户数据
+department → 同部门同公司用户数据
+personal   → 自己创建 + 共享 + 归属关系授权
+
+# 权限检查工具
+from app.utils.access_control import (
+    get_viewable_data,      # 获取可查看数据查询
+    can_view_company,       # 验证公司访问权限
+    can_edit_record,        # 验证编辑权限
+    permission_required,    # 路由权限装饰器
+)
+```
+
+### **部署模式**
+
+| 模式 | 数据库 | 文件存储 | 配置文件 |
+|------|--------|----------|----------|
+| **本地开发** | 本地 PostgreSQL | 本地文件系统 | `.env.local` |
+| **Supabase** | Supabase PostgreSQL | Supabase Storage | `.env.supabase.prod` |
+| **Render** | Render PostgreSQL | Supabase/OSS | `DATABASE_URL` 环境变量 |
 
 ---
 
@@ -915,6 +1069,11 @@ def list_view():
 
 ## 📝 规则更新日志
 
+- **2025-12-06**: 🏗️ **添加项目概述和代码架构章节** (v2.6.0)
+  - 新增项目概述：核心功能模块表、技术栈概览、项目规模统计
+  - 新增代码架构：完整目录结构、核心模型关系图、权限控制架构
+  - 新增部署模式说明：本地开发/Supabase/Render三种模式对比
+  - 更新项目统计数据：179个Python文件、197个模板、57个JS模块
 - **2025-10-22**: 🔒 **添加报销单特殊权限规则文档**
   - 明确报销单不使用数据归属机制，属于个人财务数据
   - 详细说明访问权限规则：财务/管理员全部可见，普通用户仅自己+直属下属
@@ -951,8 +1110,8 @@ def list_view():
 - **2025-08-01**: 添加OVS数据库迁移升级规范，包含完整的工具链和实战验证案例
 - **2025-07-30**: 添加云端数据库备份工具规范
 - **2025-07-20**: 创建初始规则文档
-- **版本**: 2.5.0
-- **最后更新**: 2025-09-30
+- **版本**: 2.6.0
+- **最后更新**: 2025-12-06
 
 ---
 
