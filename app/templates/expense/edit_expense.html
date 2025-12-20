@@ -83,7 +83,7 @@
                             <select class="form-select" id="currency" name="currency" required
                                     {% if approval_edit_mode and approval_edit_info and 'currency' not in approval_edit_info.editable_fields %}disabled{% endif %}>
                                 {% for value, label in currency_options %}
-                                <option value="{{ value }}" {% if expense.currency == value %}selected{% endif %}>{{ _(label) }} ({{ value }})</option>
+                                <option value="{{ value }}" {% if expense.currency == value %}selected{% endif %}>{{ label }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -243,7 +243,7 @@
 // 货币选项配置
 var currency_list = [
     {% for value, label in currency_options %}
-    {"value": "{{ value }}", "label": "{{ _(label) }}"}{% if not loop.last %},{% endif %}
+    {"value": "{{ value }}", "label": "{{ label }}"}{% if not loop.last %},{% endif %}
     {% endfor %}
 ];
 </script>

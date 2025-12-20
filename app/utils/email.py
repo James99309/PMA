@@ -2,6 +2,7 @@
 
 import smtplib
 import logging
+import threading
 from email.mime.text import MIMEText
 from email.header import Header
 from flask import current_app, request
@@ -9,25 +10,55 @@ from itsdangerous import URLSafeTimedSerializer
 
 logger = logging.getLogger(__name__)
 
-def send_email(subject, recipient, content, html=None):
-    """发送邮件的通用函数"""
+
+def _send_email_sync(smtp_server, smtp_port, sender_email, sender_password, use_tls, recipient, subject, msg_string):
+    """同步发送邮件的内部函数（在后台线程中执行）"""
+    try:
+        if use_tls:
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+        else:
+            server = smtplib.SMTP(smtp_server, smtp_port)
+
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, [recipient], msg_string)
+        server.quit()
+        logger.info(f"邮件发送成功: {recipient}")
+        return True
+    except Exception as e:
+        logger.error(f"后台邮件发送失败: {str(e)}")
+        return False
+
+def send_email(subject, recipient, content, html=None, async_send=True):
+    """发送邮件的通用函数
+
+    Args:
+        subject: 邮件主题
+        recipient: 收件人邮箱
+        content: 纯文本内容
+        html: HTML内容（可选）
+        async_send: 是否异步发送（默认True，在后台线程中发送，不阻塞主请求）
+
+    Returns:
+        bool: 同步模式返回发送结果；异步模式返回True表示已加入发送队列
+    """
     # 从配置中获取邮件设置
     smtp_server = current_app.config.get('MAIL_SERVER')
     smtp_port = current_app.config.get('MAIL_PORT')
     sender_email = current_app.config.get('MAIL_USERNAME')
     sender_password = current_app.config.get('MAIL_PASSWORD')
     use_tls = current_app.config.get('MAIL_USE_TLS', True)
-    
+
     # 输出详细的配置信息
     logger.info(f"SMTP配置: 服务器={smtp_server}, 端口={smtp_port}, 发件人={sender_email}")
-    logger.info(f"开始向 {recipient} 发送邮件, 主题: {subject}")
-    
+    logger.info(f"开始向 {recipient} 发送邮件, 主题: {subject}, 异步模式: {async_send}")
+
     # 移除密码中的空格(如果有)
     if sender_password:
         sender_password = sender_password.replace(" ", "")
     else:
         logger.error("邮箱密码未配置")
-    
+
     # 检查是否配置了邮件发送参数
     if not all([smtp_server, smtp_port, sender_email, sender_password]):
         missing_items = []
@@ -35,15 +66,15 @@ def send_email(subject, recipient, content, html=None):
         if not smtp_port: missing_items.append("MAIL_PORT")
         if not sender_email: missing_items.append("MAIL_USERNAME")
         if not sender_password: missing_items.append("MAIL_PASSWORD")
-        
+
         logger.warning(f"邮件发送配置不完整，缺少: {', '.join(missing_items)}")
         return False
-    
+
     try:
         # 记录邮件信息
         logger.info(f"准备发送邮件 - 发送到: {recipient}")
         logger.info(f"邮件主题: {subject}")
-        
+
         # 创建邮件
         if html:
             msg = MIMEText(html, 'html', 'utf-8')
@@ -51,44 +82,27 @@ def send_email(subject, recipient, content, html=None):
         else:
             msg = MIMEText(content, 'plain', 'utf-8')
             logger.debug("使用纯文本格式邮件")
-            
+
         msg['Subject'] = Header(subject, 'utf-8')
         msg['From'] = sender_email
         msg['To'] = recipient
-        
-        # 连接SMTP服务器
-        logger.info(f"连接SMTP服务器: {smtp_server}:{smtp_port}")
-        try:
-            if use_tls:
-                logger.info("使用TLS加密连接")
-                server = smtplib.SMTP(smtp_server, smtp_port)
-                server.starttls()  # 启用TLS加密
-            else:
-                logger.info("使用非加密连接")
-                server = smtplib.SMTP(smtp_server, smtp_port)
-                
-            # 登录并发送
-            logger.info(f"尝试登录邮箱: {sender_email}")
-            server.login(sender_email, sender_password)
-            
-            logger.info(f"开始发送邮件到: {recipient}")
-            server.sendmail(sender_email, [recipient], msg.as_string())
-            server.quit()
-            
-            logger.info("邮件发送成功")
+
+        msg_string = msg.as_string()
+
+        if async_send:
+            # 异步模式：在后台线程中发送邮件，立即返回
+            thread = threading.Thread(
+                target=_send_email_sync,
+                args=(smtp_server, smtp_port, sender_email, sender_password, use_tls, recipient, subject, msg_string)
+            )
+            thread.daemon = True  # 设为守护线程，主程序退出时自动结束
+            thread.start()
+            logger.info(f"邮件已加入后台发送队列: {recipient}")
             return True
-        except smtplib.SMTPAuthenticationError as e:
-            logger.error(f"SMTP认证失败: {str(e)}")
-            return False
-        except smtplib.SMTPConnectError as e:
-            logger.error(f"SMTP连接失败: {str(e)}")
-            return False
-        except smtplib.SMTPException as e:
-            logger.error(f"SMTP错误: {str(e)}")
-            return False
-        except TimeoutError as e:
-            logger.error(f"连接SMTP服务器超时: {str(e)}")
-            return False
+        else:
+            # 同步模式：等待发送完成
+            return _send_email_sync(smtp_server, smtp_port, sender_email, sender_password, use_tls, recipient, subject, msg_string)
+
     except Exception as e:
         logger.error(f"发送邮件失败: {str(e)}", exc_info=True)
         return False

@@ -1,0 +1,424 @@
+{#
+=============================================================================
+Tailwind 数据表格组件
+=============================================================================
+可复用的 Tailwind CSS 数据表格组件，支持：
+- 列宽拖拽调整
+- 点击排序
+- 固定高度滚动
+- 无限滚动加载更多
+- 深色模式
+- 国际化
+
+使用方式：
+{% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles, render_tw_data_table_script %}
+
+<!-- 在 head 中引入样式 -->
+{{ render_tw_data_table_styles() }}
+
+<!-- 在页面中渲染表格 -->
+{% call render_tw_data_table(
+    table_id='companyTable',
+    title=_('企业列表'),
+    total_count=total_count,
+    columns=list_config.table.columns,
+    sort_field=sort_field,
+    sort_order=sort_order,
+    max_height='calc(100vh - 400px)',
+    min_height='400px',
+    empty_text=_('暂无数据'),
+    empty_icon='inbox'
+) %}
+    <!-- 表格行内容（通过 caller() 传入） -->
+    {% for item in items %}
+    <tr class="table-row-hover transition-colors">
+        <td class="p-3">...</td>
+    </tr>
+    {% endfor %}
+{% endcall %}
+
+<!-- 在页面底部引入脚本 -->
+{{ render_tw_data_table_script(table_id='companyTable') }}
+
+参数说明：
+- table_id: 表格唯一ID（用于JS操作）
+- title: 表格标题
+- total_count: 总记录数
+- columns: 列配置列表，每项包含：
+  - field: 字段名
+  - label: 列标题
+  - width: 固定宽度（如 '200px'）
+  - min_width: 初始化宽度（如 '120px'），不影响拖拽最小值
+  - align: 对齐方式（'left'/'start' 默认 | 'center' 居中 | 'right'/'end' 右对齐）
+- sort_field: 当前排序字段
+- sort_order: 当前排序方向 'asc' | 'desc'
+- max_height: 表格最大高度
+- min_height: 表格最小高度
+- empty_text: 空数据提示文本
+- empty_icon: 空数据图标
+- show_loading: 是否显示加载更多功能
+- min_width: 表格最小宽度
+- status_badge: 状态徽章配置（可选），包含：
+  - id: 徽章元素ID（默认'statusBadge'）
+  - text: 显示文本
+  - icon: 图标名称（默认'info'）
+  - class: 自定义样式类
+  - onclick: 点击回调函数名
+  - filled: 是否填充图标（默认false）
+- no_top_radius: 是否去除顶部圆角（用于与外部标题栏衔接），默认 false
+
+列宽规则：
+- 拖拽最小宽度 = 列名 + 排序图标 + 间距（自动计算，确保列名完整显示）
+- 初始宽度：
+  - 有 width 配置时：使用固定宽度
+  - 无 width 配置时：取 max(min_width, 自动计算)，确保中英文切换都能正确显示
+=============================================================================
+#}
+
+{# 表格样式 #}
+{% macro render_tw_data_table_styles() %}
+<style>
+    /* 表格行悬停效果 */
+    .table-row-hover:hover {
+        background-color: rgba(19, 127, 236, 0.05);
+    }
+    .dark .table-row-hover:hover {
+        background-color: rgba(19, 127, 236, 0.1);
+    }
+    /* 排序图标 */
+    .sort-icon {
+        opacity: 0.3;
+        transition: opacity 0.2s;
+    }
+    .sort-active .sort-icon {
+        opacity: 1;
+    }
+    th:hover .sort-icon {
+        opacity: 0.6;
+    }
+    /* 加载动画 */
+    .loading-spinner {
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    /* 表格滚动条样式 */
+    .table-scroll::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    .table-scroll::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 3px;
+    }
+    .table-scroll::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+    }
+    .table-scroll::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+    .dark .table-scroll::-webkit-scrollbar-track {
+        background: #1e293b;
+    }
+    .dark .table-scroll::-webkit-scrollbar-thumb {
+        background: #475569;
+    }
+    /* 表格列宽固定模式 */
+    .resizable-table {
+        table-layout: fixed;
+    }
+    /* 列分割线和拖拽手柄 - 完全在当前列内，不侵入下一列 */
+    .column-resizer {
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 8px;
+        height: 100%;
+        background: transparent;
+        cursor: col-resize;
+        z-index: 10;
+    }
+    .column-resizer::after {
+        content: '';
+        position: absolute;
+        right: 3px;
+        top: 25%;
+        width: 1px;
+        height: 50%;
+        background: transparent;
+        transition: all 0.15s;
+    }
+    .column-resizer:hover::after,
+    .column-resizer.resizing::after {
+        width: 3px;
+        right: 2px;
+        top: 10%;
+        height: 80%;
+        background: #3b82f6;
+        border-radius: 2px;
+    }
+    .dark .column-resizer::after {
+        background: transparent;
+    }
+    .dark .column-resizer:hover::after,
+    .dark .column-resizer.resizing::after {
+        background: #3b82f6;
+    }
+    /* 拖拽时禁止选择文本 */
+    body.resizing {
+        user-select: none;
+        cursor: col-resize !important;
+    }
+    body.resizing * {
+        cursor: col-resize !important;
+    }
+    /* 表格单元格文本截断 */
+    .resizable-table td {
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .resizable-table td span,
+    .resizable-table td a {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+</style>
+{% endmacro %}
+
+
+{# 表格 HTML 结构 #}
+{% macro render_tw_data_table(
+    table_id='dataTable',
+    title='',
+    total_count=0,
+    columns=[],
+    sort_field='',
+    sort_order='desc',
+    max_height='calc(100vh - 400px)',
+    min_height='400px',
+    empty_text=none,
+    empty_icon='inbox',
+    show_loading=true,
+    min_width='900px',
+    status_badge=none,
+    no_top_radius=false
+) %}
+<div id="{{ table_id }}Container" class="p-6 bg-white dark:bg-slate-800 {{ 'rounded-b-xl rounded-t-none border-t-0' if no_top_radius else 'rounded-xl' }} shadow-sm border border-slate-200 dark:border-slate-700">
+    {% if title %}
+    <!-- 表格头部信息 -->
+    <div class="flex items-center gap-4 mb-6">
+        <h3 class="text-slate-900 dark:text-white text-base font-medium">{{ title }}</h3>
+
+        {% if status_badge %}
+        <!-- 状态徽章 -->
+        <button type="button" id="{{ status_badge.id or 'statusBadge' }}"
+                {% if status_badge.onclick %}onclick="{{ status_badge.onclick }}"{% endif %}
+                class="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium transition-colors
+                       {{ status_badge.class or 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' }}">
+            <span class="material-symbols-outlined text-sm {{ 'fill' if status_badge.filled else '' }}">{{ status_badge.icon or 'info' }}</span>
+            <span id="{{ status_badge.id or 'statusBadge' }}Text">{{ status_badge.text }}</span>
+        </button>
+        {% endif %}
+
+        <span class="text-slate-500 dark:text-slate-400 text-sm ml-auto">
+            <span id="{{ table_id }}Count">{{ total_count }}</span> {{ _('条记录') }}
+        </span>
+    </div>
+    {% endif %}
+
+    <!-- 表格内容 -->
+    <div id="{{ table_id }}Scroll" class="table-scroll overflow-auto" style="max-height: {{ max_height }}; min-height: {{ min_height }};">
+        <table id="{{ table_id }}" class="w-full resizable-table" style="min-width: {{ min_width }};">
+            <thead class="sticky top-0 z-10">
+                <tr class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                    {% for col in columns %}
+                    {# 对齐方式：right/end 右对齐，center 居中，其他左对齐 #}
+                    {% set is_right = col.align in ['right', 'end'] %}
+                    {% set is_center = col.align == 'center' %}
+                    <th class="p-3 {{ 'text-right' if is_right else ('text-center' if is_center else 'text-left') }} text-xs text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors {% if sort_field == col.field %}sort-active{% endif %}"
+                        data-field="{{ col.field or col.key }}"
+                        {% if col.width %}data-width="{{ col.width }}"{% endif %}
+                        {% if col.min_width %}data-init-width="{{ col.min_width }}"{% endif %}
+                        style="position: relative;{% if col.width %} width: {{ col.width }};{% endif %}">
+                        <div class="inline-flex items-center gap-1 cursor-pointer table-sort-trigger">
+                            <span>{{ col.label }}</span>
+                            <span class="material-symbols-outlined sort-icon flex-shrink-0" style="font-size: 16px;">
+                                {% if sort_field == col.field %}
+                                    {% if sort_order == 'asc' %}arrow_upward{% else %}arrow_downward{% endif %}
+                                {% else %}
+                                    swap_vert
+                                {% endif %}
+                            </span>
+                        </div>
+                        {% if not loop.last %}
+                        <!-- 拖拽调整手柄 -->
+                        <div class="column-resizer"></div>
+                        {% endif %}
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody id="{{ table_id }}Body" class="divide-y divide-slate-200 dark:divide-slate-700">
+                {{ caller() }}
+            </tbody>
+        </table>
+    </div>
+
+    {% if show_loading %}
+    <!-- 加载更多指示器 -->
+    <div id="{{ table_id }}LoadingMore" class="hidden py-4 text-center">
+        <div class="inline-flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm">
+            <svg class="loading-spinner h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>{{ _('加载更多...') }}</span>
+        </div>
+    </div>
+
+    <!-- 没有更多数据 -->
+    <div id="{{ table_id }}NoMore" class="hidden py-4 text-center">
+        <span class="text-slate-400 dark:text-slate-500 text-sm">{{ _('已加载全部数据') }}</span>
+    </div>
+
+    <!-- 滚动哨兵 -->
+    <div id="{{ table_id }}Sentinel" class="h-1"></div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{# 空状态行 #}
+{% macro render_empty_row(colspan, text=none, icon='inbox') %}
+<tr>
+    <td colspan="{{ colspan }}" class="p-12 text-center">
+        <div class="flex flex-col items-center">
+            <span class="material-symbols-outlined text-slate-300 dark:text-slate-600 mb-3" style="font-size: 48px;">{{ icon }}</span>
+            <p class="text-slate-500 dark:text-slate-400 text-sm">{{ text or _('暂无数据') }}</p>
+        </div>
+    </td>
+</tr>
+{% endmacro %}
+
+
+{# 表格脚本 #}
+{% macro render_tw_data_table_script(table_id='dataTable', sort_callback='sortTable') %}
+<script>
+(function() {
+    const tableId = '{{ table_id }}';
+    const table = document.getElementById(tableId);
+    if (!table) return;
+
+    const resizers = table.querySelectorAll('.column-resizer');
+
+    // ========== 列宽初始化和拖拽调整功能 ==========
+    // 最大列宽：45个中文字符 ≈ 720px
+    const MAX_COLUMN_WIDTH = 720;
+
+    function initColumnWidths() {
+        const allThs = table.querySelectorAll('thead th');
+        const tbody = table.querySelector('tbody');
+        const rows = tbody ? tbody.querySelectorAll('tr') : [];
+
+        // 第一轮：临时移除 table-layout: fixed 以便准确测量
+        table.style.tableLayout = 'auto';
+        allThs.forEach(th => {
+            th.style.width = 'auto';
+        });
+
+        // 第二轮：测量并设置实际宽度
+        allThs.forEach((th, index) => {
+            const headerContent = th.querySelector('.table-sort-trigger');
+            if (!headerContent) return;
+
+            // 1. 计算最小宽度（列名+排序图标+左右间距+拖拽手柄）
+            const headerMinWidth = headerContent.offsetWidth + 32;
+
+            // 2. 计算内容最大宽度（遍历前10行数据，找最大值）
+            let maxContentWidth = 0;
+            const rowsToCheck = Math.min(rows.length, 10);
+            for (let i = 0; i < rowsToCheck; i++) {
+                const cells = rows[i].querySelectorAll('td');
+                if (cells[index]) {
+                    const cellWidth = cells[index].scrollWidth;
+                    if (cellWidth > maxContentWidth) {
+                        maxContentWidth = cellWidth;
+                    }
+                }
+            }
+
+            // 3. 获取配置的固定宽度（如有）
+            const configWidth = th.dataset.width;
+
+            // 4. 计算初始宽度
+            let initWidth;
+            if (configWidth) {
+                // 有固定宽度配置，使用它（但不能小于最小宽度）
+                initWidth = Math.max(parseInt(configWidth) || headerMinWidth, headerMinWidth);
+            } else {
+                // 取内容宽度和表头宽度的较大值，但不超过最大宽度
+                initWidth = Math.min(Math.max(maxContentWidth, headerMinWidth), MAX_COLUMN_WIDTH);
+            }
+
+            th.style.width = initWidth + 'px';
+
+            // 5. 拖拽最小宽度 = 表头最小宽度（不能拖小于此值）
+            th.dataset.minWidth = headerMinWidth;
+        });
+
+        // 恢复 table-layout: fixed
+        table.style.tableLayout = 'fixed';
+    }
+
+    initColumnWidths();
+
+    resizers.forEach(resizer => {
+        resizer.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const th = this.parentElement;
+            const startX = e.pageX;
+            const startWidth = th.offsetWidth;
+            const minWidth = parseInt(th.dataset.minWidth) || 50;
+
+            document.body.classList.add('resizing');
+            this.classList.add('resizing');
+
+            function onMouseMove(e) {
+                const width = startWidth + (e.pageX - startX);
+                if (width >= minWidth) {
+                    th.style.width = width + 'px';
+                }
+            }
+
+            function onMouseUp() {
+                document.body.classList.remove('resizing');
+                resizer.classList.remove('resizing');
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+            }
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+    });
+
+    // ========== 排序功能 ==========
+    table.querySelectorAll('.table-sort-trigger').forEach(trigger => {
+        trigger.addEventListener('click', function() {
+            const th = this.closest('th');
+            const field = th.dataset.field;
+            if (field && typeof window.{{ sort_callback }} === 'function') {
+                window.{{ sort_callback }}(field);
+            }
+        });
+    });
+})();
+</script>
+{% endmacro %}

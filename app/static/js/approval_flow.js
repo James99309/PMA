@@ -14,14 +14,15 @@ class ApprovalFlow {
             autoLoad: false,
             apiBasePath: '/inventory/api/approval',
             customActions: [], // 自定义审批操作
+            useTailwind: false, // 使用Tailwind样式模式
             ...options
         };
-        
+
         this.approvalData = null;
         this.container = null;
         this.flowDiv = null;
     }
-    
+
     // 初始化流程图
     async init() {
         this.container = document.querySelector(this.options.containerSelector);
@@ -29,12 +30,12 @@ class ApprovalFlow {
             console.error('Approval flow container not found:', this.options.containerSelector);
             return;
         }
-        
+
         if (this.options.autoLoad) {
             await this.loadFlow();
         }
     }
-    
+
     // 获取CSRF令牌
     getCSRFToken() {
         // 从meta标签获取
@@ -42,54 +43,54 @@ class ApprovalFlow {
         if (metaToken) {
             return metaToken.getAttribute('content');
         }
-        
+
         // 从隐藏表单字段获取
         const hiddenToken = document.querySelector('input[name="csrf_token"]');
         if (hiddenToken) {
             return hiddenToken.value;
         }
-        
+
         // 从全局变量获取（如果模板中设置了）
         if (window.csrf_token) {
             return window.csrf_token;
         }
-        
+
         console.warn('CSRF token not found');
         return null;
     }
-    
+
     // 加载审批流程数据
     async loadFlow() {
         try {
-            
+
             const response = await fetch(`${this.options.apiBasePath}/${this.objectId}/flow`);
-            
-            
+
+
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-            
+
             const data = await response.json();
-            
-            
+
+
             if (data.success && data.approval_flow) {
                 this.approvalData = data.approval_flow;
-                
+
                 // 🔍 调试：检查审批步骤数据
                 if (this.approvalData.stages && this.approvalData.stages.length > 0) {
                     const firstStage = this.approvalData.stages[0];
                 }
                 this.renderFlow();
                 this.showContainer();
-                
+
                 // 触发审批控制按钮更新和操作区域可见性更新
                 if (typeof updateApprovalControlButtons === 'function') {
                     setTimeout(updateApprovalControlButtons, 100);
                 }
-                
+
                 // V2审批系统智能检测：避免不必要的操作区域查找
-                const isV2System = document.querySelector('.approval-flow-container') || 
-                                  document.querySelector('[data-approval-version="v2"]');
+                const isV2System = document.querySelector('.approval-flow-container') ||
+                    document.querySelector('[data-approval-version="v2"]');
                 if (!isV2System && typeof updateOperationSectionVisibility === 'function') {
                     setTimeout(updateOperationSectionVisibility, 150);
                 } else if (isV2System) {
@@ -97,7 +98,7 @@ class ApprovalFlow {
                 }
             } else {
                 // 如果没有审批流程，使用API返回的控制信息
-                
+
                 if (data.control_info) {
                     // 使用API返回的控制信息
                     this.approvalData = {
@@ -117,17 +118,17 @@ class ApprovalFlow {
                         is_creator: false
                     };
                 }
-                
+
                 this.hideContainer();
-                
+
                 // 触发审批控制按钮更新和操作区域可见性更新
                 if (typeof updateApprovalControlButtons === 'function') {
                     setTimeout(updateApprovalControlButtons, 100);
                 }
                 // V2审批系统使用模态框，无需操作区域可见性更新
-                const isV2System = document.querySelector('.approval-flow-container') || 
-                                 document.querySelector('[data-approval-version="v2"]') ||
-                                 (window.approvalFlowInstance && window.approvalFlowInstance.version === 'v2');
+                const isV2System = document.querySelector('.approval-flow-container') ||
+                    document.querySelector('[data-approval-version="v2"]') ||
+                    (window.approvalFlowInstance && window.approvalFlowInstance.version === 'v2');
                 if (typeof updateOperationSectionVisibility === 'function' && !isV2System) {
                     setTimeout(updateOperationSectionVisibility, 150);
                 }
@@ -137,7 +138,7 @@ class ApprovalFlow {
             this.hideContainer();
         }
     }
-    
+
     // 显示容器
     showContainer() {
         const section = document.getElementById(this.options.containerId);
@@ -147,7 +148,7 @@ class ApprovalFlow {
             console.error(`找不到审批流程容器: ${this.options.containerId}`);
         }
     }
-    
+
     // 隐藏容器
     hideContainer() {
         const section = document.getElementById(this.options.containerId);
@@ -157,36 +158,46 @@ class ApprovalFlow {
             console.error(`找不到要隐藏的容器: ${this.options.containerId}`);
         }
     }
-    
+
     // 渲染流程图
     renderFlow() {
         if (!this.approvalData) return;
-        
+
+        // 根据模式选择渲染方式
+        if (this.options.useTailwind) {
+            this.renderTwFlow();
+        } else {
+            this.renderLegacyFlow();
+        }
+    }
+
+    // 传统渲染方式（保持兼容性）
+    renderLegacyFlow() {
         // 清空容器
         this.container.innerHTML = '';
-        
+
         // 创建流程图容器
         this.flowDiv = document.createElement('div');
         this.flowDiv.className = 'approval-flow';
-        
+
         const stages = this.approvalData.stages || [];
         const currentStage = this.approvalData.current_stage;
         const canApprove = this.approvalData.can_approve;
         const isRecalled = this.approvalData.status === 'recalled';
-        
-        
+
+
         // 召回状态不显示横幅提示
-        
+
         stages.forEach((stage, index) => {
             const stageElement = this.createStageElement(stage, currentStage, canApprove, isRecalled);
             this.flowDiv.appendChild(stageElement);
         });
-        
+
         this.container.appendChild(this.flowDiv);
-        
+
         // 创建连接线
         this.createProgressLine(stages, currentStage);
-        
+
         // 监听窗口大小变化
         window.addEventListener('resize', () => {
             setTimeout(() => {
@@ -194,55 +205,285 @@ class ApprovalFlow {
             }, 100);
         });
     }
-    
+
+    // Tailwind模式渲染
+    renderTwFlow() {
+        // 清空容器
+        this.container.innerHTML = '';
+
+        // 创建TW流程图容器
+        this.flowDiv = document.createElement('div');
+        this.flowDiv.className = 'tw-approval-flow';
+
+        const stages = this.approvalData.stages || [];
+        const currentStage = this.approvalData.current_stage;
+        const canApprove = this.approvalData.can_approve;
+        const isRecalled = this.approvalData.status === 'recalled';
+
+        stages.forEach((stage, index) => {
+            const stageElement = this.createTwStageElement(stage, currentStage, canApprove, isRecalled, index, stages.length);
+            this.flowDiv.appendChild(stageElement);
+        });
+
+        this.container.appendChild(this.flowDiv);
+
+        // 创建TW连接线
+        this.createTwProgressLines(stages, currentStage);
+
+        // 监听窗口大小变化
+        window.addEventListener('resize', () => {
+            setTimeout(() => {
+                this.createTwProgressLines(stages, currentStage);
+            }, 100);
+        });
+    }
+
+    // 创建Tailwind模式的阶段元素
+    createTwStageElement(stage, currentStage, canApprove, isRecalled, index, totalStages) {
+        const stageDiv = document.createElement('div');
+        stageDiv.className = 'tw-approval-stage';
+        stageDiv.setAttribute('data-stage-id', stage.id);
+
+        // 判断阶段状态
+        const isCurrent = stage.stage_order === currentStage;
+        const isCompleted = stage.status === 'approved';
+        const isRejected = stage.status === 'rejected';
+        const isPending = !isCompleted && !isCurrent && !isRejected;
+
+        // 可审批状态
+        if (!isRecalled && isCurrent && canApprove) {
+            stageDiv.classList.add('can-approve');
+            stageDiv.onclick = () => this.openApprovalModal(stage);
+        }
+
+        // 创建圆圈
+        const circleDiv = this.createTwCircleElement(stage, isCurrent, isCompleted, isRejected, isPending, canApprove, isRecalled);
+        stageDiv.appendChild(circleDiv);
+
+        // 创建进度线（不是第一个阶段时）
+        if (index > 0) {
+            const leftLine = document.createElement('div');
+            leftLine.className = 'tw-progress-line';
+            leftLine.style.left = '0';
+            leftLine.style.width = '50%';
+
+            // 判断左边线条颜色
+            if (isCompleted || isCurrent) {
+                leftLine.classList.add('completed');
+            } else {
+                leftLine.classList.add('pending');
+            }
+            stageDiv.appendChild(leftLine);
+        }
+
+        // 右边进度线（不是最后一个阶段时）
+        if (index < totalStages - 1) {
+            const rightLine = document.createElement('div');
+            rightLine.className = 'tw-progress-line';
+            rightLine.style.left = '50%';
+            rightLine.style.width = '50%';
+
+            // 判断右边线条颜色
+            if (isCompleted) {
+                rightLine.classList.add('completed');
+            } else {
+                rightLine.classList.add('pending');
+            }
+            stageDiv.appendChild(rightLine);
+        }
+
+        // 创建信息区域
+        const infoDiv = this.createTwInfoElement(stage, isCurrent, isPending, isRecalled);
+        stageDiv.appendChild(infoDiv);
+
+        return stageDiv;
+    }
+
+    // 创建Tailwind模式的圆圈元素
+    createTwCircleElement(stage, isCurrent, isCompleted, isRejected, isPending, canApprove, isRecalled) {
+        const circleDiv = document.createElement('div');
+        circleDiv.className = 'tw-stage-circle';
+
+        // 创建图标
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'material-symbols-outlined';
+
+        if (isRecalled) {
+            if (isCurrent) {
+                circleDiv.classList.add('recalled');
+                iconSpan.textContent = 'undo';
+            } else {
+                circleDiv.classList.add('recalled-inactive');
+                iconSpan.textContent = isCompleted ? 'check' : 'schedule';
+            }
+        } else if (isCompleted) {
+            circleDiv.classList.add('completed', 'ring-completed');
+            iconSpan.textContent = 'check';
+            iconSpan.classList.add('fill');
+            iconSpan.style.fontVariationSettings = "'FILL' 1";
+        } else if (isRejected) {
+            circleDiv.classList.add('rejected');
+            iconSpan.textContent = 'close';
+        } else if (isCurrent) {
+            circleDiv.classList.add('current', 'ring-current');
+            iconSpan.textContent = 'person';
+            iconSpan.classList.add('fill');
+            iconSpan.style.fontVariationSettings = "'FILL' 1";
+        } else {
+            circleDiv.classList.add('pending');
+            // 根据步骤类型选择图标
+            if (this.isPaymentStep(stage)) {
+                iconSpan.textContent = 'payments';
+            } else {
+                iconSpan.textContent = 'schedule';
+            }
+        }
+
+        circleDiv.appendChild(iconSpan);
+        return circleDiv;
+    }
+
+    // 创建Tailwind模式的信息元素
+    createTwInfoElement(stage, isCurrent, isPending, isRecalled) {
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'tw-stage-info';
+
+        // 标题
+        const titleDiv = document.createElement('p');
+        titleDiv.className = 'tw-stage-title';
+        if (isCurrent && !isRecalled) {
+            titleDiv.classList.add('current');
+        } else if (isPending) {
+            titleDiv.classList.add('pending');
+        }
+        titleDiv.textContent = stage.stage_name;
+        infoDiv.appendChild(titleDiv);
+
+        // 审批人（带tooltip）
+        const approverDiv = document.createElement('div');
+        approverDiv.className = 'tw-stage-approver';
+
+        const approverName = document.createElement('p');
+        approverName.className = 'tw-stage-approver-name';
+        approverName.textContent = stage.approver_name || (window.approvalFlowI18n?.pendingAssignment || '待分配');
+        approverDiv.appendChild(approverName);
+
+        // 创建tooltip
+        if (stage.approver_name) {
+            const tooltip = document.createElement('div');
+            tooltip.className = 'tw-approver-tooltip';
+
+            const tooltipContent = document.createElement('div');
+            tooltipContent.className = 'tw-approver-tooltip-content';
+
+            // 邮箱
+            if (stage.approver_email) {
+                const emailP = document.createElement('p');
+                emailP.innerHTML = `<span class="label">Email:</span> ${stage.approver_email}`;
+                tooltipContent.appendChild(emailP);
+            }
+
+            // 电话
+            if (stage.approver_phone) {
+                const phoneP = document.createElement('p');
+                phoneP.innerHTML = `<span class="label">Phone:</span> ${stage.approver_phone}`;
+                tooltipContent.appendChild(phoneP);
+            }
+
+            // 部门
+            if (stage.approver_department) {
+                const deptP = document.createElement('p');
+                deptP.innerHTML = `<span class="label">Dept:</span> ${stage.approver_department}`;
+                tooltipContent.appendChild(deptP);
+            }
+
+            // 如果没有详细信息，显示默认内容
+            if (!stage.approver_email && !stage.approver_phone && !stage.approver_department) {
+                const defaultP = document.createElement('p');
+                defaultP.textContent = stage.approver_name;
+                tooltipContent.appendChild(defaultP);
+            }
+
+            tooltip.appendChild(tooltipContent);
+            approverDiv.appendChild(tooltip);
+        }
+
+        infoDiv.appendChild(approverDiv);
+
+        // 日期信息
+        const dateDiv = document.createElement('p');
+        dateDiv.className = 'tw-stage-date';
+
+        if (stage.status === 'approved' || stage.status === 'rejected') {
+            if (stage.processed_at) {
+                const processedDate = new Date(stage.processed_at);
+                dateDiv.textContent = `${window.approvalFlowI18n?.processed || '处理: '}${processedDate.toLocaleDateString()}`;
+            }
+        } else if (stage.arrived_at) {
+            // 空白占位
+            dateDiv.innerHTML = '&nbsp;';
+        } else {
+            dateDiv.innerHTML = '&nbsp;';
+        }
+
+        infoDiv.appendChild(dateDiv);
+
+        return infoDiv;
+    }
+
+    // 创建Tailwind模式的进度线（已在createTwStageElement中处理）
+    createTwProgressLines(stages, currentStage) {
+        // 进度线已在每个阶段元素中创建，这里不需要额外处理
+    }
+
     // 创建阶段元素
     createStageElement(stage, currentStage, canApprove, isRecalled = false) {
         // 创建阶段容器
         const stageDiv = document.createElement('div');
         stageDiv.className = 'approval-stage';
         stageDiv.setAttribute('data-stage-id', stage.id);
-        
+
         // 召回状态下不允许审批和交互
         if (!isRecalled && stage.stage_order === currentStage && canApprove) {
             stageDiv.classList.add('current');
         }
-        
+
         // 召回状态下添加特殊样式
         if (isRecalled) {
             stageDiv.classList.add('recalled');
         }
-        
+
         // 设置点击事件（召回状态下禁用）
         if (!isRecalled && canApprove && stage.stage_order === currentStage) {
             stageDiv.classList.add('can-approve');
             stageDiv.onclick = () => this.openApprovalModal(stage);
         } else {
         }
-        
+
         // 创建圆圈
         const circleDiv = this.createCircleElement(stage, currentStage, canApprove, isRecalled);
         stageDiv.appendChild(circleDiv);
-        
+
         // 创建信息区域
         const infoDiv = this.createInfoElement(stage, isRecalled);
         stageDiv.appendChild(infoDiv);
-        
+
         // 只在有评语且状态为已审批时显示气泡图标（召回状态下不显示）
-        if (!isRecalled && stage.comment && stage.comment.trim() !== '' && 
+        if (!isRecalled && stage.comment && stage.comment.trim() !== '' &&
             (stage.status === 'approved' || stage.status === 'rejected')) {
             this.showCommentBubble(stageDiv, stage.comment, stage.status);
         }
-        
+
         return stageDiv;
     }
-    
+
     // 创建圆圈元素
     createCircleElement(stage, currentStage, canApprove, isRecalled = false) {
         const circleDiv = document.createElement('div');
         circleDiv.className = 'stage-circle';
-        
+
         // 调试信息：输出步骤状态
-        
+
         if (isRecalled) {
             // 召回状态下，检查是否是召回发生的节点
             if (stage.stage_order === currentStage) {
@@ -308,10 +549,10 @@ class ApprovalFlow {
             circleDiv.classList.add('pending');
             circleDiv.innerHTML = stage.stage_order;
         }
-        
+
         return circleDiv;
     }
-    
+
     // 判断是否为支付步骤
     isPaymentStep(stage) {
         // 根据步骤名称或action_type判断是否为支付步骤
@@ -323,29 +564,29 @@ class ApprovalFlow {
         const stageName = (stage.stage_name || '').toLowerCase();
         return paymentKeywords.some(keyword => stageName.includes(keyword));
     }
-    
+
     // 创建信息元素
     createInfoElement(stage, isRecalled = false) {
         const infoDiv = document.createElement('div');
         infoDiv.className = 'stage-info';
-        
+
         const titleDiv = document.createElement('div');
         titleDiv.className = 'stage-title';
         titleDiv.textContent = stage.stage_name;
-        
+
         const approverDiv = document.createElement('div');
         approverDiv.className = 'stage-approver';
         approverDiv.textContent = stage.approver_name || (window.approvalFlowI18n?.pending || '待分配');
-        
+
         const datesDiv = document.createElement('div');
         datesDiv.className = 'stage-dates';
-        
+
         if (stage.status === 'approved' || stage.status === 'rejected') {
             // 已处理的节点：显示处理时间和处理耗时
             if (stage.processed_at) {
                 const processedDate = new Date(stage.processed_at);
                 datesDiv.innerHTML = `${window.approvalFlowI18n?.processed || '处理：'}${processedDate.toLocaleDateString()}`;
-                
+
                 // 如果有到达时间，计算处理耗时
                 if (stage.arrived_at) {
                     const arrivedDate = new Date(stage.arrived_at);
@@ -372,26 +613,26 @@ class ApprovalFlow {
                 ${window.approvalFlowI18n?.staying || '停留：'}${daysDiff}${window.approvalFlowI18n?.days || '天'}
             `;
         }
-        
+
         infoDiv.appendChild(titleDiv);
         infoDiv.appendChild(approverDiv);
         infoDiv.appendChild(datesDiv);
-        
+
         return infoDiv;
     }
-    
+
     // 创建进度连接线
     createProgressLine(stages, currentStage) {
         if (stages.length <= 1) return;
-        
+
         // 清除之前的连接线
         const existingSegments = this.flowDiv.querySelectorAll('.progress-segment');
         existingSegments.forEach(segment => segment.remove());
-        
+
         setTimeout(() => {
             const stageElements = this.flowDiv.querySelectorAll('.approval-stage');
             if (stageElements.length < 2) return;
-            
+
             // 计算当前阶段索引
             let currentStageIndex = -1;
             stages.forEach((stage, index) => {
@@ -399,29 +640,29 @@ class ApprovalFlow {
                     currentStageIndex = index;
                 }
             });
-            
+
             // 获取每个阶段圆圈的中心位置
             const circlePositions = [];
             stageElements.forEach((stageEl) => {
                 const circle = stageEl.querySelector('.stage-circle');
                 const rect = circle.getBoundingClientRect();
                 const flowRect = this.flowDiv.getBoundingClientRect();
-                const centerX = rect.left + rect.width/2 - flowRect.left;
+                const centerX = rect.left + rect.width / 2 - flowRect.left;
                 circlePositions.push(centerX);
             });
-            
+
             // 创建连接线段
             for (let i = 0; i < circlePositions.length - 1; i++) {
                 const segmentDiv = document.createElement('div');
                 segmentDiv.className = 'progress-segment';
-                
+
                 const startX = circlePositions[i];
                 const endX = circlePositions[i + 1];
                 const width = endX - startX;
-                
+
                 segmentDiv.style.left = startX + 'px';
                 segmentDiv.style.width = width + 'px';
-                
+
                 // 根据进度设置颜色
                 if (i < currentStageIndex) {
                     segmentDiv.style.backgroundColor = '#198754'; // 已完成 - 绿色
@@ -430,91 +671,101 @@ class ApprovalFlow {
                 } else {
                     segmentDiv.style.backgroundColor = '#dee2e6'; // 未开始 - 灰色
                 }
-                
+
                 this.flowDiv.appendChild(segmentDiv);
             }
         }, 50);
     }
-    
+
     // 打开审批模态框
     openApprovalModal(stage) {
-        // 获取可审批的圆圈元素
-        const targetCircle = this.flowDiv.querySelector('.stage-circle.can-approve');
-        
+        // 获取可审批的圆圈元素 - 根据是否使用Tailwind选择不同的选择器
+        const circleSelector = this.options.useTailwind ? '.tw-stage-circle.can-approve' : '.stage-circle.can-approve';
+        const targetCircle = this.flowDiv.querySelector(circleSelector);
+
         // 触发点击动画
         if (targetCircle) {
             this.triggerClickAnimation(targetCircle);
         }
-        
+
         // 延迟显示确认对话框
         setTimeout(() => {
-            const actions = this.getAvailableActions(stage);
-            this.showApprovalDialog(stage, actions);
+            // 如果使用Tailwind风格，使用TW模态框
+            if (this.options.useTailwind && typeof window.openTwApprovalModal === 'function') {
+                // 存储当前stage到window供TW modal使用
+                this.currentStage = stage;
+                window.approvalFlowInstance = this;
+                window.openTwApprovalModal(stage);
+            } else {
+                // 使用传统模态框
+                const actions = this.getAvailableActions(stage);
+                this.showApprovalDialog(stage, actions);
+            }
         }, 200);
     }
-    
+
     // 获取可用的审批操作
     getAvailableActions(stage) {
         const defaultActions = [
             { value: 'approve', label: window.approvalFlowI18n?.approve || '同意', color: 'success' },
             { value: 'reject', label: window.approvalFlowI18n?.reject || '拒绝', color: 'danger' }
         ];
-        
+
         // 合并自定义操作
         return [...defaultActions, ...this.options.customActions];
     }
-    
+
     // 显示审批对话框
     async showApprovalDialog(stage, actions) {
         // 设置对话框数据
         this.currentStage = stage;
         await this.setDialogData(stage);
-        
+
         // 显示对话框
         this.showApprovalConfirmDialog();
     }
-    
+
     // 设置对话框数据
     async setDialogData(stage) {
         document.getElementById('approvalStageTitle').textContent = stage.stage_name;
         document.getElementById('approvalApproverName').textContent = stage.approver_name || (window.approvalFlowI18n?.pending || '待分配');
-        
+
         // 格式化到达时间
         if (stage.arrived_at) {
             const arrivedDate = new Date(stage.arrived_at);
             const daysDiff = Math.max(0, Math.floor((new Date() - arrivedDate) / (1000 * 60 * 60 * 24)));
-            document.getElementById('approvalArrivedTime').textContent = 
+            document.getElementById('approvalArrivedTime').textContent =
                 `${arrivedDate.toLocaleDateString()} (${daysDiff}${window.approvalFlowI18n?.days || '天'}${window.approvalFlowI18n?.ago || '前'})`;
         } else {
             document.getElementById('approvalArrivedTime').textContent = window.approvalFlowI18n?.justArrived || '刚刚到达';
         }
-        
+
         // 清空评语输入
         document.getElementById('approvalComment').value = '';
-        
+
         // 如果是项目审批，获取并显示授权预览
         await this.loadAuthorizationPreview();
     }
-    
+
     // 加载授权预览信息
     async loadAuthorizationPreview() {
         const authSection = document.getElementById('authorizationPreviewSection');
         const authText = document.getElementById('authorizationPreviewText');
-        
+
         if (!authSection || !authText) return;
-        
+
         // 默认隐藏授权预览区域
         authSection.style.display = 'none';
-        
+
         // 只有项目审批才显示授权预览
         if (this.objectType === 'project') {
-            
+
             try {
                 const authPreview = await this.getAuthorizationPreview();
                 if (authPreview && authPreview.authorization_code) {
                     authText.textContent = authPreview.message || `通过审批后将授予授权编码：${authPreview.authorization_code}`;
                     authSection.style.display = 'flex';
-                    
+
                     // 保存授权预览数据供后续使用
                     this.currentAuthPreview = authPreview;
                 } else {
@@ -523,14 +774,14 @@ class ApprovalFlow {
             }
         }
     }
-    
+
     // 显示审批确认对话框
     showApprovalConfirmDialog() {
         const dialog = document.getElementById('approvalConfirmDialog');
         if (dialog) {
             // 绑定按钮事件
             this.bindDialogEvents();
-            
+
             // 显示对话框
             dialog.style.display = 'flex';
             setTimeout(() => {
@@ -538,7 +789,7 @@ class ApprovalFlow {
             }, 10);
         }
     }
-    
+
     // 隐藏审批确认对话框
     hideApprovalConfirmDialog() {
         const dialog = document.getElementById('approvalConfirmDialog');
@@ -549,29 +800,29 @@ class ApprovalFlow {
             }, 300);
         }
     }
-    
+
     // 绑定对话框事件
     bindDialogEvents() {
         const dialog = document.getElementById('approvalConfirmDialog');
         if (!dialog) return;
-        
+
         // 取消按钮
         const cancelBtn = dialog.querySelector('.dialog-cancel-btn');
         if (cancelBtn) {
             cancelBtn.onclick = () => this.hideApprovalConfirmDialog();
         }
-        
+
         // 拒绝按钮
         const rejectBtn = dialog.querySelector('.dialog-reject-btn');
         if (rejectBtn) {
             rejectBtn.onclick = () => this.handleApprovalAction('reject');
         }
-        
+
         // 通过按钮
         const approveBtn = dialog.querySelector('.dialog-approve-btn');
         if (approveBtn) {
             approveBtn.onclick = () => {
-                
+
                 // 如果已经显示过警告，则直接确认继续
                 if (approveBtn.dataset.warningShown === 'true') {
                     this.proceedWithApproval('approve');
@@ -581,24 +832,24 @@ class ApprovalFlow {
             };
         } else {
         }
-        
+
         // 点击遮罩层关闭
         const overlay = dialog.querySelector('.dialog-overlay');
         if (overlay) {
             overlay.onclick = () => this.hideApprovalConfirmDialog();
         }
     }
-    
+
     // 处理审批操作
     async handleApprovalAction(action) {
-        
+
         const comment = document.getElementById('approvalComment').value.trim();
-        
+
         try {
             // 如果是通过操作且为批价单/结算单类型，先进行权限检查
-            
+
             if (action === 'approve' && this.needsPricingApprovalCheck()) {
-                    const checkResult = await this.checkPricingApprovalLimits();
+                const checkResult = await this.checkPricingApprovalLimits();
                 if (checkResult && checkResult.has_violations) {
                     // 显示权限违规警告
                     this.showPricingViolationWarning(checkResult.violations);
@@ -607,29 +858,29 @@ class ApprovalFlow {
                 }
             } else {
             }
-            
+
             // 隐藏对话框
             this.hideApprovalConfirmDialog();
-            
+
             // 调用审批处理
             await this.processApproval(this.currentStage.id, action, comment);
-            
+
         } catch (error) {
             console.error('审批操作失败:', error);
             // 可以显示错误提示
         }
     }
-    
+
     // 检查是否需要批价审批权限检查
     needsPricingApprovalCheck() {
         // 检查对象类型是否为批价单或结算单
         return this.objectType === 'pricing_order' || this.objectType === 'settlement_order';
     }
-    
+
     // 检查批价审批权限下限
     async checkPricingApprovalLimits() {
         try {
-            
+
             const response = await fetch('/approval/api/check-pricing-approval-limits', {
                 method: 'POST',
                 headers: {
@@ -641,33 +892,33 @@ class ApprovalFlow {
                     object_id: this.objectId
                 })
             });
-            
+
             if (!response.ok) {
                 console.error('权限检查请求失败:', response.status);
                 return null;
             }
-            
+
             const result = await response.json();
-            
+
             return result.success ? result : null;
-            
+
         } catch (error) {
             console.error('权限检查失败:', error);
             return null;
         }
     }
-    
+
     // 显示权限违规警告
     showPricingViolationWarning(violations) {
-        
+
         const violationSection = document.getElementById('pricingViolationSection');
         const violationList = document.getElementById('pricingViolationList');
-        
+
         if (!violationSection || !violationList) {
             console.error('找不到权限违规警告区域');
             return;
         }
-        
+
         // 构建违规列表HTML
         let listHtml = '';
         violations.forEach(violation => {
@@ -678,55 +929,55 @@ class ApprovalFlow {
                 </div>
             `;
         });
-        
+
         violationList.innerHTML = listHtml;
-        
+
         // 显示警告区域
         violationSection.style.display = 'block';
-        
+
         // 更新按钮文本和样式，提示用户确认继续
         const approveBtn = document.querySelector('.dialog-approve-btn');
         if (approveBtn) {
             approveBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>确认通过';
             approveBtn.classList.add('btn-warning');
             approveBtn.classList.remove('btn-success');
-            
+
             // 标记已经显示过警告
             approveBtn.dataset.warningShown = 'true';
         }
     }
-    
+
     // 直接继续审批流程（跳过权限检查）
     async proceedWithApproval(action) {
-        
+
         const comment = document.getElementById('approvalComment').value.trim();
-        
+
         try {
             // 隐藏对话框
             this.hideApprovalConfirmDialog();
-            
+
             // 调用审批处理
             await this.processApproval(this.currentStage.id, action, comment);
-            
+
         } catch (error) {
             console.error('审批操作失败:', error);
             // 可以显示错误提示
         }
     }
-    
+
     // 获取审批实例ID
     getApprovalInstanceId() {
         // 从审批数据中获取实例ID
         if (this.approvalData && this.approvalData.instance_id) {
             return this.approvalData.instance_id;
         }
-        
+
         // 如果没有实例ID，尝试从其他地方获取
         console.warn('未找到审批实例ID，审批操作可能失败');
         return null;
     }
-    
-    
+
+
     // 处理审批
     async processApproval(stageId, action, comment = '') {
         debugger; // 🔍 断点2：检查审批处理是否执行
@@ -737,13 +988,13 @@ class ApprovalFlow {
             if (!instanceId) {
                 throw new Error('未找到审批实例ID');
             }
-            
+
             // 统一的审批处理方式
-            
+
             const formData = new FormData();
             formData.append('action', action);
             formData.append('comment', comment);
-            
+
             // 批价单特殊处理：收集页面数据传递给后端审批路由
             if (this.objectType === 'pricing_order') {
 
@@ -776,7 +1027,7 @@ class ApprovalFlow {
                 }
             } else {
             }
-            
+
             // 如果是项目审批，添加项目类型参数以启用授权功能
             if (this.objectType === 'project') {
                 // 尝试从当前审批数据中获取项目类型
@@ -786,7 +1037,7 @@ class ApprovalFlow {
                 } else {
                 }
             }
-            
+
             debugger; // 🔍 断点6：检查即将发送的请求数据
             const response = await fetch(`/approval/approve/${instanceId}`, {
                 method: 'POST',
@@ -795,9 +1046,9 @@ class ApprovalFlow {
                 },
                 body: formData
             });
-            
+
             debugger; // 🔍 断点7：检查服务器响应
-            
+
             // 添加详细的响应调试
 
             // 克隆响应以便多次读取
@@ -806,26 +1057,26 @@ class ApprovalFlow {
 
             // 解析JSON
             const data = await response.json();
-            
+
             debugger; // 🔍 断点8：检查响应数据内容
-            
+
             // 添加详细的数据调试
-            
+
             if (data.success) {
                 // 在重新加载流程图之前显示气泡
                 if (comment) {
                     this.updateStageWithComment(stageId, comment, action);
                 }
-                
+
                 await this.loadFlow(); // 重新加载流程图
-                
+
                 // 重新加载后再次显示气泡（因为DOM重新创建了）
                 if (comment) {
                     setTimeout(() => {
                         this.updateStageWithComment(stageId, comment, action);
                     }, 200);
                 }
-                
+
                 // 触发自定义事件
                 this.dispatchEvent('approved', { stage_id: stageId, action: action });
             } else {
@@ -836,7 +1087,7 @@ class ApprovalFlow {
             console.error('处理审批失败:', error);
         }
     }
-    
+
     // 提交审批申请
     async submitForApproval() {
         try {
@@ -872,14 +1123,14 @@ class ApprovalFlow {
                 },
                 body: JSON.stringify(requestBody)  // 始终发送JSON，即使是空对象
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 // 显示审批流程图
                 this.showContainer();
                 await this.loadFlow();
-                
+
                 // 触发自定义事件
                 this.dispatchEvent('submitted', { object_type: this.objectType, object_id: this.objectId });
             } else {
@@ -890,7 +1141,7 @@ class ApprovalFlow {
             console.error('提交审批失败:', error);
         }
     }
-    
+
     // 召回审批流程
     async recallApproval(reason = '') {
         try {
@@ -904,9 +1155,9 @@ class ApprovalFlow {
                     reason: reason
                 })
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 await this.loadFlow();
                 // 触发自定义事件
@@ -919,7 +1170,7 @@ class ApprovalFlow {
             console.error('召回审批失败:', error);
         }
     }
-    
+
     // 重新提交审批
     async resubmitApproval() {
         try {
@@ -955,9 +1206,9 @@ class ApprovalFlow {
                 },
                 body: JSON.stringify(requestBody)  // 始终发送JSON，即使是空对象
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 await this.loadFlow();
                 // 触发自定义事件
@@ -970,7 +1221,7 @@ class ApprovalFlow {
             console.error('重新提交审批失败:', error);
         }
     }
-    
+
     // 触发点击动画效果
     triggerClickAnimation(circleElement) {
         circleElement.classList.add('clicking');
@@ -978,7 +1229,7 @@ class ApprovalFlow {
             circleElement.classList.remove('clicking');
         }, 600);
     }
-    
+
     // 显示无权限消息
     showNoPermissionMessage(stage) {
         const message = (window.approvalFlowI18n?.noPermissionMessage || '当前阶段"{stage}"需要由 {approver} 进行审批。您暂无权限审批此阶段。')
@@ -986,12 +1237,12 @@ class ApprovalFlow {
             .replace('{approver}', stage.approver_name);
         alert(message);
     }
-    
+
     // 显示阶段信息
     showStageInfo(stage) {
         let message = `${window.approvalFlowI18n?.stageInfo || '阶段信息：'}${stage.stage_name}\n`;
         message += `${window.approvalFlowI18n?.approver || '审批人：'}${stage.approver_name}\n`;
-        
+
         if (stage.status === 'approved') {
             message += `${window.approvalFlowI18n?.status || '状态：'}${window.approvalFlowI18n?.approved || '已通过'}\n`;
             if (stage.processed_at) {
@@ -1013,10 +1264,10 @@ class ApprovalFlow {
         } else {
             message += `${window.approvalFlowI18n?.status || '状态：'}${window.approvalFlowI18n?.waiting || '等待中'}`;
         }
-        
+
         alert(message);
     }
-    
+
     // 事件分发
     dispatchEvent(eventName, detail) {
         // 自动包含对象类型和ID信息，避免后续需要URL解析
@@ -1028,7 +1279,7 @@ class ApprovalFlow {
         const event = new CustomEvent(`approval_${eventName}`, { detail: enrichedDetail });
         document.dispatchEvent(event);
     }
-    
+
     // 销毁实例
     destroy() {
         if (this.container) {
@@ -1036,7 +1287,7 @@ class ApprovalFlow {
         }
         window.removeEventListener('resize', this.resizeHandler);
     }
-    
+
     // 显示审批评语气泡
     showCommentBubble(stageElement, comment, action) {
         // 移除已有的气泡和图标
@@ -1044,15 +1295,15 @@ class ApprovalFlow {
         const existingBubble = stageElement.querySelector('.approval-comment-bubble');
         if (existingIcon) existingIcon.remove();
         if (existingBubble) existingBubble.remove();
-        
+
         if (!comment || comment.trim() === '') return;
-        
+
         // 创建气泡图标
         const icon = document.createElement('div');
         icon.className = `approval-comment-icon ${action}`;
         icon.innerHTML = '<i class="fas fa-comment"></i>';
         icon.title = window.approvalFlowI18n?.clickToView || '点击查看审批意见';
-        
+
         // 创建气泡内容（隐藏）
         const bubble = document.createElement('div');
         bubble.className = `approval-comment-bubble ${action}`;
@@ -1061,7 +1312,7 @@ class ApprovalFlow {
                 ${comment}
             </div>
         `;
-        
+
         // 图标点击事件：显示/隐藏气泡
         icon.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1077,24 +1328,24 @@ class ApprovalFlow {
                 bubble.classList.remove('show');
             }
         });
-        
+
         // 气泡点击事件：隐藏气泡
         bubble.addEventListener('click', (e) => {
             e.stopPropagation();
             bubble.style.display = 'none';
             bubble.classList.remove('show');
         });
-        
+
         // 点击其他地方隐藏气泡
         document.addEventListener('click', () => {
             bubble.style.display = 'none';
             bubble.classList.remove('show');
         });
-        
+
         stageElement.appendChild(icon);
         stageElement.appendChild(bubble);
     }
-    
+
     // 更新审批流程显示以包含评语气泡
     updateStageWithComment(stageId, comment, action) {
         const stageElement = this.flowDiv.querySelector(`[data-stage-id="${stageId}"]`);
@@ -1102,13 +1353,13 @@ class ApprovalFlow {
             this.showCommentBubble(stageElement, comment, action);
         }
     }
-    
+
     // 获取授权编码预览
     async getAuthorizationPreview() {
-        
+
         try {
             const url = `/${this.objectType}/api/approval/${this.objectId}/preview-authorization`;
-            
+
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -1117,15 +1368,15 @@ class ApprovalFlow {
                 },
                 body: JSON.stringify({})
             });
-            
-            
+
+
             if (!response.ok) {
                 const errorText = await response.text();
                 return null;
             }
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 return data;
             } else {
@@ -1135,65 +1386,65 @@ class ApprovalFlow {
             return null;
         }
     }
-    
+
     // 获取项目类型  
     getProjectType() {
         // 如果之前获取授权预览时保存了项目类型，直接使用
         if (this.cachedProjectType) {
             return this.cachedProjectType;
         }
-        
+
         // 从当前授权预览数据中获取（如果可用）
         if (this.currentAuthPreview && this.currentAuthPreview.project_type) {
             this.cachedProjectType = this.currentAuthPreview.project_type;
             return this.cachedProjectType;
         }
-        
+
         // 从页面数据获取
         if (window.projectData && window.projectData.project_type) {
             this.cachedProjectType = window.projectData.project_type;
             return this.cachedProjectType;
         }
-        
+
         // 最后手段：根据当前审批数据推断
         // 从授权预览API的响应中，我们看到项目类型是channel_follow
         // 这是临时方案，应该从更可靠的来源获取
         this.cachedProjectType = 'channel_follow';
         return this.cachedProjectType;
     }
-    
+
 }
 
 // 全局便利函数
 window.ApprovalFlow = ApprovalFlow;
 
-window.initApprovalFlow = function(objectType, objectId, options = {}) {
+window.initApprovalFlow = function (objectType, objectId, options = {}) {
     const flow = new ApprovalFlow(objectType, objectId, options);
     flow.init();
     return flow;
 };
 
 // 提交审批的全局函数
-window.submitApprovalFlow = function(objectType, objectId, options = {}) {
+window.submitApprovalFlow = function (objectType, objectId, options = {}) {
     const flow = new ApprovalFlow(objectType, objectId, options);
     return flow.submitForApproval();
 };
 
 // 全局模态框确认函数
-window.confirmApprovalAction = function(action) {
+window.confirmApprovalAction = function (action) {
     const comment = document.getElementById('approvalComment').value.trim();
-    
+
     // 获取当前活跃的审批流程实例
     const activeFlows = Array.from(window.approvalFlowInstances.values());
     const currentFlow = activeFlows.find(flow => flow.currentStage);
-    
+
     if (currentFlow && currentFlow.currentStage) {
         // 关闭模态框
         const modal = bootstrap.Modal.getInstance(document.getElementById('approvalConfirmModal'));
         if (modal) {
             modal.hide();
         }
-        
+
         // 处理审批
         currentFlow.processApproval(currentFlow.currentStage.id, action, comment);
     } else {

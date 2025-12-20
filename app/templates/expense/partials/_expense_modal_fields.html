@@ -1,0 +1,329 @@
+{#
+报销单模态框表单字段组件 - 左右分栏布局
+左侧 1/4：报销单基本信息
+右侧 3/4：报销明细
+#}
+
+{# 隐藏 number input 的 spinner 按钮 #}
+<style>
+.no-spinner::-webkit-inner-spin-button,
+.no-spinner::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.no-spinner {
+    -moz-appearance: textfield;
+}
+</style>
+
+<div class="flex flex-col md:flex-row -mx-6 md:-mx-8 -mt-6 -mb-6 md:-mb-8 min-h-[60vh]">
+    {# 左侧：报销单基本信息 #}
+    <div class="md:w-1/4 p-6 border-r border-slate-200 dark:border-slate-700 space-y-5 flex flex-col">
+        <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ _('报销单') }}</h2>
+
+        <div class="space-y-4 flex-grow">
+            {# 报销主题 #}
+            <div>
+                <label class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1.5" for="expense_title">
+                    {{ _('报销主题') }}
+                </label>
+                <input type="text"
+                       id="expense_title"
+                       name="title"
+                       data-field-code="title"
+                       class="w-full h-10 px-3 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                       placeholder="{{ _('默认客户名称-姓名-YYDDHHS') }}"
+                       value="{{ expense.title if expense else '' }}">
+            </div>
+
+            {# 货币类型 #}
+            <div>
+                <label class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1.5" for="expense_currency">
+                    {{ _('货币类型') }} <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                    <select id="expense_currency"
+                            name="currency"
+                            data-field-code="main_currency"
+                            required
+                            class="w-full h-10 px-3 pr-10 appearance-none bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-slate-200 focus:ring-2 focus:ring-primary focus:border-primary text-sm">
+                        {% for value, label in currency_options %}
+                        <option value="{{ value }}" {% if value == (expense.currency if expense else default_currency or 'CNY') %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-lg">expand_more</span>
+                </div>
+            </div>
+
+            {# 不关联客户模式 #}
+            <div class="flex items-center">
+                <input type="checkbox"
+                       id="expense_no_customer_mode"
+                       name="no_customer_mode"
+                       data-field-code="__no_customer_mode__"
+                       value="1"
+                       {% if expense and not expense.customer_id %}checked disabled{% endif %}
+                       class="h-4 w-4 rounded border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 text-primary focus:ring-primary">
+                <label class="ml-2 text-sm text-slate-700 dark:text-slate-300" for="expense_no_customer_mode">
+                    {{ _('不关联客户模式') }}
+                </label>
+            </div>
+
+            {# 客户相关字段容器 #}
+            <div id="expenseCustomerFields" class="space-y-4" {% if expense and not expense.customer_id %}style="display: none;"{% endif %}>
+                {# 关联客户 #}
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1.5" for="expense_customer_search">
+                        {{ _('关联客户') }} <span class="text-red-500 expense-customer-required">*</span>
+                    </label>
+                    <div class="relative">
+                        <input type="text"
+                               id="expense_customer_search"
+                               autocomplete="off"
+                               data-field-code="customer_id"
+                               data-field-role="search"
+                               class="w-full h-10 px-3 pr-10 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                               placeholder="{{ _('输入公司名称进行搜索...') }}"
+                               value="{{ expense.customer.company_name if expense and expense.customer else '' }}">
+                        <button type="button"
+                                id="expense_clear_customer"
+                                data-field-code="customer_id"
+                                data-field-role="clear"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 {% if not expense or not expense.customer_id %}hidden{% endif %}">
+                            <span class="material-symbols-outlined text-lg">close</span>
+                        </button>
+                        <div id="expense_customer_dropdown"
+                             class="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-48 overflow-auto hidden">
+                            <div id="expense_customer_results"></div>
+                        </div>
+                    </div>
+                    <input type="hidden" id="expense_customer_id" name="customer_id" data-field-code="customer_id" data-field-role="value" value="{{ expense.customer_id if expense else '' }}">
+                </div>
+
+                {# 联系人 #}
+                <div id="expenseContactField">
+                    <label class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1.5" for="expense_contact_id">
+                        {{ _('联系人') }} <span class="text-red-500 expense-customer-required">*</span>
+                    </label>
+                    <div class="relative">
+                        <select id="expense_contact_id"
+                                name="contact_id"
+                                data-field-code="contact_id"
+                                class="w-full h-10 px-3 pr-10 appearance-none bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-slate-400 dark:text-slate-500 focus:ring-2 focus:ring-primary focus:border-primary text-sm disabled:bg-slate-50 dark:disabled:bg-slate-900"
+                                {% if not expense or not expense.customer_id %}disabled{% endif %}>
+                            {% if expense and expense.contact %}
+                            <option value="{{ expense.contact_id }}" selected>{{ expense.contact.name }}</option>
+                            {% else %}
+                            <option value="">{{ _('请先选择关联客户') }}</option>
+                            {% endif %}
+                        </select>
+                        <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-lg">expand_more</span>
+                    </div>
+                </div>
+
+                {# 关联项目 #}
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1.5" for="expense_project_search">
+                        {{ _('关联项目') }}
+                    </label>
+                    <div class="relative">
+                        <input type="text"
+                               id="expense_project_search"
+                               autocomplete="off"
+                               data-field-code="project_id"
+                               data-field-role="search"
+                               class="w-full h-10 px-3 pr-10 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                               placeholder="{{ _('输入项目名称进行搜索...') }}"
+                               value="{{ expense.project.project_name if expense and expense.project else '' }}">
+                        <button type="button"
+                                id="expense_clear_project"
+                                data-field-code="project_id"
+                                data-field-role="clear"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 {% if not expense or not expense.project_id %}hidden{% endif %}">
+                            <span class="material-symbols-outlined text-lg">close</span>
+                        </button>
+                        <div id="expense_project_dropdown"
+                             class="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-48 overflow-auto hidden">
+                            <div id="expense_project_results"></div>
+                        </div>
+                    </div>
+                    <input type="hidden" id="expense_project_id" name="project_id" data-field-code="project_id" data-field-role="value" value="{{ expense.project_id if expense else '' }}">
+                </div>
+            </div>
+
+            {# 报销说明 #}
+            <div>
+                <label class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1.5" for="expense_description">
+                    {{ _('报销说明') }} <span class="text-red-500 expense-desc-required hidden">*</span>
+                </label>
+                <textarea id="expense_description"
+                          name="description"
+                          data-field-code="main_description"
+                          rows="4"
+                          class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary text-sm resize-none"
+                          placeholder="{{ _('请描述报销的背景、目的等总体说明') }}">{{ expense.description if expense else '' }}</textarea>
+            </div>
+        </div>
+    </div>
+
+    {# 右侧：报销明细 #}
+    <div class="md:w-3/4 p-6 space-y-4 flex flex-col">
+        <div class="flex items-center justify-between">
+            <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ _('报销明细') }}</h2>
+            <button type="button"
+                    id="expenseAddDetailRow"
+                    data-field-code="__add_row__"
+                    onclick="ExpenseModal.addDetailRow()"
+                    class="inline-flex items-center px-4 py-2 bg-primary/10 dark:bg-primary/20 text-primary font-medium text-sm rounded hover:bg-primary/20 dark:hover:bg-primary/30 transition-colors">
+                <span class="material-symbols-outlined text-base mr-1.5">add</span>
+                {{ _('添加明细') }}
+            </button>
+        </div>
+
+        {# 明细表格容器 - 支持水平滚动 #}
+        <div class="border border-slate-200 dark:border-slate-700 rounded-lg flex-grow flex flex-col overflow-hidden relative">
+            {# 表格头部 #}
+            <div id="expenseModalTableHeader" class="hidden overflow-x-auto flex-shrink-0">
+                <table class="text-sm" style="min-width: 920px;">
+                    <thead class="bg-slate-50 dark:bg-slate-800/50">
+                        <tr class="text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            <th class="px-2 py-2.5" style="width: 110px;">{{ _('报销科目') }}</th>
+                            <th class="px-2 py-2.5" style="width: 105px;">{{ _('日期') }}</th>
+                            <th class="px-2 py-2.5" style="width: 200px;">{{ _('描述') }}</th>
+                            <th class="px-2 py-2.5 text-center" style="width: 40px;">{{ _('单据') }}</th>
+                            <th class="px-2 py-2.5 text-center" style="width: 55px;" title="{{ _('货币') }}">{{ _('币') }}</th>
+                            <th class="px-2 py-2.5 text-right" style="width: 85px;">{{ _('金额') }}</th>
+                            <th class="px-2 py-2.5 text-center" style="width: 60px;">{{ _('汇率') }}</th>
+                            <th class="px-2 py-2.5 text-right" style="width: 100px;">{{ _('报销额') }}</th>
+                            <th class="px-2 py-2.5 text-center" style="width: 160px;">{{ _('发票') }}</th>
+                            <th class="px-2 py-2.5" style="width: 36px;"></th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+
+            {# 表格主体（水平+垂直滚动） #}
+            <div class="flex-1 min-h-0 overflow-auto" id="expenseModalTableScroll">
+                <table class="text-sm" style="min-width: 920px;">
+                    <tbody id="expenseModalTableBody" class="divide-y divide-slate-200 dark:divide-slate-700">
+                        {# 动态行由 JavaScript 生成 #}
+                    </tbody>
+                </table>
+            </div>
+
+            {# 空状态 - 绝对定位覆盖在表格上方 #}
+            <div id="expenseModalEmpty" class="absolute inset-0 flex items-center justify-center bg-white dark:bg-slate-900">
+                <div class="flex flex-col items-center justify-center space-y-3 text-slate-400 dark:text-slate-500">
+                    <span class="material-symbols-outlined text-5xl">receipt_long</span>
+                    <p class="text-sm">{{ _('暂无报销明细，请点击"添加明细"按钮') }}</p>
+                </div>
+            </div>
+
+            {# 合计区域 #}
+            <div id="expenseModalFooter" class="hidden px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <div class="flex items-center justify-between">
+                    <div class="text-sm text-slate-500">
+                        <span>{{ _('共') }}</span>
+                        <span id="expenseModalCount" class="font-medium text-slate-900 dark:text-slate-100 mx-1">0</span>
+                        <span>{{ _('条明细') }}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-slate-500">{{ _('报销总额') }}:</span>
+                        <span id="expenseModalTotal" class="text-lg font-bold text-primary">¥0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# 明细行模板 #}
+<template id="expenseModalRowTemplate">
+    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-row-id="">
+        {# 报销科目 110px #}
+        <td class="px-2 py-2" style="width: 110px;">
+            <select name="expense_category" required
+                    data-field-code="expense_category"
+                    class="expense-cell-input w-full h-8 px-1 text-xs bg-transparent border border-transparent rounded transition-all text-slate-900 dark:text-slate-100 hover:border-slate-300 hover:bg-slate-50 dark:hover:border-slate-600 dark:hover:bg-slate-800/50 focus:border-primary focus:ring-1 focus:ring-primary focus:bg-white dark:focus:bg-slate-800 appearance-none cursor-pointer">
+                <option value="">--</option>
+                {% for value, label in expense_categories %}
+                <option value="{{ value }}">{{ _(label) }}</option>
+                {% endfor %}
+            </select>
+        </td>
+        {# 日期 105px #}
+        <td class="px-2 py-2" style="width: 105px;">
+            <input type="date" name="expense_date" required
+                   data-field-code="expense_date"
+                   class="expense-cell-input w-full h-8 px-1 text-xs bg-transparent border border-transparent rounded transition-all text-slate-900 dark:text-slate-100 hover:border-slate-300 hover:bg-slate-50 dark:hover:border-slate-600 dark:hover:bg-slate-800/50 focus:border-primary focus:ring-1 focus:ring-primary focus:bg-white dark:focus:bg-slate-800">
+        </td>
+        {# 描述 200px (约25字符) #}
+        <td class="px-2 py-2" style="width: 200px;">
+            <input type="text" name="detail_description" required placeholder="{{ _('描述') }}"
+                   data-field-code="description"
+                   class="expense-cell-input w-full h-8 px-1.5 text-xs bg-transparent border border-transparent rounded transition-all text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 hover:border-slate-300 hover:bg-slate-50 dark:hover:border-slate-600 dark:hover:bg-slate-800/50 focus:border-primary focus:ring-1 focus:ring-primary focus:bg-white dark:focus:bg-slate-800">
+        </td>
+        {# 单据 40px (只读，自动统计发票数量) #}
+        <td class="px-1 py-2" style="width: 40px;">
+            <div class="w-full h-8 flex items-center justify-center text-xs font-medium text-slate-600 dark:text-slate-400 expense-document-count">
+                0
+            </div>
+            <input type="hidden" name="document_count" data-field-code="document_count" value="0">
+        </td>
+        {# 货币符号 55px #}
+        <td class="px-1 py-2" style="width: 55px;">
+            <select name="detail_currency" required
+                    data-field-code="currency"
+                    class="expense-cell-input w-full h-8 px-1 text-xs bg-transparent border border-transparent rounded transition-all text-slate-900 dark:text-slate-100 hover:border-slate-300 hover:bg-slate-50 dark:hover:border-slate-600 dark:hover:bg-slate-800/50 focus:border-primary focus:ring-1 focus:ring-primary focus:bg-white dark:focus:bg-slate-800 appearance-none cursor-pointer text-center">
+                <option value="CNY" data-symbol="¥">¥</option>
+                <option value="USD" data-symbol="$">$</option>
+                <option value="HKD" data-symbol="HK$">HK$</option>
+                <option value="TWD" data-symbol="NT$">NT$</option>
+                <option value="SGD" data-symbol="S$">S$</option>
+                <option value="MYR" data-symbol="RM">RM</option>
+                <option value="IDR" data-symbol="Rp">Rp</option>
+                <option value="THB" data-symbol="฿">฿</option>
+                <option value="VND" data-symbol="₫">₫</option>
+            </select>
+        </td>
+        {# 金额 85px (4位整数+2位小数, 无spinner) #}
+        <td class="px-1 py-2" style="width: 85px;">
+            <input type="number" name="invoice_amount" step="0.01" min="0" max="9999.99" required placeholder="0.00"
+                   data-field-code="invoice_amount"
+                   class="expense-cell-input no-spinner w-full h-8 px-1 text-xs bg-transparent border border-transparent rounded transition-all text-slate-900 dark:text-slate-100 placeholder:text-slate-400 hover:border-slate-300 hover:bg-slate-50 dark:hover:border-slate-600 dark:hover:bg-slate-800/50 focus:border-primary focus:ring-1 focus:ring-primary focus:bg-white dark:focus:bg-slate-800 text-right">
+        </td>
+        {# 汇率 60px (1位整数+2位小数, 无spinner) #}
+        <td class="px-1 py-2" style="width: 60px;">
+            <input type="number" name="exchange_rate" step="0.01" min="0" max="9.99" value="1"
+                   data-field-code="exchange_rate"
+                   class="expense-cell-input no-spinner w-full h-8 px-1 text-xs bg-transparent border border-transparent rounded transition-all text-slate-900 dark:text-slate-100 hover:border-slate-300 hover:bg-slate-50 dark:hover:border-slate-600 dark:hover:bg-slate-800/50 focus:border-primary focus:ring-1 focus:ring-primary focus:bg-white dark:focus:bg-slate-800 text-center expense-exchange-rate">
+        </td>
+        {# 报销额 100px (5位整数+2位小数) #}
+        <td class="px-1 py-2" style="width: 100px;">
+            <div class="w-full h-8 px-1.5 flex items-center justify-end text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 rounded expense-current-amount">
+                0.00
+            </div>
+        </td>
+        {# 发票 160px (5个发票空间) #}
+        <td class="px-1 py-2" style="width: 160px;">
+            <div class="flex items-center gap-0.5 expense-invoice-container flex-wrap h-8">
+                <label class="cursor-pointer flex-shrink-0" data-field-code="invoice_images" data-field-role="upload">
+                    <input type="file" name="invoice_files" accept="image/*,.pdf" multiple class="hidden expense-invoice-input">
+                    <span class="inline-flex items-center justify-center w-7 h-7 rounded border border-dashed border-slate-300 dark:border-slate-600 hover:border-primary hover:text-primary text-slate-400 transition-colors">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">add_photo_alternate</span>
+                    </span>
+                </label>
+            </div>
+        </td>
+        {# 删除 36px #}
+        <td class="px-1 py-2" style="width: 36px;">
+            <button type="button" onclick="ExpenseModal.removeDetailRow(this)"
+                    data-field-code="__delete_row__"
+                    class="inline-flex items-center justify-center w-7 h-7 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+            </button>
+        </td>
+    </tr>
+</template>

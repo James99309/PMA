@@ -1635,3 +1635,24 @@ app/static/
 5. **使用语义化的卡片ID和颜色主题**
 6. **为所有数值字段配置合适的格式化**
 7. **移动端测试响应式布局**
+
+---
+
+## 📐 Tailwind 组件
+
+**Tailwind 组件已拆分至独立文档**: [CLAUDE-TW-COMPONENTS.md](./CLAUDE-TW-COMPONENTS.md)
+
+包含以下组件：
+- 详情页布局组件 (`tw_detail_layout.html`)
+- 工作记录组件 (`tw_work_records.html`)
+- 行动记录列表组件 (`tw_action_list.html`)
+- 行动记录回复组件 (`tw_action_replies.html`)
+- 按钮组件 (`tw_buttons.html`)
+- 确认模态框组件 (`tw_confirm_modal.html`)
+- 表单模态框组件 (`tw_form_modal.html`)
+- 行动记录模态框组件 (`tw_action_modal.html`)
+- 用户徽章组件
+- 信息卡片组件 (`tw_info_card.html`)
+- 卡片外壳组件 (`tw_card_shell.html`) - **NEW** 支持完全自定义内容
+- 表格卡片组件 (`tw_table_card.html`)
+- 审批流程组件 (`tw_approval_flow.html`)

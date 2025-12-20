@@ -43,7 +43,8 @@ def get_effective_file(product, file_type='image'):
             model_field != ''
         ).first()
         if sibling:
-            return sibling.image_path if file_type == 'image' else sibling.pdf_path
+            sibling_file = sibling.image_path if file_type == 'image' else sibling.pdf_path
+            return sibling_file
 
     # 优先级3：子分类共享文件
     if product.subcategory_obj:
@@ -296,23 +297,42 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
 
 def generate_spec_mn(product):
     """
-    根据产品规格生成规格MN编码
+    根据产品规格生成规格MN编码（支持 Product 和 DevProduct）
 
     读取产品的规格数据，按照编码规则生成规格MN。
     格式：区域编码 + 分类编码 + 子分类编码 + 规格编码序列
 
     Args:
-        product: Product对象，必须已保存到数据库且有ID
+        product: Product 或 DevProduct 对象，必须已保存到数据库且有ID
 
     Returns:
         str | None: 生成的规格MN编码，失败返回None
     """
     try:
-        from app.models.product_spec import ProductSpec
         from app.models.product_code import ProductCodeField
 
+        # 自动检测模型类型，适配不同的属性名
+        # Product 使用 category_obj, subcategory_obj, region_obj
+        # DevProduct 使用 category, subcategory, region
+        is_dev_product = hasattr(product, 'category') and not hasattr(product, 'category_obj')
+
+        if is_dev_product:
+            from app.models.dev_product import DevProductSpec
+            SpecModel = DevProductSpec
+            spec_id_field = 'dev_product_id'
+            category_rel = product.category
+            subcategory_rel = product.subcategory
+            region_rel = product.region
+        else:
+            from app.models.product_spec import ProductSpec
+            SpecModel = ProductSpec
+            spec_id_field = 'product_id'
+            category_rel = product.category_obj
+            subcategory_rel = product.subcategory_obj
+            region_rel = product.region_obj
+
         # 验证必要的分类信息
-        if not product.category_obj or not product.subcategory_obj:
+        if not category_rel or not subcategory_rel:
             current_app.logger.warning(
                 f"无法生成规格MN: 产品ID={product.id}缺少分类信息"
             )
@@ -320,24 +340,28 @@ def generate_spec_mn(product):
 
         # 获取区域编码
         region_code = ""
-        if product.region_obj:
-            region_code = product.region_obj.code or ""
+        if region_rel:
+            region_code = region_rel.code or ""
             # 处理"?"情况
             if region_code == "?":
                 from app.models.product_code import ProductCodeFieldOption
                 option = ProductCodeFieldOption.query.filter_by(
-                    field_id=product.region_obj.id
+                    field_id=region_rel.id
                 ).first()
                 region_code = option.code if option else "0"
 
         # 获取分类和子分类编码
-        category_code = product.category_obj.code_letter or ""
-        subcategory_code = product.subcategory_obj.code_letter or ""
+        category_code = category_rel.code_letter or ""
+        subcategory_code = subcategory_rel.code_letter or ""
 
-        # 获取产品规格（按display_order排序）
-        specs = ProductSpec.query.filter_by(
-            product_id=product.id
-        ).order_by(ProductSpec.display_order, ProductSpec.id).all()
+        # 获取产品规格
+        filter_kwargs = {spec_id_field: product.id}
+        if is_dev_product:
+            specs = SpecModel.query.filter_by(**filter_kwargs).all()
+        else:
+            specs = SpecModel.query.filter_by(**filter_kwargs).order_by(
+                SpecModel.display_order, SpecModel.id
+            ).all()
 
         # 收集规格编码数据
         specs_data = []
@@ -366,12 +390,17 @@ def generate_spec_mn(product):
             field_def = subcat_field or cat_field
 
             # 只处理参与编码的规格（use_in_code=True）且有编码值的规格
+            current_app.logger.debug(
+                f"规格检查: {spec.field_name}, field_code={spec.field_code}, "
+                f"field_def={field_def is not None}, use_in_code={field_def.use_in_code if field_def else 'N/A'}"
+            )
             if field_def and field_def.use_in_code and spec.field_code and spec.field_code.strip():
                 position = field_def.position if field_def else 999
                 specs_data.append({
                     'position': position,
                     'code': spec.field_code.strip()
                 })
+                current_app.logger.debug(f"添加规格编码: position={position}, code={spec.field_code.strip()}")
 
         # 按position排序
         specs_data.sort(key=lambda x: x.get('position', 999))
@@ -386,8 +415,9 @@ def generate_spec_mn(product):
         # 生成规格MN：区域 + 分类 + 子分类 + 规格编码
         spec_mn = f"{region_code}{category_code}{subcategory_code}{''.join(spec_codes)}"
 
+        product_type_str = "研发产品" if is_dev_product else "产品"
         current_app.logger.debug(
-            f"生成规格MN成功: 产品ID={product.id}, spec_mn={spec_mn}"
+            f"生成{product_type_str}MN成功: 产品ID={product.id}, spec_mn={spec_mn}"
         )
 
         return spec_mn if spec_mn else None
@@ -395,5 +425,108 @@ def generate_spec_mn(product):
     except Exception as e:
         current_app.logger.error(
             f"生成规格MN失败: 产品ID={product.id}, 错误={str(e)}"
+        )
+        return None
+
+
+# 为兼容性保留别名
+generate_dev_product_mn = generate_spec_mn
+
+
+def calculate_spec_mn_from_data(product, specs_data):
+    """
+    根据提供的规格数据计算规格MN编码（不查询数据库中的规格）
+
+    用于预览功能，在保存前计算新的spec_mn。
+
+    Args:
+        product: Product对象
+        specs_data: 规格数据列表 [{'field_name': str, 'field_value': str, 'field_code': str}, ...]
+
+    Returns:
+        str | None: 计算的规格MN编码，失败返回None
+    """
+    try:
+        from app.models.product_code import ProductCodeField
+
+        # 验证必要的分类信息
+        if not product.category_obj or not product.subcategory_obj:
+            current_app.logger.warning(
+                f"无法计算规格MN: 产品ID={product.id}缺少分类信息"
+            )
+            return None
+
+        # 获取区域编码
+        region_code = ""
+        if product.region_obj:
+            region_code = product.region_obj.code or ""
+            if region_code == "?":
+                from app.models.product_code import ProductCodeFieldOption
+                option = ProductCodeFieldOption.query.filter_by(
+                    field_id=product.region_obj.id
+                ).first()
+                region_code = option.code if option else "0"
+
+        # 获取分类和子分类编码
+        category_code = product.category_obj.code_letter or ""
+        subcategory_code = product.subcategory_obj.code_letter or ""
+
+        # 收集规格编码数据
+        specs_code_data = []
+        for spec_data in specs_data:
+            field_name = spec_data.get('field_name', '').strip()
+            field_code = spec_data.get('field_code')
+
+            if not field_name or not field_code or not field_code.strip():
+                continue
+
+            # 查询分类级字段
+            cat_field = ProductCodeField.query.filter_by(
+                category_id=product.category_id,
+                subcategory_id=None,
+                name=field_name,
+                field_type='spec'
+            ).first()
+
+            # 查询子分类级字段
+            subcat_field = ProductCodeField.query.filter_by(
+                subcategory_id=product.subcategory_id,
+                name=field_name,
+                field_type='spec'
+            ).first()
+
+            # 优先使用子分类级，回退到分类级
+            field_def = subcat_field or cat_field
+
+            # 只处理参与编码的规格
+            if field_def and field_def.use_in_code:
+                position = field_def.position if field_def else 999
+                specs_code_data.append({
+                    'position': position,
+                    'code': field_code.strip()
+                })
+
+        # 按position排序
+        specs_code_data.sort(key=lambda x: x.get('position', 999))
+
+        # 提取前10个规格编码
+        spec_codes = [s.get('code', '0') for s in specs_code_data[:10]]
+
+        # 去掉末尾的'0'
+        while spec_codes and spec_codes[-1] == '0':
+            spec_codes.pop()
+
+        # 生成规格MN
+        spec_mn = f"{region_code}{category_code}{subcategory_code}{''.join(spec_codes)}"
+
+        current_app.logger.debug(
+            f"计算规格MN: 产品ID={product.id}, spec_mn={spec_mn}"
+        )
+
+        return spec_mn if spec_mn else None
+
+    except Exception as e:
+        current_app.logger.error(
+            f"计算规格MN失败: 产品ID={product.id}, 错误={str(e)}"
         )
         return None

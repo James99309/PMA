@@ -1,0 +1,433 @@
+{#
+=============================================================================
+Tailwind 详情页布局组件 v3.0
+=============================================================================
+提供统一的详情页布局，支持固定顶部标题区域和可滚动内容区域。
+v3.0 新增：按钮参数化，减少 slot 使用
+
+布局结构：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 固定顶部区域                                                                  │
+│ [面包屑导航]                                                                  │
+│ [页面标题] [副标题]                                                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 按钮区域（从左到右固定顺序）                                                    │
+│ ┌────────┐ ┌───────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────┐ │
+│ │← 返回  │ │ < > │ │状态徽章  │ │  编辑    │ │  删除    │ │extra_actions│ │
+│ └────────┘ └───────┘ └──────────┘ └──────────┘ └──────────┘ └────────────┘ │
+│  back_url  prev/next   badges参数  edit_btn    delete_btn   extra_actions  │
+│  (参数)    (参数)      (参数)       (参数)      (参数)        (最右侧)      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 可滚动内容区域                                                                │
+│ ┌──────────────────────────────┬──────────────────────────────┐            │
+│ │ 左侧主内容（可滚动）           │ 右侧边栏（sticky吸顶）        │            │
+│ │ main slot                    │ sidebar slot                 │            │
+│ └──────────────────────────────┴──────────────────────────────┘            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+使用方式（v3.0 参数化按钮）：
+{% from 'components/tw_detail_layout.html' import tw_detail_layout %}
+
+{% call(slot) tw_detail_layout(
+    breadcrumb_items=[
+        {'label': _('研发库管理'), 'url': url_for('rd_product.index')},
+        {'label': _('产品详情')}
+    ],
+    title=dev_product.name or dev_product.model,
+    subtitle=dev_product.model,
+    back_url=url_for('rd_product.index'),
+    prev_url=prev_url,
+    next_url=next_url,
+    status_badges=render_tw_dev_status_badge(dev_product.status),
+    edit_btn={
+        'show': can_edit_button,
+        'onclick': 'ProductModal.openEdit(' ~ dev_product.id ~ ')'
+    },
+    delete_btn={
+        'show': can_delete_button,
+        'onclick': 'confirmDeleteProduct()'
+    },
+    extra_actions=[
+        {
+            'show': not approval_instance and available_templates,
+            'label': _('发起审批'),
+            'onclick': 'confirmSubmitApproval()',
+            'icon': 'send',
+            'color': 'success'
+        }
+    ],
+    has_sidebar=true
+) %}
+    {% if slot == 'main' %}
+        <!-- 主内容区 -->
+    {% elif slot == 'sidebar' %}
+        <!-- 侧边栏 -->
+    {% endif %}
+{% endcall %}
+
+参数说明：
+基础参数：
+- breadcrumb_items: 面包屑数组 [{'label': '显示文本', 'url': '链接(可选)'}]
+- title: 页面标题
+- subtitle: 副标题（可选，如产品型号）
+- back_url: 返回按钮链接（可选，不传则不显示返回按钮）
+- back_label: 返回按钮文字，默认 '返回'
+- prev_url: 上一条记录链接（可选，只有有值时才显示左箭头）
+- next_url: 下一条记录链接（可选，只有有值时才显示右箭头）
+- prev_title: 上一条按钮提示，默认 '上一个'
+- next_title: 下一条按钮提示，默认 '下一个'
+
+按钮参数（v3.0新增，按顺序排列）：
+- status_badges: 状态徽章HTML内容（直接渲染）
+- show_status_label: 是否显示"状态:"标签，默认 true
+- edit_btn: 编辑按钮配置 {show, label, onclick, icon}
+- delete_btn: 删除按钮配置 {show, label, onclick, icon}
+- extra_actions: 额外操作按钮数组 [{show, label, onclick, icon, color}]，始终显示在最右侧
+
+布局参数：
+- has_sidebar: 是否有右侧边栏，默认 false
+- sidebar_cols: 侧边栏占用列数，默认 1（总共3列）
+- main_cols: 主内容占用列数，默认 2
+- content_gap: 内容区间距，默认 '6'
+
+Slot 说明（v3.0简化）：
+1. main: 主内容区（有侧边栏时）
+2. sidebar: 侧边栏内容
+3. content: 主内容区（无侧边栏时）
+4. badges: 状态徽章区域（向后兼容，优先使用 status_badges 参数）
+5. actions_before: 前置操作按钮（向后兼容，优先使用 extra_actions 参数）
+6. actions: 标准操作按钮（向后兼容，优先使用 edit_btn 参数）
+7. actions_danger: 危险操作按钮（向后兼容，优先使用 delete_btn 参数）
+=============================================================================
+#}
+
+{# 导入按钮组件 #}
+{% from 'components/tw_buttons.html' import tw_btn_outline with context %}
+
+{% macro tw_detail_layout(
+    breadcrumb_items=[],
+    title='',
+    subtitle='',
+    back_url='',
+    back_label=none,
+    prev_url=none,
+    next_url=none,
+    prev_title=none,
+    next_title=none,
+    status_badges=none,
+    show_status_label=true,
+    edit_btn=none,
+    delete_btn=none,
+    extra_actions=[],
+    has_sidebar=false,
+    sidebar_cols=1,
+    main_cols=2,
+    content_gap='6'
+) %}
+{% set _back_label = back_label or _('返回') %}
+{% set _prev_title = prev_title or _('上一个') %}
+{% set _next_title = next_title or _('下一个') %}
+
+<!-- 详情页主容器 -->
+<div class="flex-1 flex flex-col h-full overflow-hidden">
+    <!-- 固定顶部区域：面包屑和标题 -->
+    <div class="flex-shrink-0 px-6 lg:px-10 pt-6 lg:pt-10 pb-4 bg-background-light dark:bg-black">
+        <div class="max-w-7xl mx-auto">
+            <!-- 面包屑和标题行 -->
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center justify-between">
+                <div>
+                    <!-- 面包屑导航 -->
+                    {% if breadcrumb_items %}
+                    <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-2">
+                        {% for item in breadcrumb_items %}
+                            {% if item.url %}
+                            <a class="hover:underline hover:text-primary" href="{{ item.url }}">{{ item.label }}</a>
+                            {% else %}
+                            <span class="text-slate-800 dark:text-slate-200">{{ item.label }}</span>
+                            {% endif %}
+                            {% if not loop.last %}
+                            <span>/</span>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <!-- 页面标题 -->
+                    <h2 class="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{{ title }}</h2>
+                    {% if subtitle %}
+                    <p class="text-lg text-slate-500 dark:text-slate-400 mt-1">{{ subtitle }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- 右侧按钮区域 -->
+                <div class="flex items-center gap-3">
+                    <!-- 1. 前后导航按钮（只显示有效方向，无边框） -->
+                    {% if prev_url or next_url %}
+                    <div class="flex items-center">
+                        {% if prev_url %}
+                        <a href="{{ prev_url }}"
+                           class="p-1.5 text-slate-400 dark:text-slate-400 hover:text-primary dark:hover:text-white transition-colors"
+                           title="{{ _prev_title }}">
+                            <span class="material-symbols-outlined text-xl">chevron_left</span>
+                        </a>
+                        {% endif %}
+                        {% if next_url %}
+                        <a href="{{ next_url }}"
+                           class="p-1.5 text-slate-400 dark:text-slate-400 hover:text-primary dark:hover:text-white transition-colors"
+                           title="{{ _next_title }}">
+                            <span class="material-symbols-outlined text-xl">chevron_right</span>
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <!-- 2. 状态徽章区域 -->
+                    {% if status_badges is not none or edit_btn is not none or delete_btn is not none %}
+                    {# 参数模式：使用传入的参数 #}
+                    <div class="flex items-center gap-2">
+                        {% if show_status_label %}
+                        <span class="text-slate-600 dark:text-slate-400 text-sm">{{ _('状态') }}:</span>
+                        {% endif %}
+                        {{ status_badges }}
+                    </div>
+
+                    <!-- 3. 返回按钮 -->
+                    {% if back_url %}
+                    {{ tw_btn_outline(_back_label, href=back_url, icon='arrow_back', size='sm', color='slate') }}
+                    {% endif %}
+
+                    <!-- 4. 编辑按钮 -->
+                    {% if edit_btn and edit_btn.show %}
+                    {{ tw_btn_outline(edit_btn.label or _('编辑'), onclick=edit_btn.onclick, icon=edit_btn.icon or 'edit', size='sm', color='slate') }}
+                    {% endif %}
+
+                    <!-- 5. 删除按钮 -->
+                    {% if delete_btn and delete_btn.show %}
+                    {{ tw_btn_outline(delete_btn.label or _('删除'), onclick=delete_btn.onclick, icon=delete_btn.icon or 'delete', size='sm', color='danger') }}
+                    {% endif %}
+
+                    <!-- 6. 额外操作按钮（如：发起审批）- 始终在最右侧 -->
+                    {% for action in extra_actions %}
+                        {% if action.show %}
+                            {% set btn_color = action.color or 'slate' %}
+                            {% if btn_color == 'success' %}
+                            <button onclick="{{ action.onclick }}"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors">
+                                {% if action.icon %}<span class="material-symbols-outlined text-lg">{{ action.icon }}</span>{% endif %}
+                                {{ action.label }}
+                            </button>
+                            {% elif btn_color == 'primary' %}
+                            <button onclick="{{ action.onclick }}"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
+                                {% if action.icon %}<span class="material-symbols-outlined text-lg">{{ action.icon }}</span>{% endif %}
+                                {{ action.label }}
+                            </button>
+                            {% else %}
+                            {{ tw_btn_outline(action.label, onclick=action.onclick, icon=action.icon, size='sm', color=btn_color) }}
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+
+                    {% else %}
+                    {# Slot 模式：向后兼容，使用 caller #}
+                    <div class="flex items-center gap-2">
+                        {% if show_status_label %}
+                        <span class="text-slate-600 dark:text-slate-400 text-sm">{{ _('状态') }}:</span>
+                        {% endif %}
+                        {{ caller('badges') }}
+                    </div>
+
+                    <!-- 4. 前置操作按钮 -->
+                    {{ caller('actions_before') }}
+
+                    <!-- 5. 标准操作按钮 -->
+                    <div class="flex items-center gap-2">
+                        {{ caller('actions') }}
+                    </div>
+
+                    <!-- 6. 危险操作按钮 -->
+                    {{ caller('actions_danger') }}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 可滚动内容区域 -->
+    <div class="flex-1 overflow-y-auto">
+        <div class="px-6 lg:px-10 py-{{ content_gap }}">
+            <div class="max-w-7xl mx-auto flex flex-col gap-{{ content_gap }}">
+                <!-- 全宽内容区域（如项目阶段进度条） -->
+                {{ caller('full_width') }}
+
+                {% if has_sidebar %}
+                <!-- 有侧边栏的布局 -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-{{ content_gap }}">
+                    <!-- 左侧主内容 -->
+                    <div class="lg:col-span-{{ main_cols }} space-y-{{ content_gap }}">
+                        {{ caller('main') }}
+                    </div>
+                    <!-- 右侧边栏 -->
+                    <div class="lg:col-span-{{ sidebar_cols }} space-y-{{ content_gap }}">
+                        {{ caller('sidebar') }}
+                    </div>
+                </div>
+
+                <!-- 全宽内容区域（三列布局之后，如行动记录） -->
+                {{ caller('full_width_after') }}
+                {% else %}
+                <!-- 无侧边栏的布局 -->
+                <div class="space-y-{{ content_gap }}">
+                    {{ caller('content') }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{#
+=============================================================================
+简化版：仅表头组件（不包含内容区域）v3.0
+=============================================================================
+适用于只需要统一表头，内容区域自己控制的场景
+
+使用方式：
+{% from 'components/tw_detail_layout.html' import tw_detail_header %}
+
+{{ tw_detail_header(
+    breadcrumb_items=[
+        {'label': _('客户管理'), 'url': url_for('customer.list')},
+        {'label': company.company_name}
+    ],
+    title=company.company_name,
+    back_url=url_for('customer.list'),
+    status_badges=render_tw_customer_status_badge(company.status),
+    edit_btn={'show': can_edit, 'onclick': 'openEditModal()'},
+    delete_btn={'show': can_delete, 'onclick': 'confirmDelete()'}
+) }}
+=============================================================================
+#}
+
+{% macro tw_detail_header(
+    breadcrumb_items=[],
+    title='',
+    subtitle='',
+    back_url='',
+    back_label=none,
+    prev_url=none,
+    next_url=none,
+    prev_title=none,
+    next_title=none,
+    status_badges=none,
+    show_status_label=true,
+    edit_btn=none,
+    delete_btn=none,
+    extra_actions=[]
+) %}
+{% set _back_label = back_label or _('返回') %}
+{% set _prev_title = prev_title or _('上一个') %}
+{% set _next_title = next_title or _('下一个') %}
+
+<!-- 固定顶部区域：面包屑和标题 -->
+<div class="flex-shrink-0 px-6 lg:px-10 pt-6 lg:pt-10 pb-4 bg-background-light dark:bg-black">
+    <div class="max-w-7xl mx-auto">
+        <!-- 面包屑和标题行 -->
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center justify-between">
+            <div>
+                <!-- 面包屑导航 -->
+                {% if breadcrumb_items %}
+                <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-2">
+                    {% for item in breadcrumb_items %}
+                        {% if item.url %}
+                        <a class="hover:underline hover:text-primary" href="{{ item.url }}">{{ item.label }}</a>
+                        {% else %}
+                        <span class="text-slate-800 dark:text-slate-200">{{ item.label }}</span>
+                        {% endif %}
+                        {% if not loop.last %}
+                        <span>/</span>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+                <!-- 页面标题 -->
+                <h2 class="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{{ title }}</h2>
+                {% if subtitle %}
+                <p class="text-lg text-slate-500 dark:text-slate-400 mt-1">{{ subtitle }}</p>
+                {% endif %}
+            </div>
+
+            <!-- 右侧按钮区域 -->
+            <div class="flex items-center gap-3">
+                <!-- 1. 前后导航按钮（只显示有效方向，无边框） -->
+                {% if prev_url or next_url %}
+                <div class="flex items-center">
+                    {% if prev_url %}
+                    <a href="{{ prev_url }}"
+                       class="p-1.5 text-slate-400 dark:text-slate-400 hover:text-primary dark:hover:text-white transition-colors"
+                       title="{{ _prev_title }}">
+                        <span class="material-symbols-outlined text-xl">chevron_left</span>
+                    </a>
+                    {% endif %}
+                    {% if next_url %}
+                    <a href="{{ next_url }}"
+                       class="p-1.5 text-slate-400 dark:text-slate-400 hover:text-primary dark:hover:text-white transition-colors"
+                       title="{{ _next_title }}">
+                        <span class="material-symbols-outlined text-xl">chevron_right</span>
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- 2. 状态徽章区域 -->
+                {% if status_badges %}
+                <div class="flex items-center gap-2">
+                    {% if show_status_label %}
+                    <span class="text-slate-600 dark:text-slate-400 text-sm">{{ _('状态') }}:</span>
+                    {% endif %}
+                    {{ status_badges }}
+                </div>
+                {% endif %}
+
+                <!-- 3. 返回按钮 -->
+                {% if back_url %}
+                {{ tw_btn_outline(_back_label, href=back_url, icon='arrow_back', size='sm', color='slate') }}
+                {% endif %}
+
+                <!-- 4. 编辑按钮 -->
+                {% if edit_btn and edit_btn.show %}
+                {{ tw_btn_outline(edit_btn.label or _('编辑'), onclick=edit_btn.onclick, icon=edit_btn.icon or 'edit', size='sm', color='slate') }}
+                {% endif %}
+
+                <!-- 5. 删除按钮 -->
+                {% if delete_btn and delete_btn.show %}
+                {{ tw_btn_outline(delete_btn.label or _('删除'), onclick=delete_btn.onclick, icon=delete_btn.icon or 'delete', size='sm', color='danger') }}
+                {% endif %}
+
+                <!-- 6. 额外操作按钮（如：发起审批）- 始终在最右侧 -->
+                {% for action in extra_actions %}
+                    {% if action.show %}
+                        {% set btn_color = action.color or 'slate' %}
+                        {% if btn_color == 'success' %}
+                        <button onclick="{{ action.onclick }}"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors">
+                            {% if action.icon %}<span class="material-symbols-outlined text-lg">{{ action.icon }}</span>{% endif %}
+                            {{ action.label }}
+                        </button>
+                        {% elif btn_color == 'primary' %}
+                        <button onclick="{{ action.onclick }}"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
+                            {% if action.icon %}<span class="material-symbols-outlined text-lg">{{ action.icon }}</span>{% endif %}
+                            {{ action.label }}
+                        </button>
+                        {% else %}
+                        {{ tw_btn_outline(action.label, onclick=action.onclick, icon=action.icon, size='sm', color=btn_color) }}
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}

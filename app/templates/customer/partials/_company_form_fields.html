@@ -1,0 +1,122 @@
+{#
+=============================================================================
+客户表单字段组件
+=============================================================================
+用于新建和编辑客户的共享表单内容
+
+使用方式：
+新建模式：{% include 'customer/partials/_company_form_fields.html' %}
+编辑模式：{% with company_id=company.id %}{% include 'customer/partials/_company_form_fields.html' %}{% endwith %}
+
+参数:
+- company_id: 编辑时传入公司ID，新建时不传（由上下文提供）
+=============================================================================
+#}
+{% from 'components/tw_form_fields.html' import tw_form_field, tw_form_textarea, tw_form_row %}
+
+{# 编辑模式时的隐藏字段 #}
+{% if company_id %}
+<input type="hidden" id="customerFormId" name="company_id" value="{{ company_id }}">
+{% endif %}
+
+<!-- 企业名称 -->
+<div class="relative">
+    <label for="company_name" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ _('企业名称') }}<span class="text-red-500">*</span>
+    </label>
+    <input type="text" id="company_name" name="company_name"
+           data-field-code="company_name"
+           class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm"
+           placeholder="{{ _('请输入企业名称') }}"
+           required>
+    <!-- 名称错误提示 -->
+    <p id="companyNameError" class="hidden mt-1 text-sm text-red-500"></p>
+    <!-- 相似企业建议列表 -->
+    <div id="companySuggestions" class="hidden absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto"></div>
+</div>
+
+<!-- 国家/地区 和 省/州 -->
+{% call tw_form_row(cols=2) %}
+    <div>
+        <label for="country" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            {{ _('国家/地区') }}<span class="text-red-500">*</span>
+        </label>
+        <select id="country" name="country"
+                data-field-code="country"
+                class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm"
+                required>
+            <option value="">{{ _('请选择国家') }}</option>
+        </select>
+    </div>
+    <div>
+        <label for="region" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            {{ _('省/州') }}<span class="text-red-500">*</span>
+        </label>
+        <select id="region" name="region"
+                data-field-code="region"
+                class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm"
+                required>
+            <option value="">{{ _('请选择省/州') }}</option>
+        </select>
+    </div>
+{% endcall %}
+
+<!-- 详细地址 -->
+<div>
+    <label for="address" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ _('详细地址') }}
+    </label>
+    <input type="text" id="address" name="address"
+           data-field-code="address"
+           class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm"
+           placeholder="{{ _('示例：中国 北京市 朝阳区xx路') }}">
+</div>
+
+<!-- 行业 和 企业类型 -->
+{% call tw_form_row(cols=2) %}
+    <div>
+        <label for="industry" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            {{ _('行业') }}
+        </label>
+        <select id="industry" name="industry"
+                data-field-code="industry"
+                class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
+            <option value="">{{ _('请选择行业') }}</option>
+        </select>
+    </div>
+    <div>
+        <label for="company_type" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            {{ _('企业类型') }}<span class="text-red-500">*</span>
+        </label>
+        <select id="company_type" name="company_type"
+                data-field-code="company_type"
+                class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm"
+                required>
+            <option value="">{{ _('请选择企业类型') }}</option>
+        </select>
+    </div>
+{% endcall %}
+
+<!-- 来源 -->
+<div>
+    <label for="source" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ _('来源') }}<span class="text-red-500">*</span>
+    </label>
+    <select id="source" name="source"
+            data-field-code="source"
+            class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm"
+            required>
+        <option value="">{{ _('请选择来源') }}</option>
+    </select>
+</div>
+
+<!-- 备注 -->
+<div>
+    <label for="notes" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ _('备注') }}
+    </label>
+    <textarea id="notes" name="notes" rows="3"
+              data-field-code="notes"
+              class="form-textarea block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm resize-none shadow-sm"
+              placeholder="{{ _('请输入备注信息') }}"></textarea>
+</div>

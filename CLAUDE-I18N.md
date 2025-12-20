@@ -141,6 +141,56 @@ PROJECT_TYPE_LABELS = {
 | 公司类型 | `COMPANY_TYPE_LABELS` | 公司类型显示 |
 | 产品状态 | `PRODUCT_SITUATION_LABELS` | 产品状态徽章 |
 
+### **语言感知过滤器规范（make_i18n_filter）**
+
+所有 `*_label` 类过滤器已通过 `make_i18n_filter` 工厂函数包装，**自动检测当前语言**。
+
+**工厂函数位置**：`app/utils/dictionary_helpers.py`
+
+```python
+def make_i18n_filter(label_func):
+    """创建语言感知的 Jinja2 过滤器包装器"""
+    def wrapper(key, lang=None):
+        if lang is None:
+            lang = get_current_language() or 'zh'
+        return label_func(key, lang)
+    return wrapper
+```
+
+**✅ 正确用法（不传参数，自动检测语言）**：
+```jinja2
+{{ project.report_source | report_source_label }}
+{{ project.product_situation | product_situation_label }}
+{{ project.current_stage | project_stage_label }}
+```
+
+**❌ 错误用法（硬编码语言）**：
+```jinja2
+{{ project.report_source | report_source_label('zh') }}  {# 禁止！ #}
+```
+
+**已包装的过滤器清单**：
+
+| 过滤器 | 映射常量 | 用途 |
+|-------|---------|------|
+| `report_source_label` | `REPORT_SOURCE_LABELS` | 报备来源 |
+| `authorization_status_label` | `AUTHORIZATION_STATUS_LABELS` | 授权状态 |
+| `company_type_label` | `COMPANY_TYPE_LABELS` | 公司类型 |
+| `product_situation_label` | `PRODUCT_SITUATION_LABELS` | 品牌植入状态 |
+| `industry_label` | `INDUSTRY_LABELS` | 行业分类 |
+| `status_label` | `STATUS_LABELS` | 通用状态 |
+| `share_permission_label` | - | 共享权限 |
+| `approval_status_label` | `APPROVAL_STATUS_LABELS` | 审批状态 |
+| `product_type_label` | `PRODUCT_TYPE_LABELS` | 产品类型 |
+| `product_status_label` | `PRODUCT_STATUS_LABELS` | 产品状态 |
+| `dev_product_status_label` | `DEV_PRODUCT_STATUS_LABELS` | 研发产品状态 |
+| `active_status_label` | `ACTIVE_STATUS_LABELS` | 启用状态 |
+
+**新增 label 函数时**：
+1. 在 `dictionary_helpers.py` 中定义映射常量和 label 函数
+2. 在 `__init__.py` 中用 `make_i18n_filter` 包装后注册为过滤器
+3. 模板中直接使用 `{{ value | xxx_label }}`，无需传参
+
 ## 🔄 避免重复翻译的策略
 
 ### **翻译前强制检查流程**

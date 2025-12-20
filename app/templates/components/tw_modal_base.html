@@ -1,0 +1,216 @@
+{#
+=============================================================================
+Tailwind 模态框基础组件
+=============================================================================
+统一的模态框基础结构组件，提供一致的样式和行为。
+
+导入方式：
+  { % from 'components/tw_modal_base.html' import tw_modal, tw_sub_modal, tw_close_btn % }
+
+方式1：使用完整模态框宏
+  { % call tw_modal('myModal', title='标题', close_action='closeModal()') % }
+      <div class="p-6">内容区域</div>
+  { % endcall % }
+
+方式2：只使用关闭按钮
+  { { tw_close_btn('closeModal()') } }
+
+方式3：组合使用独立宏
+  { { tw_modal_header('modal1', title='标题', close_action='closeModal()') } }
+  { % call tw_modal_content() % }
+      <p>内容</p>
+  { % endcall % }
+  { { tw_modal_footer(cancel_text='取消', submit_text='确定') } }
+
+组件说明：
+完整模态框：
+- tw_modal: 主模态框，白色背景，有关闭按钮和头部边框
+- tw_sub_modal: 子模态框，浅灰背景，无关闭按钮
+
+独立组件（可单独使用或组合）：
+- tw_close_btn: 关闭按钮，高对比度悬浮效果
+- tw_modal_header: 独立头部，可配置边框和关闭按钮
+- tw_modal_content: 独立内容容器，可滚动
+- tw_modal_footer: 独立底部按钮区
+=============================================================================
+#}
+
+{# ============= 关闭按钮组件 ============= #}
+{#
+高对比度关闭按钮
+- 浅色模式悬浮: 黑色文字
+- 深色模式悬浮: 白色文字
+
+参数:
+- onclick: 点击事件处理函数（原生JS）
+- alpine_click: Alpine.js @click 事件（可选，与 onclick 二选一）
+#}
+{% macro tw_close_btn(onclick='', alpine_click='') %}
+<button type="button"
+    {% if alpine_click %}@click="{{ alpine_click }}"{% elif onclick %}onclick="{{ onclick }}"{% endif %}
+    class="p-1.5 rounded-full text-slate-400 hover:text-slate-900
+           dark:text-slate-500 dark:hover:text-white transition-colors">
+    <span class="material-symbols-outlined text-xl">close</span>
+</button>
+{% endmacro %}
+
+{# ============= 主模态框 ============= #}
+{#
+主模态框 - 白色背景，有关闭按钮，可配置头部边框
+
+参数:
+- modal_id: 模态框ID (必需)
+- title: 标题文本
+- subtitle: 副标题文本 (可选)
+- z_index: z-index类，默认 'z-50'
+- max_width: 最大宽度类，默认 'max-w-lg'
+- max_height: 最大高度类 (可选，如 'max-h-[90vh]')
+- close_action: 关闭操作的JS代码
+- backdrop_blur: 是否启用背景毛玻璃效果，默认 false
+- header_border: 是否显示头部底部边框，默认 true
+
+使用 {% call %} 语法传入内容区域
+#}
+{% macro tw_modal(modal_id, title='', subtitle='', z_index='z-50', max_width='max-w-lg',
+                  max_height='', close_action='', backdrop_blur=false, header_border=true) %}
+<div id="{{ modal_id }}" class="fixed inset-0 {{ z_index }} hidden" role="dialog" aria-modal="true">
+    {# 遮罩层 #}
+    <div class="fixed inset-0 bg-black/50 {% if backdrop_blur %}backdrop-blur-sm{% endif %} transition-opacity"
+         {% if close_action %}onclick="{{ close_action }}"{% endif %}></div>
+    {# 居中容器 #}
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        {# 模态框主体 #}
+        <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full {{ max_width }}
+                    {% if max_height %}{{ max_height }} overflow-hidden{% endif %}">
+            {# 头部 #}
+            <header class="flex items-center justify-between px-6 py-4 flex-shrink-0
+                           {% if header_border %}border-b border-slate-200 dark:border-slate-700{% endif %}">
+                <div>
+                    <h2 id="{{ modal_id }}-title" class="text-lg font-semibold text-slate-900 dark:text-white">{{ title }}</h2>
+                    <p id="{{ modal_id }}-subtitle" class="text-sm text-slate-500 dark:text-slate-400 mt-0.5 {% if not subtitle %}hidden{% endif %}">{{ subtitle }}</p>
+                </div>
+                {{ tw_close_btn(close_action) }}
+            </header>
+            {# 内容插槽 #}
+            {{ caller() }}
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{# ============= 子模态框 ============= #}
+{#
+子模态框 - 浅灰背景，无关闭按钮，无头部边框
+
+参数:
+- modal_id: 模态框ID (必需)
+- title: 标题文本
+- icon: Material Symbols 图标名称 (可选)
+- icon_color: 图标颜色类，默认 'text-primary'
+- z_index: z-index类，默认 'z-[10000]' (比主模态框高)
+- max_width: 最大宽度类，默认 'max-w-md'
+- close_action: 点击遮罩关闭的JS代码
+
+使用 {% call %} 语法传入内容区域
+#}
+{% macro tw_sub_modal(modal_id, title='', icon='', icon_color='text-primary',
+                      z_index='z-[10000]', max_width='max-w-md', close_action='') %}
+<div id="{{ modal_id }}" class="fixed inset-0 {{ z_index }} hidden" role="dialog" aria-modal="true">
+    {# 遮罩层 #}
+    <div class="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/75 transition-opacity"
+         {% if close_action %}onclick="{{ close_action }}"{% endif %}></div>
+    {# 居中容器 #}
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        {# 模态框主体 #}
+        <div class="bg-slate-100 dark:bg-slate-800 rounded-xl shadow-xl w-full {{ max_width }}">
+            {# 头部（无边框） #}
+            <div class="p-5 pb-0">
+                <h3 class="flex items-center text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">
+                    {% if icon %}<span id="{{ modal_id }}-icon" class="material-symbols-outlined {{ icon_color }} text-xl mr-2">{{ icon }}</span>{% endif %}
+                    <span id="{{ modal_id }}-title">{{ title }}</span>
+                </h3>
+            </div>
+            {# 内容插槽 #}
+            {{ caller() }}
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{# ============= 独立头部组件 ============= #}
+{#
+可独立使用的模态框头部，适用于自定义模态框结构
+
+参数:
+- modal_id: 模态框ID (用于生成标题元素ID)
+- title: 标题文本
+- subtitle: 副标题文本 (可选)
+- close_action: 关闭操作的JS代码 (可选)
+- show_close: 是否显示关闭按钮，默认 true
+- border: 是否显示底部边框，默认 true
+
+使用示例:
+{{ tw_modal_header('myModal', title='标题', close_action='closeModal()') }}
+#}
+{% macro tw_modal_header(modal_id, title='', subtitle='', close_action='', show_close=true, border=true) %}
+<header class="flex items-center justify-between px-6 py-4 flex-shrink-0
+               {% if border %}border-b border-slate-200 dark:border-slate-700{% endif %}">
+    <div>
+        <h2 id="{{ modal_id }}-title" class="text-lg font-semibold text-slate-900 dark:text-white">{{ title }}</h2>
+        <p id="{{ modal_id }}-subtitle" class="text-sm text-slate-500 dark:text-slate-400 mt-0.5 {% if not subtitle %}hidden{% endif %}">{{ subtitle }}</p>
+    </div>
+    {% if show_close %}{{ tw_close_btn(close_action) }}{% endif %}
+</header>
+{% endmacro %}
+
+{# ============= 独立内容容器 ============= #}
+{#
+可独立使用的模态框内容区域
+
+参数:
+- padding: 内边距类，默认 'p-6'
+- scrollable: 是否可滚动，默认 true
+- class: 额外CSS类
+
+使用 {% call %} 语法传入内容
+#}
+{% macro tw_modal_content(padding='p-6', scrollable=true, class='') %}
+<div class="{% if scrollable %}flex-1 overflow-y-auto{% endif %} {{ padding }} {{ class }}">
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+{# ============= 独立底部组件 ============= #}
+{#
+可独立使用的模态框底部按钮区
+
+参数:
+- cancel_text: 取消按钮文本 (可选，为空则不显示)
+- submit_text: 提交按钮文本 (可选，为空则不显示)
+- cancel_onclick: 取消按钮点击事件
+- submit_onclick: 提交按钮点击事件
+- submit_id: 提交按钮ID (可选)
+- submit_type: 提交按钮类型，默认 'button'
+- border: 是否显示顶部边框，默认 true
+
+使用示例:
+{{ tw_modal_footer(cancel_text='取消', submit_text='确定', cancel_onclick='closeModal()', submit_onclick='handleSubmit()') }}
+#}
+{% macro tw_modal_footer(cancel_text='', submit_text='', cancel_onclick='', submit_onclick='',
+                         submit_id='', submit_type='button', border=true) %}
+<footer class="flex-shrink-0 flex items-center justify-end gap-3 px-6 py-5 bg-slate-50/50 dark:bg-slate-800/30
+               {% if border %}border-t border-slate-200 dark:border-slate-800{% endif %}">
+    {% if cancel_text %}
+    <button type="button" {% if cancel_onclick %}onclick="{{ cancel_onclick }}"{% endif %}
+        class="h-10 px-5 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+        {{ cancel_text }}
+    </button>
+    {% endif %}
+    {% if submit_text %}
+    <button type="{{ submit_type }}" {% if submit_id %}id="{{ submit_id }}"{% endif %} {% if submit_onclick %}onclick="{{ submit_onclick }}"{% endif %}
+        class="h-10 px-5 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary/90 shadow-sm transition-colors">
+        {{ submit_text }}
+    </button>
+    {% endif %}
+</footer>
+{% endmacro %}

@@ -13,7 +13,7 @@ from app.utils.smart_module_configs import SmartModuleConfigRegistry
 
 # 注册模块配置
 SmartModuleConfigRegistry.register('quotation', {
-    'source_template': 'quotation/quotation_rows.html',
+    'source_template': 'quotation/tw_list_rows.html',
     'title_field': 'quotation_number',
     'priority_fields': ['owner', 'amount', 'project_name'],
     'badge_fields': ['approval_status', 'amount'],
@@ -46,12 +46,12 @@ class SmartModuleConfigRegistry:
             module_name: 模块名称
             config: 简化配置
                 {
-                    'source_template': 'quotation/quotation_rows.html',  # 来源桌面端模板
+                    'source_template': 'quotation/tw_list_rows.html',  # 来源桌面端模板
                     'title_field': 'quotation_number',                   # 标题字段
                     'priority_fields': ['owner', 'amount'],              # 优先显示字段
                     'badge_fields': ['approval_status', 'amount'],       # 徽章字段
                     'exclude_fields': ['updated_at'],                    # 排除字段
-                    'desktop_template': 'quotation/quotation_rows.html', # 桌面端模板(可选)
+                    'desktop_template': 'quotation/tw_list_rows.html', # 桌面端模板(可选)
                     'items_var_name': 'quotations',                      # 变量名(可选)
                     'link_url': '/quotation/view/{id}',                  # 详情链接(可选)
                 }
@@ -411,8 +411,8 @@ def register_all_smart_module_configs():
     
     # 报价单管理模块
     SmartModuleConfigRegistry.register('quotation', {
-        'source_template': 'quotation/quotation_rows.html',
-        'desktop_template': 'quotation/quotation_rows.html',
+        'source_template': 'quotation/tw_list_rows.html',
+        'desktop_template': 'quotation/tw_list_rows.html',
         'items_var_name': 'quotations',
         'title_field': 'quotation_number',
         'link_url': '/quotation/view/{id}',
@@ -433,10 +433,10 @@ def register_all_smart_module_configs():
         'exclude_fields': []
     })
     
-    # 产品管理模块
+    # 产品库模块
     SmartModuleConfigRegistry.register('product', {
-        'source_template': 'product/product_rows.html',
-        'desktop_template': 'product/product_rows.html',
+        'source_template': 'product/tw_list_rows.html',
+        'desktop_template': 'product/tw_list_rows.html',
         'items_var_name': 'products',
         'title_field': 'product_name',
         'link_url': '/product/view/{id}',
@@ -444,11 +444,23 @@ def register_all_smart_module_configs():
         'badge_fields': ['type', 'status'],
         'exclude_fields': []
     })
-    
+
+    # 研发库模块
+    SmartModuleConfigRegistry.register('product_management', {
+        'source_template': 'product_management/tw_list_rows.html',
+        'desktop_template': 'product_management/tw_list_rows.html',
+        'items_var_name': 'products',
+        'title_field': 'model',
+        'link_url': '/product-management/{id}',
+        'priority_fields': ['mn_code', 'category', 'creator'],
+        'badge_fields': ['status'],
+        'exclude_fields': []
+    })
+
     # 报销管理模块
     SmartModuleConfigRegistry.register('expense', {
-        'source_template': 'expense/expense_rows.html',
-        'desktop_template': 'expense/expense_rows.html', 
+        'source_template': 'expense/tw_list_rows.html',
+        'desktop_template': 'expense/tw_list_rows.html',
         'items_var_name': 'expenses',
         'title_field': 'expense_number',
         'link_url': '/expense/detail/{id}',

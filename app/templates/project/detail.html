@@ -145,7 +145,7 @@
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'industry')) }}：</strong></div>
-                                <div class="col-md-8">{% if project.industry %}{{ render_industry_badge(project.industry, current_language) }}{% endif %}</div>
+                                <div class="col-md-8">{% if project.industry %}{{ render_industry_badge(project.industry) }}{% endif %}</div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>{{ _(mapping_manager.get_field_display_name('project', 'current_stage')) }}：</strong></div>

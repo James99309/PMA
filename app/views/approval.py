@@ -122,6 +122,413 @@ def center():
         return f"<h1>Error in approval center:</h1><pre>{error_detail}</pre>", 500
 
 
+@approval_bp.route('/tw_center')
+@login_required
+def tw_center():
+    """审批中心视图 - Tailwind CSS 版本"""
+    try:
+        # 获取统计数据
+        from app.helpers.approval_helpers import (
+            get_pending_approval_count,
+            get_pending_created_count,
+            get_pricing_order_pending_count,
+            get_order_pending_count,
+            get_expense_pending_count
+        )
+
+        pending_count = get_pending_approval_count(current_user.id, force_refresh=True)
+        created_pending_count = get_pending_created_count(current_user.id)
+        pricing_order_pending_count = get_pricing_order_pending_count(current_user.id)
+        order_pending_count = get_order_pending_count(current_user.id)
+        expense_pending_count = get_expense_pending_count(current_user.id)
+
+        total_pending_count = pending_count + pricing_order_pending_count + order_pending_count + expense_pending_count
+
+        # 智能页签选择
+        tab_param = request.args.get('tab')
+        if tab_param and tab_param == 'pending' and total_pending_count == 0:
+            tab = 'created'
+        elif tab_param:
+            tab = tab_param
+        else:
+            tab = 'pending' if total_pending_count > 0 else 'created'
+
+        # 其他参数
+        object_type = request.args.get('object_type', '')
+        status = request.args.get('status', '')
+        search_value = request.args.get('search', '')
+        sort_field = request.args.get('sort', 'started_at')
+        sort_order = request.args.get('order', 'desc')
+        offset = request.args.get('offset', 0, type=int)
+        limit = request.args.get('limit', 20, type=int)
+
+        # 获取初始数据
+        items, total_count, has_more = get_tw_approval_items(
+            tab=tab,
+            object_type=object_type,
+            status=status,
+            offset=offset,
+            limit=limit
+        )
+
+        # 统计数据
+        stats = {
+            'total': pending_count + created_pending_count + pricing_order_pending_count + order_pending_count + expense_pending_count,
+            'pending': pending_count,
+            'created': created_pending_count,
+            'pricing_order': pricing_order_pending_count,
+            'order': order_pending_count,
+            'expense': expense_pending_count
+        }
+
+        # 标签页配置
+        tab_config = [
+            {'key': 'pending', 'label': _('待我审批'), 'icon': 'hourglass_top', 'icon_class': 'text-amber-500', 'count': pending_count},
+            {'key': 'created', 'label': _('我发起的'), 'icon': 'upload_file', 'count': created_pending_count},
+            {'key': 'pricing_order', 'label': _('批价单'), 'icon': 'receipt_long', 'count': pricing_order_pending_count},
+            {'key': 'order', 'label': _('订单'), 'icon': 'shopping_cart', 'count': order_pending_count},
+            {'key': 'expense', 'label': _('报销单'), 'icon': 'payments', 'count': expense_pending_count}
+        ]
+
+        # 如果有全部审批权限，添加全部审批标签页
+        if has_permission('approval_management', 'all'):
+            tab_config.append({'key': 'all', 'label': _('全部'), 'icon': 'checklist'})
+
+        # 筛选字段配置
+        filter_fields = [
+            {
+                'name': 'object_type',
+                'label': _('业务类型'),
+                'all_option_text': _('全部类型'),
+                'current_value': object_type,
+                'options': [
+                    {'value': 'project', 'label': _('项目')},
+                    {'value': 'quotation', 'label': _('报价单')},
+                    {'value': 'customer', 'label': _('客户')},
+                    {'value': 'purchase_order', 'label': _('采购订单')},
+                    {'value': 'pricing_order', 'label': _('批价单')},
+                    {'value': 'expense', 'label': _('报销单')}
+                ]
+            },
+            {
+                'name': 'status',
+                'label': _('审批状态'),
+                'all_option_text': _('全部状态'),
+                'current_value': status,
+                'options': [
+                    {'value': 'draft', 'label': _('草稿')},
+                    {'value': 'pending', 'label': _('审批中')},
+                    {'value': 'approved', 'label': _('已通过')},
+                    {'value': 'rejected', 'label': _('已拒绝')},
+                    {'value': 'recalled', 'label': _('已召回')}
+                ]
+            }
+        ]
+
+        # 表格列配置
+        table_columns = [
+            {'field': 'approval_number', 'label': _('审批编号'), 'min_width': '120px'},
+            {'field': 'project_name', 'label': _('关联项目'), 'min_width': '150px'},
+            {'field': 'process_name', 'label': _('流程名称'), 'min_width': '180px'},
+            {'field': 'object_type', 'label': _('关联业务'), 'min_width': '100px'},
+            {'field': 'creator', 'label': _('提交人'), 'min_width': '80px'},
+            {'field': 'current_approver', 'label': _('当前审批人'), 'min_width': '100px'},
+            {'field': 'status', 'label': _('状态'), 'min_width': '80px'},
+            {'field': 'started_at', 'label': _('发起时间'), 'min_width': '140px'}
+        ]
+
+        # 计算结算单可见权限
+        from app.services.pricing_order_service import PricingOrderService
+        can_view_settlement = PricingOrderService.can_view_settlement_tab(current_user)
+
+        return render_template(
+            'approval/tw_center.html',
+            current_tab=tab,
+            tab_config=tab_config,
+            stats=stats,
+            filter_fields=filter_fields,
+            search_value=search_value,
+            table_columns=table_columns,
+            items=items,
+            total_count=total_count,
+            has_more=has_more,
+            sort_field=sort_field,
+            sort_order=sort_order,
+            offset=offset,
+            limit=limit,
+            can_view_settlement=can_view_settlement
+        )
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        current_app.logger.error(f"tw_center error: {error_detail}")
+        return f"<h1>Error in approval center:</h1><pre>{error_detail}</pre>", 500
+
+
+@approval_bp.route('/tw_center_ajax')
+@login_required
+def tw_center_ajax():
+    """审批中心 AJAX 端点 - Tailwind CSS 版本"""
+    try:
+        # 获取参数
+        tab = request.args.get('tab', 'created')
+        object_type = request.args.get('object_type', '')
+        status = request.args.get('status', '')
+        search = request.args.get('search', '').strip()
+        offset = request.args.get('offset', 0, type=int)
+        limit = request.args.get('limit', 20, type=int)
+        sort_field = request.args.get('sort', 'started_at')
+        sort_order = request.args.get('order', 'desc')
+
+        # 获取数据
+        items, total_count, has_more = get_tw_approval_items(
+            tab=tab,
+            object_type=object_type,
+            status=status,
+            offset=offset,
+            limit=limit
+        )
+
+        # 渲染行 HTML
+        html = render_template(
+            'approval/tw_center_rows.html',
+            items=items
+        )
+
+        # 获取统计数据
+        from app.helpers.approval_helpers import (
+            get_pending_approval_count,
+            get_pending_created_count,
+            get_pricing_order_pending_count,
+            get_order_pending_count,
+            get_expense_pending_count
+        )
+
+        pending_count = get_pending_approval_count(current_user.id)
+        created_count = get_pending_created_count(current_user.id)
+        pricing_order_count = get_pricing_order_pending_count(current_user.id)
+        order_count = get_order_pending_count(current_user.id)
+        expense_count = get_expense_pending_count(current_user.id)
+
+        statistics = {
+            'total': pending_count + created_count + pricing_order_count + order_count + expense_count,
+            'pending': pending_count,
+            'created': created_count,
+            'pricing_order': pricing_order_count,
+            'order': order_count,
+            'expense': expense_count
+        }
+
+        tab_counts = {
+            'created': created_count,
+            'pending': pending_count,
+            'pricing_order': pricing_order_count,
+            'order': order_count,
+            'expense': expense_count
+        }
+
+        return jsonify({
+            'success': True,
+            'html': html,
+            'total_count': total_count,
+            'loaded_count': len(items),
+            'has_more': has_more,
+            'statistics': statistics,
+            'tab_counts': tab_counts
+        })
+
+    except Exception as e:
+        import traceback
+        current_app.logger.error(f"tw_center_ajax error: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'message': str(e),
+            'html': '<tr><td colspan="8" class="p-12 text-center"><span class="text-slate-500">数据加载失败</span></td></tr>'
+        }), 500
+
+
+def get_tw_approval_items(tab, object_type, status, offset=0, limit=20):
+    """获取审批项目列表（用于 Tailwind 版本）
+
+    Returns:
+        tuple: (items, total_count, has_more)
+    """
+    from app.helpers.approval_helpers import (
+        get_user_created_approvals,
+        get_user_pending_approvals,
+        get_all_approvals,
+        get_user_pricing_order_approvals,
+        get_user_order_approvals
+    )
+
+    page = (offset // limit) + 1 if limit > 0 else 1
+    per_page = limit
+
+    try:
+        if tab == 'pending':
+            if status and status not in ['', 'pending']:
+                return [], 0, False
+            approvals = get_user_pending_approvals(
+                user_id=current_user.id,
+                object_type=object_type if object_type else None,
+                page=page,
+                per_page=per_page
+            )
+        elif tab == 'pricing_order':
+            approvals = get_user_pricing_order_approvals(
+                user_id=current_user.id,
+                status=status if status else None,
+                page=page,
+                per_page=per_page
+            )
+        elif tab == 'order':
+            approvals = get_user_order_approvals(
+                user_id=current_user.id,
+                status_filter=status if status else None,
+                page=page,
+                per_page=per_page
+            )
+        elif tab == 'expense':
+            approvals = get_user_created_approvals(
+                user_id=current_user.id,
+                object_type='expense',
+                status=status if status else None,
+                page=page,
+                per_page=per_page
+            )
+        elif tab == 'all' and has_permission('approval_management', 'all'):
+            approvals = get_all_approvals(
+                object_type=object_type if object_type else None,
+                status=status if status else None,
+                page=page,
+                per_page=per_page
+            )
+        else:  # created
+            if status == 'draft':
+                object_type = 'pricing_order'
+            approvals = get_user_created_approvals(
+                user_id=current_user.id,
+                object_type=object_type if object_type else None,
+                status=status if status else None,
+                page=page,
+                per_page=per_page
+            )
+
+        # 转换为统一格式
+        items = []
+        raw_items = approvals.items if hasattr(approvals, 'items') else approvals
+
+        for item in raw_items:
+            items.append(convert_approval_item(item, tab))
+
+        total_count = approvals.total if hasattr(approvals, 'total') else len(items)
+        has_more = approvals.has_next if hasattr(approvals, 'has_next') else False
+
+        return items, total_count, has_more
+
+    except Exception as e:
+        current_app.logger.error(f"get_tw_approval_items error: {str(e)}")
+        return [], 0, False
+
+
+def convert_approval_item(item, tab):
+    """将审批项目转换为统一的字典格式"""
+    from app.helpers.approval_helpers import get_current_step_info, get_last_approver, get_step_actual_approver
+
+    result = {
+        'id': None,
+        'object_id': None,  # 业务对象ID（用于链接到详情页）
+        'approval_number': None,
+        'project_name': None,
+        'process_name': None,
+        'object_type': None,
+        'creator': None,
+        'current_approver': None,
+        'status': None,
+        'started_at': None
+    }
+
+    try:
+        # 根据不同类型的审批项提取数据
+        if hasattr(item, 'wrapper_type'):
+            # PricingOrderApprovalWrapper, ExpenseApprovalWrapper, OrderApprovalWrapper
+            if item.wrapper_type == 'pricing_order':
+                result['id'] = f'po_{item.id}'
+                result['object_id'] = item.id
+                result['approval_number'] = f'APV-po_{item.id}'
+                result['project_name'] = getattr(item, 'project_name', None)
+                result['process_name'] = _('批价单审批流程')
+                result['object_type'] = 'pricing_order'
+                result['creator'] = item.created_by if hasattr(item, 'created_by') else None
+                result['status'] = item.approval_status if hasattr(item, 'approval_status') else 'draft'
+                result['started_at'] = item.created_at if hasattr(item, 'created_at') else None
+            elif item.wrapper_type == 'expense':
+                result['id'] = f'expense_{item.id}'
+                result['object_id'] = item.id
+                result['approval_number'] = f'APV-expense_{item.id}'
+                result['project_name'] = None
+                result['process_name'] = _('报销单审批流程')
+                result['object_type'] = 'expense'
+                result['creator'] = item.owner if hasattr(item, 'owner') else None
+                result['status'] = item.approval_status if hasattr(item, 'approval_status') else 'draft'
+                result['started_at'] = item.created_at if hasattr(item, 'created_at') else None
+            elif item.wrapper_type == 'order':
+                result['id'] = f'order_{item.id}'
+                result['object_id'] = item.id
+                result['approval_number'] = f'APV-order_{item.id}'
+                result['project_name'] = None
+                result['process_name'] = _('订单审批流程')
+                result['object_type'] = 'purchase_order'
+                result['creator'] = item.created_by if hasattr(item, 'created_by') else None
+                result['status'] = item.approval_status if hasattr(item, 'approval_status') else 'draft'
+                result['started_at'] = item.created_at if hasattr(item, 'created_at') else None
+        else:
+            # ApprovalInstance
+            result['id'] = item.id
+            result['object_id'] = item.object_id if hasattr(item, 'object_id') else None
+            result['approval_number'] = f'APV-{item.id}'
+            result['object_type'] = item.object_type if hasattr(item, 'object_type') else None
+            result['creator'] = item.created_by_user if hasattr(item, 'created_by_user') else None
+            result['started_at'] = item.started_at if hasattr(item, 'started_at') else None
+
+            # 获取流程名称
+            if hasattr(item, 'process') and item.process:
+                result['process_name'] = item.process.name
+            elif hasattr(item, 'template_snapshot') and item.template_snapshot:
+                result['process_name'] = item.template_snapshot.get('name', _('未知流程'))
+            else:
+                result['process_name'] = _('未知流程')
+
+            # 获取关联项目名称
+            if result['object_type'] == 'project' and hasattr(item, 'object_id'):
+                from app.models.project import Project
+                project = Project.query.get(item.object_id)
+                if project:
+                    result['project_name'] = project.name
+
+            # 获取状态
+            if hasattr(item, 'status'):
+                status = item.status
+                if hasattr(status, 'value'):
+                    result['status'] = status.value
+                elif hasattr(status, 'name'):
+                    result['status'] = status.name.lower()
+                else:
+                    result['status'] = str(status).lower()
+
+            # 获取当前审批人
+            try:
+                current_step = item.get_current_step_info() if hasattr(item, 'get_current_step_info') else None
+                if current_step:
+                    result['current_approver'] = get_step_actual_approver(current_step, item)
+            except:
+                pass
+
+    except Exception as e:
+        current_app.logger.error(f"convert_approval_item error: {str(e)}")
+
+    return type('ApprovalItem', (), result)()
+
 
 @approval_bp.route('/detail/<string:instance_id>')
 @login_required
@@ -159,7 +566,7 @@ def detail(instance_id):
         try:
             order_id = int(instance_id.split('_')[1])
             # 重定向到订单详情页面
-            return redirect(url_for('inventory.order_detail', order_id=order_id))
+            return redirect(url_for('inventory.order_detail', id=order_id))
         except (ValueError, IndexError):
             flash(_('无效的订单审批ID'), 'danger')
             return redirect(url_for('approval.center'))

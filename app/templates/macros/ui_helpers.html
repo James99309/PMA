@@ -80,90 +80,19 @@
 {% endmacro %}
 
 {% macro render_project_stage(stage) %}
-  {# 中文显示映射 #}
-  {% set stage_map_zh = {
-    'discover': '发现',
-    'embed': '植入',
-    'pre_tender': '招标前',
-    'tendering': '招标中',
-    'awarded': '中标',
-    'quoted': '批价',
-    'signed': '签约',
-    'lost': '失败',
-    'paused': '搁置'
-  } %}
-  
-  {# 英文显示映射 #}
-  {% set stage_map_en = {
-    'discover': 'Discovery',
-    'embed': 'Implant',
-    'pre_tender': 'Pre-tender',
-    'tendering': 'Tendering',
-    'awarded': 'Awarded',
-    'quoted': 'Price Approval',
-    'signed': 'Signed',
-    'lost': 'Failed',
-    'paused': 'Suspended'
-  } %}
-  
-  {# 处理中文到键的映射 #}
-  {% set key_map = {
-    '发现': 'discover',
-    '植入': 'embed',
-    '招标前': 'pre_tender',
-    '招标中': 'tendering',
-    '中标': 'awarded',
-    '批价': 'quoted',
-    '签约': 'signed',
-    '失败': 'lost',
-    '搁置': 'paused'
-  } %}
-  
-  {% set stage_key = key_map.get(stage, stage) %}
-  
-  {# 通过测试已知翻译来检测当前语言 #}
-  {% set is_english = (_('搜索') == 'Search') %}
-  {% set lang_code = 'en' if is_english else 'zh' %}
-  
-  {# 根据语言选择显示文本 #}
-  {% if lang_code == 'en' %}
-    {% set display_text = stage_map_en.get(stage_key, stage) %}
-  {% else %}
-    {% set display_text = stage_map_zh.get(stage_key, stage) %}
-  {% endif %}
-  
-  <span class="badge badge-pill badge-transparent project-stage-{{ stage_key }}">
+  {# 统一使用 dictionary_helpers.py 的过滤器获取标签 #}
+  {% set display_text = stage|project_stage_label %}
+  <span class="badge badge-pill badge-transparent project-stage-{{ stage }}">
     {{ display_text }}
   </span>
 {% endmacro %}
 
 {% macro render_project_type(type) %}
-  {# 使用统一的字典系统 #}
-  {% if not type or type == 'None' or type == '' %}
-    {# 空类型不显示任何内容 #}
-  {% else %}
-    {# 获取显示文本和类型键 #}
+  {# 统一使用 dictionary_helpers.py 的过滤器获取标签 #}
+  {% if type and type != 'None' and type != '' %}
     {% set display_text = type|project_type_label %}
-    {% set type_key = type %}
-    
-    {# 如果输入是中文，尝试获取对应的英文键 #}
-    {% if display_text == type %}
-      {# 可能是中文输入，尝试反向查找 #}
-      {% if type == '渠道跟进' %}
-        {% set type_key = 'channel_follow' %}
-        {% set display_text = type_key|project_type_label %}
-      {% elif type == '销售重点' %}
-        {% set type_key = 'sales_focus' %}
-        {% set display_text = type_key|project_type_label %}
-      {% elif type == '客户服务' %}
-        {% set type_key = 'business_opportunity' %}
-        {% set display_text = type_key|project_type_label %}
-      {% endif %}
-    {% endif %}
-    
-    {# 只有有内容时才渲染徽章 #}
-    {% if display_text and display_text != type_key %}
-      <span class="badge badge-pill badge-transparent project-type-{{ type_key }}">
+    {% if display_text and display_text != type %}
+      <span class="badge badge-pill badge-transparent project-type-{{ type }}">
         {{ display_text }}
       </span>
     {% endif %}
@@ -205,22 +134,25 @@
 {% endmacro %}
 
 {% macro render_approval_badge(approval_status) %}
+  {# 统一使用 dictionary_helpers.py 的过滤器获取标签 #}
   {% if approval_status %}
-    {% set badge_config = {
-      'discover_approved': {'text': '发', 'label': '发现审核'},
-      'embed_approved': {'text': '植', 'label': '植入审核'},
-      'pre_tender_approved': {'text': '招', 'label': '招标前审核'},
-      'tendering_approved': {'text': '标', 'label': '招标中审核'},
-      'awarded_approved': {'text': '中', 'label': '中标审核'},
-      'quoted_approved': {'text': '批', 'label': '批价审核'},
-      'signed_approved': {'text': '签', 'label': '签约审核'},
-      'rejected': {'text': '拒', 'label': '已拒绝'}
-    } %}
-    {% set config = badge_config.get(approval_status, {'text': '?', 'label': approval_status}) %}
-    <span class="badge d-inline-flex align-items-center justify-content-center" 
-          style="background: linear-gradient(135deg, #FFD700, #FFA500); 
-                 color: #8B4513; 
-                 font-size: 0.75rem; 
+    {% set lang = get_current_language() %}
+    {% if approval_status == 'rejected' %}
+      {% set display_text = approval_status|approval_status_label %}
+      {% set short_text = display_text[0:1] if lang == 'zh' else display_text[0:3] %}
+    {% elif approval_status.endswith('_approved') %}
+      {% set stage_key = approval_status.replace('_approved', '') %}
+      {% set stage_text = stage_key|project_stage_label %}
+      {% set display_text = stage_text %}
+      {% set short_text = stage_text[0:1] if lang == 'zh' else stage_text[0:3] %}
+    {% else %}
+      {% set display_text = approval_status %}
+      {% set short_text = '?' %}
+    {% endif %}
+    <span class="badge d-inline-flex align-items-center justify-content-center"
+          style="background: linear-gradient(135deg, #FFD700, #FFA500);
+                 color: #8B4513;
+                 font-size: 0.75rem;
                  font-weight: bold;
                  padding: 0.25em;
                  border: 2px solid #DAA520;
@@ -229,9 +161,9 @@
                  position: relative;
                  box-shadow: 0 2px 4px rgba(255, 215, 0, 0.3);
                  clip-path: polygon(50% 0%, 65% 15%, 85% 15%, 100% 50%, 85% 85%, 65% 85%, 50% 100%, 35% 85%, 15% 85%, 0% 50%, 15% 15%, 35% 15%);"
-          title="{{ config.label }}">
+          title="{{ display_text }}">
       <!-- 中心文字 -->
-      <span style="position: relative; z-index: 1;">{{ config.text }}</span>
+      <span style="position: relative; z-index: 1;">{{ short_text }}</span>
     </span>
   {% endif %}
 {% endmacro %}
@@ -323,24 +255,25 @@
   - status: 研发产品状态值
   - lang: 语言代码(可选，默认从session获取)
 #}
-{% macro render_dev_product_status_badge(status, lang=None) %}
-    {% if not lang %}
-        {% set lang = session.get('language', 'zh') %}
-    {% endif %}
-    
-    {% set status_map = {
-        '调研中': {'zh': '调研中', 'en': 'Research', 'css_class': 'dev-product-status-research'},
-        '立项中': {'zh': '立项中', 'en': 'Project Setup', 'css_class': 'dev-product-status-setup'},
-        '研发中': {'zh': '研发中', 'en': 'Development', 'css_class': 'dev-product-status-development'},
-        '申请入库': {'zh': '申请入库', 'en': 'Applying', 'css_class': 'dev-product-status-applying'},
-        '已入库': {'zh': '已入库', 'en': 'Inventoried', 'css_class': 'dev-product-status-inventoried'}
+{% macro render_dev_product_status_badge(status) %}
+    {# 统一使用 tw-badge 样式和 dictionary_helpers.py 过滤器 #}
+    {% set css_class_map = {
+        'research': 'tw-badge-blue',
+        'planning': 'tw-badge-cyan',
+        'development': 'tw-badge-yellow',
+        'apply_storage': 'tw-badge-orange',
+        'stored': 'tw-badge-green',
+        '调研中': 'tw-badge-blue',
+        '立项中': 'tw-badge-cyan',
+        '研发中': 'tw-badge-yellow',
+        '申请入库': 'tw-badge-orange',
+        '已入库': 'tw-badge-green'
     } %}
-    
-    {% set status_config = status_map.get(status, {'zh': status or '未知', 'en': status or 'Unknown', 'css_class': 'dev-product-status-unknown'}) %}
-    {% set display_text = status_config[lang] %}
-    {% set css_class = status_config.css_class %}
-    
-    <span class="badge dev-product-status-badge rounded-pill {{ css_class }}">
+
+    {% set display_text = status|dev_product_status_label %}
+    {% set css_class = css_class_map.get(status, 'tw-badge-slate') %}
+
+    <span class="tw-badge {{ css_class }}">
         {{ display_text }}
     </span>
 {% endmacro %}
@@ -856,14 +789,14 @@
     {% set color = '#757575' %}  {# 默认灰色 - 第三方产品 #}
     {% set display_type = type %}
     
-    {# 产品类型映射 - 支持英文key和中文显示 #}
+    {# 产品类型映射 - 支持英文key和中文显示（使用缩写） #}
     {% set type_mapping = {
-      'project': {'zh': '项目产品', 'en': 'Project', 'color': '#0D47A1'},
-      'channel': {'zh': '渠道产品', 'en': 'Channel', 'color': '#4FC3F7'},
-      'third_party': {'zh': '第三方产品', 'en': 'Third Party', 'color': '#757575'},
-      '项目产品': {'zh': '项目产品', 'en': 'Project', 'color': '#0D47A1'},
-      '渠道产品': {'zh': '渠道产品', 'en': 'Channel', 'color': '#4FC3F7'},
-      '第三方产品': {'zh': '第三方产品', 'en': 'Third Party', 'color': '#757575'}
+      'project': {'zh': '项目', 'en': 'Project', 'color': '#0D47A1'},
+      'channel': {'zh': '渠道', 'en': 'Channel', 'color': '#4FC3F7'},
+      'third_party': {'zh': '三方', 'en': '3rd Party', 'color': '#757575'},
+      '项目产品': {'zh': '项目', 'en': 'Project', 'color': '#0D47A1'},
+      '渠道产品': {'zh': '渠道', 'en': 'Channel', 'color': '#4FC3F7'},
+      '第三方产品': {'zh': '三方', 'en': '3rd Party', 'color': '#757575'}
     } %}
     {% set type_config = type_mapping.get(type, {'zh': type, 'en': type, 'color': '#6c757d'}) %}
     {% set color = type_config.color %}
@@ -1195,16 +1128,24 @@
   {% endif %}
 {% endmacro %}
 
-{% macro render_tree_select_plugin(name, tree_data, selected_value=None, placeholder='请选择', required=False) %}
+{% macro render_tree_select_plugin(name, tree_data, selected_value=None, placeholder='请选择', required=False, searchable=True) %}
 <div class="tree-select-container">
   <input type="hidden" name="{{ name }}" id="{{ name }}" value="{{ selected_value }}" {% if required %}required{% endif %}>
   <div class="tree-select-wrapper" id="{{ name }}_wrapper">
     <div class="tree-select-input form-control" id="{{ name }}_input">
-      <span class="tree-select-placeholder">{{ placeholder }}</span>
+      <span class="tree-select-placeholder">{{ _(placeholder) }}</span>
       <span class="tree-selected-text" style="display:none;"></span>
       <span class="tree-select-arrow"><i class="fas fa-caret-down"></i></span>
     </div>
     <div class="tree-select-dropdown" id="{{ name }}_dropdown" style="display:none;">
+      {% if searchable %}
+      <!-- 搜索框 -->
+      <div class="tree-search-box mb-2">
+        <input type="text" class="form-control form-control-sm"
+               placeholder="{{ _('搜索...') }}" id="{{ name }}_search"
+               autocomplete="off">
+      </div>
+      {% endif %}
       <div class="tree-container" id="{{ name }}_tree"></div>
     </div>
   </div>
@@ -1238,7 +1179,7 @@
   .tree-select-dropdown {
     position: absolute;
     width: 100%;
-    max-height: 300px;
+    max-height: 350px;
     overflow-y: auto;
     background: white;
     border: 1px solid #ced4da;
@@ -1247,6 +1188,25 @@
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     margin-top: 2px;
     padding: 8px;
+  }
+  .tree-search-box {
+    position: sticky;
+    top: 0;
+    background: white;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eee;
+    z-index: 1;
+  }
+  .tree-search-box input {
+    width: 100%;
+  }
+  .tree-container li.tree-hidden {
+    display: none !important;
+  }
+  .tree-container .tree-label .tree-highlight {
+    background-color: #fff3cd;
+    padding: 0 2px;
+    border-radius: 2px;
   }
   .tree-container {
     width: 100%;
@@ -1454,7 +1414,9 @@
             oldSelected.classList.remove('selected');
           }
           target.classList.add('selected');
-          selectedText.textContent = target.textContent;
+          // 获取原始文本（不含高亮标签）
+          var originalLabel = target.getAttribute('data-original-label') || target.textContent;
+          selectedText.textContent = originalLabel;
           selectedText.style.display = 'inline';
           placeholder.style.display = 'none';
           var nodeId = target.closest('li').getAttribute('data-id');
@@ -1463,7 +1425,123 @@
           e.stopPropagation();
         }
       });
-            
+
+      // 搜索过滤功能
+      var searchInput = document.getElementById(nameId + '_search');
+      if (searchInput) {
+        var searchTimer = null;
+        searchInput.addEventListener('input', function(e) {
+          clearTimeout(searchTimer);
+          searchTimer = setTimeout(function() {
+            filterTree(e.target.value.toLowerCase().trim());
+          }, 150);
+        });
+
+        // 阻止搜索框回车提交表单
+        searchInput.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+          }
+        });
+
+        function filterTree(keyword) {
+          var allItems = tree.querySelectorAll('li');
+
+          // 保存所有节点的原始label文本
+          allItems.forEach(function(li) {
+            var label = li.querySelector(':scope > .tree-node > .tree-label');
+            if (label && !label.getAttribute('data-original-label')) {
+              label.setAttribute('data-original-label', label.textContent);
+            }
+          });
+
+          if (!keyword) {
+            // 清空搜索时恢复原状
+            allItems.forEach(function(li) {
+              li.classList.remove('tree-hidden');
+              var label = li.querySelector(':scope > .tree-node > .tree-label');
+              if (label) {
+                var originalLabel = label.getAttribute('data-original-label');
+                if (originalLabel) {
+                  label.textContent = originalLabel;
+                }
+              }
+              // 恢复折叠状态（除了已选中节点的父级）
+              var ul = li.querySelector(':scope > ul');
+              if (ul && !li.querySelector('.tree-label.selected')) {
+                ul.style.display = 'none';
+                var icon = li.querySelector(':scope > .tree-node > .tree-icon i');
+                if (icon) {
+                  icon.classList.remove('fa-minus-square');
+                  icon.classList.add('fa-plus-square');
+                }
+              }
+            });
+            // 如果有已选中节点，展开其父级
+            var selectedNode = tree.querySelector('.tree-label.selected');
+            if (selectedNode) {
+              expandParents(selectedNode.closest('li'));
+            }
+            return;
+          }
+
+          // 第一步：标记所有节点为隐藏
+          allItems.forEach(function(li) {
+            li.classList.add('tree-hidden');
+          });
+
+          // 第二步：找出匹配的叶子节点并高亮
+          allItems.forEach(function(li) {
+            var label = li.querySelector(':scope > .tree-node > .tree-label');
+            if (!label) return;
+
+            var isGroup = label.classList.contains('group');
+            var originalLabel = label.getAttribute('data-original-label') || label.textContent;
+
+            if (!isGroup) {
+              // 叶子节点（用户）
+              if (originalLabel.toLowerCase().includes(keyword)) {
+                li.classList.remove('tree-hidden');
+                // 高亮匹配文本
+                var regex = new RegExp('(' + keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+                label.innerHTML = originalLabel.replace(regex, '<span class="tree-highlight">$1</span>');
+                // 展开并显示所有父级
+                showParents(li);
+              } else {
+                // 恢复原始文本
+                label.textContent = originalLabel;
+              }
+            } else {
+              // 分组节点恢复原始文本
+              label.textContent = originalLabel;
+            }
+          });
+        }
+
+        function showParents(li) {
+          var parent = li.parentElement;
+          while (parent) {
+            if (parent.tagName === 'UL') {
+              parent.style.display = 'block';
+              var parentLi = parent.closest('li');
+              if (parentLi) {
+                parentLi.classList.remove('tree-hidden');
+                var icon = parentLi.querySelector(':scope > .tree-node > .tree-icon i');
+                if (icon) {
+                  icon.classList.remove('fa-plus-square');
+                  icon.classList.add('fa-minus-square');
+                }
+                parent = parentLi.parentElement;
+              } else {
+                break;
+              }
+            } else {
+              parent = parent.parentElement;
+            }
+          }
+        }
+      }
+
       // 处理模态框中的树状控件
       var modal = $(input).closest('.modal');
       if (modal.length) {
@@ -1473,6 +1551,13 @@
             if (selectedValue) {
               findSelectedNode();
             }
+          }
+          // 模态框显示时清空搜索框
+          if (searchInput) {
+            searchInput.value = '';
+            // 触发过滤以恢复原状
+            var event = new Event('input', { bubbles: true });
+            searchInput.dispatchEvent(event);
           }
         });
       }
@@ -1866,93 +1951,48 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
 
 {# 报告来源徽章 #}
 {% macro render_report_source_badge(source, lang=None) %}
-  {% if not lang %}
-    {% set lang = session.get('language', 'zh') %}
-  {% endif %}
-  
-  {% set label_map = {
-    'marketing': {'zh': '市场拓展', 'en': 'Marketing'},
-    'channel': {'zh': '渠道报备', 'en': 'Channel'},
-    'sales': {'zh': '销售线索', 'en': 'Sales'}
-  } %}
-  
-  {# 处理中文到键的映射 #}
-  {% set key_map = {
-    '市场拓展': 'marketing',
-    '渠道报备': 'channel',
-    '销售线索': 'sales'
-  } %}
-  
-  {% set source_key = key_map.get(source, source) %}
-  
-  {% if source_key %}
-    <span class="badge badge-pill badge-transparent report-source-{{ source_key }}">
-      {{ label_map.get(source_key, {}).get(lang, source) }}
+  {# 统一使用 dictionary_helpers.py 的过滤器获取标签 #}
+  {% if source %}
+    {% set display_text = source|report_source_label %}
+    <span class="badge badge-pill badge-transparent report-source-{{ source }}">
+      {{ display_text }}
     </span>
   {% else %}
     <span class="badge badge-pill badge-transparent report-source-unknown">
-      {% if lang == 'en' %}Unknown{% else %}未知{% endif %}
+      {{ _('未知') }}
     </span>
   {% endif %}
 {% endmacro %}
 
 {# 品牌情况徽章 #}
 {% macro render_product_situation_badge(situation, lang=None) %}
-  {% if not lang %}
-    {% set lang = session.get('language', 'zh') %}
-  {% endif %}
-  
+  {# 颜色映射保留在模板中，标签从 dictionary_helpers.py 获取 #}
   {% set color_map = {
     'qualified': '#198754',
     'controlled': '#fd7e14',
     'not_required': '#6c757d',
     'unqualified': '#dc3545'
   } %}
-  
-  {% set label_map = {
-    'qualified': {'zh': '品牌入围', 'en': 'Qualified'},
-    'controlled': {'zh': '品牌受控', 'en': 'Controlled'},
-    'not_required': {'zh': '无品牌要求', 'en': 'Not Required'},
-    'unqualified': {'zh': '品牌未入围', 'en': 'Unqualified'}
-  } %}
-  
+
   {% if situation %}
     {% set color = color_map.get(situation, '#6c757d') %}
-    {% if situation in label_map %}
-      {% set label = label_map[situation][lang] %}
-    {% elif situation in ['品牌入围', '品牌受控', '无品牌要求', '品牌未入围'] %}
-      {% for key, labels in label_map.items() %}
-        {% if labels.zh == situation %}
-          {% set label = labels[lang] %}
-        {% endif %}
-      {% endfor %}
-      {% if not label %}
-        {% set label = situation %}
-      {% endif %}
-    {% else %}
-      {% set label = situation %}
-    {% endif %}
-    
+    {% set display_text = situation|product_situation_label %}
     <span class="badge rounded-pill" style="background-color: {{ color }}; color: #fff; font-size: 0.75rem; padding: 0.35em 0.65em;">
-      {{ label }}
+      {{ display_text }}
     </span>
   {% else %}
     <span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">
-      {% if lang == 'en' %}Unknown{% else %}未知{% endif %}
+      {{ _('未知') }}
     </span>
   {% endif %}
 {% endmacro %}
 
 {# 行业徽章 #}
 {# 行业徽章 - 使用标准化映射系统 #}
-{% macro render_industry_badge(industry, lang=None) %}
-  {% if not lang %}
-    {% set lang = get_current_language() %}
-  {% endif %}
-  
+{% macro render_industry_badge(industry) %}
   {% if industry %}
     {% set color = industry|industry_color %}
-    {% set label = industry|industry_label(lang) %}
+    {% set label = industry|industry_label %}
     
     <span class="badge rounded-pill" style="background-color: {{ color }}; color: #fff; font-size: 0.75rem; padding: 0.35em 0.65em;">
       {{ label }}
@@ -1965,14 +2005,10 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
 {% endmacro %}
 
 {# 企业类型徽章 - 使用标准化映射系统 #}
-{% macro render_company_type_badge(company_type, lang=None) %}
-  {% if not lang %}
-    {% set lang = get_current_language() %}
-  {% endif %}
-  
+{% macro render_company_type_badge(company_type) %}
   {% if company_type %}
     {% set color = company_type|company_type_color %}
-    {% set label = company_type|company_type_label(lang) %}
+    {% set label = company_type|company_type_label %}
     
     <span class="badge rounded-pill" style="background-color: {{ color }}; color: #fff; font-size: 0.75rem; padding: 0.35em 0.65em;">
       {{ label }}
@@ -3178,28 +3214,18 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
   - product_type: 产品类型值
   - lang: 语言代码(可选，默认从session获取)
 #}
-{% macro render_product_type_badge(product_type, lang=None) %}
-    {% if not lang %}
-        {% set lang = session.get('language', 'zh') %}
-    {% endif %}
-    
-    {% set type_map = {
-        '项目产品': {'zh': '项目产品', 'en': 'Project Product', 'css_class': 'product-type-project'},
-        '0': {'zh': '项目产品', 'en': 'Project Product', 'css_class': 'product-type-project'},
-        'project': {'zh': '项目产品', 'en': 'Project Product', 'css_class': 'product-type-project'},
-        '渠道产品': {'zh': '渠道产品', 'en': 'Channel Product', 'css_class': 'product-type-channel'},
-        '1': {'zh': '渠道产品', 'en': 'Channel Product', 'css_class': 'product-type-channel'},
-        'channel': {'zh': '渠道产品', 'en': 'Channel Product', 'css_class': 'product-type-channel'},
-        '第三方产品': {'zh': '第三方产品', 'en': 'Third Party Product', 'css_class': 'product-type-third-party'},
-        'third_party': {'zh': '第三方产品', 'en': 'Third Party Product', 'css_class': 'product-type-third-party'},
-        'third party': {'zh': '第三方产品', 'en': 'Third Party Product', 'css_class': 'product-type-third-party'}
+{% macro render_product_type_badge(product_type) %}
+    {# 统一使用 tw-badge 样式和 dictionary_helpers.py 过滤器 #}
+    {% set css_class_map = {
+        'project': 'tw-badge-blue',
+        'channel': 'tw-badge-green',
+        'third_party': 'tw-badge-purple'
     } %}
-    
-    {% set type_config = type_map.get(product_type, {'zh': product_type or '未知', 'en': product_type or 'Unknown', 'css_class': 'product-type-unknown'}) %}
-    {% set display_text = type_config[lang] %}
-    {% set css_class = type_config.css_class %}
-    
-    <span class="badge product-type-badge rounded-pill {{ css_class }}">
+
+    {% set display_text = product_type|product_type_label %}
+    {% set css_class = css_class_map.get(product_type, 'tw-badge-slate') %}
+
+    <span class="tw-badge {{ css_class }}">
         {{ display_text }}
     </span>
 {% endmacro %}
@@ -3210,24 +3236,20 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
   - status: 产品状态值
   - lang: 语言代码(可选，默认从session获取)
 #}
-{% macro render_product_status_badge(status, lang=None) %}
-    {% if not lang %}
-        {% set lang = session.get('language', 'zh') %}
-    {% endif %}
-    
-    {% set status_map = {
-        'active': {'zh': '生产中', 'en': 'Active', 'css_class': 'product-status-active'},
-        'discontinued': {'zh': '已停产', 'en': 'Discontinued', 'css_class': 'product-status-discontinued'},
-        'upcoming': {'zh': '待上市', 'en': 'Upcoming', 'css_class': 'product-status-upcoming'},
-        'locked': {'zh': '已锁定', 'en': 'Locked', 'css_class': 'product-status-locked'},
-        'unlocked': {'zh': '未锁定', 'en': 'Unlocked', 'css_class': 'product-status-unlocked'}
+{% macro render_product_status_badge(status) %}
+    {# 统一使用 tw-badge 样式和 dictionary_helpers.py 过滤器 #}
+    {% set css_class_map = {
+        'active': 'tw-badge-green',
+        'discontinued': 'tw-badge-slate',
+        'upcoming': 'tw-badge-blue',
+        'locked': 'tw-badge-red',
+        'unlocked': 'tw-badge-green'
     } %}
-    
-    {% set status_config = status_map.get(status, {'zh': status or '未知', 'en': status or 'Unknown', 'css_class': 'product-status-unknown'}) %}
-    {% set display_text = status_config[lang] %}
-    {% set css_class = status_config.css_class %}
-    
-    <span class="badge product-status-badge rounded-pill {{ css_class }}">
+
+    {% set display_text = status|product_status_label %}
+    {% set css_class = css_class_map.get(status, 'tw-badge-slate') %}
+
+    <span class="tw-badge {{ css_class }}">
         {{ display_text }}
     </span>
 {% endmacro %}
@@ -3333,9 +3355,9 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
     {% endif %}
     
     {% set situation_map = {
-        'fully_settled': {'zh': '完全结算', 'en': 'Fully Settled', 'css_class': 'settlement-situation-fully'},
-        'partially_settled': {'zh': '部分结算', 'en': 'Partially Settled', 'css_class': 'settlement-situation-partial'},
-        'pending': {'zh': '待结算', 'en': 'Pending Settlement', 'css_class': 'settlement-situation-pending'}
+        'fully_settled': {'zh': '全结', 'en': 'Settled', 'css_class': 'settlement-situation-fully'},
+        'partially_settled': {'zh': '部分', 'en': 'Partial', 'css_class': 'settlement-situation-partial'},
+        'pending': {'zh': '待结', 'en': 'Pending', 'css_class': 'settlement-situation-pending'}
     } %}
     
     {% set situation_config = situation_map.get(settlement_situation, {'zh': settlement_situation or '未知', 'en': settlement_situation or 'Unknown', 'css_class': 'settlement-situation-unknown'}) %}
@@ -3359,8 +3381,8 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
     {% endif %}
     
     {% set status_map = {
-        'settled': {'zh': '已结算', 'en': 'Settled', 'css_class': 'settlement-detail-settled'},
-        'pending': {'zh': '待结算', 'en': 'Pending Settlement', 'css_class': 'settlement-detail-pending'}
+        'settled': {'zh': '已结', 'en': 'Settled', 'css_class': 'settlement-detail-settled'},
+        'pending': {'zh': '待结', 'en': 'Pending', 'css_class': 'settlement-detail-pending'}
     } %}
     
     {% set status_config = status_map.get(settlement_status, {'zh': settlement_status or '未知', 'en': settlement_status or 'Unknown', 'css_class': 'settlement-detail-unknown'}) %}
@@ -7931,21 +7953,21 @@ document.addEventListener('DOMContentLoaded', function() {
         {% endif %}
     {% elif renderer_name == 'order_status' %}
         {% if badge_value == '待入库' %}
-            <span class="badge badge-pill badge-transparent badge-warning">待入库</span>
+            <span class="badge badge-pill badge-transparent badge-warning">待入</span>
         {% elif badge_value == '部分入库' %}
-            <span class="badge badge-pill badge-transparent badge-info">部分入库</span>
+            <span class="badge badge-pill badge-transparent badge-info">部分</span>
         {% elif badge_value == '已入库' %}
-            <span class="badge badge-pill badge-transparent badge-success">已入库</span>
+            <span class="badge badge-pill badge-transparent badge-success">已入</span>
         {% else %}
             <span class="badge badge-pill badge-transparent badge-muted">{{ badge_value }}</span>
         {% endif %}
     {% elif renderer_name == 'settlement_status' %}
         {% if badge_value == '待结算' %}
-            <span class="badge badge-pill badge-transparent badge-warning">待结算</span>
+            <span class="badge badge-pill badge-transparent badge-warning">待结</span>
         {% elif badge_value == '部分结算' %}
-            <span class="badge badge-pill badge-transparent badge-info">部分结算</span>
+            <span class="badge badge-pill badge-transparent badge-info">部分</span>
         {% elif badge_value == '已完成结算' %}
-            <span class="badge badge-pill badge-transparent badge-success">已完成结算</span>
+            <span class="badge badge-pill badge-transparent badge-success">全结</span>
         {% else %}
             <span class="badge badge-pill badge-transparent badge-muted">{{ badge_value }}</span>
         {% endif %}
@@ -8400,7 +8422,7 @@ document.addEventListener('DOMContentLoaded', function() {
     container_id='relationsList',
     title='关联产品配置',
     icon='fa-link',
-    api_url=url_for('product_management.get_product_relations', product_id=product.id),
+    api_url=url_for('rd_product.get_product_relations', product_id=product.id),
     columns=[
         {'key': 'product_name', 'label': '产品名称', 'width': '25%'},
         {'key': 'product_model', 'label': '产品型号', 'width': '20%'},
@@ -8636,4 +8658,542 @@ document.addEventListener('DOMContentLoaded', function() {
     window['refresh_' + containerId] = loadList;
 })();
 </script>
+{% endmacro %}
+
+
+{# ========== Tailwind 风格徽章宏 (仅用于新版首页) ========== #}
+{# 注意: 这些宏用于 Tailwind CSS 首页，不影响现有 Bootstrap 徽章宏 #}
+
+{# 通用状态徽章 - Tailwind 风格 #}
+{% macro render_tw_status_badge(status, text=None) %}
+    {%- set status_config = {
+        'in_progress': {'class': 'tw-badge-blue', 'text': _('进行中')},
+        'pending': {'class': 'tw-badge-yellow', 'text': _('待处理')},
+        'completed': {'class': 'tw-badge-green', 'text': _('已完成')},
+        'approved': {'class': 'tw-badge-green', 'text': _('已批准')},
+        'rejected': {'class': 'tw-badge-red', 'text': _('已拒绝')},
+        'on_hold': {'class': 'tw-badge-yellow', 'text': _('暂停')},
+        'draft': {'class': 'tw-badge-gray', 'text': _('草稿')},
+        'cancelled': {'class': 'tw-badge-gray', 'text': _('已取消')}
+    } -%}
+    {%- set config = status_config.get(status, {'class': 'tw-badge-gray', 'text': status}) -%}
+    <span class="tw-badge {{ config.class }}">{{ text if text else config.text }}</span>
+{% endmacro %}
+
+{# 报销状态徽章 - Tailwind 风格 #}
+{% macro render_tw_expense_badge(status) %}
+    {%- set status_config = {
+        'pending': {'class': 'tw-badge-yellow', 'text': _('待审批')},
+        'approved': {'class': 'tw-badge-green', 'text': _('已批准')},
+        'rejected': {'class': 'tw-badge-red', 'text': _('已拒绝')},
+        'draft': {'class': 'tw-badge-gray', 'text': _('草稿')}
+    } -%}
+    {%- set config = status_config.get(status, {'class': 'tw-badge-gray', 'text': status}) -%}
+    <span class="tw-badge {{ config.class }}">{{ config.text }}</span>
+{% endmacro %}
+
+{# 报销科目徽章 - Tailwind 风格 #}
+{% macro render_tw_expense_category_badge(category) %}
+    {%- set category_config = {
+        'entertainment': {'class': 'tw-badge-purple', 'text': _('招待费')},
+        'local_transport': {'class': 'tw-badge-blue', 'text': _('市内交通')},
+        'travel_accommodation': {'class': 'tw-badge-teal', 'text': _('差旅住宿')},
+        'office_supplies': {'class': 'tw-badge-slate', 'text': _('办公用品')},
+        'communication': {'class': 'tw-badge-cyan', 'text': _('通讯费')},
+        'fuel': {'class': 'tw-badge-orange', 'text': _('油费')},
+        'parking': {'class': 'tw-badge-amber', 'text': _('停车费')},
+        'meals': {'class': 'tw-badge-rose', 'text': _('餐费')},
+        'other': {'class': 'tw-badge-gray', 'text': _('其他')}
+    } -%}
+    {%- set config = category_config.get(category, {'class': 'tw-badge-gray', 'text': category or _('未分类')}) -%}
+    <span class="tw-badge {{ config.class }}">{{ config.text }}</span>
+{% endmacro %}
+
+{# 报销状态徽章 - Tailwind 风格 #}
+{% macro render_tw_expense_status_badge(status) %}
+    {%- set status_config = {
+        'draft': {'class': 'tw-badge-gray', 'zh': '草稿', 'en': 'DRAFT'},
+        'pending': {'class': 'tw-badge-yellow', 'zh': '待审批', 'en': 'PENDING'},
+        'approved': {'class': 'tw-badge-green', 'zh': '已通过', 'en': 'APPROVED'},
+        'rejected': {'class': 'tw-badge-red', 'zh': '已驳回', 'en': 'REJECTED'},
+        'recalled': {'class': 'tw-badge-orange', 'zh': '已召回', 'en': 'RECALLED'},
+        'awaiting_payment': {'class': 'tw-badge-blue', 'zh': '待支付', 'en': 'AWAITING'},
+        'paid': {'class': 'tw-badge-teal', 'zh': '已支付', 'en': 'PAID'}
+    } -%}
+    {%- set config = status_config.get(status, {'class': 'tw-badge-gray', 'zh': status or '未知', 'en': status or 'UNKNOWN'}) -%}
+    {%- set lang = session.get('language', 'zh') -%}
+    {%- set display_text = config.zh if lang == 'zh' else config.en -%}
+    <span class="tw-badge {{ config.class }}">{{ display_text }}</span>
+{% endmacro %}
+
+{# 货币徽章 - Tailwind 风格 #}
+{% macro render_tw_currency_badge(currency) %}
+    {%- set currency_config = {
+        'CNY': {'class': 'tw-badge-red', 'zh': '人民币', 'en': 'CNY'},
+        'USD': {'class': 'tw-badge-green', 'zh': '美元', 'en': 'USD'},
+        'HKD': {'class': 'tw-badge-purple', 'zh': '港币', 'en': 'HKD'},
+        'TWD': {'class': 'tw-badge-blue', 'zh': '台币', 'en': 'TWD'},
+        'SGD': {'class': 'tw-badge-teal', 'zh': '新币', 'en': 'SGD'},
+        'MYR': {'class': 'tw-badge-yellow', 'zh': '马币', 'en': 'MYR'},
+        'IDR': {'class': 'tw-badge-orange', 'zh': '印尼盾', 'en': 'IDR'},
+        'THB': {'class': 'tw-badge-cyan', 'zh': '泰铢', 'en': 'THB'},
+        'VND': {'class': 'tw-badge-amber', 'zh': '越南盾', 'en': 'VND'}
+    } -%}
+    {%- set config = currency_config.get(currency, {'class': 'tw-badge-gray', 'zh': currency or '未知', 'en': currency or 'N/A'}) -%}
+    {%- set lang = session.get('language', 'zh') -%}
+    {%- set display_text = config.zh if lang == 'zh' else config.en -%}
+    <span class="tw-badge {{ config.class }}">{{ display_text }}</span>
+{% endmacro %}
+
+{# 项目状态徽章 - Tailwind 风格 #}
+{% macro render_tw_project_badge(status) %}
+    {%- set status_config = {
+        'in_progress': {'class': 'tw-badge-blue', 'text': _('进行中')},
+        'completed': {'class': 'tw-badge-green', 'text': _('已完成')},
+        'on_hold': {'class': 'tw-badge-yellow', 'text': _('暂停')},
+        'cancelled': {'class': 'tw-badge-gray', 'text': _('已取消')}
+    } -%}
+    {%- set config = status_config.get(status, {'class': 'tw-badge-gray', 'text': status}) -%}
+    <span class="tw-badge {{ config.class }}">{{ config.text }}</span>
+{% endmacro %}
+
+{# 报价状态徽章 - Tailwind 风格 #}
+{% macro render_tw_quotation_badge(status) %}
+    {%- set status_config = {
+        'draft': {'class': 'tw-badge-gray', 'text': _('草稿')},
+        'pending': {'class': 'tw-badge-yellow', 'text': _('待审批')},
+        'approved': {'class': 'tw-badge-green', 'text': _('已通过')},
+        'rejected': {'class': 'tw-badge-red', 'text': _('已拒绝')},
+        'sent': {'class': 'tw-badge-blue', 'text': _('已发送')},
+        'quoted_approved': {'class': 'tw-badge-rose', 'text': _('批价审核')},
+        'signed_approved': {'class': 'tw-badge-purple', 'text': _('签约审核')}
+    } -%}
+    {%- set config = status_config.get(status, {'class': 'tw-badge-gray', 'text': status}) -%}
+    <span class="tw-badge {{ config.class }}">{{ config.text }}</span>
+{% endmacro %}
+
+{# 客户状态徽章 - Tailwind 风格 #}
+{% macro render_tw_customer_status_badge(status) %}
+    {%- set status_config = {
+        'active': {'class': 'tw-badge-green', 'text': _('活跃')},
+        '活跃': {'class': 'tw-badge-green', 'text': _('活跃')},
+        'inactive': {'class': 'tw-badge-slate', 'text': _('非活跃')},
+        '非活跃': {'class': 'tw-badge-slate', 'text': _('非活跃')},
+        'pending': {'class': 'tw-badge-yellow', 'text': _('待审核')}
+    } -%}
+    {%- set config = status_config.get(status, {'class': 'tw-badge-blue', 'text': status or _('未设置')}) -%}
+    <span class="tw-badge {{ config.class }}">{{ config.text }}</span>
+{% endmacro %}
+
+{# 企业类型徽章 - Tailwind 风格 #}
+{% macro render_tw_company_type_badge(company_type) %}
+    {# 颜色配置 - 数据库存储英文key，与 COMPANY_TYPE_LABELS 对应 #}
+    {%- set type_colors = {
+        'user': 'tw-badge-blue',
+        'designer': 'tw-badge-purple',
+        'contractor': 'tw-badge-teal',
+        'integrator': 'tw-badge-cyan',
+        'dealer': 'tw-badge-orange',
+        'distributor': 'tw-badge-amber',
+        'partner': 'tw-badge-green',
+        'other': 'tw-badge-slate'
+    } -%}
+    {%- set badge_class = type_colors.get(company_type, 'tw-badge-slate') -%}
+    {%- if company_type -%}
+    {# 使用 company_type_label 过滤器获取国际化文本 #}
+    <span class="tw-badge {{ badge_class }}">{{ company_type|company_type_label }}</span>
+    {%- else -%}
+    <span class="text-slate-400 dark:text-slate-500">-</span>
+    {%- endif -%}
+{% endmacro %}
+
+{# 行业徽章 - Tailwind 风格 #}
+{% macro render_tw_industry_badge(industry) %}
+    {# 行业颜色配置 - 数据库存储英文key，与 INDUSTRY_LABELS 对应 #}
+    {%- set industry_colors = {
+        'manufacturing': 'tw-badge-blue',
+        'datacenter': 'tw-badge-purple',
+        'shipbuilding': 'tw-badge-teal',
+        'semiconductor': 'tw-badge-indigo',
+        'chemical': 'tw-badge-orange',
+        'energy': 'tw-badge-yellow',
+        'transportation': 'tw-badge-cyan',
+        'transport': 'tw-badge-cyan',
+        'tunnel_underground': 'tw-badge-slate',
+        'real_estate': 'tw-badge-emerald',
+        'hospitality': 'tw-badge-rose',
+        'finance': 'tw-badge-sky',
+        'government': 'tw-badge-blue',
+        'education': 'tw-badge-green',
+        'healthcare': 'tw-badge-red',
+        'health': 'tw-badge-red',
+        'technology': 'tw-badge-indigo',
+        'other': 'tw-badge-slate'
+    } -%}
+    {%- set badge_class = industry_colors.get(industry, 'tw-badge-cyan') -%}
+    {%- if industry -%}
+    {# 使用 industry_label 过滤器获取国际化文本 #}
+    <span class="tw-badge {{ badge_class }}">{{ industry|industry_label }}</span>
+    {%- else -%}
+    <span class="text-slate-400 dark:text-slate-500">-</span>
+    {%- endif -%}
+{% endmacro %}
+
+{# 客户来源徽章 - Tailwind 风格 #}
+{% macro render_tw_source_badge(source) %}
+    {# 来源颜色配置 - 数据库存储英文key，与 REPORT_SOURCE_LABELS 对应 #}
+    {%- set source_colors = {
+        'channel': 'tw-badge-sky',
+        'sales': 'tw-badge-rose',
+        'marketing': 'tw-badge-amber'
+    } -%}
+    {%- set badge_class = source_colors.get(source, 'tw-badge-slate') -%}
+    {%- if source -%}
+    {# 使用 report_source_label 过滤器获取国际化文本 #}
+    <span class="tw-badge {{ badge_class }}">{{ source|report_source_label }}</span>
+    {%- else -%}
+    <span class="text-slate-400 dark:text-slate-500">-</span>
+    {%- endif -%}
+{% endmacro %}
+
+{# 负责人/用户圆形头像徽章 - Tailwind 风格 #}
+{#
+   统一的用户头像组件，显示圆形头像+姓名首字母
+   参数:
+   - owner: 用户对象，需包含 id, real_name 或 username
+   - size: 尺寸，'sm'(24px), 'md'(32px, 默认), 'lg'(40px)
+   - show_name: 是否显示姓名文字，默认 false
+#}
+{% macro render_tw_owner_badge(owner, size='md', show_name=false) %}
+    {%- if owner -%}
+        {%- set name = owner.real_name or owner.username or '' -%}
+        {%- set initials = name[:2]|upper if name else '?' -%}
+        {%- set avatar_colors = [
+            'bg-blue-200 text-blue-600 dark:bg-blue-800 dark:text-blue-300',
+            'bg-purple-200 text-purple-600 dark:bg-purple-800 dark:text-purple-300',
+            'bg-teal-200 text-teal-600 dark:bg-teal-800 dark:text-teal-300',
+            'bg-yellow-200 text-yellow-600 dark:bg-yellow-800 dark:text-yellow-300',
+            'bg-red-200 text-red-600 dark:bg-red-800 dark:text-red-300',
+            'bg-green-200 text-green-600 dark:bg-green-800 dark:text-green-300'
+        ] -%}
+        {%- set color_index = (owner.id or 0) % 6 -%}
+        {%- set avatar_color = avatar_colors[color_index] -%}
+        {%- set size_class = {'sm': 'w-6 h-6 text-[10px]', 'md': 'w-8 h-8 text-xs', 'lg': 'w-10 h-10 text-sm'}[size] or 'w-8 h-8 text-xs' -%}
+        {%- if show_name -%}
+        <div class="flex items-center gap-2">
+            <div class="flex-shrink-0 {{ size_class }} {{ avatar_color }} font-bold rounded-full flex items-center justify-center" title="{{ name }}">
+                {{ initials }}
+            </div>
+            <span class="text-sm text-slate-700 dark:text-slate-300">{{ name }}</span>
+        </div>
+        {%- else -%}
+        <div class="flex-shrink-0 {{ size_class }} {{ avatar_color }} font-bold rounded-full flex items-center justify-center" title="{{ name }}">
+            {{ initials }}
+        </div>
+        {%- endif -%}
+    {%- else -%}
+    <span class="text-slate-400 dark:text-slate-500">-</span>
+    {%- endif -%}
+{% endmacro %}
+
+{#
+=============================================================================
+用户胶囊徽章 - Tailwind 风格（第二种样式）
+=============================================================================
+带有小圆形头像 + 姓名的胶囊形状徽章，适用于审批流程等场景。
+
+参数:
+   - owner: 用户对象（需要有 id, real_name, username 属性）或字符串
+   - variant: 颜色变体
+     - 'default': 蓝色（默认）
+     - 'success': 绿色（已完成/已通过）
+     - 'warning': 琥珀色（进行中/待处理）
+     - 'danger': 红色（拒绝/错误）
+     - 'muted': 灰色（未开始/禁用）
+   - size: 尺寸，'sm' 或 'md'（默认）
+
+使用示例:
+   {{ render_tw_owner_pill_badge(user) }}
+   {{ render_tw_owner_pill_badge(user, variant='success') }}
+   {{ render_tw_owner_pill_badge(user, variant='warning', size='sm') }}
+   {{ render_tw_owner_pill_badge('管理员', variant='success') }}
+=============================================================================
+#}
+{% macro render_tw_owner_pill_badge(owner, variant='default', size='md') %}
+    {%- if owner -%}
+        {# 支持传入用户对象或字符串 #}
+        {%- if owner is string or owner.__class__.__name__ == 'str' -%}
+            {%- set name = owner -%}
+        {%- else -%}
+            {%- set name = owner.real_name or owner.username or '' -%}
+        {%- endif -%}
+        {%- set initial = name[:1]|upper if name else '?' -%}
+
+        {# 变体配置：背景色、文字色、头像背景色 #}
+        {%- set variant_config = {
+            'default': {
+                'bg': 'bg-blue-100 dark:bg-blue-900/50',
+                'text': 'text-blue-700 dark:text-blue-300',
+                'avatar': 'bg-blue-500'
+            },
+            'success': {
+                'bg': 'bg-green-100 dark:bg-green-900/50',
+                'text': 'text-green-700 dark:text-green-300',
+                'avatar': 'bg-green-500'
+            },
+            'warning': {
+                'bg': 'bg-amber-100 dark:bg-amber-900/50',
+                'text': 'text-amber-700 dark:text-amber-300',
+                'avatar': 'bg-amber-500'
+            },
+            'danger': {
+                'bg': 'bg-red-100 dark:bg-red-900/50',
+                'text': 'text-red-700 dark:text-red-300',
+                'avatar': 'bg-red-500'
+            },
+            'muted': {
+                'bg': 'bg-slate-100 dark:bg-slate-700',
+                'text': 'text-slate-600 dark:text-slate-300',
+                'avatar': 'bg-slate-400'
+            }
+        } -%}
+        {%- set config = variant_config.get(variant, variant_config['default']) -%}
+
+        {# 尺寸配置 #}
+        {%- set size_config = {
+            'sm': {'pill': 'px-1.5 py-0.5 text-[10px]', 'avatar': 'w-3 h-3 text-[8px]', 'gap': 'gap-1'},
+            'md': {'pill': 'px-2 py-1 text-xs', 'avatar': 'w-4 h-4 text-[10px]', 'gap': 'gap-1.5'}
+        } -%}
+        {%- set sizes = size_config.get(size, size_config['md']) -%}
+
+        <span class="inline-flex items-center {{ sizes.gap }} {{ sizes.pill }} rounded-full font-medium {{ config.bg }} {{ config.text }}">
+            <span class="{{ sizes.avatar }} rounded-full {{ config.avatar }} text-white flex items-center justify-center font-bold">{{ initial }}</span>
+            {{ name }}
+        </span>
+    {%- else -%}
+    <span class="text-slate-400 dark:text-slate-500">-</span>
+    {%- endif -%}
+{% endmacro %}
+
+{# 项目阶段徽章 - Tailwind 风格 #}
+{% macro render_tw_project_stage_badge(stage) %}
+    {%- set stage_config = {
+        '初步接洽': {'class': 'tw-badge-yellow'},
+        '需求确认': {'class': 'tw-badge-blue'},
+        '方案阶段': {'class': 'tw-badge-purple'},
+        '报价阶段': {'class': 'tw-badge-green'},
+        '商务谈判': {'class': 'tw-badge-indigo'},
+        '赢单': {'class': 'tw-badge-teal'},
+        '丢失': {'class': 'tw-badge-red'},
+        '暂停': {'class': 'tw-badge-gray'}
+    } -%}
+    {%- set config = stage_config.get(stage, {'class': 'tw-badge-slate'}) -%}
+    {%- if stage -%}
+    <span class="tw-badge {{ config.class }}">{{ stage }}</span>
+    {%- else -%}
+    <span class="text-slate-400">-</span>
+    {%- endif -%}
+{% endmacro %}
+
+{# 主要联系人徽章 - Tailwind 风格 #}
+{% macro render_tw_primary_badge() %}
+    <span class="tw-badge" style="background-color: rgba(var(--primary-rgb, 59, 130, 246), 0.1); color: var(--primary-color, #3b82f6);">{{ _('主要') }}</span>
+{% endmacro %}
+
+{# 项目阶段徽章 - Tailwind 风格（使用英文 key） #}
+{% macro render_tw_project_stage_badge_key(stage, stage_labels=none) %}
+    {%- set stage_config = {
+        'discover': {'class': 'tw-badge-sky', 'text': _('发现')},
+        'embed': {'class': 'tw-badge-emerald', 'text': _('植入')},
+        'pre_tender': {'class': 'tw-badge-amber', 'text': _('招标前')},
+        'tendering': {'class': 'tw-badge-orange', 'text': _('招标中')},
+        'awarded': {'class': 'tw-badge-teal', 'text': _('中标')},
+        'quoted': {'class': 'tw-badge-yellow', 'text': _('批价')},
+        'signed': {'class': 'tw-badge-blue', 'text': _('签约')},
+        'lost': {'class': 'tw-badge-red', 'text': _('失败')},
+        'paused': {'class': 'tw-badge-gray', 'text': _('搁置')}
+    } -%}
+    {%- set config = stage_config.get(stage, {'class': 'tw-badge-slate', 'text': stage or '-'}) -%}
+    {%- if stage -%}
+    <span class="tw-badge {{ config.class }}">{{ config.text }}</span>
+    {%- else -%}
+    <span class="text-slate-400 dark:text-slate-500">-</span>
+    {%- endif -%}
+{% endmacro %}
+
+{# 项目类型徽章 - Tailwind 风格 #}
+{% macro render_tw_project_type_badge(project_type) %}
+    {# 项目类型颜色配置 - 使用 project_type_label 过滤器获取国际化文本 #}
+    {%- set type_colors = {
+        'channel_follow': 'tw-badge-purple',
+        'sales_focus': 'tw-badge-blue',
+        'business_opportunity': 'tw-badge-teal'
+    } -%}
+    {%- set badge_class = type_colors.get(project_type, 'tw-badge-slate') -%}
+    {%- if project_type -%}
+    <span class="tw-badge {{ badge_class }}">{{ project_type|project_type_label }}</span>
+    {%- else -%}
+    <span class="text-slate-400 dark:text-slate-500">-</span>
+    {%- endif -%}
+{% endmacro %}
+
+{# 报告来源徽章 - Tailwind 风格 #}
+{% macro render_tw_report_source_badge(source) %}
+    {# 报告来源颜色配置 - 使用 report_source_label 过滤器获取国际化文本 #}
+    {%- set source_colors = {
+        'channel': 'tw-badge-indigo',
+        'sales': 'tw-badge-rose',
+        'marketing': 'tw-badge-cyan'
+    } -%}
+    {%- set badge_class = source_colors.get(source, 'tw-badge-slate') -%}
+    {%- if source -%}
+    <span class="tw-badge {{ badge_class }}">{{ source|report_source_label }}</span>
+    {%- else -%}
+    <span class="text-slate-400 dark:text-slate-500">-</span>
+    {%- endif -%}
+{% endmacro %}
+
+{# 活跃状态徽章 - Tailwind 风格 #}
+{% macro render_tw_active_badge(is_active) %}
+    {% set display_text = is_active|active_status_label %}
+    {%- if is_active -%}
+    <span class="tw-badge tw-badge-green">{{ display_text }}</span>
+    {%- else -%}
+    <span class="tw-badge tw-badge-slate">{{ display_text }}</span>
+    {%- endif -%}
+{% endmacro %}
+
+{# ============================================================================= #}
+{# 审批中心 Tailwind 徽章组件                                                    #}
+{# ============================================================================= #}
+
+{# 审批状态徽章 - Tailwind 风格 #}
+{% macro render_tw_approval_status_badge(status) %}
+    {%- set status_config = {
+        'draft': {'class': 'tw-badge-slate', 'zh': '草稿', 'en': 'DRAFT'},
+        'pending': {'class': 'tw-badge-yellow', 'zh': '审批中', 'en': 'PENDING'},
+        'approved': {'class': 'tw-badge-green', 'zh': '已通过', 'en': 'APPROVED'},
+        'rejected': {'class': 'tw-badge-red', 'zh': '已拒绝', 'en': 'REJECTED'},
+        'recalled': {'class': 'tw-badge-orange', 'zh': '已召回', 'en': 'RECALLED'},
+        'cancelled': {'class': 'tw-badge-gray', 'zh': '已取消', 'en': 'CANCELLED'}
+    } -%}
+    {%- set config = status_config.get(status, {'class': 'tw-badge-gray', 'zh': status or '未知', 'en': status or 'UNKNOWN'}) -%}
+    {%- set lang = session.get('language', 'zh') -%}
+    {%- set display_text = config.zh if lang == 'zh' else config.en -%}
+    <span class="tw-badge {{ config.class }}">{{ display_text }}</span>
+{% endmacro %}
+
+{# 审批业务类型徽章 - Tailwind 风格（带图标） #}
+{% macro render_tw_business_type_badge(object_type) %}
+    {%- set type_config = {
+        'project': {'class': 'tw-badge-teal', 'zh': '项目', 'en': 'Project', 'icon': 'cases'},
+        'quotation': {'class': 'tw-badge-purple', 'zh': '报价单', 'en': 'Quotation', 'icon': 'request_quote'},
+        'customer': {'class': 'tw-badge-cyan', 'zh': '客户', 'en': 'Customer', 'icon': 'contacts'},
+        'purchase_order': {'class': 'tw-badge-rose', 'zh': '采购订单', 'en': 'Order', 'icon': 'shopping_cart'},
+        'pricing_order': {'class': 'tw-badge-amber', 'zh': '批价单', 'en': 'Pricing', 'icon': 'receipt_long'},
+        'expense': {'class': 'tw-badge-orange', 'zh': '报销单', 'en': 'Expense', 'icon': 'payments'}
+    } -%}
+    {%- set config = type_config.get(object_type, {'class': 'tw-badge-gray', 'zh': object_type or '未知', 'en': object_type or 'Unknown', 'icon': 'help'}) -%}
+    {%- set lang = session.get('language', 'zh') -%}
+    {%- set display_text = config.zh if lang == 'zh' else config.en -%}
+    <span class="tw-badge {{ config.class }} inline-flex items-center gap-1">
+        <span class="material-symbols-outlined" style="font-size: 14px;">{{ config.icon }}</span>
+        {{ display_text }}
+    </span>
+{% endmacro %}
+
+{# 审批人徽章 - Tailwind 风格 #}
+{% macro render_tw_approver_badge(approver, is_current=false) %}
+    {%- if approver -%}
+        {%- set display_name = approver.real_name if approver.real_name else approver.username -%}
+        {%- if is_current -%}
+        <span class="tw-badge tw-badge-blue">{{ display_name }}</span>
+        {%- else -%}
+        <span class="tw-badge tw-badge-slate">{{ display_name }}</span>
+        {%- endif -%}
+    {%- else -%}
+        {%- set lang = session.get('language', 'zh') -%}
+        <span class="tw-badge tw-badge-slate">{{ '待分配' if lang == 'zh' else 'Pending' }}</span>
+    {%- endif -%}
+{% endmacro %}
+
+{# 审批编号徽章 - Tailwind 风格 #}
+{% macro render_tw_approval_code_badge(code, object_type='approval') %}
+    {%- set type_config = {
+        'approval': 'tw-badge-indigo',
+        'pricing_order': 'tw-badge-amber',
+        'purchase_order': 'tw-badge-rose',
+        'expense': 'tw-badge-orange'
+    } -%}
+    {%- set badge_class = type_config.get(object_type, 'tw-badge-indigo') -%}
+    <span class="tw-badge {{ badge_class }} font-mono">{{ code }}</span>
+{% endmacro %}
+
+{# ============================================================================= #}
+{# 产品相关 Tailwind 徽章组件                                                     #}
+{# ============================================================================= #}
+
+{#
+  字段说明：is_vendor_product
+  - true  = 厂商产品（原厂），计入植入合计统计
+  - false = 代售产品（非原厂）
+#}
+
+{# 原厂产品徽章 - Tailwind 风格 #}
+{# 当 is_vendor_product=true 时显示（厂商产品=原厂） #}
+{% macro render_tw_original_badge(is_vendor_product=false) %}
+    {%- if is_vendor_product -%}
+    {%- set lang = session.get('language', 'zh') -%}
+    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+        <span class="material-symbols-outlined text-sm">verified</span>
+        {{ '原厂' if lang == 'zh' else 'Original' }}
+    </span>
+    {%- endif -%}
+{% endmacro %}
+
+{# 代售产品徽章 - Tailwind 风格 #}
+{# 当 is_vendor_product=false 时显示（非厂商产品=代售） #}
+{% macro render_tw_reseller_badge(is_vendor_product=false) %}
+    {%- if not is_vendor_product -%}
+    {%- set lang = session.get('language', 'zh') -%}
+    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+        <span class="material-symbols-outlined text-sm">storefront</span>
+        {{ '代售' if lang == 'zh' else 'Reseller' }}
+    </span>
+    {%- endif -%}
+{% endmacro %}
+
+{# 产品来源徽章 - Tailwind 风格（自动选择原厂或代售） #}
+{# is_vendor_product=true → 原厂（绿色）, is_vendor_product=false → 代售（琥珀色） #}
+{% macro render_tw_product_source_badge(is_vendor_product=false) %}
+    {%- set lang = session.get('language', 'zh') -%}
+    {%- if is_vendor_product -%}
+    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+        <span class="material-symbols-outlined text-sm">verified</span>
+        {{ '原厂' if lang == 'zh' else 'Original' }}
+    </span>
+    {%- else -%}
+    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+        <span class="material-symbols-outlined text-sm">storefront</span>
+        {{ '代售' if lang == 'zh' else 'Reseller' }}
+    </span>
+    {%- endif -%}
+{% endmacro %}
+
+{# 产品分类徽章 - Tailwind 风格 #}
+{# 显示格式: "分类 / 系列"，类似 "Hardware / Servers" #}
+{% macro render_tw_product_category_badge(category_name, subcategory_name=none) %}
+    {%- if category_name or subcategory_name -%}
+    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+        {%- if category_name and subcategory_name -%}
+        {{ category_name }} / {{ subcategory_name }}
+        {%- elif subcategory_name -%}
+        {{ subcategory_name }}
+        {%- else -%}
+        {{ category_name }}
+        {%- endif -%}
+    </span>
+    {%- else -%}
+    <span class="text-slate-400 dark:text-slate-500">-</span>
+    {%- endif -%}
 {% endmacro %}

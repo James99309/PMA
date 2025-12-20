@@ -1,0 +1,496 @@
+{#
+=============================================================================
+Tailwind 通用选卡卡片组件
+=============================================================================
+可复用的带选卡切换的卡片组件，统一支持：
+- 列表内容 (list)
+- 表格内容 (table)
+- 自定义内容 (custom)
+
+使用方式：
+{% from 'components/tw_tabbed_card.html' import tw_tabbed_card, tw_tabbed_card_script %}
+
+示例1 - 列表类型：
+{{ tw_tabbed_card(
+    card_id='productRelations',
+    title=_('关联产品配置'),
+    tabs=[
+        {'key': 'normal', 'label': _('普通关联'), 'icon': 'link', 'count': 0},
+        {'key': 'mutual', 'label': _('互斥组'), 'icon': 'layers', 'count': 0}
+    ],
+    default_tab='normal',
+    content_type='list',
+    action_btn={'label': _('添加'), 'icon': 'add', 'onclick': 'openModal()'},
+    max_height='300px'
+) }}
+
+示例2 - 表格类型：
+{{ tw_tabbed_card(
+    card_id='relatedData',
+    title=_('关联数据'),
+    tabs=[
+        {'key': 'projects', 'label': _('项目'), 'icon': 'folder', 'count': 5},
+        {'key': 'quotations', 'label': _('报价'), 'icon': 'description', 'count': 3}
+    ],
+    default_tab='projects',
+    content_type='table',
+    table_headers={
+        'projects': [
+            {'label': _('项目名称'), 'width': '50%'},
+            {'label': _('阶段'), 'width': '25%'},
+            {'label': _('金额'), 'width': '25%', 'align': 'right'}
+        ],
+        'quotations': [
+            {'label': _('报价单号'), 'width': '40%'},
+            {'label': _('状态'), 'width': '30%'},
+            {'label': _('金额'), 'width': '30%', 'align': 'right'}
+        ]
+    },
+    max_height='280px'
+) }}
+
+示例3 - 无选卡（单内容）：
+{{ tw_tabbed_card(
+    card_id='contacts',
+    title=_('联系人'),
+    content_type='list',
+    action_btn={'label': _('添加'), 'icon': 'add', 'onclick': 'addContact()'},
+    max_height='200px'
+) }}
+
+参数说明：
+- card_id: 卡片唯一ID（必填）
+- title: 卡片标题
+- tabs: 选卡配置列表（可选，为空时不显示选卡）
+- default_tab: 默认激活的选卡
+- content_type: 内容类型 'list' | 'table' | 'custom'
+- table_headers: 表格类型时的表头配置 {tab_key: headers_list}
+- action_btn: 操作按钮配置 {label, icon, onclick}
+- show_action: 是否显示操作按钮
+- max_height: 内容区最大高度
+- empty_icon: 空状态图标
+- empty_text: 空状态文本
+- view_all_url: "查看全部"链接（可选）
+- view_all_text: "查看全部"文本
+=============================================================================
+#}
+
+{# 通用选卡卡片 HTML #}
+{% macro tw_tabbed_card(
+    card_id,
+    title='',
+    tabs=[],
+    default_tab='',
+    content_type='list',
+    table_headers={},
+    action_btn=none,
+    show_action=true,
+    max_height='300px',
+    empty_icon='inbox',
+    empty_text='',
+    view_all_url=none,
+    view_all_text=none
+) %}
+{% set has_tabs = tabs and tabs|length > 1 %}
+{% set first_tab = tabs[0].key if tabs else '' %}
+{% set active_tab = default_tab or first_tab %}
+
+<div id="{{ card_id }}Card" class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <!-- 卡片头部 -->
+    <div class="px-5 py-4 flex justify-between items-center border-b border-slate-200 dark:border-slate-700">
+        <div class="flex items-center gap-4 flex-1 min-w-0">
+            <h3 class="text-base font-semibold text-slate-900 dark:text-white whitespace-nowrap">{{ title }}</h3>
+
+            {% if has_tabs %}
+            <!-- 内联选卡 -->
+            <nav class="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1" role="tablist" id="{{ card_id }}Tabs">
+                {% for tab in tabs %}
+                <button type="button"
+                        data-tab="{{ tab.key }}"
+                        role="tab"
+                        aria-selected="{{ 'true' if tab.key == active_tab else 'false' }}"
+                        class="tabbed-card-tab inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all
+                               {% if tab.key == active_tab %}
+                               bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm
+                               {% else %}
+                               text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300
+                               {% endif %}">
+                    {% if tab.icon %}
+                    <span class="material-symbols-outlined text-base">{{ tab.icon }}</span>
+                    {% endif %}
+                    <span>{{ tab.label }}</span>
+                    {% if tab.count is defined and tab.count is not none %}
+                    <span class="tabbed-card-badge inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-xs font-bold rounded-full
+                                 {% if tab.key == active_tab %}
+                                 bg-primary/10 text-primary
+                                 {% else %}
+                                 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300
+                                 {% endif %}">
+                        {{ tab.count }}
+                    </span>
+                    {% endif %}
+                </button>
+                {% endfor %}
+            </nav>
+            {% endif %}
+        </div>
+
+        <div class="flex items-center gap-3 ml-4">
+            {% if view_all_url %}
+            <a href="{{ view_all_url }}" class="text-sm text-primary hover:text-primary/80 font-medium">
+                {{ view_all_text or _('查看全部') }}
+            </a>
+            {% endif %}
+
+            {% if show_action and action_btn %}
+            <button onclick="{{ action_btn.onclick or '' }}" class="text-sm text-primary hover:text-primary/80 font-medium flex items-center gap-1">
+                {% if action_btn.icon %}
+                <span class="material-symbols-outlined text-base">{{ action_btn.icon }}</span>
+                {% endif %}
+                {{ action_btn.label or _('添加') }}
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 可滚动内容区域 -->
+    <div id="{{ card_id }}Container" class="overflow-y-auto tabbed-card-scroll" style="max-height: {{ max_height }};">
+        <!-- 加载状态 -->
+        <div id="{{ card_id }}Loading" class="flex items-center justify-center py-12">
+            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+            <span class="ml-2 text-slate-500">{{ _('加载中...') }}</span>
+        </div>
+
+        <!-- 内容面板 -->
+        {% if has_tabs %}
+            {% for tab in tabs %}
+            <div id="{{ card_id }}Panel_{{ tab.key }}"
+                 class="tabbed-card-panel {% if tab.key != active_tab %}hidden{% endif %}"
+                 role="tabpanel">
+                {% if content_type == 'table' and table_headers.get(tab.key) %}
+                <!-- 表格结构 -->
+                <table class="w-full text-left text-sm">
+                    <thead class="border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900">
+                        <tr>
+                            {% for header in table_headers.get(tab.key, []) %}
+                            <th class="p-3 text-slate-500 dark:text-slate-400 font-medium text-xs uppercase tracking-wider
+                                       {% if header.align == 'right' %}text-right{% elif header.align == 'center' %}text-center{% endif %}"
+                                {% if header.width %}style="width: {{ header.width }}"{% endif %}>
+                                {{ header.label }}
+                            </th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody id="{{ card_id }}TableBody_{{ tab.key }}" class="divide-y divide-slate-200 dark:divide-slate-700">
+                        <!-- 由 JavaScript 动态填充 -->
+                    </tbody>
+                </table>
+                {% else %}
+                <!-- 列表/自定义内容容器 -->
+                <div id="{{ card_id }}ListContent_{{ tab.key }}">
+                    <!-- 由 JavaScript 动态填充 -->
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <!-- 无选卡时的单一内容容器 -->
+            {% if content_type == 'table' and table_headers %}
+            <table class="w-full text-left text-sm">
+                <thead class="border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900">
+                    <tr>
+                        {% for header in table_headers.get('default', table_headers.values()|first if table_headers.values() else []) %}
+                        <th class="p-3 text-slate-500 dark:text-slate-400 font-medium text-xs uppercase tracking-wider
+                                   {% if header.align == 'right' %}text-right{% elif header.align == 'center' %}text-center{% endif %}"
+                            {% if header.width %}style="width: {{ header.width }}"{% endif %}>
+                            {{ header.label }}
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody id="{{ card_id }}TableBody" class="divide-y divide-slate-200 dark:divide-slate-700">
+                    <!-- 由 JavaScript 动态填充 -->
+                </tbody>
+            </table>
+            {% else %}
+            <div id="{{ card_id }}Content">
+                <!-- 由 JavaScript 动态填充 -->
+            </div>
+            {% endif %}
+        {% endif %}
+
+        <!-- 空状态 -->
+        <div id="{{ card_id }}Empty" class="hidden text-center py-12">
+            <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600">{{ empty_icon }}</span>
+            <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{{ empty_text or _('暂无数据') }}</p>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 滚动条样式 #}
+{% macro tw_tabbed_card_styles() %}
+<style>
+    .tabbed-card-scroll::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    .tabbed-card-scroll::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 3px;
+    }
+    .tabbed-card-scroll::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+    }
+    .tabbed-card-scroll::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+    .dark .tabbed-card-scroll::-webkit-scrollbar-track {
+        background: #1e293b;
+    }
+    .dark .tabbed-card-scroll::-webkit-scrollbar-thumb {
+        background: #475569;
+    }
+    .dark .tabbed-card-scroll::-webkit-scrollbar-thumb:hover {
+        background: #64748b;
+    }
+</style>
+{% endmacro %}
+
+
+{# 选卡卡片脚本 #}
+{% macro tw_tabbed_card_script(card_id, on_change_callback='') %}
+<script>
+(function() {
+    const cardId = '{{ card_id }}';
+    const tabsContainer = document.getElementById(`${cardId}Tabs`);
+    const tabs = tabsContainer ? tabsContainer.querySelectorAll('.tabbed-card-tab') : [];
+    const container = document.getElementById(`${cardId}Container`);
+    const panels = container ? container.querySelectorAll('.tabbed-card-panel') : [];
+
+    // 选卡切换
+    if (tabs.length) {
+        tabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                const tabKey = this.dataset.tab;
+                switchTab(tabKey);
+
+                // 调用回调
+                {% if on_change_callback %}
+                if (typeof window['{{ on_change_callback }}'] === 'function') {
+                    window['{{ on_change_callback }}'](tabKey);
+                }
+                {% endif %}
+            });
+        });
+    }
+
+    // 切换选卡
+    function switchTab(tabKey) {
+        // 更新选卡样式
+        tabs.forEach(t => {
+            const isActive = t.dataset.tab === tabKey;
+            t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+
+            if (isActive) {
+                t.classList.remove('text-slate-500', 'dark:text-slate-400', 'hover:text-slate-700', 'dark:hover:text-slate-300');
+                t.classList.add('bg-white', 'dark:bg-slate-700', 'text-slate-900', 'dark:text-white', 'shadow-sm');
+            } else {
+                t.classList.add('text-slate-500', 'dark:text-slate-400', 'hover:text-slate-700', 'dark:hover:text-slate-300');
+                t.classList.remove('bg-white', 'dark:bg-slate-700', 'text-slate-900', 'dark:text-white', 'shadow-sm');
+            }
+
+            // 更新徽章样式
+            const badge = t.querySelector('.tabbed-card-badge');
+            if (badge) {
+                if (isActive) {
+                    badge.classList.remove('bg-slate-200', 'dark:bg-slate-600', 'text-slate-600', 'dark:text-slate-300');
+                    badge.classList.add('bg-primary/10', 'text-primary');
+                } else {
+                    badge.classList.add('bg-slate-200', 'dark:bg-slate-600', 'text-slate-600', 'dark:text-slate-300');
+                    badge.classList.remove('bg-primary/10', 'text-primary');
+                }
+            }
+        });
+
+        // 切换面板
+        panels.forEach(panel => {
+            const panelKey = panel.id.replace(`${cardId}Panel_`, '');
+            panel.classList.toggle('hidden', panelKey !== tabKey);
+        });
+
+        // 隐藏空状态
+        const empty = document.getElementById(`${cardId}Empty`);
+        if (empty) empty.classList.add('hidden');
+    }
+
+    // ============== 工具函数 ==============
+
+    // 显示加载状态
+    window[`${cardId}ShowLoading`] = function() {
+        const loading = document.getElementById(`${cardId}Loading`);
+        const empty = document.getElementById(`${cardId}Empty`);
+        if (loading) loading.classList.remove('hidden');
+        if (empty) empty.classList.add('hidden');
+        panels.forEach(p => p.classList.add('hidden'));
+    };
+
+    // 隐藏加载状态
+    window[`${cardId}HideLoading`] = function() {
+        const loading = document.getElementById(`${cardId}Loading`);
+        if (loading) loading.classList.add('hidden');
+    };
+
+    // 显示空状态
+    window[`${cardId}ShowEmpty`] = function(text) {
+        const loading = document.getElementById(`${cardId}Loading`);
+        const empty = document.getElementById(`${cardId}Empty`);
+        if (loading) loading.classList.add('hidden');
+        if (empty) {
+            empty.classList.remove('hidden');
+            if (text) {
+                const p = empty.querySelector('p');
+                if (p) p.textContent = text;
+            }
+        }
+        panels.forEach(p => p.classList.add('hidden'));
+    };
+
+    // 获取当前激活的选卡
+    window[`${cardId}GetActiveTab`] = function() {
+        const activeTab = tabsContainer ? tabsContainer.querySelector('.tabbed-card-tab[aria-selected="true"]') : null;
+        return activeTab ? activeTab.dataset.tab : null;
+    };
+
+    // 显示指定选卡面板
+    window[`${cardId}ShowPanel`] = function(tabKey) {
+        const loading = document.getElementById(`${cardId}Loading`);
+        const empty = document.getElementById(`${cardId}Empty`);
+        if (loading) loading.classList.add('hidden');
+        if (empty) empty.classList.add('hidden');
+
+        panels.forEach(panel => {
+            const panelKey = panel.id.replace(`${cardId}Panel_`, '');
+            panel.classList.toggle('hidden', panelKey !== tabKey);
+        });
+    };
+
+    // 更新选卡计数
+    window[`${cardId}UpdateTabCount`] = function(tabKey, count) {
+        if (!tabsContainer) return;
+        const tab = tabsContainer.querySelector(`.tabbed-card-tab[data-tab="${tabKey}"]`);
+        if (tab) {
+            const badge = tab.querySelector('.tabbed-card-badge');
+            if (badge) {
+                badge.textContent = count;
+            }
+        }
+    };
+
+    // 设置列表内容（用于 list 类型）
+    window[`${cardId}SetListContent`] = function(tabKey, html) {
+        const panel = document.getElementById(`${cardId}ListContent_${tabKey}`) ||
+                      document.getElementById(`${cardId}Content`);
+        if (panel) panel.innerHTML = html;
+    };
+
+    // 设置表格内容（用于 table 类型）
+    window[`${cardId}SetTableContent`] = function(tabKey, html) {
+        const tbody = document.getElementById(`${cardId}TableBody_${tabKey}`) ||
+                      document.getElementById(`${cardId}TableBody`);
+        if (tbody) tbody.innerHTML = html;
+    };
+
+    // 通用设置内容（自动判断类型）
+    window[`${cardId}SetContent`] = function(tabKey, html, type) {
+        if (type === 'table') {
+            window[`${cardId}SetTableContent`](tabKey, html);
+        } else {
+            window[`${cardId}SetListContent`](tabKey, html);
+        }
+    };
+
+    // 批量更新所有选卡计数
+    window[`${cardId}UpdateAllCounts`] = function(counts) {
+        if (!counts) return;
+        Object.keys(counts).forEach(key => {
+            window[`${cardId}UpdateTabCount`](key, counts[key]);
+        });
+    };
+
+    // 切换到指定选卡
+    window[`${cardId}SwitchTab`] = function(tabKey) {
+        switchTab(tabKey);
+    };
+})();
+</script>
+{% endmacro %}
+
+
+{# 表格行渲染辅助宏 #}
+{% macro tw_table_row(cells, hover=true, onclick='') %}
+<tr class="{% if hover %}hover:bg-slate-50 dark:hover:bg-slate-800/50{% endif %} {% if onclick %}cursor-pointer{% endif %}"
+    {% if onclick %}onclick="{{ onclick }}"{% endif %}>
+    {% for cell in cells %}
+    <td class="p-3 {% if cell.align == 'right' %}text-right{% elif cell.align == 'center' %}text-center{% endif %} {{ cell.class or '' }}">
+        {% if cell.link %}
+        <a href="{{ cell.link }}" class="text-primary hover:underline font-medium">{{ cell.content }}</a>
+        {% elif cell.badge %}
+        {{ cell.content }}
+        {% else %}
+        <span class="{{ 'text-slate-800 dark:text-slate-200' if cell.primary else 'text-slate-600 dark:text-slate-400' }}">{{ cell.content }}</span>
+        {% endif %}
+    </td>
+    {% endfor %}
+</tr>
+{% endmacro %}
+
+
+{# 空行提示 #}
+{% macro tw_empty_row(text, icon='inbox', colspan=10) %}
+<tr>
+    <td colspan="{{ colspan }}" class="p-8 text-center">
+        <div class="flex flex-col items-center gap-2">
+            <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">{{ icon }}</span>
+            <span class="text-slate-500 dark:text-slate-400 text-sm">{{ text or _('暂无数据') }}</span>
+        </div>
+    </td>
+</tr>
+{% endmacro %}
+
+
+{# 列表项渲染辅助宏 #}
+{% macro tw_list_item(title, subtitle='', avatar='', avatar_color='bg-slate-500', link='', badge='', onclick='') %}
+<div class="px-4 py-3 flex items-center gap-3 {% if link or onclick %}hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer{% endif %}"
+     {% if onclick %}onclick="{{ onclick }}"{% endif %}>
+    {% if avatar %}
+    <div class="flex h-9 w-9 items-center justify-center rounded-full {{ avatar_color }} text-white font-medium text-sm flex-shrink-0">
+        {{ avatar[:2] }}
+    </div>
+    {% endif %}
+    <div class="flex-1 min-w-0">
+        {% if link %}
+        <a href="{{ link }}" class="text-sm font-medium text-slate-800 dark:text-slate-200 hover:text-primary truncate block">{{ title }}</a>
+        {% else %}
+        <p class="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{{ title }}</p>
+        {% endif %}
+        {% if subtitle %}
+        <p class="text-xs text-slate-500 dark:text-slate-400 truncate">{{ subtitle }}</p>
+        {% endif %}
+    </div>
+    {% if badge %}
+    {{ badge }}
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{# 空列表提示 #}
+{% macro tw_empty_list(text, icon='inbox') %}
+<div class="p-8 text-center">
+    <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">{{ icon }}</span>
+    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">{{ text or _('暂无数据') }}</p>
+</div>
+{% endmacro %}

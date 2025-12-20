@@ -1,0 +1,113 @@
+{# 项目表单字段组件 - 用于创建和编辑项目 #}
+{% from 'components/tw_form_fields.html' import tw_form_field, tw_form_select, tw_form_textarea, tw_form_row %}
+
+{# 项目名称 - 必填，带查重 #}
+<div class="relative">
+    <label for="project_name" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ _('项目名称') }}<span class="text-red-500">*</span>
+    </label>
+    <input type="text" id="project_name" name="project_name"
+           data-field-code="project_name"
+           class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm mb-4"
+           placeholder="{{ _('请输入项目名称') }}"
+           required>
+    <p id="projectNameError" class="hidden mt-1 text-sm text-red-500"></p>
+    <div id="projectSuggestions"
+        class="hidden absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+    </div>
+</div>
+
+{# 两列布局：项目类型 +行业 #}
+{% call tw_form_row(cols=2) %}
+{# 项目类型 - 必填 #}
+<div>
+    <label for="project_type" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ _('项目类型') }}<span class="text-red-500">*</span>
+    </label>
+    <select id="project_type" name="project_type"
+        data-field-code="project_type"
+        class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm"
+        required>
+        <option value="">{{ _('请选择项目类型') }}</option>
+    </select>
+</div>
+
+{# 行业 #}
+<div>
+    <label for="industry" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ _('行业') }}
+    </label>
+    <select id="industry" name="industry"
+        data-field-code="industry"
+        class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
+        <option value="">{{ _('请选择行业') }}</option>
+    </select>
+</div>
+{% endcall %}
+
+{# 两列布局：报备时间 + 预测出货时间 #}
+{% call tw_form_row(cols=2) %}
+{# 报备时间 - 必填 #}
+<div class="mb-0">
+    <label for="report_time" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ _('报备时间') }}<span class="text-red-500">*</span>
+    </label>
+    <input type="date" id="report_time" name="report_time"
+           data-field-code="report_time"
+           class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm"
+           required>
+</div>
+
+{# 预测出货时间 #}
+<div class="mb-0">
+    <label for="delivery_forecast" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ _('预测出货时间') }}
+    </label>
+    <input type="date" id="delivery_forecast" name="delivery_forecast"
+           data-field-code="delivery_forecast"
+           class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
+</div>
+{% endcall %}
+
+{# 报备源 - 必填 #}
+<div class="mt-4">
+    <label for="report_source" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ _('报备源') }}<span class="text-red-500">*</span>
+    </label>
+    <select id="report_source" name="report_source"
+        data-field-code="report_source"
+        class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm"
+        required>
+        <option value="">{{ _('请选择报备源') }}</option>
+    </select>
+</div>
+
+{# 产品情况 #}
+<div class="mt-4">
+    <label for="product_situation" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ _('产品情况') }}
+    </label>
+    <select id="product_situation" name="product_situation"
+        data-field-code="product_situation"
+        class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
+        <option value="">{{ _('请选择产品情况') }}</option>
+    </select>
+</div>
+
+
+
+{# 备注 #}
+<div class="mt-4">
+    <label for="stage_description" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ _('备注') }}
+    </label>
+    <textarea id="stage_description" name="stage_description" rows="3"
+              data-field-code="stage_description"
+              class="form-textarea block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm resize-none shadow-sm"
+              placeholder="{{ _('请输入备注信息') }}"></textarea>
+</div>
+
+{# 隐藏字段 #}
+{% if project_id %}
+<input type="hidden" id="project_id" name="project_id" value="{{ project_id }}">
+{% endif %}

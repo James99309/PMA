@@ -1,0 +1,242 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_buttons.html' import tw_btn with context %}
+{% from 'components/tw_stat_card.html' import tw_stat_card, tw_stat_cards_grid with context %}
+{% from 'components/tw_filter_bar.html' import render_tw_filter_bar, render_tw_filter_bar_script with context %}
+{% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles, render_tw_data_table_script, render_empty_row with context %}
+{% from 'macros/ui_helpers.html' import render_product_status_badge, render_product_type_badge with context %}
+{% from 'components/product/tw_product_modal.html' import render_product_modal, render_product_modal_script with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('产品库管理') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+    <!-- 数据表格样式 -->
+    {{ render_tw_data_table_styles() }}
+</head>
+<body class="bg-background-light dark:bg-background-dark">
+    {% call(slot) render_tw_layout(active_page='product', show_search=true, search_value=filter_config.search_field.value) %}
+    {% if slot == 'content' %}
+        <!-- 主内容 - 使用固定标题页面组件 -->
+        {% call(page_slot) render_tw_fixed_page() %}
+        {% if page_slot == 'header' %}
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('产品库管理') }}</h1>
+            <div class="flex flex-wrap items-center gap-2">
+                {% if current_user.role in ['admin', 'product_manager'] %}
+                <button type="button" onclick="ProductModal.openCreate()"
+                   class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">add</span>
+                    <span>{{ _('新增产品') }}</span>
+                </button>
+                <button type="button" onclick="exportProducts()"
+                   class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">download</span>
+                    <span>{{ _('导出产品') }}</span>
+                </button>
+                {% endif %}
+            </div>
+        {% elif page_slot == 'content' %}
+            <!-- 统计卡片 -->
+            {% set stats = list_config.stats.cards %}
+            {% call tw_stat_cards_grid(cols=4) %}
+                {% for card in stats %}
+                {% set variant_map = {'primary': 'default', 'success': 'success', 'danger': 'warning', 'warning': 'info'} %}
+                {% set icon_map = {'fas fa-cube': 'inventory_2', 'fas fa-play-circle': 'play_circle', 'fas fa-stop-circle': 'cancel', 'fas fa-clock': 'schedule'} %}
+                {{ tw_stat_card(
+                    title=card.title,
+                    value=card.value,
+                    unit=card.unit ~ (' / ' ~ card.amount ~ card.amount_unit if card.amount else ''),
+                    icon=icon_map.get(card.icon, 'analytics'),
+                    variant=variant_map.get(card.color, 'default')
+                ) }}
+                {% endfor %}
+            {% endcall %}
+
+            <!-- 筛选区域（可滚出） -->
+            {{ render_tw_filter_bar(
+                form_id='filterForm',
+                action_url=filter_config.action_url,
+                filter_fields=filter_config.filter_fields,
+                search_value=filter_config.search_field.value,
+                cols=4
+            ) }}
+
+            <!-- 表格标题栏 (sticky) -->
+            <div class="sticky top-0 z-20 -mx-6 lg:-mx-8 px-6 lg:px-8">
+                <div class="flex items-center gap-4 bg-white dark:bg-slate-800 rounded-t-xl border border-b-0 border-slate-200 dark:border-slate-700 p-4">
+                    <h3 class="text-slate-900 dark:text-white text-base font-medium">{{ _('产品列表') }}</h3>
+                    <span class="text-slate-500 dark:text-slate-400 text-sm ml-auto">
+                        <span id="productTableCount">{{ total_count }}</span> {{ _('条记录') }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- 数据表格（无标题，与上方标题栏衔接） -->
+            {% call render_tw_data_table(
+                table_id='productTable',
+                title='',
+                total_count=total_count,
+                columns=list_config.table.columns,
+                sort_field=sort_field,
+                sort_order=sort_order,
+                max_height='calc(100vh - 280px)',
+                min_height='400px',
+                show_loading=true,
+                min_width='1200px',
+                no_top_radius=true
+            ) %}
+                {% for product in products %}
+                <tr class="table-row-hover transition-colors">
+                    <!-- 产品名称（带状态图标） -->
+                    <td class="p-3">
+                        {% set product_display_name = product.subcategory_obj.name if product.subcategory_obj else (product.product_name or '-') %}
+                        <div class="flex items-center gap-2">
+                            <!-- 状态图标 -->
+                            {% if product.status == 'upcoming' %}
+                            <span class="material-symbols-outlined fill text-amber-500 flex-shrink-0" style="font-size: 14px;" title="{{ _('即将上市') }}">north_east</span>
+                            {% elif product.status == 'discontinued' %}
+                            <span class="material-symbols-outlined fill text-red-500 flex-shrink-0" style="font-size: 14px;" title="{{ _('已停产') }}">south_east</span>
+                            {% else %}
+                            <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" title="{{ _('在售') }}"></span>
+                            {% endif %}
+                            <span class="text-sm text-slate-700 dark:text-slate-300 truncate" title="{{ product_display_name }}">
+                                {{ product_display_name }}
+                            </span>
+                        </div>
+                    </td>
+                    <!-- 型号（带链接） -->
+                    <td class="p-3 truncate" title="{{ product.model or '' }}">
+                        <a href="{{ url_for('product.view_product_detail', id=product.id, tw=1) }}"
+                           class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
+                            {{ product.model or '-' }}
+                        </a>
+                    </td>
+                    <!-- 规格 -->
+                    <td class="p-3 text-sm text-slate-600 dark:text-slate-400 truncate" title="{{ product.specification or '' }}">
+                        {{ product.specification or '-' }}
+                    </td>
+                    <!-- 品牌 -->
+                    <td class="p-3 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300 truncate" title="{{ product.brand or '' }}">
+                        {{ product.brand or '-' }}
+                    </td>
+                    <!-- 单位 -->
+                    <td class="p-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
+                        {{ product.unit or '-' }}
+                    </td>
+                    <!-- 价格 -->
+                    <td class="p-3 whitespace-nowrap text-sm text-right font-medium text-slate-700 dark:text-slate-300">
+                        {% if product.retail_price %}
+                        ¥{{ "%.2f"|format(product.retail_price) }}
+                        {% else %}
+                        <span class="text-slate-400 dark:text-slate-500">-</span>
+                        {% endif %}
+                    </td>
+                    <!-- MN号 -->
+                    <td class="p-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400 font-mono">
+                        {{ product.product_mn or '-' }}
+                    </td>
+                    <!-- 创建时间 -->
+                    <td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                        {{ product.created_at.strftime('%Y-%m-%d') if product.created_at else '-' }}
+                    </td>
+                </tr>
+                {% else %}
+                {{ render_empty_row(list_config.table.columns|length, _('暂无数据'), 'inbox') }}
+                {% endfor %}
+            {% endcall %}
+        {% endif %}
+        {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 布局脚本 -->
+    {{ render_tw_layout_script() }}
+
+    <!-- 筛选栏脚本 -->
+    {{ render_tw_filter_bar_script(form_id='filterForm') }}
+
+    <!-- 数据表格脚本 -->
+    {{ render_tw_data_table_script(table_id='productTable', sort_callback='sortTable') }}
+
+    <!-- 通用列表管理器 -->
+    <script src="{{ url_for('static', filename='js/tw-list-manager.js') }}"></script>
+    <script>
+    // 导出产品功能
+    function exportProducts() {
+        window.location.href = '{{ url_for("product.export_products") }}';
+    }
+
+    (function() {
+        // 使用通用列表管理器
+        const listManager = new TwListManager({
+            tableId: 'productTable',
+            formId: 'filterForm',
+            ajaxEndpoint: '{{ url_for("product.product_list_ajax") }}',
+            pageSize: {{ limit }},
+            initialCount: {{ offset + products|length }},
+            sortField: '{{ request.args.get("sort", "") }}',
+            sortOrder: '{{ request.args.get("order", "asc") }}',
+            infiniteScroll: {{ 'true' if has_more else 'false' }},
+            extraParams: { tw: '1' },
+            messages: {
+                loadingMore: '{{ _("加载中...") }}',
+                noMoreData: '{{ _("没有更多数据") }}',
+                loadError: '{{ _("加载数据失败") }}'
+            }
+        });
+        listManager.init();
+
+        // 暴露排序函数供表格组件调用
+        window.sortTable = function(field) {
+            listManager.sortBy(field);
+        };
+    })();
+    </script>
+
+    <!-- 产品创建/编辑模态框 -->
+    {% if current_user.role in ['admin', 'product_manager'] %}
+    {{ render_product_modal(product_type='standard') }}
+    {{ render_product_modal_script(modal_categories, modal_regions, csrf_token(), modal_currencies, product_type='standard') }}
+    {% endif %}
+</body>
+</html>

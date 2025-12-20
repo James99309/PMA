@@ -1,0 +1,609 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_detail_layout.html' import tw_detail_layout with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles with context %}
+{% from 'components/tw_buttons.html' import tw_btn_primary, tw_btn_secondary, tw_btn_danger, tw_btn_outline, tw_btn_icon with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
+{% from 'components/tw_approval_flow.html' import render_tw_approval_flow_card, render_tw_approval_flow_script, render_tw_approval_modals with context %}
+{% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
+{% from 'components/tw_price_card.html' import tw_reference_stats_card with context %}
+{% from 'macros/ui_helpers.html' import render_dev_product_status_badge, render_tw_product_category_badge with context %}
+{% from 'components/product/tw_product_modal.html' import render_product_modal, render_product_modal_script with context %}
+{% from 'components/product/tw_spec_options_modal.html' import tw_spec_options_modal, tw_spec_options_modal_script with context %}
+{% from 'components/product/tw_spec_modals.html' import tw_spec_preview_modal, tw_spec_conflict_modal with context %}
+{% from 'components/product/tw_spec_list.html' import render_tw_spec_list with context %}
+
+{# 研发产品状态徽章 (TW版本) #}
+{% macro render_tw_dev_status_badge(status) %}
+{% set status_config = {
+    '新建': {'bg': 'bg-slate-100 dark:bg-slate-800', 'text': 'text-slate-600 dark:text-slate-400', 'border': 'border-slate-200 dark:border-slate-700'},
+    '研发中': {'bg': 'bg-blue-100 dark:bg-blue-900/30', 'text': 'text-blue-700 dark:text-blue-400', 'border': 'border-blue-200 dark:border-blue-800'},
+    '待入库': {'bg': 'bg-amber-100 dark:bg-amber-900/30', 'text': 'text-amber-700 dark:text-amber-400', 'border': 'border-amber-200 dark:border-amber-800'},
+    '审批中': {'bg': 'bg-purple-100 dark:bg-purple-900/30', 'text': 'text-purple-700 dark:text-purple-400', 'border': 'border-purple-200 dark:border-purple-800'},
+    '已入库': {'bg': 'bg-green-100 dark:bg-green-900/30', 'text': 'text-green-700 dark:text-green-400', 'border': 'border-green-200 dark:border-green-800'},
+    '已取消': {'bg': 'bg-red-100 dark:bg-red-900/30', 'text': 'text-red-700 dark:text-red-400', 'border': 'border-red-200 dark:border-red-800'}
+} %}
+{% set config = status_config.get(status, status_config['新建']) %}
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ config.bg }} {{ config.text }} border {{ config.border }}">
+    {{ status or _('新建') }}
+</span>
+{% endmacro %}
+
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ dev_product.name or dev_product.model }} - {{ _('研发产品详情') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
+
+        {{ render_tw_fixed_header_styles() }}
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background-color: #4b5563; }
+    </style>
+</head>
+
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-200">
+    {% call(slot) render_tw_layout(active_page='rd_product', show_search=true) %}
+    {% if slot == 'content' %}
+    {# 使用统一的详情页布局组件 v3.0（参数化按钮） #}
+    {% call(detail_slot) tw_detail_layout(
+        breadcrumb_items=[
+            {'label': _('研发库管理'), 'url': url_for('rd_product.index')},
+            {'label': _('产品详情')}
+        ],
+        title=dev_product.name or dev_product.model,
+        subtitle=dev_product.model if dev_product.model and dev_product.name else '',
+        back_url=url_for('rd_product.index'),
+        prev_url=url_for('rd_product.product_detail', id=prev_product_id, tw=1) if prev_product_id else none,
+        next_url=url_for('rd_product.product_detail', id=next_product_id, tw=1) if next_product_id else none,
+        status_badges=render_tw_dev_status_badge(dev_product.status),
+        edit_btn={
+            'show': can_edit_button,
+            'onclick': 'ProductModal.openEdit(' ~ dev_product.id ~ ')'
+        },
+        delete_btn={
+            'show': can_delete_button,
+            'onclick': 'confirmDeleteProduct()'
+        },
+        extra_actions=[
+            {
+                'show': not approval_instance and not warehoused_product and available_templates,
+                'label': _('发起入库审批'),
+                'onclick': 'confirmSubmitApproval()',
+                'icon': 'send',
+                'color': 'success'
+            }
+        ],
+        has_sidebar=true
+    ) %}
+        {% if detail_slot == 'main' %}
+            {# ===== 主内容区域 ===== #}
+
+            <!-- 已入库产品提示 -->
+            {% if warehoused_product %}
+            <div class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl flex items-center gap-3">
+                <span class="material-symbols-outlined text-2xl text-green-600 dark:text-green-400 fill">check_circle</span>
+                <div class="flex-1">
+                    <p class="font-medium text-green-800 dark:text-green-200">{{ _('该研发产品已成功入库！') }}</p>
+                    <a href="{{ url_for('product.view_product_detail', id=warehoused_product.id, tw=1) }}"
+                       class="text-sm text-green-600 dark:text-green-400 hover:underline flex items-center gap-1 mt-1">
+                        {{ _('查看产品库记录') }}
+                        <span class="material-symbols-outlined text-base">open_in_new</span>
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 产品概览卡片 -->
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <div class="px-6 py-5">
+                    <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-white">{{ _('产品概览') }}</h3>
+                </div>
+                <div class="p-6">
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <!-- 产品图片 -->
+                        <div class="w-full md:w-1/3 flex-shrink-0">
+                            {% set effective_image = dev_product.image_path or (dev_product.subcategory.image_path if dev_product.subcategory else None) %}
+                            <div class="aspect-square bg-slate-100 dark:bg-slate-700 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 relative group">
+                                {% if effective_image %}
+                                    {% if effective_image.startswith('http') %}
+                                    <img src="{{ effective_image }}" alt="{{ dev_product.name }}" class="w-full h-full object-contain">
+                                    {% elif effective_image.startswith('/storage/') %}
+                                    <img src="{{ effective_image }}" alt="{{ dev_product.name }}" class="w-full h-full object-contain">
+                                    {% else %}
+                                    <img src="{{ url_for('static', filename=effective_image) }}" alt="{{ dev_product.name }}" class="w-full h-full object-contain">
+                                    {% endif %}
+                                {% else %}
+                                <div class="w-full h-full flex items-center justify-center">
+                                    <span class="material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600">inventory_2</span>
+                                </div>
+                                {% endif %}
+
+                                {% if can_edit_button %}
+                                <!-- 悬停上传按钮 -->
+                                <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <button onclick="document.getElementById('imageFileInput').click()" class="px-4 py-2 bg-white/90 hover:bg-white text-slate-800 rounded-lg text-sm font-medium flex items-center gap-2">
+                                        <span class="material-symbols-outlined text-lg">upload</span>
+                                        {{ _('上传图片') }}
+                                    </button>
+                                </div>
+                                <input type="file" id="imageFileInput" accept="image/jpeg,image/jpg,image/png,image/gif" class="hidden">
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- 产品信息 -->
+                        <div class="flex-1 space-y-4">
+                            <!-- 产品描述 -->
+                            <div id="descriptionDisplay" class="{% if not dev_product.description %}hidden{% endif %}">
+                                <p class="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{{ _('产品描述') }}</p>
+                                <p id="descriptionText" class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{{ dev_product.description or '' }}</p>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('产品分类') }}</p>
+                                    <p class="mt-1">
+                                        {{ render_tw_product_category_badge(
+                                            dev_product.category.name if dev_product.category else none,
+                                            dev_product.subcategory.name if dev_product.subcategory else none
+                                        ) }}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('产品型号') }}</p>
+                                    <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white">{{ dev_product.model or '-' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('MN编码') }}</p>
+                                    <p id="mnCodeDisplay" class="mt-1 text-sm font-mono text-slate-900 dark:text-white">{{ dev_product.mn_code or '-' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('销售区域') }}</p>
+                                    <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white">{{ dev_product.region.name if dev_product.region else '-' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('计量单位') }}</p>
+                                    <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white">{{ dev_product.unit or '-' }}</p>
+                                </div>
+                            </div>
+
+                            <!-- 研发用途 -->
+                            {% if dev_product.development_purpose %}
+                            <div class="pt-4 border-t border-slate-100 dark:border-slate-800">
+                                <p class="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{{ _('研发用途') }}</p>
+                                <p class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{{ dev_product.development_purpose }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 产品规格卡片（支持编辑模式） -->
+            <div id="productSpecsCard" class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <div class="px-6 py-5 flex justify-between items-center">
+                    <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-white">{{ _('产品规格') }}</h3>
+                    {% if can_edit_button %}
+                    <div class="flex items-center gap-2">
+                        <!-- 添加按钮（编辑模式显示） -->
+                        <button id="addSpecBtn" class="hidden text-sm text-primary hover:text-primary/80 font-medium flex items-center gap-1">
+                            <span class="material-symbols-outlined text-base">add</span>
+                            {{ _('添加') }}
+                        </button>
+                        <!-- 编辑/应用按钮 -->
+                        <button id="editSpecsBtn" class="text-sm text-primary hover:text-primary/80 font-medium">
+                            {{ _('编辑') }}
+                        </button>
+                        <button id="applySpecsBtn" class="hidden text-sm text-green-600 hover:text-green-700 font-medium">
+                            {{ _('应用') }}
+                        </button>
+                        <button id="cancelSpecsBtn" class="hidden text-sm text-slate-500 hover:text-slate-700 font-medium">
+                            {{ _('取消') }}
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+                {{ render_tw_spec_list(specs, can_edit_button) }}
+            </div>
+
+            <!-- 入库审批流程卡片 -->
+            {% if approval_instance or warehoused_product %}
+            {{ render_tw_approval_flow_card(dev_product.status, container_id='approvalFlowContainer') }}
+            {% endif %}
+
+        {% elif detail_slot == 'sidebar' %}
+            {# ===== 侧边栏区域（使用组件化卡片） ===== #}
+
+            {# 价格信息卡片 - 使用 tw_reference_stats_card 组件 #}
+            {{ tw_reference_stats_card(
+                price=dev_product.retail_price,
+                currency=dev_product.currency or 'CNY',
+                price_label=_('市场价格（预估）'),
+                reference_count=product_reference_count
+            ) }}
+
+            {# 元数据卡片 - 使用 tw_metadata_card_simple 组件 #}
+            {{ tw_metadata_card_simple(
+                status_badge=render_tw_dev_status_badge(dev_product.status),
+                object_id=dev_product.id,
+                creator=dev_product.creator,
+                created_at=dev_product.created_at,
+                updated_at=dev_product.updated_at,
+                title=_('元数据')
+            ) }}
+        {% endif %}
+    {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 删除确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='deleteConfirmModal',
+        title=_('确认删除'),
+        message=_('确定要删除此研发产品吗？删除后将无法恢复，请谨慎操作。'),
+        confirm_text=_('删除'),
+        cancel_text=_('取消'),
+        variant='danger'
+    ) }}
+
+    <!-- 提交审批确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='submitApprovalConfirmModal',
+        title=_('发起入库审批'),
+        message=_('确定要发起入库审批流程吗？审批通过后，研发产品将自动转入产品库。'),
+        confirm_text=_('确认发起'),
+        cancel_text=_('取消'),
+        variant='primary'
+    ) }}
+
+    <!-- 审批相关模态框 -->
+    {% if approval_instance or warehoused_product %}
+    {{ render_tw_approval_modals() }}
+    {% endif %}
+
+    <!-- 规格选项管理模态框 -->
+    {% if can_edit_button %}
+    {{ tw_spec_options_modal() }}
+    {% endif %}
+
+    <!-- 规格MN更新预览确认模态框 -->
+    {{ tw_spec_preview_modal() }}
+
+    <!-- 编码冲突警告模态框 -->
+    {{ tw_spec_conflict_modal() }}
+
+    <!-- 布局脚本 -->
+    {{ render_tw_layout_script() }}
+
+    <!-- 确认模态框脚本 -->
+    {{ tw_confirm_modal_script() }}
+
+    <!-- 页面脚本 -->
+    <script>
+    (function() {
+        const productId = {{ dev_product.id }};
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        // 国际化文本
+        const i18n = {
+            deleteSuccess: '{{ _("产品删除成功") }}',
+            deleteError: '{{ _("删除失败，请重试") }}',
+            uploadSuccess: '{{ _("上传成功") }}',
+            uploadError: '{{ _("上传失败") }}',
+            approvalSuccess: '{{ _("审批流程已发起！") }}',
+            approvalError: '{{ _("发起审批失败") }}'
+        };
+
+        // 删除产品确认
+        window.confirmDeleteProduct = function() {
+            openConfirmModal('deleteConfirmModal', {
+                onConfirm: async function() {
+                    try {
+                        const response = await fetch(`/product-management/api/rd-products/${productId}/delete`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken
+                            }
+                        });
+                        const data = await response.json();
+
+                        if (data.success) {
+                            // 删除成功，跳转到列表页
+                            window.location.href = '{{ url_for("rd_product.index") }}';
+                        } else {
+                            alert(data.message || i18n.deleteError);
+                        }
+                    } catch (error) {
+                        console.error('删除失败:', error);
+                        alert(i18n.deleteError);
+                    }
+                }
+            });
+        };
+
+        // 确认发起入库审批
+        window.confirmSubmitApproval = function() {
+            {% if available_templates %}
+                {% if available_templates|length == 1 %}
+                const templateId = {{ available_templates[0].id }};
+                const templateName = '{{ available_templates[0].name }}';
+
+                openConfirmModal('submitApprovalConfirmModal', {
+                    message: '{{ _("确定要发起入库审批流程吗？") }}<br><small class="text-slate-500">{{ _("审批通过后，研发产品将自动转入产品库。") }}<br>{{ _("将使用审批流程") }}: <strong>' + templateName + '</strong></small>',
+                    onConfirm: function() {
+                        submitApproval(templateId);
+                    }
+                });
+                {% else %}
+                alert('{{ _("系统检测到多个审批流程模板，请联系管理员配置默认模板。") }}');
+                {% endif %}
+            {% else %}
+                alert('{{ _("没有可用的审批流程模板") }}');
+            {% endif %}
+        };
+
+        // 发起入库审批
+        async function submitApproval(templateId) {
+            if (!templateId) {
+                alert('{{ _("审批流程模板ID无效") }}');
+                return;
+            }
+
+            try {
+                const response = await fetch('{{ url_for("dev_product.submit_warehousing_approval", dev_product_id=dev_product.id) }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({ template_id: parseInt(templateId) })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(i18n.approvalSuccess);
+                    location.reload();
+                } else {
+                    alert(data.message || i18n.approvalError);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert(i18n.approvalError);
+            }
+        }
+
+        // 图片上传
+        const imageFileInput = document.getElementById('imageFileInput');
+        if (imageFileInput) {
+            imageFileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                // 验证
+                const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+                if (!allowedTypes.includes(file.type)) {
+                    alert('{{ _("不支持的图片格式！请选择 JPG、PNG 或 GIF 文件") }}');
+                    return;
+                }
+                if (file.size > 12 * 1024 * 1024) {
+                    alert('{{ _("图片文件太大！最大允许 12MB") }}');
+                    return;
+                }
+
+                uploadImage(file);
+            });
+        }
+
+        // 上传图片
+        async function uploadImage(file) {
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('csrf_token', csrfToken);
+
+            try {
+                const response = await fetch('/product-management/api/rd-products/' + productId + '/upload-image', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.error || data.message || i18n.uploadError);
+                }
+            } catch (error) {
+                console.error('上传错误:', error);
+                alert(i18n.uploadError);
+            }
+        }
+    })();
+    </script>
+
+    <!-- 规格编辑脚本 -->
+    {% if can_edit_button %}
+    <script src="{{ url_for('static', filename='js/spec-editor.js') }}"></script>
+    <script>
+    (function() {
+        const productId = {{ dev_product.id }};
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        // 国际化文本
+        const specI18n = {
+            edit: '{{ _("编辑") }}',
+            apply: '{{ _("应用") }}',
+            cancel: '{{ _("取消") }}',
+            delete: '{{ _("删除") }}',
+            excludeFromDesc: '{{ _("从描述中排除") }}',
+            includeInDesc: '{{ _("包含到描述中") }}',
+            saveSuccess: '{{ _("保存成功") }}',
+            saveError: '{{ _("保存失败") }}',
+            loading: '{{ _("加载中...") }}',
+            selectSpec: '{{ _("选择规格") }}',
+            selectSpecFirst: '{{ _("请先选择规格") }}',
+            noAvailableSpecs: '{{ _("没有可添加的规格") }}',
+            noAvailableOptions: '{{ _("暂无可用选项") }}',
+            emptySpecs: '{{ _("暂无规格信息") }}',
+            missingCodes: '{{ _("以下规格缺少编码，无法保存：") }}'
+        };
+
+        // 使用可复用的规格编辑器
+        const specEditor = new SpecEditor({
+            productId: productId,
+            apiEndpoint: `/product-management/api/rd-products/${productId}/specs`,
+            containerId: 'productSpecsContainer',
+            listId: 'productSpecsList',
+            emptyMessageId: 'emptySpecsMessage',
+            buttons: {
+                edit: 'editSpecsBtn',
+                apply: 'applySpecsBtn',
+                cancel: 'cancelSpecsBtn',
+                add: 'addSpecBtn'
+            },
+            i18n: specI18n,
+            csrfToken: csrfToken,
+            // 子分类ID（用于加载该分类可用的非编码规格）
+            subcategoryId: {{ dev_product.subcategory_id or 'null' }},
+            // 功能配置
+            features: {
+                descriptionControl: true,   // 启用描述包含控制
+                codePreview: true,          // 启用编码预览
+                addNewSpec: true            // 启用添加新规格
+            },
+            // 预览API端点
+            previewEndpoint: `/product-management/api/rd-products/${productId}/specs/preview`,
+            // 回调函数
+            onShowPreview: showSpecMnPreviewModal,
+            onShowConflict: showSpecConflictModal,
+            onPartialRefresh: handlePartialRefresh
+        });
+
+        // 初始化
+        specEditor.init();
+
+        // 暴露全局函数供规格行内的onclick调用
+        window.toggleSpecEdit = (btn) => specEditor.toggleSpecEdit(btn);
+        window.toggleSpecInDescription = (btn) => specEditor.toggleSpecInDescription(btn);
+        window.confirmNewSpecRow = (btn) => { const row = btn.closest('.spec-row'); specEditor.confirmNewSpecRow(row); };
+        window.cancelNewSpecRow = (btn) => { const row = btn.closest('.spec-row'); specEditor.cancelNewSpecRow(row); };
+        window.confirmMissingSpec = (btn) => specEditor.confirmMissingSpec(btn);
+        window.deleteSpec = (btn) => specEditor.deleteSpec(btn);
+        window.deleteNewSpec = window.deleteSpec;  // 别名，保持向后兼容
+
+        // 当前产品信息（用于冲突模态框）
+        const currentProductInfo = {
+            name: '{{ dev_product.name or "-" }}',
+            model: '{{ dev_product.model or "-" }}',
+            code: '{{ dev_product.mn_code or "-" }}'
+        };
+
+        // 使用公共方法显示模态框
+        function showSpecMnPreviewModal(previewData, confirmCallback) {
+            specEditor.showPreviewModal(previewData, confirmCallback);
+        }
+
+        function showSpecConflictModal(result) {
+            specEditor.showConflictModal(result, currentProductInfo);
+        }
+
+        // 处理保存后的局部刷新
+        function handlePartialRefresh(result) {
+            // 1. 更新MN编码显示
+            const mnCodeDisplay = document.getElementById('mnCodeDisplay');
+            if (mnCodeDisplay) {
+                mnCodeDisplay.textContent = result.product_mn || result.mn_code || '-';
+            }
+
+            // 2. 更新产品描述
+            const descDisplay = document.getElementById('descriptionDisplay');
+            const descText = document.getElementById('descriptionText');
+            if (descDisplay && descText) {
+                if (result.description || result.specification) {
+                    descText.textContent = result.description || result.specification;
+                    descDisplay.classList.remove('hidden');
+                } else {
+                    descDisplay.classList.add('hidden');
+                }
+            }
+
+            // 3. 重建规格列表（使用公共方法）
+            if (result.specs && result.specs.length > 0) {
+                specEditor.rebuildSpecsList(result.specs);
+            }
+        }
+
+        // 暴露给模态框按钮调用
+        window.closeSpecMnPreviewModal = () => specEditor.closePreviewModal();
+        window.confirmSpecMnPreview = () => specEditor.confirmPreview();
+        window.closeSpecConflictModal = () => specEditor.closeConflictModal();
+    })();
+    </script>
+    {% endif %}
+
+    <!-- 审批流程脚本 -->
+    {% if approval_instance or warehoused_product %}
+    {{ render_tw_approval_flow_script(
+        'rd_product',
+        dev_product.id,
+        dev_product.status,
+        dev_product.creator.real_name or dev_product.creator.username if dev_product.creator else '',
+        '/dev-product/api/approval',
+        'approvalFlowContainer'
+    ) }}
+    {% endif %}
+
+    <!-- 产品编辑模态框 -->
+    {% if can_edit_button %}
+    {{ render_product_modal() }}
+    {{ render_product_modal_script(modal_categories, modal_regions, csrf_token(), modal_currencies) }}
+    {% endif %}
+
+    <!-- 规格选项管理脚本 -->
+    {% if can_edit_button %}
+    {{ tw_spec_options_modal_script() }}
+    {% endif %}
+</body>
+</html>

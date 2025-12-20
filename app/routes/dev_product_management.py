@@ -26,7 +26,16 @@ bp = Blueprint('dev_product', __name__, url_prefix='/dev-product')
 @login_required
 @permission_required('product', 'view')
 def dev_product_list():
-    """研发产品列表页面"""
+    """研发产品列表页面 - 重定向到新版Tailwind页面"""
+    # 重定向到新版Tailwind风格的研发库管理页面，保留所有查询参数
+    return redirect(url_for('rd_product.dev_product_list', **request.args))
+
+
+@bp.route('/list-legacy', methods=['GET'])
+@login_required
+@permission_required('product', 'view')
+def dev_product_list_legacy():
+    """研发产品列表页面（旧版Bootstrap风格，保留作为备用）"""
     # 获取筛选参数
     search = request.args.get('search', '').strip()
     status_filter = request.args.get('status', '').strip()

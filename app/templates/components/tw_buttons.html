@@ -1,0 +1,163 @@
+{#
+=============================================================================
+Tailwind 按钮组件
+=============================================================================
+可复用的 Tailwind CSS 按钮组件，支持多种样式和尺寸。
+
+使用方式：
+{% from 'components/tw_buttons.html' import tw_btn, tw_btn_icon %}
+
+{{ tw_btn(_('添加客户'), variant='primary', icon='add') }}
+{{ tw_btn(_('搜索'), variant='dark', type='submit', icon='search') }}
+{{ tw_btn(_('取消'), variant='secondary') }}
+{{ tw_btn(_('删除'), variant='danger', icon='delete') }}
+{{ tw_btn(_('编辑'), variant='outline') }}
+{{ tw_btn_icon('edit', onclick='edit()') }}
+
+参数：
+- text: 按钮文本
+- variant: 样式变体 'primary' | 'dark' | 'secondary' | 'danger' | 'outline'，默认 'primary'
+- onclick: 点击事件（可选）
+- type: 按钮类型，默认 'button'
+- size: 尺寸 'sm' | 'md' | 'lg'，默认 'md'
+- icon: 图标名称（Material Symbols）
+- href: 链接地址（用于链接按钮）
+- disabled: 是否禁用
+- id: 元素ID
+=============================================================================
+#}
+
+{# 统一按钮组件 - 通过 variant 控制颜色 #}
+{% macro tw_btn(text, variant='primary', onclick='', type='button', size='md', icon='', href='', disabled=false, id='') %}
+{% set variant_classes = {
+    'primary': 'bg-primary text-white hover:bg-primary/90 focus:ring-primary/50 shadow-sm',
+    'dark': 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 focus:ring-slate-900/50 dark:focus:ring-white/50 shadow-sm',
+    'secondary': 'bg-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+    'danger': 'bg-red-500 text-white hover:bg-red-600 focus:ring-red-500/50 shadow-sm',
+    'outline': 'border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+} %}
+{% set size_classes = {
+    'sm': 'h-8 px-3 text-xs',
+    'md': 'h-10 px-5 text-sm',
+    'lg': 'h-11 px-8 text-base'
+} %}
+{% set icon_sizes = {
+    'sm': 'text-sm',
+    'md': 'text-base',
+    'lg': 'text-xl'
+} %}
+{% if href %}
+<a href="{{ href }}" {% if id %}id="{{ id }}"{% endif %}
+    class="inline-flex min-w-fit cursor-pointer items-center justify-center gap-1.5 overflow-hidden
+           {{ size_classes[size] }} rounded-lg font-medium {{ variant_classes[variant] }}
+           focus:outline-none focus:ring-2
+           {% if disabled %}opacity-50 pointer-events-none{% endif %}">
+    {% if icon %}<span class="material-symbols-outlined {{ icon_sizes[size] }}" style="font-size: 18px;">{{ icon }}</span>{% endif %}
+    <span class="truncate">{{ text }}</span>
+</a>
+{% else %}
+<button type="{{ type }}" {% if onclick %}onclick="{{ onclick }}"{% endif %} {% if disabled %}disabled{% endif %} {% if id %}id="{{ id }}"{% endif %}
+    class="inline-flex min-w-fit cursor-pointer items-center justify-center gap-1.5 overflow-hidden
+           {{ size_classes[size] }} rounded-lg font-medium {{ variant_classes[variant] }}
+           focus:outline-none focus:ring-2
+           disabled:opacity-50 disabled:cursor-not-allowed">
+    {% if icon %}<span class="material-symbols-outlined {{ icon_sizes[size] }}" style="font-size: 18px;">{{ icon }}</span>{% endif %}
+    <span class="truncate">{{ text }}</span>
+</button>
+{% endif %}
+{% endmacro %}
+
+{# 图标按钮 - Icon Only #}
+{% macro tw_btn_icon(icon, onclick='', type='button', size='md', href='', disabled=false, id='', variant='ghost', title='') %}
+{% set variant_classes = {
+    'ghost': 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+    'primary': 'text-primary hover:bg-primary/10',
+    'danger': 'text-red-500 hover:bg-red-500/10'
+} %}
+{% if href %}
+<a href="{{ href }}" {% if id %}id="{{ id }}"{% endif %} {% if title %}title="{{ title }}"{% endif %}
+    class="flex cursor-pointer items-center justify-center
+           {% if size == 'sm' %}size-7{% elif size == 'lg' %}size-11{% else %}size-9{% endif %}
+           rounded-lg {{ variant_classes[variant] }}
+           {% if disabled %}opacity-50 pointer-events-none{% endif %}">
+    <span class="material-symbols-outlined {% if size == 'sm' %}text-lg{% elif size == 'lg' %}text-2xl{% else %}text-xl{% endif %}">{{ icon }}</span>
+</a>
+{% else %}
+<button type="{{ type }}" {% if onclick %}onclick="{{ onclick }}"{% endif %} {% if disabled %}disabled{% endif %} {% if id %}id="{{ id }}"{% endif %} {% if title %}title="{{ title }}"{% endif %}
+    class="flex cursor-pointer items-center justify-center
+           {% if size == 'sm' %}size-7{% elif size == 'lg' %}size-11{% else %}size-9{% endif %}
+           rounded-lg {{ variant_classes[variant] }}
+           disabled:opacity-50 disabled:cursor-not-allowed">
+    <span class="material-symbols-outlined {% if size == 'sm' %}text-lg{% elif size == 'lg' %}text-2xl{% else %}text-xl{% endif %}">{{ icon }}</span>
+</button>
+{% endif %}
+{% endmacro %}
+
+{# 按钮组容器 #}
+{% macro tw_btn_group() %}
+<div class="flex items-center gap-2">
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+{# ============= 向后兼容的别名（保留旧API） ============= #}
+
+{# 主按钮 - Primary (蓝色实心) #}
+{% macro tw_btn_primary(text, onclick='', type='button', size='md', icon='', href='', disabled=false, id='') %}
+{{ tw_btn(text, variant='primary', onclick=onclick, type=type, size=size, icon=icon, href=href, disabled=disabled, id=id) }}
+{% endmacro %}
+
+{# 黑色按钮 - Dark (黑色实心) #}
+{% macro tw_btn_dark(text, onclick='', type='button', size='md', icon='', href='', disabled=false, id='') %}
+{{ tw_btn(text, variant='dark', onclick=onclick, type=type, size=size, icon=icon, href=href, disabled=disabled, id=id) }}
+{% endmacro %}
+
+{# 次按钮 - Secondary (透明/灰色) #}
+{% macro tw_btn_secondary(text, onclick='', type='button', size='md', icon='', href='', disabled=false, id='') %}
+{{ tw_btn(text, variant='secondary', onclick=onclick, type=type, size=size, icon=icon, href=href, disabled=disabled, id=id) }}
+{% endmacro %}
+
+{# 危险按钮 - Danger (红色) #}
+{% macro tw_btn_danger(text, onclick='', type='button', size='md', icon='', href='', disabled=false, id='') %}
+{{ tw_btn(text, variant='danger', onclick=onclick, type=type, size=size, icon=icon, href=href, disabled=disabled, id=id) }}
+{% endmacro %}
+
+{# 轮廓按钮 - Outline (边框)，支持多种颜色 #}
+{% macro tw_btn_outline(text, onclick='', type='button', size='md', icon='', href='', disabled=false, id='', color='slate') %}
+{% set color_classes = {
+    'slate': 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+    'primary': 'border-primary text-primary hover:bg-primary/10',
+    'danger': 'border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30'
+} %}
+{% set size_classes = {
+    'xs': 'h-7 px-2.5 text-xs',
+    'sm': 'h-8 px-3 text-xs',
+    'md': 'h-10 px-5 text-sm',
+    'lg': 'h-11 px-8 text-base'
+} %}
+{% set icon_sizes = {
+    'xs': 'text-sm',
+    'sm': 'text-base',
+    'md': 'text-lg',
+    'lg': 'text-xl'
+} %}
+{% if href %}
+<a href="{{ href }}" {% if id %}id="{{ id }}"{% endif %}
+    class="inline-flex min-w-fit cursor-pointer items-center justify-center gap-1.5 overflow-hidden
+           {{ size_classes[size] }} rounded-lg border font-medium {{ color_classes[color] }}
+           focus:outline-none focus:ring-2 focus:ring-offset-1 transition-colors
+           {% if disabled %}opacity-50 pointer-events-none{% endif %}">
+    {% if icon %}<span class="material-symbols-outlined {{ icon_sizes[size] }}">{{ icon }}</span>{% endif %}
+    <span class="truncate">{{ text }}</span>
+</a>
+{% else %}
+<button type="{{ type }}" {% if onclick %}onclick="{{ onclick }}"{% endif %} {% if disabled %}disabled{% endif %} {% if id %}id="{{ id }}"{% endif %}
+    class="inline-flex min-w-fit cursor-pointer items-center justify-center gap-1.5 overflow-hidden
+           {{ size_classes[size] }} rounded-lg border font-medium {{ color_classes[color] }}
+           focus:outline-none focus:ring-2 focus:ring-offset-1 transition-colors
+           disabled:opacity-50 disabled:cursor-not-allowed">
+    {% if icon %}<span class="material-symbols-outlined {{ icon_sizes[size] }}">{{ icon }}</span>{% endif %}
+    <span class="truncate">{{ text }}</span>
+</button>
+{% endif %}
+{% endmacro %}

@@ -1,0 +1,206 @@
+{#
+=============================================================================
+Tailwind 卡片外壳组件
+=============================================================================
+提供统一的卡片外壳样式，内容区域完全由调用者自定义。
+适用于需要复杂自定义布局的卡片，如：
+- 价格信息卡片（带进度条）
+- 产品概览卡片（带图片）
+- 二维码卡片
+- 统计卡片
+- 等等
+
+与 tw_info_card 的区别：
+- tw_info_card: 适合键值对列表，通过 items 参数传递数据
+- tw_card_shell: 适合自定义布局，通过 {% call %} 传递内容
+
+使用方式：
+{% from 'components/tw_card_shell.html' import tw_card_shell %}
+
+示例1 - 基础用法：
+{% call tw_card_shell(title=_('价格信息')) %}
+    <div class="text-3xl font-bold">¥1,234.00</div>
+    <div class="mt-4">
+        <div class="h-2 bg-slate-200 rounded-full">
+            <div class="h-2 bg-primary rounded-full" style="width: 75%"></div>
+        </div>
+    </div>
+{% endcall %}
+
+示例2 - 带操作按钮：
+{% call tw_card_shell(
+    title=_('产品文档'),
+    action_btn={'label': _('上传'), 'icon': 'upload', 'onclick': 'uploadFile()'}
+) %}
+    <div class="text-center py-8">
+        <span class="material-symbols-outlined text-5xl text-slate-300">description</span>
+        <p class="mt-3 text-sm text-slate-500">暂无文档</p>
+    </div>
+{% endcall %}
+
+示例3 - 无标题：
+{% call tw_card_shell() %}
+    <div class="text-center">
+        <img src="qrcode.png" class="w-32 h-32 mx-auto">
+    </div>
+{% endcall %}
+
+示例4 - 带副标题和链接操作：
+{% call tw_card_shell(
+    title=_('订单统计'),
+    subtitle=_('近30天'),
+    action_btn={'label': _('查看详情'), 'href': '/orders'}
+) %}
+    <div class="grid grid-cols-3 gap-4">...</div>
+{% endcall %}
+
+参数说明：
+- title: 卡片标题（可选）
+- subtitle: 副标题（可选）
+- action_btn: 操作按钮配置 {label, icon, onclick, href}（可选）
+- show_action: 是否显示操作按钮，默认 true
+- header_border: 标题栏是否有下边框，默认 false
+- padding: 内容区内边距，'normal'(默认) | 'none' | 'compact'
+- card_class: 额外的卡片CSS类
+- content_class: 内容区额外CSS类
+=============================================================================
+#}
+
+{# 卡片外壳组件（支持完全自定义内容） #}
+{% macro tw_card_shell(
+    title='',
+    subtitle='',
+    action_btn=none,
+    show_action=true,
+    header_border=false,
+    padding='normal',
+    card_class='',
+    content_class=''
+) %}
+{% set padding_class = {
+    'normal': 'p-6',
+    'compact': 'p-4',
+    'none': ''
+}.get(padding, 'p-6') %}
+{% set content_padding = {
+    'normal': 'p-6 pt-0' if title else 'p-6',
+    'compact': 'p-4 pt-0' if title else 'p-4',
+    'none': ''
+}.get(padding, 'p-6 pt-0' if title else 'p-6') %}
+
+<div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden {{ card_class }}">
+    {# 标题栏 #}
+    {% if title or (show_action and action_btn) %}
+    <div class="px-6 py-5 flex items-center justify-between {% if header_border %}border-b border-slate-200 dark:border-slate-800{% endif %}">
+        <div>
+            {% if title %}
+            <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-white">{{ title }}</h3>
+            {% endif %}
+            {% if subtitle %}
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ subtitle }}</p>
+            {% endif %}
+        </div>
+        {% if show_action and action_btn %}
+            {% if action_btn.href %}
+            <a href="{{ action_btn.href }}" class="text-primary text-sm font-medium hover:underline flex items-center gap-1">
+                {% if action_btn.icon %}
+                <span class="material-symbols-outlined text-base">{{ action_btn.icon }}</span>
+                {% endif %}
+                {{ action_btn.label or _('操作') }}
+            </a>
+            {% elif action_btn.onclick %}
+            <button type="button" onclick="{{ action_btn.onclick }}" class="text-primary text-sm font-medium hover:underline flex items-center gap-1">
+                {% if action_btn.icon %}
+                <span class="material-symbols-outlined text-base">{{ action_btn.icon }}</span>
+                {% endif %}
+                {{ action_btn.label or _('操作') }}
+            </button>
+            {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# 内容区域 - 由调用者完全控制 #}
+    <div class="{{ content_padding }} {{ content_class }}">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 带分隔标题的卡片外壳（标题在内容区上方，有分隔线） #}
+{% macro tw_card_shell_divided(
+    title='',
+    action_btn=none,
+    show_action=true,
+    card_class='',
+    content_class=''
+) %}
+<div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden {{ card_class }}">
+    {# 标题栏 - 带下边框 #}
+    {% if title or (show_action and action_btn) %}
+    <div class="px-6 py-5 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
+        {% if title %}
+        <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-white">{{ title }}</h3>
+        {% endif %}
+        {% if show_action and action_btn %}
+            {% if action_btn.href %}
+            <a href="{{ action_btn.href }}" class="text-primary text-sm font-medium hover:underline flex items-center gap-1">
+                {% if action_btn.icon %}
+                <span class="material-symbols-outlined text-base">{{ action_btn.icon }}</span>
+                {% endif %}
+                {{ action_btn.label or _('操作') }}
+            </a>
+            {% elif action_btn.onclick %}
+            <button type="button" onclick="{{ action_btn.onclick }}" class="text-primary text-sm font-medium hover:underline flex items-center gap-1">
+                {% if action_btn.icon %}
+                <span class="material-symbols-outlined text-base">{{ action_btn.icon }}</span>
+                {% endif %}
+                {{ action_btn.label or _('操作') }}
+            </button>
+            {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# 内容区域 #}
+    <div class="p-6 {{ content_class }}">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 紧凑型卡片外壳（小标题风格） #}
+{% macro tw_card_shell_compact(
+    title='',
+    action_btn=none,
+    show_action=true,
+    card_class='',
+    content_class=''
+) %}
+<div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden {{ card_class }}">
+    <div class="p-6">
+        {# 小标题 #}
+        {% if title or (show_action and action_btn) %}
+        <div class="flex items-center justify-between mb-4">
+            {% if title %}
+            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">{{ title }}</h4>
+            {% endif %}
+            {% if show_action and action_btn %}
+                {% if action_btn.href %}
+                <a href="{{ action_btn.href }}" class="text-primary text-xs font-medium hover:underline">{{ action_btn.label or _('操作') }}</a>
+                {% elif action_btn.onclick %}
+                <button type="button" onclick="{{ action_btn.onclick }}" class="text-primary text-xs font-medium hover:underline">{{ action_btn.label or _('操作') }}</button>
+                {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# 内容区域 #}
+        <div class="{{ content_class }}">
+            {{ caller() }}
+        </div>
+    </div>
+</div>
+{% endmacro %}

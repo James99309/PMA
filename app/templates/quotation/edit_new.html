@@ -3,6 +3,7 @@
 {% from "macros/product_detail_manager.html" import render_product_detail_table, init_product_detail_scripts %}
 {% from 'macros/project_search.html' import render_project_search, init_project_search_scripts %}
 {% from 'macros/product_config_modal.html' import render_product_config_modal %}
+{% from 'components/tw_product_spec_modal.html' import tw_product_spec_modal, tw_product_spec_modal_script %}
 
 {% block head %}
 {{ super() }}
@@ -399,6 +400,9 @@
 <!-- 产品配置模态框 -->
 {{ render_product_config_modal() }}
 
+<!-- 新版产品规格选择模态框 (Tailwind) -->
+{{ tw_product_spec_modal() }}
+
 <!-- 初始化产品明细组件脚本 -->
 {{ init_product_detail_scripts() }}
 
@@ -621,5 +625,8 @@ window.CURRENCY_I18N = {
     "THB": "{{ _('泰铢') }}"
 };
 </script>
+
+<!-- 新版产品规格选择模态框脚本 -->
+{{ tw_product_spec_modal_script() }}
 
 {% endblock %}

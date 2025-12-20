@@ -171,14 +171,23 @@ def logout():
     # 记录登出信息
     if current_user.is_authenticated:
         logger.info(f"用户 {current_user.username} (ID: {current_user.id}) 登出系统")
-    
+
+    # 保存需要保留的session数据（语言和主题偏好）
+    language = session.get('language', 'zh')
+    theme = session.get('theme')
+
     # 清除会话数据
     session.clear()
-    
+
+    # 恢复语言和主题设置
+    session['language'] = language
+    if theme:
+        session['theme'] = theme
+
     # 登出用户
     logout_user()
-    
-    flash('您已成功登出！', 'info')
+
+    # 不显示登出成功消息，直接跳转
     return redirect(url_for('auth.login'))
 
 @auth.route('/register', methods=['GET', 'POST'])

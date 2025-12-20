@@ -1,0 +1,27 @@
+{# 产品列表表格行模板 - 用于无限滚动AJAX加载 #}
+{% from 'components/tw_table_cells.html' import tw_cell_link, tw_cell_text, tw_cell_amount, tw_cell_mono, tw_cell_date %}
+{% for product in products %}
+{% set product_display_name = product.subcategory_obj.name if product.subcategory_obj else (product.product_name or '-') %}
+<tr class="table-row-hover transition-colors">
+    <!-- 产品名称（带状态图标） -->
+    <td class="p-3">
+        <div class="flex items-center gap-2">
+            {% if product.status == 'upcoming' %}
+            <span class="material-symbols-outlined fill text-amber-500 flex-shrink-0" style="font-size: 14px;" title="{{ _('即将上市') }}">north_east</span>
+            {% elif product.status == 'discontinued' %}
+            <span class="material-symbols-outlined fill text-red-500 flex-shrink-0" style="font-size: 14px;" title="{{ _('已停产') }}">south_east</span>
+            {% else %}
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" title="{{ _('在售') }}"></span>
+            {% endif %}
+            <span class="text-sm text-slate-700 dark:text-slate-300 truncate" title="{{ product_display_name }}">{{ product_display_name }}</span>
+        </div>
+    </td>
+    {{ tw_cell_link(url_for('product.view_product_detail', id=product.id, tw=1), product.model, title=product.model) }}
+    {{ tw_cell_text(product.specification, title=product.specification, truncate=true) }}
+    {{ tw_cell_text(product.brand, title=product.brand) }}
+    {{ tw_cell_text(product.unit) }}
+    {{ tw_cell_amount(product.retail_price, 'CNY') }}
+    {{ tw_cell_mono(product.product_mn) }}
+    {{ tw_cell_date(product.created_at) }}
+</tr>
+{% endfor %}

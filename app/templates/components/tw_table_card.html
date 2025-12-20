@@ -1,0 +1,133 @@
+{#
+=============================================================================
+Tailwind 表格卡片组件
+=============================================================================
+可复用的 Tailwind CSS 表格卡片，支持滚动、标题、查看全部链接等功能。
+
+使用方式：
+{% from 'components/tw_table_card.html' import render_tw_table_card %}
+
+{{ render_tw_table_card(
+    title=_('关联项目'),
+    view_all_url=url_for('project.list_projects'),
+    view_all_text=_('查看全部'),
+    max_height='300px',
+    headers=[
+        {'label': _('项目名称'), 'width': '40%'},
+        {'label': _('阶段'), 'width': '30%'},
+        {'label': _('金额'), 'width': '30%', 'align': 'right'}
+    ],
+    empty_text=_('暂无关联项目')
+) }}
+    <!-- 表格行内容放在这里 -->
+{% endcall %}
+
+参数：
+- title: 卡片标题
+- view_all_url: "查看全部"链接地址（可选）
+- view_all_text: "查看全部"链接文本，默认"查看全部"
+- max_height: 表格区域最大高度，默认 '300px'
+- headers: 表头配置列表，每项包含 label, width(可选), align(可选: left/center/right)
+- empty_text: 无数据时显示的文本
+- card_id: 卡片ID（可选，用于JS操作）
+=============================================================================
+#}
+
+{# 表格卡片组件 #}
+{% macro render_tw_table_card(title, view_all_url=none, view_all_text=none, action_btn=none, max_height='300px', headers=[], empty_text=none, card_id=none) %}
+<div {% if card_id %}id="{{ card_id }}"{% endif %} class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ title }}</h3>
+        {% if action_btn and action_btn.onclick %}
+        <button type="button" onclick="{{ action_btn.onclick }}" class="text-primary text-sm font-medium hover:underline">{{ action_btn.label or _('添加') }}</button>
+        {% elif action_btn and action_btn.href %}
+        <a href="{{ action_btn.href }}" class="text-primary text-sm font-medium hover:underline">{{ action_btn.label or _('添加') }}</a>
+        {% elif view_all_url %}
+        <a class="text-primary text-sm font-medium hover:underline" href="{{ view_all_url }}">{{ view_all_text or _('查看全部') }}</a>
+        {% endif %}
+    </div>
+    <div class="table-scroll-container overflow-auto" style="max-height: {{ max_height }};">
+        <table class="w-full text-left text-sm">
+            {% if headers %}
+            <thead class="border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900">
+                <tr>
+                    {% for header in headers %}
+                    <th class="p-3 text-slate-500 dark:text-slate-400 font-medium {% if header.align == 'right' %}text-right{% elif header.align == 'center' %}text-center{% endif %}"
+                        {% if header.width %}style="width: {{ header.width }}"{% endif %}>
+                        {{ header.label }}
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            {% endif %}
+            <tbody>
+                {{ caller() }}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 表格行组件 - 用于简化行的创建 #}
+{% macro render_table_row(cells, hover=true) %}
+<tr class="{% if hover %}hover:bg-slate-50 dark:hover:bg-slate-800/50{% endif %}">
+    {% for cell in cells %}
+    <td class="p-3 {% if cell.align == 'right' %}text-right{% elif cell.align == 'center' %}text-center{% endif %} {% if cell.class %}{{ cell.class }}{% endif %}">
+        {% if cell.link %}
+        <a href="{{ cell.link }}" class="text-primary hover:underline font-medium">{{ cell.content }}</a>
+        {% elif cell.badge %}
+        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {{ cell.badge_class or 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300' }}">
+            {{ cell.content }}
+        </span>
+        {% else %}
+        {{ cell.content }}
+        {% endif %}
+    </td>
+    {% endfor %}
+</tr>
+{% endmacro %}
+
+
+{# 空状态组件 #}
+{% macro render_empty_state(text, icon='inbox') %}
+<tr>
+    <td colspan="100" class="p-8 text-center">
+        <div class="flex flex-col items-center gap-2">
+            <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">{{ icon }}</span>
+            <span class="text-slate-500 dark:text-slate-400 text-sm">{{ text }}</span>
+        </div>
+    </td>
+</tr>
+{% endmacro %}
+
+
+{# 滚动容器样式 #}
+{% macro render_table_card_styles() %}
+<style>
+    .table-scroll-container::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    .table-scroll-container::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 3px;
+    }
+    .table-scroll-container::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+    }
+    .table-scroll-container::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+    .dark .table-scroll-container::-webkit-scrollbar-track {
+        background: #1e293b;
+    }
+    .dark .table-scroll-container::-webkit-scrollbar-thumb {
+        background: #475569;
+    }
+    .dark .table-scroll-container::-webkit-scrollbar-thumb:hover {
+        background: #64748b;
+    }
+</style>
+{% endmacro %}

@@ -1,0 +1,354 @@
+{#
+=============================================================================
+Tailwind 行动记录回复组件
+=============================================================================
+可复用的行动记录回复组件，支持：
+- 聊天气泡样式（当前用户右对齐蓝色，其他用户左对齐灰色）
+- 气泡宽度自适应内容
+- 相对时间显示（几分钟前、几小时前等）
+- 点击外部自动折叠
+- 嵌套回复（子回复）
+- 深色模式
+- 国际化
+
+使用方式：
+{% from 'components/tw_action_replies.html' import render_tw_action_replies_script %}
+
+<!-- 在页面底部引入脚本 -->
+{{ render_tw_action_replies_script(
+    container_id='actionReplies',
+    api_prefix='/project'  或 '/customer'
+) }}
+
+HTML 结构要求：
+1. 回复面板容器: id="${container_id}-reply-panel-${actionId}"
+2. 回复列表容器: id="${container_id}-replies-list-${actionId}"
+3. 加载状态: id="${container_id}-replies-loading-${actionId}"
+4. 回复输入框: id="${container_id}-reply-textarea-${actionId}"
+
+必需的全局变量：
+- window.currentUserId: 当前用户ID
+- window.currentUserInitials: 当前用户姓名缩写
+- window.i18nTexts: 国际化文本对象（可选）
+=============================================================================
+#}
+
+{# 行动记录回复组件 JavaScript #}
+{% macro render_tw_action_replies_script(container_id='replies', api_prefix='/project') %}
+<script>
+(function() {
+    const containerId = '{{ container_id }}';
+    const apiPrefix = '{{ api_prefix }}';
+
+    // 当前展开的面板ID
+    let currentOpenPanelId = null;
+
+    // 格式化相对时间（支持 ISO 8601 格式的 UTC 时间）
+    function formatRelativeTime(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffSec = Math.floor(diffMs / 1000);
+        const diffMin = Math.floor(diffSec / 60);
+        const diffHour = Math.floor(diffMin / 60);
+        const diffDay = Math.floor(diffHour / 24);
+        const diffMonth = Math.floor(diffDay / 30);
+        const diffYear = Math.floor(diffDay / 365);
+
+        const i18n = window.i18nTexts || {};
+        if (diffSec < 60) return i18n.justNow || '刚刚';
+        if (diffMin < 60) return `${diffMin}${i18n.minutesAgo || '分钟前'}`;
+        if (diffHour < 24) return `${diffHour}${i18n.hoursAgo || '小时前'}`;
+        if (diffDay < 30) return `${diffDay}${i18n.daysAgo || '天前'}`;
+        if (diffMonth < 12) return `${diffMonth}${i18n.monthsAgo || '个月前'}`;
+        return `${diffYear}${i18n.yearsAgo || '年前'}`;
+    }
+
+    // HTML转义
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // 获取姓名缩写
+    function getInitials(name) {
+        if (!name) return '?';
+        if (/[\u4e00-\u9fff]/.test(name)) {
+            return name.substring(0, 2);
+        }
+        return name.charAt(0).toUpperCase();
+    }
+
+    // 折叠所有面板
+    function collapseAllPanels() {
+        if (currentOpenPanelId) {
+            const panel = document.getElementById(`${containerId}-reply-panel-${currentOpenPanelId}`);
+            if (panel) panel.classList.add('hidden');
+            const badge = document.querySelector(`[onclick*="${containerId}Replies.toggleReply(${currentOpenPanelId}"]`);
+            if (badge) {
+                const icon = badge.querySelector('.material-symbols-outlined');
+                if (icon) icon.style.transform = 'rotate(0deg)';
+            }
+            currentOpenPanelId = null;
+        }
+    }
+
+    // 切换回复面板显示
+    function toggleReply(actionId, badgeEl) {
+        const panel = document.getElementById(`${containerId}-reply-panel-${actionId}`);
+        const icon = badgeEl ? badgeEl.querySelector('.material-symbols-outlined') : null;
+
+        if (panel.classList.contains('hidden')) {
+            if (currentOpenPanelId && currentOpenPanelId !== actionId) {
+                collapseAllPanels();
+            }
+            panel.classList.remove('hidden');
+            if (icon) icon.style.transform = 'rotate(180deg)';
+            currentOpenPanelId = actionId;
+            loadReplies(actionId);
+        } else {
+            panel.classList.add('hidden');
+            if (icon) icon.style.transform = 'rotate(0deg)';
+            currentOpenPanelId = null;
+        }
+    }
+
+    // 点击外部区域折叠面板
+    document.addEventListener('click', function(e) {
+        if (!currentOpenPanelId) return;
+        const panel = document.getElementById(`${containerId}-reply-panel-${currentOpenPanelId}`);
+        const badge = document.querySelector(`[onclick*="${containerId}Replies.toggleReply(${currentOpenPanelId}"]`);
+        if (panel && !panel.contains(e.target) && badge && !badge.contains(e.target)) {
+            collapseAllPanels();
+        }
+    });
+
+    // 加载回复列表
+    function loadReplies(actionId) {
+        const listContainer = document.getElementById(`${containerId}-replies-list-${actionId}`);
+        const loadingEl = document.getElementById(`${containerId}-replies-loading-${actionId}`);
+
+        if (loadingEl) loadingEl.classList.remove('hidden');
+
+        fetch(`${apiPrefix}/action/${actionId}/replies`)
+            .then(res => res.json())
+            .then(replies => {
+                if (loadingEl) loadingEl.classList.add('hidden');
+                renderReplies(actionId, replies, listContainer);
+            })
+            .catch(error => {
+                if (loadingEl) loadingEl.classList.add('hidden');
+                console.error('加载回复失败:', error);
+            });
+    }
+
+    // 渲染回复列表
+    function renderReplies(actionId, replies, container) {
+        if (!container) return;
+        if (!replies || replies.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+        container.innerHTML = '';
+        replies.forEach(reply => {
+            container.appendChild(renderReplyItem(actionId, reply, 0));
+        });
+    }
+
+    // 渲染单个回复项（聊天气泡样式）
+    function renderReplyItem(actionId, reply, depth) {
+        const i18n = window.i18nTexts || {};
+        const replyDiv = document.createElement('div');
+        replyDiv.className = 'reply-item';
+
+        const isCurrentUser = reply.owner_id === window.currentUserId;
+        const relativeTime = formatRelativeTime(reply.created_at);
+
+        if (isCurrentUser) {
+            replyDiv.innerHTML = `
+                <div class="flex justify-end">
+                    <div class="flex items-start gap-2 flex-1">
+                        <div class="flex flex-col items-end flex-1">
+                            <span class="bg-blue-100 dark:bg-blue-900/50 rounded-lg rounded-br-none px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words">${escapeHtml(reply.content)}</span>
+                            <div class="flex items-center gap-2 mt-1">
+                                ${reply.can_delete ? `<button onclick="window.${containerId}Replies.deleteReply(${actionId}, ${reply.id})" class="text-red-500 hover:text-red-700 text-xs">${i18n.delete || '删除'}</button>` : ''}
+                                <span class="text-xs text-slate-400 dark:text-slate-500">${relativeTime}</span>
+                            </div>
+                        </div>
+                        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-white text-xs">
+                            ${getInitials(reply.owner)}
+                        </div>
+                    </div>
+                </div>
+                <div id="${containerId}-children-${reply.id}" class="space-y-3 mt-2"></div>
+            `;
+        } else {
+            replyDiv.innerHTML = `
+                <div class="flex justify-start">
+                    <div class="flex items-start gap-2 flex-1">
+                        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-400 font-bold text-white text-xs">
+                            ${getInitials(reply.owner)}
+                        </div>
+                        <div class="flex flex-col items-start flex-1">
+                            <span class="bg-slate-100 dark:bg-slate-700 rounded-lg rounded-bl-none px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words">${escapeHtml(reply.content)}</span>
+                            <span class="text-xs text-slate-400 dark:text-slate-500 mt-1">${relativeTime}</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="${containerId}-children-${reply.id}" class="space-y-3 mt-2"></div>
+            `;
+        }
+
+        // 渲染子回复
+        if (reply.children && reply.children.length > 0) {
+            const childrenContainer = replyDiv.querySelector(`#${containerId}-children-${reply.id}`);
+            reply.children.forEach(child => {
+                childrenContainer.appendChild(renderReplyItem(actionId, child, depth + 1));
+            });
+        }
+
+        return replyDiv;
+    }
+
+    // 提交回复
+    function submitReply(actionId) {
+        const textarea = document.getElementById(`${containerId}-reply-textarea-${actionId}`);
+        const content = textarea?.value?.trim();
+        if (!content) return;
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        fetch(`${apiPrefix}/action/${actionId}/reply`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ content })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success !== false) {
+                textarea.value = '';
+                loadReplies(actionId);
+            }
+        })
+        .catch(error => console.error('提交回复失败:', error));
+    }
+
+    // 取消回复（收起面板）
+    function cancelReply(actionId) {
+        const textarea = document.getElementById(`${containerId}-reply-textarea-${actionId}`);
+        if (textarea) textarea.value = '';
+        collapseAllPanels();
+    }
+
+    // 删除回复 - 使用确认模态框
+    function deleteReply(actionId, replyId) {
+        const i18n = window.i18nTexts || {};
+
+        // 如果有全局的 openConfirmModal 函数，使用模态框
+        if (typeof window.openConfirmModal === 'function') {
+            window.openConfirmModal('replyDeleteConfirmModal', {
+                onConfirm: function() {
+                    executeDeleteReply(actionId, replyId);
+                }
+            });
+        } else {
+            // 降级使用浏览器原生 confirm
+            if (!confirm(i18n.confirmDeleteReply || '确定要删除这条回复吗？')) return;
+            executeDeleteReply(actionId, replyId);
+        }
+    }
+
+    // 执行删除回复
+    function executeDeleteReply(actionId, replyId) {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        fetch(`${apiPrefix}/action/reply/${replyId}/delete`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success !== false) {
+                loadReplies(actionId);
+            }
+        })
+        .catch(error => console.error('删除回复失败:', error));
+    }
+
+    // 暴露公共API
+    window[containerId + 'Replies'] = {
+        toggleReply: toggleReply,
+        loadReplies: loadReplies,
+        submitReply: submitReply,
+        cancelReply: cancelReply,
+        deleteReply: deleteReply,
+        collapseAll: collapseAllPanels
+    };
+
+    // 暴露格式化相对时间函数为全局函数（供其他组件复用）
+    if (!window.formatRelativeTime) {
+        window.formatRelativeTime = formatRelativeTime;
+    }
+})();
+</script>
+{% endmacro %}
+
+
+{# 回复面板 HTML 模板 #}
+{% macro render_reply_panel(container_id, action_id) %}
+<div id="{{ container_id }}-reply-panel-{{ action_id }}" class="hidden reply-panel mt-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+    <div class="p-4">
+        <!-- 回复列表 -->
+        <div id="{{ container_id }}-replies-list-{{ action_id }}" class="space-y-3 mb-4"></div>
+        <!-- 加载中 -->
+        <div id="{{ container_id }}-replies-loading-{{ action_id }}" class="hidden text-center py-4">
+            <div class="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+        </div>
+        <!-- 添加新回复表单 -->
+        <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+            <div class="flex items-start gap-3">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-white text-xs">
+                    <script>document.write(window.currentUserInitials || 'Me')</script>
+                </div>
+                <div class="flex-1">
+                    <textarea id="{{ container_id }}-reply-textarea-{{ action_id }}"
+                        class="form-input w-full resize-none rounded-lg text-slate-800 dark:text-slate-200 focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-slate-300 dark:border-slate-700 bg-background-light dark:bg-background-dark focus:border-primary/80 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm font-normal leading-normal p-3"
+                        placeholder="{{ _('输入回复内容...') }}" rows="1"></textarea>
+                    <div class="flex justify-end mt-2 gap-2">
+                        <button type="button" onclick="window.{{ container_id }}Replies.cancelReply({{ action_id }})"
+                            class="px-4 py-2 text-slate-600 dark:text-slate-400 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                            {{ _('取消') }}
+                        </button>
+                        <button type="button" onclick="window.{{ container_id }}Replies.submitReply({{ action_id }})"
+                            class="px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg shadow-sm hover:bg-primary/90">
+                            {{ _('提交') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 回复状态徽章 #}
+{% macro render_reply_badge(container_id, action_id, has_reply, reply_count) %}
+<span class="cursor-pointer select-none inline-flex items-center gap-1"
+      onclick="window.{{ container_id }}Replies.toggleReply({{ action_id }}, this)">
+    {% if has_reply %}
+    <span class="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-xs font-bold rounded-full">{{ reply_count }}</span>
+    {% else %}
+    <span class="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-slate-300 dark:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-full">0</span>
+    {% endif %}
+    <span class="material-symbols-outlined text-slate-400 transition-transform duration-200" style="font-size: 16px;">expand_more</span>
+</span>
+{% endmacro %}

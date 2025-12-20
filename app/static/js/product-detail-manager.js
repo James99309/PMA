@@ -285,6 +285,18 @@ class ProductDetailManager {
         tbody.addEventListener('click', (e) => {
             const target = e.target;
 
+            // 取消级联按钮（波折图标点击）
+            const linkIcon = target.closest('.config-link-icon');
+            if (linkIcon && linkIcon.dataset.action === 'unlink') {
+                e.preventDefault();
+                e.stopPropagation();
+                const rowId = linkIcon.dataset.rowId;
+                if (rowId) {
+                    this.unlinkConfiguration(rowId);
+                }
+                return;
+            }
+
             // 删除行按钮（使用 closest 确保点击图标也能触发）
             const removeBtn = target.closest('.remove-row');
             if (removeBtn) {
@@ -447,12 +459,35 @@ class ProductDetailManager {
      * 处理产品选择
      */
     handleProductSelect(productData, inputElement) {
-        // 兼容性处理：判断是新格式（带配置）还是旧格式（单产品）
-        const isNewFormat = productData && (productData.mainProduct || productData.configurations || productData.dynamicSpecConfig);
-        const product = isNewFormat ? productData.mainProduct : productData;
-        const configurations = isNewFormat ? (productData.configurations || []) : [];
-        const dynamicSpecConfig = isNewFormat ? productData.dynamicSpecConfig : null;
-        const configurableSpecConfig = isNewFormat ? productData.configurableSpecConfig : null;
+        // 兼容性处理：支持多种数据格式
+        // 格式1: { mainProduct: {...}, configurations: [...] }  - 旧版带配置格式
+        // 格式2: { product_name: '...', configurations: [...] } - 新版扁平格式（product-selector.js）
+        // 格式3: { product_name: '...' }                        - 单产品格式
+        const hasMainProduct = productData && productData.mainProduct;
+        const hasConfigurations = productData && Array.isArray(productData.configurations);
+        const isProductItself = productData && productData.product_name;
+
+        let product, configurations, dynamicSpecConfig, configurableSpecConfig;
+
+        if (hasMainProduct) {
+            // 格式1: 明确的 mainProduct 字段
+            product = productData.mainProduct;
+            configurations = productData.configurations || [];
+            dynamicSpecConfig = productData.dynamicSpecConfig || null;
+            configurableSpecConfig = productData.configurableSpecConfig || null;
+        } else if (isProductItself) {
+            // 格式2/3: productData 本身就是产品对象
+            product = productData;
+            configurations = productData.configurations || [];
+            dynamicSpecConfig = productData.dynamicSpecConfig || null;
+            configurableSpecConfig = productData.configurableSpecConfig || null;
+        } else {
+            // 未知格式，尝试直接使用
+            product = productData;
+            configurations = [];
+            dynamicSpecConfig = null;
+            configurableSpecConfig = null;
+        }
 
         console.log('🔄 处理产品选择:', product.product_name);
         if (configurations.length > 0) {
@@ -1015,6 +1050,18 @@ class ProductDetailManager {
         configRow.dataset.configBaseQuantity = config.default_quantity || 1;
         configRow.dataset.quantitySynced = 'true';  // 默认同步数量
 
+        // 添加波折符号 DOM 元素到第一列（可点击取消级联）
+        const firstTd = configRow.querySelector('td:first-child');
+        if (firstTd) {
+            const linkIcon = document.createElement('span');
+            linkIcon.className = 'config-link-icon';
+            linkIcon.dataset.action = 'unlink';
+            linkIcon.dataset.rowId = configRowId;
+            linkIcon.title = '点击取消关联';
+            linkIcon.innerHTML = '<span class="link-normal">└─</span><span class="link-unlink">✕─</span>';
+            firstTd.insertBefore(linkIcon, firstTd.firstChild);
+        }
+
         // 填充配置产品数据
         this.fillProductData(configRow, config);
 
@@ -1197,7 +1244,95 @@ class ProductDetailManager {
         // 触发回调
         this.trigger('rowRemove', { row });
     }
-    
+
+    /**
+     * 取消配置产品的级联关联
+     * 将配置产品行转换为独立的普通产品行
+     * @param {string} configRowId - 配置产品行ID
+     */
+    unlinkConfiguration(configRowId) {
+        const tbody = document.querySelector(`${this.config.tableSelector} tbody`);
+        const configRow = tbody.querySelector(`tr[data-row-id="${configRowId}"]`);
+
+        if (!configRow) {
+            console.warn(`❌ 未找到配置行: ${configRowId}`);
+            return;
+        }
+
+        const parentRowId = configRow.dataset.parentRowId;
+        console.log(`🔗 取消级联关联: 配置行 ${configRowId}, 父行 ${parentRowId}`);
+
+        // 1. 找到父产品配置组的最后一个配置行，将当前行移动到其后面
+        if (parentRowId) {
+            let lastConfigRow = null;
+            let sibling = tbody.querySelector(`tr[data-row-id="${parentRowId}"]`);
+
+            // 遍历找到该父产品的最后一个配置行
+            while (sibling) {
+                sibling = sibling.nextElementSibling;
+                if (sibling && sibling.dataset.parentRowId === parentRowId) {
+                    lastConfigRow = sibling;
+                } else if (sibling && sibling.dataset.parentRowId !== parentRowId) {
+                    break;
+                }
+            }
+
+            // 如果找到了最后一个配置行，且不是当前行自己，则移动
+            if (lastConfigRow && lastConfigRow !== configRow) {
+                lastConfigRow.insertAdjacentElement('afterend', configRow);
+                console.log(`  ↪ 行已移动到配置组之后`);
+            }
+        }
+
+        // 2. 从 rowConfigMap 中移除
+        if (parentRowId) {
+            const configRowIds = this.rowConfigMap.get(parentRowId);
+            if (configRowIds) {
+                const index = configRowIds.indexOf(configRowId);
+                if (index > -1) {
+                    configRowIds.splice(index, 1);
+                    console.log(`  - 已从父产品配置列表中移除`);
+                }
+
+                // 如果父产品已没有配置产品，清理映射并取消标记
+                if (configRowIds.length === 0) {
+                    this.rowConfigMap.delete(parentRowId);
+                    const parentRow = tbody.querySelector(`tr[data-row-id="${parentRowId}"]`);
+                    if (parentRow) {
+                        parentRow.dataset.hasConfigurations = 'false';
+                        console.log(`  - 父产品已无配置，取消 hasConfigurations 标记`);
+                    }
+                }
+            }
+        }
+
+        // 3. 清除配置行的父子关系属性
+        delete configRow.dataset.parentRowId;
+        delete configRow.dataset.isConfiguration;
+        delete configRow.dataset.configType;
+        delete configRow.dataset.configBaseQuantity;
+        delete configRow.dataset.quantitySynced;
+
+        // 4. 移除波折图标
+        const linkIcon = configRow.querySelector('.config-link-icon');
+        if (linkIcon) {
+            linkIcon.remove();
+        }
+
+        // 5. 恢复数量字段的编辑状态
+        const quantityInput = configRow.querySelector('.quantity-input');
+        if (quantityInput) {
+            quantityInput.readOnly = false;
+            quantityInput.style.backgroundColor = '';
+            quantityInput.style.cursor = '';
+        }
+
+        // 6. 触发回调
+        this.trigger('configurationUnlinked', { rowId: configRowId, parentRowId });
+
+        console.log(`✅ 配置行 ${configRowId} 已转换为独立行`);
+    }
+
     /**
      * 计算行小计
      */
@@ -1993,7 +2128,8 @@ class ProductDetailManager {
                 }
 
                 const rowId = row.dataset.rowId;
-                const itemId = data.item_id || data.id || index;
+                // 修复：统一使用字符串类型作为 Map 的键，避免类型不匹配问题
+                const itemId = String(data.item_id || data.id || index);
 
                 // 🆕 检测重复的 item_id
                 if (itemIdToRowMap.has(itemId)) {
@@ -2038,15 +2174,20 @@ class ProductDetailManager {
         let failCount = 0;
 
         dataArray.forEach((data, index) => {
-            if (index < rows.length && data.is_configuration && data.parent_item_id) {
+            // 修复：正确处理字符串类型的 is_configuration（'false' 也是 truthy 值）
+            const isConfig = data.is_configuration === true || data.is_configuration === 'true';
+            if (index < rows.length && isConfig && data.parent_item_id) {
                 const row = rows[index];
 
                 console.log(`   [${index}] 处理配置产品: "${data.product_name}"`);
                 console.log(`      - parent_item_id: ${data.parent_item_id}`);
-                console.log(`      - 查找映射表: itemIdToRowMap.has(${data.parent_item_id}) = ${itemIdToRowMap.has(data.parent_item_id)}`);
 
-                const parentRow = itemIdToRowMap.get(data.parent_item_id);
-                const parentRowId = itemIdToRowIdMap.get(data.parent_item_id);
+                // 修复：查找时也使用字符串类型，确保与 Map 键类型一致
+                const parentItemIdStr = String(data.parent_item_id);
+                console.log(`      - 查找映射表: itemIdToRowMap.has("${parentItemIdStr}") = ${itemIdToRowMap.has(parentItemIdStr)}`);
+
+                const parentRow = itemIdToRowMap.get(parentItemIdStr);
+                const parentRowId = itemIdToRowIdMap.get(parentItemIdStr);
 
                 if (parentRow && parentRowId) {
                     const parentIndex = Array.from(rows).indexOf(parentRow);

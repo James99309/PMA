@@ -10,10 +10,10 @@
         <h1 class="page-title">{{ _('研发产品列表') }}</h1>
         <div class="btn-toolbar justify-content-end">
             {{ render_button(
-                url=url_for('dev_product.dev_product_list'),
-                label='刷新',
+                _('刷新'),
+                href=url_for('dev_product.dev_product_list'),
                 icon='fas fa-sync-alt',
-                btn_class='btn-secondary'
+                color='secondary'
             ) }}
         </div>
     </div>

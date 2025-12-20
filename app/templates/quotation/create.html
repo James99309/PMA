@@ -4,6 +4,7 @@
 {% from 'macros/product_detail_manager.html' import render_product_detail_table, init_product_detail_scripts %}
 {% from 'macros/project_search.html' import render_project_search, init_project_search_scripts %}
 {% from 'macros/product_config_modal.html' import render_product_config_modal %}
+{% from 'components/tw_product_spec_modal.html' import tw_product_spec_modal, tw_product_spec_modal_script %}
 
 {% block content %}
 <div class="container-fluid page-with-fixed-nav">
@@ -341,6 +342,9 @@
 
 <!-- 产品配置模态框 -->
 {{ render_product_config_modal() }}
+
+<!-- 新版产品规格选择模态框 (Tailwind) -->
+{{ tw_product_spec_modal() }}
 
 <!-- 标准确认对话框 -->
 {{ render_confirm_dialog() }}
@@ -848,4 +852,7 @@ window.CURRENCY_I18N = {
 
 <!-- 加载货币选择器 -->
 <script src="{{ url_for('static', filename='js/currency_selector.js') }}"></script>
-{% endblock %} 
+
+<!-- 新版产品规格选择模态框脚本 -->
+{{ tw_product_spec_modal_script() }}
+{% endblock %}

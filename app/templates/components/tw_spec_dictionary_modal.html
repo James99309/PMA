@@ -1,0 +1,361 @@
+{#
+=============================================================================
+Tailwind 规格字典管理模态框组件
+=============================================================================
+完整的规格字典管理界面，包含：
+- 左侧规格列表（支持搜索、添加、拖拽排序）
+- 右侧规格详情和指标管理
+
+使用方式：
+{% from 'components/tw_spec_dictionary_modal.html' import tw_spec_dictionary_modal, tw_spec_dictionary_script %}
+
+<!-- 在页面中渲染模态框 -->
+{{ tw_spec_dictionary_modal() }}
+
+<!-- 在页面底部引入脚本 -->
+{{ tw_spec_dictionary_script() }}
+
+<!-- JS调用方式 -->
+<script>
+    // 打开模态框
+    SpecDictionaryManager.show();
+
+    // 关闭模态框
+    SpecDictionaryManager.hide();
+</script>
+=============================================================================
+#}
+
+{# 导入基础组件 #}
+{% from 'components/tw_modal_base.html' import tw_close_btn, tw_sub_modal %}
+
+{# ============= 主模态框 ============= #}
+{% macro tw_spec_dictionary_modal(modal_id='specDictModal') %}
+<div id="{{ modal_id }}" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+    {# 遮罩层 #}
+    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+         onclick="SpecDictionaryManager.hide()"></div>
+
+    {# 居中容器 #}
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        {# 模态框主体 - 固定尺寸避免内容变化时大小改变 #}
+        <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-6xl h-[85vh] overflow-hidden">
+
+            {# ========== 头部 ========== #}
+            <header class="flex-shrink-0 flex items-center justify-between p-5">
+                <h2 class="text-xl font-semibold text-slate-900 dark:text-white">{{ _('规格字典管理') }}</h2>
+                {{ tw_close_btn('SpecDictionaryManager.hide()') }}
+            </header>
+
+            {# ========== 主内容区 ========== #}
+            <div class="flex flex-1 overflow-hidden">
+
+                {# ===== 左侧：规格列表 ===== #}
+                <div class="w-72 flex flex-col border-r border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+
+                    {# 搜索和添加按钮 #}
+                    <div class="p-3 border-b border-slate-200 dark:border-slate-700">
+                        <div class="flex items-center gap-2">
+                            <div class="relative flex-1">
+                                <input type="text" id="specSearchInput"
+                                       placeholder="{{ _('搜索规格...') }}"
+                                       class="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                                       oninput="SpecDictionaryManager.filterSpecs(this.value)">
+                                <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                            </div>
+                            <button type="button" onclick="SpecDictionaryManager.showAddSpecForm()"
+                                    class="h-9 px-3 flex items-center justify-center gap-1 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors shadow-sm flex-shrink-0">
+                                <span class="material-symbols-outlined text-lg">add</span>
+                                <span>{{ _('添加') }}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {# 规格列表标题 #}
+                    <div class="px-3 py-2 border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
+                        <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                            {{ _('所有规格') }} (<span id="specTotalCount">0</span>)
+                        </span>
+                    </div>
+
+                    {# 规格列表内容 #}
+                    <div id="specListContainer" class="flex-1 overflow-y-auto">
+                        {# 加载状态 #}
+                        <div id="specListLoading" class="flex items-center justify-center py-8">
+                            <div class="flex items-center gap-2 text-slate-400">
+                                <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span class="text-sm">{{ _('加载中...') }}</span>
+                            </div>
+                        </div>
+
+                        {# 空状态 #}
+                        <div id="specListEmpty" class="hidden flex flex-col items-center justify-center py-8 text-slate-400">
+                            <span class="material-symbols-outlined text-4xl mb-2">inbox</span>
+                            <span class="text-sm">{{ _('暂无规格') }}</span>
+                        </div>
+
+                        {# 规格列表 #}
+                        <ul id="specList" class="divide-y divide-slate-200 dark:divide-slate-700" role="list">
+                            {# 动态填充 #}
+                        </ul>
+                    </div>
+                </div>
+
+                {# ===== 右侧：规格详情 ===== #}
+                <div class="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-900">
+
+                    {# 空状态：未选择规格 #}
+                    <div id="specDetailEmpty" class="flex-1 flex flex-col items-center justify-center text-slate-400">
+                        <span class="material-symbols-outlined text-6xl mb-4">touch_app</span>
+                        <p class="text-lg font-medium mb-2">{{ _('请选择一个规格') }}</p>
+                        <p class="text-sm">{{ _('从左侧列表中选择规格查看详情') }}</p>
+                    </div>
+
+                    {# 规格详情内容 #}
+                    <div id="specDetailContent" class="hidden flex-1 flex flex-col overflow-hidden">
+
+                        {# 详情滚动区域 #}
+                        <div class="flex-1 overflow-y-auto p-6">
+
+                            {# 规格标题和操作按钮 #}
+                            <div class="flex items-center justify-between mb-5 pb-4 border-b border-slate-200 dark:border-slate-700">
+                                <h3 id="specDetailTitle" class="text-2xl font-bold text-slate-900 dark:text-white">-</h3>
+                                <div class="flex items-center gap-3">
+                                    <button type="button" onclick="SpecDictionaryManager.showEditSpecForm()"
+                                            class="h-9 px-4 flex items-center gap-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                                        <span class="material-symbols-outlined text-lg">edit</span>
+                                        <span>{{ _('编辑规格') }}</span>
+                                    </button>
+                                    <button type="button" onclick="SpecDictionaryManager.confirmDeleteSpec()"
+                                            class="h-9 px-4 flex items-center gap-2 border border-red-300 dark:border-red-800 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                        <span class="material-symbols-outlined text-lg">delete</span>
+                                        <span>{{ _('删除规格') }}</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {# 规格基本信息 #}
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-4 mb-8">
+                                <div>
+                                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">{{ _('规格名称') }}</p>
+                                    <p id="specInfoName" class="text-sm font-medium text-slate-900 dark:text-white">-</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">{{ _('单位') }}</p>
+                                    <p id="specInfoUnit" class="text-sm font-medium text-slate-900 dark:text-white">-</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">{{ _('状态') }}</p>
+                                    <p id="specInfoStatus" class="text-sm">
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
+                                            {{ _('启用') }}
+                                        </span>
+                                    </p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">{{ _('创建时间') }}</p>
+                                    <p id="specInfoCreatedAt" class="text-sm font-medium text-slate-900 dark:text-white font-mono">-</p>
+                                </div>
+                            </div>
+
+                            {# 指标列表标题 #}
+                            <div class="flex items-center justify-between mb-4">
+                                <h4 class="text-lg font-bold text-slate-900 dark:text-white">
+                                    <span id="specOptionsTitle">-</span> {{ _('的指标列表') }}
+                                </h4>
+                                <button type="button" onclick="SpecDictionaryManager.showAddOptionForm()"
+                                        class="h-9 px-4 flex items-center gap-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors shadow-sm">
+                                    <span class="material-symbols-outlined text-lg">add</span>
+                                    <span>{{ _('添加指标') }}</span>
+                                </button>
+                            </div>
+
+                            {# 指标表格 #}
+                            <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-2/5">{{ _('指标值') }}</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-1/5">{{ _('编码') }}</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-1/5">{{ _('状态') }}</th>
+                                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-1/5">{{ _('操作') }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="optionTableBody" class="divide-y divide-slate-200 dark:divide-slate-700">
+                                        {# 加载状态 #}
+                                        <tr id="optionTableLoading">
+                                            <td colspan="4" class="px-4 py-8 text-center">
+                                                <div class="flex items-center justify-center gap-2 text-slate-400">
+                                                    <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                    <span class="text-sm">{{ _('加载中...') }}</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {# 空状态 #}
+                                        <tr id="optionTableEmpty" class="hidden">
+                                            <td colspan="4" class="px-4 py-8 text-center">
+                                                <div class="flex flex-col items-center text-slate-400">
+                                                    <span class="material-symbols-outlined text-4xl mb-2">playlist_add</span>
+                                                    <span class="text-sm">{{ _('暂无指标，点击上方按钮添加') }}</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {# 动态填充指标行 #}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {# 底部统计 #}
+                        <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+                            <span class="text-sm text-slate-500 dark:text-slate-400">
+                                {{ _('共') }} <span id="optionTotalCount">0</span> {{ _('条指标记录') }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {# ========== 底部按钮 ========== #}
+            <footer class="flex items-center justify-end px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+                <button type="button" onclick="SpecDictionaryManager.hide()"
+                        class="h-10 px-6 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                    {{ _('关闭') }}
+                </button>
+            </footer>
+        </div>
+    </div>
+</div>
+
+{# ========== 添加/编辑规格子模态框 ========== #}
+{% call tw_sub_modal('specFormModal', title=_('添加规格'), z_index='z-[60]', max_width='max-w-md', close_action='SpecDictionaryManager.hideSpecForm()') %}
+<form id="specForm" onsubmit="return SpecDictionaryManager.submitSpecForm(event)" class="p-5 pt-0">
+    <input type="hidden" id="specFormId" value="">
+    <div class="space-y-4">
+        <div>
+            <label for="specFormName" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('规格名称') }} <span class="text-red-500">*</span>
+            </label>
+            <input type="text" id="specFormName" name="name" required
+                   class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                   placeholder="{{ _('如：频率范围、充电电流') }}">
+        </div>
+        <div>
+            <label for="specFormUnit" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('单位') }}
+            </label>
+            <input type="text" id="specFormUnit" name="unit"
+                   class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                   placeholder="{{ _('如：MHz、dBm、mA') }}">
+        </div>
+        <div class="flex items-center gap-3">
+            <input type="checkbox" id="specFormActive" name="is_active" checked
+                   class="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary">
+            <label for="specFormActive" class="text-sm text-slate-700 dark:text-slate-300">{{ _('启用此规格') }}</label>
+        </div>
+    </div>
+    <footer class="flex items-center justify-end gap-3 pt-5 mt-5 border-t border-slate-200 dark:border-slate-700">
+        <button type="button" onclick="SpecDictionaryManager.hideSpecForm()"
+                class="h-10 px-5 rounded-lg text-sm font-medium bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors border border-slate-300 dark:border-slate-600">
+            {{ _('取消') }}
+        </button>
+        <button type="submit" id="specFormSubmit"
+                class="h-10 px-5 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary/90 shadow-sm transition-colors">
+            {{ _('保存') }}
+        </button>
+    </footer>
+</form>
+{% endcall %}
+
+{# ========== 添加/编辑指标子模态框 ========== #}
+{% call tw_sub_modal('optionFormModal', title=_('添加指标'), z_index='z-[60]', max_width='max-w-md', close_action='SpecDictionaryManager.hideOptionForm()') %}
+<form id="optionForm" onsubmit="return SpecDictionaryManager.submitOptionForm(event)" class="p-5 pt-0">
+    <input type="hidden" id="optionFormId" value="">
+    <div class="space-y-4">
+        <div>
+            <label for="optionFormValue" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('指标值') }} <span class="text-red-500">*</span>
+            </label>
+            <input type="text" id="optionFormValue" name="value" required
+                   class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                   placeholder="{{ _('如：400-450、单向-上行') }}"
+                   oninput="SpecDictionaryManager.previewCode(this.value)">
+        </div>
+        <div>
+            <label for="optionFormCode" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('编码') }}
+                <span class="text-xs text-slate-400 font-normal ml-1">({{ _('自动生成，可修改') }})</span>
+            </label>
+            <div class="flex gap-2">
+                <input type="text" id="optionFormCode" name="code"
+                       class="flex-1 h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 font-mono focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                       placeholder="{{ _('自动生成') }}">
+                <span id="optionCodePreview" class="hidden h-10 px-3 flex items-center text-sm text-primary font-mono bg-primary/10 rounded-lg"></span>
+            </div>
+            <p id="optionCodeHint" class="mt-1 text-xs text-slate-500 dark:text-slate-400"></p>
+        </div>
+        <div>
+            <label for="optionFormDesc" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('描述') }}
+            </label>
+            <textarea id="optionFormDesc" name="description" rows="2"
+                      class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
+                      placeholder="{{ _('可选，描述此指标的用途') }}"></textarea>
+        </div>
+    </div>
+    <footer class="flex items-center justify-end gap-3 pt-5 mt-5 border-t border-slate-200 dark:border-slate-700">
+        <button type="button" onclick="SpecDictionaryManager.hideOptionForm()"
+                class="h-10 px-5 rounded-lg text-sm font-medium bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors border border-slate-300 dark:border-slate-600">
+            {{ _('取消') }}
+        </button>
+        <button type="submit" id="optionFormSubmit"
+                class="h-10 px-5 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary/90 shadow-sm transition-colors">
+            {{ _('保存') }}
+        </button>
+    </footer>
+</form>
+{% endcall %}
+
+{# ========== 删除确认模态框 ========== #}
+{% call tw_sub_modal('specDeleteModal', title=_('确认删除'), icon='warning', icon_color='text-red-500', z_index='z-[60]', max_width='max-w-sm') %}
+<div class="p-5 pt-0">
+    <p id="specDeleteMessage" class="text-sm text-slate-500 dark:text-slate-400 mb-6">{{ _('确定要删除此规格吗？此操作无法撤销。') }}</p>
+    <div class="flex gap-3 justify-end">
+        <button type="button" onclick="SpecDictionaryManager.hideDeleteModal()"
+                class="h-10 px-5 rounded-lg text-sm font-medium bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors border border-slate-300 dark:border-slate-600">
+            {{ _('取消') }}
+        </button>
+        <button type="button" onclick="SpecDictionaryManager.executeDelete()"
+                class="h-10 px-5 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 shadow-sm transition-colors">
+            {{ _('删除') }}
+        </button>
+    </div>
+</div>
+{% endcall %}
+
+{# ========== 引用情况模态框 ========== #}
+{% call tw_sub_modal('specProductUsageModal', title=_('引用情况'), icon='link', z_index='z-[60]', max_width='max-w-lg', close_action='SpecDictionaryManager.hideProductUsage()') %}
+<div id="specProductUsageContent" class="px-5 pb-5 max-h-96 overflow-y-auto">
+    <!-- 动态内容 -->
+</div>
+<footer class="px-5 py-4 border-t border-slate-200 dark:border-slate-700">
+    <button type="button" onclick="SpecDictionaryManager.hideProductUsage()"
+            class="w-full h-10 px-5 rounded-lg text-sm font-medium bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors border border-slate-300 dark:border-slate-600">
+        {{ _('关闭') }}
+    </button>
+</footer>
+{% endcall %}
+{% endmacro %}
+
+
+{# ============= JavaScript 脚本 ============= #}
+{% macro tw_spec_dictionary_script() %}
+<script src="{{ url_for('static', filename='js/spec-dictionary-manager.js') }}"></script>
+{% endmacro %}

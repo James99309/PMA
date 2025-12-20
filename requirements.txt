@@ -82,3 +82,7 @@ zopfli==0.2.3.post1
 # Supabase文件上传依赖
 supabase==2.18.1
 storage3==0.12.1
+
+# Word模板处理
+docxtpl>=0.16.0
+python-docx>=1.1.0

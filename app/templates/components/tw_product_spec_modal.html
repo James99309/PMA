@@ -1,0 +1,2109 @@
+{#
+=============================================================================
+产品规格选择模态框组件 (Tailwind 版本)
+=============================================================================
+三步流程：规格选择 → 配置选择 → 产品确认
+
+设计风格：与 tw_form_modal 保持一致的风格
+第一步逻辑：按规格字段展示选项，用户逐个选择，渐进式过滤产品
+
+使用方式：
+{% from 'components/tw_product_spec_modal.html' import tw_product_spec_modal, tw_product_spec_modal_script %}
+{{ tw_product_spec_modal() }}
+{{ tw_product_spec_modal_script() }}
+
+JavaScript 调用：
+ProductSpecModal.open({
+    products: [...],           // 产品列表
+    category: '类别',
+    subcategory: '子类别',
+    model: '型号',
+    onConfirm: (product, configs) => { ... }
+})
+=============================================================================
+#}
+
+{% macro tw_product_spec_modal() %}
+<!-- 产品规格选择模态框 -->
+<div id="productSpecModal" class="fixed inset-0 z-[9999] hidden" role="dialog" aria-modal="true">
+    <!-- 遮罩层 - 与 tw_form_modal 一致 -->
+    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onclick="ProductSpecModal.close()"></div>
+
+    <!-- 模态框容器 -->
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="flex flex-col bg-white dark:bg-[#1e293b] rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] transform transition-all">
+
+            <!-- 头部：步骤指示器（进度条样式） -->
+            <header class="flex-shrink-0 px-6 py-5">
+                <!-- 标题行 -->
+                <div class="flex items-center justify-between mb-3">
+                    <h2 id="stepTitle" class="text-lg font-semibold text-slate-900 dark:text-white">1. {{ _('规格选择') }}</h2>
+                    <div class="flex items-center gap-4">
+                        <span id="stepIndicator" class="text-sm text-slate-500 dark:text-slate-400">{{ _('步骤') }} 1 / 3</span>
+                        <!-- 关闭按钮 -->
+                        <button onclick="ProductSpecModal.close()"
+                                class="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:text-slate-500 dark:hover:text-slate-300 dark:hover:bg-slate-700 transition-colors">
+                            <span class="material-symbols-outlined text-xl">close</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 进度条（连续无间隙，右边留空间给关闭按钮） -->
+                <div class="flex items-center mb-2 pr-12">
+                    <div class="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-l-full overflow-hidden">
+                        <div id="progressBar1" class="h-full bg-primary transition-all duration-300" style="width: 100%"></div>
+                    </div>
+                    <div class="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                        <div id="progressBar2" class="h-full bg-primary transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <div class="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-r-full overflow-hidden">
+                        <div id="progressBar3" class="h-full bg-primary transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- 下一步提示 -->
+                <p id="nextStepHint" class="text-sm text-slate-500 dark:text-slate-400">{{ _('下一步') }}: 2. {{ _('配置选择') }}</p>
+            </header>
+
+            <!-- 主体内容区 -->
+            <div class="flex-1 overflow-y-auto p-6 md:p-8">
+                <!-- 步骤1：规格选择 -->
+                <div id="specStep1" class="step-content">
+                    <div class="flex gap-8">
+                        <!-- 左侧：产品图片和基本信息 -->
+                        <div class="w-1/3 flex-shrink-0">
+                            <div id="specProductImage" class="spec-image-container rounded-xl aspect-[4/3] flex items-center justify-center mb-4">
+                                <span class="material-symbols-outlined text-6xl text-slate-600">inventory_2</span>
+                            </div>
+                            <h2 id="specProductName" class="text-xl font-semibold text-slate-900 dark:text-white mb-1">--</h2>
+
+                            <!-- 选完规格后才显示的信息 -->
+                            <div id="specSelectedInfo" class="hidden">
+                                <p id="specProductBrandLeft" class="text-sm text-slate-500 dark:text-slate-400 mb-4">--</p>
+                                <!-- 固定字段区域（编码规格）- 放在左侧图片下方 -->
+                                <div id="specFixedFields" class="space-y-2 text-sm">
+                                    <!-- 固定字段由 JS 填充 -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 右侧：规格字段选择 -->
+                        <div class="flex-1">
+                            <h3 id="specCategoryTitle" class="text-lg font-semibold text-slate-900 dark:text-white mb-4">{{ _('选择规格') }}</h3>
+
+                            <!-- 可选字段区域（需要选择的字段） -->
+                            <div id="specSelectableFields" class="space-y-5">
+                                <!-- 可选字段由 JS 填充 -->
+                                <div class="text-center py-12 text-slate-400 dark:text-slate-500">
+                                    <span class="material-symbols-outlined text-5xl mb-3 block">hourglass_empty</span>
+                                    <p class="text-sm">{{ _('加载中...') }}</p>
+                                </div>
+                            </div>
+
+                            <!-- 剩余产品数量提示 -->
+                            <div id="specRemainingInfo" class="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
+                                <div class="flex items-center justify-between text-sm">
+                                    <span class="text-slate-500 dark:text-slate-400 inline-flex items-center gap-1">
+                                        <span class="material-symbols-outlined text-base">inventory</span>
+                                        {{ _('匹配产品') }}: <span id="remainingProductCount" class="font-medium text-primary">--</span>
+                                    </span>
+                                    <span id="specProductCodeInfo" class="text-slate-500 dark:text-slate-400 hidden">
+                                        {{ _('产品型号') }}: <span id="specModelValue" class="font-medium text-slate-900 dark:text-white">--</span>
+                                        <span class="mx-2"></span>
+                                        {{ _('产品编码') }}: <span id="specMNValue" class="font-mono font-medium text-primary">--</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 步骤2：配置选择 -->
+                <div id="specStep2" class="step-content hidden">
+                    <div class="flex gap-8">
+                        <!-- 左侧：已选产品信息 -->
+                        <div class="w-1/3 flex-shrink-0">
+                            <div id="specStep2ProductImage" class="spec-image-container rounded-xl aspect-[4/3] flex items-center justify-center mb-4">
+                                <span class="material-symbols-outlined text-6xl text-slate-600">inventory_2</span>
+                            </div>
+                            <h2 id="specStep2ProductName" class="text-xl font-semibold text-slate-900 dark:text-white mb-1">--</h2>
+                            <p id="specStep2ProductBrand" class="text-sm text-slate-500 dark:text-slate-400 mb-3">--</p>
+                            <!-- 产品型号和编码 -->
+                            <div id="specStep2ProductCodeInfo" class="text-sm text-slate-600 dark:text-slate-300 mb-4 space-y-1">
+                                <div>{{ _('产品型号') }}: <span id="specStep2ProductModel" class="font-medium text-slate-900 dark:text-white">--</span></div>
+                                <div>{{ _('产品编码') }}: <span id="specStep2ProductMN" class="font-mono font-medium text-primary">--</span></div>
+                            </div>
+                            <div id="specStep2ProductSpecs" class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                                <!-- 产品规格信息由 JS 填充 -->
+                            </div>
+                            <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-slate-500 dark:text-slate-400 text-sm">{{ _('产品单价') }}</span>
+                                    <span id="specStep2ProductPrice" class="text-xl font-bold text-primary">--</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 右侧：配置选项 -->
+                        <div class="flex-1">
+                            <div id="configOptionsList" class="space-y-6">
+                                <!-- 配置选项由 JS 填充 -->
+                                <div class="text-center py-12 text-slate-400 dark:text-slate-500">
+                                    <span class="material-symbols-outlined text-5xl mb-3 block">tune</span>
+                                    <p class="text-sm">{{ _('暂无可选配置') }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 步骤3：产品确认 -->
+                <div id="specStep3" class="step-content hidden">
+                    <div class="max-w-3xl mx-auto">
+                        <!-- 产品信息卡片 -->
+                        <div class="bg-slate-50 dark:bg-[#101922] rounded-xl p-6 mb-6">
+                            <div class="flex gap-6">
+                                <div id="confirmProductImage" class="w-32 h-32 bg-slate-100 dark:bg-[#101922] rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                                    <span class="material-symbols-outlined text-4xl text-slate-400 dark:text-slate-500">inventory_2</span>
+                                </div>
+                                <div class="flex-1">
+                                    <h2 id="confirmProductName" class="text-xl font-semibold text-slate-900 dark:text-white mb-1">--</h2>
+                                    <p id="confirmProductModel" class="text-sm font-medium text-primary mb-2">--</p>
+                                    <p id="confirmProductSpec" class="text-sm text-slate-600 dark:text-slate-400 mb-3">--</p>
+                                    <div id="confirmProductBrand" class="text-sm text-slate-500 dark:text-slate-500">--</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 价格汇总（放在产品详情下面） -->
+                        <div class="bg-slate-50 dark:bg-[#1e293b] rounded-xl p-6 mb-6">
+                            <div class="space-y-3">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-slate-600 dark:text-slate-400">{{ _('产品单价') }}</span>
+                                    <span id="confirmBasePrice" class="text-slate-900 dark:text-white font-medium">--</span>
+                                </div>
+                                <div id="confirmConfigPrices" class="space-y-2">
+                                    <!-- 配置价格由 JS 填充 -->
+                                </div>
+                                <div class="border-t border-slate-200 dark:border-slate-700 pt-3 flex justify-between items-center">
+                                    <span class="text-lg font-semibold text-slate-800 dark:text-slate-200">{{ _('合计') }}</span>
+                                    <span id="confirmTotalPrice" class="text-2xl font-bold text-primary">--</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 已选配置列表（放在价格汇总下面） -->
+                        <div id="confirmConfigList" class="space-y-3">
+                            <!-- 配置列表由 JS 填充 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部：操作按钮 -->
+            <footer class="flex-shrink-0 flex items-center justify-end gap-3 px-6 md:px-8 py-5">
+                <button id="specModalBackBtn" onclick="ProductSpecModal.prevStep()"
+                        class="hidden flex min-w-[80px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-slate-100 dark:bg-[#101922] dark:border dark:border-slate-600 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
+                    {{ _('返回') }}
+                </button>
+                <button id="specModalNextBtn" onclick="ProductSpecModal.nextStep()"
+                        class="flex min-w-[140px] cursor-pointer items-center justify-center rounded-lg h-10 px-8 bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm">
+                    {{ _('下一步') }}
+                </button>
+                <button id="specModalConfirmBtn" onclick="ProductSpecModal.confirm()"
+                        class="hidden flex min-w-[140px] cursor-pointer items-center justify-center rounded-lg h-10 px-8 bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm">
+                    {{ _('确认选择') }}
+                </button>
+            </footer>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 产品规格模态框脚本 #}
+{% macro tw_product_spec_modal_script() %}
+<style>
+/* ============================================
+   产品规格模态框样式 (与 tw_form_modal 一致)
+   ============================================ */
+
+/* 模态框显示/隐藏动画 */
+#productSpecModal {
+    transition: opacity 0.2s ease;
+}
+#productSpecModal.show {
+    display: block;
+}
+
+/* 进度条样式已通过 Tailwind 类实现 */
+
+/* ============================================
+   固定字段样式 - 放在左侧图片下方，类似截图
+   ============================================ */
+.spec-fixed-item {
+    display: flex;
+    align-items: baseline;
+    line-height: 1.6;
+}
+
+.spec-fixed-label {
+    color: #64748b;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+.dark .spec-fixed-label {
+    color: #94a3b8;
+}
+
+.spec-fixed-value {
+    color: #1e293b;
+    margin-left: 0.25rem;
+}
+.dark .spec-fixed-value {
+    color: white;
+}
+
+/* ============================================
+   可选字段样式（列表布局）
+   ============================================ */
+.spec-field-group {
+    margin-bottom: 1.5rem;
+}
+
+.spec-field-label {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.75rem;
+}
+.dark .spec-field-label {
+    color: white;
+}
+
+.spec-options-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* 规格选项卡片样式（上下分布） */
+.spec-option-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.875rem 1rem;
+    border-radius: 0.75rem;
+    border: 1.5px solid #334155;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.dark .spec-option-card {
+    border-color: #475569;
+    background: #101922;
+}
+
+.spec-option-card:hover {
+    border-color: var(--color-primary, #3b82f6);
+}
+
+.spec-option-card.selected {
+    border-color: var(--color-primary, #3b82f6);
+    background-color: rgba(59, 130, 246, 0.1);
+}
+
+/* 选项左侧：单选按钮 + 内容 */
+.spec-option-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* 单选按钮样式 */
+.spec-option-radio {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid #475569;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+}
+.dark .spec-option-radio {
+    border-color: #64748b;
+}
+
+.spec-option-card.selected .spec-option-radio {
+    border-color: var(--color-primary, #3b82f6);
+    background-color: var(--color-primary, #3b82f6);
+}
+
+.spec-option-card.selected .spec-option-radio::after {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: white;
+}
+
+/* 选项内容 */
+.spec-option-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.spec-option-title {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: #1e293b;
+}
+.dark .spec-option-title {
+    color: #f1f5f9;
+}
+
+.spec-option-desc {
+    font-size: 0.8125rem;
+    color: #94a3b8;
+    margin-top: 0.125rem;
+}
+
+/* 选项右侧：价格 */
+.spec-option-price {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--color-primary, #3b82f6);
+    white-space: nowrap;
+}
+
+.spec-option-price.included {
+    color: #94a3b8;
+    font-weight: 400;
+}
+
+/* ============================================
+   配置选项卡片样式
+   ============================================ */
+
+/* 配置分组容器 - 透明背景，底部分隔线 */
+.config-section {
+    background: transparent !important;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+.dark .config-section {
+    border-bottom-color: #334155;
+}
+.config-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.config-group-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+}
+.dark .config-group-title {
+    color: white;
+}
+
+.config-option-card {
+    display: flex;
+    align-items: flex-start;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+    background: white;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.dark .config-option-card {
+    border-color: #475569;
+    background: #101922;
+}
+
+.config-option-card:hover {
+    border-color: var(--color-primary, #3b82f6);
+}
+.dark .config-option-card:hover {
+    border-color: var(--color-primary, #3b82f6);
+}
+
+.config-option-card.selected {
+    border-color: var(--color-primary, #3b82f6);
+    background-color: #eff6ff;
+}
+.dark .config-option-card.selected {
+    border-color: var(--color-primary, #3b82f6);
+    background-color: rgba(19, 127, 236, 0.15);
+}
+
+/* 复选框样式 */
+.config-checkbox {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #cbd5e1;
+    border-radius: 0.375rem;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    margin-right: 1rem;
+    margin-top: 2px;
+}
+.dark .config-checkbox {
+    border-color: #475569;
+}
+
+.config-option-card.selected .config-checkbox {
+    border-color: var(--color-primary, #3b82f6);
+    background-color: var(--color-primary, #3b82f6);
+}
+
+.config-option-card.selected .config-checkbox::after {
+    content: '✓';
+    color: white;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+/* 配置卡片内容 */
+.config-option-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.config-option-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.config-option-name {
+    font-weight: 500;
+    color: #1e293b;
+    font-size: 0.9375rem;
+}
+.dark .config-option-name {
+    color: white;
+}
+
+.config-option-price {
+    font-weight: 600;
+    color: var(--color-primary, #3b82f6);
+    font-size: 0.9375rem;
+    white-space: nowrap;
+    margin-left: 1rem;
+}
+
+.config-option-price.included {
+    color: #64748b;
+    font-weight: 500;
+}
+.dark .config-option-price.included {
+    color: #94a3b8;
+}
+
+.config-option-desc {
+    font-size: 0.8125rem;
+    color: #64748b;
+    line-height: 1.4;
+    margin-top: 0.25rem;
+}
+.dark .config-option-desc {
+    color: #94a3b8;
+}
+
+/* ============================================
+   确认页面配置项样式
+   ============================================ */
+.confirm-config-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+}
+
+.confirm-config-name {
+    font-size: 0.875rem;
+    color: #475569;
+}
+.dark .confirm-config-name {
+    color: #94a3b8;
+}
+
+.confirm-config-value {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #1e293b;
+}
+.dark .confirm-config-value {
+    color: white;
+}
+
+/* ============================================
+   图片容器样式
+   ============================================ */
+
+/* 默认状态：有背景色（无图片时） */
+.spec-image-container {
+    background-color: #f1f5f9;
+    padding: 1rem;
+}
+.dark .spec-image-container {
+    background-color: #101922;
+    border: 1px solid #475569;
+}
+
+/* 有图片时：隐藏背景色和内边距 */
+.spec-image-container.has-image {
+    background-color: transparent;
+    padding: 0;
+}
+
+#specProductImage img,
+#configProductImage img,
+#confirmProductImage img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+
+/* ============================================
+   加载和空状态
+   ============================================ */
+.spec-loading,
+.spec-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    color: #64748b;
+    text-align: center;
+}
+.dark .spec-loading,
+.dark .spec-empty {
+    color: #94a3b8;
+}
+
+.spec-loading .material-symbols-outlined,
+.spec-empty .material-symbols-outlined {
+    font-size: 3rem;
+    margin-bottom: 0.75rem;
+}
+
+.spec-loading .material-symbols-outlined {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+</style>
+
+<script>
+/**
+ * 产品规格选择模态框控制器
+ * 三步流程：规格选择 → 配置选择 → 产品确认
+ *
+ * 第一步逻辑参考 product-config-modal.js：
+ * - 分析产品编码快照，提取规格字段
+ * - 固定字段（所有产品值相同）直接显示
+ * - 可选字段（有差异）展示选项供用户选择
+ * - 渐进式过滤：用户选择后过滤剩余产品
+ */
+const ProductSpecModal = (function() {
+    // 状态管理
+    let state = {
+        currentStep: 1,
+        products: [],           // 原始产品列表
+        remainingProducts: [],  // 剩余候选产品（渐进式过滤后）
+        selectedProduct: null,  // 最终选中的产品
+        userSelections: {},     // 用户选择的规格 {position: {code, value, unit}}
+        fixedFields: [],        // 固定字段
+        selectableFields: [],   // 可选字段
+        selectedConfigs: [],    // 已选配置项
+        configurations: [],     // 可选配置列表
+        hasStep2: false,        // 是否有第二步（配置选择）
+        allSpecsSelected: false, // 是否所有规格都已选择
+        onConfirm: null,        // 确认回调
+        category: '',
+        subcategory: '',
+        model: ''
+    };
+
+    // DOM 元素缓存
+    const elements = {};
+
+    /**
+     * 初始化 DOM 元素引用
+     */
+    function initElements() {
+        elements.modal = document.getElementById('productSpecModal');
+        elements.step1 = document.getElementById('specStep1');
+        elements.step2 = document.getElementById('specStep2');
+        elements.step3 = document.getElementById('specStep3');
+        elements.backBtn = document.getElementById('specModalBackBtn');
+        elements.nextBtn = document.getElementById('specModalNextBtn');
+        elements.confirmBtn = document.getElementById('specModalConfirmBtn');
+        elements.fixedFields = document.getElementById('specFixedFields');
+        elements.selectableFields = document.getElementById('specSelectableFields');
+        elements.specCategoryTitle = document.getElementById('specCategoryTitle');
+        elements.remainingCount = document.getElementById('remainingProductCount');
+        elements.mnValue = document.getElementById('specMNValue');
+    }
+
+    /**
+     * 打开模态框
+     * @param {Object} config 配置对象
+     */
+    function open(config) {
+        initElements();
+
+        // 重置状态
+        state = {
+            currentStep: 1,
+            products: config.products || [],
+            remainingProducts: [...(config.products || [])],
+            selectedProduct: null,
+            userSelections: {},
+            fixedFields: [],
+            selectableFields: [],
+            selectedConfigs: [],
+            configurations: [],
+            onConfirm: config.onConfirm || null,
+            category: config.category || '',
+            subcategory: config.subcategory || '',
+            model: config.model || ''
+        };
+
+        // 更新标题
+        if (elements.specCategoryTitle && state.subcategory) {
+            elements.specCategoryTitle.textContent = state.subcategory;
+        }
+
+        // 更新产品基本信息
+        if (state.products.length > 0) {
+            console.log('📦 传入的产品数据:', state.products[0]);
+            console.log('  - product_name:', state.products[0].product_name);
+            console.log('  - name:', state.products[0].name);
+            console.log('  - effective_image:', state.products[0].effective_image);
+            updateProductInfo(state.products[0]);
+        }
+
+        // 分析并渲染规格字段
+        analyzeAndRenderFields();
+
+        // 检查初始状态（如果没有可选字段，直接标记为全选）
+        checkAllFieldsSelected();
+
+        // 显示模态框
+        elements.modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+
+        // 更新步骤指示器和按钮
+        updateStepIndicator();
+        updateButtons();
+
+        console.log('📦 ProductSpecModal opened with', state.products.length, 'products');
+        console.log('📋 Selectable fields:', state.selectableFields.length);
+        console.log('✅ All specs selected:', state.allSpecsSelected);
+    }
+
+    /**
+     * 关闭模态框
+     */
+    function close() {
+        if (elements.modal) {
+            elements.modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+    }
+
+    /**
+     * 解析产品编码快照
+     */
+    function parseSnapshot(rawSnapshot) {
+        if (!rawSnapshot) return [];
+
+        try {
+            let parsed = rawSnapshot;
+            if (typeof rawSnapshot === 'string') {
+                parsed = JSON.parse(rawSnapshot);
+            }
+
+            // 过滤有效的编码字段
+            const isCodeField = (part) => {
+                if (part.use_in_code === false) return false;
+                if (!part.code || part.code.trim() === '') return false;
+                return true;
+            };
+
+            // 新格式：从 code_parts 提取
+            if (parsed && parsed.code_parts && Array.isArray(parsed.code_parts)) {
+                return parsed.code_parts.filter(isCodeField);
+            }
+
+            // 旧格式：直接是数组
+            if (Array.isArray(parsed)) {
+                return parsed.filter(isCodeField);
+            }
+
+            return [];
+        } catch (e) {
+            console.error('解析快照错误:', e);
+            return [];
+        }
+    }
+
+    /**
+     * 分析产品差异并渲染规格字段
+     */
+    function analyzeAndRenderFields() {
+        const products = state.remainingProducts;
+
+        if (products.length === 0) {
+            renderEmptyState();
+            return;
+        }
+
+        // 获取第一个产品的编码快照作为基准
+        const baseSnapshot = parseSnapshot(products[0].code_definition_snapshot);
+
+        if (baseSnapshot.length === 0) {
+            renderEmptyState();
+            return;
+        }
+
+        // 分析每个编码位置的差异
+        const codeAnalysis = [];
+
+        baseSnapshot.forEach((field, index) => {
+            const position = index;
+            const fieldName = field.field_name || field.name;
+
+            // 检查是否已被用户选择
+            const userSelectedCode = state.userSelections[position]?.code || null;
+
+            // 收集该位置所有产品的编码值
+            const codeOptions = new Map();
+
+            products.forEach(product => {
+                try {
+                    const snapshot = parseSnapshot(product.code_definition_snapshot);
+                    if (snapshot[position]) {
+                        const codeValue = snapshot[position].code;
+                        const indicatorValue = snapshot[position].value;
+                        const unitValue = snapshot[position].unit || null;
+
+                        if (!codeOptions.has(codeValue)) {
+                            codeOptions.set(codeValue, {
+                                code: codeValue,
+                                value: indicatorValue,
+                                unit: unitValue,
+                                count: 0
+                            });
+                        }
+                        codeOptions.get(codeValue).count++;
+                    }
+                } catch (e) {
+                    console.error('Error parsing product snapshot:', e);
+                }
+            });
+
+            // 判断是否有差异
+            const isDifferent = codeOptions.size > 1;
+
+            codeAnalysis.push({
+                position: position,
+                fieldName: fieldName,
+                isDifferent: isDifferent,
+                options: Array.from(codeOptions.values()),
+                selectedCode: userSelectedCode,
+                fixedValue: !isDifferent ? codeOptions.values().next().value : null
+            });
+        });
+
+        // 分离两类字段
+        state.fixedFields = codeAnalysis.filter(field => !field.isDifferent);
+        state.selectableFields = codeAnalysis.filter(field => field.isDifferent);
+
+        // 渲染字段
+        renderFields();
+
+        // 更新剩余产品数量
+        updateRemainingCount();
+
+        // 更新 MN 号显示
+        updateMNDisplay();
+    }
+
+    /**
+     * 渲染规格字段
+     */
+    function renderFields() {
+        // 渲染可选字段（固定字段在选完后才显示）
+        renderSelectableFields();
+    }
+
+    /**
+     * 渲染可选字段（列表卡片布局）
+     */
+    function renderSelectableFields() {
+        if (!elements.selectableFields) return;
+
+        if (state.selectableFields.length === 0) {
+            elements.selectableFields.innerHTML = `
+                <div class="text-sm text-slate-500 dark:text-slate-400 py-2">
+                    {{ _('所有规格已确定') }}
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        state.selectableFields.forEach(field => {
+            html += `
+                <div class="spec-field-group" data-position="${field.position}">
+                    <div class="spec-field-label">${escapeHtml(field.fieldName)}</div>
+                    <div class="spec-options-container">
+            `;
+
+            field.options.forEach((option, index) => {
+                const isSelected = field.selectedCode === option.code;
+                const unitText = option.unit ? ` ${option.unit}` : '';
+                // 只显示值+单位，不显示编码
+                const titleText = `${escapeHtml(option.value)}${unitText}`;
+
+                // 计算价格差异（第一个选项作为基准，显示"包含"）
+                // 这里暂时都显示"包含"，后续可以根据产品价格差异计算
+                const priceDisplay = index === 0 ? '{{ _("包含") }}' : '{{ _("包含") }}';
+                const priceClass = 'included';
+
+                html += `
+                    <div class="spec-option-card dark:bg-[#101922] ${isSelected ? 'selected' : ''}"
+                         data-position="${field.position}"
+                         data-code="${option.code}"
+                         onclick="ProductSpecModal.selectOption(${field.position}, '${option.code}', '${escapeHtml(option.value)}', '${option.unit || ''}')">
+                        <div class="spec-option-left">
+                            <div class="spec-option-radio"></div>
+                            <div class="spec-option-content">
+                                <span class="spec-option-title">${titleText}</span>
+                            </div>
+                        </div>
+                        <span class="spec-option-price ${priceClass}">${priceDisplay}</span>
+                    </div>
+                `;
+            });
+
+            html += '</div></div>';
+        });
+
+        elements.selectableFields.innerHTML = html;
+    }
+
+    /**
+     * 渲染空状态
+     */
+    function renderEmptyState() {
+        if (elements.selectableFields) {
+            elements.selectableFields.innerHTML = `
+                <div class="spec-empty">
+                    <span class="material-symbols-outlined">inventory_2</span>
+                    <p>{{ _('暂无可选规格') }}</p>
+                </div>
+            `;
+        }
+    }
+
+    /**
+     * 选择规格选项
+     */
+    function selectOption(position, code, value, unit) {
+        // 记录用户选择
+        state.userSelections[position] = { code, value, unit: unit || null };
+
+        // 更新选中状态的 UI（不重新渲染整个区域）
+        updateOptionSelection(position, code);
+
+        // 根据选择过滤剩余产品
+        filterRemainingProducts();
+
+        // 更新剩余产品数量和 MN 号
+        updateRemainingCount();
+        updateMNDisplay();
+
+        // 检查是否所有可选字段都已选择
+        checkAllFieldsSelected();
+
+        // 更新按钮状态（检查是否可以进入下一步）
+        updateButtons();
+    }
+
+    /**
+     * 更新选项选中状态（不重新渲染整个区域）
+     */
+    function updateOptionSelection(position, selectedCode) {
+        const container = document.querySelector(`.spec-field-group[data-position="${position}"]`);
+        if (!container) return;
+
+        // 移除所有选中状态
+        container.querySelectorAll('.spec-option-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+
+        // 添加选中状态到当前选择
+        const selectedCard = container.querySelector(`.spec-option-card[data-code="${selectedCode}"]`);
+        if (selectedCard) {
+            selectedCard.classList.add('selected');
+        }
+    }
+
+    /**
+     * 过滤剩余产品
+     */
+    function filterRemainingProducts() {
+        state.remainingProducts = state.products.filter(product => {
+            const snapshot = parseSnapshot(product.code_definition_snapshot);
+
+            // 检查每个用户选择是否匹配
+            for (const [position, selection] of Object.entries(state.userSelections)) {
+                const posIdx = parseInt(position);
+                if (snapshot[posIdx] && snapshot[posIdx].code !== selection.code) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    /**
+     * 更新剩余产品数量显示
+     */
+    function updateRemainingCount() {
+        if (elements.remainingCount) {
+            elements.remainingCount.textContent = state.remainingProducts.length;
+        }
+    }
+
+    /**
+     * 更新 MN 号显示（现在由 updateLeftPanelInfo 处理，这里只做兼容）
+     */
+    function updateMNDisplay() {
+        // MN 号和产品型号现在在 updateLeftPanelInfo 中更新
+        // 这个函数保留用于兼容
+    }
+
+    /**
+     * 检查是否所有可选字段都已选择
+     */
+    function checkAllFieldsSelected() {
+        const allSelected = state.selectableFields.length === 0 ||
+            state.selectableFields.every(field => state.userSelections[field.position] !== undefined);
+
+        state.allSpecsSelected = allSelected && state.remainingProducts.length > 0;
+
+        // 如果只剩一个产品，自动选中
+        if (state.remainingProducts.length === 1) {
+            state.selectedProduct = state.remainingProducts[0];
+        }
+
+        // 更新左侧信息显示
+        updateLeftPanelInfo();
+    }
+
+    /**
+     * 更新左侧面板信息（规格选完后显示详细信息）
+     */
+    function updateLeftPanelInfo() {
+        const selectedInfoEl = document.getElementById('specSelectedInfo');
+        const brandLeftEl = document.getElementById('specProductBrandLeft');
+        const productCodeInfoEl = document.getElementById('specProductCodeInfo');
+        const modelValueEl = document.getElementById('specModelValue');
+        const mnValueEl = document.getElementById('specMNValue');
+
+        if (!selectedInfoEl) return;
+
+        if (state.allSpecsSelected && state.selectedProduct) {
+            // 显示完整信息
+            selectedInfoEl.classList.remove('hidden');
+
+            // 左侧：产品名称下显示品牌
+            if (brandLeftEl) {
+                brandLeftEl.textContent = state.selectedProduct.brand || '--';
+            }
+
+            // 右侧：显示产品型号: xxx  产品编码: xxx
+            if (productCodeInfoEl) {
+                productCodeInfoEl.classList.remove('hidden');
+            }
+            if (modelValueEl) {
+                modelValueEl.textContent = state.selectedProduct.model || state.selectedProduct.product_model || '--';
+            }
+            if (mnValueEl) {
+                mnValueEl.textContent = state.selectedProduct.product_mn || '--';
+            }
+
+            // 渲染规格字段（从编码快照）
+            renderSelectedSpecs();
+        } else {
+            // 隐藏详细信息
+            selectedInfoEl.classList.add('hidden');
+            if (productCodeInfoEl) {
+                productCodeInfoEl.classList.add('hidden');
+            }
+        }
+    }
+
+    /**
+     * 渲染已选中产品的规格（从编码快照）
+     */
+    function renderSelectedSpecs() {
+        const fixedFieldsEl = document.getElementById('specFixedFields');
+        if (!fixedFieldsEl || !state.selectedProduct) return;
+
+        const snapshot = parseSnapshot(state.selectedProduct.code_definition_snapshot);
+        if (snapshot.length === 0) {
+            fixedFieldsEl.innerHTML = '';
+            return;
+        }
+
+        let html = '';
+        snapshot.forEach(field => {
+            const fieldName = field.field_name || field.name || '';
+            const value = field.value || '';
+            const unit = field.unit || '';
+            const unitText = unit ? ` ${unit}` : '';
+
+            html += `
+                <div class="spec-fixed-item">
+                    <span class="spec-fixed-label">${escapeHtml(fieldName)}:</span>
+                    <span class="spec-fixed-value">${escapeHtml(value)}${unitText}</span>
+                </div>
+            `;
+        });
+
+        fixedFieldsEl.innerHTML = html;
+    }
+
+    /**
+     * 更新产品基本信息（左侧面板）
+     */
+    function updateProductInfo(product) {
+        const imageEl = document.getElementById('specProductImage');
+        const nameEl = document.getElementById('specProductName');
+        const brandEl = document.getElementById('specProductBrand');
+
+        if (nameEl) {
+            nameEl.textContent = product.product_name || product.name || '--';
+        }
+
+        if (brandEl) {
+            const brandText = product.brand || '';
+            const mnText = product.product_mn || product.model || '';
+            brandEl.textContent = mnText ? `${brandText} (${mnText})` : brandText || '--';
+        }
+
+        // 图片加载 - API 返回的字段是 effective_image 和 image_path
+        if (imageEl) {
+            const imageUrl = product.effective_image || product.image_path || product.image_url || product.image;
+            console.log('🖼️ Product image URL:', imageUrl);
+
+            if (imageUrl) {
+                // 创建图片元素，处理加载错误
+                const img = document.createElement('img');
+                img.src = imageUrl;
+                img.alt = product.product_name || '';
+                img.onload = function() {
+                    // 图片加载成功，添加 has-image 类隐藏背景
+                    imageEl.classList.add('has-image');
+                };
+                img.onerror = function() {
+                    console.warn('❌ Image load failed:', imageUrl);
+                    imageEl.classList.remove('has-image');
+                    imageEl.innerHTML = '<span class="material-symbols-outlined text-6xl text-slate-600">inventory_2</span>';
+                };
+                imageEl.innerHTML = '';
+                imageEl.appendChild(img);
+            } else {
+                imageEl.classList.remove('has-image');
+                imageEl.innerHTML = '<span class="material-symbols-outlined text-6xl text-slate-600">inventory_2</span>';
+            }
+        }
+    }
+
+    /**
+     * 渲染步骤2：配置选择
+     */
+    function renderStep2() {
+        if (!state.selectedProduct) {
+            // 如果还没有选中产品，使用第一个剩余产品
+            if (state.remainingProducts.length > 0) {
+                state.selectedProduct = state.remainingProducts[0];
+            } else {
+                return;
+            }
+        }
+
+        // 更新产品信息
+        updateConfigProductInfo();
+
+        // 渲染配置选项（配置数据已在 nextStep 中加载）
+        renderConfigurations();
+    }
+
+    /**
+     * 更新配置页面的产品信息（步骤2）
+     * 注意：使用 specStep2 前缀的 ID 避免与旧版模态框冲突
+     */
+    function updateConfigProductInfo() {
+        const product = state.selectedProduct;
+        if (!product) {
+            console.warn('⚠️ updateConfigProductInfo: 没有选中的产品');
+            return;
+        }
+
+        console.log('📦 更新配置页面产品信息:', product);
+
+        // 使用 specStep2 前缀的 ID（避免与旧版 product_config_modal 冲突）
+        const imageEl = document.getElementById('specStep2ProductImage');
+        const nameEl = document.getElementById('specStep2ProductName');
+        const modelEl = document.getElementById('specStep2ProductModel');
+        const mnEl = document.getElementById('specStep2ProductMN');
+        const brandEl = document.getElementById('specStep2ProductBrand');
+        const specsEl = document.getElementById('specStep2ProductSpecs');
+        const priceEl = document.getElementById('specStep2ProductPrice');
+
+        // 产品名称（优先使用 product_name，回退到 name，再回退到 model）
+        const productName = product.product_name || product.name || product.model || '--';
+        if (nameEl) nameEl.textContent = productName;
+        console.log('  - 显示产品名称:', productName);
+
+        // 产品品牌
+        if (brandEl) brandEl.textContent = product.brand || '--';
+
+        // 产品型号
+        if (modelEl) modelEl.textContent = product.model || product.product_model || '--';
+
+        // 产品编码（MN号）
+        if (mnEl) mnEl.textContent = product.product_mn || product.mn || '--';
+
+        // 产品价格
+        if (priceEl) priceEl.textContent = formatPrice(product.retail_price || product.market_price);
+
+        // 产品图片
+        if (imageEl) {
+            const imageUrl = product.effective_image || product.image_path || product.image_url || product.image;
+            console.log('🖼️ 配置页图片URL:', imageUrl);
+
+            if (imageUrl) {
+                const img = document.createElement('img');
+                img.src = imageUrl;
+                img.alt = product.product_name || '';
+                img.onload = function() {
+                    console.log('✅ 配置页图片加载成功');
+                    imageEl.classList.add('has-image');
+                };
+                img.onerror = function() {
+                    console.warn('❌ 配置页图片加载失败:', imageUrl);
+                    imageEl.classList.remove('has-image');
+                    imageEl.innerHTML = '<span class="material-symbols-outlined text-6xl text-slate-600">inventory_2</span>';
+                };
+                imageEl.innerHTML = '';
+                imageEl.appendChild(img);
+            } else {
+                imageEl.classList.remove('has-image');
+                imageEl.innerHTML = '<span class="material-symbols-outlined text-6xl text-slate-600">inventory_2</span>';
+            }
+        }
+
+        // 产品规格描述
+        if (specsEl) {
+            const specText = product.specification || product.product_spec || '';
+            if (specText) {
+                specsEl.innerHTML = `<p>${escapeHtml(specText)}</p>`;
+            } else {
+                specsEl.innerHTML = '';
+            }
+        }
+    }
+
+    /**
+     * 渲染配置选项（使用新卡片样式）
+     */
+    function renderConfigurations() {
+        const container = document.getElementById('configOptionsList');
+        if (!container) return;
+
+        const configs = state.configurations;
+        if (!configs || (configs.required.length === 0 && configs.recommended.length === 0 &&
+            Object.keys(configs.requiredMutualGroups).length === 0 &&
+            Object.keys(configs.optionalMutualGroups).length === 0)) {
+            // 无配置
+            container.innerHTML = `
+                <div class="text-center py-12 text-slate-400 dark:text-slate-500">
+                    <span class="material-symbols-outlined text-5xl mb-3 block">check_circle</span>
+                    <p class="text-sm">{{ _('无需额外配置，可直接确认') }}</p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+
+        // 1. 渲染必选配置
+        if (configs.required && configs.required.length > 0) {
+            html += `
+                <div class="config-section mb-6">
+                    <h4 class="config-group-title">
+                        <span class="material-symbols-outlined text-amber-500 mr-2">verified</span>
+                        {{ _('必选配置') }}
+                        <span class="text-xs text-slate-400 ml-2">({{ _('自动选中') }})</span>
+                    </h4>
+                    <div class="space-y-2">
+            `;
+            configs.required.forEach(config => {
+                html += renderConfigCard(config, true, true); // isRequired=true, isSelected=true
+            });
+            html += '</div></div>';
+        }
+
+        // 2. 渲染必选互斥组
+        Object.values(configs.requiredMutualGroups || {}).forEach(group => {
+            html += `
+                <div class="config-section mb-6">
+                    <h4 class="config-group-title">
+                        <span class="material-symbols-outlined text-amber-500 mr-2">tune</span>
+                        ${escapeHtml(group.group_name || '{{ _("必选配置组") }}')}
+                    </h4>
+                    <div class="space-y-2">
+            `;
+            (group.products || []).forEach((config, idx) => {
+                // 默认选中第一个
+                const isSelected = idx === 0;
+                html += renderConfigCard(config, false, isSelected, group.group_id);
+            });
+            html += '</div></div>';
+        });
+
+        // 3. 渲染推荐配置
+        if (configs.recommended && configs.recommended.length > 0) {
+            html += `
+                <div class="config-section mb-6">
+                    <h4 class="config-group-title">
+                        <span class="material-symbols-outlined text-primary mr-2">thumb_up</span>
+                        {{ _('推荐配置') }}
+                    </h4>
+                    <div class="space-y-2">
+            `;
+            configs.recommended.forEach(config => {
+                // 推荐配置默认选中（is_default=true）
+                const isSelected = config.is_default === true;
+                html += renderConfigCard(config, false, isSelected);
+            });
+            html += '</div></div>';
+        }
+
+        // 4. 渲染可选互斥组
+        Object.values(configs.optionalMutualGroups || {}).forEach(group => {
+            html += `
+                <div class="config-section mb-6">
+                    <h4 class="config-group-title">
+                        <span class="material-symbols-outlined text-slate-400 mr-2">settings</span>
+                        ${escapeHtml(group.group_name || '{{ _("可选配置组") }}')}
+                    </h4>
+                    <div class="space-y-2">
+            `;
+            (group.products || []).forEach(config => {
+                html += renderConfigCard(config, false, false, group.group_id);
+            });
+            html += '</div></div>';
+        });
+
+        container.innerHTML = html;
+
+        // 初始化选中状态到 state.selectedConfigs
+        initSelectedConfigs();
+    }
+
+    /**
+     * 渲染单个配置卡片（使用与规格选项相同的卡片样式）
+     * @param {Object} config - 配置数据
+     * @param {boolean} isRequired - 是否必选（不可取消）
+     * @param {boolean} isSelected - 是否选中
+     * @param {string} groupId - 互斥组ID（可选）
+     */
+    function renderConfigCard(config, isRequired, isSelected, groupId = null) {
+        const configId = config.id || config.related_product_id;
+        const price = config.retail_price || 0;
+        const priceDisplay = price > 0 ? formatPrice(price) : '{{ _("包含") }}';
+        const priceClass = price > 0 ? '' : 'included';
+
+        // 构建描述信息
+        let descParts = [];
+        if (config.product_model) descParts.push(config.product_model);
+        if (config.product_mn) descParts.push(config.product_mn);
+        if (config.brand) descParts.push(config.brand);
+        const descText = descParts.join(' · ');
+
+        return `
+            <div class="spec-option-card dark:bg-[#101922] ${isSelected ? 'selected' : ''} ${isRequired ? 'required' : ''}"
+                 data-config-id="${configId}"
+                 data-group-id="${groupId || ''}"
+                 data-is-required="${isRequired}"
+                 onclick="ProductSpecModal.toggleConfigSelection(${configId}, ${isRequired}, '${groupId || ''}')">
+                <div class="spec-option-left">
+                    <div class="spec-option-radio"></div>
+                    <div class="spec-option-content">
+                        <span class="spec-option-title">${escapeHtml(config.product_name || '')}</span>
+                        ${descText ? `<span class="spec-option-desc">${escapeHtml(descText)}</span>` : ''}
+                    </div>
+                </div>
+                <span class="spec-option-price ${priceClass}">${priceDisplay}</span>
+            </div>
+        `;
+    }
+
+    /**
+     * 初始化已选配置到 state
+     */
+    function initSelectedConfigs() {
+        const configs = state.configurations;
+        if (!configs) return;
+
+        // 清空之前的选择（保留必选）
+        state.selectedConfigs = [];
+
+        // 添加必选配置
+        if (configs.required) {
+            configs.required.forEach(config => {
+                state.selectedConfigs.push({
+                    ...config,
+                    quantity: config.default_quantity || 1,
+                    source: 'required'
+                });
+            });
+        }
+
+        // 添加必选互斥组的默认选项（第一个）
+        Object.values(configs.requiredMutualGroups || {}).forEach(group => {
+            if (group.products && group.products.length > 0) {
+                state.selectedConfigs.push({
+                    ...group.products[0],
+                    quantity: group.products[0].default_quantity || 1,
+                    source: 'required_mutual',
+                    group_id: group.group_id
+                });
+            }
+        });
+
+        // 添加默认选中的推荐配置
+        if (configs.recommended) {
+            configs.recommended.forEach(config => {
+                if (config.is_default === true) {
+                    state.selectedConfigs.push({
+                        ...config,
+                        quantity: config.default_quantity || 1,
+                        source: 'recommended'
+                    });
+                }
+            });
+        }
+
+        console.log('📋 初始化已选配置:', state.selectedConfigs.length, '项');
+    }
+
+    /**
+     * 切换配置选中状态
+     * @param {number} configId - 配置ID
+     * @param {boolean} isRequired - 是否必选（不可取消）
+     * @param {string} groupId - 互斥组ID（可选）
+     */
+    function toggleConfigSelection(configId, isRequired, groupId) {
+        console.log(`🔄 切换配置选中: configId=${configId}, isRequired=${isRequired}, groupId=${groupId}`);
+
+        // 必选配置不可取消
+        if (isRequired) {
+            console.log('  ⚠️ 必选配置不可取消');
+            return;
+        }
+
+        // 找到对应的卡片元素
+        const card = document.querySelector(`.spec-option-card[data-config-id="${configId}"]`);
+        if (!card) return;
+
+        const isCurrentlySelected = card.classList.contains('selected');
+
+        // 如果是互斥组
+        if (groupId) {
+            // 找到同组的所有卡片，取消选中
+            const groupCards = document.querySelectorAll(`.spec-option-card[data-group-id="${groupId}"]`);
+            groupCards.forEach(c => c.classList.remove('selected'));
+
+            // 从 selectedConfigs 中移除同组的配置
+            state.selectedConfigs = state.selectedConfigs.filter(c => c.group_id !== groupId);
+
+            // 如果当前未选中，则选中它
+            if (!isCurrentlySelected) {
+                card.classList.add('selected');
+
+                // 找到对应的配置数据并添加到 selectedConfigs
+                const configs = state.configurations;
+                let configData = null;
+
+                // 在互斥组中查找
+                Object.values(configs.requiredMutualGroups || {}).forEach(group => {
+                    if (group.group_id === groupId) {
+                        configData = (group.products || []).find(c => (c.id || c.related_product_id) == configId);
+                        if (configData) {
+                            state.selectedConfigs.push({
+                                ...configData,
+                                quantity: configData.default_quantity || 1,
+                                source: 'required_mutual',
+                                group_id: groupId
+                            });
+                        }
+                    }
+                });
+                Object.values(configs.optionalMutualGroups || {}).forEach(group => {
+                    if (group.group_id === groupId) {
+                        configData = (group.products || []).find(c => (c.id || c.related_product_id) == configId);
+                        if (configData) {
+                            state.selectedConfigs.push({
+                                ...configData,
+                                quantity: configData.default_quantity || 1,
+                                source: 'optional_mutual',
+                                group_id: groupId
+                            });
+                        }
+                    }
+                });
+            }
+        } else {
+            // 非互斥组，切换选中状态
+            if (isCurrentlySelected) {
+                // 取消选中
+                card.classList.remove('selected');
+                state.selectedConfigs = state.selectedConfigs.filter(c =>
+                    (c.id || c.related_product_id) != configId
+                );
+            } else {
+                // 选中
+                card.classList.add('selected');
+
+                // 找到对应的配置数据
+                const configs = state.configurations;
+                let configData = (configs.recommended || []).find(c =>
+                    (c.id || c.related_product_id) == configId
+                );
+
+                if (configData) {
+                    state.selectedConfigs.push({
+                        ...configData,
+                        quantity: configData.default_quantity || 1,
+                        source: 'recommended'
+                    });
+                }
+            }
+        }
+
+        console.log('📋 当前已选配置:', state.selectedConfigs.length, '项');
+    }
+
+    /**
+     * 渲染步骤3：确认页面
+     */
+    function renderStep3() {
+        updateConfirmProductInfo();
+        renderConfirmConfigs();
+        calculateTotalPrice();
+    }
+
+    /**
+     * 更新确认页面的产品信息
+     */
+    function updateConfirmProductInfo() {
+        const product = state.selectedProduct;
+        if (!product) return;
+
+        const imageEl = document.getElementById('confirmProductImage');
+        const nameEl = document.getElementById('confirmProductName');
+        const modelEl = document.getElementById('confirmProductModel');
+        const specEl = document.getElementById('confirmProductSpec');
+        const brandEl = document.getElementById('confirmProductBrand');
+        const basePriceEl = document.getElementById('confirmBasePrice');
+
+        if (nameEl) nameEl.textContent = product.product_name || product.name || '--';
+        if (modelEl) modelEl.textContent = product.model || product.product_model || '--';
+        if (specEl) specEl.textContent = product.specification || product.product_spec || '--';
+        if (brandEl) brandEl.textContent = product.brand || '--';
+        if (basePriceEl) basePriceEl.textContent = formatPrice(product.retail_price || product.market_price);
+
+        if (imageEl) {
+            const imageUrl = product.effective_image || product.image_path || product.image_url || product.image;
+            if (imageUrl) {
+                imageEl.innerHTML = `<img src="${imageUrl}" alt="${escapeHtml(product.product_name || '')}">`;
+            }
+        }
+    }
+
+    /**
+     * 渲染确认配置列表
+     */
+    function renderConfirmConfigs() {
+        const listEl = document.getElementById('confirmConfigList');
+        const pricesEl = document.getElementById('confirmConfigPrices');
+        if (!listEl || !pricesEl) return;
+
+        let listHtml = '';
+
+        // 1. 显示用户选择的规格
+        for (const [position, selection] of Object.entries(state.userSelections)) {
+            const field = [...state.fixedFields, ...state.selectableFields].find(f => f.position === parseInt(position));
+            if (field) {
+                const unitText = selection.unit ? ` ${selection.unit}` : '';
+                listHtml += `
+                    <div class="confirm-config-item bg-white dark:bg-[#101922] border border-slate-200 dark:border-slate-600">
+                        <span class="confirm-config-name">${escapeHtml(field.fieldName)}</span>
+                        <span class="confirm-config-value">${escapeHtml(selection.value)}${unitText}</span>
+                    </div>
+                `;
+            }
+        }
+
+        // 2. 显示已选配置（如果有）
+        if (state.selectedConfigs && state.selectedConfigs.length > 0) {
+            listHtml += `
+                <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <h4 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
+                        <span class="material-symbols-outlined text-base align-middle mr-1">settings</span>
+                        {{ _('已选配置') }}
+                    </h4>
+                </div>
+            `;
+
+            state.selectedConfigs.forEach(config => {
+                const price = config.retail_price || 0;
+                const priceText = price > 0 ? formatPrice(price) : '{{ _("包含") }}';
+                const sourceLabel = getConfigSourceLabel(config.source);
+
+                listHtml += `
+                    <div class="confirm-config-item bg-white dark:bg-[#101922] border border-slate-200 dark:border-slate-600">
+                        <div class="flex-1">
+                            <span class="confirm-config-name">${escapeHtml(config.product_name || '')}</span>
+                            ${sourceLabel ? `<span class="text-xs text-slate-400 ml-2">(${sourceLabel})</span>` : ''}
+                        </div>
+                        <span class="confirm-config-value ${price > 0 ? 'text-primary' : ''}">${priceText}</span>
+                    </div>
+                `;
+            });
+        }
+
+        listEl.innerHTML = listHtml;
+
+        // DEBUG: 检查样式
+        setTimeout(() => {
+            const items = listEl.querySelectorAll('.confirm-config-item');
+            items.forEach((item, i) => {
+                const computed = window.getComputedStyle(item);
+                console.log(`🔍 [DEBUG] confirm-config-item[${i}]:`);
+                console.log(`   - background-color: ${computed.backgroundColor}`);
+                console.log(`   - classes: ${item.className}`);
+                console.log(`   - dark mode: ${document.documentElement.classList.contains('dark')}`);
+            });
+
+            // 检查父容器和产品卡片
+            const step3 = document.getElementById('specStep3');
+            if (step3) {
+                const productCard = step3.querySelector('.bg-slate-50');
+                if (productCard) {
+                    const computed = window.getComputedStyle(productCard);
+                    console.log(`🔍 [DEBUG] 产品信息卡片:`);
+                    console.log(`   - background-color: ${computed.backgroundColor}`);
+                    console.log(`   - border-color: ${computed.borderColor}`);
+                    console.log(`   - classes: ${productCard.className}`);
+
+                    // 检查图片容器
+                    const imageContainer = productCard.querySelector('#confirmProductImage');
+                    if (imageContainer) {
+                        const imgComputed = window.getComputedStyle(imageContainer);
+                        console.log(`🔍 [DEBUG] 图片容器:`);
+                        console.log(`   - background-color: ${imgComputed.backgroundColor}`);
+                        console.log(`   - border-color: ${imgComputed.borderColor}`);
+                    }
+                }
+
+                // 检查模态框主体背景
+                const modal = document.querySelector('#productSpecModal > div:nth-child(2) > div');
+                if (modal) {
+                    const computed = window.getComputedStyle(modal);
+                    console.log(`🔍 [DEBUG] 模态框主体:`);
+                    console.log(`   - background-color: ${computed.backgroundColor}`);
+                }
+
+                // 检查 confirm-config-item 的边框
+                const firstItem = listEl.querySelector('.confirm-config-item');
+                if (firstItem) {
+                    const computed = window.getComputedStyle(firstItem);
+                    console.log(`🔍 [DEBUG] 配置项边框:`);
+                    console.log(`   - border-color: ${computed.borderColor}`);
+                    console.log(`   - border-width: ${computed.borderWidth}`);
+                }
+            }
+        }, 100);
+
+        // 3. 渲染配置价格明细
+        let pricesHtml = '';
+        state.selectedConfigs.forEach(config => {
+            const price = config.retail_price || 0;
+            if (price > 0) {
+                pricesHtml += `
+                    <div class="flex justify-between text-sm">
+                        <span class="text-slate-600 dark:text-slate-400">${escapeHtml(config.product_name || '')}</span>
+                        <span class="text-slate-900 dark:text-white">+ ${formatPrice(price)}</span>
+                    </div>
+                `;
+            }
+        });
+        pricesEl.innerHTML = pricesHtml;
+    }
+
+    /**
+     * 获取配置来源标签
+     */
+    function getConfigSourceLabel(source) {
+        const labels = {
+            'required': '{{ _("必选") }}',
+            'required_mutual': '{{ _("必选") }}',
+            'recommended': '{{ _("推荐") }}',
+            'optional_mutual': '{{ _("可选") }}'
+        };
+        return labels[source] || '';
+    }
+
+    /**
+     * 计算并显示总价
+     */
+    function calculateTotalPrice() {
+        const totalEl = document.getElementById('confirmTotalPrice');
+        if (!totalEl) return;
+
+        let total = 0;
+
+        // 产品基础价格
+        if (state.selectedProduct) {
+            total = parseFloat(state.selectedProduct.retail_price || state.selectedProduct.market_price || 0);
+        }
+
+        // 加上配置价格
+        if (state.selectedConfigs && state.selectedConfigs.length > 0) {
+            state.selectedConfigs.forEach(config => {
+                const price = parseFloat(config.retail_price || 0);
+                if (price > 0) {
+                    total += price * (config.quantity || 1);
+                }
+            });
+        }
+
+        totalEl.textContent = formatPrice(total);
+    }
+
+    /**
+     * 下一步（异步版本 - 需要先加载配置）
+     */
+    async function nextStep() {
+        if (state.currentStep === 1) {
+            // 检查是否所有可选字段都已选择
+            if (!state.allSpecsSelected) {
+                alert('{{ _("请完成所有规格选择") }}');
+                return;
+            }
+
+            // 检查是否已有匹配的产品
+            if (state.remainingProducts.length === 0) {
+                alert('{{ _("没有匹配的产品") }}');
+                return;
+            }
+
+            // 选中产品（确保总是使用最新的匹配产品）
+            if (state.remainingProducts.length >= 1) {
+                state.selectedProduct = state.remainingProducts[0];
+                console.log('📦 选中产品:', state.selectedProduct);
+                console.log('  - product_name:', state.selectedProduct.product_name);
+                console.log('  - effective_image:', state.selectedProduct.effective_image);
+                console.log('  - brand:', state.selectedProduct.brand);
+                console.log('  - model:', state.selectedProduct.model);
+                console.log('  - product_mn:', state.selectedProduct.product_mn);
+            }
+
+            // 禁用下一步按钮，显示加载状态
+            const nextBtn = elements.nextBtn;
+            if (nextBtn) {
+                nextBtn.disabled = true;
+                nextBtn.innerHTML = '<span class="animate-pulse">{{ _("加载中...") }}</span>';
+            }
+
+            try {
+                // 异步加载配置
+                await loadProductConfigurations(state.selectedProduct.id);
+
+                // 检查是否有配置选项（第二步）
+                checkHasStep2();
+
+                if (state.hasStep2) {
+                    state.currentStep = 2;
+                    // 先显示步骤2，再渲染内容（确保 DOM 可见）
+                    showCurrentStep();
+                    renderStep2();
+                    updateStepIndicator();
+                    updateButtons();
+                    return; // 提前返回，避免重复调用
+                } else {
+                    // 跳过第二步，直接到第三步
+                    state.currentStep = 3;
+                    renderStep3();
+                }
+            } catch (error) {
+                console.error('❌ 加载配置失败:', error);
+                // 即使加载失败也继续，跳过第二步
+                state.hasStep2 = false;
+                state.currentStep = 3;
+                renderStep3();
+            } finally {
+                // 恢复按钮
+                if (nextBtn) {
+                    nextBtn.disabled = false;
+                    nextBtn.innerHTML = '{{ _("下一步") }}';
+                }
+            }
+        } else if (state.currentStep === 2) {
+            // 验证必选互斥组是否都已选择
+            const configs = state.configurations;
+            if (configs && configs.requiredMutualGroups) {
+                const requiredGroupIds = Object.keys(configs.requiredMutualGroups);
+                for (const groupId of requiredGroupIds) {
+                    const hasSelection = state.selectedConfigs.some(c => c.group_id === groupId);
+                    if (!hasSelection) {
+                        const groupName = configs.requiredMutualGroups[groupId].group_name || '必选配置组';
+                        alert(`{{ _("请选择") }} "${groupName}"`);
+                        return;
+                    }
+                }
+            }
+
+            state.currentStep = 3;
+            renderStep3();
+            showCurrentStep();
+            updateStepIndicator();
+            updateButtons();
+            return;
+        }
+
+        showCurrentStep();
+        updateStepIndicator();
+        updateButtons();
+    }
+
+    /**
+     * 加载产品配置（异步）
+     * @param {number} productId - 产品ID
+     * @returns {Promise<Object>} 配置数据
+     */
+    async function loadProductConfigurations(productId) {
+        console.log(`🔧 加载产品配置: product_id=${productId}`);
+
+        try {
+            const response = await fetch(`/product-management/api/product/${productId}/relations`);
+            const result = await response.json();
+
+            if (result.success) {
+                // 分类处理配置数据
+                const required = [];
+                const recommended = [];
+                const requiredMutualGroups = {};
+                const optionalMutualGroups = {};
+
+                // 处理普通关联产品
+                if (result.data && Array.isArray(result.data)) {
+                    result.data.forEach(item => {
+                        if (item.relation_type === 'required_accessory') {
+                            required.push(item);
+                        } else if (item.relation_type === 'recommended') {
+                            recommended.push(item);
+                        }
+                    });
+                }
+
+                // 处理互斥组
+                if (result.groups && typeof result.groups === 'object') {
+                    Object.values(result.groups).forEach(group => {
+                        if (group.is_required) {
+                            requiredMutualGroups[group.group_id] = group;
+                        } else {
+                            optionalMutualGroups[group.group_id] = group;
+                        }
+                    });
+                }
+
+                // 存储配置数据
+                state.configurations = {
+                    required,
+                    recommended,
+                    requiredMutualGroups,
+                    optionalMutualGroups,
+                    total: result.total || 0
+                };
+
+                console.log(`  ✓ 配置加载成功: 必选=${required.length}, 推荐=${recommended.length}`);
+                return state.configurations;
+            } else {
+                console.log('  ℹ️ 该产品无配置选项');
+                state.configurations = { required: [], recommended: [], requiredMutualGroups: {}, optionalMutualGroups: {}, total: 0 };
+                return state.configurations;
+            }
+        } catch (error) {
+            console.error('❌ 加载配置失败:', error);
+            state.configurations = { required: [], recommended: [], requiredMutualGroups: {}, optionalMutualGroups: {}, total: 0 };
+            return state.configurations;
+        }
+    }
+
+    /**
+     * 检查是否有第二步（配置选项）- 基于已加载的配置数据判断
+     */
+    function checkHasStep2() {
+        const configs = state.configurations;
+        if (!configs) {
+            state.hasStep2 = false;
+            return;
+        }
+
+        // 有推荐配置或可选互斥组 → 需要第二步
+        const hasRecommended = configs.recommended && configs.recommended.length > 0;
+        const hasOptionalGroups = configs.optionalMutualGroups && Object.keys(configs.optionalMutualGroups).length > 0;
+        const hasRequiredGroups = configs.requiredMutualGroups && Object.keys(configs.requiredMutualGroups).length > 0;
+
+        // 只有必选配置（无推荐、无可选、无互斥组）时跳过第二步
+        const hasOnlyRequired = configs.required && configs.required.length > 0 &&
+                               !hasRecommended && !hasOptionalGroups && !hasRequiredGroups;
+
+        if (hasOnlyRequired) {
+            // 自动选中必选配置
+            state.selectedConfigs = configs.required.map(config => ({
+                ...config,
+                quantity: config.default_quantity || 1,
+                source: 'required'
+            }));
+            state.hasStep2 = false;
+            console.log('  ✓ 只有必选配置，自动选中并跳过第二步');
+        } else if (hasRecommended || hasOptionalGroups || hasRequiredGroups) {
+            // 有需要选择的配置
+            state.hasStep2 = true;
+            // 预选必选配置
+            state.selectedConfigs = configs.required ? configs.required.map(config => ({
+                ...config,
+                quantity: config.default_quantity || 1,
+                source: 'required'
+            })) : [];
+            console.log('  ✓ 有可选配置，需要第二步');
+        } else {
+            // 完全没有配置
+            state.hasStep2 = false;
+            state.selectedConfigs = [];
+            console.log('  ℹ️ 无配置选项，跳过第二步');
+        }
+    }
+
+    /**
+     * 上一步
+     */
+    function prevStep() {
+        if (state.currentStep === 3) {
+            // 从第三步返回
+            if (state.hasStep2) {
+                state.currentStep = 2;
+            } else {
+                // 跳过第二步，直接返回第一步
+                state.currentStep = 1;
+            }
+        } else if (state.currentStep === 2) {
+            state.currentStep = 1;
+        }
+
+        showCurrentStep();
+        updateStepIndicator();
+        updateButtons();
+    }
+
+    /**
+     * 显示当前步骤内容
+     */
+    function showCurrentStep() {
+        [elements.step1, elements.step2, elements.step3].forEach((step, index) => {
+            if (step) {
+                step.classList.toggle('hidden', index + 1 !== state.currentStep);
+            }
+        });
+    }
+
+    /**
+     * 更新步骤指示器（进度条样式）
+     * 注意：第一步时始终显示"下一步: 2. 配置选择"，只有进入下一步时才判断是否跳过
+     */
+    function updateStepIndicator() {
+        const stepTitles = {
+            1: '1. {{ _("规格选择") }}',
+            2: '2. {{ _("配置选择") }}',
+            3: '3. {{ _("产品确认") }}'
+        };
+
+        // 更新标题
+        const titleEl = document.getElementById('stepTitle');
+        if (titleEl) {
+            titleEl.textContent = stepTitles[state.currentStep];
+        }
+
+        // 更新步骤指示器
+        const indicatorEl = document.getElementById('stepIndicator');
+        if (indicatorEl) {
+            // 第一步时始终显示 1/3，只有确定跳过第二步后才显示 x/2
+            const totalSteps = (state.currentStep > 1 && !state.hasStep2) ? 2 : 3;
+            const displayStep = (state.currentStep === 3 && !state.hasStep2) ? 2 : state.currentStep;
+            indicatorEl.textContent = `{{ _("步骤") }} ${displayStep} / ${totalSteps}`;
+        }
+
+        // 更新进度条
+        const bar1 = document.getElementById('progressBar1');
+        const bar2 = document.getElementById('progressBar2');
+        const bar3 = document.getElementById('progressBar3');
+
+        if (bar1) bar1.style.width = state.currentStep >= 1 ? '100%' : '0%';
+        if (bar2) bar2.style.width = state.currentStep >= 2 ? '100%' : '0%';
+        if (bar3) bar3.style.width = state.currentStep >= 3 ? '100%' : '0%';
+
+        // 更新下一步提示
+        const hintEl = document.getElementById('nextStepHint');
+        if (hintEl) {
+            if (state.currentStep === 1) {
+                // 第一步时始终显示"下一步: 2. 配置选择"，不提前判断是否跳过
+                hintEl.textContent = '{{ _("下一步") }}: 2. {{ _("配置选择") }}';
+                hintEl.classList.remove('hidden');
+            } else if (state.currentStep === 2) {
+                hintEl.textContent = '{{ _("下一步") }}: 3. {{ _("产品确认") }}';
+                hintEl.classList.remove('hidden');
+            } else {
+                hintEl.classList.add('hidden');
+            }
+        }
+    }
+
+    /**
+     * 更新按钮状态
+     */
+    function updateButtons() {
+        if (!elements.backBtn || !elements.nextBtn || !elements.confirmBtn) return;
+
+        console.log('🔘 updateButtons: currentStep =', state.currentStep);
+
+        // 返回按钮（第一步隐藏，其他步骤显示）
+        const hideBackBtn = state.currentStep === 1;
+        elements.backBtn.classList.toggle('hidden', hideBackBtn);
+        console.log('  - 返回按钮隐藏:', hideBackBtn);
+
+        // 下一步/确认按钮
+        if (state.currentStep === 3) {
+            elements.nextBtn.classList.add('hidden');
+            elements.confirmBtn.classList.remove('hidden');
+        } else {
+            elements.nextBtn.classList.remove('hidden');
+            elements.confirmBtn.classList.add('hidden');
+        }
+
+        // 第一步时检查是否所有可选字段都已选择
+        if (state.currentStep === 1) {
+            if (state.allSpecsSelected) {
+                // 可以进入下一步
+                elements.nextBtn.disabled = false;
+                elements.nextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                // 禁用下一步按钮
+                elements.nextBtn.disabled = true;
+                elements.nextBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        } else {
+            // 其他步骤启用按钮
+            elements.nextBtn.disabled = false;
+            elements.nextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    }
+
+    /**
+     * 确认选择
+     */
+    function confirm() {
+        if (state.onConfirm && typeof state.onConfirm === 'function') {
+            state.onConfirm({
+                product: state.selectedProduct,
+                configurations: state.selectedConfigs
+            });
+        }
+        close();
+    }
+
+    /**
+     * 格式化价格
+     */
+    function formatPrice(price, currency = 'CNY') {
+        if (!price && price !== 0) return '--';
+        const num = parseFloat(price);
+        if (isNaN(num)) return '--';
+
+        const symbol = currency === 'CNY' ? '¥' : '$';
+        return `${symbol}${num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    /**
+     * HTML 转义
+     */
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // 公开 API
+    return {
+        open,
+        close,
+        nextStep,
+        prevStep,
+        confirm,
+        selectOption,
+        toggleConfigSelection
+    };
+})();
+
+// ESC 键关闭模态框
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('productSpecModal');
+        if (modal && !modal.classList.contains('hidden')) {
+            ProductSpecModal.close();
+        }
+    }
+});
+</script>
+{% endmacro %}

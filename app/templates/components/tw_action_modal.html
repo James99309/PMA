@@ -1,0 +1,440 @@
+{#
+=============================================================================
+Tailwind 添加行动记录模态框组件
+=============================================================================
+通用的行动记录添加模态框，支持项目详情页、客户详情页和联系人详情页三种场景。
+
+使用方式：
+{% from 'components/tw_action_modal.html' import tw_action_modal, tw_action_modal_script with context %}
+
+项目详情页使用：
+{{ tw_action_modal(
+    context_type='project',
+    context_id=project.id,
+    context_name=project.project_name,
+    companies=customer_associations_data,
+    sidebar_info={
+        'title': _('项目信息'),
+        'items': [
+            {'label': _('项目名称'), 'value': project.project_name},
+            {'label': _('当前阶段'), 'value': current_stage_key|project_stage_label}
+        ]
+    }
+) }}
+{{ tw_action_modal_script(
+    context_type='project',
+    context_id=project.id,
+    api_endpoint='/project/api/' ~ project.id ~ '/add_action',
+    contacts_api='/project/api/get_company_contacts'
+) }}
+
+联系人详情页使用：
+{{ tw_action_modal(
+    context_type='contact',
+    context_id=contact.id,
+    context_name=contact.name,
+    projects=projects,
+    sidebar_info={
+        'title': _('联系人信息'),
+        'items': [
+            {'label': _('联系人'), 'value': contact.name},
+            {'label': _('所属企业'), 'value': company.company_name}
+        ]
+    }
+) }}
+{{ tw_action_modal_script(
+    context_type='contact',
+    context_id=contact.id,
+    api_endpoint='/customer/api/contacts/' ~ contact.id ~ '/add_action'
+) }}
+
+参数说明：
+- context_type: 'project'、'customer' 或 'contact'，决定表单布局
+- context_id: 项目ID、客户ID或联系人ID
+- context_name: 显示名称（项目名、客户名或联系人名）
+- companies: 可选企业列表（项目场景用）
+- contacts: 联系人列表（客户场景直接传入）
+- projects: 可选项目列表（客户和联系人场景用）
+- sidebar_info: 右侧信息栏配置
+=============================================================================
+#}
+
+{% from 'components/tw_form_fields.html' import tw_form_checkbox with context %}
+{% from 'components/tw_modal_base.html' import tw_close_btn %}
+
+{# 添加行动记录模态框 HTML #}
+{% macro tw_action_modal(
+    context_type='project',
+    context_id=0,
+    context_name='',
+    companies=[],
+    contacts=[],
+    projects=[],
+    sidebar_info=none,
+    modal_id='addActionModal',
+    event_name='open-add-action-modal'
+) %}
+<div id="{{ modal_id }}" class="fixed inset-0 z-50" x-data="actionModal_{{ modal_id }}()" x-show="open" x-cloak
+    @{{ event_name }}.window="openModal()"
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-150"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0">
+    <!-- 背景遮罩 -->
+    <div class="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity" @click="closeModal()"></div>
+
+    <!-- 模态框容器 -->
+    <div class="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col pointer-events-auto"
+            @click.stop>
+            <!-- 头部 -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">add_circle</span>
+                    {{ _('添加行动记录') }}
+                </h3>
+{{ tw_close_btn(alpine_click='closeModal()') }}
+            </div>
+
+            <!-- 主内容区 - 两列布局 -->
+            <div class="flex-1 overflow-y-auto">
+                <div class="flex flex-col lg:flex-row">
+                    <!-- 左侧表单区 -->
+                    <div class="flex-1 p-6 space-y-5">
+                        {% if context_type == 'project' %}
+                        <!-- 项目场景：关联项目只读 -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                {{ _('关联项目') }}
+                            </label>
+                            <input type="text" value="{{ context_name }}" readonly
+                                class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-sm cursor-not-allowed">
+                        </div>
+
+                        <!-- 相关企业（可选） -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                {{ _('相关企业') }}
+                                <span class="text-slate-400 font-normal">({{ _('可选') }})</span>
+                            </label>
+                            <select x-model="formData.company_id" @change="loadContacts()"
+                                class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-colors">
+                                <option value="">-- {{ _('请选择企业') }} --</option>
+                                {% for item in companies %}
+                                <option value="{{ item.company.id if item.company else item.id }}">{{ item.company.company_name if item.company else item.company_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- 联系人（动态加载） -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                {{ _('联系人') }}
+                                <span class="text-slate-400 font-normal">({{ _('可选') }})</span>
+                            </label>
+                            <select x-model="formData.contact_id" :disabled="!formData.company_id || loadingContacts"
+                                class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-colors disabled:bg-slate-100 dark:disabled:bg-slate-700 disabled:cursor-not-allowed">
+                                <option value="" x-text="loadingContacts ? '{{ _('加载中...') }}' : (!formData.company_id ? '{{ _('请先选择企业') }}' : '-- {{ _('请选择联系人') }} --')"></option>
+                                <template x-for="contact in contacts" :key="contact.id">
+                                    <option :value="contact.id" x-text="contact.name + (contact.position ? ' (' + contact.position + ')' : '')"></option>
+                                </template>
+                            </select>
+                        </div>
+
+                        {% elif context_type == 'contact' %}
+                        <!-- 联系人场景：联系人只读 -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                {{ _('联系人') }}
+                            </label>
+                            <input type="text" value="{{ context_name }}" readonly
+                                class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-sm cursor-not-allowed">
+                        </div>
+
+                        <!-- 关联项目（可选，始终显示） -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                {{ _('关联项目') }}
+                                <span class="text-slate-400 font-normal">({{ _('可选') }})</span>
+                            </label>
+                            <select x-model="formData.project_id"
+                                class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-colors">
+                                {% if projects %}
+                                <option value="">-- {{ _('请选择项目') }} --</option>
+                                {% for project in projects %}
+                                <option value="{{ project.id }}">{{ project.project_name }}</option>
+                                {% endfor %}
+                                {% else %}
+                                <option value="">-- {{ _('暂无关联项目') }} --</option>
+                                {% endif %}
+                            </select>
+                        </div>
+
+                        {% else %}
+                        <!-- 客户场景：关联客户只读 -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                {{ _('关联客户') }}
+                            </label>
+                            <input type="text" value="{{ context_name }}" readonly
+                                class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-sm cursor-not-allowed">
+                        </div>
+
+                        <!-- 关联项目（可选） -->
+                        {% if projects %}
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                {{ _('关联项目') }}
+                                <span class="text-slate-400 font-normal">({{ _('可选') }})</span>
+                            </label>
+                            <select x-model="formData.project_id"
+                                class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-colors">
+                                <option value="">-- {{ _('请选择项目') }} --</option>
+                                {% for project in projects %}
+                                <option value="{{ project.id }}">{{ project.project_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+
+                        <!-- 联系人（直接显示） -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                {{ _('联系人') }}
+                                <span class="text-slate-400 font-normal">({{ _('可选') }})</span>
+                            </label>
+                            <select x-model="formData.contact_id"
+                                class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-colors">
+                                <option value="">-- {{ _('请选择联系人') }} --</option>
+                                {% for contact in contacts %}
+                                <option value="{{ contact.id }}">{{ contact.name }}{% if contact.position %} ({{ contact.position }}){% endif %}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+
+                        <!-- 日期 -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                {{ _('日期') }}
+                                <span class="text-red-500">*</span>
+                            </label>
+                            <input type="date" x-model="formData.date"
+                                class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-colors">
+                        </div>
+
+                        <!-- 沟通情况 -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                {{ _('沟通情况') }}
+                                <span class="text-red-500">*</span>
+                            </label>
+                            <textarea x-model="formData.communication" rows="5"
+                                placeholder="{{ _('请输入本次沟通的详细内容...') }}"
+                                class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-colors placeholder-slate-400 resize-none"></textarea>
+                        </div>
+
+                        <!-- 共享选项 -->
+                        {{ tw_form_checkbox(
+                            label=_('共享此记录'),
+                            help_text=_('取消勾选后，此记录仅对管理员和上级账户可见'),
+                            alpine_model='formData.is_shared'
+                        ) }}
+                    </div>
+
+                    <!-- 右侧信息侧边栏 -->
+                    {% if sidebar_info %}
+                    <div class="lg:w-64 bg-slate-50 dark:bg-slate-800/50 border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-700 p-5">
+                        <h4 class="text-sm font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-slate-400 text-lg">info</span>
+                            {{ sidebar_info['title'] }}
+                        </h4>
+                        <div class="space-y-4">
+                            {% for item in sidebar_info['items'] %}
+                            <div>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">{{ item['label'] }}</p>
+                                <p class="text-sm font-medium text-slate-800 dark:text-slate-200">{{ item['value'] or '-' }}</p>
+                            </div>
+                            {% endfor %}
+                            {% if sidebar_info.get('list_items') %}
+                            <div>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">{{ sidebar_info['list_title'] }}</p>
+                                <div class="space-y-1">
+                                    {% for item in sidebar_info['list_items'][:3] %}
+                                    <p class="text-sm text-slate-700 dark:text-slate-300 truncate" title="{{ item }}">{{ item }}</p>
+                                    {% endfor %}
+                                    {% if sidebar_info['list_items']|length > 3 %}
+                                    <p class="text-xs text-slate-500">+{{ sidebar_info['list_items']|length - 3 }} {{ _('个更多') }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 底部操作区 -->
+            <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+                <button type="button" @click="closeModal()"
+                    class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                    {{ _('取消') }}
+                </button>
+                <button type="button" @click="submitAction()" :disabled="submitting || !isValid"
+                    class="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                    <svg x-show="submitting" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span x-text="submitting ? '{{ _('保存中...') }}' : '{{ _('保存') }}'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 添加行动记录模态框 JavaScript #}
+{% macro tw_action_modal_script(
+    context_type='project',
+    context_id=0,
+    api_endpoint='',
+    contacts_api='',
+    modal_id='addActionModal',
+    event_name='open-add-action-modal'
+) %}
+<script>
+// Alpine.js 组件：添加行动记录模态框
+function actionModal_{{ modal_id }}() {
+    return {
+        open: false,
+        submitting: false,
+        loadingContacts: false,
+        contacts: [],
+        formData: {
+            {% if context_type == 'project' %}
+            company_id: '',
+            contact_id: '',
+            {% elif context_type == 'contact' %}
+            project_id: '',
+            {% else %}
+            project_id: '',
+            contact_id: '',
+            {% endif %}
+            date: new Date().toISOString().split('T')[0],
+            communication: '',
+            is_shared: true
+        },
+
+        get isValid() {
+            return this.formData.date && this.formData.communication.trim();
+        },
+
+        openModal() {
+            // 重置表单
+            this.formData = {
+                {% if context_type == 'project' %}
+                company_id: '',
+                contact_id: '',
+                {% elif context_type == 'contact' %}
+                project_id: '',
+                {% else %}
+                project_id: '',
+                contact_id: '',
+                {% endif %}
+                date: new Date().toISOString().split('T')[0],
+                communication: '',
+                is_shared: true
+            };
+            this.contacts = [];
+            this.open = true;
+            document.body.style.overflow = 'hidden';
+        },
+
+        closeModal() {
+            this.open = false;
+            document.body.style.overflow = '';
+        },
+
+        {% if context_type == 'project' %}
+        async loadContacts() {
+            this.formData.contact_id = '';
+            this.contacts = [];
+
+            if (!this.formData.company_id) {
+                return;
+            }
+
+            this.loadingContacts = true;
+            try {
+                const response = await fetch(`{{ contacts_api }}/${this.formData.company_id}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    this.contacts = data.data;
+                }
+            } catch (error) {
+                console.error('{{ _("加载联系人失败") }}:', error);
+            } finally {
+                this.loadingContacts = false;
+            }
+        },
+        {% endif %}
+
+        async submitAction() {
+            if (!this.isValid || this.submitting) return;
+
+            this.submitting = true;
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+            try {
+                const response = await fetch('{{ api_endpoint }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({
+                        {% if context_type == 'project' %}
+                        company_id: this.formData.company_id || null,
+                        contact_id: this.formData.contact_id || null,
+                        {% elif context_type == 'contact' %}
+                        project_id: this.formData.project_id || null,
+                        {% else %}
+                        project_id: this.formData.project_id || null,
+                        contact_id: this.formData.contact_id || null,
+                        {% endif %}
+                        date: this.formData.date,
+                        communication: this.formData.communication,
+                        is_shared: this.formData.is_shared
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    this.closeModal();
+                    window.location.reload();
+                } else {
+                    alert(data.message || '{{ _("保存失败") }}');
+                }
+            } catch (error) {
+                console.error('{{ _("提交失败") }}:', error);
+                alert('{{ _("网络错误，请重试") }}');
+            } finally {
+                this.submitting = false;
+            }
+        }
+    };
+}
+
+// 打开添加行动记录模态框
+window.openAddActionModal = function() {
+    window.dispatchEvent(new CustomEvent('{{ event_name }}'));
+};
+</script>
+{% endmacro %}

@@ -1,0 +1,188 @@
+{#
+=============================================================================
+Tailwind 固定标题页面布局组件
+=============================================================================
+用于创建固定标题+可滚动内容的页面布局。
+
+布局结构：
+┌─────────────────────────────────────────────────────────────────┐
+│ 固定区域：页面标题 + 操作按钮                                      │
+├─────────────────────────────────────────────────────────────────┤
+│ 可滚动区域：                                                      │
+│   - 统计卡片                                                      │
+│   - 筛选栏                                                        │
+│   - 数据表格                                                      │
+│   - 其他内容...                                                   │
+└─────────────────────────────────────────────────────────────────┘
+
+使用方式：
+{% from 'components/tw_fixed_header_page.html' import
+    render_tw_fixed_header_styles,
+    render_tw_page_header,
+    render_tw_page_content_start,
+    render_tw_page_content_end,
+    render_tw_page_wrapper_end
+%}
+
+<!-- 在 <style> 中引入样式 -->
+{{ render_tw_fixed_header_styles() }}
+
+<!-- 在 content slot 中使用 -->
+<div class="flex-1 flex flex-col h-full overflow-hidden">
+    {{ render_tw_page_header() }}
+        <h1>页面标题</h1>
+        <button>操作按钮</button>
+    {{ render_tw_page_header_end() }}
+
+    {{ render_tw_page_content_start() }}
+        <!-- 可滚动内容 -->
+    {{ render_tw_page_content_end() }}
+</div>
+
+或使用简化版宏：
+{% call(slot) render_tw_fixed_page(padding='px-6 lg:px-8') %}
+    {% if slot == 'header' %}
+        <h1>标题</h1>
+        <button>按钮</button>
+    {% elif slot == 'content' %}
+        <!-- 内容 -->
+    {% endif %}
+{% endcall %}
+=============================================================================
+#}
+
+{# 固定标题页面所需的CSS样式 #}
+{% macro render_tw_fixed_header_styles() %}
+/* 禁用 tw_layout 主内容区的滚动，由内部元素控制 */
+main.flex-1.overflow-y-auto {
+    overflow-y: hidden !important;
+}
+{% endmacro %}
+
+{# 页面外层包装器开始 #}
+{% macro render_tw_page_wrapper_start() %}
+<div class="flex-1 flex flex-col h-full overflow-hidden">
+{% endmacro %}
+
+{# 页面外层包装器结束 #}
+{% macro render_tw_page_wrapper_end() %}
+</div>
+{% endmacro %}
+
+{# 固定头部区域开始 #}
+{% macro render_tw_page_header_start(padding='px-6 lg:px-8 pt-6 lg:pt-8 pb-4') %}
+<div class="flex-shrink-0 {{ padding }} bg-background-light dark:bg-black">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+{% endmacro %}
+
+{# 固定头部区域结束 #}
+{% macro render_tw_page_header_end() %}
+    </div>
+</div>
+{% endmacro %}
+
+{# 可滚动内容区域开始 #}
+{% macro render_tw_page_content_start(padding='px-6 lg:px-8 pb-6') %}
+<div class="flex-1 overflow-y-auto {{ padding }}">
+{% endmacro %}
+
+{# 可滚动内容区域结束 #}
+{% macro render_tw_page_content_end() %}
+</div>
+{% endmacro %}
+
+{# ========== 简化版：完整的固定标题页面布局 ========== #}
+{#
+使用方式：
+{% call(slot) render_tw_fixed_page() %}
+    {% if slot == 'header' %}
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">页面标题</h1>
+        <div class="flex items-center gap-2">
+            <button>操作按钮</button>
+        </div>
+    {% elif slot == 'content' %}
+        <!-- 可滚动内容 -->
+    {% endif %}
+{% endcall %}
+#}
+{% macro render_tw_fixed_page(
+    header_padding='px-6 lg:px-8 pt-6 lg:pt-8 pb-4',
+    content_padding='px-6 lg:px-8 pb-6'
+) %}
+<div class="flex-1 flex flex-col h-full overflow-hidden">
+    <!-- 固定头部区域 -->
+    <div class="flex-shrink-0 {{ header_padding }} bg-background-light dark:bg-black">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            {{ caller('header') }}
+        </div>
+    </div>
+    <!-- 可滚动内容区域 -->
+    <div class="flex-1 overflow-y-auto {{ content_padding }}">
+        {{ caller('content') }}
+    </div>
+</div>
+{% endmacro %}
+
+{# ========== 详情页专用：带面包屑的固定标题布局 ========== #}
+{#
+使用方式：
+{% call(slot) render_tw_fixed_detail_page() %}
+    {% if slot == 'breadcrumb' %}
+        <a href="...">父页面</a>
+        <span>/</span>
+        <span>当前页面</span>
+    {% elif slot == 'title' %}
+        页面标题
+    {% elif slot == 'badges' %}
+        <!-- 状态徽章等 -->
+    {% elif slot == 'actions' %}
+        <!-- 操作按钮 -->
+    {% elif slot == 'content' %}
+        <!-- 可滚动内容 -->
+    {% endif %}
+{% endcall %}
+#}
+{% macro render_tw_fixed_detail_page(
+    header_padding='px-6 lg:px-10 pt-6 lg:pt-10 pb-4',
+    content_padding='px-6 lg:px-10 py-6',
+    max_width='max-w-7xl'
+) %}
+<div class="flex-1 flex flex-col h-full overflow-hidden">
+    <!-- 固定顶部区域 -->
+    <div class="flex-shrink-0 {{ header_padding }} bg-background-light dark:bg-black">
+        <div class="{{ max_width }} mx-auto">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center justify-between">
+                <div>
+                    <!-- 面包屑 -->
+                    <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-2">
+                        {{ caller('breadcrumb') }}
+                    </div>
+                    <!-- 标题 -->
+                    <h2 class="text-3xl font-bold text-slate-900 dark:text-white">{{ caller('title') }}</h2>
+                </div>
+                <div class="flex items-center gap-4">
+                    <!-- 状态徽章 -->
+                    {% set badges_content = caller('badges') %}
+                    {% if badges_content and badges_content.strip() %}
+                    <div class="flex items-center gap-2">
+                        {{ badges_content }}
+                    </div>
+                    {% endif %}
+                    <!-- 操作按钮 -->
+                    <div class="flex items-center gap-2">
+                        {{ caller('actions') }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 可滚动内容区域 -->
+    <div class="flex-1 overflow-y-auto">
+        <div class="{{ content_padding }}">
+            <div class="{{ max_width }} mx-auto flex flex-col gap-8">
+                {{ caller('content') }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}

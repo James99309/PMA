@@ -9,44 +9,44 @@ ROLE_TYPE = 'role'
 
 # 统一标签字典
 PROJECT_TYPE_LABELS = {
-    'channel_follow': {'zh': '渠道跟进', 'en': 'Channel Follow'},
-    'sales_focus': {'zh': '销售重点', 'en': 'Sales Focus'},
-    'business_opportunity': {'zh': '客户服务', 'en': 'Service Opportunity'}
+    'channel_follow': {'zh': '渠道', 'en': 'Channel'},
+    'sales_focus': {'zh': '销售', 'en': 'Sales'},
+    'business_opportunity': {'zh': '服务', 'en': 'Service'}
 }
 
 PROJECT_STAGE_LABELS = {
-    'discover': {'zh': '发现', 'en': 'Discover'},
-    'embed': {'zh': '植入', 'en': 'Embed'},
-    'pre_tender': {'zh': '招标前', 'en': 'Pre-tender'},
-    'tendering': {'zh': '招标中', 'en': 'Tendering'},
+    'discover': {'zh': '发现', 'en': 'Discovery'},
+    'embed': {'zh': '植入', 'en': 'Embedding'},
+    'pre_tender': {'zh': '标前', 'en': 'Pre-tender'},
+    'tendering': {'zh': '标中', 'en': 'Tendering'},
     'awarded': {'zh': '中标', 'en': 'Awarded'},
-    'quoted': {'zh': '批价', 'en': 'Price approval'},
-    'signed': {'zh': '签约', 'en': 'Signed'},
-    'lost': {'zh': '失败', 'en': 'Lost'},
+    'quoted': {'zh': '批价', 'en': 'Pricing'},
+    'signed': {'zh': '签约', 'en': 'Contracted'},
+    'lost': {'zh': '失败', 'en': 'Failed'},
     'paused': {'zh': '搁置', 'en': 'Paused'}
 }
 
 REPORT_SOURCE_LABELS = {
-    'channel': {'zh': '渠道报备', 'en': 'Channel'},
-    'sales': {'zh': '销售线索', 'en': 'Sales'},
-    'marketing': {'zh': '市场拓展', 'en': 'Marketing'}
+    'channel': {'zh': '渠道', 'en': 'Channel'},
+    'sales': {'zh': '销售', 'en': 'Sales'},
+    'marketing': {'zh': '市场', 'en': 'Market'}
 }
 
 AUTHORIZATION_STATUS_LABELS = {
-    'pending': {'zh': '待审批', 'en': 'Pending'},
-    'approved': {'zh': '已授权', 'en': 'Approved'},
-    'rejected': {'zh': '已驳回', 'en': 'Rejected'}
+    'pending': {'zh': '待审', 'en': 'Pending'},
+    'approved': {'zh': '授权', 'en': 'Approve'},
+    'rejected': {'zh': '驳回', 'en': 'Reject'}
 }
 
 # 企业类型映射（规范化为8个主键，按业务逻辑排序）
 COMPANY_TYPE_LABELS = {
     'user': {'zh': '用户', 'en': 'User'},
-    'designer': {'zh': '设计院及顾问', 'en': 'Consultant'},
-    'contractor': {'zh': '总承包单位', 'en': 'Main Contractor'},
-    'integrator': {'zh': '系统集成商', 'en': 'System Integrator'},
-    'dealer': {'zh': '经销商', 'en': 'Dealer'},
-    'distributor': {'zh': '分销商', 'en': 'Distributor'},
-    'partner': {'zh': '合作伙伴', 'en': 'Partner'},
+    'designer': {'zh': '顾问', 'en': 'Conslt'},
+    'contractor': {'zh': '总包', 'en': 'Contrc'},
+    'integrator': {'zh': '集成', 'en': 'Integr'},
+    'dealer': {'zh': '经销', 'en': 'Dealer'},
+    'distributor': {'zh': '分销', 'en': 'Distri'},
+    'partner': {'zh': '伙伴', 'en': 'Partner'},
     'other': {'zh': '其他', 'en': 'Other'}
 }
 
@@ -69,21 +69,24 @@ COMPANY_TYPE_COLORS = {
     'general_contractor': '#dc3545'     # 映射到contractor
 }
 
-# 货币类型映射
+# 货币类型映射（中文显示名称，英文显示代码）
 CURRENCY_TYPE_LABELS = {
-    'CNY': {'zh': '人民币', 'en': 'Chinese Yuan'},
-    'USD': {'zh': '美元', 'en': 'US Dollar'},
-    'SGD': {'zh': '新加坡元', 'en': 'Singapore Dollar'},
-    'MYR': {'zh': '马来西亚林吉特', 'en': 'Malaysian Ringgit'},
-    'IDR': {'zh': '印尼盾', 'en': 'Indonesian Rupiah'},
-    'THB': {'zh': '泰铢', 'en': 'Thai Baht'}
+    'CNY': {'zh': '人民币', 'en': 'CNY'},
+    'USD': {'zh': '美元', 'en': 'USD'},
+    'HKD': {'zh': '港币', 'en': 'HKD'},
+    'TWD': {'zh': '台币', 'en': 'TWD'},
+    'SGD': {'zh': '新加坡元', 'en': 'SGD'},
+    'MYR': {'zh': '马来西亚林吉特', 'en': 'MYR'},
+    'IDR': {'zh': '印尼盾', 'en': 'IDR'},
+    'THB': {'zh': '泰铢', 'en': 'THB'},
+    'VND': {'zh': '越南盾', 'en': 'VND'}
 }
 
 PRODUCT_SITUATION_LABELS = {
-    'qualified': {'zh': '品牌入围', 'en': 'Qualified'},
-    'controlled': {'zh': '品牌受控', 'en': 'Controlled'},
-    'not_required': {'zh': '无品牌要求', 'en': 'Not Required'},
-    'unqualified': {'zh': '品牌未入围', 'en': 'Unqualified'}
+    'qualified': {'zh': '入围', 'en': 'Qualfy'},
+    'controlled': {'zh': '受控', 'en': 'Control'},
+    'not_required': {'zh': '无要求', 'en': 'None'},
+    'unqualified': {'zh': '未入围', 'en': 'Exclud'}
 }
 
 def project_type_label(key, lang='zh'):
@@ -183,10 +186,13 @@ def get_currency_symbol(currency_code='CNY'):
     currency_symbols = {
         'CNY': '¥',
         'USD': '$',
+        'HKD': 'HK$',
+        'TWD': 'NT$',
         'SGD': 'S$',
         'MYR': 'RM',
         'IDR': 'Rp',
-        'THB': '฿'
+        'THB': '฿',
+        'VND': '₫'
     }
     return currency_symbols.get(currency_code, '¥')  # 默认返回人民币符号
 
@@ -370,39 +376,53 @@ CURRENCY_TYPE_OPTIONS = [(k, v['zh']) for k, v in CURRENCY_TYPE_LABELS.items()]
 # 行业分类映射
 INDUSTRY_LABELS = {
     # 制造业相关
-    'manufacturing': {'zh': '制造业', 'en': 'Manufacturing'},
-    'datacenter': {'zh': '数据中心', 'en': 'Data Center'},
-    'shipbuilding': {'zh': '造船业', 'en': 'Shipbuilding'},
-    'semiconductor': {'zh': '半导体', 'en': 'Semiconductor'},
-    'chemical': {'zh': '化工医药', 'en': 'Chemicals & Pharma'},
+    'manufacturing': {'zh': '制造', 'en': 'Manufac'},
+    'datacenter': {'zh': '数据', 'en': 'DataCtr'},
+    'shipbuilding': {'zh': '造船', 'en': 'Ship'},
+    'semiconductor': {'zh': '半导体', 'en': 'SemiCon'},
+    'chemical': {'zh': '化工', 'en': 'Chemical'},
     # 能源交通相关
-    'energy': {'zh': '石油能源', 'en': 'Energy'},
-    'transportation': {'zh': '交通枢纽', 'en': 'Transportation'},
-    'tunnel_underground': {'zh': '隧道及地下道路', 'en': 'Tunnel & Underground Roads'},
+    'energy': {'zh': '能源', 'en': 'Energy'},
+    'transportation': {'zh': '交通', 'en': 'Transp'},
+    'transport': {'zh': '交通', 'en': 'Transp'},  # 别名兼容
+    'tunnel_underground': {'zh': '隧道', 'en': 'Tunnel'},
     # 商业服务相关
-    'real_estate': {'zh': '商业地产', 'en': 'Real Estate'},
-    'hospitality': {'zh': '酒店餐饮', 'en': 'Hospitality'},
+    'real_estate': {'zh': '地产', 'en': 'Estate'},
+    'hospitality': {'zh': '酒店', 'en': 'Hotel'},
+    'finance': {'zh': '金融', 'en': 'Finance'},
     # 公共服务相关
-    'government': {'zh': '政府机构', 'en': 'Government'},
-    'education': {'zh': '教育', 'en': 'Education'},
+    'government': {'zh': '政府', 'en': 'Govt'},
+    'education': {'zh': '教育', 'en': 'Educate'},
+    'healthcare': {'zh': '医疗', 'en': 'Health'},
+    'health': {'zh': '医疗', 'en': 'Health'},  # 别名兼容
+    # 科技相关
+    'technology': {'zh': '科技', 'en': 'Tech'},
     # 其他
-    'other': {'zh': '其他选择', 'en': 'Other'},
+    'other': {'zh': '其他', 'en': 'Other'},
 }
+
+# 行业别名集合（仅用于向后兼容显示，不应出现在筛选选项中）
+INDUSTRY_ALIASES = {'transport', 'health'}
 
 # 行业颜色映射
 INDUSTRY_COLORS = {
     'manufacturing': '#0B6EFD',
-    'datacenter': '#5BC0DE', 
+    'datacenter': '#5BC0DE',
     'shipbuilding': '#198754',
     'semiconductor': '#fd7e14',
     'chemical': '#dc3545',
     'energy': '#ffc107',
     'transportation': '#6f42c1',
+    'transport': '#6f42c1',  # 别名兼容
     'tunnel_underground': '#6c757d',
     'real_estate': '#20c997',
     'hospitality': '#e83e8c',
+    'finance': '#17a2b8',
     'government': '#007bff',
     'education': '#28a745',
+    'healthcare': '#dc3545',
+    'health': '#dc3545',  # 别名兼容
+    'technology': '#6366f1',  # indigo 科技色
     'other': '#6c757d'
 }
 
@@ -414,27 +434,40 @@ def industry_color(key):
     return INDUSTRY_COLORS.get(key, '#6c757d')
 
 def get_industry_options():
-    """获取语言感知的行业选项"""
+    """获取语言感知的行业选项（排除别名）"""
     try:
         from app.utils.i18n import get_current_language
         # 根据当前语言选择合适的语言代码
         lang_code = get_current_language()
-        return [(k, v[lang_code]) for k, v in INDUSTRY_LABELS.items()]
+        # 排除别名，只返回主键
+        return [(k, v[lang_code]) for k, v in INDUSTRY_LABELS.items()
+                if k not in INDUSTRY_ALIASES]
     except Exception as e:
         # 记录错误日志以便调试
         import logging
         logging.warning(f"get_industry_options 获取语言失败: {e}")
         # 如果获取语言失败，默认使用中文
-        return [(k, v['zh']) for k, v in INDUSTRY_LABELS.items()]
+        return [(k, v['zh']) for k, v in INDUSTRY_LABELS.items()
+                if k not in INDUSTRY_ALIASES]
 
-# 保持向后兼容性
-INDUSTRY_OPTIONS = [(k, v['zh']) for k, v in INDUSTRY_LABELS.items()]
+# 保持向后兼容性（排除别名）
+INDUSTRY_OPTIONS = [(k, v['zh']) for k, v in INDUSTRY_LABELS.items()
+                    if k not in INDUSTRY_ALIASES]
 
 # 客户状态映射
 STATUS_LABELS = {
-    'active': {'zh': '活跃', 'en': 'Active'},
-    'inactive': {'zh': '非活跃', 'en': 'Inactive'}
+    'active': {'zh': '活跃', 'en': 'active'},
+    'inactive': {'zh': '不活跃', 'en': 'idle'}
 }
+
+# 活跃状态映射（布尔值）
+ACTIVE_STATUS_LABELS = {
+    True: {'zh': '活跃', 'en': 'active'},
+    False: {'zh': '非活跃', 'en': 'idle'},
+}
+
+def active_status_label(key, lang='zh'):
+    return ACTIVE_STATUS_LABELS.get(key, {}).get(lang, str(key))
 
 def status_label(key, lang='zh'):
     return STATUS_LABELS.get(key, {}).get(lang, key)
@@ -524,9 +557,10 @@ def get_dictionary_value(dict_type, key):
 
 # 产品类型映射
 PRODUCT_TYPE_LABELS = {
-    'third_party': {'zh': '第三方产品', 'en': 'Third Party'},
-    'channel': {'zh': '渠道产品', 'en': 'Channel'},
-    'project': {'zh': '项目产品', 'en': 'Project'}
+    'third_party': {'zh': '三方', 'en': '3rd party'},
+    'third party': {'zh': '三方', 'en': '3rd party'},  # 数据库存储值兼容
+    'channel': {'zh': '渠道', 'en': 'channel'},
+    'project': {'zh': '项目', 'en': 'project'}
 }
 
 def product_type_label(key, lang='zh'):
@@ -536,9 +570,9 @@ PRODUCT_TYPE_OPTIONS = [(k, v['zh']) for k, v in PRODUCT_TYPE_LABELS.items()]
 
 # 产品状态映射
 PRODUCT_STATUS_LABELS = {
-    'active': {'zh': '生产中', 'en': 'Active'},
-    'discontinued': {'zh': '已停产', 'en': 'Discontinued'},
-    'upcoming': {'zh': '待上市', 'en': 'Upcoming'}
+    'active': {'zh': '生产', 'en': 'active'},
+    'discontinued': {'zh': '停产', 'en': 'discont'},
+    'upcoming': {'zh': '待上', 'en': 'soon'}
 }
 
 def product_status_label(key, lang='zh'):
@@ -546,13 +580,34 @@ def product_status_label(key, lang='zh'):
 
 PRODUCT_STATUS_OPTIONS = [(k, v['zh']) for k, v in PRODUCT_STATUS_LABELS.items()]
 
+# 研发产品状态映射
+DEV_PRODUCT_STATUS_LABELS = {
+    # 英文 key
+    'research': {'zh': '调研', 'en': 'resrch'},
+    'planning': {'zh': '立项', 'en': 'setup'},
+    'development': {'zh': '研发', 'en': 'dev'},
+    'apply_storage': {'zh': '申请', 'en': 'apply'},
+    'stored': {'zh': '入库', 'en': 'stored'},
+    # 中文 key（数据库存储值兼容）
+    '调研中': {'zh': '调研', 'en': 'resrch'},
+    '立项中': {'zh': '立项', 'en': 'setup'},
+    '研发中': {'zh': '研发', 'en': 'dev'},
+    '申请入库': {'zh': '申请', 'en': 'apply'},
+    '已入库': {'zh': '入库', 'en': 'stored'},
+}
+
+def dev_product_status_label(key, lang='zh'):
+    return DEV_PRODUCT_STATUS_LABELS.get(key, {}).get(lang, key)
+
+DEV_PRODUCT_STATUS_OPTIONS = [(k, v['zh']) for k, v in DEV_PRODUCT_STATUS_LABELS.items()]
+
 
 # 审批状态映射
 APPROVAL_STATUS_LABELS = {
-    'pending': {'zh': '审批中', 'en': 'Pending'},
-    'approved': {'zh': '已通过', 'en': 'Approved'},
-    'rejected': {'zh': '已拒绝', 'en': 'Rejected'},
-    'recalled': {'zh': '已召回', 'en': 'Recalled'},
+    'pending': {'zh': '审批', 'en': 'Pending'},
+    'approved': {'zh': '通过', 'en': 'Approve'},
+    'rejected': {'zh': '拒绝', 'en': 'Reject'},
+    'recalled': {'zh': '召回', 'en': 'Recall'},
     'draft': {'zh': '草稿', 'en': 'Draft'}
 }
 
@@ -719,4 +774,34 @@ def get_vendor_company_by_user(user):
     # 如果还是找不到，返回默认厂商企业
     return vendor or get_vendor_company()
 
-# TODO: 可扩展更多字典类型的获取方法 
+# TODO: 可扩展更多字典类型的获取方法
+
+# =============================================================================
+# 语言感知过滤器工厂函数
+# =============================================================================
+def make_i18n_filter(label_func):
+    """
+    创建语言感知的 Jinja2 过滤器包装器
+
+    用法示例（在 __init__.py 中）：
+        app.jinja_env.filters['product_situation_label'] = make_i18n_filter(product_situation_label)
+
+    Args:
+        label_func: 接受 (key, lang) 参数的标签函数
+
+    Returns:
+        包装后的函数，自动获取当前语言（也支持手动传递 lang 参数）
+    """
+    def wrapper(key, lang=None):
+        if lang is None:
+            try:
+                # 直接从 session 获取语言，避免复杂的上下文查找
+                from flask import session, has_request_context
+                if has_request_context():
+                    lang = session.get('language', 'zh')
+                else:
+                    lang = 'zh'
+            except Exception:
+                lang = 'zh'
+        return label_func(key, lang)
+    return wrapper

@@ -1,0 +1,334 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_buttons.html' import tw_btn with context %}
+{% from 'components/tw_stat_card.html' import tw_stat_card, tw_stat_cards_grid with context %}
+{% from 'components/tw_filter_bar.html' import render_tw_filter_bar, render_tw_filter_bar_script with context %}
+{% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles, render_tw_data_table_script, render_empty_row with context %}
+{% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
+{% from 'components/tw_confirm_modal.html' import tw_custom_modal, tw_custom_modal_script with context %}
+{% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_expense_status_badge with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('报销管理') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+    <!-- 数据表格样式 -->
+    {{ render_tw_data_table_styles() }}
+</head>
+<body class="bg-background-light dark:bg-background-dark">
+    {% call(slot) render_tw_layout(active_page='expense', show_search=true, search_value=filter_config.search_field.value) %}
+    {% if slot == 'content' %}
+        <!-- 主内容 - 使用固定标题页面组件 -->
+        {% call(page_slot) render_tw_fixed_page() %}
+        {% if page_slot == 'header' %}
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('报销管理') }}</h1>
+            <div class="flex flex-wrap items-center gap-2">
+                {% if has_permission('expense', 'create') %}
+                <button type="button" onclick="openAddExpenseModal()"
+                   class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">add</span>
+                    <span>{{ _('新建报销单') }}</span>
+                </button>
+                {% endif %}
+            </div>
+        {% elif page_slot == 'content' %}
+            <!-- 统计卡片 -->
+            {% set stats = list_config.stats.cards %}
+            {% call tw_stat_cards_grid(cols=4) %}
+                {% for card in stats %}
+                {% set variant_map = {'primary': 'default', 'success': 'success', 'info': 'info', 'warning': 'warning', 'secondary': 'default'} %}
+                {% set icon_map = {
+                    'fas fa-receipt': 'receipt_long',
+                    'fas fa-hourglass-half': 'hourglass_top',
+                    'fas fa-check-circle': 'check_circle',
+                    'fas fa-money-check-alt': 'payments',
+                    'fas fa-clock': 'schedule',
+                    'fas fa-edit': 'edit_note'
+                } %}
+                {{ tw_stat_card(
+                    title=card.title,
+                    value=card.value,
+                    unit=card.unit ~ ' / ' ~ (card.amount|default(0)) ~ card.amount_unit if card.amount else card.unit,
+                    icon=icon_map.get(card.icon, 'analytics'),
+                    variant=variant_map.get(card.color, 'default')
+                ) }}
+                {% endfor %}
+            {% endcall %}
+
+            <!-- 筛选区域（可滚出） -->
+            {{ render_tw_filter_bar(
+                form_id='filterForm',
+                action_url=filter_config.action_url,
+                filter_fields=filter_config.filter_fields,
+                search_value=filter_config.search_field.value,
+                cols=4
+            ) }}
+
+            <!-- 表格标题栏 (sticky) -->
+            <div class="sticky top-0 z-20 -mx-6 lg:-mx-8 px-6 lg:px-8">
+                <div class="flex items-center gap-4 bg-white dark:bg-slate-800 rounded-t-xl border border-b-0 border-slate-200 dark:border-slate-700 p-4">
+                    <h3 class="text-slate-900 dark:text-white text-base font-medium">{{ _('报销列表') }}</h3>
+                    <span class="text-slate-500 dark:text-slate-400 text-sm ml-auto">
+                        <span id="expenseTableCount">{{ total_count }}</span> {{ _('条记录') }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- 数据表格（无标题，与上方标题栏衔接） -->
+            {% call render_tw_data_table(
+                table_id='expenseTable',
+                title='',
+                total_count=total_count,
+                columns=list_config.table.columns,
+                sort_field=sort_field,
+                sort_order=sort_order,
+                max_height='calc(100vh - 280px)',
+                min_height='400px',
+                show_loading=true,
+                min_width='1000px',
+                no_top_radius=true
+            ) %}
+                {% for expense in expenses %}
+                <tr class="table-row-hover transition-colors">
+                    <!-- 报销单编号 -->
+                    <td class="p-3 whitespace-nowrap">
+                        <a href="{{ url_for('expense.expense_detail', id=expense.id) }}"
+                           class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
+                            {{ expense.expense_number }}
+                        </a>
+                    </td>
+                    <!-- 申请人 -->
+                    <td class="p-3 whitespace-nowrap">
+                        {{ render_tw_owner_badge(expense.owner) }}
+                    </td>
+                    <!-- 状态 -->
+                    <td class="p-3 whitespace-nowrap overflow-hidden">
+                        {{ render_tw_expense_status_badge(expense.status) }}
+                    </td>
+                    <!-- 金额 -->
+                    <td class="p-3 whitespace-nowrap text-right">
+                        {% if expense.total_amount %}
+                        <span class="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            {% if expense.currency == 'USD' %}${% elif expense.currency == 'SGD' %}S${% elif expense.currency == 'MYR' %}RM{% elif expense.currency == 'IDR' %}Rp{% elif expense.currency == 'THB' %}฿{% else %}¥{% endif %}{{ "%.2f"|format(expense.total_amount) }}
+                        </span>
+                        {% else %}
+                        <span class="text-slate-400 dark:text-slate-500">-</span>
+                        {% endif %}
+                    </td>
+                    <!-- 客户名称 -->
+                    <td class="p-3 whitespace-nowrap">
+                        {% if expense.customer_name and expense.customer_name != '-' %}
+                        <span class="text-sm text-slate-700 dark:text-slate-300 truncate block max-w-[150px]"
+                              title="{{ expense.customer_name }}">
+                            {{ expense.customer_name|truncate(20) }}
+                        </span>
+                        {% else %}
+                        <span class="text-slate-400 dark:text-slate-500">-</span>
+                        {% endif %}
+                    </td>
+                    <!-- 联系人 -->
+                    <td class="p-3 whitespace-nowrap">
+                        {% if expense.contact_name and expense.contact_name != '-' %}
+                        <span class="text-sm text-slate-700 dark:text-slate-300"
+                              title="{{ expense.contact_name }}">
+                            {{ expense.contact_name }}
+                        </span>
+                        {% else %}
+                        <span class="text-slate-400 dark:text-slate-500">-</span>
+                        {% endif %}
+                    </td>
+                    <!-- 关联项目 -->
+                    <td class="p-3 whitespace-nowrap">
+                        {% if expense.project_name and expense.project_name != '-' %}
+                        <span class="text-sm text-slate-700 dark:text-slate-300 truncate block max-w-[150px]"
+                              title="{{ expense.project_name }}">
+                            {{ expense.project_name|truncate(20) }}
+                        </span>
+                        {% else %}
+                        <span class="text-slate-400 dark:text-slate-500">-</span>
+                        {% endif %}
+                    </td>
+                    <!-- 创建时间 -->
+                    <td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                        {{ expense.created_at.strftime('%Y-%m-%d') if expense.created_at else '-' }}
+                    </td>
+                </tr>
+                {% else %}
+                {{ render_empty_row(list_config.table.columns|length, _('暂无数据'), 'inbox') }}
+                {% endfor %}
+            {% endcall %}
+        {% endif %}
+        {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 新建报销单表单模态框 -->
+    {% call tw_form_modal(
+        modal_id='expenseFormModal',
+        title=_('新建报销单'),
+        submit_text=_('创建'),
+        cancel_text=_('取消'),
+        size='2xl'
+    ) %}
+    {% include 'expense/partials/_expense_modal_fields.html' %}
+    {% endcall %}
+
+    <!-- 发票预览模态框 -->
+    {% call tw_custom_modal(
+        modal_id='invoicePreviewModal',
+        title=_('发票预览'),
+        icon='receipt',
+        icon_color='text-primary',
+        show_cancel_btn=false,
+        max_width='max-w-4xl'
+    ) %}
+    <div class="relative">
+        <div id="invoicePreviewContent" class="flex items-center justify-center min-h-[300px] bg-slate-100 dark:bg-slate-800 rounded-lg">
+            <span class="text-slate-400">{{ _('加载中...') }}</span>
+        </div>
+        <div class="mt-4 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <button type="button" id="prevInvoiceBtn" onclick="ExpenseModal.prevInvoice()"
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span class="material-symbols-outlined text-lg">chevron_left</span>
+                </button>
+                <span id="invoiceCounter" class="text-sm text-slate-500 dark:text-slate-400">1/1</span>
+                <button type="button" id="nextInvoiceBtn" onclick="ExpenseModal.nextInvoice()"
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span class="material-symbols-outlined text-lg">chevron_right</span>
+                </button>
+            </div>
+            <span id="invoiceFilename" class="text-sm text-slate-500 dark:text-slate-400 truncate max-w-xs"></span>
+            <button type="button" id="downloadInvoiceBtn" onclick="ExpenseModal.downloadCurrentInvoice()"
+                class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                <span class="material-symbols-outlined text-lg">download</span>
+                {{ _('下载') }}
+            </button>
+        </div>
+    </div>
+    {% endcall %}
+
+    <!-- 表单模态框脚本 -->
+    {{ tw_form_modal_script() }}
+
+    <!-- 自定义模态框脚本 -->
+    {{ tw_custom_modal_script() }}
+
+    <!-- 布局脚本 -->
+    {{ render_tw_layout_script() }}
+
+    <!-- 筛选栏脚本 -->
+    {{ render_tw_filter_bar_script(form_id='filterForm') }}
+
+    <!-- 数据表格脚本 -->
+    {{ render_tw_data_table_script(table_id='expenseTable', sort_callback='sortTable') }}
+
+    <!-- 通用列表管理器 -->
+    <script src="{{ url_for('static', filename='js/tw-list-manager.js') }}"></script>
+    <script>
+    (function() {
+        // 使用通用列表管理器
+        const listManager = new TwListManager({
+            tableId: 'expenseTable',
+            formId: 'filterForm',
+            ajaxEndpoint: '{{ url_for("expense.expense_list_ajax") }}',
+            pageSize: {{ limit }},
+            initialCount: {{ offset + expenses|length }},
+            sortField: '{{ request.args.get("sort", "created_at") }}',
+            sortOrder: '{{ request.args.get("order", "desc") }}',
+            infiniteScroll: {{ 'true' if has_more else 'false' }},
+            extraParams: { tw: '1' },
+            messages: {
+                loadingMore: '{{ _("加载中...") }}',
+                noMoreData: '{{ _("没有更多数据") }}',
+                loadError: '{{ _("加载数据失败") }}'
+            }
+        });
+        listManager.init();
+
+        // 暴露排序函数供表格组件调用
+        window.sortTable = function(field) {
+            listManager.sortBy(field);
+        };
+    })();
+    </script>
+
+    <!-- 审批字段控制工具 -->
+    <script src="{{ url_for('static', filename='js/approval-field-control.js') }}"></script>
+    <!-- 报销单模态框脚本 -->
+    <script src="{{ url_for('static', filename='js/expense-modal.js') }}"></script>
+    <script>
+    // 初始化报销单模态框
+    ExpenseModal.init({
+        modalId: 'expenseFormModal',
+        defaultCurrency: '{{ default_currency or "CNY" }}',
+        csrfToken: document.querySelector('meta[name="csrf-token"]')?.content || '',
+        i18n: {
+            loading: '{{ _("加载中...") }}',
+            selectCustomerFirst: '{{ _("请先选择关联客户") }}',
+            selectContact: '{{ _("请选择联系人") }}',
+            noContacts: '{{ _("该客户暂无联系人") }}',
+            noResults: '{{ _("无匹配结果") }}',
+            createSuccess: '{{ _("报销单创建成功") }}',
+            createError: '{{ _("创建失败") }}',
+            saveSuccess: '{{ _("保存成功") }}',
+            saveError: '{{ _("保存失败") }}',
+            requiredField: '{{ _("请填写必填项") }}',
+            atLeastOneDetail: '{{ _("请至少添加一条报销明细") }}',
+            createTitle: '{{ _("新建报销单") }}',
+            editTitle: '{{ _("编辑报销单") }}',
+            createBtn: '{{ _("创建") }}',
+            saveBtn: '{{ _("保存") }}'
+        },
+        api: {
+            create: '{{ url_for("expense.create_expense") }}'
+        }
+    });
+
+    // 打开新建报销单模态框
+    window.openAddExpenseModal = function() {
+        ExpenseModal.openCreate();
+    };
+    </script>
+</body>
+</html>

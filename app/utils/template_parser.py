@@ -12,7 +12,7 @@
 from app.utils.template_parser import DesktopTemplateParser
 
 parser = DesktopTemplateParser()
-fields = parser.parse_template('quotation/quotation_rows.html')
+fields = parser.parse_template('quotation/tw_list_rows.html')
 ```
 """
 

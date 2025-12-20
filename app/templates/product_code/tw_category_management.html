@@ -1,0 +1,430 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_modal_base.html' import tw_close_btn, tw_sub_modal, tw_modal %}
+{% from 'components/tw_spec_dictionary_modal.html' import tw_spec_dictionary_modal %}
+{% from 'components/tw_table_card.html' import render_table_card_styles %}
+{% from 'components/product/tw_spec_options_modal.html' import tw_spec_options_modal, tw_spec_options_modal_script %}
+
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('产品分类管理') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
+        .item-selected {
+            background-color: rgba(19, 127, 236, 0.1);
+            border-left: 3px solid #137fec;
+        }
+        .dark .item-selected {
+            background-color: rgba(19, 127, 236, 0.2);
+        }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+    {{ render_table_card_styles() }}
+</head>
+
+<body class="bg-background-light dark:bg-background-dark">
+{% call(slot) render_tw_layout(active_page='product_code', show_search=true) %}
+    {% if slot == 'content' %}
+    {# 使用统一的固定标题页面组件 #}
+    {% call(page_slot) render_tw_fixed_page() %}
+    {% if page_slot == 'header' %}
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('产品分类管理') }}</h1>
+        <div class="flex items-center gap-3">
+            <button type="button" onclick="CategoryManager.showSpecDictModal()"
+                    class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium transition-colors">
+                <span class="material-symbols-outlined" style="font-size: 20px;">menu_book</span>
+                <span>{{ _('规格字典') }}</span>
+            </button>
+            <button type="button" id="editCategoryFieldsBtn" onclick="CategoryManager.showCategoryFieldsModal()"
+                    disabled
+                    class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                <span class="material-symbols-outlined" style="font-size: 20px;">edit_note</span>
+                <span>{{ _('编辑规格') }}</span>
+            </button>
+            <button type="button" onclick="CategoryManager.showAddCategoryModal()"
+                    class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
+                <span class="material-symbols-outlined" style="font-size: 20px;">add</span>
+                <span>{{ _('添加分类') }}</span>
+            </button>
+        </div>
+    {% elif page_slot == 'content' %}
+        {# 主内容区 #}
+        <div class="flex gap-6" style="height: calc(100vh - 140px);">
+
+            {# 左侧：分类列表 #}
+            <div class="w-72 flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex-shrink-0 overflow-hidden">
+                {# 标题 #}
+                <div class="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+                    <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center">
+                        {{ _('产品分类') }}
+                        <span class="ml-auto text-xs font-normal text-slate-400" id="categoryCount">0</span>
+                    </h3>
+                </div>
+                {# 搜索框 #}
+                <div class="px-3 py-2 flex-shrink-0">
+                    <div class="relative">
+                        <input type="text" id="categorySearchInput"
+                               placeholder="{{ _('搜索分类...') }}"
+                               class="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                               oninput="CategoryManager.filterCategories(this.value)">
+                        <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                    </div>
+                </div>
+                {# 分类列表 #}
+                <div id="categoryListContainer" class="flex-1 overflow-y-auto min-h-0">
+                    <div id="categoryLoading" class="flex items-center justify-center py-12">
+                        <div class="flex items-center gap-2 text-slate-400">
+                            <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span class="text-sm">{{ _('加载中...') }}</span>
+                        </div>
+                    </div>
+                    <div id="categoryEmpty" class="hidden flex flex-col items-center justify-center py-12 text-slate-400">
+                        <span class="material-symbols-outlined text-4xl mb-2">inbox</span>
+                        <span class="text-sm">{{ _('暂无分类') }}</span>
+                    </div>
+                    <ul id="categoryList" role="list"></ul>
+                </div>
+            </div>
+
+            {# 右侧：子分类和规格字段 #}
+            <div class="flex-1 flex flex-col gap-6 min-w-0">
+
+                {# 子分类区域 #}
+                <div class="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden" style="min-height: 200px;">
+                    <div class="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center">
+                            <span id="subcategoryTitle">{{ _('子分类') }}</span>
+                            <span class="ml-2 text-xs font-normal text-slate-400" id="subcategoryCount">0</span>
+                        </h3>
+                        <button type="button" id="addSubcategoryBtn" onclick="CategoryManager.showAddSubcategoryModal()" disabled
+                                class="h-8 px-3 flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span class="material-symbols-outlined text-base">add</span>
+                            <span>{{ _('添加') }}</span>
+                        </button>
+                    </div>
+                    <div id="subcategoryContainer" class="flex-1 overflow-y-auto table-scroll-container">
+                        <div id="subcategoryPlaceholder" class="flex flex-col items-center justify-center h-full text-slate-400 py-8">
+                            <span class="material-symbols-outlined text-5xl mb-3">touch_app</span>
+                            <p class="text-sm">{{ _('请从左侧选择一个分类') }}</p>
+                        </div>
+                        <div id="subcategoryLoading" class="hidden flex items-center justify-center py-8">
+                            <div class="flex items-center gap-2 text-slate-400">
+                                <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span class="text-sm">{{ _('加载中...') }}</span>
+                            </div>
+                        </div>
+                        <div id="subcategoryEmpty" class="hidden flex flex-col items-center justify-center py-8 text-slate-400">
+                            <span class="material-symbols-outlined text-4xl mb-2">folder_off</span>
+                            <span class="text-sm">{{ _('该分类下暂无子分类') }}</span>
+                        </div>
+                        <table id="subcategoryTable" class="hidden w-full text-sm text-left">
+                            <thead class="border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900">
+                                <tr>
+                                    <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 60px">{{ _('序号') }}</th>
+                                    <th class="p-3 text-slate-500 dark:text-slate-400 font-medium">{{ _('子分类名称') }}</th>
+                                    <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 80px">{{ _('标识符') }}</th>
+                                    <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 100px">{{ _('状态') }}</th>
+                                    <th class="p-3 text-slate-500 dark:text-slate-400 font-medium text-right" style="width: 100px">{{ _('操作') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="subcategoryTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {# 规格字段区域 #}
+                <div class="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden" style="min-height: 240px;">
+                    <div class="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center">
+                            <span id="fieldTitle">{{ _('规格字段') }}</span>
+                            <span class="ml-2 text-xs font-normal text-slate-400" id="fieldCount">0</span>
+                        </h3>
+                        <button type="button" id="addFieldBtn" onclick="CategoryManager.showAddFieldModal()" disabled
+                                class="h-8 px-3 flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span class="material-symbols-outlined text-base">add</span>
+                            <span>{{ _('添加') }}</span>
+                        </button>
+                    </div>
+                    <div id="fieldContainer" class="flex-1 overflow-y-auto table-scroll-container">
+                        <div id="fieldPlaceholder" class="flex flex-col items-center justify-center h-full text-slate-400 py-8">
+                            <span class="material-symbols-outlined text-5xl mb-3">playlist_add</span>
+                            <p class="text-sm">{{ _('请先选择一个子分类') }}</p>
+                        </div>
+                        <div id="fieldLoading" class="hidden flex items-center justify-center py-8">
+                            <div class="flex items-center gap-2 text-slate-400">
+                                <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span class="text-sm">{{ _('加载中...') }}</span>
+                            </div>
+                        </div>
+                        <div id="fieldEmpty" class="hidden flex flex-col items-center justify-center py-8 text-slate-400">
+                            <span class="material-symbols-outlined text-4xl mb-2">playlist_remove</span>
+                            <span class="text-sm">{{ _('该子分类下暂无规格字段') }}</span>
+                        </div>
+                        <table id="fieldTable" class="hidden w-full text-sm text-left">
+                            <thead class="border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900">
+                                <tr>
+                                    <th class="p-3" style="width: 40px"></th><!-- 拖拽手柄列 -->
+                                    <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 60px">{{ _('位置') }}</th>
+                                    <th class="p-3 text-slate-500 dark:text-slate-400 font-medium">{{ _('规格名称') }}</th>
+                                    <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 70px">{{ _('编码') }}</th>
+                                    <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 80px">{{ _('来源') }}</th>
+                                    <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 100px">{{ _('状态') }}</th>
+                                    <th class="p-3 text-slate-500 dark:text-slate-400 font-medium text-right" style="width: 120px">{{ _('操作') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fieldTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+    {% endcall %}
+    {% endif %}
+{% endcall %}
+
+{# 模态框 #}
+{# 添加/编辑分类模态框 #}
+{% call tw_sub_modal('categoryFormModal', title=_('添加分类'), icon='category', icon_color='text-primary', z_index='z-50', max_width='max-w-md', close_action='CategoryManager.hideCategoryForm()') %}
+<form id="categoryForm" onsubmit="return CategoryManager.submitCategoryForm(event)" class="p-5 pt-0">
+    <input type="hidden" id="categoryFormId" value="">
+    <div class="space-y-4">
+        <div>
+            <label for="categoryFormName" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('分类名称') }} <span class="text-red-500">*</span>
+            </label>
+            <input type="text" id="categoryFormName" name="name" required
+                   oninput="CategoryManager.autoGenerateCategoryCode()"
+                   class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                   placeholder="{{ _('如：PA、LNA、Mixer') }}">
+        </div>
+        <div>
+            <label for="categoryFormCode" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('标识符') }} <span class="text-red-500">*</span>
+            </label>
+            <input type="text" id="categoryFormCode" name="code_letter" required maxlength="1"
+                   class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 font-mono uppercase focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                   placeholder="A-Z">
+            <p class="mt-1 text-xs text-slate-500">{{ _('编码第2位，唯一大写字母A-Z，输入名称后自动生成') }}</p>
+        </div>
+        <div>
+            <label for="categoryFormDesc" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('描述') }}</label>
+            <textarea id="categoryFormDesc" name="description" rows="2"
+                      class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
+                      placeholder="{{ _('可选') }}"></textarea>
+        </div>
+    </div>
+    <footer class="flex items-center justify-end gap-3 pt-5 mt-5 border-t border-slate-200 dark:border-slate-700">
+        <button type="button" onclick="CategoryManager.hideCategoryForm()" class="h-10 px-5 rounded-lg text-sm font-medium bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors border border-slate-300 dark:border-slate-600">{{ _('取消') }}</button>
+        <button type="submit" class="h-10 px-5 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary/90 shadow-sm transition-colors">{{ _('保存') }}</button>
+    </footer>
+</form>
+{% endcall %}
+
+{# 添加/编辑子分类模态框 #}
+{% call tw_sub_modal('subcategoryFormModal', title=_('添加子分类'), icon='folder_open', icon_color='text-amber-500', z_index='z-50', max_width='max-w-md', close_action='CategoryManager.hideSubcategoryForm()') %}
+<form id="subcategoryForm" onsubmit="return CategoryManager.submitSubcategoryForm(event)" class="p-5 pt-0">
+    <input type="hidden" id="subcategoryFormId" value="">
+    <div class="space-y-4">
+        <div>
+            <label for="subcategoryFormName" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('子分类名称') }} <span class="text-red-500">*</span>
+            </label>
+            <input type="text" id="subcategoryFormName" name="name" required
+                   oninput="CategoryManager.autoGenerateSubcategoryCode()"
+                   class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                   placeholder="{{ _('如：功放芯片、低噪放') }}">
+        </div>
+        <div>
+            <label for="subcategoryFormCode" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('标识符') }} <span class="text-red-500">*</span>
+            </label>
+            <input type="text" id="subcategoryFormCode" name="code_letter" required maxlength="1"
+                   class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 font-mono uppercase focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                   placeholder="A-Z / 1-9">
+            <p class="mt-1 text-xs text-slate-500">{{ _('编码第3位，字母A-Z或数字1-9，输入名称后自动生成') }}</p>
+        </div>
+    </div>
+    <footer class="flex items-center justify-end gap-3 pt-5 mt-5 border-t border-slate-200 dark:border-slate-700">
+        <button type="button" onclick="CategoryManager.hideSubcategoryForm()" class="h-10 px-5 rounded-lg text-sm font-medium bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors border border-slate-300 dark:border-slate-600">{{ _('取消') }}</button>
+        <button type="submit" class="h-10 px-5 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary/90 shadow-sm transition-colors">{{ _('保存') }}</button>
+    </footer>
+</form>
+{% endcall %}
+
+{# 添加/编辑规格字段模态框 #}
+{% call tw_sub_modal('fieldFormModal', title=_('添加规格字段'), icon='tune', icon_color='text-emerald-500', z_index='z-50', max_width='max-w-md', close_action='CategoryManager.hideFieldForm()') %}
+<form id="fieldForm" onsubmit="return CategoryManager.submitFieldForm(event)" class="p-5 pt-0">
+    <input type="hidden" id="fieldFormId" value="">
+    <div class="space-y-4">
+        <div>
+            <label for="fieldFormName" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('规格名称') }} <span class="text-red-500">*</span>
+            </label>
+            <select id="fieldFormName" name="name" required
+                    class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                <option value="">{{ _('请选择规格...') }}</option>
+            </select>
+            <p class="mt-1 text-xs text-slate-500">{{ _('从规格字典中选择') }}</p>
+        </div>
+        <div class="flex items-center gap-6">
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="fieldFormUseInCode" name="use_in_code" checked
+                       class="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary">
+                <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('参与编码') }}</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="fieldFormRequired" name="is_required" checked
+                       class="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary">
+                <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('必填') }}</span>
+            </label>
+        </div>
+    </div>
+    <footer class="flex items-center justify-end gap-3 pt-5 mt-5 border-t border-slate-200 dark:border-slate-700">
+        <button type="button" onclick="CategoryManager.hideFieldForm()" class="h-10 px-5 rounded-lg text-sm font-medium bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors border border-slate-300 dark:border-slate-600">{{ _('取消') }}</button>
+        <button type="submit" class="h-10 px-5 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary/90 shadow-sm transition-colors">{{ _('保存') }}</button>
+    </footer>
+</form>
+{% endcall %}
+
+{# 删除确认模态框 #}
+{% call tw_sub_modal('deleteConfirmModal', title=_('确认删除'), icon='warning', icon_color='text-red-500', z_index='z-[60]', max_width='max-w-sm', close_action='CategoryManager.hideDeleteConfirm()') %}
+<div class="p-5 pt-0">
+    <p id="deleteConfirmMessage" class="text-sm text-slate-600 dark:text-slate-400 mb-4">{{ _('确定要删除吗？') }}</p>
+    <footer class="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+        <button type="button" onclick="CategoryManager.hideDeleteConfirm()" class="h-10 px-5 rounded-lg text-sm font-medium bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors border border-slate-300 dark:border-slate-600">{{ _('取消') }}</button>
+        <button type="button" id="deleteConfirmBtn" onclick="CategoryManager.executeDelete()" class="h-10 px-5 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 shadow-sm transition-colors">{{ _('删除') }}</button>
+    </footer>
+</div>
+{% endcall %}
+
+{# 分类规格管理模态框 - 使用标准 tw_modal 组件 #}
+{% call tw_modal('categoryFieldsModal',
+    title=_('编辑分类规格'),
+    z_index='z-40',
+    max_width='max-w-2xl',
+    max_height='max-h-[70vh]',
+    close_action='CategoryManager.hideCategoryFieldsModal()',
+    header_border=true) %}
+
+{# 工具栏：标题+计数+添加按钮 #}
+<div class="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
+    <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center">
+        <span>{{ _('规格字段') }}</span>
+        <span class="ml-2 text-xs font-normal text-slate-400" id="categoryFieldCount">0</span>
+    </h3>
+    <button type="button" onclick="CategoryManager.showAddCategoryFieldForm()"
+            class="h-8 px-3 flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-medium transition-colors shadow-sm">
+        <span class="material-symbols-outlined text-base">add</span>
+        <span>{{ _('添加') }}</span>
+    </button>
+</div>
+
+{# 内容区域：可滚动 #}
+<div class="flex-1 overflow-y-auto">
+    {# 加载中 #}
+    <div id="categoryFieldsLoading" class="hidden flex items-center justify-center py-8">
+        <div class="flex items-center gap-2 text-slate-400">
+            <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="text-sm">{{ _('加载中...') }}</span>
+        </div>
+    </div>
+    {# 空状态 #}
+    <div id="categoryFieldsEmpty" class="hidden flex flex-col items-center justify-center py-8 text-slate-400">
+        <span class="material-symbols-outlined text-4xl mb-2">playlist_remove</span>
+        <span class="text-sm">{{ _('暂无规格字段') }}</span>
+        <p class="text-xs mt-1">{{ _('点击上方"添加"从规格字典选择') }}</p>
+    </div>
+    {# 表格 #}
+    <table id="categoryFieldsTable" class="hidden w-full text-sm text-left">
+        <thead class="border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900">
+            <tr>
+                <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 40px;"></th>
+                <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 60px;">{{ _('位置') }}</th>
+                <th class="p-3 text-slate-500 dark:text-slate-400 font-medium">{{ _('规格名称') }}</th>
+                <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 70px;">{{ _('编码') }}</th>
+                <th class="p-3 text-slate-500 dark:text-slate-400 font-medium text-right" style="width: 100px;">{{ _('操作') }}</th>
+            </tr>
+        </thead>
+        <tbody id="categoryFieldsTableBody"></tbody>
+    </table>
+</div>
+
+{# 底部提示 #}
+<div class="px-4 py-3 bg-slate-50 dark:bg-slate-800/50">
+    <p class="text-xs text-slate-500 dark:text-slate-400">
+        <span class="material-symbols-outlined text-sm align-middle mr-1">info</span>
+        {{ _('分类规格会被该分类下所有子分类继承，指标在子分类中管理') }}
+    </p>
+</div>
+{% endcall %}
+
+{# 规格字典模态框 #}
+{{ tw_spec_dictionary_modal() }}
+
+{# 规格选项管理模态框（子分类指标管理）#}
+{{ tw_spec_options_modal() }}
+
+{# 脚本 #}
+{{ render_tw_layout_script() }}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script src="{{ url_for('static', filename='js/spec-dictionary-manager.js') }}"></script>
+{{ tw_spec_options_modal_script() }}
+<script src="{{ url_for('static', filename='js/tw-category-manager.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    CategoryManager.init();
+});
+</script>
+</body>
+</html>

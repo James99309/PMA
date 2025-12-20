@@ -196,16 +196,9 @@ function setGlobalCSRFToken(token) {
  */
 document.addEventListener('approval_submitted', function(event) {
     console.log('审批提交成功，将重新加载页面以更新状态');
-    
-    // 显示成功消息
-    if (typeof showSuccessMessage === 'function') {
-        showSuccessMessage('审批提交成功');
-    }
-    
-    // 延迟刷新页面，让用户看到成功提示
-    setTimeout(() => {
-        window.location.reload();
-    }, 1500);
+
+    // 直接刷新页面
+    window.location.reload();
 });
 
 /**
@@ -213,17 +206,9 @@ document.addEventListener('approval_submitted', function(event) {
  */
 document.addEventListener('approval_approved', function(event) {
     console.log('审批处理成功，将重新加载页面以更新状态');
-    
-    // 显示成功消息
-    const message = event.detail.action === 'approve' ? '审批已通过' : '审批已拒绝';
-    if (typeof showSuccessMessage === 'function') {
-        showSuccessMessage(message);
-    }
-    
-    // 延迟刷新页面，让用户看到成功提示
-    setTimeout(() => {
-        window.location.reload();
-    }, 1500);
+
+    // 直接刷新页面
+    window.location.reload();
 });
 
 /**
@@ -405,10 +390,8 @@ async function executeRecallApprovalSimple() {
     if (flow) {
         try {
             await flow.recallApproval('');  // 传空字符串作为理由
-            // 召回成功后动态更新操作区域，然后刷新页面
-            updateOperationSection('draft');
-            // 稍后刷新页面以确保所有状态同步
-            setTimeout(() => location.reload(), 500);
+            // 召回成功后直接刷新页面
+            location.reload();
         } catch (error) {
             console.error('召回失败:', error);
             alert('召回失败，请重试');
@@ -447,10 +430,8 @@ async function executeRecallApproval() {
             if (reasonInput) {
                 reasonInput.value = '';
             }
-            // 召回成功后动态更新操作区域，然后刷新页面
-            updateOperationSection('draft');
-            // 稍后刷新页面以确保所有状态同步
-            setTimeout(() => location.reload(), 500);
+            // 召回成功后直接刷新页面
+            location.reload();
         } catch (error) {
             console.error('召回失败:', error);
             alert('召回失败，请重试');
@@ -480,14 +461,12 @@ function confirmResubmitApprovalDialog() {
  */
 async function executeResubmitApproval() {
     const flow = window.approvalFlowInstance;
-    
+
     if (flow) {
         try {
             await flow.resubmitApproval();
-            // 重新提交成功后动态更新操作区域，然后刷新页面
-            updateOperationSection('pending');
-            // 稍后刷新页面以确保所有状态同步
-            setTimeout(() => location.reload(), 500);
+            // 重新提交成功后直接刷新页面
+            location.reload();
         } catch (error) {
             console.error('重新提交失败:', error);
             alert('重新提交失败，请重试');
@@ -692,7 +671,7 @@ window.getCSRFToken = getCSRFToken;
 window.setGlobalCSRFToken = setGlobalCSRFToken;
 window.showRecallConfirmModal = showRecallConfirmModal;
 window.executeRecallApproval = executeRecallApproval;
-window.confirmResubmitApproval = confirmResubmitApproval;
+window.confirmResubmitApprovalDialog = confirmResubmitApprovalDialog;
 window.executeResubmitApproval = executeResubmitApproval;
 window.updateOperationSection = updateOperationSection;
 window.updateOperationSectionVisibility = updateOperationSectionVisibility;
@@ -700,7 +679,7 @@ window.updateOperationSectionVisibility = updateOperationSectionVisibility;
 // 调试信息
 console.log('approval_flow_utils.js 已加载，全局函数已定义:', {
     showRecallConfirmModal: typeof window.showRecallConfirmModal,
-    confirmResubmitApproval: typeof window.confirmResubmitApproval,
+    confirmResubmitApprovalDialog: typeof window.confirmResubmitApprovalDialog,
     executeRecallApproval: typeof window.executeRecallApproval,
     executeResubmitApproval: typeof window.executeResubmitApproval
 });

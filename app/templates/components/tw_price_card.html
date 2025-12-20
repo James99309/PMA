@@ -1,0 +1,203 @@
+{#
+=============================================================================
+Tailwind 价格信息卡片组件
+=============================================================================
+用于详情页侧边栏显示价格信息和相关统计
+
+使用方式：
+{% from 'components/tw_price_card.html' import tw_price_card %}
+
+{{ tw_price_card(
+    title=_('价格信息'),
+    price=product.retail_price,
+    currency=product.currency,
+    currency_symbol=product.currency_symbol,
+    price_label=_('市场价格'),
+    progress={
+        'label': _('订单统计'),
+        'current': order_quantity,
+        'total': design_quantity,
+        'current_label': _('订单数量'),
+        'total_label': _('设计总量')
+    }
+) }}
+
+参数说明：
+- title: 卡片标题，默认 '价格信息'
+- price: 价格数值
+- currency: 货币代码（CNY, USD, EUR, GBP）
+- currency_symbol: 货币符号，不传则根据 currency 自动选择
+- price_label: 价格标签，默认 '市场价格'
+- no_price_text: 无价格时显示文本，默认 '暂无'
+- progress: 进度条配置（可选）
+  - label: 进度条标签
+  - current: 当前值
+  - total: 总值
+  - current_label: 当前值标签
+  - total_label: 总值标签
+  - color: 进度条颜色 (primary/green/blue/amber)，默认 primary
+- extra_sections: 额外区块数组（可选）
+=============================================================================
+#}
+
+{% macro tw_price_card(
+    title=none,
+    price=none,
+    currency='CNY',
+    currency_symbol=none,
+    price_label=none,
+    no_price_text=none,
+    progress=none,
+    extra_sections=[]
+) %}
+{% set _title = title or _('价格信息') %}
+{% set _price_label = price_label or _('市场价格') %}
+{% set _no_price_text = no_price_text or _('暂无') %}
+{% set _currency_symbol = currency_symbol or {'CNY': '¥', 'USD': '$', 'EUR': '€', 'GBP': '£'}.get(currency, '¥') %}
+
+<div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div class="px-6 py-5">
+        <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-white">{{ _title }}</h3>
+    </div>
+    <div class="p-6 pt-0 space-y-5">
+        {# 价格显示 #}
+        <div>
+            <p class="text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">{{ _price_label }}</p>
+            <div class="flex items-baseline">
+                <span class="text-3xl font-bold text-slate-900 dark:text-white">
+                    {% if price %}
+                    {{ _currency_symbol }}{{ '{:,.2f}'.format(price) }}
+                    {% else %}
+                    <span class="text-slate-400">{{ _no_price_text }}</span>
+                    {% endif %}
+                </span>
+                {% if price %}
+                <span class="ml-2 text-sm text-slate-500 dark:text-slate-400">{{ currency }}</span>
+                {% endif %}
+            </div>
+        </div>
+
+        {# 进度条统计 #}
+        {% if progress %}
+        {% set progress_percent = ((progress.current / progress.total) * 100)|round(0)|int if progress.total and progress.total > 0 else 0 %}
+        {% set display_percent = progress_percent if progress_percent <= 100 else 100 %}
+        {% set progress_color = progress.color or 'primary' %}
+        {% set color_classes = {
+            'primary': 'bg-primary',
+            'green': 'bg-green-500',
+            'blue': 'bg-blue-500',
+            'amber': 'bg-amber-500'
+        } %}
+        {% set bg_color_classes = {
+            'primary': 'bg-slate-200 dark:bg-slate-700',
+            'green': 'bg-green-100 dark:bg-green-900/30',
+            'blue': 'bg-blue-100 dark:bg-blue-900/30',
+            'amber': 'bg-amber-100 dark:bg-amber-900/30'
+        } %}
+        <div class="pt-4 border-t border-slate-100 dark:border-slate-800">
+            <div class="flex justify-between items-center mb-2">
+                <p class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-semibold">{{ progress.label }}</p>
+                <p class="text-lg font-bold text-slate-900 dark:text-white">{{ display_percent }}%</p>
+            </div>
+            <div class="w-full {{ bg_color_classes.get(progress_color, 'bg-slate-200 dark:bg-slate-700') }} rounded-full h-2">
+                <div class="{{ color_classes.get(progress_color, 'bg-primary') }} h-2 rounded-full transition-all duration-500" style="width: {{ display_percent }}%"></div>
+            </div>
+            {% if progress.current_label or progress.total_label %}
+            <div class="flex justify-between items-center mt-2 text-xs text-slate-500 dark:text-slate-400">
+                <span>{{ progress.current_label }}: {{ progress.current or 0 }}</span>
+                <span>{{ progress.total_label }}: {{ progress.total or 0 }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# 额外区块 #}
+        {% for section in extra_sections %}
+        <div class="pt-4 border-t border-slate-100 dark:border-slate-800">
+            {{ section }}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endmacro %}
+
+
+{#
+=============================================================================
+简化版：产品库引用统计卡片
+=============================================================================
+专门用于研发库详情页显示产品库引用统计
+
+使用方式：
+{{ tw_reference_stats_card(
+    title=_('价格信息'),
+    price=dev_product.retail_price,
+    currency=dev_product.currency,
+    price_label=_('市场价格（预估）'),
+    reference_count=product_reference_count,
+    reference_label=_('产品库引用')
+) }}
+=============================================================================
+#}
+
+{% macro tw_reference_stats_card(
+    title=none,
+    price=none,
+    currency='CNY',
+    currency_symbol=none,
+    price_label=none,
+    reference_count=0,
+    reference_label=none
+) %}
+{% set _title = title or _('价格信息') %}
+{% set _price_label = price_label or _('市场价格（预估）') %}
+{% set _reference_label = reference_label or _('产品库引用') %}
+{% set _currency_symbol = currency_symbol or {'CNY': '¥', 'USD': '$', 'EUR': '€', 'GBP': '£'}.get(currency, '¥') %}
+
+<div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div class="px-6 py-5">
+        <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-white">{{ _title }}</h3>
+    </div>
+    <div class="p-6 pt-0 space-y-5">
+        {# 价格显示 #}
+        <div>
+            <p class="text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">{{ _price_label }}</p>
+            <div class="flex items-baseline">
+                <span class="text-3xl font-bold text-slate-900 dark:text-white">
+                    {% if price %}
+                    {{ _currency_symbol }}{{ '{:,.2f}'.format(price) }}
+                    {% else %}
+                    <span class="text-slate-400">{{ _('暂无') }}</span>
+                    {% endif %}
+                </span>
+                {% if price %}
+                <span class="ml-2 text-sm text-slate-500 dark:text-slate-400">{{ currency }}</span>
+                {% endif %}
+            </div>
+        </div>
+
+        {# 产品库引用统计 #}
+        <div class="pt-4 border-t border-slate-100 dark:border-slate-800">
+            <div class="flex justify-between items-center mb-2">
+                <p class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-semibold">{{ _reference_label }}</p>
+                <p class="text-lg font-bold text-slate-900 dark:text-white">{{ reference_count or 0 }}</p>
+            </div>
+            {% if reference_count and reference_count > 0 %}
+            <div class="w-full bg-green-100 dark:bg-green-900/30 rounded-full h-2">
+                <div class="bg-green-500 h-2 rounded-full" style="width: 100%"></div>
+            </div>
+            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                {{ _('该研发产品已被产品库引用 %(count)s 次', count=reference_count) }}
+            </p>
+            {% else %}
+            <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                <div class="bg-slate-300 dark:bg-slate-600 h-2 rounded-full" style="width: 0%"></div>
+            </div>
+            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                {{ _('暂未被产品库引用') }}
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endmacro %}

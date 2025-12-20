@@ -1,0 +1,1575 @@
+{#
+=============================================================================
+Tailwind 可编辑表格组件
+=============================================================================
+用于产品明细等需要行内编辑的表格场景。
+
+使用方式：
+{% from 'components/tw_editable_table.html' import tw_editable_table, tw_editable_table_styles, tw_editable_table_script %}
+
+<!-- 在 head 中引入样式 -->
+{{ tw_editable_table_styles() }}
+
+<!-- 在页面中渲染表格 -->
+{{ tw_editable_table(
+    table_id='productTable',
+    columns=product_columns,
+    data=existing_data,
+    show_add_btn=true,
+    show_delete_btn=true,
+    currency='CNY'
+) }}
+
+<!-- 在页面底部引入脚本 -->
+{{ tw_editable_table_script(table_id='productTable', config={...}) }}
+
+参数：
+- table_id: 表格唯一ID（必填）
+- columns: 列配置列表，每项包含 key, label, type, width, align, required, readonly, default
+- data: 初始数据（编辑模式）
+- show_add_btn: 是否显示添加按钮
+- show_delete_btn: 是否显示删除按钮
+- currency: 货币类型
+- help_text: 帮助提示文本
+
+实时保存模式（v1.1新增）：
+- onRowChange: 行数据变化回调函数名，签名: function(tableId, rowId, rowData, changedField, detailId)
+- onRowDelete: 行删除回调函数名，签名: function(tableId, rowId, rowData, detailId) 返回 Promise<boolean>
+- onGrandTotalChange: 总计变化回调函数名，签名: function(tableId, grandTotal)
+- readonly: 是否只读模式（仅显示，不可编辑）
+
+新增方法（v1.1）：
+- EditableTable.setReadonly(tableId, readonly) - 动态设置只读模式
+- EditableTable.getRowDetailId(tableId, rowId) - 获取行的数据库ID
+- EditableTable.getRowIdByDetailId(tableId, detailId) - 根据数据库ID获取行ID
+- EditableTable.updateRowData(tableId, rowId, newData) - 从后端响应更新行数据
+
+示例（批价单实时保存模式）：
+{{ tw_editable_table_script(
+    table_id='pricingDetailTable',
+    config={
+        'columns': pricing_columns,
+        'currency': 'CNY',
+        'onRowChange': 'PricingOrderModal.onDetailChange',
+        'onRowDelete': 'PricingOrderModal.onDetailDelete',
+        'readonly': is_readonly
+    }
+) }}
+
+// 回调实现示例
+PricingOrderModal.onDetailChange = async function(tableId, rowId, rowData, changedField, detailId) {
+    // 调用后端 API 保存
+    const response = await fetch(`/pricing_order/${orderId}/update_pricing_detail`, {
+        method: 'POST',
+        body: JSON.stringify({ detail_id: detailId, [changedField]: rowData[changedField] })
+    });
+    const data = await response.json();
+    if (data.success && data.updated_detail) {
+        // 从后端响应更新行数据（如反算的折扣率）
+        EditableTable.updateRowData(tableId, rowId, data.updated_detail);
+    }
+};
+
+PricingOrderModal.onDetailDelete = async function(tableId, rowId, rowData, detailId) {
+    // 调用后端 API 删除
+    const response = await fetch(`/pricing_order/${orderId}/delete_product/${detailId}`, { method: 'DELETE' });
+    const data = await response.json();
+    return data.success; // 返回 false 则取消删除
+};
+=============================================================================
+#}
+
+{# 表格样式 #}
+{% macro tw_editable_table_styles() %}
+<style>
+    /* 可编辑表格基础样式 */
+    .editable-table {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    /* 表头样式 - 参考UI优化 */
+    .editable-table thead th {
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        font-weight: 500;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+        color: #6b7280;
+        padding: 0.75rem 1rem;
+        white-space: nowrap;
+    }
+    .dark .editable-table thead th {
+        background: rgba(30, 41, 59, 0.5);
+        border-bottom-color: #374151;
+        color: #9ca3af;
+    }
+
+    /* 表格行样式 */
+    .editable-table tbody tr {
+        border-bottom: 1px solid #f3f4f6;
+        transition: background-color 0.15s;
+        vertical-align: middle;
+    }
+    .dark .editable-table tbody tr {
+        border-bottom-color: #374151;
+    }
+    .editable-table tbody tr:hover {
+        background-color: #f9fafb;
+    }
+    .dark .editable-table tbody tr:hover {
+        background-color: rgba(255, 255, 255, 0.03);
+    }
+
+    /* 配置产品行（子行）样式 */
+    .editable-table tbody tr.config-row {
+        background-color: #f8fafc;
+    }
+    .dark .editable-table tbody tr.config-row {
+        background-color: rgba(30, 41, 59, 0.3);
+    }
+    .editable-table tbody tr.config-row td:first-child {
+        padding-left: 2.5rem;
+    }
+
+    /* 单元格样式 - 更紧凑 */
+    .editable-table td {
+        padding: 0.5rem 1rem;
+        vertical-align: middle;
+        font-size: 0.875rem;
+    }
+
+    /* 行内输入框样式 - 更简洁 */
+    .editable-table .cell-input {
+        width: 100%;
+        border: 1px solid transparent;
+        border-radius: 0.375rem;
+        padding: 0.375rem 0.5rem;
+        font-size: 0.875rem;
+        line-height: 1.25rem;
+        background: transparent;
+        color: #1f2937;
+        transition: all 0.15s;
+        box-sizing: border-box;
+        height: 2rem;
+    }
+    .dark .editable-table .cell-input {
+        color: #e5e7eb;
+    }
+    .editable-table .cell-input:hover:not(:disabled):not(:focus) {
+        border-color: #e5e7eb;
+        background: #fafafa;
+    }
+    .dark .editable-table .cell-input:hover:not(:disabled):not(:focus) {
+        border-color: #4b5563;
+        background: rgba(255,255,255,0.02);
+    }
+    .editable-table .cell-input:focus {
+        outline: none;
+        border-color: #1d4ed8;
+        box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.15);
+        background: white;
+    }
+    .dark .editable-table .cell-input:focus {
+        background: #1e293b;
+    }
+    .editable-table .cell-input:disabled {
+        background: transparent;
+        color: #9ca3af;
+        cursor: not-allowed;
+    }
+    .dark .editable-table .cell-input:disabled {
+        color: #6b7280;
+    }
+
+    /* 只读单元格 - 直接显示值 */
+    .editable-table .cell-readonly {
+        padding: 0.375rem 0.5rem;
+        font-size: 0.875rem;
+        line-height: 1.25rem;
+        color: #374151;
+        display: inline-block;
+        height: 2rem;
+        box-sizing: border-box;
+    }
+    .dark .editable-table .cell-readonly {
+        color: #d1d5db;
+    }
+
+    /* 下拉选择框样式 */
+    .editable-table .cell-select {
+        width: 100%;
+        border: 1px solid transparent;
+        border-radius: 0.375rem;
+        padding: 0.375rem 2rem 0.375rem 0.5rem;
+        font-size: 0.875rem;
+        background: transparent url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e") right 0.5rem center/1.25rem 1.25rem no-repeat;
+        color: #1f2937;
+        cursor: pointer;
+        appearance: none;
+    }
+    .dark .editable-table .cell-select {
+        color: #e5e7eb;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    }
+    .editable-table .cell-select:hover:not(:disabled) {
+        border-color: #e5e7eb;
+        background-color: #fafafa;
+    }
+    .editable-table .cell-select:focus {
+        outline: none;
+        border-color: #1d4ed8;
+        box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.15);
+        background-color: white;
+    }
+    .dark .editable-table .cell-select:focus {
+        background-color: #1e293b;
+    }
+
+    /* 产品选择器单元格 */
+    .editable-table .product-selector-cell {
+        position: relative;
+        min-width: 160px;
+    }
+    .editable-table .product-selector-trigger {
+        width: 100%;
+        text-align: left;
+        border: 1px solid transparent;
+        border-radius: 0.375rem;
+        padding: 0.375rem 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        background: transparent;
+        color: #1f2937;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .dark .editable-table .product-selector-trigger {
+        color: #e5e7eb;
+    }
+    .editable-table .product-selector-trigger:hover {
+        border-color: #e5e7eb;
+        background: #fafafa;
+    }
+    .dark .editable-table .product-selector-trigger:hover {
+        border-color: #4b5563;
+        background: rgba(255,255,255,0.02);
+    }
+    .editable-table .product-selector-trigger.has-value {
+        color: #1f2937;
+    }
+    .dark .editable-table .product-selector-trigger.has-value {
+        color: #e5e7eb;
+    }
+    .editable-table .product-selector-trigger.placeholder {
+        color: #9ca3af;
+    }
+
+    /* 产品选择器和只读单元格文本截断 */
+    .editable-table .product-selector-trigger,
+    .editable-table .cell-readonly {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block;
+        max-width: 100%;
+    }
+
+    /* 产品描述列 - 固定宽度，文本截断，悬停展开 */
+    .editable-table th[data-col-key="product_desc"],
+    .editable-table td[data-col-key="product_desc"] {
+        width: 400px !important;
+        min-width: 400px !important;
+        max-width: 400px !important;
+    }
+    .editable-table td[data-col-key="product_desc"] .cell-readonly {
+        display: block !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        max-width: 380px;
+        cursor: default;
+        height: auto !important;
+        line-height: 1.25rem;
+    }
+
+    /* 产品描述悬浮提示框 */
+    .product-desc-tooltip {
+        position: fixed;
+        max-width: 500px;
+        background: white;
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border: 1px solid #e5e7eb;
+        z-index: 10000;
+        line-height: 1.5;
+        font-size: 0.875rem;
+        color: #374151;
+        pointer-events: none;
+        word-break: break-word;
+    }
+    .dark .product-desc-tooltip {
+        background: #1e293b;
+        color: #d1d5db;
+        border-color: #374151;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+
+    /* 临时产品标记 */
+    .temp-product-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.125rem 0.375rem;
+        margin-left: 0.5rem;
+        font-size: 0.625rem;
+        font-weight: 500;
+        border-radius: 0.25rem;
+        background: #fef3c7;
+        color: #92400e;
+    }
+    .dark .temp-product-badge {
+        background: rgba(251, 191, 36, 0.2);
+        color: #fbbf24;
+    }
+
+    /* 操作按钮列 */
+    .editable-table td.row-actions {
+        vertical-align: middle !important;
+        text-align: center;
+        padding: 0.5rem !important;
+    }
+    .editable-table .action-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.75rem;
+        height: 1.75rem;
+        border-radius: 0.375rem;
+        color: #6b7280;
+        transition: all 0.15s;
+    }
+    .editable-table .action-btn:hover {
+        background: #f3f4f6;
+        color: #374151;
+    }
+    .dark .editable-table .action-btn:hover {
+        background: #374151;
+        color: #e5e7eb;
+    }
+    .editable-table .action-btn.delete:hover {
+        background: #fef2f2;
+        color: #dc2626;
+    }
+    .dark .editable-table .action-btn.delete:hover {
+        background: rgba(220, 38, 38, 0.1);
+        color: #f87171;
+    }
+
+    /* 数字和金额右对齐 */
+    .editable-table .text-right .cell-input,
+    .editable-table .text-right .cell-readonly {
+        text-align: right;
+    }
+
+    /* 添加行按钮 */
+    .add-row-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #374151;
+        background: white;
+        transition: all 0.15s;
+    }
+    .dark .add-row-btn {
+        border-color: #374151;
+        color: #e5e7eb;
+        background: #1e293b;
+    }
+    .add-row-btn:hover {
+        background: #f9fafb;
+        border-color: #d1d5db;
+    }
+    .dark .add-row-btn:hover {
+        background: #334155;
+        border-color: #4b5563;
+    }
+
+    /* 帮助提示 */
+    .table-help-text {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        color: #6b7280;
+        border-radius: 0.5rem;
+    }
+    .dark .table-help-text {
+        color: #9ca3af;
+    }
+</style>
+{% endmacro %}
+
+
+{# 可编辑表格 HTML #}
+{% macro tw_editable_table(
+    table_id='editableTable',
+    columns=[],
+    data=[],
+    show_add_btn=true,
+    show_delete_btn=true,
+    currency='CNY',
+    help_text=''
+) %}
+<div id="{{ table_id }}Container" class="w-full">
+    <!-- 表格容器 -->
+    <div class="overflow-x-auto">
+        <table id="{{ table_id }}" class="w-full editable-table text-sm text-left">
+            <thead>
+                <tr>
+                    {% for col in columns %}
+                    <th class="{{ 'text-right' if col.align == 'right' else ('text-center' if col.align == 'center' else 'text-left') }}"
+                        data-col-key="{{ col.key }}"
+                        style="{% if col.width %}min-width: {{ col.width }}; width: {{ col.width }};{% endif %}">
+                        {{ col.label }}
+                        {% if col.required %}<span class="text-red-500 ml-0.5">*</span>{% endif %}
+                    </th>
+                    {% endfor %}
+                    {% if show_delete_btn %}
+                    <th style="width: 60px;"></th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody id="{{ table_id }}Body">
+                <!-- 数据行由 JavaScript 动态生成 -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 底部操作区 -->
+    <div class="mt-4">
+        {% if show_add_btn %}
+        <button type="button" id="{{ table_id }}AddBtn" class="add-row-btn" onclick="window.EditableTable.addRow('{{ table_id }}')">
+            <span class="material-symbols-outlined text-base">add</span>
+            {{ _('添加产品') }}
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- 隐藏字段存储数据 -->
+    <input type="hidden" id="{{ table_id }}Data" name="product_details">
+</div>
+{% endmacro %}
+
+
+{# 可编辑表格脚本 #}
+{% macro tw_editable_table_script(table_id='editableTable', config={}) %}
+<script>
+console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
+(function() {
+    // 表格配置
+    const tableConfig = {
+        tableId: '{{ table_id }}',
+        columns: {{ config.columns | default([]) | tojson | safe }},
+        currency: '{{ config.currency | default("CNY") }}',
+        currencySymbol: '{{ config.currency_symbol | default("¥") }}',
+        apiEndpoints: {{ config.api_endpoints | default({}) | tojson | safe }},
+        // 实时保存模式回调（v1.1新增）
+        onRowChange: {{ (("'" ~ config.onRowChange ~ "'") | safe) if config.onRowChange else 'null' }},
+        onRowDelete: {{ (("'" ~ config.onRowDelete ~ "'") | safe) if config.onRowDelete else 'null' }},
+        onGrandTotalChange: {{ (("'" ~ config.onGrandTotalChange ~ "'") | safe) if config.onGrandTotalChange else 'null' }},
+        readonly: {{ 'true' if config.readonly else 'false' }},
+        i18n: {
+            selectProduct: {{ _("点击选择产品...") | tojson | safe }},
+            manualInput: {{ _("手动输入") | tojson | safe }},
+            tempProduct: {{ _("临时") | tojson | safe }},
+            confirmDelete: {{ _("确定要删除这一行吗？") | tojson | safe }},
+            addConfig: {{ _("添加配件") | tojson | safe }}
+        }
+    };
+
+    // 初始化或获取全局对象
+    window.EditableTable = window.EditableTable || {};
+
+    // 存储各表格实例
+    window.EditableTable.instances = window.EditableTable.instances || {};
+    window.EditableTable.instances['{{ table_id }}'] = {
+        config: tableConfig,
+        rows: [],
+        rowCounter: 0
+    };
+
+    // 回调函数调用辅助方法（v1.1新增）
+    window.EditableTable.invokeCallback = function(tableId, callbackName, ...args) {
+        const instance = this.instances[tableId];
+        if (!instance || !instance.config[callbackName]) return null;
+
+        const callbackPath = instance.config[callbackName];
+        if (!callbackPath) return null;
+
+        // 支持点号分隔的函数路径，如 'PricingOrderModal.onDetailChange'
+        const parts = callbackPath.split('.');
+        let fn = window;
+        for (const part of parts) {
+            fn = fn[part];
+            if (!fn) {
+                console.warn(`[EditableTable] 回调函数不存在: ${callbackPath}`);
+                return null;
+            }
+        }
+
+        if (typeof fn === 'function') {
+            return fn.apply(null, args);
+        }
+        return null;
+    };
+
+    // 添加行
+    window.EditableTable.addRow = function(tableId, parentRowId = null, productData = null) {
+        console.log(`[EditableTable.addRow] 添加行: tableId=${tableId}, productData=`, productData);
+
+        const instance = this.instances[tableId];
+        if (!instance) {
+            console.warn('[EditableTable.addRow] 未找到表格实例:', tableId);
+            return null;
+        }
+
+        const tbody = document.getElementById(tableId + 'Body');
+        if (!tbody) {
+            console.warn('[EditableTable.addRow] 未找到表格体元素:', tableId + 'Body');
+            return null;
+        }
+
+        console.log(`[EditableTable.addRow] 列数量: ${instance.config.columns?.length}`);
+
+        // 使用表格ID作为前缀，避免多个表格之间的行ID冲突
+        const rowId = tableId + '_row_' + (++instance.rowCounter);
+
+        const row = document.createElement('tr');
+        row.id = rowId;
+        row.dataset.rowId = rowId;
+
+        if (parentRowId) {
+            row.classList.add('config-row');
+            row.dataset.parentRowId = parentRowId;
+            row.dataset.isConfiguration = 'true';  // 用于CSS样式
+        }
+
+        // 生成单元格
+        let cellsHtml = '';
+        instance.config.columns.forEach((col, index) => {
+            // 修复：使用 ?? 避免 0 被当作 falsy 值
+            const rawValue = productData ? productData[col.key] : undefined;
+            const value = (rawValue !== null && rawValue !== undefined) ? rawValue : (col.default ?? '');
+            const alignClass = col.align === 'right' ? 'text-right' : (col.align === 'center' ? 'text-center' : '');
+
+            cellsHtml += '<td class="' + alignClass + '" data-col-key="' + col.key + '">';
+
+            if (col.type === 'product-selector') {
+                // 产品选择器
+                cellsHtml += '<div class="product-selector-cell">';
+                cellsHtml += '<button type="button" class="product-selector-trigger placeholder" ';
+                cellsHtml += 'data-row-id="' + rowId + '" data-col-key="' + col.key + '" ';
+                cellsHtml += 'onclick="window.EditableTable.openProductSelector(\'' + tableId + '\', \'' + rowId + '\')">';
+                cellsHtml += value || instance.config.i18n.selectProduct;
+                cellsHtml += '</button></div>';
+            } else if (col.readonly) {
+                // 只读单元格 - 货币类型需要格式化
+                const displayValue = col.type === 'currency' ? this.formatNumber(value) : value;
+                cellsHtml += '<span class="cell-readonly" data-col-key="' + col.key + '">' + displayValue + '</span>';
+            } else if (col.type === 'number' || col.type === 'currency') {
+                // 数字输入 - 支持上下键调整
+                const displayValue = col.type === 'currency' ? this.formatNumber(value) : value;
+                cellsHtml += '<input type="text" class="cell-input" ';
+                cellsHtml += 'data-row-id="' + rowId + '" data-col-key="' + col.key + '" data-type="' + col.type + '" ';
+                cellsHtml += 'value="' + displayValue + '" ';
+                cellsHtml += 'oninput="window.EditableTable.onCellChange(\'' + tableId + '\', \'' + rowId + '\', \'' + col.key + '\', this.value)" ';
+                cellsHtml += 'onkeydown="window.EditableTable.onNumberKeyDown(event, \'' + tableId + '\', \'' + rowId + '\', \'' + col.key + '\')" ';
+                cellsHtml += 'onblur="window.EditableTable.formatCell(\'' + tableId + '\', \'' + rowId + '\', \'' + col.key + '\', this)">';
+            } else {
+                // 文本输入
+                cellsHtml += '<input type="text" class="cell-input" ';
+                cellsHtml += 'data-row-id="' + rowId + '" data-col-key="' + col.key + '" ';
+                cellsHtml += 'value="' + value + '" ';
+                cellsHtml += 'oninput="window.EditableTable.onCellChange(\'' + tableId + '\', \'' + rowId + '\', \'' + col.key + '\', this.value)">';
+            }
+
+            cellsHtml += '</td>';
+        });
+
+        // 操作列 - 只保留删除按钮
+        cellsHtml += '<td class="row-actions">';
+        cellsHtml += '<button type="button" class="action-btn delete" title="Delete" ';
+        cellsHtml += 'onclick="window.EditableTable.removeRow(\'' + tableId + '\', \'' + rowId + '\')">';
+        cellsHtml += '<span class="material-symbols-outlined" style="font-size: 18px;">delete</span></button>';
+        cellsHtml += '</td>';
+
+        row.innerHTML = cellsHtml;
+
+        // 插入位置
+        if (parentRowId) {
+            // 配置产品行：插入到父行之后
+            const parentRow = document.getElementById(parentRowId);
+            let insertAfter = parentRow;
+            // 找到所有已存在的配置行的最后一个
+            let sibling = parentRow.nextElementSibling;
+            while (sibling && sibling.dataset.parentRowId === parentRowId) {
+                insertAfter = sibling;
+                sibling = sibling.nextElementSibling;
+            }
+            insertAfter.insertAdjacentElement('afterend', row);
+        } else {
+            tbody.appendChild(row);
+        }
+
+        console.log(`[EditableTable.addRow] 行已添加: ${rowId}, tbody.childElementCount=${tbody.childElementCount}`);
+
+        // 添加到行数据
+        instance.rows.push({
+            rowId: rowId,
+            parentRowId: parentRowId,
+            data: productData || {}
+        });
+
+        this.updateHiddenData(tableId);
+        return rowId;
+    };
+
+    // 添加配置产品行
+    window.EditableTable.addConfigRow = function(tableId, parentRowId) {
+        this.addRow(tableId, parentRowId);
+    };
+
+    // 删除行
+    window.EditableTable.removeRow = async function(tableId, rowId) {
+        const instance = this.instances[tableId];
+        if (!instance) return;
+
+        const row = document.getElementById(rowId);
+        if (!row) return;
+
+        // 获取行数据（用于回调）
+        const rowData = instance.rows.find(r => r.rowId === rowId);
+
+        // 如果配置了 onRowDelete 回调，先调用并等待结果（v1.1新增）
+        if (instance.config.onRowDelete) {
+            const detailId = this.getRowDetailId(tableId, rowId);
+            try {
+                const result = this.invokeCallback(tableId, 'onRowDelete', tableId, rowId, rowData?.data, detailId);
+                // 如果回调返回 Promise，等待其完成
+                if (result instanceof Promise) {
+                    const success = await result;
+                    if (success === false) {
+                        console.log('[EditableTable] onRowDelete 返回 false，取消删除');
+                        return;
+                    }
+                } else if (result === false) {
+                    console.log('[EditableTable] onRowDelete 返回 false，取消删除');
+                    return;
+                }
+            } catch (error) {
+                console.error('[EditableTable] onRowDelete 回调失败:', error);
+                return;
+            }
+        }
+
+        // 同时删除配置产品行
+        const configRows = document.querySelectorAll('tr[data-parent-row-id="' + rowId + '"]');
+        configRows.forEach(r => r.remove());
+
+        row.remove();
+
+        // 从数据中移除
+        instance.rows = instance.rows.filter(r => r.rowId !== rowId && r.parentRowId !== rowId);
+
+        this.updateHiddenData(tableId);
+        this.calculateGrandTotal(tableId);
+    };
+
+    // 数字输入框键盘事件 - 支持上下键调整数值
+    window.EditableTable.onNumberKeyDown = function(event, tableId, rowId, colKey) {
+        if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+
+        event.preventDefault();
+        const input = event.target;
+        const currentValue = this.parseNumber(input.value) || 0;
+        const dataType = input.dataset.type;
+
+        // 根据字段类型确定步进值
+        let step = 1;
+        if (colKey === 'discount') {
+            step = 1; // 折扣步进1%
+        } else if (colKey === 'quantity') {
+            step = 1; // 数量步进1
+        } else if (dataType === 'currency' || colKey === 'unit_price') {
+            step = 10; // 金额步进10
+        }
+
+        // 按住Shift键时步进值x10
+        if (event.shiftKey) {
+            step *= 10;
+        }
+
+        let newValue = event.key === 'ArrowUp' ? currentValue + step : currentValue - step;
+
+        // 限制最小值
+        if (colKey === 'discount') {
+            newValue = Math.max(0, newValue); // 折扣最小0，允许超过100%
+        } else if (colKey === 'quantity') {
+            newValue = Math.max(1, newValue); // 数量最小1
+        } else {
+            newValue = Math.max(0, newValue); // 金额最小0
+        }
+
+        // 更新显示
+        input.value = dataType === 'currency' ? this.formatNumber(newValue) : newValue;
+
+        // 触发值变化
+        this.onCellChange(tableId, rowId, colKey, newValue);
+    };
+
+    // 单元格值变化
+    window.EditableTable.onCellChange = function(tableId, rowId, colKey, value) {
+        console.log(`[EditableTable.onCellChange] tableId=${tableId}, rowId=${rowId}, colKey=${colKey}, value=${value}`);
+
+        const instance = this.instances[tableId];
+        if (!instance) {
+            console.warn('[EditableTable.onCellChange] 实例不存在:', tableId);
+            return;
+        }
+
+        // 更新行数据
+        const rowData = instance.rows.find(r => r.rowId === rowId);
+        if (rowData) {
+            rowData.data[colKey] = value;
+        }
+
+        // 自动计算
+        if (colKey === 'market_price' || colKey === 'discount') {
+            // 市场价或折扣改变 → 计算单价
+            console.log('[EditableTable.onCellChange] 触发 calculateUnitPrice');
+            this.calculateUnitPrice(tableId, rowId);
+        }
+        if (colKey === 'unit_price') {
+            // 单价改变 → 反向计算折扣，并计算小计
+            console.log('[EditableTable.onCellChange] 触发 calculateDiscountFromUnitPrice 和 calculateTotalPrice');
+            this.calculateDiscountFromUnitPrice(tableId, rowId);
+            this.calculateTotalPrice(tableId, rowId);
+        }
+        if (colKey === 'quantity') {
+            // 数量改变 → 计算小计
+            console.log('[EditableTable.onCellChange] 触发 calculateTotalPrice');
+            this.calculateTotalPrice(tableId, rowId);
+        }
+
+        // 如果是主产品的数量或折扣变化，同步到配置产品
+        if (colKey === 'quantity' || colKey === 'discount') {
+            this.syncToConfigRows(tableId, rowId, colKey, value);
+        }
+
+        this.updateHiddenData(tableId);
+
+        // 调用 onRowChange 回调（v1.1新增 - 实时保存模式）
+        if (rowData) {
+            const detailId = this.getRowDetailId(tableId, rowId);
+            this.invokeCallback(tableId, 'onRowChange', tableId, rowId, rowData.data, colKey, detailId);
+        }
+    };
+
+    // 同步主产品的数量/折扣到配置产品
+    window.EditableTable.syncToConfigRows = function(tableId, rowId, colKey, value) {
+        const instance = this.instances[tableId];
+        if (!instance) return;
+
+        const row = document.getElementById(rowId);
+        if (!row) return;
+
+        // 只有主产品才需要同步（配置产品不需要）
+        if (row.dataset.parentRowId) return;
+
+        // 找到所有以此行为父行的配置产品
+        const configRows = instance.rows.filter(r => r.parentRowId === rowId);
+        if (configRows.length === 0) return;
+
+        console.log(`🔄 [EditableTable] 同步 ${colKey} 到 ${configRows.length} 个配置产品`);
+
+        const self = this;
+        configRows.forEach(configRowData => {
+            const configRow = document.getElementById(configRowData.rowId);
+            if (!configRow) return;
+
+            if (colKey === 'quantity') {
+                // 同步数量：配置数量 = 主产品数量 × 基础数量
+                const baseQuantity = parseInt(configRowData.data.config_base_quantity) || 1;
+                const newQuantity = (parseInt(value) || 1) * baseQuantity;
+
+                const quantityInput = configRow.querySelector('input[data-col-key="quantity"]');
+                if (quantityInput) {
+                    quantityInput.value = newQuantity;
+                    configRowData.data.quantity = newQuantity;
+                }
+
+                // 重新计算配置行小计
+                self.calculateTotalPrice(tableId, configRowData.rowId);
+                console.log(`  - ${configRowData.rowId}: 数量=${newQuantity}`);
+
+            } else if (colKey === 'discount') {
+                // 同步折扣率
+                const discountInput = configRow.querySelector('input[data-col-key="discount"]');
+                if (discountInput) {
+                    discountInput.value = value;
+                    configRowData.data.discount = value;
+                }
+
+                // 重新计算配置行单价和小计
+                self.calculateUnitPrice(tableId, configRowData.rowId);
+                self.calculateTotalPrice(tableId, configRowData.rowId);
+                console.log(`  - ${configRowData.rowId}: 折扣=${value}%`);
+            }
+        });
+
+        // 更新总计
+        this.calculateGrandTotal(tableId);
+    };
+
+    // 格式化单元格
+    window.EditableTable.formatCell = function(tableId, rowId, colKey, input) {
+        const col = this.instances[tableId]?.config.columns.find(c => c.key === colKey);
+        if (!col) return;
+
+        if (col.type === 'currency' || col.type === 'number') {
+            const value = this.parseNumber(input.value);
+            input.value = col.type === 'currency' ? this.formatNumber(value) : value;
+        }
+    };
+
+    // 计算单价（从市场价和折扣）
+    window.EditableTable.calculateUnitPrice = function(tableId, rowId) {
+        const row = document.getElementById(rowId);
+        if (!row) return;
+
+        const marketPriceEl = row.querySelector('input[data-col-key="market_price"], span[data-col-key="market_price"]');
+        const discountInput = row.querySelector('input[data-col-key="discount"]');
+        const unitPriceInput = row.querySelector('input[data-col-key="unit_price"]');
+
+        if (marketPriceEl && discountInput && unitPriceInput) {
+            const marketPriceRaw = marketPriceEl.tagName === 'INPUT' ? marketPriceEl.value : marketPriceEl.textContent;
+            const marketPrice = this.parseNumber(marketPriceRaw);
+
+            // 如果市场价为0，跳过本地计算，完全依赖后端返回的结果
+            if (marketPrice === 0) {
+                return;
+            }
+
+            const discount = this.parseNumber(discountInput.value) || 100;
+            const unitPrice = marketPrice * (discount / 100);
+
+            unitPriceInput.value = this.formatNumber(unitPrice);
+
+            // 更新行数据但不触发循环计算
+            const instance = this.instances[tableId];
+            const rowData = instance?.rows.find(r => r.rowId === rowId);
+            if (rowData) {
+                rowData.data['unit_price'] = unitPrice;
+            }
+
+            // 计算小计
+            this.calculateTotalPrice(tableId, rowId);
+        }
+    };
+
+    // 反向计算折扣（从单价和市场价）
+    window.EditableTable.calculateDiscountFromUnitPrice = function(tableId, rowId) {
+        const row = document.getElementById(rowId);
+        if (!row) return;
+
+        const marketPriceEl = row.querySelector('input[data-col-key="market_price"], span[data-col-key="market_price"]');
+        const discountInput = row.querySelector('input[data-col-key="discount"]');
+        const unitPriceInput = row.querySelector('input[data-col-key="unit_price"]');
+
+        if (marketPriceEl && discountInput && unitPriceInput) {
+            const marketPrice = this.parseNumber(marketPriceEl.value || marketPriceEl.textContent);
+            const unitPrice = this.parseNumber(unitPriceInput.value);
+
+            if (marketPrice > 0) {
+                const discount = (unitPrice / marketPrice) * 100;
+                const roundedDiscount = Math.round(discount * 100) / 100; // 保留2位小数
+                discountInput.value = roundedDiscount;
+
+                // 更新行数据
+                const instance = this.instances[tableId];
+                const rowData = instance?.rows.find(r => r.rowId === rowId);
+                if (rowData) {
+                    rowData.data['discount'] = roundedDiscount;
+                }
+            }
+        }
+    };
+
+    // 计算小计
+    window.EditableTable.calculateTotalPrice = function(tableId, rowId) {
+        const row = document.getElementById(rowId);
+        if (!row) return;
+
+        const unitPriceInput = row.querySelector('input[data-col-key="unit_price"], span[data-col-key="unit_price"]');
+        const quantityInput = row.querySelector('input[data-col-key="quantity"], span[data-col-key="quantity"]');
+        const totalPriceEl = row.querySelector('input[data-col-key="total_price"], span[data-col-key="total_price"]');
+
+        if (unitPriceInput && quantityInput && totalPriceEl) {
+            const unitPrice = this.parseNumber(unitPriceInput.tagName === 'INPUT' ? unitPriceInput.value : unitPriceInput.textContent);
+            const quantity = this.parseNumber(quantityInput.tagName === 'INPUT' ? quantityInput.value : quantityInput.textContent) || 1;
+            const totalPrice = unitPrice * quantity;
+
+            if (totalPriceEl.tagName === 'INPUT') {
+                totalPriceEl.value = this.formatNumber(totalPrice);
+            } else {
+                totalPriceEl.textContent = this.formatNumber(totalPrice);
+            }
+            this.onCellChange(tableId, rowId, 'total_price', totalPrice);
+        }
+
+        this.calculateGrandTotal(tableId);
+    };
+
+    // 计算总计
+    window.EditableTable.calculateGrandTotal = function(tableId) {
+        const instance = this.instances[tableId];
+        if (!instance) return 0;
+
+        let grandTotal = 0;
+        instance.rows.forEach(row => {
+            const totalPrice = this.parseNumber(row.data.total_price);
+            grandTotal += totalPrice;
+        });
+
+        // 更新显示
+        const grandTotalEl = document.getElementById('grandTotal');
+        if (grandTotalEl) {
+            grandTotalEl.textContent = this.formatNumber(grandTotal);
+        }
+
+        // 更新隐藏字段
+        const totalAmountInput = document.getElementById('total_amount');
+        if (totalAmountInput) {
+            totalAmountInput.value = grandTotal;
+        }
+
+        // 触发更新事件
+        document.dispatchEvent(new CustomEvent('grandTotalUpdated', {
+            detail: {
+                tableId: tableId,
+                total: grandTotal,
+                formatted: this.formatNumber(grandTotal)
+            }
+        }));
+
+        // 调用 onGrandTotalChange 回调（v1.1新增）
+        this.invokeCallback(tableId, 'onGrandTotalChange', tableId, grandTotal);
+
+        return grandTotal;
+    };
+
+    // 更新隐藏数据字段
+    window.EditableTable.updateHiddenData = function(tableId) {
+        const instance = this.instances[tableId];
+        if (!instance) return;
+
+        const dataInput = document.getElementById(tableId + 'Data');
+        if (dataInput) {
+            dataInput.value = JSON.stringify(instance.rows.map(r => ({
+                row_id: r.rowId,
+                parent_row_id: r.parentRowId,
+                ...r.data
+            })));
+        }
+    };
+
+    // 打开产品选择器
+    window.EditableTable.openProductSelector = function(tableId, rowId) {
+        const instance = this.instances[tableId];
+        if (!instance) {
+            console.warn('[EditableTable] 未找到表格实例:', tableId);
+            return;
+        }
+
+        // 优先使用页面已创建的 productSelectorModal，否则创建新实例
+        let selector = window.productSelectorModal || window._productSelectorInstance;
+
+        if (!selector && typeof ProductSelector !== 'undefined') {
+            selector = new ProductSelector({
+                apiEndpoints: instance.config.apiEndpoints,
+                manual_input: {
+                    enabled: true,
+                    option_text: instance.config.i18n.manualInput || '手动输入',
+                    temp_indicator: {
+                        show: true,
+                        text: instance.config.i18n.tempProduct || '临时',
+                        position: 'after_price',
+                        style: 'temp-product-indicator'
+                    }
+                },
+                onSelect: null  // 稍后设置
+            });
+            window._productSelectorInstance = selector;
+        }
+
+        if (!selector) {
+            console.warn('[EditableTable] ProductSelector 不可用，请确保 product-selector.js 已加载');
+            return;
+        }
+
+        const row = document.getElementById(rowId);
+        if (!row) {
+            console.warn('[EditableTable] 未找到行元素:', rowId);
+            return;
+        }
+
+        const trigger = row.querySelector('.product-selector-trigger');
+        if (!trigger) {
+            console.warn('[EditableTable] 未找到触发按钮');
+            return;
+        }
+
+        // 存储当前行信息到触发器
+        trigger.dataset.tableId = tableId;
+        trigger.dataset.rowId = rowId;
+
+        // 设置回调
+        const self = this;
+        selector.config.onSelect = function(product) {
+            self.onProductSelected(tableId, rowId, product);
+        };
+
+        // 调用 showProductMenu
+        selector.showProductMenu(trigger);
+    };
+
+    // 产品选中回调
+    window.EditableTable.onProductSelected = function(tableId, rowId, product) {
+        const instance = this.instances[tableId];
+        if (!instance) return;
+
+        const row = document.getElementById(rowId);
+        if (!row) return;
+
+        // 更新产品选择器按钮
+        const trigger = row.querySelector('.product-selector-trigger');
+        if (trigger) {
+            trigger.textContent = product.product_name || product.name;
+            trigger.classList.remove('placeholder');
+            trigger.classList.add('has-value');
+
+            // 临时产品标记
+            if (product.is_temp) {
+                trigger.innerHTML += '<span class="temp-product-badge">' + instance.config.i18n.tempProduct + '</span>';
+            }
+        }
+
+        // 更新各字段 - 查找 input 或 span 元素
+        const fieldsToUpdate = ['product_name', 'product_model', 'product_desc', 'brand', 'unit', 'market_price', 'product_mn'];
+        fieldsToUpdate.forEach(field => {
+            // 优先查找 input 或 span，如果找不到则查找 td
+            let el = row.querySelector('input[data-col-key="' + field + '"], span[data-col-key="' + field + '"]');
+            if (!el) {
+                // 可能是 td 内部的子元素
+                const td = row.querySelector('td[data-col-key="' + field + '"]');
+                if (td) {
+                    el = td.querySelector('input, span.cell-readonly');
+                }
+            }
+            const value = product[field] || '';
+            if (el) {
+                if (el.tagName === 'INPUT') {
+                    el.value = field === 'market_price' ? this.formatNumber(value) : value;
+                } else {
+                    el.textContent = field === 'market_price' ? this.formatNumber(value) : value;
+                }
+            }
+        });
+
+        // 更新行数据
+        const rowData = instance.rows.find(r => r.rowId === rowId);
+        if (rowData) {
+            Object.assign(rowData.data, product);
+        }
+
+        // 如果是第一个产品，根据产品货币类型设置默认货币
+        const productCurrency = product.currency || 'CNY';
+        const currencySelect = document.getElementById('currency_modal');
+        if (currencySelect && instance.rows.length === 1) {
+            // 只有第一个产品时才自动设置货币
+            currencySelect.value = productCurrency;
+        }
+
+        // 重新计算价格 - 使用 setTimeout 确保 DOM 已更新
+        const self = this;
+        setTimeout(function() {
+            self.calculateUnitPrice(tableId, rowId);
+            self.calculateTotalPrice(tableId, rowId);
+        }, 0);
+
+        // 处理配置产品
+        const configurations = product.configurations || [];
+        if (configurations.length > 0) {
+            console.log(`📦 [EditableTable] 添加 ${configurations.length} 个配置产品`);
+
+            configurations.forEach(config => {
+                // 为配置产品构建数据
+                const configData = {
+                    product_name: config.product_name || '',
+                    product_model: config.product_model || config.model || '',
+                    product_desc: config.specification || config.product_desc || '',
+                    brand: config.brand || '',
+                    unit: config.unit || '',
+                    market_price: config.retail_price || config.market_price || 0,
+                    product_mn: config.product_mn || '',
+                    quantity: config.quantity || config.default_quantity || 1,
+                    discount: 100,
+                    is_configuration: true,
+                    config_type: config.relation_type || config.source || 'required_accessory',
+                    config_base_quantity: config.default_quantity || 1  // 基础数量，用于同步计算
+                };
+
+                // 添加配置产品行
+                const configRowId = self.addRow(tableId, rowId, configData);
+                console.log(`  ✓ 添加配置行: ${configData.product_name} (${configRowId})`);
+
+                // 添加波折图标
+                if (configRowId) {
+                    self.addConfigLinkIcon(tableId, configRowId);
+
+                    // 计算配置行价格
+                    setTimeout(function() {
+                        self.calculateUnitPrice(tableId, configRowId);
+                        self.calculateTotalPrice(tableId, configRowId);
+                    }, 0);
+                }
+            });
+
+            // 更新总计
+            setTimeout(function() {
+                self.calculateGrandTotal(tableId);
+            }, 10);
+        }
+    };
+
+    // 为配置行添加波折图标
+    window.EditableTable.addConfigLinkIcon = function(tableId, rowId) {
+        const row = document.getElementById(rowId);
+        if (!row) return;
+
+        const firstTd = row.querySelector('td:first-child');
+        if (!firstTd) return;
+
+        // 检查是否已有图标
+        if (firstTd.querySelector('.config-link-icon')) return;
+
+        const linkIcon = document.createElement('span');
+        linkIcon.className = 'config-link-icon';
+        linkIcon.dataset.action = 'unlink';
+        linkIcon.dataset.tableId = tableId;
+        linkIcon.dataset.rowId = rowId;
+        linkIcon.title = '{{ _("点击取消关联") }}';
+        linkIcon.innerHTML = '<span class="link-normal">└─</span><span class="link-unlink">✕─</span>';
+        linkIcon.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.EditableTable.unlinkConfiguration(tableId, rowId);
+        };
+        firstTd.insertBefore(linkIcon, firstTd.firstChild);
+    };
+
+    // 取消配置产品的级联关联
+    window.EditableTable.unlinkConfiguration = function(tableId, rowId) {
+        const instance = this.instances[tableId];
+        if (!instance) return;
+
+        const row = document.getElementById(rowId);
+        if (!row) return;
+
+        const parentRowId = row.dataset.parentRowId;
+        console.log(`🔗 [EditableTable] 取消级联: ${rowId}, 父行: ${parentRowId}`);
+
+        // 1. 找到父产品配置组的最后一个配置行，将当前行移动到其后面
+        if (parentRowId) {
+            const tbody = row.parentNode;
+            let lastConfigRow = null;
+            let sibling = document.getElementById(parentRowId);
+
+            // 遍历找到该父产品的最后一个配置行
+            while (sibling) {
+                sibling = sibling.nextElementSibling;
+                if (sibling && sibling.dataset.parentRowId === parentRowId) {
+                    lastConfigRow = sibling;
+                } else if (sibling && sibling.dataset.parentRowId !== parentRowId) {
+                    break;
+                }
+            }
+
+            // 如果找到了最后一个配置行，且不是当前行自己，则移动
+            if (lastConfigRow && lastConfigRow !== row) {
+                lastConfigRow.insertAdjacentElement('afterend', row);
+                console.log(`  ↪ 行已移动到配置组之后`);
+            }
+        }
+
+        // 2. 移除 config-row class 和相关属性
+        row.classList.remove('config-row');
+        delete row.dataset.parentRowId;
+        delete row.dataset.isConfiguration;
+
+        // 3. 移除波折图标
+        const linkIcon = row.querySelector('.config-link-icon');
+        if (linkIcon) {
+            linkIcon.remove();
+        }
+
+        // 4. 更新行数据
+        const rowData = instance.rows.find(r => r.rowId === rowId);
+        if (rowData) {
+            delete rowData.parentRowId;
+            delete rowData.data.is_configuration;
+            delete rowData.data.config_type;
+        }
+
+        // 5. 更新隐藏数据
+        this.updateHiddenData(tableId);
+
+        console.log(`✅ [EditableTable] 配置行 ${rowId} 已转换为独立行`);
+    };
+
+    // 设置初始数据（支持父子关系重建）
+    window.EditableTable.setData = function(tableId, data) {
+        console.log(`[EditableTable.setData] 开始设置数据，tableId: ${tableId}, 数据数量: ${data?.length}`);
+
+        const instance = this.instances[tableId];
+        console.log(`[EditableTable.setData] 实例存在: ${!!instance}, 是否数组: ${Array.isArray(data)}`);
+
+        if (!instance) {
+            console.error(`[EditableTable.setData] 实例不存在: ${tableId}`);
+            console.log('[EditableTable.setData] 可用实例:', Object.keys(this.instances || {}));
+            return;
+        }
+        if (!Array.isArray(data)) {
+            console.error(`[EditableTable.setData] 数据不是数组:`, data);
+            return;
+        }
+
+        // 清空现有行
+        const tbody = document.getElementById(tableId + 'Body');
+        console.log(`[EditableTable.setData] tbody 元素: ${tableId}Body`, tbody ? '存在' : '不存在');
+        if (tbody) tbody.innerHTML = '';
+        instance.rows = [];
+        instance.rowCounter = 0;
+
+        console.log(`[EditableTable.setData] 列配置:`, instance.config.columns);
+
+        const self = this;
+
+        // 第一步：添加所有行，并建立 item_id → rowId 的映射
+        const itemIdToRowIdMap = new Map();
+
+        data.forEach(function(item, index) {
+            // 先添加行（不处理父子关系）
+            const rowId = self.addRow(tableId, null, item);
+
+            // 建立映射：用 item_id（数据库ID）映射到 rowId（前端行ID）
+            const itemId = String(item.item_id || item.id || index);
+            itemIdToRowIdMap.set(itemId, rowId);
+
+            // 在行上存储 item_id，用于后续查找
+            const row = document.getElementById(rowId);
+            if (row) {
+                row.dataset.itemId = itemId;
+            }
+        });
+
+        console.log(`[EditableTable.setData] 添加了 ${data.length} 行，映射表:`, itemIdToRowIdMap);
+
+        // 第二步：重建父子关系
+        this.rebuildConfigurationRelationships(tableId, data, itemIdToRowIdMap);
+
+        this.calculateGrandTotal(tableId);
+    };
+
+    // 重建配置产品的父子关系
+    window.EditableTable.rebuildConfigurationRelationships = function(tableId, dataArray, itemIdToRowIdMap) {
+        const instance = this.instances[tableId];
+        if (!instance) return;
+
+        console.log('[EditableTable] ========== 重建父子关系 ==========');
+
+        let successCount = 0;
+        const self = this;
+
+        dataArray.forEach(function(data, index) {
+            // 检查是否是配置产品（is_configuration 或 is_accessory 为 true，且有 parent_item_id）
+            const isConfig = data.is_configuration === true || data.is_configuration === 'true' ||
+                            data.is_accessory === true || data.is_accessory === 'true';
+
+            if (isConfig && data.parent_item_id) {
+                const parentItemIdStr = String(data.parent_item_id);
+                const parentRowId = itemIdToRowIdMap.get(parentItemIdStr);
+                const itemIdStr = String(data.item_id || data.id || index);
+                const currentRowId = itemIdToRowIdMap.get(itemIdStr);
+
+                console.log(`[EditableTable] 处理配置产品: "${data.product_name}"`);
+                console.log(`  - parent_item_id: ${data.parent_item_id} → parentRowId: ${parentRowId}`);
+
+                if (parentRowId && currentRowId) {
+                    const row = document.getElementById(currentRowId);
+                    const parentRow = document.getElementById(parentRowId);
+
+                    if (row && parentRow) {
+                        // 设置配置产品的 dataset 属性
+                        row.dataset.isConfiguration = 'true';
+                        row.dataset.parentRowId = parentRowId;
+                        row.dataset.configType = data.config_type || '';
+                        row.dataset.configBaseQuantity = data.config_base_quantity || 1;
+                        row.dataset.quantitySynced = data.quantity_synced !== false ? 'true' : 'false';
+                        row.classList.add('config-row');
+
+                        // 标记父产品有配置
+                        parentRow.dataset.hasConfigurations = 'true';
+
+                        // 更新行数据中的 parentRowId
+                        const rowData = instance.rows.find(r => r.rowId === currentRowId);
+                        if (rowData) {
+                            rowData.parentRowId = parentRowId;
+                        }
+
+                        // 移动行到父产品之后
+                        let insertAfter = parentRow;
+                        let sibling = parentRow.nextElementSibling;
+                        while (sibling && sibling.dataset.parentRowId === parentRowId) {
+                            insertAfter = sibling;
+                            sibling = sibling.nextElementSibling;
+                        }
+                        if (insertAfter !== row.previousElementSibling) {
+                            insertAfter.insertAdjacentElement('afterend', row);
+                        }
+
+                        // 添加波折图标
+                        self.addConfigLinkIcon(tableId, currentRowId);
+
+                        successCount++;
+                        console.log(`  ✅ 成功关联到父产品 ${parentRowId}`);
+                    }
+                } else {
+                    console.error(`  ❌ 找不到父产品映射！`);
+                }
+            }
+        });
+
+        console.log(`[EditableTable] 父子关系重建完成: 成功 ${successCount} 个`);
+    };
+
+    // 获取所有数据
+    window.EditableTable.getData = function(tableId) {
+        const instance = this.instances[tableId];
+        if (!instance) return [];
+
+        return instance.rows.map(r => ({
+            row_id: r.rowId,
+            parent_row_id: r.parentRowId,
+            ...r.data
+        }));
+    };
+
+    // 从产品选择器更新行数据
+    window.EditableTable.updateRowFromProduct = function(tableId, rowId, product) {
+        // 这是 onProductSelected 的别名，用于从外部产品选择器更新数据
+        this.onProductSelected(tableId, rowId, product);
+    };
+
+    // 触发总计更新事件
+    window.EditableTable.dispatchGrandTotalEvent = function(tableId) {
+        const grandTotal = this.calculateGrandTotal(tableId);
+        document.dispatchEvent(new CustomEvent('grandTotalUpdated', {
+            detail: {
+                tableId: tableId,
+                total: grandTotal,
+                formatted: this.formatNumber(grandTotal)
+            }
+        }));
+    };
+
+    // 设置只读模式（v1.1新增）
+    window.EditableTable.setReadonly = function(tableId, readonly) {
+        const instance = this.instances[tableId];
+        if (!instance) return;
+
+        instance.config.readonly = readonly;
+
+        // 更新所有输入框状态
+        const tbody = document.getElementById(tableId + 'Body');
+        if (!tbody) return;
+
+        const inputs = tbody.querySelectorAll('input.cell-input');
+        inputs.forEach(input => {
+            input.disabled = readonly;
+        });
+
+        // 更新删除按钮状态
+        const deleteButtons = tbody.querySelectorAll('.action-btn.delete');
+        deleteButtons.forEach(btn => {
+            btn.style.display = readonly ? 'none' : '';
+        });
+
+        // 更新添加按钮状态（如果存在）
+        const addBtn = document.querySelector(`[data-table-id="${tableId}"].add-row-btn`);
+        if (addBtn) {
+            addBtn.style.display = readonly ? 'none' : '';
+        }
+    };
+
+    // 获取行的数据库ID（v1.1新增 - 用于实时保存模式）
+    window.EditableTable.getRowDetailId = function(tableId, rowId) {
+        const row = document.getElementById(rowId);
+        if (!row) return null;
+        return row.dataset.itemId || null;
+    };
+
+    // 根据数据库ID获取行ID（v1.1新增）
+    window.EditableTable.getRowIdByDetailId = function(tableId, detailId) {
+        const instance = this.instances[tableId];
+        if (!instance) return null;
+
+        const tbody = document.getElementById(tableId + 'Body');
+        if (!tbody) return null;
+
+        const row = tbody.querySelector(`tr[data-item-id="${detailId}"]`);
+        return row ? row.id : null;
+    };
+
+    // 更新行数据（v1.1新增 - 从后端响应更新）
+    window.EditableTable.updateRowData = function(tableId, rowId, newData) {
+        const instance = this.instances[tableId];
+        if (!instance) return;
+
+        const rowData = instance.rows.find(r => r.rowId === rowId);
+        if (rowData) {
+            Object.assign(rowData.data, newData);
+        }
+
+        // 更新显示
+        const row = document.getElementById(rowId);
+        if (!row) return;
+
+        for (const [key, value] of Object.entries(newData)) {
+            const input = row.querySelector(`input[data-col-key="${key}"]`);
+            if (input) {
+                const col = instance.config.columns.find(c => c.key === key);
+                input.value = col && (col.type === 'currency' || col.type === 'number')
+                    ? (col.type === 'currency' ? this.formatNumber(value) : value)
+                    : value;
+            }
+            const span = row.querySelector(`span[data-col-key="${key}"]`);
+            if (span) {
+                const col = instance.config.columns.find(c => c.key === key);
+                span.textContent = col && col.type === 'currency' ? this.formatNumber(value) : value;
+            }
+        }
+    };
+
+    // 工具函数：格式化数字
+    window.EditableTable.formatNumber = function(value, decimals = 2) {
+        const num = parseFloat(value) || 0;
+        return num.toLocaleString('zh-CN', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals
+        });
+    };
+
+    // 工具函数：解析数字
+    window.EditableTable.parseNumber = function(value) {
+        if (typeof value === 'number') return value;
+        if (!value) return 0;
+        return parseFloat(String(value).replace(/,/g, '')) || 0;
+    };
+
+    // 产品描述悬浮提示（全局只初始化一次）
+    if (!window.EditableTable._descTooltipInitialized) {
+        window.EditableTable._descTooltipInitialized = true;
+        let tooltip = null;
+
+        function getTooltip() {
+            if (!tooltip) {
+                tooltip = document.createElement('div');
+                tooltip.className = 'product-desc-tooltip';
+                tooltip.style.display = 'none';
+                document.body.appendChild(tooltip);
+            }
+            return tooltip;
+        }
+
+        function showDescTooltip(cell) {
+            const span = cell.querySelector('.cell-readonly');
+            if (!span) return;
+            const text = span.textContent;
+            if (!text || text === '-' || text.length < 25) return;
+
+            const tip = getTooltip();
+            tip.textContent = text;
+            tip.style.display = 'block';
+
+            const rect = cell.getBoundingClientRect();
+            let top = rect.bottom + 8;
+            let left = rect.left;
+
+            // 先显示以获取尺寸
+            tip.style.top = '0px';
+            tip.style.left = '0px';
+            const tipRect = tip.getBoundingClientRect();
+
+            // 超出底部则显示在上方
+            if (top + tipRect.height > window.innerHeight - 20) {
+                top = rect.top - tipRect.height - 8;
+            }
+            // 超出右侧则左移
+            if (left + tipRect.width > window.innerWidth - 20) {
+                left = window.innerWidth - tipRect.width - 20;
+            }
+
+            tip.style.top = top + 'px';
+            tip.style.left = Math.max(10, left) + 'px';
+        }
+
+        function hideDescTooltip() {
+            if (tooltip) tooltip.style.display = 'none';
+        }
+
+        // 使用事件委托监听
+        document.addEventListener('mouseover', function(e) {
+            const cell = e.target.closest('.editable-table td[data-col-key="product_desc"]');
+            if (cell) showDescTooltip(cell);
+        });
+        document.addEventListener('mouseout', function(e) {
+            const cell = e.target.closest('.editable-table td[data-col-key="product_desc"]');
+            if (cell) hideDescTooltip();
+        });
+    }
+
+    // 初始化：添加一个空行
+    document.addEventListener('DOMContentLoaded', function() {
+        const instance = window.EditableTable.instances['{{ table_id }}'];
+        if (instance && document.getElementById('{{ table_id }}Body')) {
+            // 如果有初始数据，加载数据；否则添加一个空行
+            const initialData = {{ config.initial_data | default([]) | tojson | safe }};
+            if (initialData && initialData.length > 0) {
+                window.EditableTable.setData('{{ table_id }}', initialData);
+            } else {
+                window.EditableTable.addRow('{{ table_id }}');
+            }
+        }
+    });
+})();
+</script>
+{% endmacro %}

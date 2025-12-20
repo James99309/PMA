@@ -2,11 +2,28 @@
 {% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel, render_confirm_dialog, render_top_notification, render_detail_list %}
 {% from 'macros/gantt_chart.html' import render_gantt_chart %}
 {% from 'macros/approval_flow.html' import render_complete_approval_section %}
+{% from 'components/product/tw_product_modal.html' import render_product_modal, render_product_modal_script with context %}
 
 {% block title %}{{ _('研发产品详情') }} - {{ dev_product.name }}{% endblock %}
 
 {% block head %}
 {{ super() }}
+<!-- Tailwind CSS（用于产品编辑模态框） -->
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<script>
+    tailwind.config = {
+        darkMode: 'class',
+        theme: {
+            extend: {
+                colors: {
+                    primary: '#0d6efd'
+                }
+            }
+        }
+    }
+</script>
+<!-- Material Symbols（用于产品编辑模态框图标） -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 <!-- 引入甘特图组件样式 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/gantt-chart.css') }}">
 <!-- 引入审批流程组件样式 -->
@@ -108,7 +125,7 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h2>{{ _('研发产品详情') }}</h2>
                 <div>
-                    {{ render_button(_('返回列表'), url_for('product_management.index'), color='secondary', icon='fas fa-arrow-left') }}
+                    {{ render_button(_('返回列表'), url_for('rd_product.index'), color='secondary', icon='fas fa-arrow-left') }}
 
                     {# 发起入库审批按钮 - 允许从任何阶段提交 #}
                     {% if not approval_instance and not warehoused_product and available_templates %}
@@ -121,7 +138,7 @@
                     {% endif %}
 
                     {% if can_edit_button %}
-                    {{ render_button(_('编辑产品'), href=url_for('product_management.edit_product', id=dev_product.id), color='warning', icon='fas fa-edit') }}
+                    {{ render_button(_('编辑产品'), color='warning', icon='fas fa-edit', type='button', onclick='ProductModal.openEdit(' ~ dev_product.id ~ ')') }}
                     {% endif %}
 
                     {% if can_delete_button %}
@@ -145,7 +162,7 @@
                         stage_history=dev_product.get_stage_history(),
                         can_edit=((current_user.role == 'admin') or (current_user.id == dev_product.created_by)),
                         api_endpoints={
-                            'updateStage': url_for("product_management.update_rd_product_stage", product_id=dev_product.id)
+                            'updateStage': url_for("rd_product.update_rd_product_stage", product_id=dev_product.id)
                         },
                         options={
                             'height': 'auto',
@@ -167,7 +184,7 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <h2>{{ dev_product.name }}</h2>
                         <div>
-                            {% set pdf_export_url = url_for('product_management.export_detail_pdf', id=dev_product.id) %}
+                            {% set pdf_export_url = url_for('rd_product.export_detail_pdf', id=dev_product.id) %}
                             <a href="{{ pdf_export_url }}" target="_blank" style="text-decoration: none;">
                                 {{ render_button('导出PDF',
                                                type='button',
@@ -377,7 +394,7 @@
             <div class="alert alert-success">
                 <i class="fas fa-check-circle me-2"></i>
                 <strong>该研发产品已成功入库！</strong>
-                <a href="{{ url_for('product_route.view_product_detail', id=warehoused_product.id) }}" class="alert-link">
+                <a href="{{ url_for('product.view_product_detail', id=warehoused_product.id) }}" class="alert-link">
                     查看产品库记录 <i class="fas fa-external-link-alt ms-1"></i>
                 </a>
             </div>
@@ -452,7 +469,7 @@
             </div>
             <div class="modal-footer">
                 {{ render_button('取消', '#', color='secondary', attrs='type="button" data-bs-dismiss="modal"') }}
-                <form id="deleteForm" action="{{ url_for('product_management.delete_product', id=dev_product.id) }}" method="post">
+                <form id="deleteForm" action="{{ url_for('rd_product.delete_product', id=dev_product.id) }}" method="post">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <!-- 二次确认标记（通过JavaScript动态添加） -->
                     <input type="hidden" id="confirmHighRiskInput" name="confirm_high_risk" value="">
@@ -743,5 +760,9 @@ function submitApproval(templateId) {
     });
 }
 </script>
+
+{# 产品编辑模态框 #}
+{{ render_product_modal() }}
+{{ render_product_modal_script(modal_categories, modal_regions, csrf_token(), modal_currencies) }}
 
 {% endblock %}

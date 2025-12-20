@@ -114,9 +114,46 @@ class ProductSelector {
 
     /**
      * 打开产品配置模态框
+     * 优先使用新版 ProductSpecModal（Tailwind 风格三步流程）
+     * 如果不可用，回退到旧版 ProductConfigModal
      */
     openProductConfigModal(config) {
-        // 如果模态框未初始化，尝试重新初始化（延迟初始化机制）
+        // 优先尝试使用新版 ProductSpecModal (tw_product_spec_modal.html)
+        if (typeof ProductSpecModal !== 'undefined') {
+            console.log('🎨 Using new ProductSpecModal (Tailwind version)');
+            const self = this;
+            ProductSpecModal.open({
+                products: config.products || [],
+                category: config.category || '',
+                subcategory: config.subcategory || '',
+                model: config.model || '',
+                onConfirm: function(result) {
+                    console.log('✅ ProductSpecModal confirmed:', result);
+                    // 将选择结果传递给原有的 onSelect 回调
+                    if (self.config.onSelect && self.currentInput && result.product) {
+                        const selectedProduct = {
+                            product_name: result.product.product_name || result.product.name,
+                            product_model: result.product.model || result.product.product_model,
+                            product_desc: result.product.specification || result.product.product_spec || '',
+                            product_spec: result.product.specification || result.product.product_spec || '',
+                            brand: result.product.brand || '',
+                            unit: result.product.unit || '个',
+                            market_price: result.product.retail_price || result.product.market_price || 0,
+                            product_mn: result.product.product_mn || '',
+                            currency: result.product.currency || 'CNY',
+                            status: result.product.status || 'active',
+                            configurations: result.configurations || []
+                        };
+                        self.config.onSelect(selectedProduct, self.currentInput);
+                    }
+                    self.hideMenu();
+                }
+            });
+            return;
+        }
+
+        // 回退到旧版 ProductConfigModal
+        console.log('📦 Falling back to old ProductConfigModal');
         if (!this.configModal) {
             console.log('🔄 Attempting lazy initialization of ProductConfigModal...');
             this.initConfigModal();
@@ -141,281 +178,388 @@ class ProductSelector {
         const style = document.createElement('style');
         style.id = 'product-selector-styles';
         style.textContent = `
+            /* 产品选择器容器 - 参考新UI */
             .product-menu-container {
                 position: absolute;
                 background: white;
-                border: 1px solid #ddd;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                border: none;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.15);
                 z-index: 9999;
-                display: flex;
-                border-radius: 6px;
+                display: grid;
+                grid-template-columns: 200px 240px 1fr;
+                border-radius: 0.5rem;
                 overflow: hidden;
                 min-width: 800px;
                 max-width: 1000px;
             }
-            
+            .dark .product-menu-container {
+                background: #1e293b;
+            }
+
+            /* 列表通用样式 */
             .menu-list {
-                border-right: 1px solid #eee;
-                max-height: 400px;
+                border-right: 1px solid #e2e8f0;
+                max-height: 70vh;
                 overflow-y: auto;
                 overflow-x: hidden;
-                background: #fafafa;
+                background: white;
+                padding: 0.5rem;
             }
-            
+            .dark .menu-list {
+                border-right-color: #334155;
+                background: #1e293b;
+            }
+
             .menu-list:last-child {
                 border-right: none;
             }
-            
+
             .category-list {
-                width: 180px;
+                width: 200px;
             }
-            
+
             .product-list {
-                width: 220px;
+                width: 240px;
                 display: none;
             }
-            
+
             .model-list {
-                width: 400px;
+                width: auto;
+                min-width: 320px;
                 display: none;
+                padding: 0;
+                background: #f8fafc;
             }
-            
-            /* 已移除第四级菜单 spec-list */
-            
-            /* 手动输入选项样式 */
-            .manual-input-option {
-                background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-                color: white !important;
-                border: 2px solid #20c997;
-                margin-top: 8px;
-                font-weight: 600;
+            .dark .model-list {
+                background: #0f172a;
             }
-            
-            .manual-input-option:hover {
-                background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%) !important;
-                transform: translateY(-2px);
-                box-shadow: 0 4px 12px rgba(32, 201, 151, 0.4);
-            }
-            
-            .manual-input-option .product-model {
-                color: white !important;
-                font-size: 15px;
-            }
-            
-            .manual-input-option .product-spec {
-                color: rgba(255, 255, 255, 0.9) !important;
-                font-style: italic;
-            }
-            
-            .manual-input-option::after {
-                content: "✏️";
-                font-size: 14px;
-                color: white !important;
-            }
-            
+
+            /* 菜单项样式 - 参考新UI */
             .menu-item {
-                padding: 10px 15px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0.75rem;
                 cursor: pointer;
-                border-bottom: 1px solid #f0f0f0;
-                position: relative;
+                border-radius: 0.375rem;
+                font-size: 0.875rem;
+                font-weight: 500;
+                color: #1e293b;
+                transition: all 0.15s ease;
+                margin-bottom: 2px;
+            }
+            .dark .menu-item {
+                color: #e2e8f0;
+                border-bottom: none !important;
+            }
+
+            .menu-item:hover {
+                background-color: #f1f5f9;
+            }
+            .dark .menu-item:hover {
+                background-color: #334155;
+            }
+
+            .menu-item.active {
+                background-color: #2563eb;
+                color: white;
+            }
+
+            /* 箭头图标样式 */
+            .menu-item .menu-arrow {
+                font-size: 1.25rem;
+                color: #94a3b8;
+                flex-shrink: 0;
+                margin-left: 0.5rem;
+            }
+            .menu-item:hover .menu-arrow {
+                color: #64748b;
+            }
+            .dark .menu-item .menu-arrow {
+                color: #64748b;
+            }
+            .dark .menu-item:hover .menu-arrow {
+                color: #94a3b8;
+            }
+            .menu-item.active .menu-arrow {
+                color: white;
+            }
+
+            /* 类别项带图标 */
+            .menu-item .category-icon {
+                margin-right: 0.75rem;
+                font-size: 1.25rem;
+                color: #64748b;
+                flex-shrink: 0;
+            }
+            .menu-item:hover .category-icon {
+                color: #475569;
+            }
+            .dark .menu-item:hover .category-icon {
+                color: #94a3b8;
+            }
+            .menu-item.active .category-icon {
+                color: white;
+            }
+            .menu-item .category-name {
+                flex: 1;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
-                font-size: 13px;
-                transition: all 0.2s ease;
-                display: flex;
-                align-items: center;
             }
-            
-            .menu-item:last-child {
-                border-bottom: none;
+
+            /* 产品项样式 - 带计数 */
+            .menu-item .product-info {
+                flex: 1;
+                min-width: 0;
             }
-            
-            .menu-item:hover {
-                background-color: #e3f2fd;
-                color: #1976d2;
-                transition: all 0.15s ease-in-out;
+            .menu-item .product-title {
+                font-weight: 600;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
-            
-            .menu-item.hover-expanding {
-                background-color: #1976d2;
-                color: white;
-                transform: scale(1.02);
+            .menu-item .product-count {
+                font-size: 0.75rem;
+                font-weight: 400;
+                color: #64748b;
+                margin-top: 2px;
             }
-            
-            .menu-item.active {
-                background-color: #2196f3;
-                color: white;
+            .menu-item.active .product-count {
+                color: rgba(255,255,255,0.8);
             }
-            
-            .menu-item:after {
-                content: "▶";
-                position: absolute;
-                right: 12px;
-                font-size: 10px;
-                color: #999;
-                transition: color 0.2s ease;
+
+            /* 手动输入选项样式 */
+            .manual-input-option {
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                color: white !important;
+                margin-top: 0.5rem;
             }
-            
-            .menu-item:hover:after,
-            .menu-item.active:after {
-                color: inherit;
+            .manual-input-option:hover {
+                background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
             }
-            
-            .menu-item.no-arrow:after {
-                content: "";
+            .manual-input-option:after {
+                content: "edit" !important;
+                font-family: 'Material Icons' !important;
+                color: white !important;
             }
-            
-            .menu-item.selectable:after {
-                content: "✓";
-                font-size: 12px;
-                color: #4caf50;
-            }
-            
+
+            /* 加载/错误/空状态 */
             .menu-loading {
-                padding: 15px;
-                color: #888;
-                font-style: italic;
+                padding: 1.5rem;
+                color: #64748b;
                 text-align: center;
-                font-size: 12px;
+                font-size: 0.875rem;
             }
-            
             .menu-error {
-                padding: 15px;
-                color: #f44336;
-                font-size: 12px;
+                padding: 1.5rem;
+                color: #ef4444;
+                font-size: 0.875rem;
                 text-align: center;
             }
-            
             .menu-empty {
-                padding: 15px;
-                color: #999;
-                font-size: 12px;
+                padding: 1.5rem;
+                color: #94a3b8;
+                font-size: 0.875rem;
                 text-align: center;
             }
-            
+
+            /* 搜索框 */
             .menu-search {
-                padding: 10px;
-                border-bottom: 1px solid #eee;
+                padding: 0.75rem;
+                border-bottom: 1px solid #e2e8f0;
                 background: white;
             }
-            
+            .dark .menu-search {
+                border-bottom-color: #334155;
+                background: #1e293b;
+            }
             .menu-search input {
                 width: 100%;
-                padding: 6px 10px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                font-size: 12px;
+                padding: 0.5rem 0.75rem;
+                border: 1px solid #e2e8f0;
+                border-radius: 0.375rem;
+                font-size: 0.875rem;
+                background: #f8fafc;
             }
-            
+            .dark .menu-search input {
+                border-color: #334155;
+                background: #0f172a;
+                color: #e2e8f0;
+            }
             .menu-search input:focus {
                 outline: none;
-                border-color: #2196f3;
-                box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+                border-color: #2563eb;
+                box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
             }
-            
+
             .product-info {
                 flex: 1;
                 overflow: hidden;
             }
-            
+
             .product-name {
                 font-weight: 500;
                 margin-bottom: 2px;
             }
-            
+
             .product-details {
                 font-size: 11px;
                 color: #666;
                 line-height: 1.3;
             }
             
-            .product-price {
-                font-weight: 500;
-                color: #f57c00;
-                margin-top: 2px;
-            }
-            
-            /* 产品详情项样式 */
+            /* 产品详情项样式 - 第三列 */
             .product-detail-item {
-                white-space: normal !important;
-                overflow: visible !important;
-                text-overflow: initial !important;
-                padding: 12px 15px !important;
-                line-height: 1.4;
-            }
-            
-            .product-detail-info {
-                width: 100%;
-            }
-            
-            .product-line-1 {
-                margin-bottom: 6px;
-            }
-            
-            .product-model {
-                font-size: 14px;
-                font-weight: 600;
-                color: #1976d2;
-            }
-            
-            .product-line-2 {
-                margin-bottom: 6px;
-                min-height: 20px;
-            }
-            
-            .product-spec {
-                font-size: 12px;
-                color: #555;
-                line-height: 1.4;
-                word-wrap: break-word;
-                word-break: break-all;
-            }
-            
-            .product-line-3 {
-                display: flex;
-                align-items: center;
+                display: flex !important;
                 justify-content: space-between;
-                flex-wrap: wrap;
-                gap: 8px;
-                font-size: 11px;
+                align-items: flex-start;
+                padding: 1rem !important;
+                border-bottom: 1px solid #e2e8f0;
+                border-radius: 0 !important;
+                margin-bottom: 0 !important;
+                cursor: pointer;
+                transition: background-color 0.15s;
             }
-            
-            .product-mn,
-            .product-brand {
-                color: #666;
-                background: #f5f5f5;
-                padding: 2px 6px;
-                border-radius: 3px;
-                white-space: nowrap;
+            .dark .product-detail-item {
+                border-bottom: none;
             }
-            
-            .product-price {
-                font-weight: bold;
-                color: #333;
-                font-size: 13px;
+            .product-detail-item:last-child {
+                border-bottom: none;
             }
-            
-            .product-price-discontinued {
-                font-weight: 600;
-                color: #999999 !important;
-                font-size: 12px;
-                background: #f5f5f5 !important;
-                padding: 3px 8px;
-                border-radius: 4px;
-                border: 1px solid #cccccc !important;
-                text-decoration: line-through;
-                opacity: 0.7;
-            }
-            
             .product-detail-item:hover {
-                background-color: #e8f4f8 !important;
-                transform: translateY(-1px);
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                background-color: #f1f5f9 !important;
             }
-            
+            .dark .product-detail-item:hover {
+                background-color: #334155 !important;
+            }
             .product-detail-item:after {
                 display: none !important;
+            }
+
+            .product-detail-info {
+                flex: 1;
+                min-width: 0;
+                padding-right: 1rem;
+            }
+
+            .product-detail-info h3,
+            .product-detail-info .product-name-title {
+                font-size: 0.875rem;
+                font-weight: 600;
+                color: #0f172a;
+                margin-bottom: 0.25rem;
+            }
+            .dark .product-detail-info h3,
+            .dark .product-detail-info .product-name-title {
+                color: #f1f5f9;
+            }
+
+            .product-line-1 {
+                margin-bottom: 0.25rem;
+            }
+
+            .product-model {
+                font-size: 0.875rem;
+                font-weight: 500;
+                color: #64748b;
+            }
+            .dark .product-model {
+                color: #94a3b8;
+            }
+
+            .product-line-2 {
+                margin-top: 0.5rem;
+            }
+
+            .product-spec {
+                font-size: 0.75rem;
+                color: #64748b;
+                line-height: 1.4;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+            }
+            .dark .product-spec {
+                color: #94a3b8;
+            }
+
+            .product-line-3 {
+                display: none;
+            }
+
+            /* 价格区域 */
+            .product-price-area {
+                flex-shrink: 0;
+                text-align: right;
+                display: flex;
+                flex-direction: column;
+                align-items: flex-end;
+                gap: 0.25rem;
+            }
+
+            .product-price {
+                font-weight: 600;
+                color: #2563eb;
+                font-size: 0.875rem;
+                white-space: nowrap;
+            }
+            .dark .product-price {
+                color: #60a5fa;
+            }
+
+            .product-price.discontinued {
+                font-weight: 500;
+                color: #94a3b8 !important;
+                text-decoration: line-through;
+            }
+
+            .product-status-badge {
+                font-size: 0.625rem;
+                padding: 0.125rem 0.375rem;
+                border-radius: 0.25rem;
+                font-weight: 500;
+            }
+            .product-status-badge.discontinued {
+                background-color: #fef2f2;
+                color: #dc2626;
+            }
+            .dark .product-status-badge.discontinued {
+                background-color: rgba(220, 38, 38, 0.2);
+                color: #f87171;
+            }
+
+            /* 展开箭头和提示 */
+            .expand-hint {
+                color: #64748b !important;
+                font-style: normal;
+                font-weight: 400 !important;
+                font-size: 0.75rem;
+            }
+            .dark .expand-hint {
+                color: #94a3b8 !important;
+            }
+
+            .expand-arrow {
+                font-size: 1.25rem;
+                color: #94a3b8;
+            }
+            .product-detail-item:hover .expand-arrow {
+                color: #64748b;
+            }
+            .dark .product-detail-item:hover .expand-arrow {
+                color: #e2e8f0;
+            }
+
+            /* 多规格提示 */
+            .product-variants-hint {
+                font-size: 0.75rem;
+                color: #64748b;
+                margin-top: 0.25rem;
+            }
+            .dark .product-variants-hint {
+                color: #94a3b8;
             }
             
             /* 滚动条样式 */
@@ -471,8 +615,9 @@ class ProductSelector {
     bindGlobalEvents() {
         // 点击外部关闭菜单
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.product-menu-container') && 
-                !e.target.classList.contains('product-name')) {
+            if (!e.target.closest('.product-menu-container') &&
+                !e.target.classList.contains('product-name') &&
+                !e.target.closest('.product-selector-trigger')) {
                 this.closeAllMenus();
             }
         });
@@ -673,10 +818,28 @@ class ProductSelector {
                 return;
             }
             
+            // 类别图标映射
+            const categoryIcons = {
+                '基站': 'cell_tower',
+                '合路平台': 'hub',
+                '直放站': 'broadcast_on_personal',
+                '功率/耦合器': 'power',
+                '对讲机': 'perm_phone_msg',
+                '配件': 'extension',
+                '天线': 'settings_input_antenna',
+                '应用': 'apps',
+                '服务': 'support_agent'
+            };
+
             categories.forEach(category => {
                 const item = document.createElement('div');
                 item.className = 'menu-item';
-                item.textContent = category;
+                const icon = categoryIcons[category] || 'category';
+                item.innerHTML = `
+                    <span class="material-symbols-outlined category-icon">${icon}</span>
+                    <span class="category-name">${category}</span>
+                    <span class="material-symbols-outlined menu-arrow">chevron_right</span>
+                `;
                 item.dataset.category = category;
                 
                 // 添加鼠标悬停和点击事件
@@ -805,9 +968,10 @@ class ProductSelector {
                 item.className = 'menu-item';
                 item.innerHTML = `
                     <div class="product-info">
-                        <div class="product-name">${subcategory.name}</div>
-                        <div class="product-details">${subcategory.count} 个产品</div>
+                        <div class="product-title">${subcategory.name}</div>
+                        <div class="product-count">${subcategory.count} 个产品</div>
                     </div>
+                    <span class="material-symbols-outlined menu-arrow">chevron_right</span>
                 `;
                 item.dataset.subcategory = subcategory.name;
                 item.dataset.category = category;
@@ -909,27 +1073,25 @@ class ProductSelector {
             // 显示型号列表（去重后的）
             modelGroups.forEach(modelGroup => {
                 const item = document.createElement('div');
-                item.className = 'menu-item';
+                item.className = 'menu-item product-detail-item';
 
                 // 根据产品数量决定显示内容
                 let contentHtml = '';
                 if (modelGroup.count === 1) {
-                    // 只有1个产品：显示型号、价格和产品描述，添加 no-arrow 类
+                    // 只有1个产品：显示型号、规格和价格
                     const product = modelGroup.products[0];
                     const price = product.retail_price ? parseFloat(product.retail_price) : null;
                     const priceText = price ? this.formatPriceWithCurrency(price, product.currency) : '价格面议';
                     const isDiscontinued = product.status === 'discontinued' || product.status === '停产';
-                    const priceClass = isDiscontinued ? 'product-price-discontinued' : 'product-price';
+                    const priceClass = isDiscontinued ? 'product-price discontinued' : 'product-price';
 
                     // 添加 no-arrow 类隐藏箭头
                     item.classList.add('no-arrow');
 
                     // ⭐ 用 JSON 快照计算差异字段，然后高亮原始 specification 字符串
-                    // 这样既能准确检测差异，又能保留完整的规格信息（如尺寸）
                     const diffPositions = diffPositionsMap.get(product.id);
                     let specHtml = product.specification || '';
                     if (diffPositions && diffPositions.length > 0 && window.SpecAnalyzer && specHtml) {
-                        // 从快照差异中提取有差异的字段名
                         const diffKeys = new Set(diffPositions.filter(d => d.isDiff).map(d => d.fieldName));
                         if (diffKeys.size > 0) {
                             specHtml = window.SpecAnalyzer.highlightSpecString(specHtml, diffKeys);
@@ -937,22 +1099,30 @@ class ProductSelector {
                     }
 
                     contentHtml = `
-                        <div class="product-info">
-                            <div class="product-name" style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-weight: bold;">${modelGroup.product_name || product.product_name || ''}</span>
-                                <span class="${priceClass}" style="font-weight: bold; color: #2196f3;">${priceText}${isDiscontinued ? ' (停产)' : ''}</span>
+                        <div class="product-detail-info">
+                            <div class="product-line-1">
+                                <h3 class="product-name-title">${modelGroup.product_name || product.product_name || ''}</h3>
                             </div>
-                            ${product.model ? `<div class="product-model" style="font-size: 0.85em; color: #666;">${product.model}</div>` : ''}
-                            ${specHtml ? `<div class="product-details">${specHtml}</div>` : ''}
+                            ${product.model ? `<div class="product-model">${product.model}</div>` : ''}
+                            ${specHtml ? `<div class="product-line-2"><div class="product-spec">${specHtml}</div></div>` : ''}
+                        </div>
+                        <div class="product-price-area">
+                            <span class="${priceClass}">${priceText}</span>
+                            ${isDiscontinued ? '<span class="product-status-badge discontinued">停产</span>' : ''}
                         </div>
                     `;
                 } else {
-                    // 多个产品：不显示价格，显示"点击选择"提示，保留箭头
+                    // 多个产品：显示"点击选择"提示
                     const firstProduct = modelGroup.products[0];
                     contentHtml = `
-                        <div class="product-info">
-                            <div class="product-name" style="font-weight: bold;">${modelGroup.product_name || firstProduct.product_name || ''}</div>
-                            <div class="product-details" style="color: #6c757d; font-style: italic;">点击选择 (${modelGroup.count} 个型号/规格)</div>
+                        <div class="product-detail-info">
+                            <div class="product-line-1">
+                                <h3 class="product-name-title">${modelGroup.product_name || firstProduct.product_name || ''}</h3>
+                            </div>
+                            <div class="product-count">点击选择 (${modelGroup.count} 个型号/规格)</div>
+                        </div>
+                        <div class="product-price-area">
+                            <span class="material-symbols-outlined expand-arrow">chevron_right</span>
                         </div>
                     `;
                 }
@@ -1009,7 +1179,20 @@ class ProductSelector {
                 // 无配置 → 直接选择
                 console.log('产品组下只有1个产品且无配置，直接选择:', product);
                 if (this.config.onSelect && this.currentInput) {
-                    this.config.onSelect(product, this.currentInput);
+                    // 构造完整的产品信息对象 - 统一字段映射
+                    const selectedProduct = {
+                        product_name: modelGroup.product_name || product.product_name || product.name,
+                        product_model: product.model || product.product_model || modelGroup.model,
+                        product_desc: product.specification || product.product_spec || product.product_desc || product.spec || '',
+                        product_spec: product.specification || product.product_spec || product.product_desc || product.spec || '',
+                        brand: product.brand || '',
+                        unit: product.unit || '个',
+                        market_price: product.retail_price || product.market_price || 0,
+                        product_mn: product.product_mn || product.mn || '',
+                        currency: product.currency || 'CNY',
+                        status: product.status || 'active'
+                    };
+                    this.config.onSelect(selectedProduct, this.currentInput);
                 }
             }
         } else {
@@ -1084,37 +1267,33 @@ class ProductSelector {
                 regularProducts.forEach(product => {
                 const item = document.createElement('div');
                 item.className = 'menu-item product-detail-item no-arrow';
-                
+
                 // 格式化价格显示，停产产品使用灰色
                 const marketPrice = product.retail_price || product.market_price;
                 // 更全面地检测停产状态
-                const isDiscontinued = product.status === 'discontinued' || 
-                                     product.status === '停产' || 
+                const isDiscontinued = product.status === 'discontinued' ||
+                                     product.status === '停产' ||
                                      product.status === 'inactive' ||
                                      product.product_status === 'discontinued' ||
                                      product.product_status === '停产' ||
                                      (product.status && product.status.toLowerCase().includes('discontin'));
                 const priceText = marketPrice ? this.formatPriceWithCurrency(marketPrice, product.currency) : '价格面议';
-                const priceClass = isDiscontinued ? 'product-price-discontinued' : 'product-price';
+                const priceClass = isDiscontinued ? 'product-price discontinued' : 'product-price';
 
-                // 处理长规格文本，超过30字符换行 - 修复字段映射
+                // 处理规格文本
                 const specText = product.specification || product.product_spec || product.product_desc || product.spec || '';
-                const formattedSpec = specText.length > 30 ?
-                    specText.replace(/(.{30})/g, '$1<br>') : specText;
 
                 item.innerHTML = `
                     <div class="product-detail-info">
-                        <div class="product-line-1" style="display: flex; justify-content: space-between; align-items: center;">
-                            <strong class="product-model">${product.model || product.product_model || '未知型号'}</strong>
-                            <span class="${priceClass}" style="font-weight: bold;">${priceText}${isDiscontinued ? ' (停产)' : ''}</span>
+                        <div class="product-line-1">
+                            <h3 class="product-name-title">${productName}</h3>
                         </div>
-                        <div class="product-line-2">
-                            <span class="product-spec">${formattedSpec || '无规格说明'}</span>
-                        </div>
-                        <div class="product-line-3">
-                            <span class="product-mn">MN: ${product.product_mn || product.mn || '无'}</span>
-                            <span class="product-brand">品牌: ${product.brand || '未知'}</span>
-                        </div>
+                        <div class="product-model">${product.model || product.product_model || '未知型号'}</div>
+                        ${specText ? `<div class="product-line-2"><div class="product-spec">${specText}</div></div>` : ''}
+                    </div>
+                    <div class="product-price-area">
+                        <span class="${priceClass}">${priceText}</span>
+                        ${isDiscontinued ? '<span class="product-status-badge discontinued">停产</span>' : ''}
                     </div>
                 `;
                 

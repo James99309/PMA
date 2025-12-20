@@ -62,25 +62,30 @@ def api_companies_for_pricing(company_type):
 def check_pricing_edit_permission(pricing_order, current_user):
     """
     检查批价单编辑权限，支持审批上下文
-    
+
     Returns:
-        tuple: (can_edit_pricing, can_edit_settlement, is_approval_context, 
+        tuple: (can_edit_pricing, can_edit_settlement, is_approval_context,
                 can_edit_quantity, can_edit_discount_price, can_edit_basic_info)
     """
     # 检查是否在审批上下文中
     is_approval_context = False
-    current_approval_record = None
-    
+
     if pricing_order.status == 'pending':
-        current_approval_record = PricingOrderApprovalRecord.query.filter_by(
-            pricing_order_id=pricing_order.id,
-            step_order=pricing_order.current_approval_step,
-            approver_id=current_user.id
-        ).first()
-        
-        if current_approval_record:
+        # 方式1: 检查通用审批系统（优先，支持分支流程等复杂场景）
+        from app.helpers.approval_helpers import is_current_approver
+        if is_current_approver('pricing_order', pricing_order.id, current_user.id):
             is_approval_context = True
-    
+        else:
+            # 方式2: 回退检查旧的 PricingOrderApprovalRecord（兼容历史数据）
+            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
+                pricing_order_id=pricing_order.id,
+                step_order=pricing_order.current_approval_step,
+                approver_id=current_user.id
+            ).first()
+
+            if current_approval_record:
+                is_approval_context = True
+
     # 根据上下文选择权限检查方式
     can_edit_pricing = PricingOrderService.can_edit_pricing_details(
         pricing_order, current_user, is_approval_context=is_approval_context
@@ -171,6 +176,7 @@ def start_pricing_process(project_id):
         if existing_pending_order:
             return jsonify({
                 'success': True,
+                'pricing_order_id': existing_pending_order.id,
                 'message': f'该报价单已有未完成的批价单 {existing_pending_order.order_number}，将跳转到该批价单',
                 'redirect_url': url_for('pricing_order.edit_pricing_order', order_id=existing_pending_order.id)
             })
@@ -204,9 +210,10 @@ def start_pricing_process(project_id):
                 'success': False,
                 'message': error
             })
-        
+
         return jsonify({
             'success': True,
+            'pricing_order_id': pricing_order.id,
             'redirect_url': url_for('pricing_order.edit_pricing_order', order_id=pricing_order.id)
         })
         
@@ -457,10 +464,26 @@ def update_pricing_detail(order_id):
         
         # 重新获取更新后的数据
         pricing_order = PricingOrder.query.get(order_id)
-        
+
         # 获取更新后的明细数据
         updated_detail = PricingOrderDetail.query.get(detail_id)
-        
+
+        # 构建结算单明细数据
+        settlement_details_data = []
+        for sd in pricing_order.settlement_details:
+            settlement_details_data.append({
+                'id': sd.id,
+                'product_name': sd.product_name,
+                'product_model': sd.product_model,
+                'product_desc': sd.product_desc,
+                'brand': sd.brand,
+                'market_price': sd.market_price,
+                'discount_rate': sd.discount_rate,
+                'unit_price': sd.unit_price,
+                'quantity': sd.quantity,
+                'total_price': sd.total_price
+            })
+
         return jsonify({
             'success': True,
             'message': '明细更新成功',
@@ -473,7 +496,8 @@ def update_pricing_detail(order_id):
                 'discount_rate': updated_detail.discount_rate,
                 'unit_price': updated_detail.unit_price,
                 'total_price': updated_detail.total_price
-            } if updated_detail else None
+            } if updated_detail else None,
+            'settlement_details': settlement_details_data
         })
         
     except Exception as e:
@@ -551,10 +575,10 @@ def update_total_discount_rate(order_id):
         data = request.get_json()
         tab_type = data.get('tab_type', 'pricing')  # pricing 或 settlement
         total_discount_rate = data.get('total_discount_rate')
-        
+
         if total_discount_rate is None:
             return jsonify({'success': False, 'message': '缺少折扣率参数'})
-        
+
         # 转换为小数形式
         discount_rate_decimal = float(total_discount_rate) / 100
         
@@ -575,25 +599,80 @@ def update_total_discount_rate(order_id):
         else:  # settlement
             details = pricing_order.settlement_details
         
-        # 更新所有明细的折扣率和价格，但保持总折扣率逻辑
+        # 更新所有明细的折扣率和价格
+        updated_details = []
         for detail in details:
             if detail.market_price and detail.market_price > 0:
-                # 使用总折扣率更新明细的折扣率
                 detail.discount_rate = discount_rate_decimal
-                # 重新计算单价和总价
                 detail.unit_price = detail.market_price * discount_rate_decimal
                 detail.total_price = detail.unit_price * detail.quantity
-        
+            updated_details.append({
+                'id': detail.id,
+                'discount_rate': detail.discount_rate,
+                'unit_price': detail.unit_price,
+                'total_price': detail.total_price
+            })
+
+        # 同步更新总折扣率字段
+        if tab_type == 'pricing':
+            pricing_order.pricing_total_discount_rate = discount_rate_decimal
+            pricing_order.pricing_total_amount = sum(d.total_price or 0 for d in details)
+
+            # 同步更新结算单明细（批价单 → 结算单）
+            from app.models.pricing_order import SettlementOrderDetail, SettlementOrder
+            for detail in details:
+                settlement_detail = SettlementOrderDetail.query.filter_by(
+                    pricing_detail_id=detail.id
+                ).first()
+                if settlement_detail and settlement_detail.market_price and settlement_detail.market_price > 0:
+                    settlement_detail.discount_rate = discount_rate_decimal
+                    settlement_detail.unit_price = settlement_detail.market_price * discount_rate_decimal
+                    settlement_detail.total_price = settlement_detail.unit_price * settlement_detail.quantity
+
+            # 更新结算单总折扣率和总金额
+            pricing_order.settlement_total_discount_rate = discount_rate_decimal
+            pricing_order.calculate_settlement_totals(recalculate_discount_rate=False)
+
+            # 更新独立结算单总额
+            settlement_order = SettlementOrder.query.filter_by(pricing_order_id=pricing_order.id).first()
+            if settlement_order:
+                settlement_order.calculate_totals()
+        else:
+            # 结算单更新不影响批价单
+            pricing_order.settlement_total_discount_rate = discount_rate_decimal
+            pricing_order.settlement_total_amount = sum(d.total_price or 0 for d in details)
+
         # 标记批价单已修改
         pricing_order.updated_at = datetime.utcnow()
-        
+
         # 保存到数据库
         db.session.commit()
-        
+
+        # 构建结算单明细数据
+        settlement_details_data = []
+        for sd in pricing_order.settlement_details:
+            settlement_details_data.append({
+                'id': sd.id,
+                'product_name': sd.product_name,
+                'product_model': sd.product_model,
+                'product_desc': sd.product_desc,
+                'brand': sd.brand,
+                'market_price': sd.market_price,
+                'discount_rate': sd.discount_rate,
+                'unit_price': sd.unit_price,
+                'quantity': sd.quantity,
+                'total_price': sd.total_price
+            })
+
+        # 返回与明细更新相同格式的响应
         return jsonify({
-            'success': True, 
-            'message': f'总折扣率已更新为 {total_discount_rate}%',
-            'total_discount_rate': total_discount_rate
+            'success': True,
+            'pricing_total_amount': pricing_order.formatted_pricing_total_amount,
+            'pricing_discount_percentage': pricing_order.pricing_discount_percentage,
+            'settlement_total_amount': pricing_order.formatted_settlement_total_amount,
+            'settlement_discount_percentage': pricing_order.settlement_discount_percentage,
+            'updated_details': updated_details,
+            'settlement_details': settlement_details_data
         })
         
     except Exception as e:
@@ -906,6 +985,7 @@ def get_pricing_order_approval_flow(order_id):
                 'completed_at': None,
                 'comment': '',
                 'is_current': False,
+                'can_approve': False,  # 前端期望的审批权限字段
                 # 兼容字段名
                 'step_order': step['step_order'],
                 'step_name': step['step_name']
@@ -975,7 +1055,7 @@ def get_pricing_order_approval_flow(order_id):
         # 检查当前用户是否可以审批
         can_approve = False
         current_stage = None
-        
+
         # 查找当前步骤和用户权限
         for i, step in enumerate(flow_data):
             if step['is_current']:
@@ -983,6 +1063,8 @@ def get_pricing_order_approval_flow(order_id):
                 # 检查当前用户是否是当前步骤的审批人
                 if step['approver_id'] == current_user.id:
                     can_approve = True
+                    # 重要：设置当前步骤的 can_approve 字段，前端组件依赖此字段显示审批操作
+                    step['can_approve'] = True
                 break
         
         # 确定流程状态（用于前端显示）
@@ -1924,7 +2006,7 @@ def save_and_submit_pricing_order(order_id):
 def recall_pricing_order(order_id):
     """召回批价单"""
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         reason = data.get('reason', '')
         
         success, error = PricingOrderService.recall_pricing_order(
@@ -1971,10 +2053,10 @@ def delete_pricing_order(order_id):
                 'success': False,
                 'message': '只有草稿状态的批价单才能删除'
             }), 400
-        
-        data = request.get_json() or {}
+
+        data = request.get_json(silent=True) or {}
         reason = data.get('reason', '')
-        
+
         # 删除相关的结算单明细
         settlement_details = SettlementOrderDetail.query.filter_by(
             pricing_order_id=order_id
@@ -2048,7 +2130,7 @@ def delete_pricing_order(order_id):
 @pricing_order_bp.route('/<int:order_id>/export_pdf/<pdf_type>')
 @login_required
 def export_pdf(order_id, pdf_type):
-    """导出批价单/结算单PDF"""
+    """导出批价单/结算单PDF（优先使用Word模板，失败则回退到HTML模板）"""
     try:
         from io import BytesIO
 
@@ -2061,16 +2143,38 @@ def export_pdf(order_id, pdf_type):
             flash('您没有权限查看该批价单', 'danger')
             return redirect(url_for('pricing_order.list_pricing_orders'))
 
-        # 生成PDF
-        pdf_generator = PDFGenerator()
+        # 优先尝试使用Word模板生成PDF
+        use_word_template = request.args.get('template', 'word') == 'word'
+        result = None
 
-        if pdf_type == 'pricing':
-            result = pdf_generator.generate_pricing_order_pdf(pricing_order)
-        elif pdf_type == 'settlement':
-            result = pdf_generator.generate_settlement_order_pdf(pricing_order)
-        else:
-            flash('无效的PDF类型', 'danger')
-            return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
+        if use_word_template:
+            try:
+                from app.services.word_generator import WordGenerator
+                word_generator = WordGenerator()
+
+                if pdf_type == 'pricing':
+                    result = word_generator.generate_pricing_order_pdf(pricing_order)
+                elif pdf_type == 'settlement':
+                    result = word_generator.generate_settlement_order_pdf(pricing_order)
+                else:
+                    flash('无效的PDF类型', 'danger')
+                    return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
+
+            except Exception as word_error:
+                logger.warning(f"Word模板生成PDF失败，回退到HTML模板: {str(word_error)}")
+                result = None
+
+        # 如果Word模板失败或未使用，回退到HTML模板
+        if result is None:
+            pdf_generator = PDFGenerator()
+
+            if pdf_type == 'pricing':
+                result = pdf_generator.generate_pricing_order_pdf(pricing_order)
+            elif pdf_type == 'settlement':
+                result = pdf_generator.generate_settlement_order_pdf(pricing_order)
+            else:
+                flash('无效的PDF类型', 'danger')
+                return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
 
         # 返回PDF文件
         pdf_io = BytesIO(result['content'])
@@ -2086,6 +2190,63 @@ def export_pdf(order_id, pdf_type):
     except Exception as e:
         logger.error(f"导出PDF失败: {str(e)}")
         flash(f'PDF导出失败: {str(e)}', 'danger')
+        return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
+
+
+@pricing_order_bp.route('/<int:order_id>/export_word/<doc_type>')
+@login_required
+def export_word(order_id, doc_type):
+    """导出批价单/结算单Word文档"""
+    try:
+        from io import BytesIO
+        logger.info(f"[Word导出] 开始导出, order_id={order_id}, doc_type={doc_type}")
+
+        logger.info("[Word导出] 尝试导入 WordGenerator...")
+        from app.services.word_generator import WordGenerator
+        logger.info("[Word导出] WordGenerator 导入成功")
+
+        # 获取批价单
+        pricing_order = PricingOrder.query.get_or_404(order_id)
+        logger.info(f"[Word导出] 批价单: {pricing_order.order_number}")
+
+        # 权限检查
+        from app.utils.access_control import can_view_pricing_order
+        if not can_view_pricing_order(current_user, pricing_order):
+            flash('您没有权限查看该批价单', 'danger')
+            return redirect(url_for('pricing_order.list_pricing_orders'))
+
+        # 生成Word文档
+        word_generator = WordGenerator()
+        logger.info(f"[Word导出] WordGenerator 实例化成功, 模板目录: {word_generator.template_dir}")
+
+        if doc_type == 'pricing':
+            logger.info("[Word导出] 调用 generate_pricing_order_word...")
+            result = word_generator.generate_pricing_order_word(pricing_order)
+        elif doc_type == 'settlement':
+            logger.info("[Word导出] 调用 generate_settlement_order_word...")
+            result = word_generator.generate_settlement_order_word(pricing_order)
+        else:
+            flash('无效的文档类型', 'danger')
+            return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
+
+        logger.info(f"[Word导出] ✅ 生成成功: {result['filename']}, 大小: {len(result['content'])} 字节")
+
+        # 返回Word文件
+        doc_io = BytesIO(result['content'])
+        doc_io.seek(0)
+
+        return send_file(
+            doc_io,
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            as_attachment=True,
+            download_name=result['filename']
+        )
+
+    except Exception as e:
+        import traceback
+        logger.error(f"[Word导出] ❌ 导出失败: {str(e)}")
+        logger.error(f"[Word导出] 详细错误: {traceback.format_exc()}")
+        flash(f'Word导出失败: {str(e)}', 'danger')
         return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
 
 
@@ -2109,7 +2270,7 @@ def admin_rollback_pricing_order(order_id):
             }), 403
         
         # 获取退回原因
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         reason = data.get('reason', '')
         
         # 执行退回操作
@@ -2230,8 +2391,8 @@ def submit_pricing_order_approval(order_id):
                 'message': '只有草稿或被拒绝状态的批价单才能提交审批'
             })
         
-        # 获取请求数据并保存
-        data = request.get_json() or {}
+        # 获取请求数据并保存（使用 silent=True 避免空body时抛出异常）
+        data = request.get_json(silent=True) or {}
         logger.info(f"[V2审批] 收到请求数据: {data}")
         
         # 使用专门的审批保存函数
@@ -2316,20 +2477,20 @@ def resubmit_pricing_order_approval(order_id):
                 'message': '只有创建人可以重新提交审批'
             }), 403
         
-        # 获取请求数据并保存
-        data = request.get_json() or {}
-        
+        # 获取请求数据并保存（使用 silent=True 避免空body时抛出异常）
+        data = request.get_json(silent=True) or {}
+
         # 使用专门的审批保存函数
         success, message = PricingOrderService.save_pricing_order_core_data(
             order_id, data, current_user
         )
-        
+
         if not success:
             return jsonify({
                 'success': False,
                 'message': f'数据保存失败: {message}'
             })
-        
+
         # 重新提交逻辑与提交相同
         return submit_pricing_order_approval(order_id)
         
@@ -2339,4 +2500,215 @@ def resubmit_pricing_order_approval(order_id):
         return jsonify({
             'success': False,
             'message': f'重新提交失败: {str(e)}'
-        }), 500 
+        }), 500
+
+
+# ========== 批价单模态框 API ==========
+
+@pricing_order_bp.route('/api/<int:quotation_id>/by_quotation')
+@login_required
+def get_pricing_order_by_quotation(quotation_id):
+    """根据报价单ID获取批价单"""
+    try:
+        from app.utils.access_control import get_viewable_data
+
+        # 获取用户可查看的批价单
+        viewable_orders = get_viewable_data(PricingOrder, current_user)
+
+        # 查找该报价单关联的批价单（取最新的一个）
+        pricing_order = viewable_orders.filter(
+            PricingOrder.quotation_id == quotation_id
+        ).order_by(PricingOrder.created_at.desc()).first()
+
+        if not pricing_order:
+            return jsonify({
+                'success': False,
+                'pricing_order': None,
+                'message': '未找到关联的批价单'
+            })
+
+        return jsonify({
+            'success': True,
+            'pricing_order': {
+                'id': pricing_order.id,
+                'order_number': pricing_order.order_number,
+                'status': pricing_order.status
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"获取批价单失败: quotation_id={quotation_id}, error={str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'获取批价单失败: {str(e)}'
+        }), 500
+
+
+@pricing_order_bp.route('/api/<int:order_id>/detail')
+@login_required
+def get_pricing_order_detail_api(order_id):
+    """获取批价单详细信息 - 用于模态框展示"""
+    try:
+        from app.utils.access_control import get_viewable_data
+
+        # 获取批价单
+        viewable_orders = get_viewable_data(PricingOrder, current_user)
+        pricing_order = viewable_orders.filter(PricingOrder.id == order_id).first()
+
+        if not pricing_order:
+            return jsonify({
+                'success': False,
+                'message': '批价单不存在或您没有权限访问'
+            }), 404
+
+        # 检查权限
+        (can_edit_pricing, can_edit_settlement, is_approval_context,
+         can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
+
+        # 获取当前审批步骤的可编辑字段列表（用于前端字段控制）
+        editable_fields = []
+        if pricing_order.status == 'pending' and is_approval_context:
+            from app.helpers.approval_helpers import get_object_approval_instance
+            from app.models.approval import ApprovalStep, ApprovalStatus
+
+            approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
+            if approval_instance and approval_instance.status == ApprovalStatus.PENDING:
+                current_step = ApprovalStep.query.get(approval_instance.current_step)
+                if current_step and current_step.editable_fields:
+                    import json
+                    try:
+                        editable_fields = json.loads(current_step.editable_fields) if isinstance(current_step.editable_fields, str) else current_step.editable_fields
+                    except:
+                        editable_fields = []
+
+        # 判断是否可以提交/召回/重新提交（创建人或管理员）
+        # - draft: 可提交
+        # - pending: 可召回
+        # - rejected/recalled: 可重新提交
+        submit_statuses = ['draft', 'pending', 'rejected', 'recalled']
+        can_submit = pricing_order.status in submit_statuses and (
+            pricing_order.created_by == current_user.id or current_user.role == 'admin'
+        )
+
+        # 构建批价明细数据
+        pricing_details = []
+        pricing_total = 0
+        pricing_market_total = 0
+        for detail in pricing_order.pricing_details:
+            pricing_details.append({
+                'id': detail.id,
+                'product_name': detail.product_name,
+                'product_model': detail.product_model,
+                'product_desc': detail.product_desc,
+                'brand': detail.brand,
+                'unit': detail.unit,
+                'product_mn': detail.product_mn,
+                'market_price': detail.market_price,
+                'discount_rate': detail.discount_rate,
+                'unit_price': detail.unit_price,
+                'quantity': detail.quantity,
+                'total_price': detail.total_price
+            })
+            pricing_total += detail.total_price or 0
+            pricing_market_total += (detail.market_price or 0) * (detail.quantity or 0)
+
+        # 构建结算明细数据
+        settlement_details = []
+        settlement_total = 0
+        settlement_market_total = 0
+        for detail in pricing_order.settlement_details:
+            settlement_details.append({
+                'id': detail.id,
+                'product_name': detail.product_name,
+                'product_model': detail.product_model,
+                'product_desc': detail.product_desc,
+                'brand': detail.brand,
+                'unit': detail.unit,
+                'product_mn': detail.product_mn,
+                'market_price': detail.market_price,
+                'discount_rate': detail.discount_rate,
+                'unit_price': detail.unit_price,
+                'quantity': detail.quantity,
+                'total_price': detail.total_price
+            })
+            settlement_total += detail.total_price or 0
+            settlement_market_total += (detail.market_price or 0) * (detail.quantity or 0)
+
+        # 计算总折扣率
+        pricing_discount_rate = (pricing_total / pricing_market_total) if pricing_market_total > 0 else 0
+        settlement_discount_rate = (settlement_total / settlement_market_total) if settlement_market_total > 0 else 0
+
+        # 计算分销利润
+        distributor_profit = pricing_total - settlement_total if pricing_total > settlement_total else 0
+
+        # 判断是否可编辑（草稿、已驳回、已召回状态且是创建者或管理员）
+        editable_statuses = ['draft', 'rejected', 'recalled']
+        can_edit = pricing_order.status in editable_statuses and (
+            pricing_order.created_by == current_user.id or current_user.role == 'admin'
+        )
+
+        # 判断是否可删除（草稿、已驳回、已召回状态且是创建者）
+        can_delete = pricing_order.status in editable_statuses and pricing_order.created_by == current_user.id
+
+        # 判断是否可导出PDF（仅审批通过后）
+        can_export_pricing = False
+        can_export_settlement = False
+        if pricing_order.status == 'approved':
+            can_export_pricing = PricingOrderService.can_export_pdf(pricing_order, current_user, 'pricing')
+            can_export_settlement = PricingOrderService.can_export_pdf(pricing_order, current_user, 'settlement')
+
+        # 构建响应
+        response_data = {
+            'success': True,
+            'id': pricing_order.id,
+            'order_number': pricing_order.order_number,
+            'status': pricing_order.status,
+            'project_id': pricing_order.project_id,
+            'project_name': pricing_order.project.project_name if pricing_order.project else None,
+            'quotation_id': pricing_order.quotation_id,
+            'quotation_number': pricing_order.quotation.quotation_number if pricing_order.quotation else None,
+            'creator_name': pricing_order.creator.real_name or pricing_order.creator.username if pricing_order.creator else None,
+            'created_at': pricing_order.created_at.strftime('%Y-%m-%d %H:%M') if pricing_order.created_at else None,
+            # 渠道信息
+            'dealer_id': pricing_order.dealer_id,
+            'dealer_name': pricing_order.dealer.company_name if pricing_order.dealer else None,
+            'distributor_id': pricing_order.distributor_id,
+            'distributor_name': pricing_order.distributor.company_name if pricing_order.distributor else None,
+            'is_direct_contract': pricing_order.is_direct_contract or False,
+            'is_factory_pickup': pricing_order.is_factory_pickup or False,
+            # 明细数据
+            'pricing_details': pricing_details,
+            'settlement_details': settlement_details,
+            'pricing_total': pricing_total,
+            'settlement_total': settlement_total,
+            'pricing_discount_rate': pricing_discount_rate,
+            'settlement_discount_rate': settlement_discount_rate,
+            'distributor_profit': distributor_profit,
+            # 权限
+            'can_submit': can_submit,
+            'can_edit': can_edit,
+            'can_delete': can_delete,
+            'can_edit_pricing': can_edit_pricing,
+            'can_edit_settlement': can_edit_settlement,
+            # 细粒度权限
+            'can_edit_quantity': can_edit_quantity,
+            'can_edit_discount_price': can_edit_discount_price,
+            'can_edit_basic_info': can_edit_basic_info,
+            'is_approval_context': is_approval_context,
+            # 当前审批步骤可编辑字段列表（用于 ApprovalFieldControl）
+            'editable_fields': editable_fields,
+            # 导出权限（仅审批通过后有效）
+            'can_export_pricing': can_export_pricing,
+            'can_export_settlement': can_export_settlement
+        }
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        import traceback
+        logger.error(f"获取批价单详情失败: order_id={order_id}, error={str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'message': f'获取批价单详情失败: {str(e)}'
+        }), 500

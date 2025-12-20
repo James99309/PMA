@@ -1,0 +1,674 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_detail_layout.html' import tw_detail_layout with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles with context %}
+{% from 'components/tw_table_card.html' import render_tw_table_card, render_empty_state, render_table_card_styles with context %}
+{% from 'components/tw_action_list.html' import tw_action_list_card, render_tw_action_list_script with context %}
+{% from 'components/tw_buttons.html' import tw_btn_primary, tw_btn_secondary, tw_btn_danger, tw_btn_outline, tw_btn_icon with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script, tw_delete_confirm_modal with context %}
+{% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script, tw_tab_content with context %}
+{% from 'components/tw_form_fields.html' import tw_form_field, tw_form_select, tw_form_textarea, tw_form_checkbox, tw_form_row with context %}
+{% from 'components/tw_action_modal.html' import tw_action_modal, tw_action_modal_script with context %}
+{% from 'components/tw_info_card.html' import tw_info_card with context %}
+{% from 'components/tw_item_list_card.html' import tw_item_list_card, tw_item_list_item, tw_item_list_empty with context %}
+{% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
+{% from 'components/tw_sharing_card.html' import tw_sharing_card with context %}
+{% from 'components/tw_user_selector_modal.html' import tw_user_selector_modal with context %}
+{% from 'macros/ui_helpers.html' import render_tw_customer_status_badge, render_tw_project_stage_badge_key, render_tw_quotation_badge, render_tw_primary_badge with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ company.company_name }} - {{ _('客户详情') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* 通知徽章样式 */
+        .notification-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1.25rem;
+            height: 1.25rem;
+            padding: 0 0.375rem;
+            border-radius: 9999px;
+            background-color: #ef4444;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        /* 表格滚动容器样式 */
+        .table-scroll-container::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .table-scroll-container::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 3px;
+        }
+        .table-scroll-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        .table-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .dark .table-scroll-container::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        .dark .table-scroll-container::-webkit-scrollbar-thumb {
+            background: #475569;
+        }
+        .dark .table-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        /* 气泡卡片样式 */
+        .bubble-card {
+            background: rgba(19, 127, 236, 0.1);
+            border-radius: 0.75rem;
+            border-bottom-left-radius: 0.25rem;
+        }
+        .dark .bubble-card {
+            background: rgba(19, 127, 236, 0.2);
+        }
+        /* 头像颜色变体 */
+        .avatar-blue { background-color: #3b82f6; }
+        .avatar-green { background-color: #22c55e; }
+        .avatar-purple { background-color: #a855f7; }
+        .avatar-orange { background-color: #f97316; }
+        .avatar-pink { background-color: #ec4899; }
+        .avatar-teal { background-color: #14b8a6; }
+        /* 滚动区域 */
+        .action-scroll {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .action-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .action-scroll::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 3px;
+        }
+        .action-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        .action-scroll::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        [x-cloak] { display: none !important; }
+
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+    <script>
+        // 深色模式检测
+        if (localStorage.getItem('theme') === 'dark' ||
+            (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.classList.remove('light');
+        }
+    </script>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-200">
+    {% call(slot) render_tw_layout(active_page='customer', show_search=true) %}
+    {% if slot == 'content' %}
+    {# 使用统一的详情页布局组件 #}
+    {% call(detail_slot) tw_detail_layout(
+        breadcrumb_items=[
+            {'label': _('客户管理'), 'url': url_for('customer.list_companies')},
+            {'label': company.company_name}
+        ],
+        title=company.company_name,
+        back_url=url_for('customer.list_companies'),
+        status_badges=render_tw_customer_status_badge(company.status),
+        edit_btn={
+            'show': has_permission('customer', 'edit'),
+            'onclick': 'openCustomerEditModal()'
+        },
+        delete_btn={
+            'show': has_permission('customer', 'delete'),
+            'onclick': 'openDeleteConfirm()'
+        },
+        has_sidebar=true,
+        main_cols=1,
+        sidebar_cols=2,
+        content_gap='8'
+    ) %}
+        {% if detail_slot == 'main' %}
+                            <!-- 客户档案卡片 -->
+                            {{ tw_info_card(
+                                title=_('客户档案'),
+                                items=[
+                                    {'icon': 'business', 'label': _('企业类型'), 'value': company.company_type|company_type_label if company.company_type else none, 'hide_empty': true},
+                                    {'icon': 'apartment', 'label': _('行业'), 'value': company.industry|industry_label if company.industry else none, 'hide_empty': true},
+                                    {'icon': 'source', 'label': _('来源'), 'value': company.source, 'hide_empty': true},
+                                    {'icon': 'public', 'label': _('国家/地区'), 'value': country_code_to_name.get(company.country, company.country) if company.country else none, 'hide_empty': true},
+                                    {'icon': 'location_city', 'label': _('省/州'), 'value': company.region, 'hide_empty': true},
+                                    {'icon': 'location_on', 'label': _('详细地址'), 'value': company.address, 'hide_empty': true},
+                                    {'icon': 'person', 'label': _('负责人'), 'value': company.owner.real_name or company.owner.username if company.owner else none, 'hide_empty': true}
+                                ]
+                            ) }}
+
+                            <!-- 联系人列表卡片 -->
+                            {% call tw_item_list_card(
+                                title=_('联系人'),
+                                action_btn={'onclick': 'openAddContactModal()', 'label': _('添加')} if has_permission('customer', 'create') else none
+                            ) %}
+                                {% if contacts %}
+                                    {% for contact in contacts %}
+                                    {% set subtitle_parts = [] %}
+                                    {% if contact.position %}{% set _ = subtitle_parts.append(contact.position) %}{% endif %}
+                                    {% if contact.department %}{% set _ = subtitle_parts.append(contact.department) %}{% endif %}
+                                    {{ tw_item_list_item(
+                                        avatar_text=contact.name,
+                                        avatar_neutral=true,
+                                        title=contact.name,
+                                        subtitle=subtitle_parts|join(' · '),
+                                        link_url=url_for('customer.view_contact', contact_id=contact.id),
+                                        badge=render_tw_primary_badge() if contact.is_primary else none
+                                    ) }}
+                                    {% endfor %}
+                                {% else %}
+                                    {{ tw_item_list_empty(_('暂无联系人')) }}
+                                {% endif %}
+                            {% endcall %}
+
+                            <!-- 元数据卡片 -->
+                            {{ tw_metadata_card_simple(
+                                object_id=company.id,
+                                creator=company.creator if company.creator else none,
+                                created_at=company.created_at,
+                                updated_at=company.updated_at
+                            ) }}
+
+        {% elif detail_slot == 'sidebar' %}
+                            <!-- 关联项目表格 -->
+                            {% call render_tw_table_card(
+                                title=_('关联项目'),
+                                view_all_url=url_for('project.list_projects') ~ '?company_id=' ~ company.id,
+                                view_all_text=_('查看全部'),
+                                max_height='280px',
+                                headers=[
+                                    {'label': _('项目名称'), 'width': '45%'},
+                                    {'label': _('阶段'), 'width': '30%'},
+                                    {'label': _('报价金额'), 'width': '25%', 'align': 'right'}
+                                ]
+                            ) %}
+                                {% if viewable_projects %}
+                                    {% for project in viewable_projects %}
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                        <td class="p-3 font-medium text-slate-800 dark:text-slate-200">
+                                            <a href="{{ url_for('project.view_project', project_id=project.id) }}?tw=1" class="hover:text-primary">{{ project.project_name }}</a>
+                                        </td>
+                                        <td class="p-3">
+                                            {{ render_tw_project_stage_badge_key(project.current_stage) }}
+                                        </td>
+                                        <td class="p-3 text-right text-slate-600 dark:text-slate-300">
+                                            {% if project.quotation_customer %}
+                                                {{ project.quotation_currency_symbol or '¥' }}{{ '{:,.2f}'.format(project.quotation_customer) }}
+                                            {% else %}
+                                                <span class="text-slate-400">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    {{ render_empty_state(_('暂无关联项目'), 'folder_off') }}
+                                {% endif %}
+                            {% endcall %}
+
+                            <!-- 报价单列表 -->
+                            {% call render_tw_table_card(
+                                title=_('报价单'),
+                                view_all_url=url_for('quotation.list_quotations') ~ '?company_id=' ~ company.id,
+                                view_all_text=_('查看全部'),
+                                max_height='280px',
+                                headers=[
+                                    {'label': _('报价单号'), 'width': '30%'},
+                                    {'label': _('日期'), 'width': '20%'},
+                                    {'label': _('状态'), 'width': '25%'},
+                                    {'label': _('金额'), 'width': '25%', 'align': 'right'}
+                                ]
+                            ) %}
+                                {% if quotations %}
+                                    {% for quotation in quotations %}
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                        <td class="p-3 font-medium text-primary hover:underline">
+                                            <a href="{{ url_for('quotation.view_quotation', id=quotation.id) }}?tw=1">{{ quotation.quotation_number }}</a>
+                                        </td>
+                                        <td class="p-3 text-slate-600 dark:text-slate-300">{{ quotation.created_at.strftime('%Y-%m-%d') if quotation.created_at else '-' }}</td>
+                                        <td class="p-3">
+                                            {{ render_tw_quotation_badge(quotation.approval_status) }}
+                                        </td>
+                                        <td class="p-3 text-right text-slate-600 dark:text-slate-300">
+                                            {% if quotation.amount %}
+                                                {{ quotation.currency or '¥' }}{{ '{:,.2f}'.format(quotation.amount) }}
+                                            {% else %}
+                                                <span class="text-slate-400">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    {{ render_empty_state(_('暂无报价单'), 'description') }}
+                                {% endif %}
+                            {% endcall %}
+
+                            <!-- 共享设置卡片 -->
+                            {{ tw_sharing_card(
+                                can_view=can_view_sharing,
+                                can_edit=can_edit_sharing,
+                                shared_users=shared_users_info,
+                                open_modal_func='openSharingModal'
+                            ) }}
+
+        {% elif detail_slot == 'full_width_after' %}
+                    <!-- 行动记录（使用通用组件）- 占满整行 -->
+                    {{ tw_action_list_card(
+                        actions=viewable_actions,
+                        add_button={'onclick': 'openAddActionModal()'},
+                        layout='table',
+                        enable_replies=true,
+                        container_id='customerReplies',
+                        api_prefix='/customer',
+                        enable_quick_add=true,
+                        quick_add_contacts=contacts,
+                        quick_add_company_id=company.id,
+                        enable_pagination=true,
+                        pagination=pagination,
+                        page_url=url_for('customer.view_company', company_id=company.id),
+                        has_create_permission=has_permission('customer', 'create')
+                    ) }}
+
+        {% endif %}
+    {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 客户删除确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='deleteConfirmModal',
+        title=_('确认删除'),
+        message=_('确定要删除客户「') ~ company.company_name ~ _('」吗？此操作无法撤销。'),
+        confirm_text=_('删除'),
+        cancel_text=_('取消'),
+        variant='danger'
+    ) }}
+
+    <!-- 回复删除确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='replyDeleteConfirmModal',
+        title=_('确认删除'),
+        message=_('确定要删除这条回复吗？此操作无法撤销。'),
+        confirm_text=_('删除'),
+        cancel_text=_('取消'),
+        variant='danger'
+    ) }}
+
+    <!-- 客户编辑表单模态框 -->
+    {% call tw_form_modal(
+        modal_id='customerFormModal',
+        title=_('编辑客户'),
+        submit_text=_('保存'),
+        cancel_text=_('取消'),
+        size='lg'
+    ) %}
+        {% with company_id=company.id %}
+            {% include 'customer/partials/_company_form_fields.html' %}
+        {% endwith %}
+    {% endcall %}
+
+    <!-- 添加行动记录模态框 (使用通用组件) -->
+    {{ tw_action_modal(
+        context_type='customer',
+        context_id=company.id,
+        context_name=company.company_name,
+        contacts=contacts,
+        projects=viewable_projects,
+        sidebar_info={
+            'title': _('客户信息'),
+            'items': [
+                {'label': _('客户名称'), 'value': company.company_name},
+                {'label': _('客户类型'), 'value': company.company_type},
+                {'label': _('联系人数'), 'value': (contacts|length)|string ~ ' ' ~ _('人')},
+                {'label': _('关联项目'), 'value': (viewable_projects|length)|string ~ ' ' ~ _('个')}
+            ]
+        }
+    ) }}
+
+    <!-- 添加行动记录模态框脚本 -->
+    {{ tw_action_modal_script(
+        context_type='customer',
+        context_id=company.id,
+        api_endpoint='/customer/api/' ~ company.id ~ '/add_action'
+    ) }}
+
+    <!-- 添加联系人模态框 -->
+    {% call tw_form_modal(
+        modal_id='addContactModal',
+        title=_('添加联系人'),
+        submit_text=_('保存'),
+        cancel_text=_('取消'),
+        size='md'
+    ) %}
+        {{ tw_form_field('name', _('姓名'), required=true, placeholder=_('请输入联系人姓名')) }}
+        {% call tw_form_row(2) %}
+            {{ tw_form_field('department', _('部门'), placeholder=_('请输入部门')) }}
+            {{ tw_form_field('position', _('职位'), placeholder=_('请输入职位')) }}
+        {% endcall %}
+        {% call tw_form_row(2) %}
+            {{ tw_form_field('phone', _('电话'), type='tel', placeholder=_('请输入电话')) }}
+            {{ tw_form_field('email', _('邮箱'), type='email', placeholder=_('请输入邮箱')) }}
+        {% endcall %}
+        {{ tw_form_textarea('notes', _('备注'), rows=2, placeholder=_('请输入备注')) }}
+        <!-- 主要联系人复选框 (需要 Alpine.js) -->
+        <div x-data="{ isPrimary: false }" x-init="window._addContactPrimary = false; $watch('isPrimary', val => window._addContactPrimary = val)">
+            {{ tw_form_checkbox(
+                label=_('设为主要联系人'),
+                help_text=_('主要联系人会在客户列表中优先显示'),
+                alpine_model='isPrimary'
+            ) }}
+        </div>
+    {% endcall %}
+
+    {% if can_edit_sharing %}
+    <!-- 共享设置模态框 -->
+    {{ tw_user_selector_modal(
+        modal_id='sharingModal',
+        title=_('共享设置'),
+        event_name='open-sharing-modal',
+        users_tree=shareable_users_tree,
+        mode='multi',
+        selected_users=shared_users_info,
+        show_share_toggle=true,
+        share_enabled=company.share_enabled,
+        save_url='/customer/' ~ company.id ~ '/update_sharing',
+        searchable=true,
+        empty_text=_('暂无可共享的用户')
+    ) }}
+    {% endif %}
+
+    <!-- JavaScript -->
+    <script>
+        // 当前用户ID（用于回复组件）
+        window.currentUserId = {{ current_user.id }};
+        window.currentUserInitials = '{{ (current_user.real_name or current_user.username)[:2] }}';
+
+        // 打开共享设置模态框
+        function openSharingModal() {
+            window.dispatchEvent(new CustomEvent('open-sharing-modal'));
+        }
+
+        // 国际化文本
+        window.i18nTexts = {
+            justNow: '{{ _("刚刚") }}',
+            minutesAgo: '{{ _("分钟前") }}',
+            hoursAgo: '{{ _("小时前") }}',
+            daysAgo: '{{ _("天前") }}',
+            monthsAgo: '{{ _("个月前") }}',
+            yearsAgo: '{{ _("年前") }}',
+            delete: '{{ _("删除") }}',
+            confirmDeleteReply: '{{ _("确定要删除这条回复吗？") }}',
+            quickAddSuccess: '{{ _("行动记录添加成功") }}',
+            quickAddError: '{{ _("添加失败，请重试") }}',
+            selectContact: '{{ _("请选择联系人") }}',
+            enterContent: '{{ _("请输入行动记录内容") }}',
+            deleteSuccess: '{{ _("客户删除成功") }}',
+            deleteError: '{{ _("删除失败，请重试") }}'
+        };
+
+        // 打开删除确认模态框
+        function openDeleteConfirm() {
+            openConfirmModal('deleteConfirmModal', {
+                onConfirm: executeDelete
+            });
+        }
+
+        // 执行删除操作
+        async function executeDelete() {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            try {
+                const response = await fetch('{{ url_for("customer.delete_company", company_id=company.id) }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    window.location.href = '{{ url_for("customer.list_companies") }}';
+                } else {
+                    alert(data.message || window.i18nTexts.deleteError);
+                }
+            } catch (error) {
+                console.error('删除失败:', error);
+                alert(window.i18nTexts.deleteError);
+            }
+        }
+
+        // 打开添加联系人模态框
+        function openAddContactModal() {
+            // 初始化主要联系人状态
+            window._addContactPrimary = false;
+
+            openFormModal('addContactModal', {
+                onSubmit: async function(formData) {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+                    // 构建提交数据 (formData 是普通对象，不是 FormData)
+                    const data = {
+                        name: formData.name || '',
+                        department: formData.department || '',
+                        position: formData.position || '',
+                        phone: formData.phone || '',
+                        email: formData.email || '',
+                        notes: formData.notes || '',
+                        is_primary: window._addContactPrimary || false
+                    };
+
+                    // 验证必填字段
+                    if (!data.name.trim()) {
+                        alert('{{ _("请填写联系人姓名") }}');
+                        return false;
+                    }
+
+                    try {
+                        const response = await fetch('/customer/api/{{ company.id }}/add_contact', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken
+                            },
+                            body: JSON.stringify(data)
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            closeFormModal('addContactModal');
+                            window.location.reload();
+                            return true;
+                        } else {
+                            alert(result.message || '{{ _("保存失败") }}');
+                            return false;
+                        }
+                    } catch (error) {
+                        console.error('提交失败:', error);
+                        alert('{{ _("网络错误，请重试") }}');
+                        return false;
+                    }
+                }
+            });
+        }
+
+    </script>
+
+    <!-- 确认模态框脚本 -->
+    {{ tw_confirm_modal_script() }}
+
+    <!-- 表单模态框脚本 -->
+    {{ tw_form_modal_script() }}
+
+    <!-- 客户表单公共模块 -->
+    <script src="{{ url_for('static', filename='js/customer-form.js') }}"></script>
+
+    <!-- 客户编辑表单脚本 -->
+    <script>
+    (function() {
+        const companyId = {{ company.id }};
+        let formInitialized = false;
+        let isNameValid = true;
+
+        // 国际化文本
+        const i18n = {
+            country: '{{ _("请选择国家") }}',
+            region: '{{ _("请选择省/州") }}',
+            industry: '{{ _("请选择行业") }}',
+            companyType: '{{ _("请选择企业类型") }}',
+            source: '{{ _("请选择来源") }}',
+            saving: '{{ _("保存中...") }}',
+            save: '{{ _("保存") }}',
+            saveError: '{{ _("保存失败，请重试") }}',
+            loadError: '{{ _("加载数据失败") }}',
+            // 名称查重相关
+            similarCompanies: '{{ _("相似企业") }}',
+            referenceNotice: '{{ _("以上企业名称仅供参考，请确保输入的名称不与已有企业重复") }}',
+            companyNameExists: '{{ _("该企业名称已存在") }}'
+        };
+
+        // 初始化表单（首次打开时）
+        async function initializeForm() {
+            if (formInitialized) return true;
+
+            const result = await CustomerForm.init({
+                placeholders: i18n
+            });
+
+            if (!result) {
+                alert(i18n.loadError);
+                return false;
+            }
+
+            // 初始化名称查重（编辑模式排除当前企业）
+            CustomerForm.initNameCheck({
+                inputId: 'company_name',
+                excludeId: companyId,  // 排除当前企业
+                i18n: i18n,
+                onValidChange: function(valid) {
+                    isNameValid = valid;
+                    // 更新提交按钮状态
+                    const submitBtn = document.getElementById('customerFormModal-submit-btn');
+                    if (submitBtn) {
+                        submitBtn.disabled = !valid;
+                    }
+                }
+            });
+
+            // 绑定表单提交事件
+            const form = document.getElementById('customerFormModal-form');
+            if (form) {
+                form.onsubmit = async function(e) {
+                    e.preventDefault();
+
+                    // 检查名称是否有效
+                    if (!isNameValid) {
+                        alert(i18n.companyNameExists);
+                        return;
+                    }
+
+                    await CustomerForm.submit('customerFormModal-form', 'update', companyId, {
+                        i18n: i18n,
+                        onSuccess: function() {
+                            closeFormModal('customerFormModal');
+                            window.location.reload();
+                        },
+                        onError: function(msg) {
+                            alert(msg);
+                        }
+                    });
+                };
+            }
+
+            formInitialized = true;
+            return true;
+        }
+
+        // 打开客户编辑模态框（全局函数）
+        window.openCustomerEditModal = async function() {
+            // 初始化表单（如果尚未初始化）
+            const initialized = await initializeForm();
+            if (!initialized) return;
+
+            // 加载客户数据
+            const customerData = await CustomerForm.loadCompanyData(companyId);
+            if (!customerData) {
+                alert(i18n.loadError);
+                return;
+            }
+
+            // 填充表单数据
+            CustomerForm.populateFormData(customerData, {
+                placeholders: i18n
+            });
+
+            // 重置名称查重状态
+            isNameValid = true;
+            CustomerForm.hideSuggestions();
+            CustomerForm.clearNameError();
+
+            // 打开模态框
+            openFormModal('customerFormModal', {
+                title: '{{ _("编辑客户") }}'
+            });
+        };
+    })();
+    </script>
+
+    <!-- 布局脚本（搜索、语言切换、深色模式） -->
+    {{ render_tw_layout_script() }}
+
+    <!-- 行动记录组件脚本（包含回复、快速添加、展开折叠等功能） -->
+    {{ render_tw_action_list_script(
+        container_id='customerReplies',
+        api_prefix='/customer',
+        enable_replies=true,
+        enable_quick_add=true,
+        quick_add_company_id=company.id
+    ) }}
+</body>
+</html>

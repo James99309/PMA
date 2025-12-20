@@ -1,0 +1,944 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_detail_layout.html' import tw_detail_layout with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles with context %}
+{% from 'components/tw_buttons.html' import tw_btn_primary, tw_btn_secondary, tw_btn_danger, tw_btn_outline with context
+%}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script, tw_custom_modal,
+tw_custom_modal_script with context %}
+{% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
+{% from 'components/tw_item_list_card.html' import tw_item_list_card, tw_item_list_item, tw_item_list_empty %}
+{% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles,
+render_tw_data_table_script, render_empty_row with context %}
+{% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_expense_status_badge,
+render_expense_category_badge, render_tw_expense_category_badge, render_tw_currency_badge with context %}
+{% from 'components/tw_approval_flow.html' import render_tw_approval_flow_card, render_tw_approval_flow_script, render_tw_approval_modals %}
+{% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
+
+{# 货币符号 #}
+{% set currency_symbol = '¥' if (expense.currency or 'CNY') == 'CNY' else '$' %}
+
+{# 锁定状态徽章 #}
+{% macro render_tw_lock_badge(is_locked) %}
+{% if is_locked %}
+<span
+    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300">
+    <span class="material-symbols-outlined text-sm">lock</span>
+    {{ _('已锁定') }}
+</span>
+{% else %}
+<span
+    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+    <span class="material-symbols-outlined text-sm">lock_open</span>
+    {{ _('未锁定') }}
+</span>
+{% endif %}
+{% endmacro %}
+
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ expense.expense_number }} - {{ _('报销单详情') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        [x-cloak] {
+            display: none !important;
+        }
+
+        /* 发票预览图标样式 */
+        .invoice-preview-icon {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .invoice-preview-icon:hover {
+            transform: scale(1.1);
+        }
+
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+    <!-- 数据表格样式 -->
+    {{ render_tw_data_table_styles() }}
+</head>
+
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-200">
+    <!-- 早期加载审批函数，确保onclick可用 -->
+    <script>
+        // 审批相关变量
+        const __expenseId = {{ expense.id }};
+        const __csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        // 显示消息函数
+        function __showMessage(message, type) {
+            const messageDiv = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+            messageDiv.className = `fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white ${bgColor} transition-opacity duration-300`;
+            messageDiv.innerHTML = `<div class="flex items-center gap-2"><span class="material-symbols-outlined text-xl">${type === 'success' ? 'check_circle' : type === 'error' ? 'error' : 'info'}</span><span>${message}</span></div>`;
+            document.body.appendChild(messageDiv);
+            setTimeout(() => {
+                messageDiv.style.opacity = '0';
+                setTimeout(() => messageDiv.remove(), 300);
+            }, 3000);
+        }
+
+        // 执行提交审批的实际逻辑
+        async function __doSubmitApproval() {
+            try {
+                __showMessage('{{ _("提交中...") }}', 'info');
+                const response = await fetch(`/expense/api/approval/${__expenseId}/submit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': __csrfToken
+                    },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                if (data.success) {
+                    // 成功后直接刷新页面
+                    window.location.reload();
+                } else {
+                    __showMessage(data.message || '{{ _("提交审批失败") }}', 'error');
+                }
+            } catch (error) {
+                console.error('提交审批失败:', error);
+                __showMessage('{{ _("提交审批失败") }}', 'error');
+            }
+        }
+
+        // 执行召回审批的实际逻辑
+        async function __doRecallApproval() {
+            try {
+                const response = await fetch(`/expense/api/approval/${__expenseId}/recall`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': __csrfToken
+                    },
+                    body: JSON.stringify({ reason: '{{ _("用户主动召回") }}' })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.message || '{{ _("召回审批失败") }}');
+                }
+            } catch (error) {
+                console.error('召回审批失败:', error);
+                alert('{{ _("召回审批失败") }}');
+            }
+        }
+
+        // 执行重新提交审批的实际逻辑
+        async function __doResubmitApproval() {
+            try {
+                const response = await fetch(`/expense/api/approval/${__expenseId}/resubmit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': __csrfToken
+                    },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.message || '{{ _("重新提交失败") }}');
+                }
+            } catch (error) {
+                console.error('重新提交失败:', error);
+                alert('{{ _("重新提交失败") }}');
+            }
+        }
+
+        // 提交审批 - 使用确认对话框
+        window.submitExpenseApproval = function () {
+            // 等待openConfirmModal可用后调用
+            if (typeof window.openConfirmModal === 'function') {
+                window.openConfirmModal('deleteExpenseModal', {
+                    title: '{{ _("提交审批") }}',
+                    message: '{{ _("确定要提交审批吗？提交后将进入审批流程，无法直接修改报销信息。") }}',
+                    confirmText: '{{ _("提交") }}',
+                    onConfirm: () => __doSubmitApproval()
+                });
+            } else {
+                // 后备方案
+                if (confirm('{{ _("确定要提交审批吗？") }}')) {
+                    __doSubmitApproval();
+                }
+            }
+        };
+
+        // 召回审批 - 使用确认对话框
+        window.recallExpenseApproval = function () {
+            if (typeof window.openConfirmModal === 'function') {
+                window.openConfirmModal('deleteExpenseModal', {
+                    title: '{{ _("召回审批") }}',
+                    message: '{{ _("确定要召回审批吗？召回后流程将停止，状态将回到草稿状态。") }}',
+                    confirmText: '{{ _("召回") }}',
+                    onConfirm: () => __doRecallApproval()
+                });
+            } else {
+                if (confirm('{{ _("确定要召回审批吗？") }}')) {
+                    __doRecallApproval();
+                }
+            }
+        };
+
+        // 重新提交审批 - 使用确认对话框
+        window.resubmitExpenseApproval = function () {
+            if (typeof window.openConfirmModal === 'function') {
+                window.openConfirmModal('deleteExpenseModal', {
+                    title: '{{ _("重新提交审批") }}',
+                    message: '{{ _("确定要重新提交审批吗？") }}',
+                    confirmText: '{{ _("提交") }}',
+                    onConfirm: () => __doResubmitApproval()
+                });
+            } else {
+                if (confirm('{{ _("确定要重新提交审批吗？") }}')) {
+                    __doResubmitApproval();
+                }
+            }
+        };
+    </script>
+    {% call(slot) render_tw_layout(active_page='expense', show_search=true) %}
+    {% if slot == 'content' %}
+    {# 使用统一的详情页布局组件 #}
+    {% call(detail_slot) tw_detail_layout(
+        breadcrumb_items=[
+            {'label': _('报销管理'), 'url': url_for('expense.expense_list')},
+            {'label': expense.expense_number}
+        ],
+        title=expense.expense_number,
+        subtitle=expense.title,
+        back_url=url_for('expense.expense_list'),
+        status_badges=render_tw_lock_badge(expense.is_locked),
+        edit_btn={
+            'show': can_edit_this_expense and not expense.is_locked and expense.status in ['draft', 'rejected', 'recalled'],
+            'onclick': 'openEditExpenseModal()'
+        },
+        delete_btn={
+            'show': can_edit_this_expense and not expense.is_locked and expense.status in ['draft', 'rejected', 'recalled'],
+            'onclick': 'confirmDeleteExpense(' ~ expense.id ~ ')'
+        },
+        extra_actions=[
+            {'show': expense.owner_id == current_user.id and expense.status == 'draft', 'label': _('提交审批'), 'onclick': 'window.submitExpenseApproval()', 'icon': 'send', 'color': 'success'},
+            {'show': expense.owner_id == current_user.id and expense.status == 'pending', 'label': _('召回审批'), 'onclick': 'window.recallExpenseApproval()', 'icon': 'undo', 'color': 'warning'},
+            {'show': expense.owner_id == current_user.id and expense.status in ['rejected', 'recalled'], 'label': _('重新提交'), 'onclick': 'window.resubmitExpenseApproval()', 'icon': 'refresh', 'color': 'success'},
+            {'show': approval_edit_info and approval_edit_info.can_edit, 'label': _('编辑字段'), 'onclick': 'openApprovalEditModal()', 'icon': 'edit_note', 'color': 'info'},
+            {'show': expense.status == 'approved', 'label': _('导出'), 'onclick': 'exportExpense()', 'icon': 'download', 'color': 'slate'}
+        ],
+        has_sidebar=true,
+        content_gap='8'
+    ) %}
+        {% if detail_slot == 'main' %}
+
+                    <!-- 2.1 基本信息卡片 -->
+                    <div
+                        class="bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 p-6">
+                        <h2 class="text-lg font-semibold text-slate-800 dark:text-white mb-6">{{ _('基本信息') }}</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                            <!-- 左列 -->
+                            <div class="space-y-4">
+                                <div>
+                                    <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('报销主题') }}</p>
+                                    <p class="font-medium text-slate-800 dark:text-white">{{ expense.title or '-' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('关联客户') }}</p>
+                                    <p class="font-medium text-slate-800 dark:text-white">
+                                        {% if expense.customer %}
+                                        <a href="{{ url_for('customer.view_company', company_id=expense.customer.id) }}"
+                                            class="text-primary hover:underline">{{ expense.customer.company_name }}</a>
+                                        {% else %}
+                                        <span class="text-slate-400">{{ _('无') }}</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('关联项目') }}</p>
+                                    <p class="font-medium text-slate-800 dark:text-white">
+                                        {% if expense.project %}
+                                        <a href="{{ url_for('project.view_project', project_id=expense.project.id, tw=1) }}"
+                                            class="text-primary hover:underline">{{ expense.project.project_name }}</a>
+                                        {% else %}
+                                        <span class="text-slate-400">{{ _('无') }}</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('申请人') }}</p>
+                                    <p class="font-medium text-slate-800 dark:text-white">
+                                        {% if expense.owner %}
+                                        {{ render_tw_owner_badge(expense.owner) }}
+                                        {% else %}
+                                        <span class="text-slate-400">{{ _('无') }}</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                            <!-- 右列 -->
+                            <div class="space-y-4">
+                                <div>
+                                    <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('报销总金额') }}</p>
+                                    <p class="font-medium text-slate-800 dark:text-white text-lg">
+                                        {{ currency_symbol }}{{ "{:,.2f}".format(expense.total_amount) if
+                                        expense.total_amount else '0.00' }}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('货币类型') }}</p>
+                                    <p class="font-medium text-slate-800 dark:text-white">
+                                        {{ render_tw_currency_badge(expense.currency) }}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('状态') }}</p>
+                                    <p class="font-medium text-slate-800 dark:text-white">
+                                        {{ render_tw_expense_status_badge(expense.status) }}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('创建时间') }}</p>
+                                    <p class="font-medium text-slate-800 dark:text-white">{{
+                                        expense.created_at.strftime('%Y-%m-%d %H:%M') if expense.created_at else '-' }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 报销说明 -->
+                        {% if expense.description %}
+                        <div class="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                            <p class="text-sm text-slate-500 dark:text-slate-400 mb-2">{{ _('报销说明') }}</p>
+                            <p class="text-slate-700 dark:text-slate-300 whitespace-pre-line">{{ expense.description }}
+                            </p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+        {% elif detail_slot == 'sidebar' %}
+                    <!-- 关联项目卡片 -->
+                    {% if expense.project %}
+                    {% call tw_item_list_card(title=_('关联项目')) %}
+                    {{ tw_item_list_item(
+                    avatar_text=(expense.project.owner.real_name or expense.project.owner.username)[:1] if
+                    expense.project.owner else '?',
+                    avatar_color_index=expense.project.owner.id % 6 if expense.project.owner else 0,
+                    title=expense.project.project_name,
+                    subtitle=expense.project.owner.real_name if expense.project.owner else '',
+                    link_url=url_for('project.view_project', project_id=expense.project.id, tw=1),
+                    max_title_length=20
+                    ) }}
+                    {% endcall %}
+                    {% endif %}
+
+                    <!-- 关联客户卡片 -->
+                    {% if expense.customer %}
+                    {% call tw_item_list_card(title=_('关联客户')) %}
+                    {{ tw_item_list_item(
+                    avatar_text=expense.customer.company_name[:1] if expense.customer.company_name else '?',
+                    avatar_color_index=expense.customer.id % 6 if expense.customer else 0,
+                    title=expense.customer.company_name,
+                    link_url=url_for('customer.view_company', company_id=expense.customer.id),
+                    max_title_length=20
+                    ) }}
+                    {% endcall %}
+                    {% endif %}
+
+                    <!-- 如果既没有关联项目也没有关联客户 -->
+                    {% if not expense.project and not expense.customer %}
+                    {% call tw_item_list_card(title=_('关联信息')) %}
+                    {{ tw_item_list_empty(_('暂无关联信息')) }}
+                    {% endcall %}
+                    {% endif %}
+
+                    <!-- 元数据卡片 -->
+                    {{ tw_metadata_card_simple(
+                        object_id=expense.id,
+                        creator=expense.owner,
+                        created_at=expense.created_at,
+                        updated_at=expense.updated_at
+                    ) }}
+
+        {% elif detail_slot == 'full_width_after' %}
+            <!-- 3. 报销明细表格 -->
+            {% set detail_columns = [
+            {'field': 'index', 'label': _('序号'), 'align': 'center'},
+            {'field': 'expense_category', 'label': _('报销科目'), 'min_width': '100px'},
+            {'field': 'expense_date', 'label': _('发生日期'), 'min_width': '100px'},
+            {'field': 'description', 'label': _('费用描述'), 'min_width': '180px'},
+            {'field': 'document_count', 'label': _('单据'), 'align': 'center'},
+            {'field': 'invoice_amount', 'label': _('发票金额'), 'align': 'right'},
+            {'field': 'exchange_rate', 'label': _('汇率'), 'align': 'center'},
+            {'field': 'amount', 'label': _('报销金额'), 'align': 'right'},
+            {'field': 'invoice', 'label': _('发票'), 'align': 'center'}
+            ] %}
+
+            {% call render_tw_data_table(
+            table_id='expenseDetailTable',
+            title=_('报销明细'),
+            total_count=expense.details|length,
+            columns=detail_columns,
+            max_height='calc(100vh - 500px)',
+            min_height='200px',
+            show_loading=false
+            ) %}
+            {% for detail in expense.details %}
+            <tr class="table-row-hover transition-colors">
+                <td class="p-3 whitespace-nowrap text-center text-sm font-bold text-slate-700 dark:text-slate-300">{{
+                    loop.index }}</td>
+                <td class="p-3 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
+                    {{ render_tw_expense_category_badge(detail.expense_category) }}
+                </td>
+                <td class="p-3 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">{{
+                    detail.formatted_expense_date if detail.formatted_expense_date else
+                    (detail.expense_date.strftime('%Y-%m-%d') if detail.expense_date else '-') }}</td>
+                <td class="p-3 text-sm text-slate-700 dark:text-slate-300 max-w-[200px] truncate"
+                    title="{{ detail.description or '' }}">{{ detail.description or '-' }}</td>
+                <td class="p-3 whitespace-nowrap text-sm text-center text-slate-700 dark:text-slate-300">{{
+                    detail.document_count or 0 }}</td>
+                <td class="p-3 whitespace-nowrap text-sm text-right text-slate-700 dark:text-slate-300">
+                    {%- set detail_symbol = {'CNY': '¥', 'USD': '$', 'HKD': 'HK$', 'TWD': 'NT$', 'SGD': 'S$', 'MYR':
+                    'RM', 'IDR': 'Rp', 'THB': '฿', 'VND': '₫'}.get(detail.currency, '¥') -%}
+                    {{ detail_symbol }}{{ "{:,.2f}".format(detail.invoice_amount) if detail.invoice_amount else '0.00'
+                    }}
+                </td>
+                <td class="p-3 whitespace-nowrap text-sm text-center text-slate-600 dark:text-slate-400">{{
+                    detail.formatted_exchange_rate if detail.formatted_exchange_rate else (detail.exchange_rate if
+                    detail.exchange_rate and detail.exchange_rate != 1 else '-') }}</td>
+                <td class="p-3 whitespace-nowrap text-sm text-right font-medium text-slate-900 dark:text-white">{{
+                    currency_symbol }}{{ "{:,.2f}".format(detail.current_amount or detail.amount) if
+                    (detail.current_amount or detail.amount) else '-' }}</td>
+                <td class="p-3 whitespace-nowrap text-sm text-center">
+                    {% set invoice_images = detail.invoice_images_list if detail.invoice_images_list else [] %}
+                    {% if invoice_images|length > 0 %}
+                    {% for invoice in invoice_images %}
+                    <button type="button"
+                        class="invoice-preview-icon inline-flex items-center justify-center w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-primary"
+                        data-invoice-url="{{ invoice.url or invoice.path or invoice.file_url or '' }}"
+                        data-filename="{{ invoice.filename or 'invoice' }}" data-detail-id="{{ detail.id }}"
+                        data-invoice-index="{{ loop.index0 }}" title="{{ _('点击预览发票') }}">
+                        <span class="material-symbols-outlined text-lg">receipt</span>
+                    </button>
+                    {% endfor %}
+                    {% else %}
+                    <span class="text-slate-400">-</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            {{ render_empty_row(detail_columns|length, _('暂无报销明细'), 'receipt_long') }}
+            {% endfor %}
+            {% endcall %}
+
+            <!-- 4. 审批流程区域 -->
+            {{ render_tw_approval_flow_card(expense.status, container_id='expenseApprovalFlowContainer') }}
+
+        {% endif %}
+    {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 删除确认模态框 -->
+    {{ tw_confirm_modal(
+    modal_id='deleteExpenseModal',
+    title=_('确认删除'),
+    message=_('确定要删除这个报销单吗？此操作不可恢复。'),
+    confirm_text=_('确认删除'),
+    cancel_text=_('取消'),
+    variant='danger'
+    ) }}
+
+    <!-- 审批确认模态框集合 -->
+    {{ render_tw_approval_modals() }}
+
+    <!-- 发票预览模态框 -->
+    {% call tw_custom_modal(
+    modal_id='invoicePreviewModal',
+    title=_('发票预览'),
+    icon='receipt',
+    icon_color='text-primary',
+    show_cancel_btn=false,
+    max_width='max-w-4xl'
+    ) %}
+    <div class="relative">
+        <div id="invoicePreviewContent"
+            class="flex items-center justify-center min-h-[300px] bg-slate-100 dark:bg-slate-800 rounded-lg">
+            <span class="text-slate-400">{{ _('加载中...') }}</span>
+        </div>
+        <div class="mt-4 flex justify-between items-center">
+            <span id="invoiceFilename" class="text-sm text-slate-500 dark:text-slate-400"></span>
+            <button type="button" id="downloadInvoiceBtn" onclick="downloadCurrentInvoice()"
+                class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                <span class="material-symbols-outlined text-lg">download</span>
+                {{ _('下载') }}
+            </button>
+        </div>
+    </div>
+    {% endcall %}
+
+    <!-- 编辑报销单表单模态框 -->
+    {% set can_use_edit_modal = (can_edit_this_expense and expense.status in ['draft', 'rejected', 'recalled']) or (approval_edit_info and approval_edit_info.can_edit) %}
+    {% if can_use_edit_modal %}
+    {% call tw_form_modal(
+    modal_id='expenseEditModal',
+    title=_('编辑报销单'),
+    submit_text=_('保存'),
+    cancel_text=_('取消'),
+    size='2xl'
+    ) %}
+    {% include 'expense/partials/_expense_modal_fields.html' %}
+    {% endcall %}
+    {% endif %}
+
+    <!-- 表单模态框脚本 -->
+    {{ tw_form_modal_script() }}
+
+    <!-- 布局脚本 -->
+    {{ render_tw_layout_script() }}
+
+    <!-- 确认模态框脚本 -->
+    {{ tw_confirm_modal_script() }}
+
+    <!-- 自定义模态框脚本 -->
+    {{ tw_custom_modal_script() }}
+
+    <!-- 数据表格脚本 -->
+    {{ render_tw_data_table_script(table_id='expenseDetailTable') }}
+
+    <!-- 审批流程脚本（新组件） -->
+    {{ render_tw_approval_flow_script(
+        'expense',
+        expense.id,
+        expense.status,
+        expense.owner.real_name or expense.owner.username if expense.owner else _('未知'),
+        '/expense/api/approval',
+        'expenseApprovalFlowContainer'
+    ) }}
+
+    <script>
+        // ============================================================
+        // 全局变量和国际化
+        // ============================================================
+        const expenseId = {{ expense.id }};
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        // 国际化文本
+        const i18n = {
+            confirmDeleteTitle: '{{ _("确认删除报销单") }}',
+            confirmDeleteMessage: '{{ _("确定要删除这个报销单吗？此操作不可恢复。") }}',
+            deleteFailed: '{{ _("删除失败，请重试") }}',
+            deleteSuccess: '{{ _("删除成功") }}',
+            submitApproval: '{{ _("提交审批") }}',
+            submitApprovalConfirm: '{{ _("确定要提交审批吗？提交后将进入审批流程，无法直接修改报销信息。") }}',
+            submitting: '{{ _("提交中...") }}',
+            approvalStarted: '{{ _("审批流程已启动") }}',
+            submitFailed: '{{ _("提交审批失败") }}',
+            recallApproval: '{{ _("召回审批") }}',
+            recallApprovalConfirm: '{{ _("确定要召回审批吗？召回后流程将停止，状态将回到草稿状态。") }}',
+            recalling: '{{ _("召回中...") }}',
+            approvalRecalled: '{{ _("审批流程已召回") }}',
+            recallFailed: '{{ _("召回审批失败") }}',
+            resubmitApproval: '{{ _("重新提交审批") }}',
+            resubmitApprovalConfirm: '{{ _("确定要重新提交审批吗？") }}',
+            approvalResubmitted: '{{ _("审批流程已重新提交") }}',
+            resubmitFailed: '{{ _("重新提交失败") }}',
+            exportInDevelopment: '{{ _("导出功能开发中") }}',
+            cancel: '{{ _("取消") }}',
+            userRecall: '{{ _("用户主动召回") }}'
+        };
+
+        // 当前预览的发票信息
+        let currentInvoice = null;
+
+        // ============================================================
+        // 初始化
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', function () {
+            // 发票预览事件监听
+            document.addEventListener('click', function (event) {
+                const icon = event.target.closest('.invoice-preview-icon');
+                if (icon) {
+                    const invoiceUrl = icon.dataset.invoiceUrl;
+                    const filename = icon.dataset.filename;
+                    const detailId = icon.dataset.detailId;
+                    const invoiceIndex = icon.dataset.invoiceIndex;
+
+                    if (invoiceUrl) {
+                        previewInvoice(invoiceUrl, filename, detailId, invoiceIndex);
+                    }
+                }
+            });
+        });
+
+        // ============================================================
+        // 显示消息
+        // ============================================================
+        function showMessage(message, type) {
+            const messageDiv = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+
+            messageDiv.className = `fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white ${bgColor} transition-opacity duration-300`;
+            messageDiv.innerHTML = `
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-xl">${type === 'success' ? 'check_circle' : type === 'error' ? 'error' : 'info'}</span>
+                <span>${message}</span>
+            </div>
+        `;
+
+            document.body.appendChild(messageDiv);
+
+            setTimeout(() => {
+                messageDiv.style.opacity = '0';
+                setTimeout(() => messageDiv.remove(), 300);
+            }, 3000);
+        }
+
+        // ============================================================
+        // 删除报销单
+        // ============================================================
+        function confirmDeleteExpense(id) {
+            window.openConfirmModal('deleteExpenseModal', {
+                onConfirm: function () {
+                    deleteExpense(id);
+                }
+            });
+        }
+
+        function deleteExpense(id) {
+            fetch(`/expense/${id}/delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                }
+            }).then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showMessage(i18n.deleteSuccess, 'success');
+                        setTimeout(() => {
+                            window.location.href = "{{ url_for('expense.expense_list') }}";
+                        }, 1000);
+                    } else {
+                        showMessage(data.message || i18n.deleteFailed, 'error');
+                    }
+                }).catch(error => {
+                    console.error('删除失败:', error);
+                    showMessage(i18n.deleteFailed, 'error');
+                });
+        }
+
+        // 将删除函数暴露到全局作用域
+        window.confirmDeleteExpense = confirmDeleteExpense;
+
+        // ============================================================
+        // 审批操作 - 直接定义在window上以便立即可用
+        // ============================================================
+
+        // 提交审批
+        window.submitExpenseApproval = async function () {
+            const confirmed = await new Promise((resolve) => {
+                window.openConfirmModal('deleteExpenseModal', {
+                    title: i18n.submitApproval,
+                    message: i18n.submitApprovalConfirm,
+                    confirmText: i18n.submitApproval,
+                    onConfirm: () => resolve(true),
+                    onCancel: () => resolve(false)
+                });
+            });
+
+            if (!confirmed) return;
+
+            try {
+                showMessage(i18n.submitting, 'info');
+
+                const response = await fetch(`/expense/api/approval/${expenseId}/submit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({})
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage(i18n.approvalStarted, 'success');
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    showMessage(data.message || i18n.submitFailed, 'error');
+                }
+            } catch (error) {
+                console.error('提交审批失败:', error);
+                showMessage(i18n.submitFailed, 'error');
+            }
+        };
+
+        // 召回审批
+        window.recallExpenseApproval = async function () {
+            const confirmed = await new Promise((resolve) => {
+                window.openConfirmModal('deleteExpenseModal', {
+                    title: i18n.recallApproval,
+                    message: i18n.recallApprovalConfirm,
+                    confirmText: i18n.recallApproval,
+                    onConfirm: () => resolve(true),
+                    onCancel: () => resolve(false)
+                });
+            });
+
+            if (!confirmed) return;
+
+            try {
+                showMessage(i18n.recalling, 'info');
+
+                const response = await fetch(`/expense/api/approval/${expenseId}/recall`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({ reason: i18n.userRecall })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage(i18n.approvalRecalled, 'success');
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    showMessage(data.message || i18n.recallFailed, 'error');
+                }
+            } catch (error) {
+                console.error('召回审批失败:', error);
+                showMessage(i18n.recallFailed, 'error');
+            }
+        };
+
+        // 重新提交审批
+        window.resubmitExpenseApproval = async function () {
+            const confirmed = await new Promise((resolve) => {
+                window.openConfirmModal('deleteExpenseModal', {
+                    title: i18n.resubmitApproval,
+                    message: i18n.resubmitApprovalConfirm,
+                    confirmText: i18n.resubmitApproval,
+                    onConfirm: () => resolve(true),
+                    onCancel: () => resolve(false)
+                });
+            });
+
+            if (!confirmed) return;
+
+            try {
+                showMessage(i18n.submitting, 'info');
+
+                const response = await fetch(`/expense/api/approval/${expenseId}/resubmit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({})
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage(i18n.approvalResubmitted, 'success');
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    showMessage(data.message || i18n.resubmitFailed, 'error');
+                }
+            } catch (error) {
+                console.error('重新提交失败:', error);
+                showMessage(i18n.resubmitFailed, 'error');
+            }
+        };
+
+        // ============================================================
+        // 发票预览
+        // ============================================================
+        function previewInvoice(url, filename, detailId, invoiceIndex) {
+            currentInvoice = { url, filename, detailId, invoiceIndex };
+
+            const content = document.getElementById('invoicePreviewContent');
+            const filenameEl = document.getElementById('invoiceFilename');
+
+            filenameEl.textContent = filename || 'invoice';
+
+            // 判断文件类型
+            const isPdf = filename && filename.toLowerCase().endsWith('.pdf');
+
+            if (isPdf) {
+                content.innerHTML = `
+                <iframe src="${url}" class="w-full h-[500px] rounded-lg" frameborder="0"></iframe>
+            `;
+            } else {
+                content.innerHTML = `
+                <img src="${url}" alt="${filename}" class="max-w-full max-h-[500px] object-contain rounded-lg"
+                     onerror="this.parentElement.innerHTML='<span class=\\'text-red-500\\'>${'{{ _("图片加载失败") }}'}</span>'">
+            `;
+            }
+
+            openCustomModal('invoicePreviewModal');
+        }
+
+        function downloadCurrentInvoice() {
+            if (!currentInvoice) return;
+
+            const link = document.createElement('a');
+            link.href = currentInvoice.url;
+            link.download = currentInvoice.filename || 'invoice';
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // ============================================================
+        // 导出报销单
+        // ============================================================
+        function exportExpense() {
+            showMessage(i18n.exportInDevelopment, 'info');
+        }
+
+        // ============================================================
+        // 编辑报销单模态框
+        // ============================================================
+        {% set can_use_edit_modal = (can_edit_this_expense and expense.status in ['draft', 'rejected', 'recalled']) or (approval_edit_info and approval_edit_info.can_edit) %}
+        {% if can_use_edit_modal %}
+        // 报销单数据（用于编辑模态框）
+        const expenseData = {
+            id: {{ expense.id }},
+            title: '{{ expense.title|replace("'", "\\'")|default("", true) }}',
+            currency: '{{ expense.currency or "CNY" }}',
+            description: '{{ expense.description|replace("'", "\\'")|replace("\n", "\\n")|default("", true) }}',
+            customer_id: {{ expense.customer_id or 'null' }},
+            customer_name: '{{ expense.customer.company_name|replace("'", "\\'")|default("", true) if expense.customer else "" }}',
+            project_id: {{ expense.project_id or 'null' }},
+            project_name: '{{ expense.project.project_name|replace("'", "\\'")|default("", true) if expense.project else "" }}',
+            contact_id: {{ expense.contact_id or 'null' }},
+            contact_name: '{{ expense.contact.name|replace("'", "\\'")|default("", true) if expense.contact else "" }}',
+            details: [
+                {% for detail in expense.details %}
+                {
+                    id: {{ detail.id }},
+                    expense_category: '{{ detail.expense_category }}',
+                    expense_date: '{{ detail.expense_date.strftime("%Y-%m-%d") if detail.expense_date else "" }}',
+                    description: '{{ detail.description|replace("'", "\\'")|replace("\n", " ") }}',
+                    document_count: {{ detail.document_count or 1 }},
+                    currency: '{{ detail.currency or "CNY" }}',
+                    invoice_amount: {{ detail.invoice_amount or 0 }},
+                    exchange_rate: {{ detail.exchange_rate or 1 }},
+                    current_amount: {{ detail.current_amount or 0 }},
+                    invoice_images: {{ detail.invoice_images_list | tojson if detail.invoice_images_list else '[]' }}
+                }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ]
+        };
+
+        // 打开编辑模态框（普通编辑）
+        window.openEditExpenseModal = function () {
+            ExpenseModal.openEdit(expenseData);
+        };
+
+        // 打开审批编辑模态框（只能编辑指定字段）
+        {% if approval_edit_info and approval_edit_info.can_edit %}
+        window.openApprovalEditModal = function () {
+            const editableFields = {{ approval_edit_info.editable_fields|tojson }};
+            ExpenseModal.openEdit(expenseData, {
+                approvalEditMode: true,
+                editableFields: editableFields,
+                stepName: '{{ approval_edit_info.step_name|default("") }}'
+            });
+        };
+        {% endif %}
+        {% endif %}
+    </script>
+
+    {% if can_use_edit_modal %}
+    <!-- 审批字段控制工具 -->
+    <script src="{{ url_for('static', filename='js/approval-field-control.js') }}"></script>
+    <!-- 报销单模态框脚本 -->
+    <script src="{{ url_for('static', filename='js/expense-modal.js') }}"></script>
+    <script>
+        // 获取 CSRF Token
+        const expenseModalCsrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        // 初始化报销单模态框（编辑模式）
+        ExpenseModal.init({
+            modalId: 'expenseEditModal',
+            defaultCurrency: '{{ expense.currency or "CNY" }}',
+            csrfToken: expenseModalCsrfToken,
+            i18n: {
+                loading: '{{ _("加载中...") }}',
+                selectCustomerFirst: '{{ _("请先选择关联客户") }}',
+                selectContact: '{{ _("请选择联系人") }}',
+                noContacts: '{{ _("该客户暂无联系人") }}',
+                noResults: '{{ _("无匹配结果") }}',
+                createSuccess: '{{ _("报销单创建成功") }}',
+                createError: '{{ _("创建失败") }}',
+                saveSuccess: '{{ _("保存成功") }}',
+                saveError: '{{ _("保存失败") }}',
+                requiredField: '{{ _("请填写必填项") }}',
+                atLeastOneDetail: '{{ _("请至少添加一条报销明细") }}',
+                createTitle: '{{ _("新建报销单") }}',
+                editTitle: '{{ _("编辑报销单") }}',
+                createBtn: '{{ _("创建") }}',
+                saveBtn: '{{ _("保存") }}'
+            },
+            api: {
+                edit: '{{ url_for("expense.edit_expense", id=expense.id) }}',
+                exchangeRate: '/api/exchange-rate',
+                customerSearch: '/api/export-helpers/customers/search',
+                projectSearch: '/api/v1/search/projects/for-expense',
+                contacts: '/api/customers/{id}/contacts'
+            }
+        });
+    </script>
+    {% endif %}
+</body>
+
+</html>

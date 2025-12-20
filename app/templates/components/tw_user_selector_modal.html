@@ -1,0 +1,661 @@
+{#
+=============================================================================
+Tailwind 用户选择器模态框组件
+=============================================================================
+提供统一的用户选择器模态框，支持单选和多选模式，以及搜索过滤功能。
+
+使用方式：
+{% from 'components/tw_user_selector_modal.html' import tw_user_selector_modal %}
+
+多选模式（共享设置）：
+{{ tw_user_selector_modal(
+    modal_id='sharingModal',
+    title=_('共享设置'),
+    event_name='open-sharing-modal',
+    users_tree=shareable_users_tree,
+    mode='multi',
+    selected_users=shared_users_info,
+    show_share_toggle=true,
+    share_enabled=project.share_enabled,
+    save_url='/project/update_project_sharing/' ~ project.id
+) }}
+
+单选模式（修改负责人）：
+{{ tw_user_selector_modal(
+    modal_id='changeOwnerModal',
+    title=_('修改项目负责人'),
+    event_name='open-change-owner-modal',
+    users_tree=shareable_users_tree,
+    mode='single',
+    selected_user_id=project.owner_id,
+    form_action=url_for('project.change_project_owner', project_id=project.id),
+    field_name='new_owner_id'
+) }}
+
+单选模式 + 厂商过滤（修改厂商销售负责人）：
+{{ tw_user_selector_modal(
+    modal_id='changeVendorSalesModal',
+    title=_('修改厂商销售负责人'),
+    event_name='open-change-vendor-sales-modal',
+    users_tree=shareable_users_tree,
+    mode='single',
+    selected_user_id=project.vendor_sales_manager_id,
+    form_action=url_for('project.change_vendor_sales_manager', project_id=project.id),
+    field_name='vendor_sales_manager_id',
+    vendor_only=true
+) }}
+
+参数：
+- modal_id: 模态框ID（必填）
+- title: 模态框标题（必填）
+- event_name: 触发打开的事件名称（必填）
+- users_tree: 用户树数据（必填）
+- mode: 'single'（单选）或 'multi'（多选），默认 'single'
+- selected_user_id: 单选模式下当前选中的用户ID
+- selected_users: 多选模式下当前选中的用户列表 [{id, name, initials}]
+- form_action: 单选模式的表单提交URL
+- field_name: 单选模式的字段名称，默认 'user_id'
+- save_url: 多选模式的保存URL
+- show_share_toggle: 是否显示启用共享开关（多选模式）
+- share_enabled: 是否已启用共享
+- vendor_only: 是否只显示厂商公司，默认 false
+- searchable: 是否显示搜索框，默认 true
+- empty_text: 空状态文本
+=============================================================================
+#}
+
+{% macro tw_user_selector_modal(
+    modal_id,
+    title,
+    event_name,
+    users_tree,
+    mode='single',
+    selected_user_id=none,
+    selected_users=none,
+    form_action='',
+    field_name='user_id',
+    save_url='',
+    show_share_toggle=false,
+    share_enabled=false,
+    vendor_only=false,
+    searchable=true,
+    empty_text=none
+) %}
+<div id="{{ modal_id }}"
+     x-data="{{ modal_id }}Data()"
+     x-show="open"
+     x-cloak
+     @{{ event_name }}.window="open = true"
+     class="fixed inset-0 z-50 overflow-y-auto">
+    <!-- 背景遮罩 -->
+    <div class="fixed inset-0 bg-black/30 dark:bg-black/50 transition-opacity"
+         x-show="open"
+         x-transition:enter="ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @click="open = false">
+    </div>
+
+    <!-- 模态框内容 -->
+    <div class="flex min-h-full items-center justify-center p-4">
+        <div class="relative bg-white dark:bg-slate-900 rounded-lg shadow-2xl w-full {{ 'max-w-3xl' if mode == 'multi' else 'max-w-lg' }} transform transition-all"
+             x-show="open"
+             x-transition:enter="ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="ease-in duration-200"
+             x-transition:leave-start="opacity-100 scale-100"
+             x-transition:leave-end="opacity-0 scale-95"
+             @click.stop>
+
+            <!-- 头部 -->
+            <div class="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
+                <h3 class="text-xl font-semibold text-slate-800 dark:text-white">{{ title }}</h3>
+                <button @click="open = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            {% if mode == 'multi' %}
+            {# ==================== 多选模式 ==================== #}
+            <div class="p-6">
+                {% if show_share_toggle %}
+                <!-- 启用共享复选框 -->
+                <div class="mb-6">
+                    <label class="flex items-center cursor-pointer" @click.prevent="shareEnabled = !shareEnabled">
+                        <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors"
+                             :class="shareEnabled ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'">
+                            <span x-show="shareEnabled" class="material-symbols-outlined text-white" style="font-size: 14px;">check</span>
+                        </div>
+                        <span class="ml-3 text-slate-800 dark:text-slate-200">{{ _('启用共享') }}</span>
+                    </label>
+                </div>
+                {% endif %}
+
+                <!-- 两列布局 -->
+                <div {{ 'x-show="shareEnabled" x-transition' if show_share_toggle else '' }} class="grid grid-cols-2 gap-6">
+                    <!-- 左列：用户选择树 -->
+                    <div>
+                        <p class="text-sm text-slate-600 dark:text-slate-400 mb-2">{{ _('选择用户') }}:</p>
+
+                        {% if searchable %}
+                        <!-- 搜索框 -->
+                        <div class="mb-3">
+                            <input type="text"
+                                   x-model="searchKeyword"
+                                   class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   placeholder="{{ _('搜索用户...') }}">
+                        </div>
+                        {% endif %}
+
+                        <div class="border border-slate-200 dark:border-slate-700 rounded-md h-80 overflow-y-auto">
+                            <ul class="text-sm text-slate-800 dark:text-slate-200">
+                                <template x-for="company in filteredUsersTree" :key="company.id">
+                                    <li class="border-b border-slate-200 dark:border-slate-700 last:border-b-0"
+                                        @mouseenter="company.children && company.children.length > 0 && expandNode(company.id)"
+                                        @mouseleave="collapseNode(company.id)">
+                                        <!-- 公司节点 -->
+                                        <div class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                            <span class="material-symbols-outlined text-lg mr-2 text-slate-500 dark:text-slate-400 cursor-pointer"
+                                                  @click.stop="toggleNode(company.id)"
+                                                  x-text="isExpanded(company.id) ? 'arrow_drop_down' : 'arrow_right'"></span>
+                                            <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center cursor-pointer transition-colors"
+                                                 :class="isCompanyAllSelected(company) || isCompanyPartialSelected(company) ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'"
+                                                 @click="toggleCompany(company)">
+                                                <span x-show="isCompanyAllSelected(company)" class="material-symbols-outlined text-white" style="font-size: 14px;">check</span>
+                                                <span x-show="!isCompanyAllSelected(company) && isCompanyPartialSelected(company)" class="material-symbols-outlined text-white" style="font-size: 14px;">remove</span>
+                                            </div>
+                                            <span class="ml-3" x-text="company.name"></span>
+                                        </div>
+
+                                        <!-- 公司子节点 -->
+                                        <ul x-show="isExpanded(company.id)"
+                                            x-transition:enter="transition-all ease-[cubic-bezier(0.4,0,0.2,1)] duration-300"
+                                            x-transition:enter-start="opacity-0 max-h-0"
+                                            x-transition:enter-end="opacity-100 max-h-[500px]"
+                                            x-transition:leave="transition-all ease-[cubic-bezier(0.4,0,0.2,1)] duration-200"
+                                            x-transition:leave-start="opacity-100 max-h-[500px]"
+                                            x-transition:leave-end="opacity-0 max-h-0"
+                                            class="pl-8 border-t border-slate-200 dark:border-slate-700 overflow-hidden">
+                                            <template x-for="child in company.children" :key="child.id">
+                                                <li class="border-b border-slate-200 dark:border-slate-700 last:border-b-0">
+                                                    <!-- 部门节点 -->
+                                                    <template x-if="child.type === 'department'">
+                                                        <div @mouseenter="child.children && child.children.length > 0 && expandNode(child.id)"
+                                                             @mouseleave="collapseNode(child.id)">
+                                                            <div class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                                                <span class="material-symbols-outlined text-lg mr-2 text-slate-500 dark:text-slate-400 cursor-pointer"
+                                                                      @click.stop="toggleNode(child.id)"
+                                                                      x-text="isExpanded(child.id) ? 'arrow_drop_down' : 'arrow_right'"></span>
+                                                                <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center cursor-pointer transition-colors"
+                                                                     :class="isDeptAllSelected(child) || isDeptPartialSelected(child) ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'"
+                                                                     @click="toggleDepartment(child)">
+                                                                    <span x-show="isDeptAllSelected(child)" class="material-symbols-outlined text-white" style="font-size: 14px;">check</span>
+                                                                    <span x-show="!isDeptAllSelected(child) && isDeptPartialSelected(child)" class="material-symbols-outlined text-white" style="font-size: 14px;">remove</span>
+                                                                </div>
+                                                                <span class="ml-3" x-text="child.name"></span>
+                                                            </div>
+
+                                                            <!-- 部门下的用户 -->
+                                                            <ul x-show="isExpanded(child.id)"
+                                                                x-transition:enter="transition-all ease-[cubic-bezier(0.4,0,0.2,1)] duration-300"
+                                                                x-transition:enter-start="opacity-0 max-h-0"
+                                                                x-transition:enter-end="opacity-100 max-h-[500px]"
+                                                                x-transition:leave="transition-all ease-[cubic-bezier(0.4,0,0.2,1)] duration-200"
+                                                                x-transition:leave-start="opacity-100 max-h-[500px]"
+                                                                x-transition:leave-end="opacity-0 max-h-0"
+                                                                class="pl-8 border-t border-slate-200 dark:border-slate-700 overflow-hidden">
+                                                                <template x-for="user in child.children" :key="user.id">
+                                                                    <li class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                                                        <span class="w-[18px] mr-2"></span>
+                                                                        <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center cursor-pointer transition-colors"
+                                                                             :class="isUserSelected(user.user_id) ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'"
+                                                                             @click="toggleUser(user)">
+                                                                            <span x-show="isUserSelected(user.user_id)" class="material-symbols-outlined text-white" style="font-size: 14px;">check</span>
+                                                                        </div>
+                                                                        <span class="ml-3" x-text="user.name"></span>
+                                                                    </li>
+                                                                </template>
+                                                            </ul>
+                                                        </div>
+                                                    </template>
+
+                                                    <!-- 直属用户（无部门） -->
+                                                    <template x-if="child.type === 'user'">
+                                                        <div class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                                            <span class="w-[18px] mr-2"></span>
+                                                            <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center cursor-pointer transition-colors"
+                                                                 :class="isUserSelected(child.user_id) ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'"
+                                                                 @click="toggleUser(child)">
+                                                                <span x-show="isUserSelected(child.user_id)" class="material-symbols-outlined text-white" style="font-size: 14px;">check</span>
+                                                            </div>
+                                                            <span class="ml-3" x-text="child.name"></span>
+                                                        </div>
+                                                    </template>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </li>
+                                </template>
+
+                                <!-- 空状态 -->
+                                <template x-if="filteredUsersTree.length === 0">
+                                    <li class="p-4 text-center text-slate-400">
+                                        {{ empty_text or _('暂无可选择的用户') }}
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- 右列：已选用户 -->
+                    <div>
+                        <p class="text-sm text-slate-600 dark:text-slate-400 mb-2">{{ _('已选择') }}:</p>
+                        <div class="min-h-[10rem] max-h-80 overflow-y-auto bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md p-3 flex flex-wrap gap-2 content-start">
+                            <template x-for="user in selectedUsers" :key="user.id">
+                                <div class="relative group" :title="user.name">
+                                    <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs"
+                                         :class="getAvatarColor(user.id)">
+                                        <span x-text="user.initials"></span>
+                                    </div>
+                                    <button @click.stop="removeUser(user.id)"
+                                            class="absolute -top-1 -right-1 w-5 h-5 bg-slate-500 hover:bg-slate-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <span class="material-symbols-outlined text-white" style="font-size: 14px;">close</span>
+                                    </button>
+                                </div>
+                            </template>
+
+                            <!-- 空状态 -->
+                            <template x-if="selectedUsers.length === 0">
+                                <span class="text-slate-400 dark:text-slate-500 text-sm">{{ _('未选择用户') }}</span>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部按钮 -->
+            <div class="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-b-lg flex justify-end space-x-4">
+                <button @click="open = false"
+                        class="bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">
+                    {{ _('取消') }}
+                </button>
+                <button @click="saveSelection()"
+                        :disabled="saving"
+                        class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50">
+                    <span x-show="!saving">{{ _('确认') }}</span>
+                    <span x-show="saving" class="flex items-center gap-2">
+                        <span class="material-symbols-outlined animate-spin text-sm">sync</span>
+                        {{ _('保存中...') }}
+                    </span>
+                </button>
+            </div>
+
+            {% else %}
+            {# ==================== 单选模式 ==================== #}
+            <form method="post" action="{{ form_action }}" @submit="submitting = true">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="p-6">
+                    {% if searchable %}
+                    <!-- 搜索框 -->
+                    <div class="mb-4">
+                        <input type="text"
+                               x-model="searchKeyword"
+                               class="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-primary focus:border-transparent"
+                               placeholder="{{ _('搜索用户...') }}">
+                    </div>
+                    {% endif %}
+
+                    <!-- 用户树形列表 -->
+                    <div class="border border-slate-200 dark:border-slate-700 rounded-md h-80 overflow-y-auto">
+                        <input type="hidden" name="{{ field_name }}" :value="selectedUserId">
+                        <ul class="text-sm text-slate-800 dark:text-slate-200">
+                            <template x-for="company in filteredUsersTree" :key="company.id">
+                                <li class="border-b border-slate-200 dark:border-slate-700 last:border-b-0"
+                                    @mouseenter="company.children && company.children.length > 0 && expandNode(company.id)"
+                                    @mouseleave="collapseNode(company.id)">
+                                    <!-- 公司节点 -->
+                                    <div class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                        <span class="material-symbols-outlined text-lg mr-2 text-slate-500 dark:text-slate-400 cursor-pointer"
+                                              @click.stop="toggleNode(company.id)"
+                                              x-text="isExpanded(company.id) ? 'arrow_drop_down' : 'arrow_right'"></span>
+                                        <span class="font-medium text-slate-700 dark:text-slate-300" x-text="company.name"></span>
+                                    </div>
+
+                                    <!-- 公司子节点 -->
+                                    <ul x-show="isExpanded(company.id)"
+                                        x-transition:enter="transition-all ease-[cubic-bezier(0.4,0,0.2,1)] duration-300"
+                                        x-transition:enter-start="opacity-0 max-h-0"
+                                        x-transition:enter-end="opacity-100 max-h-[500px]"
+                                        x-transition:leave="transition-all ease-[cubic-bezier(0.4,0,0.2,1)] duration-200"
+                                        x-transition:leave-start="opacity-100 max-h-[500px]"
+                                        x-transition:leave-end="opacity-0 max-h-0"
+                                        class="pl-8 border-t border-slate-200 dark:border-slate-700 overflow-hidden">
+                                        <template x-for="child in company.children" :key="child.id">
+                                            <li class="border-b border-slate-200 dark:border-slate-700 last:border-b-0">
+                                                <!-- 部门节点 -->
+                                                <template x-if="child.type === 'department'">
+                                                    <div @mouseenter="child.children && child.children.length > 0 && expandNode(child.id)"
+                                                         @mouseleave="collapseNode(child.id)">
+                                                        <div class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                                            <span class="material-symbols-outlined text-lg mr-2 text-slate-500 dark:text-slate-400 cursor-pointer"
+                                                                  @click.stop="toggleNode(child.id)"
+                                                                  x-text="isExpanded(child.id) ? 'arrow_drop_down' : 'arrow_right'"></span>
+                                                            <span class="text-slate-600 dark:text-slate-400" x-text="child.name"></span>
+                                                        </div>
+
+                                                        <!-- 部门下的用户 -->
+                                                        <ul x-show="isExpanded(child.id)"
+                                                            x-transition:enter="transition-all ease-[cubic-bezier(0.4,0,0.2,1)] duration-300"
+                                                            x-transition:enter-start="opacity-0 max-h-0"
+                                                            x-transition:enter-end="opacity-100 max-h-[500px]"
+                                                            x-transition:leave="transition-all ease-[cubic-bezier(0.4,0,0.2,1)] duration-200"
+                                                            x-transition:leave-start="opacity-100 max-h-[500px]"
+                                                            x-transition:leave-end="opacity-0 max-h-0"
+                                                            class="pl-8 border-t border-slate-200 dark:border-slate-700 overflow-hidden">
+                                                            <template x-for="user in child.children" :key="user.id">
+                                                                <li class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"
+                                                                    @click="selectUser(user.user_id)">
+                                                                    <span class="w-[18px] mr-2"></span>
+                                                                    <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors"
+                                                                         :class="selectedUserId == user.user_id ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'">
+                                                                        <span x-show="selectedUserId == user.user_id" class="material-symbols-outlined text-white" style="font-size: 14px;">check</span>
+                                                                    </div>
+                                                                    <span class="ml-3" x-text="user.name"></span>
+                                                                </li>
+                                                            </template>
+                                                        </ul>
+                                                    </div>
+                                                </template>
+
+                                                <!-- 直属用户（无部门） -->
+                                                <template x-if="child.type === 'user'">
+                                                    <div class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"
+                                                         @click="selectUser(child.user_id)">
+                                                        <span class="w-[18px] mr-2"></span>
+                                                        <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors"
+                                                             :class="selectedUserId == child.user_id ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'">
+                                                            <span x-show="selectedUserId == child.user_id" class="material-symbols-outlined text-white" style="font-size: 14px;">check</span>
+                                                        </div>
+                                                        <span class="ml-3" x-text="child.name"></span>
+                                                    </div>
+                                                </template>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </li>
+                            </template>
+
+                            <!-- 空状态 -->
+                            <template x-if="filteredUsersTree.length === 0">
+                                <li class="p-4 text-center text-slate-400">
+                                    {{ empty_text or _('没有找到匹配的用户') }}
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- 底部按钮 -->
+                <div class="flex justify-end gap-3 p-6 border-t border-slate-200 dark:border-slate-700">
+                    <button type="button" @click="open = false"
+                            class="px-4 py-2 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                        {{ _('取消') }}
+                    </button>
+                    <button type="submit" :disabled="!selectedUserId || submitting"
+                            :class="{ 'opacity-50 cursor-not-allowed': !selectedUserId || submitting }"
+                            class="px-4 py-2 text-white bg-primary hover:bg-blue-600 rounded-lg transition-colors flex items-center gap-2">
+                        <span x-show="submitting" class="material-symbols-outlined animate-spin text-lg">progress_activity</span>
+                        <span x-text="submitting ? '{{ _('提交中...') }}' : '{{ _('确认修改') }}'"></span>
+                    </button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- 模态框脚本 -->
+<script>
+function {{ modal_id }}Data() {
+    const allUsersTree = {{ users_tree|tojson|safe if users_tree else '[]' }};
+    {% if vendor_only %}
+    // 厂商过滤：只保留 is_vendor=true 的公司
+    const usersTree = allUsersTree.filter(company => company.is_vendor === true);
+    {% else %}
+    const usersTree = allUsersTree;
+    {% endif %}
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+    // 单选模式下默认展开所有公司节点
+    {% if mode == 'single' %}
+    const defaultExpandedNodes = usersTree.map(company => company.id);
+    {% else %}
+    const defaultExpandedNodes = [];
+    {% endif %}
+
+    return {
+        open: false,
+        saving: false,
+        submitting: false,
+        searchKeyword: '',
+        usersTree: usersTree,
+        expandedNodes: defaultExpandedNodes,
+        {% if mode == 'multi' %}
+        shareEnabled: {{ 'true' if share_enabled else 'false' }},
+        selectedUsers: {{ selected_users|tojson|safe if selected_users else '[]' }},
+        {% else %}
+        selectedUserId: {{ selected_user_id or 'null' }},
+        {% endif %}
+
+        // 搜索过滤
+        get filteredUsersTree() {
+            if (!this.searchKeyword.trim()) return this.usersTree;
+            return this.filterTree(this.usersTree, this.searchKeyword.toLowerCase());
+        },
+
+        filterTree(tree, keyword) {
+            return tree.map(company => {
+                const filteredChildren = this.filterChildren(company.children || [], keyword);
+                const companyMatches = company.name.toLowerCase().includes(keyword);
+                if (filteredChildren.length > 0 || companyMatches) {
+                    return { ...company, children: filteredChildren.length > 0 ? filteredChildren : company.children };
+                }
+                return null;
+            }).filter(c => c !== null);
+        },
+
+        filterChildren(children, keyword) {
+            return children.map(child => {
+                if (child.type === 'user') {
+                    return child.name.toLowerCase().includes(keyword) ? child : null;
+                } else if (child.type === 'department') {
+                    const filteredUsers = (child.children || []).filter(u => u.name.toLowerCase().includes(keyword));
+                    if (filteredUsers.length > 0 || child.name.toLowerCase().includes(keyword)) {
+                        return { ...child, children: filteredUsers.length > 0 ? filteredUsers : child.children };
+                    }
+                }
+                return null;
+            }).filter(c => c !== null);
+        },
+
+        // 统计节点下用户数
+        countUsersInNode(node) {
+            let count = 0;
+            if (node.children) {
+                for (const child of node.children) {
+                    if (child.type === 'user') count++;
+                    else count += this.countUsersInNode(child);
+                }
+            }
+            return count;
+        },
+
+        // 节点展开/折叠
+        isExpanded(nodeId) { return this.expandedNodes.includes(nodeId); },
+        toggleNode(nodeId) {
+            const idx = this.expandedNodes.indexOf(nodeId);
+            if (idx === -1) this.expandedNodes.push(nodeId);
+            else this.expandedNodes.splice(idx, 1);
+        },
+        expandNode(nodeId) {
+            if (!this.expandedNodes.includes(nodeId)) this.expandedNodes.push(nodeId);
+        },
+        collapseNode(nodeId) {
+            const idx = this.expandedNodes.indexOf(nodeId);
+            if (idx !== -1) this.expandedNodes.splice(idx, 1);
+        },
+
+        {% if mode == 'single' %}
+        // ==================== 单选模式方法 ====================
+        selectUser(userId) {
+            this.selectedUserId = userId;
+        },
+        {% endif %}
+
+        {% if mode == 'multi' %}
+        // ==================== 多选模式方法 ====================
+        getAvatarColor(userId) {
+            const colors = [
+                'bg-blue-200 text-blue-600 dark:bg-blue-800 dark:text-blue-300',
+                'bg-purple-200 text-purple-600 dark:bg-purple-800 dark:text-purple-300',
+                'bg-teal-200 text-teal-600 dark:bg-teal-800 dark:text-teal-300',
+                'bg-yellow-200 text-yellow-600 dark:bg-yellow-800 dark:text-yellow-300',
+                'bg-red-200 text-red-600 dark:bg-red-800 dark:text-red-300',
+                'bg-green-200 text-green-600 dark:bg-green-800 dark:text-green-300'
+            ];
+            return colors[userId % colors.length];
+        },
+
+        isUserSelected(userId) {
+            return this.selectedUsers.some(u => u.id === userId);
+        },
+
+        toggleUser(user) {
+            const index = this.selectedUsers.findIndex(u => u.id === user.user_id);
+            if (index === -1) {
+                this.selectedUsers.push({
+                    id: user.user_id,
+                    name: user.name,
+                    initials: user.name ? user.name.substring(0, 2).toUpperCase() : '?'
+                });
+            } else {
+                this.selectedUsers.splice(index, 1);
+            }
+        },
+
+        removeUser(userId) {
+            const index = this.selectedUsers.findIndex(u => u.id === userId);
+            if (index !== -1) this.selectedUsers.splice(index, 1);
+        },
+
+        getAllUsersInNode(node) {
+            let users = [];
+            if (node.type === 'user') {
+                users.push(node);
+            } else if (node.children) {
+                for (const child of node.children) {
+                    users = users.concat(this.getAllUsersInNode(child));
+                }
+            }
+            return users;
+        },
+
+        isCompanyAllSelected(company) {
+            const users = this.getAllUsersInNode(company);
+            if (users.length === 0) return false;
+            return users.every(u => this.isUserSelected(u.user_id));
+        },
+
+        isCompanyPartialSelected(company) {
+            const users = this.getAllUsersInNode(company);
+            if (users.length === 0) return false;
+            const selectedCount = users.filter(u => this.isUserSelected(u.user_id)).length;
+            return selectedCount > 0 && selectedCount < users.length;
+        },
+
+        isDeptAllSelected(dept) {
+            const users = this.getAllUsersInNode(dept);
+            if (users.length === 0) return false;
+            return users.every(u => this.isUserSelected(u.user_id));
+        },
+
+        isDeptPartialSelected(dept) {
+            const users = this.getAllUsersInNode(dept);
+            if (users.length === 0) return false;
+            const selectedCount = users.filter(u => this.isUserSelected(u.user_id)).length;
+            return selectedCount > 0 && selectedCount < users.length;
+        },
+
+        toggleCompany(company) {
+            const users = this.getAllUsersInNode(company);
+            const allSelected = this.isCompanyAllSelected(company);
+            if (allSelected) {
+                for (const user of users) this.removeUser(user.user_id);
+            } else {
+                for (const user of users) {
+                    if (!this.isUserSelected(user.user_id)) {
+                        this.selectedUsers.push({
+                            id: user.user_id,
+                            name: user.name,
+                            initials: user.name ? user.name.substring(0, 2).toUpperCase() : '?'
+                        });
+                    }
+                }
+            }
+        },
+
+        toggleDepartment(dept) {
+            const users = this.getAllUsersInNode(dept);
+            const allSelected = this.isDeptAllSelected(dept);
+            if (allSelected) {
+                for (const user of users) this.removeUser(user.user_id);
+            } else {
+                for (const user of users) {
+                    if (!this.isUserSelected(user.user_id)) {
+                        this.selectedUsers.push({
+                            id: user.user_id,
+                            name: user.name,
+                            initials: user.name ? user.name.substring(0, 2).toUpperCase() : '?'
+                        });
+                    }
+                }
+            }
+        },
+
+        async saveSelection() {
+            this.saving = true;
+            try {
+                const form = new FormData();
+                {% if show_share_toggle %}
+                if (this.shareEnabled) form.append('share_enabled', 'on');
+                {% endif %}
+                form.append('shared_with_users', this.selectedUsers.map(u => u.id).join(','));
+
+                const response = await fetch('{{ save_url }}', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken },
+                    body: form
+                });
+
+                window.location.reload();
+            } catch (error) {
+                console.error('保存失败:', error);
+                alert('{{ _("保存失败，请重试") }}');
+                this.saving = false;
+            }
+        }
+        {% endif %}
+    };
+}
+
+// 打开模态框的全局函数
+{% set func_name = modal_id|replace('Modal', '') %}
+window.open{{ func_name[0]|upper }}{{ func_name[1:] }}Modal = function() {
+    window.dispatchEvent(new CustomEvent('{{ event_name }}'));
+};
+</script>
+{% endmacro %}

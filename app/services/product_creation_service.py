@@ -9,8 +9,7 @@ from app.extensions import db
 from app.models.dev_product import DevProduct
 from app.models.product import Product
 from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField
-from app.routes.product_management import save_dev_product_specs
-from app.routes.product import save_product_specs
+from app.services.spec_service import SpecService
 
 
 class ProductCreationService:
@@ -81,7 +80,11 @@ class ProductCreationService:
                 return ProductCreationService._redirect_to_create_page(product_type)
 
             # 3. 验证MN编码唯一性（跨库）
-            if mn_code:
+            # 只有当有规格编码时才检查重复（只有前缀编码表示还在创建阶段，不应该检查）
+            spec_codes = request.form.getlist('spec_option_codes[]')
+            has_spec_codes = any(code and code.strip() and code.strip() != '0' for code in spec_codes)
+
+            if mn_code and has_spec_codes:
                 from app.routes.product_management import check_mn_code_duplicate_internal
                 duplicate_check = check_mn_code_duplicate_internal(mn_code, exclude_dev_product_id=None)
                 if duplicate_check['is_duplicate']:
@@ -107,7 +110,7 @@ class ProductCreationService:
                     category_id, subcategory_id, region_id, model, product_name, unit,
                     retail_price_decimal, currency, description, development_purpose, mn_code
                 )
-                redirect_url = 'product_management.index'
+                redirect_url = None  # 研发产品重定向到详情页，需要产品ID
                 success_message = '新产品已成功添加到研发产品库'
             else:
                 # 标准产品特有字段
@@ -121,7 +124,7 @@ class ProductCreationService:
                     region_id, model, brand, unit, retail_price_decimal, currency,
                     description, mn_code, is_vendor_product
                 )
-                redirect_url = 'product_route.list'
+                redirect_url = 'product.list'
                 success_message = '产品创建成功'
 
             # 6. 保存产品到数据库
@@ -160,10 +163,16 @@ class ProductCreationService:
             current_app.logger.info(f'产品创建成功: ID={new_product.id}, MN={mn_code}, 型号={model}, 类型={product_type}')
 
             # 根据请求类型返回不同响应
+            # 研发产品和标准产品都跳转到详情页以便补充规格
+            if product_type == 'research':
+                final_redirect_url = url_for('rd_product.product_detail', id=new_product.id, tw=1)
+            else:
+                final_redirect_url = url_for('product.view_product_detail', id=new_product.id, tw=1)
+
             if is_ajax:
-                return ProductCreationService._json_response(True, success_message, url_for(redirect_url))
+                return ProductCreationService._json_response(True, success_message, final_redirect_url)
             flash(success_message, 'success')
-            return redirect(url_for(redirect_url))
+            return redirect(final_redirect_url)
 
         except Exception as e:
             db.session.rollback()
@@ -221,7 +230,7 @@ class ProductCreationService:
 
     @staticmethod
     def _save_product_specs(product_id, product_type):
-        """保存规格数据"""
+        """保存规格数据（使用统一的 SpecService）"""
         spec_names = request.form.getlist('spec_name[]')
         spec_values = request.form.getlist('spec_value[]')
         spec_codes = request.form.getlist('spec_option_codes[]')
@@ -229,7 +238,7 @@ class ProductCreationService:
         if not spec_names:
             return True  # 没有规格数据也算成功
 
-        # 构建规格数据列表
+        # 构建规格数据列表（SpecService 格式：无 id 即为新增）
         spec_data_list = []
         for i in range(len(spec_names)):
             if spec_names[i].strip():  # 只处理非空规格
@@ -237,28 +246,22 @@ class ProductCreationService:
                     'field_name': spec_names[i],
                     'field_value': spec_values[i] if i < len(spec_values) else '',
                     'field_code': spec_codes[i] if i < len(spec_codes) and spec_codes[i] != '0' else None,
-                    'action': 'create'
+                    'include_in_description': True
                 })
 
         if not spec_data_list:
             return True
 
-        # 根据产品类型调用不同的保存函数
-        if product_type == 'research':
-            success, saved_specs, error = save_dev_product_specs(
-                product_id,
-                spec_data_list,
-                current_app.logger
-            )
-        else:
-            success, saved_specs, error = save_product_specs(product_id, spec_data_list)
+        # 使用统一的 SpecService 保存规格
+        spec_type = SpecService.TYPE_DEV_PRODUCT if product_type == 'research' else SpecService.TYPE_PRODUCT
+        result = SpecService.save_specs(spec_type, product_id, spec_data_list)
 
-        if success:
-            current_app.logger.debug(f'保存了 {len(saved_specs)} 条规格数据')
+        if result['success']:
+            current_app.logger.debug(f'保存了 {len(result.get("specs", []))} 条规格数据')
         else:
-            current_app.logger.error(f'保存规格失败: {error}')
+            current_app.logger.error(f'保存规格失败: {result.get("message", "未知错误")}')
 
-        return success
+        return result['success']
 
     @staticmethod
     def _parse_retail_price(retail_price_str):
@@ -290,6 +293,6 @@ class ProductCreationService:
     def _redirect_to_create_page(product_type):
         """根据产品类型重定向到创建页面"""
         if product_type == 'research':
-            return redirect(url_for('product_management.new_product'))
+            return redirect(url_for('rd_product.new_product'))
         else:
-            return redirect(url_for('product_route.create_product_page'))
+            return redirect(url_for('product.create_product_page'))

@@ -92,8 +92,12 @@ class ExpenseApprovalWrapper:
 
         self.object_id = expense.id
         self.object_type = 'expense'
+        self.wrapper_type = 'expense'  # 用于 convert_approval_item 识别
         self.created_by = expense.owner_id
         self.creator = expense.owner
+        self.owner = expense.owner  # 用于 convert_approval_item
+        self.created_at = expense.created_at  # 用于 convert_approval_item
+        self.approval_status = expense.status  # 字符串状态，用于 convert_approval_item
         self.expense = expense
 
         # 状态映射 - 确保所有状态都有对应的显示
@@ -128,13 +132,19 @@ class PricingOrderApprovalWrapper:
     """批价单审批包装器 - 将PricingOrder对象包装为类似ApprovalInstance的接口"""
 
     def __init__(self, pricing_order):
-        self.id = f"po_{pricing_order.id}"
+        self.id = pricing_order.id  # 使用原始ID，不加前缀
         self.pricing_order = pricing_order
         self.object_type = 'pricing_order'
+        self.wrapper_type = 'pricing_order'  # 用于 convert_approval_item 识别
         self._object_id = pricing_order.id
         self.started_at = pricing_order.created_at
+        self.created_at = pricing_order.created_at  # 用于 convert_approval_item
         self.ended_at = pricing_order.approved_at
         self.creator_id = pricing_order.created_by
+        self.approval_status = pricing_order.status  # 用于 convert_approval_item
+
+        # 关联项目名称
+        self.project_name = pricing_order.project.project_name if pricing_order.project else None
 
         # 状态映射
         status_map = {
@@ -150,7 +160,7 @@ class PricingOrderApprovalWrapper:
         from app.models.user import User
         creator = User.query.get(pricing_order.created_by)
         self.creator = creator
-        self.created_by = pricing_order.created_by
+        self.created_by = creator  # 保存 User 对象用于 convert_approval_item
 
         # 虚拟流程对象
         flow_type_labels = {
@@ -198,13 +208,16 @@ class OrderApprovalWrapper:
     """订单审批包装器 - 将Order对象包装为类似ApprovalInstance的接口"""
 
     def __init__(self, order):
-        self.id = f"order_{order.id}"
+        self.id = order.id  # 使用原始ID，不加前缀
         self.object_id = order.id
         self.object_type = 'purchase_order'
+        self.wrapper_type = 'order'  # 用于 convert_approval_item 识别
         self.started_at = order.created_at
+        self.created_at = order.created_at  # 用于 convert_approval_item
         self.ended_at = order.approved_at if order.status == 'approved' else None
-        self.created_by = order.created_by_id
-        self.creator = order.created_by
+        self.creator = order.created_by  # User 对象
+        self.created_by = order.created_by  # User 对象，用于 convert_approval_item
+        self.approval_status = order.status  # 用于 convert_approval_item
         self.order = order
 
         # 状态映射
@@ -5528,61 +5541,7 @@ def get_user_pricing_order_approvals(user_id, status=None, page=1, per_page=20):
             from flask_sqlalchemy.pagination import Pagination
         pricing_orders = Pagination(query=query, page=page, per_page=per_page, total=0, items=[])
     
-    # 包装为审批实例格式
-    class PricingOrderApprovalWrapper:
-        def __init__(self, pricing_order):
-            self.id = f"po_{pricing_order.id}"
-            self.pricing_order = pricing_order
-            self.object_type = 'pricing_order'
-            self._object_id = pricing_order.id
-            self.started_at = pricing_order.created_at
-            self.ended_at = pricing_order.approved_at
-            self.creator_id = pricing_order.created_by
-            
-            # 状态映射
-            status_map = {
-                'draft': type('Status', (), {'name': 'DRAFT', 'value': 'draft'})(),
-                'pending': type('Status', (), {'name': 'PENDING', 'value': 'pending'})(),
-                'approved': type('Status', (), {'name': 'APPROVED', 'value': 'approved'})(),
-                'rejected': type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
-            }
-            self.status = status_map.get(pricing_order.status, 
-                                       type('Status', (), {'name': 'UNKNOWN', 'value': pricing_order.status})())
-    
-            # 创建人信息
-            from app.models.user import User
-            creator = User.query.get(pricing_order.created_by)
-            self.creator = creator
-            
-            # 虚拟流程对象
-            flow_type_labels = {
-                'channel_follow': '渠道跟进类',
-                'sales_key': '销售重点类',
-                'sales_opportunity': '销售机会类'
-            }
-            flow_type_name = flow_type_labels.get(pricing_order.approval_flow_type, pricing_order.approval_flow_type)
-            self.process = type('Process', (), {
-                'name': f'批价单审批流程 - {flow_type_name}',
-                'id': f'pricing_{pricing_order.approval_flow_type}'
-            })()
-            
-            # 当前步骤信息
-            self.current_step = pricing_order.current_approval_step
-            
-            # 业务对象信息
-            self.business_object = pricing_order
-            self.business_object_name = pricing_order.order_number
-            
-        def get_detail_url(self):
-            """获取详情页URL"""
-            from flask import url_for
-            return url_for('pricing_order.edit_pricing_order', order_id=self.pricing_order.id)
-        
-        @property
-        def object_id(self):
-            """兼容性属性：返回批价单ID"""
-            return self._object_id
-    
+    # 包装为审批实例格式（使用顶部定义的统一 PricingOrderApprovalWrapper 类）
     # 包装分页对象
     wrapped_items = [PricingOrderApprovalWrapper(po) for po in pricing_orders.items]
     pricing_orders.items = wrapped_items
@@ -5675,34 +5634,7 @@ def get_user_order_approvals(user_id, status_filter=None, page=1, per_page=20):
         error_out=False
     )
     
-    # 创建订单包装类
-    class OrderApprovalWrapper:
-        def __init__(self, order):
-            self.id = f"order_{order.id}"
-            self.object_id = order.id
-            self.object_type = 'purchase_order'
-            self.started_at = order.created_at
-            self.ended_at = order.approved_at if order.status == 'approved' else None
-            self.created_by = order.created_by_id
-            self.creator = order.created_by
-            self.order = order
-            
-            # 状态映射
-            if order.status == 'pending':
-                self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
-            elif order.status == 'approved':
-                self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
-            elif order.status == 'rejected':
-                self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
-            else:  # draft 或其他状态
-                self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
-            
-            # 虚拟流程对象
-            self.process = type('Process', (), {
-                'name': '订单审批流程',
-                'id': 'purchase_order_approval'
-            })()
-    
+    # 使用顶部定义的统一 OrderApprovalWrapper 类
     # 包装为审批对象
     wrapped_items = []
     for order in pagination.items:

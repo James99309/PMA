@@ -1,0 +1,102 @@
+{#
+=============================================================================
+审批中心表格行模板 - Tailwind CSS 版本
+=============================================================================
+用于渲染审批列表中的表格行，支持 AJAX 加载。
+
+表格列：
+1. 审批编号 (approval_number)
+2. 关联项目 (related_project)
+3. 流程名称 (process_name)
+4. 关联业务 (business_info) - 带徽章
+5. 提交人 (creator)
+6. 当前审批人 (current_approver)
+7. 状态 (status) - 带徽章
+8. 发起时间 (started_at)
+=============================================================================
+#}
+{% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_approval_status_badge,
+render_tw_business_type_badge, render_tw_approver_badge with context %}
+{% from 'components/tw_data_table.html' import render_empty_row with context %}
+
+{% for item in items %}
+<tr class="table-row-hover transition-colors">
+    {# 审批编号 - 根据 object_type 链接到对应的新详情页 #}
+    <td class="p-3 whitespace-nowrap">
+        {% if item.object_type == 'expense' %}
+        <a href="{{ url_for('expense.expense_detail', id=item.object_id) }}"
+           class="text-sm font-medium text-primary hover:text-primary/80 transition-colors font-mono">
+            {{ item.approval_number or ('APV-' ~ item.id) }}
+        </a>
+        {% elif item.object_type == 'project' %}
+        <a href="{{ url_for('project.view_project', project_id=item.object_id, tw=1) }}"
+           class="text-sm font-medium text-primary hover:text-primary/80 transition-colors font-mono">
+            {{ item.approval_number or ('APV-' ~ item.id) }}
+        </a>
+        {% elif item.object_type == 'quotation' %}
+        <a href="{{ url_for('quotation.view_quotation', id=item.object_id, tw=1) }}"
+           class="text-sm font-medium text-primary hover:text-primary/80 transition-colors font-mono">
+            {{ item.approval_number or ('APV-' ~ item.id) }}
+        </a>
+        {% elif item.object_type == 'pricing_order' %}
+        {# 批价单使用TW风格模态框 #}
+        <a href="javascript:void(0)"
+           onclick="openPricingOrderModal({{ item.object_id }})"
+           class="text-sm font-medium text-primary hover:text-primary/80 transition-colors font-mono">
+            {{ item.approval_number or ('APV-' ~ item.id) }}
+        </a>
+        {% else %}
+        {# 其他类型暂时使用旧的审批详情页 #}
+        <a href="{{ url_for('approval.detail', instance_id=item.id) }}"
+           class="text-sm font-medium text-primary hover:text-primary/80 transition-colors font-mono">
+            {{ item.approval_number or ('APV-' ~ item.id) }}
+        </a>
+        {% endif %}
+    </td>
+
+    {# 关联项目 #}
+    <td class="p-3 whitespace-nowrap" style="max-width: 200px;">
+        {% if item.project_name %}
+        <span class="text-sm text-slate-900 dark:text-white truncate block" title="{{ item.project_name }}">
+            {{ item.project_name }}
+        </span>
+        {% else %}
+        <span class="text-slate-400 dark:text-slate-500">-</span>
+        {% endif %}
+    </td>
+
+    {# 流程名称 #}
+    <td class="p-3 whitespace-nowrap" style="max-width: 250px;">
+        <span class="text-sm text-slate-700 dark:text-slate-300 truncate block" title="{{ item.process_name or '-' }}">
+            {{ item.process_name or '-' }}
+        </span>
+    </td>
+
+    {# 关联业务 #}
+    <td class="p-3 whitespace-nowrap">
+        {{ render_tw_business_type_badge(item.object_type) }}
+    </td>
+
+    {# 提交人 #}
+    <td class="p-3 whitespace-nowrap">
+        {{ render_tw_owner_badge(item.creator) }}
+    </td>
+
+    {# 当前审批人 #}
+    <td class="p-3 whitespace-nowrap">
+        {{ render_tw_approver_badge(item.current_approver, is_current=true) }}
+    </td>
+
+    {# 状态 #}
+    <td class="p-3 whitespace-nowrap">
+        {{ render_tw_approval_status_badge(item.status) }}
+    </td>
+
+    {# 发起时间 #}
+    <td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+        {{ item.started_at.strftime('%Y-%m-%d %H:%M') if item.started_at else '-' }}
+    </td>
+</tr>
+{% else %}
+{{ render_empty_row(8, _('暂无审批数据'), 'inbox') }}
+{% endfor %}

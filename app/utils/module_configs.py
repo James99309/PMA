@@ -79,7 +79,7 @@ def register_all_module_configs():
     # 报价单管理模块配置
     ModuleConfigRegistry.register('quotation', {
         'module': 'quotation',
-        'desktop_template': 'quotation/quotation_rows.html',
+        'desktop_template': 'quotation/tw_list_rows.html',
         'items_var_name': 'quotations',
         'mobile_card': {
             'title_field': {'field': 'quotation_number'},
@@ -124,12 +124,11 @@ def register_all_module_configs():
         }
     })
     
-    # 产品管理模块配置（通用产品）
+    # 产品管理模块配置（产品库）
     ModuleConfigRegistry.register('product', {
         'module': 'product',
-        'desktop_template': 'product/product_rows.html',
+        'desktop_template': 'product/tw_list_rows.html',
         'items_var_name': 'products',
-        'mobile_template': 'product/product_cards.html',  # 如果存在传统模板
         'mobile_card': {
             'title_field': {'field': 'product_name'},
             'link_url': '/product/view/{id}',
@@ -148,11 +147,34 @@ def register_all_module_configs():
             ]
         }
     })
+
+    # 研发库模块配置
+    ModuleConfigRegistry.register('product_management', {
+        'module': 'product_management',
+        'desktop_template': 'product_management/tw_list_rows.html',
+        'items_var_name': 'products',
+        'mobile_card': {
+            'title_field': {'field': 'model'},
+            'link_url': '/product-management/{id}',
+            'badges': [
+                {'field': 'status', 'renderer': 'dev_product_status_badge'}
+            ],
+            'details': [
+                {'field': 'mn_code', 'label': '产品料号'},
+                {'field': 'category_name', 'label': '产品分类'},
+                {'field': 'subcategory_name', 'label': '子分类'},
+                {'field': 'region_name', 'label': '销售区域'},
+                {'field': 'creator_name', 'label': '创建人'},
+                {'field': 'description', 'label': '产品描述'},
+                {'field': 'created_at', 'label': '创建时间', 'format': 'date'}
+            ]
+        }
+    })
     
     # 报销管理模块配置
     ModuleConfigRegistry.register('expense', {
         'module': 'expense',
-        'desktop_template': 'expense/expense_rows.html',
+        'desktop_template': 'expense/tw_list_rows.html',
         'items_var_name': 'expenses',
         'mobile_card': {
             'title_field': {'field': 'expense_number'},

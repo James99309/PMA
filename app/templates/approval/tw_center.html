@@ -1,0 +1,271 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_stat_card.html' import tw_stat_card, tw_stat_cards_grid with context %}
+{% from 'components/tw_filter_bar.html' import render_tw_filter_bar, render_tw_filter_bar_script with context %}
+{% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles,
+render_tw_data_table_script, render_empty_row with context %}
+{% from 'components/tw_tabs.html' import render_tw_tabs, render_tw_tabs_script, render_tw_tabs_update_script with context %}
+{% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_approval_status_badge,
+render_tw_business_type_badge, render_tw_approver_badge with context %}
+{% from 'components/tw_pricing_order_modal.html' import tw_pricing_order_modal, tw_pricing_order_modal_script with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('审批中心') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        [x-cloak] {
+            display: none !important;
+        }
+    </style>
+    <!-- 数据表格样式 -->
+    {{ render_tw_data_table_styles() }}
+</head>
+
+<body class="bg-background-light dark:bg-background-dark">
+    {% call(slot) render_tw_layout(active_page='approval', show_search=true, search_value='') %}
+    {% if slot == 'content' %}
+    <!-- 主内容 -->
+    <div class="p-6 lg:p-8">
+        <!-- 页面标题 -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('审批中心') }}</h1>
+        </div>
+
+        <!-- 标签页导航（底部蓝线样式） -->
+        <nav class="flex flex-wrap gap-6 mb-6 border-b border-slate-200 dark:border-slate-700" role="tablist">
+            {% for tab in tab_config %}
+            <a href="#"
+               data-tab="{{ tab.key }}"
+               role="tab"
+               aria-selected="{{ 'true' if tab.key == current_tab else 'false' }}"
+               class="tw-tab-item inline-flex items-center gap-2 px-1 py-3 text-sm font-medium border-b-2 -mb-px transition-colors
+                      {% if tab.key == current_tab %}
+                      text-primary border-primary
+                      {% else %}
+                      text-slate-500 dark:text-slate-400 border-transparent hover:text-primary hover:border-slate-300 dark:hover:border-slate-600
+                      {% endif %}">
+                {% if tab.icon %}
+                <span class="material-symbols-outlined text-base {{ tab.icon_class or '' }}">{{ tab.icon }}</span>
+                {% endif %}
+                <span>{{ tab.label }}</span>
+                {% if tab.count is defined and tab.count is not none and tab.count > 0 %}
+                <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold rounded-full
+                             {% if tab.key == current_tab %}
+                             bg-primary/10 text-primary
+                             {% else %}
+                             bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400
+                             {% endif %}">
+                    {{ tab.count }}
+                </span>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </nav>
+
+        <!-- 筛选区域（无边框样式） -->
+        <div class="mb-6">
+            <form id="approvalFilterForm" method="GET" action="{{ url_for('approval.tw_center') }}">
+                <input type="hidden" name="search" value="{{ search_value }}">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {% for field in filter_fields %}
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{{ field.label }}</label>
+                        <select name="{{ field.name }}"
+                            class="w-full h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary">
+                            <option value="">{{ field.all_option_text }}</option>
+                            {% for option in field.options %}
+                            <option value="{{ option.value }}" {% if option.value|string == field.current_value|string %}selected{% endif %}>
+                                {{ option.label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endfor %}
+                </div>
+            </form>
+        </div>
+
+        <!-- 数据表格 -->
+        {% call render_tw_data_table(
+            table_id='approvalTable',
+            title=_('审批列表'),
+            total_count=total_count,
+            columns=table_columns,
+            sort_field=sort_field,
+            sort_order=sort_order,
+            max_height='calc(100vh - 480px)',
+            min_height='400px',
+            show_loading=true,
+            min_width='1000px'
+        ) %}
+        {% include 'approval/tw_center_rows.html' %}
+        {% endcall %}
+    </div>
+    {% endif %}
+    {% endcall %}
+
+    <!-- 批价单模态框（用于审批中心点击查看批价单） -->
+    {{ tw_pricing_order_modal() }}
+
+    <!-- 布局脚本（搜索、语言、主题切换） -->
+    {{ render_tw_layout_script() }}
+
+    <!-- 筛选栏脚本（自动提交） -->
+    <script>
+    (function() {
+        const form = document.getElementById('approvalFilterForm');
+        if (!form) return;
+        form.querySelectorAll('select').forEach(function(select) {
+            select.addEventListener('change', function() {
+                // 触发 AJAX 加载而不是表单提交
+                if (window.onTabChange) {
+                    const currentTab = document.querySelector('.tw-tab-item[aria-selected="true"]');
+                    if (currentTab) {
+                        window.onTabChange(currentTab.dataset.tab);
+                    }
+                }
+            });
+        });
+    })();
+    </script>
+
+    <!-- 数据表格脚本 -->
+    {{ render_tw_data_table_script(table_id='approvalTable', sort_callback='sortTable') }}
+
+    <!-- 标签页切换脚本 -->
+    <script>
+    (function() {
+        const tabs = document.querySelectorAll('.tw-tab-item');
+        if (!tabs.length) return;
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', function(e) {
+                e.preventDefault();
+                const tabKey = this.dataset.tab;
+
+                // 更新激活状态
+                tabs.forEach(t => {
+                    const isActive = t.dataset.tab === tabKey;
+                    t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+
+                    if (isActive) {
+                        // 激活状态：蓝色文字 + 底部蓝线
+                        t.classList.remove('text-slate-500', 'dark:text-slate-400', 'border-transparent', 'hover:text-primary', 'hover:border-slate-300', 'dark:hover:border-slate-600');
+                        t.classList.add('text-primary', 'border-primary');
+                    } else {
+                        // 非激活状态：灰色文字 + 透明底边
+                        t.classList.add('text-slate-500', 'dark:text-slate-400', 'border-transparent', 'hover:text-primary', 'hover:border-slate-300', 'dark:hover:border-slate-600');
+                        t.classList.remove('text-primary', 'border-primary');
+                    }
+
+                    // 更新计数徽章样式
+                    const badge = t.querySelector('span.rounded-full');
+                    if (badge) {
+                        if (isActive) {
+                            badge.classList.remove('bg-slate-100', 'dark:bg-slate-700', 'text-slate-500', 'dark:text-slate-400');
+                            badge.classList.add('bg-primary/10', 'text-primary');
+                        } else {
+                            badge.classList.add('bg-slate-100', 'dark:bg-slate-700', 'text-slate-500', 'dark:text-slate-400');
+                            badge.classList.remove('bg-primary/10', 'text-primary');
+                        }
+                    }
+                });
+
+                // 调用回调函数
+                if (typeof window.onTabChange === 'function') {
+                    window.onTabChange(tabKey);
+                }
+            });
+        });
+    })();
+    </script>
+
+    <!-- 通用列表管理器 -->
+    <script src="{{ url_for('static', filename='js/tw-list-manager.js') }}"></script>
+
+    <!-- 审批中心管理器 -->
+    <script src="{{ url_for('static', filename='js/approval-center-manager.js') }}"></script>
+
+    <script>
+        (function () {
+            // 国际化文本
+            const i18n = {
+                loadingMore: '{{ _("加载中...") }}',
+                noMoreData: '{{ _("没有更多数据") }}',
+                loadError: '{{ _("加载数据失败") }}',
+                noData: '{{ _("暂无数据") }}'
+            };
+
+            // 初始化审批中心管理器
+            const approvalManager = new ApprovalCenterManager({
+                tableId: 'approvalTable',
+                formId: 'approvalFilterForm',
+                ajaxEndpoint: '{{ url_for("approval.tw_center_ajax") }}',
+                pageSize: {{ limit }},
+                initialCount: {{ offset + items|length }},
+                initialTab: '{{ current_tab }}',
+                sortField: '{{ sort_field }}',
+                sortOrder: '{{ sort_order }}',
+                hasMore: {{ 'true' if has_more else 'false' }},
+                messages: i18n
+            });
+            approvalManager.init();
+
+            // 暴露排序函数供表格组件调用
+            window.sortTable = function (field) {
+                approvalManager.sortBy(field);
+            };
+
+            // 暴露标签页切换回调
+            window.onTabChange = function (tabKey) {
+                approvalManager.switchTab(tabKey);
+            };
+        })();
+    </script>
+
+    <!-- 批价单模态框脚本（审批中心使用，仅用于查看已存在的批价单） -->
+    {{ tw_pricing_order_modal_script(0, 0, 'CNY', can_view_settlement=can_view_settlement) }}
+</body>
+
+</html>

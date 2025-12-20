@@ -1,0 +1,136 @@
+{#
+=============================================================================
+报价单模态框表单字段组件
+=============================================================================
+用于新建和编辑报价单的共享表单内容（模态框版本）
+
+使用方式：
+新建模式：{% include 'quotation/partials/_quotation_modal_fields.html' %}
+编辑模式：{% with quotation=quotation %}{% include 'quotation/partials/_quotation_modal_fields.html' %}{% endwith %}
+
+参数:
+- quotation: 编辑时传入报价单对象，新建时不传
+- product_columns: 产品明细表格列配置
+=============================================================================
+#}
+{% from 'components/tw_form_fields.html' import tw_form_field, tw_form_textarea, tw_form_row %}
+{% from 'components/tw_editable_table.html' import tw_editable_table %}
+
+{# 编辑模式时的隐藏字段 #}
+{% if quotation and quotation.id %}
+<input type="hidden" id="quotationFormId" name="quotation_id" value="{{ quotation.id }}">
+{% endif %}
+
+<!-- 第一行：关联项目 | 关联客户 + 联系人 -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- 关联项目（搜索选择） -->
+    <div class="relative">
+        <label for="projectSearchModal" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
+            {{ _('关联项目') }} <span class="text-red-500">*</span>
+        </label>
+        <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-lg">search</span>
+            <input type="text" id="projectSearchModal"
+                   data-field-code="project_id" data-field-role="search"
+                   class="form-input block w-full rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary text-sm pl-10 pr-10"
+                   placeholder="{{ _('搜索项目...') }}"
+                   {% if quotation and quotation.project %}
+                   value="{{ quotation.project.project_name }}"
+                   {% endif %}
+                   autocomplete="off">
+            <input type="hidden" id="project_id_modal" name="project_id"
+                   data-field-code="project_id" data-field-role="value"
+                   value="{{ quotation.project_id if quotation else '' }}">
+            <!-- 清除按钮（有内容时显示） -->
+            <button type="button" id="clearProjectBtnModal"
+                    data-field-code="project_id" data-field-role="clear"
+                    onclick="QuotationModal ? QuotationModal.clearProject() : QuotationEditModal.clearProject()"
+                    class="{% if not (quotation and quotation.project) %}hidden{% endif %} absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                <span class="material-symbols-outlined text-lg">close</span>
+            </button>
+            <!-- 搜索结果下拉 -->
+            <div id="projectDropdownModal" class="hidden absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                <div id="projectResultsModal" class="py-1">
+                    <!-- 搜索结果由JS填充 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 关联客户 和 联系人（两列布局） -->
+    <div class="grid grid-cols-2 gap-4">
+        <div>
+            <label for="customer_id_modal" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
+                {{ _('关联客户') }} <span class="text-red-500">*</span>
+            </label>
+            <select id="customer_id_modal" name="customer_id"
+                    data-field-code="customer_id"
+                    class="form-select block w-full rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-2 focus:ring-primary text-sm disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
+                    {% if not (quotation and quotation.customer_id) %}disabled{% endif %}
+                    required>
+                {% if quotation and quotation.customer %}
+                <option value="{{ quotation.customer_id }}" selected>{{ quotation.customer.company_name }}</option>
+                {% else %}
+                <option value="">{{ _('-- 请先选择项目 --') }}</option>
+                {% endif %}
+            </select>
+        </div>
+        <div>
+            <label for="contact_id_modal" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
+                {{ _('选择联系人') }}
+            </label>
+            <select id="contact_id_modal" name="contact_id"
+                    data-field-code="contact_id"
+                    class="form-select block w-full rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-2 focus:ring-primary text-sm disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
+                    {% if not (quotation and quotation.contact_id) %}disabled{% endif %}>
+                {% if quotation and quotation.contact %}
+                <option value="{{ quotation.contact_id }}" selected>{{ quotation.contact.name }}</option>
+                {% else %}
+                <option value="">{{ _('-- 请先选择客户 --') }}</option>
+                {% endif %}
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- 产品明细表格区域 -->
+<div class="mt-8">
+    {{ tw_editable_table(
+        table_id='quotationProductTable',
+        columns=product_columns,
+        data=[],
+        show_add_btn=false,
+        show_delete_btn=true,
+        currency=default_currency,
+    ) }}
+</div>
+
+<!-- 底部操作区：添加按钮（左） + 货币和总计（右） -->
+<div class="flex items-center justify-between mt-4">
+    <!-- 左侧：添加产品按钮 -->
+    <button type="button" class="add-row-btn" data-field-code="__add_row__" onclick="window.EditableTable.addRow('quotationProductTable')">
+        <span class="material-symbols-outlined text-base">add</span>
+        {{ _('添加产品') }}
+    </button>
+    <!-- 右侧：货币选择和总计 -->
+    <div class="flex items-baseline gap-3">
+        <select id="currency_modal" name="currency" data-field-code="currency" class="form-select rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-2 focus:ring-primary text-sm w-auto">
+            {% for code, name in currency_options %}
+            <option value="{{ code }}" {% if code == (quotation.currency if quotation else default_currency) %}selected{% endif %}>
+                {{ name }}
+            </option>
+            {% endfor %}
+        </select>
+        <span class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('总计金额') }}:</span>
+        <span id="grandTotalModal" class="text-2xl font-bold text-primary">{{ '{:,.2f}'.format(quotation.amount or 0) if quotation else '0.00' }}</span>
+    </div>
+</div>
+
+<!-- 备注 -->
+<div class="mt-6">
+    <label for="notes_modal" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ _('备注') }}</label>
+    <textarea id="notes_modal" name="notes" rows="3"
+              data-field-code="notes"
+              class="form-textarea block w-full rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary text-sm"
+              placeholder="{{ _('输入报价单备注信息...') }}">{{ quotation.notes if quotation else '' }}</textarea>
+</div>

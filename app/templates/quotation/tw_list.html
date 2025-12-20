@@ -1,0 +1,334 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_buttons.html' import tw_btn with context %}
+{% from 'components/tw_stat_card.html' import tw_stat_card, tw_stat_cards_grid with context %}
+{% from 'components/tw_filter_bar.html' import render_tw_filter_bar, render_tw_filter_bar_script with context %}
+{% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles, render_tw_data_table_script, render_empty_row with context %}
+{% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
+{% from 'components/tw_form_fields.html' import tw_form_field, tw_form_select, tw_form_textarea, tw_form_row with context %}
+{% from 'components/tw_editable_table.html' import tw_editable_table, tw_editable_table_styles, tw_editable_table_script with context %}
+{% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_project_stage_badge_key, render_tw_project_type_badge with context %}
+{% from 'macros/product_config_modal.html' import render_product_config_modal with context %}
+{% from 'components/tw_product_spec_modal.html' import tw_product_spec_modal, tw_product_spec_modal_script with context %}
+
+{# 产品明细表格列配置 #}
+{% set product_columns = [
+    {'key': 'product_name', 'label': _('产品名称'), 'type': 'product-selector', 'required': true, 'width': '160px'},
+    {'key': 'product_model', 'label': _('产品型号'), 'type': 'text', 'readonly': true, 'width': '120px'},
+    {'key': 'product_desc', 'label': _('产品描述'), 'type': 'text', 'readonly': true, 'width': '400px'},
+    {'key': 'brand', 'label': _('品牌'), 'type': 'text', 'readonly': true, 'width': '80px'},
+    {'key': 'unit', 'label': _('单位'), 'type': 'text', 'readonly': true, 'width': '60px'},
+    {'key': 'market_price', 'label': _('市场单价'), 'type': 'currency', 'readonly': true, 'width': '100px', 'align': 'right'},
+    {'key': 'discount', 'label': _('折扣%'), 'type': 'number', 'width': '80px', 'align': 'right', 'default': '100'},
+    {'key': 'unit_price', 'label': _('单价'), 'type': 'currency', 'width': '100px', 'align': 'right'},
+    {'key': 'quantity', 'label': _('数量'), 'type': 'number', 'required': true, 'width': '80px', 'align': 'right', 'default': '1'},
+    {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'width': '100px', 'align': 'right'}
+] %}
+
+{# 货币符号 #}
+{% set currency_symbol = '¥' if default_currency == 'CNY' else '$' %}
+
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('报价单管理') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+    <!-- 数据表格样式 -->
+    {{ render_tw_data_table_styles() }}
+    <!-- 可编辑表格样式 -->
+    {{ tw_editable_table_styles() }}
+</head>
+<body class="bg-background-light dark:bg-background-dark">
+    {% call(slot) render_tw_layout(active_page='quotation', show_search=true, search_value=filter_config.search_field.value) %}
+    {% if slot == 'content' %}
+        <!-- 主内容 - 使用固定标题页面组件 -->
+        {% call(page_slot) render_tw_fixed_page() %}
+        {% if page_slot == 'header' %}
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('报价单管理') }}</h1>
+            <div class="flex flex-wrap items-center gap-2">
+                {% if has_permission('quotation', 'create') %}
+                <button type="button" onclick="openAddQuotationModal()"
+                   class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">add</span>
+                    <span>{{ _('创建报价单') }}</span>
+                </button>
+                {% endif %}
+            </div>
+        {% elif page_slot == 'content' %}
+            <!-- 统计卡片 -->
+            {% set stats = list_config.stats.cards %}
+            {% call tw_stat_cards_grid(cols=4) %}
+                {% for card in stats %}
+                {% set variant_map = {'primary': 'default', 'success': 'success', 'info': 'info', 'warning': 'warning', 'secondary': 'default'} %}
+                {% set icon_map = {
+                    'fas fa-file-invoice-dollar': 'description',
+                    'fas fa-check-circle': 'check_circle',
+                    'fas fa-clock': 'schedule',
+                    'fas fa-edit': 'edit_note'
+                } %}
+                {{ tw_stat_card(
+                    title=card.title,
+                    value=card.value,
+                    unit=card.unit ~ ' / ' ~ (card.amount|default(0)) ~ card.amount_unit if card.amount else card.unit,
+                    icon=icon_map.get(card.icon, 'analytics'),
+                    variant=variant_map.get(card.color, 'default')
+                ) }}
+                {% endfor %}
+            {% endcall %}
+
+            <!-- 筛选区域（可滚出） -->
+            {{ render_tw_filter_bar(
+                form_id='filterForm',
+                action_url=filter_config.action_url,
+                filter_fields=filter_config.filter_fields,
+                search_value=filter_config.search_field.value,
+                cols=4
+            ) }}
+
+            <!-- 表格标题栏 (sticky) -->
+            <div class="sticky top-0 z-20 -mx-6 lg:-mx-8 px-6 lg:px-8">
+                <div class="flex items-center gap-4 bg-white dark:bg-slate-800 rounded-t-xl border border-b-0 border-slate-200 dark:border-slate-700 p-4">
+                    <h3 class="text-slate-900 dark:text-white text-base font-medium">{{ _('报价单列表') }}</h3>
+                    <span class="text-slate-500 dark:text-slate-400 text-sm ml-auto">
+                        <span id="quotationTableCount">{{ total_count }}</span> {{ _('条记录') }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- 数据表格（无标题，与上方标题栏衔接） -->
+            {% call render_tw_data_table(
+                table_id='quotationTable',
+                title='',
+                total_count=total_count,
+                columns=list_config.table.columns,
+                sort_field=sort_field,
+                sort_order=sort_order,
+                max_height='calc(100vh - 280px)',
+                min_height='400px',
+                show_loading=true,
+                min_width='900px',
+                no_top_radius=true
+            ) %}
+                {% for quotation in quotations %}
+                <tr class="table-row-hover transition-colors">
+                    <!-- 负责人 -->
+                    <td class="p-3 whitespace-nowrap">
+                        {{ render_tw_owner_badge(quotation.owner) }}
+                    </td>
+                    <!-- 报价单编号 -->
+                    <td class="p-3 whitespace-nowrap" style="min-width: 160px; width: 180px;">
+                        <a href="{{ url_for('quotation.view_quotation', id=quotation.id, tw=1) }}"
+                           class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
+                            {{ quotation.quotation_number }}
+                        </a>
+                    </td>
+                    <!-- 关联项目 -->
+                    <td class="p-3 whitespace-nowrap" style="min-width: 200px; width: 240px;">
+                        {% if quotation.project %}
+                        <a href="{{ url_for('project.view_project', project_id=quotation.project.id, tw=1) }}"
+                           class="text-sm text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary transition-colors block truncate"
+                           style="max-width: 220px;"
+                           title="{{ quotation.project.project_name }}">
+                            {{ quotation.project.project_name }}
+                        </a>
+                        {% else %}
+                        <span class="text-slate-400 dark:text-slate-500">-</span>
+                        {% endif %}
+                    </td>
+                    <!-- 总价 -->
+                    <td class="p-3 whitespace-nowrap text-right">
+                        {% if quotation.amount %}
+                        <span class="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            {{ quotation.currency_symbol }}{{ "{:,.2f}".format(quotation.amount or 0) }}
+                        </span>
+                        {% else %}
+                        <span class="text-slate-400 dark:text-slate-500">-</span>
+                        {% endif %}
+                    </td>
+                    <!-- 报价阶段 -->
+                    <td class="p-3 whitespace-nowrap overflow-hidden">
+                        {{ render_tw_project_stage_badge_key(quotation.project_stage) }}
+                    </td>
+                    <!-- 项目类型 -->
+                    <td class="p-3 whitespace-nowrap overflow-hidden">
+                        {{ render_tw_project_type_badge(quotation.project_type) }}
+                    </td>
+                    <!-- 更新时间 -->
+                    <td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                        {{ quotation.updated_at.strftime('%Y-%m-%d') if quotation.updated_at else '-' }}
+                    </td>
+                    <!-- 创建时间 -->
+                    <td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                        {{ quotation.created_at.strftime('%Y-%m-%d') if quotation.created_at else '-' }}
+                    </td>
+                </tr>
+                {% else %}
+                {{ render_empty_row(list_config.table.columns|length, _('暂无数据'), 'inbox') }}
+                {% endfor %}
+            {% endcall %}
+        {% endif %}
+        {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 新建/编辑报价单表单模态框 -->
+    {% call tw_form_modal(
+        modal_id='quotationFormModal',
+        title=_('新建报价单'),
+        submit_text=_('创建'),
+        cancel_text=_('取消'),
+        size='xl'
+    ) %}
+    {% include 'quotation/partials/_quotation_modal_fields.html' %}
+    {% endcall %}
+
+    <!-- 产品配置模态框 -->
+    {{ render_product_config_modal() }}
+
+    <!-- 新版产品规格选择模态框 (Tailwind) -->
+    {{ tw_product_spec_modal() }}
+
+    <!-- 表单模态框脚本 -->
+    {{ tw_form_modal_script() }}
+
+    <!-- 布局脚本 -->
+    {{ render_tw_layout_script() }}
+
+    <!-- 筛选栏脚本 -->
+    {{ render_tw_filter_bar_script(form_id='filterForm') }}
+
+    <!-- 数据表格脚本 -->
+    {{ render_tw_data_table_script(table_id='quotationTable', sort_callback='sortTable') }}
+
+    <!-- 可编辑表格脚本 -->
+    {{ tw_editable_table_script(table_id='quotationProductTable', config={
+        'columns': product_columns,
+        'currency': default_currency,
+        'currency_symbol': currency_symbol,
+        'api_endpoints': {
+            'categories': '/api/products/categories',
+            'productsByCategory': '/api/products/by-category',
+            'subcategories': '/api/products/subcategories',
+            'productsBySubcategory': '/api/products/by-subcategory',
+            'productModels': '/api/products/models',
+            'productSpecs': '/api/products/specs',
+            'productSearch': '/api/products/search'
+        }
+    }) }}
+
+    <!-- 通用列表管理器 -->
+    <script src="{{ url_for('static', filename='js/tw-list-manager.js') }}"></script>
+
+    <!-- 产品选择器 -->
+    <script src="{{ url_for('static', filename='js/product-selector.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/product-config-modal.js') }}"></script>
+
+    <!-- 新版产品规格选择模态框脚本 -->
+    {{ tw_product_spec_modal_script() }}
+
+    <script>
+    (function() {
+        // 使用通用列表管理器
+        const listManager = new TwListManager({
+            tableId: 'quotationTable',
+            formId: 'filterForm',
+            ajaxEndpoint: '{{ url_for("quotation.quotations_list_ajax") }}',
+            pageSize: {{ limit }},
+            initialCount: {{ offset + quotations|length }},
+            sortField: '{{ request.args.get("sort", "updated_at") }}',
+            sortOrder: '{{ request.args.get("order", "desc") }}',
+            infiniteScroll: {{ 'true' if has_more else 'false' }},
+            extraParams: { tw: '1' },
+            messages: {
+                loadingMore: '{{ _("加载中...") }}',
+                noMoreData: '{{ _("没有更多数据") }}',
+                loadError: '{{ _("加载数据失败") }}'
+            }
+        });
+        listManager.init();
+
+        // 暴露排序函数供表格组件调用
+        window.sortTable = function(field) {
+            listManager.sortBy(field);
+        };
+    })();
+    </script>
+
+    <!-- 报价单模态框脚本 -->
+    <script src="{{ url_for('static', filename='js/quotation-modal.js') }}"></script>
+    <script>
+    (function() {
+        // 初始化报价单模态框模块
+        QuotationModal.init({
+            i18n: {
+                loading: '{{ _("加载中...") }}',
+                pleaseSelectProject: '{{ _("-- 请先选择项目 --") }}',
+                pleaseSelectCustomer: '{{ _("请选择客户") }}',
+                noCustomersFound: '{{ _("该项目暂无关联客户") }}',
+                pleaseSelectContact: '{{ _("请选择联系人") }}',
+                noContactsFound: '{{ _("该客户暂无联系人") }}',
+                creating: '{{ _("创建中...") }}',
+                create: '{{ _("创建") }}',
+                saving: '{{ _("保存中...") }}',
+                save: '{{ _("保存") }}',
+                saveError: '{{ _("保存失败，请重试") }}',
+                loadError: '{{ _("加载数据失败，请重试") }}',
+                projectRequired: '{{ _("请选择关联项目") }}',
+                customerRequired: '{{ _("请选择客户") }}',
+                productRequired: '{{ _("请至少添加一个产品") }}',
+                manualInput: '{{ _("手动输入") }}',
+                tempIndicator: '{{ _("临时") }}',
+                noProjectsFound: '{{ _("未找到匹配的项目") }}',
+                newQuotation: '{{ _("新建报价单") }}'
+            },
+            urls: {
+                createQuotation: '{{ url_for("quotation.create_quotation") }}',
+                searchProjects: '/quotation/search_projects',
+                getProjectCustomers: '/quotation/get_project_customers',
+                getCustomerContacts: '/quotation/get_customer_contacts'
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

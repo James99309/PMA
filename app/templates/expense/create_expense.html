@@ -55,7 +55,7 @@
                             <label for="currency" class="form-label">{{ _('货币类型') }} <span class="text-danger">*</span></label>
                             <select class="form-select" id="currency" name="currency" required>
                                 {% for value, label in currency_options %}
-                                <option value="{{ value }}" {% if value == (default_currency or 'CNY') %}selected{% endif %}>{{ _(label) }} ({{ value }})</option>
+                                <option value="{{ value }}" {% if value == (default_currency or 'CNY') %}selected{% endif %}>{{ label }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -218,7 +218,7 @@
                     
                     {% set currency_list = [] %}
                     {% for value, label in currency_options %}
-                        {{ currency_list.append({"value": value, "label": _(label)}) or "" }}
+                        {{ currency_list.append({"value": value, "label": label}) or "" }}
                     {% endfor %}
                     
                     {# 报销明细配置 #}
@@ -568,8 +568,8 @@ window.EXPENSE_CATEGORIES = [
 window.CURRENCY_OPTIONS = [
     {% for value, label in currency_options %}
     {
-        "value": "{{ value }}", 
-        "label": "{{ _(label) }}"
+        "value": "{{ value }}",
+        "label": "{{ label }}"
     }{% if not loop.last %},{% endif %}
     {% endfor %}
 ];

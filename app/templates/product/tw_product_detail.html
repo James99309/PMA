@@ -1,0 +1,1245 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_detail_layout.html' import tw_detail_layout with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles with context %}
+{% from 'components/tw_buttons.html' import tw_btn_primary, tw_btn_secondary, tw_btn_danger, tw_btn_outline, tw_btn_icon with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script, tw_custom_modal, tw_custom_modal_script with context %}
+{% from 'components/tw_tabbed_card.html' import tw_tabbed_card, tw_tabbed_card_script, tw_tabbed_card_styles with context %}
+{% from 'macros/ui_helpers.html' import render_tw_product_status_badge, render_tw_product_type_badge, render_tw_product_source_badge, render_tw_product_category_badge with context %}
+{% from 'components/product/tw_product_relation_modal.html' import render_tw_product_relation_modal, render_tw_product_relation_script with context %}
+{% from 'components/product/tw_product_modal.html' import render_product_modal, render_product_modal_script with context %}
+{% from 'components/product/tw_spec_options_modal.html' import tw_spec_options_modal, tw_spec_options_modal_script with context %}
+{% from 'components/product/tw_spec_modals.html' import tw_spec_preview_modal, tw_spec_conflict_modal with context %}
+{% from 'components/product/tw_spec_list.html' import render_tw_spec_list with context %}
+
+{# 产品状态徽章 #}
+{% macro render_tw_status_badge(status) %}
+{% set status_config = {
+    'active': {'bg': 'bg-green-100 dark:bg-green-900/30', 'text': 'text-green-700 dark:text-green-400', 'border': 'border-green-200 dark:border-green-800', 'label': _('在售')},
+    'discontinued': {'bg': 'bg-red-100 dark:bg-red-900/30', 'text': 'text-red-700 dark:text-red-400', 'border': 'border-red-200 dark:border-red-800', 'label': _('停产')},
+    'upcoming': {'bg': 'bg-blue-100 dark:bg-blue-900/30', 'text': 'text-blue-700 dark:text-blue-400', 'border': 'border-blue-200 dark:border-blue-800', 'label': _('即将上市')}
+} %}
+{% set config = status_config.get(status, status_config.active) %}
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ config.bg }} {{ config.text }} border {{ config.border }}">
+    {{ config.label }}
+</span>
+{% endmacro %}
+
+
+
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ product.product_name or product.model or product.product_mn }} - {{ _('产品详情') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
+
+        {{ render_tw_fixed_header_styles() }}
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background-color: #4b5563; }
+
+        /* QR码打印样式 */
+        @media print {
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-200">
+    {% call(slot) render_tw_layout(active_page='product', show_search=true) %}
+    {% if slot == 'content' %}
+    {# 使用统一的详情页布局组件 #}
+    {% set status_badges_content %}
+        {{ render_tw_status_badge(product.status) }}
+        {{ render_tw_product_source_badge(product.is_vendor_product) }}
+    {% endset %}
+    {% call(detail_slot) tw_detail_layout(
+        breadcrumb_items=[
+            {'label': _('产品管理'), 'url': url_for('product.product_list')},
+            {'label': _('产品详情')}
+        ],
+        title=product.product_name or product.model or product.product_mn,
+        subtitle=product.model if product.model and product.product_name else '',
+        back_url=url_for('product.product_list'),
+        prev_url=url_for('product.view_product_detail', id=prev_product_id, tw=1) if prev_product_id else none,
+        next_url=url_for('product.view_product_detail', id=next_product_id, tw=1) if next_product_id else none,
+        prev_title=_('上一个产品'),
+        next_title=_('下一个产品'),
+        status_badges=status_badges_content,
+        edit_btn={
+            'show': has_permission('product', 'edit'),
+            'onclick': 'ProductModal.openEdit(' ~ product.id ~ ')'
+        },
+        delete_btn={
+            'show': has_permission('product', 'delete'),
+            'onclick': 'confirmDeleteProduct()'
+        },
+        has_sidebar=true
+    ) %}
+        {% if detail_slot == 'main' %}
+
+                            <!-- 产品概览卡片 -->
+                            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                                <div class="px-6 py-5">
+                                    <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-white">{{ _('产品概览') }}</h3>
+                                </div>
+                                <div class="p-6">
+                                    <div class="flex flex-col md:flex-row gap-6">
+                                        <!-- 产品图片 -->
+                                        <div class="w-full md:w-1/3 flex-shrink-0">
+                                            <div class="aspect-square bg-slate-100 dark:bg-slate-700 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 relative group">
+                                                {% if effective_image %}
+                                                    {% if effective_image.startswith('http') %}
+                                                    <img src="{{ effective_image }}" alt="{{ product.product_name or product.model }}" class="w-full h-full object-contain">
+                                                    {% elif effective_image.startswith('/storage/') %}
+                                                    <img src="{{ effective_image }}" alt="{{ product.product_name or product.model }}" class="w-full h-full object-contain">
+                                                    {% else %}
+                                                    <img src="{{ url_for('static', filename='uploads/products/' + effective_image) }}" alt="{{ product.product_name or product.model }}" class="w-full h-full object-contain">
+                                                    {% endif %}
+                                                {% else %}
+                                                <div class="w-full h-full flex items-center justify-center">
+                                                    <span class="material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600">inventory_2</span>
+                                                </div>
+                                                {% endif %}
+
+                                                {% if has_permission('product', 'edit') %}
+                                                <!-- 悬停上传按钮 -->
+                                                <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                    <button onclick="document.getElementById('imageFileInput').click()" class="px-4 py-2 bg-white/90 hover:bg-white text-slate-800 rounded-lg text-sm font-medium flex items-center gap-2">
+                                                        <span class="material-symbols-outlined text-lg">upload</span>
+                                                        {{ _('上传图片') }}
+                                                    </button>
+                                                </div>
+                                                <input type="file" id="imageFileInput" accept="image/jpeg,image/jpg,image/png,image/gif" class="hidden">
+                                                {% endif %}
+                                            </div>
+
+                                            {% if has_permission('product', 'edit') and product.image_path %}
+                                            <div class="mt-2 text-center">
+                                                <button onclick="clearProductFile('image')" class="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('清除图片') }}">
+                                                    <span class="material-symbols-outlined">delete</span>
+                                                </button>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+
+                                        <!-- 产品信息 -->
+                                        <div class="flex-1 space-y-4">
+                                            <!-- 产品描述 -->
+                                            <div id="specificationDisplay" class="{% if not product.specification %}hidden{% endif %}">
+                                                <p class="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{{ _('规格说明') }}</p>
+                                                <p id="specificationText" class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{{ product.specification or '' }}</p>
+                                            </div>
+
+                                            <div class="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <p class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('产品分类') }}</p>
+                                                    <p class="mt-1">
+                                                        {{ render_tw_product_category_badge(
+                                                            product.subcategory_obj.parent_category.name if product.subcategory_obj and product.subcategory_obj.parent_category else none,
+                                                            product.subcategory_obj.name if product.subcategory_obj else none
+                                                        ) }}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <p class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('品牌') }}</p>
+                                                    <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white">{{ product.brand or '-' }}</p>
+                                                </div>
+                                                <div>
+                                                    <p class="text-sm font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                                        {{ _('产品编码') }}
+                                                        {% if current_user.role == 'admin' %}
+                                                        <span id="mnLockIcon"
+                                                              class="material-symbols-outlined text-sm cursor-pointer hover:scale-110 transition-transform {{ 'text-red-500' if product.is_mn_locked else 'text-green-500' }}"
+                                                              title="{{ _('点击切换锁定状态') }}"
+                                                              onclick="toggleMnLock()">{{ 'lock' if product.is_mn_locked else 'lock_open' }}</span>
+                                                        {% else %}
+                                                        <span class="material-symbols-outlined text-sm {{ 'text-red-500' if product.is_mn_locked else 'text-green-500' }}"
+                                                              title="{{ _('编码已锁定') if product.is_mn_locked else _('编码未锁定') }}">{{ 'lock' if product.is_mn_locked else 'lock_open' }}</span>
+                                                        {% endif %}
+                                                        <span class="text-slate-400 dark:text-slate-500">[{{ _('规格编码') }}]</span>
+                                                    </p>
+                                                    <p class="mt-1 text-sm font-mono text-slate-900 dark:text-white">
+                                                        <span id="productMnDisplay">{{ product.product_mn or '-' }}</span>
+                                                        <span class="text-slate-400 dark:text-slate-500 ml-1">[<span id="specMnMainDisplay">{{ product.spec_mn or '-' }}</span>]</span>
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <p class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('计量单位') }}</p>
+                                                    <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white">{{ product.unit or '-' }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 产品规格卡片（支持编辑模式） -->
+                            <div id="productSpecsCard" class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                                <div class="px-6 py-5 flex justify-between items-center">
+                                    <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-white">{{ _('产品规格') }}</h3>
+                                    {% if has_permission('product', 'edit') %}
+                                    <div class="flex items-center gap-2">
+                                        <!-- 添加按钮（编辑模式显示） -->
+                                        <button id="addSpecBtn" class="hidden text-sm text-primary hover:text-primary-hover font-medium flex items-center gap-1">
+                                            <span class="material-symbols-outlined text-base">add</span>
+                                            {{ _('添加') }}
+                                        </button>
+                                        <!-- 编辑/应用按钮（事件由 spec-editor.js 绑定） -->
+                                        <button id="editSpecsBtn" class="text-sm text-primary hover:text-primary-hover font-medium">
+                                            {{ _('编辑') }}
+                                        </button>
+                                        <button id="applySpecsBtn" class="hidden text-sm text-green-600 hover:text-green-700 font-medium">
+                                            {{ _('应用') }}
+                                        </button>
+                                        <button id="cancelSpecsBtn" class="hidden text-sm text-slate-500 hover:text-slate-700 font-medium">
+                                            {{ _('取消') }}
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {{ render_tw_spec_list(product_specs, can_edit_button) }}
+                            </div>
+
+                            <!-- 关联产品配置卡片（使用通用选卡组件） -->
+                            {{ tw_tabbed_card(
+                                card_id='productRelations',
+                                title=_('关联产品配置'),
+                                tabs=[
+                                    {'key': 'normal', 'label': _('普通关联'), 'icon': 'link', 'count': 0},
+                                    {'key': 'mutual', 'label': _('互斥组'), 'icon': 'layers', 'count': 0}
+                                ],
+                                default_tab='normal',
+                                content_type='list',
+                                action_btn={
+                                    'label': _('添加关联'),
+                                    'icon': 'add',
+                                    'onclick': 'openAddRelationModal()'
+                                },
+                                show_action=(current_user.role in ['admin', 'product_manager']),
+                                max_height='300px',
+                                empty_icon='link_off',
+                                empty_text=_('暂无关联产品配置')
+                            ) }}
+
+                            <!-- 产品文档卡片 -->
+                            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                                <div class="px-6 py-5 flex justify-between items-center">
+                                    <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-white">{{ _('产品文档') }}</h3>
+                                    {% if has_permission('product', 'edit') %}
+                                    <button onclick="document.getElementById('pdfFileInput').click()" class="text-sm text-primary hover:text-primary-hover font-medium flex items-center gap-1">
+                                        <span class="material-symbols-outlined text-base">upload</span>
+                                        {{ _('上传PDF') }}
+                                    </button>
+                                    <input type="file" id="pdfFileInput" accept=".pdf" class="hidden">
+                                    {% endif %}
+                                </div>
+                                <div id="pdfDocumentContainer" class="p-6 pt-0">
+                                    <ul class="-mx-6 -my-2">
+                                        <li class="px-6 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                            <div class="flex items-center">
+                                                <span class="material-symbols-outlined text-3xl mr-4 fill {{ 'text-red-500' if effective_pdf else 'text-slate-300 dark:text-slate-600' }}">picture_as_pdf</span>
+                                                <div>
+                                                    <p class="text-sm font-medium text-slate-900 dark:text-white">{{ _('产品规格书') }}.pdf</p>
+                                                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                                                        {% if effective_pdf %}{{ _('点击下载或预览') }}{% else %}{{ _('暂无文档') }}{% endif %}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                {% if effective_pdf %}
+                                                <button onclick="openPdfInNewWindow()" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('预览') }}">
+                                                    <span class="material-symbols-outlined">visibility</span>
+                                                </button>
+                                                <a href="{{ url_for('product.download_pdf', id=product.id) }}" target="_blank" class="p-2 text-slate-400 hover:text-primary rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('下载') }}">
+                                                    <span class="material-symbols-outlined">download</span>
+                                                </a>
+                                                {% else %}
+                                                <button disabled class="p-2 text-slate-300 dark:text-slate-600 cursor-not-allowed" title="{{ _('暂无文档可预览') }}">
+                                                    <span class="material-symbols-outlined">visibility</span>
+                                                </button>
+                                                <span class="p-2 text-slate-300 dark:text-slate-600 cursor-not-allowed" title="{{ _('暂无文档可下载') }}">
+                                                    <span class="material-symbols-outlined">download</span>
+                                                </span>
+                                                {% endif %}
+                                                {% if has_permission('product', 'edit') and product.pdf_path %}
+                                                <button onclick="clearProductFile('pdf')" class="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('删除') }}">
+                                                    <span class="material-symbols-outlined">delete</span>
+                                                </button>
+                                                {% endif %}
+                                            </div>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+
+        {% elif detail_slot == 'sidebar' %}
+                            <!-- 价格信息卡片 -->
+                            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                                <div class="px-6 py-5">
+                                    <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-white">{{ _('价格信息') }}</h3>
+                                </div>
+                                <div class="p-6 pt-0 space-y-5">
+                                    <div>
+                                        <p class="text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">{{ _('市场价格') }}</p>
+                                        <div class="flex items-baseline">
+                                            <span class="text-3xl font-bold text-slate-900 dark:text-white">
+                                                {% if product.retail_price %}
+                                                {{ product.currency_symbol or '¥' }}{{ '{:,.2f}'.format(product.retail_price) }}
+                                                {% else %}
+                                                <span class="text-slate-400">{{ _('暂无') }}</span>
+                                                {% endif %}
+                                            </span>
+                                            {% if product.retail_price %}
+                                            <span class="ml-2 text-sm text-slate-500 dark:text-slate-400">{{ product.currency or 'CNY' }}</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+
+                                    <!-- 订单进度条 -->
+                                    {% set progress_percent = ((order_quantity / design_quantity) * 100)|round(0)|int if design_quantity > 0 else 0 %}
+                                    {% set display_percent = progress_percent if progress_percent <= 100 else 100 %}
+                                    <div class="pt-4">
+                                        <div class="flex justify-between items-center mb-2">
+                                            <p class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-semibold">{{ _('订单统计') }}</p>
+                                            <p class="text-lg font-bold text-slate-900 dark:text-white">{{ display_percent }}%</p>
+                                        </div>
+                                        <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                                            <div class="bg-primary h-2 rounded-full transition-all duration-500" style="width: {{ display_percent }}%"></div>
+                                        </div>
+                                        <div class="flex justify-between items-center mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                            <span>{{ _('订单数量') }}: {{ order_quantity }}</span>
+                                            <span>{{ _('设计总量') }}: {{ design_quantity }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 产品二维码卡片 -->
+                            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                                <div class="px-6 py-5">
+                                    <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-white">{{ _('产品二维码') }}</h3>
+                                </div>
+                                <div class="p-6 text-center">
+                                    <div class="inline-block p-3 bg-white rounded-lg border border-slate-200 dark:border-slate-800">
+                                        <img src="{{ url_for('product.generate_product_qrcode', id=product.id) }}"
+                                             alt="{{ _('产品二维码') }}"
+                                             class="w-32 h-32">
+                                    </div>
+                                    <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">{{ _('扫描二维码查看产品详情') }}</p>
+                                </div>
+                            </div>
+
+                            <!-- 元数据卡片 -->
+                            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                                <div class="p-6">
+                                    <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">{{ _('元数据') }}</h4>
+                                    <div class="space-y-3 text-sm">
+                                        <div class="flex justify-between">
+                                            <span class="text-slate-500 dark:text-slate-400">{{ _('规格编码') }}</span>
+                                            <span id="specMnDisplay" class="text-slate-900 dark:text-white font-mono text-xs">{{ product.spec_mn or '-' }}</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-slate-500 dark:text-slate-400">{{ _('产品ID') }}</span>
+                                            <span class="text-slate-900 dark:text-white">#{{ product.id }}</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-slate-500 dark:text-slate-400">{{ _('创建时间') }}</span>
+                                            <span class="text-slate-900 dark:text-white">{{ product.created_at.strftime('%Y-%m-%d') if product.created_at else '-' }}</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-slate-500 dark:text-slate-400">{{ _('更新时间') }}</span>
+                                            <span class="text-slate-900 dark:text-white">{{ product.updated_at.strftime('%Y-%m-%d %H:%M') if product.updated_at else '-' }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+        {% endif %}
+    {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 删除确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='deleteConfirmModal',
+        title=_('确认删除'),
+        message=_('确定要删除此产品吗？删除后将无法恢复，请谨慎操作。'),
+        confirm_text=_('删除'),
+        cancel_text=_('取消'),
+        variant='danger'
+    ) }}
+
+    <!-- 清除文件确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='clearFileModal',
+        title=_('确认清除'),
+        message=_('确定要清除此文件吗？此操作不可撤销。'),
+        confirm_text=_('清除'),
+        cancel_text=_('取消'),
+        variant='danger'
+    ) }}
+
+    <!-- 锁定编码确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='lockMnModal',
+        title=_('锁定产品编码'),
+        message=_('确定要锁定产品编码吗？锁定后将无法通过修改规格来更新产品编码。'),
+        confirm_text=_('锁定'),
+        cancel_text=_('取消'),
+        variant='warning'
+    ) }}
+
+    <!-- 解锁编码确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='unlockMnModal',
+        title=_('解锁产品编码'),
+        message=_('确定要解锁产品编码吗？解锁后修改规格将会更新产品编码。'),
+        confirm_text=_('解锁'),
+        cancel_text=_('取消'),
+        variant='primary'
+    ) }}
+
+    <!-- 分类文件上传选择对话框 -->
+    {% call tw_custom_modal(
+        modal_id='categoryFileConfirmModal',
+        title=_('分类已有共享文件'),
+        icon='help',
+        icon_color='text-blue-500',
+        show_close_btn=false,
+        show_cancel_btn=false,
+        max_width='max-w-sm'
+    ) %}
+        <p id="categoryFileConfirmMessage" class="text-sm text-slate-600 dark:text-slate-300 mb-5">
+            <!-- 内容由JS动态填充 -->
+        </p>
+        <div class="flex flex-col gap-3">
+            <!-- 覆盖/仅用 左右布置 -->
+            <div class="flex gap-3">
+                <button type="button" id="btnUpdateCategory"
+                    class="flex-1 flex items-center justify-center h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-semibold">
+                    <span class="material-symbols-outlined mr-1.5 text-lg">share</span>
+                    {{ _('覆盖分类') }}
+                </button>
+                <button type="button" id="btnProductOnly"
+                    class="flex-1 flex items-center justify-center h-10 px-4 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors text-sm font-semibold">
+                    <span class="material-symbols-outlined mr-1.5 text-lg">person</span>
+                    {{ _('仅用于自身') }}
+                </button>
+            </div>
+            <button type="button" onclick="closeCustomModal('categoryFileConfirmModal')"
+                class="w-full flex items-center justify-center h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm font-medium">
+                {{ _('取消') }}
+            </button>
+        </div>
+    {% endcall %}
+
+    <!-- 规格选项管理模态框 -->
+    {{ tw_spec_options_modal() }}
+
+    <!-- 布局脚本 -->
+    {{ render_tw_layout_script() }}
+
+    <!-- 确认模态框脚本 -->
+    {{ tw_confirm_modal_script() }}
+
+    <!-- 自定义模态框脚本（分类文件选择对话框） -->
+    {{ tw_custom_modal_script() }}
+
+    <!-- 规格选项管理模态框脚本 -->
+    {{ tw_spec_options_modal_script() }}
+
+    <!-- 选卡卡片组件脚本 -->
+    {{ tw_tabbed_card_script('productRelations') }}
+
+    <!-- 页面脚本 -->
+    <script>
+    (function() {
+        const productId = {{ product.id }};
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        // 国际化文本
+        const i18n = {
+            deleteSuccess: '{{ _("产品删除成功") }}',
+            deleteError: '{{ _("删除失败，请重试") }}',
+            uploadSuccess: '{{ _("上传成功") }}',
+            uploadError: '{{ _("上传失败") }}',
+            clearSuccess: '{{ _("清除成功") }}',
+            clearError: '{{ _("清除失败") }}',
+            noRelations: '{{ _("暂无关联产品配置") }}',
+            loading: '{{ _("加载中...") }}',
+            requiredAccessory: '{{ _("必选配件") }}',
+            recommended: '{{ _("推荐配件") }}',
+            mutualRequired: '{{ _("互斥组（必选）") }}',
+            mutualOptional: '{{ _("互斥组（可选）") }}',
+            lockMnConfirm: '{{ _("确定要锁定产品编码吗？锁定后将无法通过修改规格来更新产品编码。") }}',
+            unlockMnConfirm: '{{ _("确定要解锁产品编码吗？解锁后修改规格将会更新产品编码。") }}',
+            lockSuccess: '{{ _("产品编码已锁定") }}',
+            unlockSuccess: '{{ _("产品编码已解锁") }}',
+            lockError: '{{ _("操作失败") }}'
+        };
+
+        // 当前锁定状态
+        let isMnLocked = {{ 'true' if product.is_mn_locked else 'false' }};
+
+        // PDF预览URL（动态，上传后可更新）
+        window.currentPdfUrl = '{{ url_for("product.get_pdf_preview", id=product.id) if effective_pdf else "" }}';
+
+        // 打开PDF预览（在新窗口，添加时间戳绕过缓存）
+        window.openPdfInNewWindow = function() {
+            const url = window.currentPdfUrl || `/api/products/${productId}/pdf-preview`;
+            if (url) {
+                // 添加时间戳参数绕过浏览器缓存
+                const cacheBuster = '?t=' + Date.now();
+                window.open(url + cacheBuster, '_blank', 'noopener,noreferrer');
+            }
+        };
+
+        // 切换MN锁定状态
+        window.toggleMnLock = function() {
+            const modalId = isMnLocked ? 'unlockMnModal' : 'lockMnModal';
+            openConfirmModal(modalId, {
+                onConfirm: async function() {
+                    const action = isMnLocked ? 'unlock-mn' : 'lock-mn';
+                    try {
+                        const response = await fetch(`/products/${productId}/${action}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken
+                            }
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            // 更新状态
+                            isMnLocked = !isMnLocked;
+
+                            // 更新图标
+                            const icon = document.getElementById('mnLockIcon');
+                            if (icon) {
+                                icon.textContent = isMnLocked ? 'lock' : 'lock_open';
+                                icon.classList.remove('text-red-500', 'text-green-500');
+                                icon.classList.add(isMnLocked ? 'text-red-500' : 'text-green-500');
+                            }
+                        } else {
+                            alert(data.message || i18n.lockError);
+                        }
+                    } catch (error) {
+                        console.error('切换锁定状态失败:', error);
+                        alert(i18n.lockError);
+                    }
+                }
+            });
+        };
+
+        // 删除产品确认
+        window.confirmDeleteProduct = function() {
+            openConfirmModal('deleteConfirmModal', {
+                onConfirm: async function() {
+                    try {
+                        const response = await fetch(`/api/products/${productId}/delete`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken
+                            },
+                            body: JSON.stringify({ reason: '{{ _("用户主动删除") }}' })
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            window.location.href = '{{ url_for("product.product_list") }}';
+                        } else {
+                            alert(data.message || i18n.deleteError);
+                        }
+                    } catch (error) {
+                        console.error('删除失败:', error);
+                        alert(i18n.deleteError);
+                    }
+                }
+            });
+        };
+
+        // 清除产品文件
+        let pendingClearFileType = null;
+        window.clearProductFile = function(fileType) {
+            pendingClearFileType = fileType;
+            const titles = { image: '{{ _("确认清除图片") }}', pdf: '{{ _("确认清除PDF") }}' };
+            const messages = { image: '{{ _("确定要清除此图片吗？") }}', pdf: '{{ _("确定要清除此PDF文档吗？") }}' };
+
+            openConfirmModal('clearFileModal', {
+                title: titles[fileType],
+                message: messages[fileType],
+                onConfirm: async function() {
+                    try {
+                        const response = await fetch(`/api/products/${productId}/clear-${pendingClearFileType}`, {
+                            method: 'POST',
+                            headers: { 'X-CSRFToken': csrfToken }
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            window.location.reload();
+                        } else {
+                            alert(data.error || i18n.clearError);
+                        }
+                    } catch (error) {
+                        console.error('清除文件失败:', error);
+                        alert(i18n.clearError);
+                    }
+                }
+            });
+        };
+
+        // 图片上传
+        const imageFileInput = document.getElementById('imageFileInput');
+        if (imageFileInput) {
+            imageFileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                // 验证
+                const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+                if (!allowedTypes.includes(file.type)) {
+                    alert('{{ _("不支持的图片格式！请选择 JPG、PNG 或 GIF 文件") }}');
+                    return;
+                }
+                if (file.size > 12 * 1024 * 1024) {
+                    alert('{{ _("图片文件太大！最大允许 12MB") }}');
+                    return;
+                }
+
+                checkCategoryFileAndUpload(file, 'image');
+            });
+        }
+
+        // PDF上传
+        const pdfFileInput = document.getElementById('pdfFileInput');
+        if (pdfFileInput) {
+            pdfFileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                if (file.type !== 'application/pdf') {
+                    alert('{{ _("请选择PDF文件") }}');
+                    return;
+                }
+                if (file.size > 12 * 1024 * 1024) {
+                    alert('{{ _("PDF文件太大！最大允许 12MB") }}');
+                    return;
+                }
+
+                checkCategoryFileAndUpload(file, 'pdf');
+            });
+        }
+
+        // 检查分类文件状态并决定上传方式
+        async function checkCategoryFileAndUpload(file, type) {
+            try {
+                // 检查分类文件状态
+                const statusUrl = `/api/products/${productId}/category-file-status?file_type=${type}`;
+                const response = await fetch(statusUrl);
+                const data = await response.json();
+
+                // 根据文件类型检查对应字段
+                const hasCategoryFile = type === 'image' ? data.category_image : data.category_pdf;
+
+                if (data.success && hasCategoryFile) {
+                    // 分类已有文件，显示确认对话框
+                    showCategoryFileConfirm(file, type, data.category_name);
+                } else {
+                    // 分类无文件，直接上传（自动设为分类共享）
+                    uploadFile(file, type, null);
+                }
+            } catch (error) {
+                console.error('检查分类文件状态失败:', error);
+                // 出错时直接上传
+                uploadFile(file, type, null);
+            }
+        }
+
+        // 显示分类文件确认对话框
+        function showCategoryFileConfirm(file, type, categoryName) {
+            const typeName = type === 'image' ? '{{ _("图片") }}' : '{{ _("PDF") }}';
+            const message = `{{ _("分类") }} <strong>${categoryName}</strong> {{ _("已有共享") }}${typeName}{{ _("，请选择操作方式：") }}`;
+
+            document.getElementById('categoryFileConfirmMessage').innerHTML = message;
+
+            // 绑定按钮事件
+            document.getElementById('btnUpdateCategory').onclick = function() {
+                closeCustomModal('categoryFileConfirmModal');
+                uploadFile(file, type, true);  // true = 覆盖分类
+            };
+
+            document.getElementById('btnProductOnly').onclick = function() {
+                closeCustomModal('categoryFileConfirmModal');
+                uploadFile(file, type, false);  // false = 仅用于自身
+            };
+
+            openCustomModal('categoryFileConfirmModal');
+        }
+
+        // 上传文件（支持 updateCategory 参数）
+        async function uploadFile(file, type, updateCategory) {
+            const formData = new FormData();
+            formData.append(type, file);
+            formData.append('csrf_token', csrfToken);
+
+            // 添加 update_category 参数（仅当不为 null 时）
+            if (updateCategory !== null) {
+                formData.append('update_category', updateCategory.toString());
+            }
+
+            try {
+                const url = type === 'image'
+                    ? `/api/products/${productId}/upload-image`
+                    : `/api/products/${productId}/upload-pdf`;
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    // 上传成功，更新显示而不刷新整页
+                    updateFileDisplay(type, data.file_url);
+                } else {
+                    alert(data.error || data.message || i18n.uploadError);
+                }
+            } catch (error) {
+                console.error('上传错误:', error);
+                alert(i18n.uploadError);
+            }
+        }
+
+        // 更新文件显示（避免整页刷新）
+        function updateFileDisplay(type, fileUrl) {
+            if (type === 'image') {
+                // 更新图片显示
+                const imgContainer = document.querySelector('.aspect-square');
+                if (imgContainer) {
+                    const existingImg = imgContainer.querySelector('img');
+                    if (existingImg) {
+                        existingImg.src = fileUrl;
+                    } else {
+                        // 如果之前没有图片，替换整个容器内容
+                        imgContainer.innerHTML = `<img src="${fileUrl}" alt="{{ product.product_name or product.model }}" class="w-full h-full object-contain">`;
+                    }
+                }
+            } else if (type === 'pdf') {
+                // 更新PDF预览区域
+                updatePdfDisplay(fileUrl);
+            }
+        }
+
+        // 更新PDF显示区域（避免整页刷新）
+        function updatePdfDisplay(fileUrl) {
+            const pdfContainer = document.getElementById('pdfDocumentContainer');
+            if (!pdfContainer) return;
+
+            // 更新预览URL变量（注意：路由是 /api/products/...）
+            window.currentPdfUrl = `/api/products/{{ product.id }}/pdf-preview`;
+
+            // 渲染PDF文档列表项（上传成功后按钮可用）
+            const pdfHtml = `
+                <ul class="-mx-6 -my-2">
+                    <li class="px-6 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <div class="flex items-center">
+                            <span class="material-symbols-outlined text-red-500 text-3xl mr-4 fill">picture_as_pdf</span>
+                            <div>
+                                <p class="text-sm font-medium text-slate-900 dark:text-white">{{ _('产品规格书') }}.pdf</p>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">{{ _('点击下载或预览') }}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="openPdfInNewWindow()" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('预览') }}">
+                                <span class="material-symbols-outlined">visibility</span>
+                            </button>
+                            <a href="{{ url_for('product.download_pdf', id=product.id) }}" target="_blank" class="p-2 text-slate-400 hover:text-primary rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('下载') }}">
+                                <span class="material-symbols-outlined">download</span>
+                            </a>
+                            {% if has_permission('product', 'edit') %}
+                            <button onclick="clearProductFile('pdf')" class="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('删除') }}">
+                                <span class="material-symbols-outlined">delete</span>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </li>
+                </ul>
+            `;
+
+            pdfContainer.innerHTML = pdfHtml;
+        }
+
+        // 加载关联产品
+        async function loadProductRelations() {
+            // 显示加载状态
+            if (typeof productRelationsShowLoading === 'function') {
+                productRelationsShowLoading();
+            }
+
+            try {
+                const response = await fetch('{{ url_for("rd_product.get_product_relations", product_id=product.id) }}');
+                const data = await response.json();
+
+                if (data.success) {
+                    renderProductRelations(data);
+                } else {
+                    productRelationsShowEmpty();
+                }
+            } catch (error) {
+                console.error('加载关联产品失败:', error);
+                productRelationsShowEmpty();
+            }
+        }
+
+        // 渲染关联产品
+        function renderProductRelations(data) {
+            const hasNormalData = data.data && data.data.length > 0;
+            const hasGroups = data.groups && Object.keys(data.groups).length > 0;
+
+            // 更新选卡计数
+            const normalCount = hasNormalData ? data.data.length : 0;
+            const groupCount = hasGroups ? Object.keys(data.groups).length : 0;
+            productRelationsUpdateTabCount('normal', normalCount);
+            productRelationsUpdateTabCount('mutual', groupCount);
+
+            // 隐藏加载状态
+            productRelationsHideLoading();
+
+            // 渲染普通关联面板
+            let normalHtml = '';
+            if (hasNormalData) {
+                normalHtml = '<div>';
+                data.data.forEach(item => {
+                    normalHtml += renderRelationItem(item);
+                });
+                normalHtml += '</div>';
+            } else {
+                normalHtml = renderEmptyPanel('{{ _("暂无普通关联配置") }}');
+            }
+            productRelationsSetListContent('normal', normalHtml);
+
+            // 渲染互斥组面板
+            let mutualHtml = '';
+            if (hasGroups) {
+                mutualHtml = '<div>';
+                Object.values(data.groups).forEach(group => {
+                    mutualHtml += renderMutualGroup(group);
+                });
+                mutualHtml += '</div>';
+            } else {
+                mutualHtml = renderEmptyPanel('{{ _("暂无互斥组配置") }}');
+            }
+            productRelationsSetListContent('mutual', mutualHtml);
+
+            // 显示当前激活的选卡面板
+            const activeTab = productRelationsGetActiveTab() || 'normal';
+            productRelationsShowPanel(activeTab);
+        }
+
+        // 渲染空面板
+        function renderEmptyPanel(text) {
+            return `
+                <div class="text-center py-8">
+                    <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">link_off</span>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">${text}</p>
+                </div>
+            `;
+        }
+
+        // 渲染单个关联产品
+        function renderRelationItem(item) {
+            const typeLabels = {
+                'required_accessory': { label: i18n.requiredAccessory, class: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+                'recommended': { label: i18n.recommended, class: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' }
+            };
+            const typeConfig = typeLabels[item.relation_type] || { label: item.relation_type_label, class: 'bg-slate-100 text-slate-600' };
+
+            return `
+                <div class="px-6 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" style="border: none !important;">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-slate-900 dark:text-white truncate">${item.product_name || '-'}</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">${item.product_model || '-'} | ${item.product_mn || '-'}</p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${typeConfig.class}">${typeConfig.label}</span>
+                        <span class="text-sm text-slate-500">x${item.default_quantity}</span>
+                        {% if current_user.role in ['admin', 'product_manager'] %}
+                        <button onclick="deleteRelation(${item.id})" class="p-1 text-slate-400 hover:text-red-500 rounded">
+                            <span class="material-symbols-outlined text-lg">delete</span>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 渲染互斥组
+        function renderMutualGroup(group) {
+            const isRequired = group.is_required;
+            const typeLabel = isRequired ? i18n.mutualRequired : i18n.mutualOptional;
+            const typeClass = isRequired
+                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                : 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400';
+
+            let html = `
+                <div style="border: none !important;">
+                    <div class="px-6 py-3 flex items-center justify-between cursor-pointer" style="border: none !important;" onclick="toggleMutualGroup('${group.group_id}')">
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-lg text-slate-400 transition-transform" id="toggle-${group.group_id}">expand_more</span>
+                            <span class="material-symbols-outlined text-lg text-slate-500">layers</span>
+                            <span class="font-medium text-slate-800 dark:text-white">${group.group_name}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${typeClass}">${typeLabel}</span>
+                            {% if current_user.role in ['admin', 'product_manager'] %}
+                            <button onclick="event.stopPropagation(); deleteMutualGroup('${group.group_id}')" class="p-1 text-slate-400 hover:text-red-500 rounded">
+                                <span class="material-symbols-outlined text-lg">delete</span>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div id="group-${group.group_id}">
+            `;
+
+            group.products.forEach(item => {
+                const isDefault = item.is_default;
+                html += `
+                    <div class="px-6 py-3 pl-12 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" style="border: none !important;">
+                        <div class="flex items-center gap-2 flex-1 min-w-0">
+                            ${isDefault ? '<span class="material-symbols-outlined text-green-500 text-lg">radio_button_checked</span>' : '<span class="material-symbols-outlined text-slate-300 text-lg">radio_button_unchecked</span>'}
+                            <div>
+                                <p class="text-sm font-medium text-slate-900 dark:text-white truncate">${item.product_name || '-'}</p>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">${item.product_model || '-'} | ${item.product_mn || '-'}</p>
+                            </div>
+                        </div>
+                        <span class="text-sm text-slate-500">x${item.default_quantity}</span>
+                    </div>
+                `;
+            });
+
+            html += '</div></div>';
+            return html;
+        }
+
+        // 切换互斥组展开
+        window.toggleMutualGroup = function(groupId) {
+            const content = document.getElementById('group-' + groupId);
+            const toggle = document.getElementById('toggle-' + groupId);
+            if (content && toggle) {
+                const isHidden = content.style.display === 'none';
+                content.style.display = isHidden ? '' : 'none';
+                toggle.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
+            }
+        };
+
+        // 删除关联产品
+        window.deleteRelation = function(relationId) {
+            openConfirmModal('deleteRelationModal', {
+                title: '{{ _("确认删除") }}',
+                message: '{{ _("确认删除此关联产品？此操作无法撤销。") }}',
+                onConfirm: async function() {
+                    try {
+                        const response = await fetch(`/product-management/api/product/${productId}/relations/${relationId}`, {
+                            method: 'DELETE',
+                            headers: { 'X-CSRFToken': csrfToken }
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            loadProductRelations();
+                        } else {
+                            alert(data.message || '{{ _("删除失败") }}');
+                        }
+                    } catch (error) {
+                        console.error('删除关联产品失败:', error);
+                        alert('{{ _("删除失败") }}');
+                    }
+                }
+            });
+        };
+
+        // 删除互斥组
+        window.deleteMutualGroup = function(groupId) {
+            openConfirmModal('deleteMutualGroupModal', {
+                title: '{{ _("确认删除互斥组") }}',
+                message: '{{ _("确认删除整个互斥组及其所有产品？此操作无法撤销。") }}',
+                onConfirm: async function() {
+                    try {
+                        const response = await fetch(`/product-management/api/product/${productId}/mutual-exclusion-group`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken
+                            },
+                            body: JSON.stringify({ group_id: groupId })
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            loadProductRelations();
+                        } else {
+                            alert(data.message || '{{ _("删除失败") }}');
+                        }
+                    } catch (error) {
+                        console.error('删除互斥组失败:', error);
+                        alert('{{ _("删除失败") }}');
+                    }
+                }
+            });
+        };
+
+        // 打开添加关联模态框
+        window.openAddRelationModal = function() {
+            window.openProductRelationModal();
+        };
+
+        // 暴露刷新函数供关联模态框调用
+        window.loadProductRelations = loadProductRelations;
+
+        // 页面加载时执行
+        document.addEventListener('DOMContentLoaded', function() {
+            loadProductRelations();
+        });
+
+    })();
+    </script>
+
+<!-- 添加关联产品弹窗 -->
+{{ render_tw_product_relation_modal() }}
+{{ render_tw_product_relation_script(product.id, '/product-management/api', []) }}
+
+<!-- TW确认对话框 -->
+{{ tw_confirm_modal(
+    modal_id='deleteRelationModal',
+    title=_('确认删除'),
+    message=_('确认删除此关联产品？此操作无法撤销。'),
+    confirm_text=_('删除'),
+    cancel_text=_('取消'),
+    variant='danger'
+) }}
+{{ tw_confirm_modal(
+    modal_id='deleteMutualGroupModal',
+    title=_('确认删除互斥组'),
+    message=_('确认删除整个互斥组及其所有产品？此操作无法撤销。'),
+    confirm_text=_('删除'),
+    cancel_text=_('取消'),
+    variant='danger'
+) }}
+
+{{ tw_confirm_modal(
+    modal_id='deleteSpecModal',
+    title=_('确认删除规格'),
+    message=_('确认删除此规格？此操作无法撤销。'),
+    confirm_text=_('删除'),
+    cancel_text=_('取消'),
+    variant='danger'
+) }}
+
+<!-- 规格MN更新预览确认模态框 -->
+{{ tw_spec_preview_modal() }}
+
+<!-- 简单保存确认模态框（非编码变化时使用） -->
+{{ tw_confirm_modal(
+    modal_id='simpleSpecSaveModal',
+    title=_('保存确认'),
+    message=_('确定要保存规格更改吗？产品描述将根据规格重新生成。'),
+    confirm_text=_('确定'),
+    cancel_text=_('取消'),
+    variant='primary'
+) }}
+
+<!-- 编码冲突警告模态框 -->
+{{ tw_spec_conflict_modal() }}
+
+<!-- 规格编辑模式脚本 -->
+<script src="{{ url_for('static', filename='js/spec-editor.js') }}"></script>
+<script>
+(function() {
+    const productId = {{ product.id }};
+    const isMnLocked = {{ 'true' if is_mn_locked else 'false' }};
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+    // 国际化文本
+    const specI18n = {
+        edit: '{{ _("编辑") }}',
+        apply: '{{ _("应用") }}',
+        cancel: '{{ _("取消") }}',
+        delete: '{{ _("删除") }}',
+        excludeFromDesc: '{{ _("从描述中排除") }}',
+        includeInDesc: '{{ _("包含到描述中") }}',
+        loading: '{{ _("加载中...") }}',
+        saveSuccess: '{{ _("保存成功") }}',
+        saveError: '{{ _("保存失败") }}',
+        selectSpec: '{{ _("选择规格...") }}',
+        selectSpecFirst: '{{ _("请先选择规格") }}',
+        noAvailableSpecs: '{{ _("没有可用的规格") }}',
+        noAvailableOptions: '{{ _("该规格暂无可用指标") }}',
+        emptySpecs: '{{ _("暂无规格信息") }}',
+        notSet: '{{ _("未设置") }}',
+        missingCodes: '{{ _("以下规格缺少编码，无法保存：") }}'
+    };
+
+    // 初始化 SpecEditor 实例
+    const specEditor = new SpecEditor({
+        productId: productId,
+        apiEndpoint: `/api/products/${productId}/specs`,
+        containerId: 'productSpecsContainer',
+        listId: 'productSpecsList',
+        emptyMessageId: 'emptySpecsMessage',
+        buttons: {
+            edit: 'editSpecsBtn',
+            apply: 'applySpecsBtn',
+            cancel: 'cancelSpecsBtn',
+            add: 'addSpecBtn'
+        },
+        csrfToken: csrfToken,
+        i18n: specI18n,
+        // 子分类ID（用于加载该分类可用的非编码规格）
+        subcategoryId: {{ product.subcategory_id or 'null' }},
+        // 功能配置
+        features: {
+            descriptionControl: true,   // 启用描述包含控制
+            codePreview: true,          // 启用编码预览
+            addNewSpec: true            // 启用添加新规格
+        },
+        // 预览API端点
+        previewEndpoint: `/api/products/${productId}/specs/preview`,
+        // 回调函数
+        onShowPreview: showSpecMnPreviewModal,
+        onShowConflict: showSpecConflictModal,
+        onPartialRefresh: handlePartialRefresh
+    });
+    specEditor.init();
+
+    // 绑定全局函数以兼容规格行内的onclick
+    window.toggleSpecEdit = function(btn) {
+        specEditor.toggleSpecEdit(btn);
+    };
+    window.toggleSpecInDescription = function(btn) {
+        specEditor.toggleSpecInDescription(btn);
+    };
+    window.confirmMissingSpec = function(btn) {
+        specEditor.confirmMissingSpec(btn);
+    };
+    window.deleteSpec = function(btn) {
+        const row = btn.closest('.spec-row');
+        const specId = row.dataset.specId;
+        if (row.dataset.new === 'true') {
+            specEditor.deleteNewSpec(row);
+        } else {
+            // 使用确认模态框，确认后调用公共删除方法
+            openConfirmModal('deleteSpecModal', {
+                onConfirm: function() {
+                    specEditor._executeDelete(row, specId, { showStrikethrough: true });
+                }
+            });
+        }
+    };
+
+    // 当前产品信息（用于冲突模态框）
+    const currentProductInfo = {
+        name: '{{ product.product_name or product.name or "-" }}',
+        model: '{{ product.model or "-" }}',
+        code: '{{ product.product_mn or "-" }}'
+    };
+
+    // 使用公共方法显示模态框
+    function showSpecMnPreviewModal(previewData, confirmCallback) {
+        specEditor.showPreviewModal(previewData, confirmCallback);
+    }
+
+    function showSpecConflictModal(result) {
+        specEditor.showConflictModal(result, currentProductInfo);
+    }
+
+    // 暴露给模态框按钮调用
+    window.closeSpecMnPreviewModal = () => specEditor.closePreviewModal();
+    window.confirmSpecMnPreview = () => specEditor.confirmPreview();
+    window.closeSpecConflictModal = () => specEditor.closeConflictModal();
+
+    // 处理保存后的局部刷新
+    function handlePartialRefresh(result) {
+        // 1. 更新产品MN显示
+        const productMnDisplay = document.getElementById('productMnDisplay');
+        if (productMnDisplay) {
+            productMnDisplay.textContent = result.product_mn || '-';
+        }
+
+        // 2. 更新规格MN显示（产品概览区域）
+        const specMnMainDisplay = document.getElementById('specMnMainDisplay');
+        if (specMnMainDisplay) {
+            specMnMainDisplay.textContent = result.spec_mn || '-';
+        }
+
+        // 3. 更新规格MN显示（侧边栏）
+        const specMnDisplay = document.getElementById('specMnDisplay');
+        if (specMnDisplay) {
+            specMnDisplay.textContent = result.spec_mn || '-';
+        }
+
+        // 4. 更新规格说明
+        const specDisplay = document.getElementById('specificationDisplay');
+        const specText = document.getElementById('specificationText');
+        if (specDisplay && specText) {
+            if (result.specification) {
+                specText.textContent = result.specification;
+                specDisplay.classList.remove('hidden');
+            } else {
+                specDisplay.classList.add('hidden');
+            }
+        }
+
+        // 5. 重建规格列表（使用公共方法）
+        if (result.specs && result.specs.length > 0) {
+            specEditor.rebuildSpecsList(result.specs);
+        }
+    }
+})();
+</script>
+
+{# 产品编辑模态框 #}
+{{ render_product_modal(product_type='standard') }}
+{{ render_product_modal_script(modal_categories, modal_regions, csrf_token(), modal_currencies, product_type='standard') }}
+
+</body>
+</html>

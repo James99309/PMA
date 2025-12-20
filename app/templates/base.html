@@ -366,14 +366,14 @@
                             </summary>
                             <ul class="list-unstyled ps-3 mb-0">
                                 {% if has_permission('product', 'view') %}
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_route.product_list') }}">{{ _('产品库') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product.product_list') }}">{{ _('产品库') }}</a></li>
                                 {% endif %}
                                 {% if has_permission('product_code', 'view') %}
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_management.index') }}">{{ _('研发库') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('rd_product.index') }}">{{ _('研发库') }}</a></li>
                                 {% endif %}
                                 {% if current_user.role in ['admin', 'product_manager'] %}
                                 <li><hr class="dropdown-divider my-1"></li>
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_code.categories') }}">{{ _('产品分类') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_code.tw_categories') }}">{{ _('产品分类') }}</a></li>
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('product_code.origin_fields') }}">{{ _('销售地区') }}</a></li>
                                 {% endif %}
                             </ul>
@@ -386,14 +386,14 @@
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="productDropdown">
                             {% if has_permission('product', 'view') %}
-                            <li><a class="dropdown-item" href="{{ url_for('product_route.product_list') }}">{{ _('产品库') }}</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('product.product_list') }}">{{ _('产品库') }}</a></li>
                             {% endif %}
                             {% if has_permission('product_code', 'view') %}
-                            <li><a class="dropdown-item" href="{{ url_for('product_management.index') }}">{{ _('研发库') }}</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('rd_product.index') }}">{{ _('研发库') }}</a></li>
                             {% endif %}
                             {% if current_user.role in ['admin', 'product_manager'] %}
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('product_code.categories') }}">{{ _('产品分类') }}</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('product_code.tw_categories') }}">{{ _('产品分类') }}</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('product_code.origin_fields') }}">{{ _('销售地区') }}</a></li>
                             {% endif %}
                         </ul>

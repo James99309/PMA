@@ -1,0 +1,230 @@
+{#
+=============================================================================
+Tailwind 顶部栏组件
+=============================================================================
+可复用的 Tailwind CSS 顶部栏，包含搜索框、语言切换、深色模式切换等功能。
+
+使用方式：
+{% from 'components/tw_header.html' import render_tw_header, render_tw_header_script %}
+
+<!-- 在页面中使用 -->
+{{ render_tw_header(
+    show_search=true,
+    action_buttons=[
+        {'url': url_for('project.add_project'), 'icon': 'add', 'label': _('新建项目'), 'permission': ('project', 'create'), 'primary': true}
+    ]
+) }}
+
+<!-- 在页面底部引入脚本 -->
+{{ render_tw_header_script() }}
+
+参数：
+- show_search: 是否显示搜索框，默认 true
+- search_placeholder: 搜索框占位符文本
+- search_value: 当前搜索值，用于初始化搜索框
+- search_param: URL参数名，默认 'search'
+- action_buttons: 操作按钮列表，每个按钮包含 url, icon, label, permission(可选), primary(可选)
+=============================================================================
+#}
+{% from 'components/language_switcher.html' import render_language_switcher, render_language_switcher_script %}
+
+{# 顶部栏 HTML #}
+{% macro render_tw_header(show_search=true, search_placeholder=none, search_value='', search_param='search', action_buttons=[]) %}
+<header class="sticky top-0 z-10 flex items-center justify-between whitespace-nowrap border-b border-solid border-slate-200 dark:border-slate-800 px-6 lg:px-10 py-3 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-sm">
+    <div class="flex items-center gap-4">
+        {% if show_search %}
+        <!-- 搜索框 -->
+        <div class="flex flex-col min-w-40 h-10 max-w-72">
+            <div class="flex w-full flex-1 items-stretch rounded-lg h-full relative">
+                <div class="text-slate-500 dark:text-slate-400 flex border-none bg-white dark:bg-slate-800 items-center justify-center pl-4 rounded-l-lg">
+                    <span class="material-symbols-outlined text-xl">search</span>
+                </div>
+                <input id="headerSearchInput"
+                       class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-0 border-none bg-white dark:bg-slate-800 h-full placeholder:text-slate-500 dark:placeholder:text-slate-400 px-4 rounded-l-none rounded-r-lg pl-2 pr-8 text-sm font-normal"
+                       placeholder="{{ search_placeholder or _('搜索') }}"
+                       value="{{ search_value }}"
+                       data-search-param="{{ search_param }}">
+                <!-- 清除按钮 -->
+                <button type="button" id="headerSearchClear"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 {% if not search_value %}hidden{% endif %}"
+                        title="{{ _('清除') }}">
+                    <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    <div class="flex items-center gap-4">
+        <!-- 语言切换 -->
+        <div class="relative" x-data="{ open: false }">
+            <button @click="open = !open" class="flex items-center gap-2 rounded-lg h-10 px-3 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                <span class="material-symbols-outlined text-base">language</span>
+                <span id="currentLanguageText">{{ _('简体中文') }}</span>
+                <span :class="{'rotate-180': open}" class="material-symbols-outlined text-base transition-transform">expand_more</span>
+            </button>
+            <div class="absolute top-full right-0 mt-2 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-2 z-50" x-show="open" x-transition @click.away="open = false">
+                <a href="#" class="flex items-center justify-between px-3 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-sm language-option" data-lang="zh">
+                    <span class="text-slate-900 dark:text-white">简体中文</span>
+                    <span class="material-symbols-outlined text-base text-primary" id="check-zh" style="visibility: hidden;">check</span>
+                </a>
+                <a href="#" class="flex items-center justify-between px-3 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-sm language-option" data-lang="en">
+                    <span class="text-slate-900 dark:text-white">English</span>
+                    <span class="material-symbols-outlined text-base text-primary" id="check-en" style="visibility: hidden;">check</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- 深色模式切换 -->
+        <button id="themeToggle" class="flex items-center justify-center w-10 h-10 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+            <span class="material-symbols-outlined dark:hidden">dark_mode</span>
+            <span class="material-symbols-outlined hidden dark:block">light_mode</span>
+        </button>
+
+        <!-- 操作按钮 -->
+        {% for btn in action_buttons %}
+            {% set show_btn = true %}
+            {% if btn.permission %}
+                {% set show_btn = has_permission(btn.permission[0], btn.permission[1]) %}
+            {% endif %}
+            {% if btn.condition is defined %}
+                {% set show_btn = show_btn and btn.condition %}
+            {% endif %}
+            {% if show_btn %}
+            <a href="{{ btn.url }}" class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-10 px-4 {% if btn.primary %}bg-primary text-white hover:bg-primary/90{% else %}bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700{% endif %} text-sm font-bold">
+                <span class="material-symbols-outlined text-base">{{ btn.icon }}</span>
+                <span class="truncate">{{ btn.label }}</span>
+            </a>
+            {% endif %}
+        {% endfor %}
+    </div>
+</header>
+{% endmacro %}
+
+
+{# 顶部栏 JavaScript #}
+{% macro render_tw_header_script() %}
+<script>
+(function() {
+    // ========== 搜索框功能 ==========
+    const headerSearchInput = document.getElementById('headerSearchInput');
+    const headerSearchClear = document.getElementById('headerSearchClear');
+
+    if (headerSearchInput) {
+        const searchParam = headerSearchInput.dataset.searchParam || 'search';
+
+        // 更新清除按钮显示状态
+        function updateClearButton() {
+            if (headerSearchClear) {
+                if (headerSearchInput.value.trim()) {
+                    headerSearchClear.classList.remove('hidden');
+                } else {
+                    headerSearchClear.classList.add('hidden');
+                }
+            }
+        }
+
+        // 执行搜索
+        function doSearch() {
+            const searchValue = headerSearchInput.value.trim();
+            const url = new URL(window.location.href);
+            if (searchValue) {
+                url.searchParams.set(searchParam, searchValue);
+            } else {
+                url.searchParams.delete(searchParam);
+            }
+            // 重置分页
+            url.searchParams.delete('offset');
+            url.searchParams.delete('page');
+            window.location.href = url.toString();
+        }
+
+        // 输入时更新清除按钮
+        headerSearchInput.addEventListener('input', updateClearButton);
+
+        // 回车搜索
+        headerSearchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                doSearch();
+            }
+        });
+
+        // 清除按钮点击
+        if (headerSearchClear) {
+            headerSearchClear.addEventListener('click', function() {
+                headerSearchInput.value = '';
+                updateClearButton();
+                doSearch();
+            });
+        }
+    }
+
+    // ========== 语言切换功能 ==========
+    const currentLang = '{{ session.get("language", "zh") }}';
+
+    // 更新语言显示
+    function updateLanguageDisplay() {
+        const langText = document.getElementById('currentLanguageText');
+        const checkZh = document.getElementById('check-zh');
+        const checkEn = document.getElementById('check-en');
+
+        if (!langText) return;
+
+        if (currentLang === 'en') {
+            langText.textContent = 'English';
+            if (checkZh) checkZh.style.visibility = 'hidden';
+            if (checkEn) checkEn.style.visibility = 'visible';
+        } else {
+            langText.textContent = '简体中文';
+            if (checkZh) checkZh.style.visibility = 'visible';
+            if (checkEn) checkEn.style.visibility = 'hidden';
+        }
+    }
+
+    // 语言切换点击事件
+    document.querySelectorAll('.language-option').forEach(function(option) {
+        option.addEventListener('click', function(e) {
+            e.preventDefault();
+            const selectedLang = this.getAttribute('data-lang');
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+            fetch('/language/switch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ language: selectedLang })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    localStorage.setItem('language_changed', JSON.stringify({
+                        timestamp: Date.now(),
+                        language: selectedLang,
+                        method: 'tw_header'
+                    }));
+                    window.location.reload();
+                }
+            })
+            .catch(error => console.error('语言切换失败:', error));
+        });
+    });
+
+    // 深色模式切换
+    document.getElementById('themeToggle')?.addEventListener('click', function() {
+        document.documentElement.classList.toggle('dark');
+        document.documentElement.classList.toggle('light');
+        localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    });
+
+    // 初始化语言显示
+    document.addEventListener('DOMContentLoaded', updateLanguageDisplay);
+
+    // 立即执行一次（以防 DOMContentLoaded 已经触发）
+    if (document.readyState !== 'loading') {
+        updateLanguageDisplay();
+    }
+})();
+</script>
+{% endmacro %}

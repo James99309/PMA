@@ -1,0 +1,284 @@
+{#
+=============================================================================
+Tailwind 表单模态框组件
+=============================================================================
+可复用的 Tailwind CSS 表单模态框组件，用于创建/编辑表单等场景。
+支持标签页、滚动内容区域、自定义表单字段。
+
+使用方式：
+  {# 导入模态框组件 #}
+  { % from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script, tw_tab_content % }
+  {# 导入表单字段组件（从独立文件） #}
+  { % from 'components/tw_form_fields.html' import tw_form_field, tw_form_select, tw_form_textarea, tw_form_checkbox, tw_form_card, tw_form_row % }
+
+  <!-- 在页面中渲染模态框 -->
+  { % call tw_form_modal(
+      modal_id='clientFormModal',
+      title=_('创建客户'),
+      submit_text=_('创建'),
+      cancel_text=_('取消'),
+      tabs=[
+          {'id': 'profile', 'label': _('客户档案'), 'active': true},
+          {'id': 'contacts', 'label': _('联系人')},
+          {'id': 'projects', 'label': _('关联项目')}
+      ]
+  ) % }
+      <!-- 表单内容 -->
+      <div id="tab-profile">
+          { { tw_form_field('name', _('客户名称'), placeholder=_('请输入客户名称')) } }
+      </div>
+  { % endcall % }
+
+  <!-- 在页面底部引入脚本 -->
+  { { tw_form_modal_script() } }
+
+参数：
+- modal_id: 模态框唯一ID（必填）
+- title: 标题文本
+- submit_text: 提交按钮文本
+- cancel_text: 取消按钮文本
+- tabs: 标签页配置列表（可选），每项包含 id, label, active
+- size: 尺寸 'sm' | 'md' | 'lg' | 'xl'，默认 'lg'
+- form_id: 表单ID（可选）
+- form_action: 表单提交地址（可选）
+- form_method: 表单方法（可选）
+=============================================================================
+#}
+
+{# 导入表单字段组件 #}
+{% from 'components/tw_form_fields.html' import tw_form_field, tw_form_select, tw_form_textarea, tw_form_checkbox, tw_form_card, tw_form_row %}
+{# 导入关闭按钮组件 #}
+{% from 'components/tw_modal_base.html' import tw_close_btn %}
+
+{# 表单模态框 HTML #}
+{% macro tw_form_modal(modal_id, title='', submit_text='', cancel_text='', tabs=[], size='lg', form_id='', form_action='', form_method='POST') %}
+{% set size_classes = {
+    'sm': 'max-w-md',
+    'md': 'max-w-2xl',
+    'lg': 'max-w-4xl',
+    'xl': 'max-w-6xl',
+    '2xl': 'max-w-7xl',
+    'full': 'max-w-[95vw]'
+} %}
+{% set modal_size = size_classes[size] or size_classes['lg'] %}
+
+<div id="{{ modal_id }}" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+    <!-- 背景遮罩 -->
+    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onclick="closeFormModal('{{ modal_id }}')"></div>
+
+    <!-- 模态框容器 -->
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full {{ modal_size }} max-h-[90vh] transform transition-all">
+            <!-- 头部 -->
+            <header class="flex-shrink-0 flex items-center justify-between p-5">
+                <h3 id="{{ modal_id }}-title" class="text-xl font-semibold text-slate-900 dark:text-white">{{ title or _('表单') }}</h3>
+{{ tw_close_btn('closeFormModal(\'' ~ modal_id ~ '\')') }}
+            </header>
+
+            <!-- 表单 -->
+            <form id="{{ form_id or (modal_id ~ '-form') }}"
+                  {% if form_action %}action="{{ form_action }}"{% endif %}
+                  method="{{ form_method }}"
+                  class="flex-1 flex flex-col overflow-hidden">
+
+                {% if tabs %}
+                <!-- 标签页导航 -->
+                <nav class="flex-shrink-0 border-b border-slate-200 dark:border-slate-800">
+                    <ul class="flex px-5 -mb-px" role="tablist">
+                        {% for tab in tabs %}
+                        <li>
+                            <button type="button" role="tab"
+                                    class="form-modal-tab inline-flex items-center justify-center px-4 py-3 border-b-2 text-sm font-medium -mb-px transition-colors focus:outline-none
+                                           {% if tab.active %}border-primary text-primary{% else %}border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700{% endif %}"
+                                    data-modal-id="{{ modal_id }}"
+                                    data-tab-id="{{ tab.id }}"
+                                    {% if tab.active %}aria-selected="true"{% endif %}>
+                                {{ tab.label }}
+                            </button>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </nav>
+                {% endif %}
+
+                <!-- 内容区域（可滚动） -->
+                <div class="flex-1 overflow-y-auto p-6 md:p-8">
+                    <div class="space-y-6">
+                        {{ caller() }}
+                    </div>
+                </div>
+
+                <!-- 底部按钮 -->
+                <footer class="flex-shrink-0 flex items-center justify-end gap-3 px-6 md:px-8 py-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                    <button type="button" onclick="closeFormModal('{{ modal_id }}')"
+                        class="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                        {{ cancel_text or _('取消') }}
+                    </button>
+                    <button type="submit" id="{{ modal_id }}-submit-btn"
+                        class="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-5 bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm">
+                        {{ submit_text or _('提交') }}
+                    </button>
+                </footer>
+            </form>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 标签页内容容器 #}
+{% macro tw_tab_content(tab_id, active=false) %}
+<div id="tab-{{ tab_id }}" class="form-modal-tab-content {% if not active %}hidden{% endif %}">
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+
+{# 表单模态框 JavaScript #}
+{% macro tw_form_modal_script() %}
+<script>
+(function() {
+    // 存储每个模态框的回调函数
+    window._formModalCallbacks = window._formModalCallbacks || {};
+
+    // 打开表单模态框
+    window.openFormModal = function(modalId, options) {
+        options = options || {};
+        const modal = document.getElementById(modalId);
+        if (!modal) {
+            console.error('Form modal not found:', modalId);
+            return;
+        }
+
+        // 更新标题（如果提供）
+        if (options.title) {
+            const titleEl = document.getElementById(modalId + '-title');
+            if (titleEl) titleEl.textContent = options.title;
+        }
+
+        // 更新提交按钮文本
+        if (options.submitText) {
+            const submitBtn = document.getElementById(modalId + '-submit-btn');
+            if (submitBtn) submitBtn.textContent = options.submitText;
+        }
+
+        // 填充表单数据
+        if (options.data) {
+            const form = document.getElementById(modalId + '-form');
+            if (form) {
+                Object.keys(options.data).forEach(function(key) {
+                    const field = form.querySelector('[name="' + key + '"]');
+                    if (field) {
+                        if (field.type === 'checkbox') {
+                            field.checked = !!options.data[key];
+                        } else {
+                            field.value = options.data[key] || '';
+                        }
+                    }
+                });
+            }
+        }
+
+        // 存储提交回调
+        window._formModalCallbacks[modalId] = {
+            onSubmit: options.onSubmit || null,
+            onClose: options.onClose || null
+        };
+
+        // 绑定表单提交事件
+        const form = document.getElementById(modalId + '-form');
+        if (form && options.onSubmit) {
+            form.onsubmit = function(e) {
+                e.preventDefault();
+                const formData = new FormData(form);
+                const data = {};
+                formData.forEach(function(value, key) {
+                    data[key] = value;
+                });
+                options.onSubmit(data, form);
+            };
+        }
+
+        // 显示模态框
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+
+        // 聚焦第一个输入框
+        setTimeout(function() {
+            const firstInput = modal.querySelector('input:not([type="hidden"]):not([readonly]):not([disabled]), select:not([disabled]), textarea:not([readonly]):not([disabled])');
+            if (firstInput) firstInput.focus();
+        }, 100);
+    };
+
+    // 关闭表单模态框
+    window.closeFormModal = function(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+
+            // 调用关闭回调
+            const callbacks = window._formModalCallbacks[modalId];
+            if (callbacks && typeof callbacks.onClose === 'function') {
+                callbacks.onClose();
+            }
+
+            // 重置表单
+            const form = document.getElementById(modalId + '-form');
+            if (form) form.reset();
+        }
+
+        // 清除回调
+        if (window._formModalCallbacks) {
+            delete window._formModalCallbacks[modalId];
+        }
+    };
+
+    // 标签页切换
+    document.addEventListener('click', function(e) {
+        const tab = e.target.closest('.form-modal-tab');
+        if (!tab) return;
+
+        const modalId = tab.dataset.modalId;
+        const tabId = tab.dataset.tabId;
+        if (!modalId || !tabId) return;
+
+        const modal = document.getElementById(modalId);
+        if (!modal) return;
+
+        // 更新标签页状态
+        modal.querySelectorAll('.form-modal-tab').forEach(function(t) {
+            if (t.dataset.tabId === tabId) {
+                t.classList.remove('border-transparent', 'text-slate-500', 'dark:text-slate-400');
+                t.classList.add('border-primary', 'text-primary');
+                t.setAttribute('aria-selected', 'true');
+            } else {
+                t.classList.add('border-transparent', 'text-slate-500', 'dark:text-slate-400');
+                t.classList.remove('border-primary', 'text-primary');
+                t.removeAttribute('aria-selected');
+            }
+        });
+
+        // 显示/隐藏标签页内容
+        modal.querySelectorAll('.form-modal-tab-content').forEach(function(content) {
+            if (content.id === 'tab-' + tabId) {
+                content.classList.remove('hidden');
+            } else {
+                content.classList.add('hidden');
+            }
+        });
+    });
+
+    // ESC 键关闭模态框
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('[role="dialog"]:not(.hidden)').forEach(function(modal) {
+                if (modal.querySelector('.form-modal-tab, .form-modal-tab-content')) {
+                    closeFormModal(modal.id);
+                }
+            });
+        }
+    });
+})();
+</script>
+{% endmacro %}

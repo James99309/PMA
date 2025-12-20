@@ -2,10 +2,11 @@
 规格字典管理路由
 提供规格字典的增删改查API
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
 from app import db
-from app.models.product_code import SpecificationDictionary, SpecificationOption, ProductCodeFieldOption
+from app.models.product_code import SpecificationDictionary, SpecificationOption, ProductCodeFieldOption, ProductCodeField, ProductCodeFieldValue, ProductCode
+from app.models.product import Product
 from app.decorators import permission_required
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime
@@ -534,9 +535,19 @@ def get_spec_options(spec_id):
         # 按position排序
         options = query.order_by(SpecificationOption.position.asc()).all()
 
+        # 为每个选项添加 is_used 字段
+        options_data = []
+        for opt in options:
+            opt_dict = opt.to_dict()
+            # 检查是否被产品字段选项引用
+            opt_dict['is_used'] = ProductCodeFieldOption.query.filter_by(
+                spec_option_id=opt.id
+            ).first() is not None
+            options_data.append(opt_dict)
+
         return jsonify({
             'success': True,
-            'data': [opt.to_dict() for opt in options],
+            'data': options_data,
             'spec': spec.to_dict()
         })
 
@@ -544,6 +555,82 @@ def get_spec_options(spec_id):
         return jsonify({
             'success': False,
             'message': f'获取指标列表失败: {str(e)}'
+        }), 500
+
+
+@spec_dict_bp.route('/<int:spec_id>/preview-code', methods=['POST'])
+@login_required
+@permission_required('product_code', 'edit')
+def preview_option_code(spec_id):
+    """
+    预览自动生成的编码（不创建指标）
+
+    路径参数:
+        spec_id: int - 规格ID
+
+    请求体:
+        {
+            "value": "指标值"
+        }
+
+    返回:
+        {
+            "success": true,
+            "code": "生成的编码",
+            "message": "编码预览"
+        }
+    """
+    try:
+        # 查找规格
+        spec = SpecificationDictionary.query.get(spec_id)
+        if not spec:
+            return jsonify({
+                'success': False,
+                'message': '规格不存在'
+            }), 404
+
+        data = request.get_json()
+        value = data.get('value', '').strip() if data.get('value') else ''
+
+        if not value:
+            return jsonify({
+                'success': True,
+                'code': '',
+                'message': '请输入指标值'
+            })
+
+        # 检查指标值是否已存在
+        existing = SpecificationOption.query.filter_by(
+            spec_id=spec_id,
+            value=value
+        ).first()
+        if existing:
+            return jsonify({
+                'success': False,
+                'code': existing.code,
+                'message': f'指标值"{value}"已存在，编码为: {existing.code}',
+                'exists': True
+            })
+
+        # 生成编码
+        code = generate_smart_code(spec_id, value)
+        if not code:
+            return jsonify({
+                'success': False,
+                'code': '',
+                'message': '无法生成唯一编码，编码空间已用尽'
+            })
+
+        return jsonify({
+            'success': True,
+            'code': code,
+            'message': f'建议编码: {code}'
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'生成编码失败: {str(e)}'
         }), 500
 
 
@@ -881,6 +968,124 @@ def toggle_spec_option_status(option_id):
         }), 500
 
 
+@spec_dict_bp.route('/options/<int:option_id>/products', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def get_option_products(option_id):
+    """
+    获取使用该规格指标的产品列表
+
+    路径参数:
+        option_id: int - 指标ID
+
+    返回:
+        {
+            "success": true,
+            "data": [
+                {
+                    "id": 产品ID,
+                    "name": "产品名称",
+                    "model": "型号",
+                    "product_code": "编号",
+                    "spec_description": "规格描述"
+                },
+                ...
+            ]
+        }
+    """
+    try:
+        # 查找指标
+        option = SpecificationOption.query.get(option_id)
+        if not option:
+            return jsonify({
+                'success': False,
+                'message': '指标不存在'
+            }), 404
+
+        # 查询引用此指标的分类/子分类
+        # ProductCodeFieldOption.spec_option_id -> SpecificationOption
+        from app.models.product_code import ProductSubcategory, ProductCategory
+
+        # 查找引用此规格指标的所有 ProductCodeFieldOption
+        field_options = ProductCodeFieldOption.query.filter(
+            ProductCodeFieldOption.spec_option_id == option_id
+        ).all()
+
+        # 收集分类/子分类信息
+        category_ids = set()  # 分类级引用
+        subcategory_ids = set()  # 子分类级引用
+        result_data = []
+
+        for fo in field_options:
+            if fo.subcategory_id:
+                # 子分类级选项 - 直接引用子分类
+                if fo.subcategory_id not in subcategory_ids:
+                    subcategory_ids.add(fo.subcategory_id)
+            elif fo.field and fo.field.category_id:
+                # 分类级选项 - 通过字段获取分类
+                if fo.field.category_id not in category_ids:
+                    category_ids.add(fo.field.category_id)
+
+        # 处理分类级引用 - 获取分类下所有子分类
+        for cat_id in category_ids:
+            category = ProductCategory.query.get(cat_id)
+            if category:
+                # 获取该分类下的所有子分类
+                subcategories = ProductSubcategory.query.filter(
+                    ProductSubcategory.category_id == cat_id
+                ).all()
+                for subcat in subcategories:
+                    if subcat.id not in subcategory_ids:
+                        subcategory_ids.add(subcat.id)
+                        product_count = Product.query.filter(
+                            Product.subcategory_id == subcat.id
+                        ).count()
+                        result_data.append({
+                            'id': subcat.id,
+                            'name': subcat.name,
+                            'category_name': category.name,
+                            'product_count': product_count,
+                            'source': 'category'  # 标记来源
+                        })
+
+        # 处理子分类级引用
+        for subcat_id in subcategory_ids:
+            # 检查是否已添加（避免重复）
+            if any(item['id'] == subcat_id for item in result_data):
+                continue
+            subcategory = ProductSubcategory.query.get(subcat_id)
+            if subcategory:
+                # 通过 category_id 查询分类名称
+                category_name = ''
+                if subcategory.category_id:
+                    category = ProductCategory.query.get(subcategory.category_id)
+                    category_name = category.name if category else ''
+                product_count = Product.query.filter(
+                    Product.subcategory_id == subcategory.id
+                ).count()
+                result_data.append({
+                    'id': subcategory.id,
+                    'name': subcategory.name,
+                    'category_name': category_name,
+                    'product_count': product_count,
+                    'source': 'subcategory'  # 标记来源
+                })
+
+        return jsonify({
+            'success': True,
+            'data': result_data
+        })
+
+    except Exception as e:
+        import traceback
+        current_app.logger.error(f"获取引用列表失败: {str(e)}")
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'message': f'获取引用列表失败: {str(e)}'
+        }), 500
+
+
 @spec_dict_bp.route('/options/by-name/<path:spec_name>', methods=['GET'])
 @login_required
 @permission_required('product_code', 'view')
@@ -893,6 +1098,8 @@ def get_options_by_spec_name(spec_name):
 
     Query参数:
         active_only: bool - 是否只返回启用的指标（可选）
+        exclude_subcategory_id: int - 排除已在此子分类中使用的指标（可选）
+        field_id: int - 字段ID，与 exclude_subcategory_id 配合使用（可选）
 
     返回:
         {
@@ -901,6 +1108,8 @@ def get_options_by_spec_name(spec_name):
             "spec": {...}
         }
     """
+    from app.models.product_code import ProductCodeFieldOption
+
     try:
         # 查找规格
         spec = SpecificationDictionary.query.filter_by(name=spec_name).first()
@@ -913,18 +1122,45 @@ def get_options_by_spec_name(spec_name):
         # 是否只返回启用的指标
         active_only = request.args.get('active_only', 'false').lower() == 'true'
 
+        # 排除参数
+        exclude_subcategory_id = request.args.get('exclude_subcategory_id', type=int)
+        field_id = request.args.get('field_id', type=int)
+
         # 构建查询
         query = SpecificationOption.query.filter_by(spec_id=spec.id)
 
         if active_only:
             query = query.filter_by(is_active=True)
 
+        # 排除已在指定子分类中使用的指标
+        if exclude_subcategory_id and field_id:
+            # 获取已使用的 spec_option_id 列表
+            used_spec_option_ids = db.session.query(ProductCodeFieldOption.spec_option_id).filter(
+                ProductCodeFieldOption.field_id == field_id,
+                ProductCodeFieldOption.subcategory_id == exclude_subcategory_id,
+                ProductCodeFieldOption.spec_option_id.isnot(None)
+            ).all()
+            used_ids = [row[0] for row in used_spec_option_ids]
+
+            if used_ids:
+                query = query.filter(~SpecificationOption.id.in_(used_ids))
+
         # 按position排序
         options = query.order_by(SpecificationOption.position.asc()).all()
 
+        # 为每个选项添加 is_used 字段
+        options_data = []
+        for opt in options:
+            opt_dict = opt.to_dict()
+            # 检查是否被产品字段选项引用
+            opt_dict['is_used'] = ProductCodeFieldOption.query.filter_by(
+                spec_option_id=opt.id
+            ).first() is not None
+            options_data.append(opt_dict)
+
         return jsonify({
             'success': True,
-            'data': [opt.to_dict() for opt in options],
+            'data': options_data,
             'spec': spec.to_dict()
         })
 
@@ -932,4 +1168,85 @@ def get_options_by_spec_name(spec_name):
         return jsonify({
             'success': False,
             'message': f'获取指标列表失败: {str(e)}'
+        }), 500
+
+
+@spec_dict_bp.route('/available-for-subcategory/<int:subcategory_id>', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def get_available_specs_for_subcategory(subcategory_id):
+    """
+    获取指定子分类的可用非编码规格
+
+    返回该子分类继承的分类级字段 + 子分类级字段中，
+    field_type='spec' 且 use_in_code=False 的规格。
+
+    路径参数:
+        subcategory_id: int - 子分类ID
+
+    返回:
+        {
+            "success": true,
+            "data": [
+                {
+                    "id": 1,  // SpecificationDictionary ID
+                    "name": "规格名称",
+                    "unit": "单位",
+                    "field_id": 10  // ProductCodeField ID
+                },
+                ...
+            ]
+        }
+    """
+    try:
+        from app.models.product_code import ProductCodeField, ProductSubcategory
+
+        # 验证子分类存在
+        subcategory = ProductSubcategory.query.get(subcategory_id)
+        if not subcategory:
+            return jsonify({
+                'success': False,
+                'message': '子分类不存在'
+            }), 404
+
+        # 获取该子分类的所有字段（继承 + 自有）
+        fields_data = ProductCodeField.get_all_fields_for_subcategory(subcategory_id)
+        all_fields = fields_data['inherited'] + fields_data['own']
+
+        # 过滤：只要 field_type='spec' 且 use_in_code=False 的非编码规格
+        non_coded_spec_fields = [
+            f for f in all_fields
+            if f.field_type == 'spec' and not f.use_in_code
+        ]
+
+        # 收集结果，关联 SpecificationDictionary
+        result = []
+        for field in non_coded_spec_fields:
+            # 查找对应的规格字典条目
+            spec_dict = SpecificationDictionary.query.filter_by(name=field.name).first()
+            if spec_dict:
+                result.append({
+                    'id': spec_dict.id,  # 规格字典ID，用于获取选项
+                    'name': spec_dict.name,
+                    'unit': spec_dict.unit or '',
+                    'field_id': field.id
+                })
+            else:
+                # 如果规格字典中没有对应条目，也返回字段信息
+                result.append({
+                    'id': None,
+                    'name': field.name,
+                    'unit': '',
+                    'field_id': field.id
+                })
+
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取可用规格失败: {str(e)}'
         }), 500

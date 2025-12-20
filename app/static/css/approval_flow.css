@@ -33,9 +33,17 @@
 }
 
 @keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.05);
+    }
+
+    100% {
+        transform: scale(1);
+    }
 }
 
 /* 阶段圆圈样式 */
@@ -53,7 +61,7 @@
     transition: all 0.3s ease;
     background: white;
     z-index: 3;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* 外圈动画效果 */
@@ -87,15 +95,17 @@
 }
 
 @keyframes pulseOuter {
-    0% { 
+    0% {
         transform: translate(-50%, -50%) scale(1);
         opacity: 0.15;
     }
-    50% { 
+
+    50% {
         transform: translate(-50%, -50%) scale(1.1);
         opacity: 0.25;
     }
-    100% { 
+
+    100% {
         transform: translate(-50%, -50%) scale(1);
         opacity: 0.15;
     }
@@ -135,17 +145,19 @@
 }
 
 @keyframes observerOuterPulse {
-    0% { 
+    0% {
         transform: translate(-50%, -50%) scale(1);
         opacity: 0.3;
         border-color: rgba(0, 123, 255, 0.3);
     }
-    50% { 
+
+    50% {
         transform: translate(-50%, -50%) scale(1.1);
         opacity: 0.6;
         border-color: rgba(0, 123, 255, 0.5);
     }
-    100% { 
+
+    100% {
         transform: translate(-50%, -50%) scale(1);
         opacity: 0.3;
         border-color: rgba(0, 123, 255, 0.3);
@@ -154,7 +166,8 @@
 
 .stage-circle.approved,
 .stage-circle.completed {
-    background-color: #198754; /* 绿色 - 审批通过的标准颜色 */
+    background-color: #198754;
+    /* 绿色 - 审批通过的标准颜色 */
     border: 2px solid #157347;
     color: white;
 }
@@ -167,19 +180,22 @@
 
 /* 支付步骤特殊样式 */
 .stage-circle.payment-step {
-    background-color: #17a2b8; /* 青色 - 支付处理中 */
+    background-color: #17a2b8;
+    /* 青色 - 支付处理中 */
     border: 2px solid #138496;
     color: white;
 }
 
 .stage-circle.payment-completed {
-    background-color: #20c997; /* 翠绿色 - 支付完成 */
+    background-color: #20c997;
+    /* 翠绿色 - 支付完成 */
     border: 2px solid #1aa085;
     color: white;
 }
 
 .stage-circle.payment-paused {
-    background-color: #fd7e14; /* 橙色 - 支付暂缓 */
+    background-color: #fd7e14;
+    /* 橙色 - 支付暂缓 */
     border: 2px solid #e76500;
     color: white;
 }
@@ -219,7 +235,8 @@
 /* 进度线段样式 */
 .progress-segment {
     position: absolute;
-    top: 16px; /* 32px圆圈高度的一半 */
+    top: 16px;
+    /* 32px圆圈高度的一半 */
     height: 2px;
     z-index: 1;
     transition: all 0.3s ease;
@@ -228,7 +245,7 @@
 /* 鼠标悬停效果 */
 .approval-stage:hover .stage-circle {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .approval-stage:hover .stage-circle::before {
@@ -258,9 +275,11 @@
     0% {
         transform: scale(1);
     }
+
     50% {
         transform: scale(1.1);
     }
+
     100% {
         transform: scale(1);
     }
@@ -275,10 +294,12 @@
         transform: translate(-50%, -50%) scale(1);
         opacity: 0.3;
     }
+
     50% {
         transform: translate(-50%, -50%) scale(1.5);
         opacity: 0.6;
     }
+
     100% {
         transform: translate(-50%, -50%) scale(1);
         opacity: 0.3;
@@ -397,6 +418,7 @@
         opacity: 0;
         transform: translateX(-50%) translateY(-10px);
     }
+
     100% {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
@@ -494,14 +516,16 @@
 /* 召回状态样式 */
 /* 召回发生的节点 - 橘色显示 */
 .stage-circle.recalled-node {
-    background-color: #fd7e14; /* 橙色 - 召回发生的节点 */
+    background-color: #fd7e14;
+    /* 橙色 - 召回发生的节点 */
     border: 2px solid #e76500;
     color: white;
 }
 
 /* 召回状态下的其他节点 - 灰色显示 */
 .stage-circle.recalled-inactive {
-    background-color: #6c757d; /* 灰色 */
+    background-color: #6c757d;
+    /* 灰色 */
     border: 2px solid #495057;
     color: white;
     opacity: 0.7;
@@ -514,3 +538,305 @@
 }
 
 /* 移除召回横幅样式 */
+
+/* ============================================================
+   Tailwind-compatible Approval Flow Styles
+   Modern horizontal workflow design with tooltips
+   ============================================================ */
+
+/* Tailwind Approval Flow Container */
+.tw-approval-flow-container {
+    padding: 2rem 1rem;
+    overflow-x: auto;
+}
+
+.tw-approval-flow {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    width: 100%;
+    position: relative;
+}
+
+/* Stage item - each approval step */
+.tw-approval-stage {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+/* Stage circle - the step indicator */
+.tw-stage-circle {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 10;
+    transition: all 0.3s ease;
+}
+
+/* Ring effect for circles */
+.tw-stage-circle.ring-completed {
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+}
+
+.tw-stage-circle.ring-current {
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+}
+
+/* Completed stage - Emerald green */
+.tw-stage-circle.completed {
+    background-color: #10B981;
+    color: white;
+}
+
+/* Current stage - outlined with solid background to cover progress line */
+.tw-stage-circle.current {
+    background-color: #ecfdf5;
+    border: 2px solid #10B981;
+    color: #10B981;
+}
+
+/* Pending stage - gray */
+.tw-stage-circle.pending {
+    background-color: white;
+    border: 2px solid #d1d5db;
+    color: #9ca3af;
+}
+
+/* Dark mode support */
+.dark .tw-stage-circle.pending {
+    background-color: #1f2937;
+    border-color: #4b5563;
+    color: #6b7280;
+}
+
+.dark .tw-stage-circle.current {
+    background-color: #064e3b;
+}
+
+/* Icon styling within circles */
+.tw-stage-circle .material-symbols-outlined {
+    font-size: 1.25rem;
+}
+
+.tw-stage-circle .material-symbols-outlined.fill {
+    font-variation-settings: 'FILL' 1;
+}
+
+/* Progress lines between stages */
+.tw-progress-line {
+    position: absolute;
+    top: 1.25rem;
+    /* Half of circle height */
+    height: 1px;
+    z-index: 1;
+}
+
+.tw-progress-line.completed {
+    background-color: #10B981;
+}
+
+.tw-progress-line.pending {
+    background-color: #e5e7eb;
+}
+
+.dark .tw-progress-line.pending {
+    background-color: #374151;
+}
+
+/* Stage information below circle */
+.tw-stage-info {
+    margin-top: 1rem;
+    text-align: center;
+}
+
+.tw-stage-title {
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: #1e293b;
+}
+
+.tw-stage-title.current {
+    color: #059669;
+}
+
+.tw-stage-title.pending {
+    color: #6b7280;
+}
+
+.dark .tw-stage-title {
+    color: #f3f4f6;
+}
+
+.dark .tw-stage-title.current {
+    color: #34d399;
+}
+
+.dark .tw-stage-title.pending {
+    color: #9ca3af;
+}
+
+/* Approver name with tooltip trigger */
+.tw-stage-approver {
+    position: relative;
+    display: inline-block;
+    margin-top: 0.5rem;
+}
+
+.tw-stage-approver-name {
+    font-size: 0.75rem;
+    color: #64748b;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.tw-stage-approver-name:hover {
+    color: #374151;
+}
+
+.dark .tw-stage-approver-name {
+    color: #9ca3af;
+}
+
+.dark .tw-stage-approver-name:hover {
+    color: #d1d5db;
+}
+
+/* Approver tooltip */
+.tw-approver-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 0.5rem;
+    width: max-content;
+    max-width: 200px;
+    padding: 0.5rem 0.75rem;
+    background-color: #1f2937;
+    color: white;
+    font-size: 0.75rem;
+    border-radius: 0.375rem;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    z-index: 50;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.dark .tw-approver-tooltip {
+    background-color: #111827;
+}
+
+/* Tooltip arrow */
+.tw-approver-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 4px;
+    border-style: solid;
+    border-color: #1f2937 transparent transparent transparent;
+}
+
+.dark .tw-approver-tooltip::after {
+    border-color: #111827 transparent transparent transparent;
+}
+
+/* Show tooltip on hover */
+.tw-stage-approver:hover .tw-approver-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+.tw-approver-tooltip-content {
+    text-align: left;
+    line-height: 1.4;
+}
+
+.tw-approver-tooltip-content p {
+    margin: 0.125rem 0;
+}
+
+.tw-approver-tooltip-content .label {
+    font-weight: 600;
+}
+
+/* Stage date/time info */
+.tw-stage-date {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    margin-top: 0.25rem;
+}
+
+.dark .tw-stage-date {
+    color: #6b7280;
+}
+
+/* Hover effects */
+.tw-approval-stage:hover .tw-stage-circle {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Can-approve stage special styling */
+.tw-approval-stage.can-approve .tw-stage-circle {
+    cursor: pointer;
+}
+
+.tw-approval-stage.can-approve:hover .tw-stage-circle {
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.3), 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Recalled stage styling */
+.tw-stage-circle.recalled {
+    background-color: #f97316;
+    border-color: #ea580c;
+    color: white;
+}
+
+.tw-stage-circle.recalled-inactive {
+    background-color: #6b7280;
+    border-color: #4b5563;
+    color: white;
+    opacity: 0.7;
+}
+
+/* Rejected stage styling */
+.tw-stage-circle.rejected {
+    background-color: #ef4444;
+    border-color: #dc2626;
+    color: white;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    .tw-approval-flow {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1.5rem;
+    }
+
+    .tw-approval-stage {
+        flex-direction: row;
+        width: 100%;
+        gap: 1rem;
+    }
+
+    .tw-stage-info {
+        text-align: left;
+        margin-top: 0;
+    }
+
+    .tw-progress-line {
+        display: none;
+    }
+}

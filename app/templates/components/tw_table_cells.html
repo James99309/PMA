@@ -1,0 +1,126 @@
+{#
+=============================================================================
+Tailwind 表格单元格组件
+=============================================================================
+统一的表格单元格样式宏，确保所有列表页面的样式一致性。
+
+使用方式：
+{% from 'components/tw_table_cells.html' import tw_cell_link, tw_cell_date, tw_cell_text, tw_cell_amount, tw_cell_badge %}
+
+<!-- 主链接（蓝色） -->
+{{ tw_cell_link(url_for('module.detail', id=item.id), item.code) }}
+
+<!-- 日期 -->
+{{ tw_cell_date(item.created_at) }}
+
+<!-- 金额 -->
+{{ tw_cell_amount(item.amount, 'CNY') }}
+=============================================================================
+#}
+
+
+{# ============= 主链接单元格（蓝色） ============= #}
+{% macro tw_cell_link(href, text, title='', min_width='') %}
+<td class="p-3 whitespace-nowrap"{% if min_width %} style="min-width: {{ min_width }};"{% endif %}>
+    <a href="{{ href }}"
+       class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+       {% if title %}title="{{ title }}"{% endif %}>
+        {{ text or '-' }}
+    </a>
+</td>
+{% endmacro %}
+
+
+{# ============= 次链接单元格（深色，带截断） ============= #}
+{% macro tw_cell_link_secondary(href, text, title='', max_width='220px', min_width='200px') %}
+<td class="p-3 whitespace-nowrap" style="min-width: {{ min_width }};">
+    <a href="{{ href }}"
+       class="text-sm font-medium text-slate-900 dark:text-white hover:text-primary dark:hover:text-primary transition-colors block truncate"
+       style="max-width: {{ max_width }};"
+       title="{{ title or text }}">
+        {{ text or '-' }}
+    </a>
+</td>
+{% endmacro %}
+
+
+{# ============= 普通文本单元格 ============= #}
+{% macro tw_cell_text(text, title='', truncate=false, max_width='') %}
+<td class="p-3 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300{% if truncate %} truncate{% endif %}"
+    {% if max_width %}style="max-width: {{ max_width }};"{% endif %}
+    {% if title %}title="{{ title }}"{% endif %}>
+    {{ text or '-' }}
+</td>
+{% endmacro %}
+
+
+{# ============= 次要文本单元格（浅色） ============= #}
+{% macro tw_cell_text_secondary(text, title='') %}
+<td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400"
+    {% if title %}title="{{ title }}"{% endif %}>
+    {{ text or '-' }}
+</td>
+{% endmacro %}
+
+
+{# ============= 日期单元格 ============= #}
+{% macro tw_cell_date(date_value, format='%Y-%m-%d') %}
+<td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+    {{ date_value.strftime(format) if date_value else '-' }}
+</td>
+{% endmacro %}
+
+
+{# ============= 金额单元格（右对齐） ============= #}
+{% macro tw_cell_amount(amount, currency='CNY', show_empty=true) %}
+<td class="p-3 whitespace-nowrap text-right">
+    {% if amount %}
+    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">
+        {% if currency == 'USD' %}${% elif currency == 'SGD' %}S${% elif currency == 'MYR' %}RM{% elif currency == 'IDR' %}Rp{% elif currency == 'THB' %}฿{% elif currency == 'EUR' %}€{% else %}¥{% endif %}{{ "{:,.2f}".format(amount) }}
+    </span>
+    {% elif show_empty %}
+    <span class="text-slate-400 dark:text-slate-500">-</span>
+    {% endif %}
+</td>
+{% endmacro %}
+
+
+{# ============= 徽章容器单元格 ============= #}
+{% macro tw_cell_badge(badge_html) %}
+<td class="p-3 whitespace-nowrap overflow-hidden">
+    {{ badge_html }}
+</td>
+{% endmacro %}
+
+
+{# ============= 等宽字体单元格（编码、MN号等） ============= #}
+{% macro tw_cell_mono(text, title='') %}
+<td class="p-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400 font-mono"
+    {% if title %}title="{{ title }}"{% endif %}>
+    {{ text or '-' }}
+</td>
+{% endmacro %}
+
+
+{# ============= 空值单元格 ============= #}
+{% macro tw_cell_empty() %}
+<td class="p-3 whitespace-nowrap">
+    <span class="text-slate-400 dark:text-slate-500">-</span>
+</td>
+{% endmacro %}
+
+
+{# ============= 条件文本单元格（有值显示文本，无值显示-） ============= #}
+{% macro tw_cell_optional(value, title='', truncate_len=0) %}
+<td class="p-3 whitespace-nowrap">
+    {% if value and value != '-' %}
+    <span class="text-sm text-slate-700 dark:text-slate-300{% if truncate_len %} truncate block{% endif %}"
+          {% if truncate_len %}style="max-width: {{ truncate_len }}px;"{% endif %}
+          {% if title %}title="{{ title or value }}"{% endif %}>
+        {{ value|truncate(truncate_len // 8) if truncate_len else value }}
+    </span>
+    {% else %}
+    <span class="text-slate-400 dark:text-slate-500">-</span>
+    {% endif %}
+</td>
+{% endmacro %}

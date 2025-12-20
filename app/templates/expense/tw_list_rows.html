@@ -1,0 +1,15 @@
+{# 报销单列表表格行模板 - 用于无限滚动AJAX加载 #}
+{% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_expense_status_badge %}
+{% from 'components/tw_table_cells.html' import tw_cell_link, tw_cell_badge, tw_cell_amount, tw_cell_optional, tw_cell_date %}
+{% for expense in expenses %}
+<tr class="table-row-hover transition-colors">
+    {{ tw_cell_link(url_for('expense.expense_detail', id=expense.id), expense.expense_number) }}
+    {{ tw_cell_badge(render_tw_owner_badge(expense.owner)) }}
+    {{ tw_cell_badge(render_tw_expense_status_badge(expense.status)) }}
+    {{ tw_cell_amount(expense.total_amount, expense.currency or 'CNY') }}
+    {{ tw_cell_optional(expense.customer_name, title=expense.customer_name, truncate_len=150) }}
+    {{ tw_cell_optional(expense.contact_name, title=expense.contact_name) }}
+    {{ tw_cell_optional(expense.project_name, title=expense.project_name, truncate_len=150) }}
+    {{ tw_cell_date(expense.created_at) }}
+</tr>
+{% endfor %}

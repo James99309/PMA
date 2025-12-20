@@ -1,0 +1,715 @@
+{#
+    Tailwind 审批流程组件
+
+    用法:
+    {% from 'components/tw_approval_flow.html' import render_tw_approval_flow_card, render_tw_approval_flow_script, render_tw_approval_modals %}
+
+    ========================================
+    静态模式（详情页面使用）
+    ========================================
+
+    1. 在页面中渲染审批流程卡片:
+    {{ render_tw_approval_flow_card(object_status, container_id='approvalFlowContainer') }}
+
+    2. 渲染确认模态框:
+    {{ render_tw_approval_modals() }}
+
+    3. 渲染审批流程脚本:
+    {{ render_tw_approval_flow_script('expense', expense.id, expense.status, expense.owner.real_name) }}
+
+    ========================================
+    动态模式（模态框使用）
+    ========================================
+
+    适用场景: 模态框需要动态打开不同对象的审批流程
+
+    1. 渲染审批流程脚本（动态模式）:
+    {{ render_tw_approval_flow_script(
+        'pricing_order',
+        dynamic_mode=true,
+        namespace='PricingApprovalFlow',
+        api_base_path='/pricing_order/api/approval',
+        container_id='pricingApprovalFlowContainer'
+    ) }}
+
+    2. 在 JavaScript 中调用初始化:
+    // 打开模态框加载数据后
+    if (window.PricingApprovalFlow && po.status !== 'draft') {
+        PricingApprovalFlow.init(po.id, po.status, po.creator_name);
+    }
+
+    3. 动态模式导出的接口:
+    - init(objectId, objectStatus, creatorName): 初始化审批流程
+    - reload(): 重新加载审批流程
+    - getInstanceId(): 获取当前审批实例 ID
+#}
+
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal %}
+
+{# ========================================
+   审批流程卡片
+   ======================================== #}
+{% macro render_tw_approval_flow_card(object_status, container_id='approvalFlowContainer', show_history_btn=true) %}
+{% if object_status and object_status not in ['draft', ''] %}
+<div class="bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col p-6">
+    <!-- 卡片头部 -->
+    <div class="flex justify-between items-center mb-4">
+        <div class="flex items-center gap-2">
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('审批流程') }}</h3>
+            <!-- 状态徽章（动态） -->
+            {% if object_status == 'pending' %}
+            <span class="px-2 py-0.5 rounded text-xs bg-amber-500/10 text-amber-600 dark:text-amber-500 font-medium border border-amber-500/20">{{ _('进行中') }}</span>
+            {% elif object_status == 'approved' %}
+            <span class="px-2 py-0.5 rounded text-xs bg-green-500/10 text-green-600 dark:text-green-500 font-medium border border-green-500/20">{{ _('已通过') }}</span>
+            {% elif object_status == 'rejected' %}
+            <span class="px-2 py-0.5 rounded text-xs bg-red-500/10 text-red-600 dark:text-red-500 font-medium border border-red-500/20">{{ _('已拒绝') }}</span>
+            {% elif object_status == 'recalled' %}
+            <span class="px-2 py-0.5 rounded text-xs bg-orange-500/10 text-orange-600 dark:text-orange-500 font-medium border border-orange-500/20">{{ _('已召回') }}</span>
+            {% endif %}
+        </div>
+        {% if show_history_btn %}
+        <div class="flex items-center gap-2">
+            <button onclick="showApprovalHistory()" class="text-slate-500 hover:text-primary transition-colors text-sm flex items-center">
+                <span class="material-symbols-outlined text-base mr-1">history</span> {{ _('历史记录') }}
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 审批流程内容区域 -->
+    <div class="relative" id="{{ container_id }}">
+        <!-- 由 JavaScript 动态渲染 -->
+        <div class="flex items-center justify-center py-8">
+            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+            <span class="ml-2 text-slate-500">{{ _('加载中...') }}</span>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endmacro %}
+
+
+{# ========================================
+   审批操作按钮（放在页面头部）
+   ======================================== #}
+{% macro render_tw_approval_action_buttons(object_status, can_submit=true) %}
+{% if can_submit %}
+    {% if object_status == 'draft' or object_status is none or object_status == '' %}
+    <button onclick="submitApproval()"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors">
+        <span class="material-symbols-outlined text-lg">send</span>
+        {{ _('提交审批') }}
+    </button>
+    {% elif object_status == 'pending' %}
+    <button onclick="recallApproval()"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50 rounded-lg transition-colors">
+        <span class="material-symbols-outlined text-lg">undo</span>
+        {{ _('召回审批') }}
+    </button>
+    {% elif object_status in ['rejected', 'recalled'] %}
+    <button onclick="resubmitApproval()"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors">
+        <span class="material-symbols-outlined text-lg">refresh</span>
+        {{ _('重新提交') }}
+    </button>
+    {% endif %}
+{% endif %}
+{% endmacro %}
+
+
+{# ========================================
+   审批确认模态框集合
+   ======================================== #}
+{% macro render_tw_approval_modals() %}
+<!-- 提交审批确认模态框 -->
+{{ tw_confirm_modal(
+    modal_id='submitApprovalModal',
+    title=_('提交审批'),
+    message=_('确定要提交审批吗？提交后将进入审批流程。'),
+    confirm_text=_('提交'),
+    cancel_text=_('取消'),
+    variant='primary'
+) }}
+
+<!-- 召回审批确认模态框 -->
+{{ tw_confirm_modal(
+    modal_id='recallApprovalModal',
+    title=_('召回审批'),
+    message=_('确定要召回审批吗？召回后将返回草稿状态。'),
+    confirm_text=_('召回'),
+    cancel_text=_('取消'),
+    variant='warning'
+) }}
+
+<!-- 重新提交审批确认模态框 -->
+{{ tw_confirm_modal(
+    modal_id='resubmitApprovalModal',
+    title=_('重新提交审批'),
+    message=_('确定要重新提交审批吗？'),
+    confirm_text=_('重新提交'),
+    cancel_text=_('取消'),
+    variant='primary'
+) }}
+{% endmacro %}
+
+
+{# ========================================
+   审批流程脚本
+
+   参数说明:
+   - object_type: 对象类型 (如 'expense', 'project', 'pricing_order')
+   - object_id: 对象ID (静态模式必填，动态模式可为 none)
+   - object_status: 对象状态 (如 'draft', 'pending', 'approved')
+   - creator_name: 创建人名称
+   - api_base_path: API 基础路径
+   - container_id: 容器 DOM ID
+   - dynamic_mode: 动态模式 (true 时暴露初始化函数供外部调用)
+   - namespace: 动态模式下的全局命名空间名称
+   ======================================== #}
+{% macro render_tw_approval_flow_script(object_type, object_id=none, object_status='draft', creator_name='', api_base_path='', container_id='approvalFlowContainer', dynamic_mode=false, namespace='ApprovalFlow') %}
+<script>
+{% if dynamic_mode %}
+// =====================
+// 动态模式：暴露初始化函数供外部调用
+// =====================
+window.{{ namespace }} = window.{{ namespace }} || {};
+(function(exports) {
+    // 配置（由 init 设置）
+    let approvalConfig = {
+        objectType: '{{ object_type }}',
+        objectId: null,
+        objectStatus: 'draft',
+        creatorName: '',
+        apiBasePath: '{{ api_base_path or ("/" + object_type + "/api/approval") }}',
+        containerId: '{{ container_id }}',
+        csrfToken: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+    };
+{% else %}
+// =====================
+// 静态模式：自动初始化
+// =====================
+(function() {
+    // 配置
+    const approvalConfig = {
+        objectType: '{{ object_type }}',
+        objectId: {{ object_id }},
+        objectStatus: '{{ object_status or "draft" }}',
+        creatorName: '{{ creator_name }}',
+        apiBasePath: '{{ api_base_path or ("/" + object_type + "/api/approval") }}',
+        containerId: '{{ container_id }}',
+        csrfToken: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+    };
+{% endif %}
+
+    // =====================
+    // 国际化文本
+    // =====================
+    const i18n = {
+        submitRequest: '{{ _("提交申请") }}',
+        initiateApproval: '{{ _("发起审批流程") }}',
+        notSubmitted: '{{ _("尚未提交审批") }}',
+        clickToSubmit: '{{ _("点击下方按钮提交审批") }}',
+        noApprovalFlow: '{{ _("暂无审批流程") }}',
+        approved: '{{ _("已同意") }}',
+        currentNode: '{{ _("当前节点") }}',
+        rejected: '{{ _("已拒绝") }}',
+        pending: '{{ _("待处理") }}',
+        unknown: '{{ _("未知") }}',
+        waitingApproval: '{{ _("等待审批") }}',
+        approve: '{{ _("同意") }}',
+        reject: '{{ _("驳回") }}',
+        submitFailed: '{{ _("提交失败") }}',
+        recallFailed: '{{ _("召回失败") }}',
+        networkError: '{{ _("网络错误") }}',
+        approvalInstanceNotFound: '{{ _("审批实例未找到") }}',
+        operationFailed: '{{ _("操作失败") }}',
+        processing: '{{ _("处理中...") }}'
+    };
+
+    // 保存审批实例ID
+    let currentApprovalInstanceId = null;
+
+    // =====================
+    // 加载审批流程
+    // =====================
+    async function loadApprovalFlow() {
+        const container = document.getElementById(approvalConfig.containerId);
+        if (!container) return;
+
+        try {
+            const response = await fetch(`${approvalConfig.apiBasePath}/${approvalConfig.objectId}/flow`);
+            const data = await response.json();
+
+            if (data.success && data.approval_flow) {
+                renderApprovalTimeline(data.approval_flow);
+            } else if (data.success && data.has_approval === false) {
+                renderEmptyApprovalState();
+            } else {
+                renderEmptyApprovalState();
+            }
+        } catch (error) {
+            console.error('加载审批流程失败:', error);
+            renderEmptyApprovalState();
+        }
+    }
+
+    // =====================
+    // 渲染空状态
+    // =====================
+    function renderEmptyApprovalState() {
+        const container = document.getElementById(approvalConfig.containerId);
+        if (!container) return;
+
+        const status = approvalConfig.objectStatus;
+        let html = '';
+
+        if (status === 'draft' || status === '' || status === 'None' || !status) {
+            html = `
+                <div class="text-center py-8">
+                    <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">edit_note</span>
+                    <p class="mt-2 text-slate-500 dark:text-slate-400">${i18n.notSubmitted}</p>
+                    <p class="text-sm text-slate-400 dark:text-slate-500">${i18n.clickToSubmit}</p>
+                </div>
+            `;
+        } else {
+            html = `
+                <div class="text-center py-8">
+                    <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">description</span>
+                    <p class="mt-2 text-slate-500 dark:text-slate-400">${i18n.noApprovalFlow}</p>
+                </div>
+            `;
+        }
+
+        container.innerHTML = html;
+    }
+
+    // =====================
+    // 渲染审批时间线
+    // =====================
+    function renderApprovalTimeline(flowData) {
+        const container = document.getElementById(approvalConfig.containerId);
+        if (!container) return;
+
+        // 保存审批实例ID供后续使用
+        currentApprovalInstanceId = flowData.instance_id;
+        window.currentApprovalInstanceId = flowData.instance_id;
+
+        let html = '<div class="space-y-14">';
+
+        // 添加提交申请节点
+        html += renderSubmitNode(flowData);
+
+        // 渲染各审批阶段
+        const stagesCount = flowData.stages.length;
+        flowData.stages.forEach((stage, index) => {
+            stage.is_last = (index === stagesCount - 1);
+            if (index === 0) {
+                stage.prev_completed = true;
+            } else {
+                stage.prev_completed = flowData.stages[index - 1].status === 'approved';
+            }
+            html += renderStageNode(stage, flowData);
+        });
+
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    // =====================
+    // 渲染提交申请节点
+    // =====================
+    function renderSubmitNode(flowData) {
+        const creatorName = approvalConfig.creatorName || i18n.unknown;
+        const submitTime = flowData.started_at || '';
+        const lineColorClass = 'bg-green-500';
+
+        return `
+            <div class="relative pl-8">
+                <div class="absolute left-[9px] top-5 bottom-0 w-0.5 ${lineColorClass} -mb-14"></div>
+                <div class="absolute left-0 top-0 h-5 w-5 rounded-full bg-green-500 ring-4 ring-white dark:ring-slate-900 flex items-center justify-center z-10">
+                    <span class="material-symbols-outlined text-white text-xs">check</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        ${i18n.submitRequest}
+                        <span class="text-xs text-slate-500 font-normal ml-2">${i18n.initiateApproval}</span>
+                    </p>
+                    ${submitTime ? `<p class="text-xs text-slate-400 dark:text-slate-500 font-mono">${submitTime}</p>` : ''}
+                </div>
+                <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                    <span class="w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-bold">${creatorName.charAt(0).toUpperCase()}</span>
+                    ${creatorName}
+                </div>
+            </div>
+        `;
+    }
+
+    // =====================
+    // 渲染审批阶段节点
+    // =====================
+    function renderStageNode(stage, flowData) {
+        const isCompleted = stage.status === 'approved';
+        const isCurrent = stage.status === 'current';
+        const isPending = stage.status === 'pending';
+        const isRejected = stage.status === 'rejected';
+
+        // 圆圈样式
+        let circleClass = '';
+        let circleIcon = '';
+        let animationClass = '';
+
+        if (isCompleted) {
+            circleClass = 'bg-green-500';
+            circleIcon = '<span class="material-symbols-outlined text-white text-xs">check</span>';
+        } else if (isCurrent) {
+            circleClass = 'bg-amber-500';
+            circleIcon = '<span class="material-symbols-outlined text-white text-xs">pending</span>';
+            animationClass = `<span class="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75 animate-ping"></span>`;
+        } else if (isRejected) {
+            circleClass = 'bg-red-500';
+            circleIcon = '<span class="material-symbols-outlined text-white text-xs">close</span>';
+        } else {
+            circleClass = 'bg-slate-200 dark:bg-slate-600';
+            circleIcon = '';
+        }
+
+        // 状态文字
+        let statusText = '';
+        let statusClass = '';
+        if (isCompleted) {
+            statusText = i18n.approved;
+            statusClass = 'text-green-600 dark:text-green-400';
+        } else if (isCurrent) {
+            statusText = i18n.currentNode;
+            statusClass = 'text-amber-600 dark:text-amber-400';
+        } else if (isRejected) {
+            statusText = i18n.rejected;
+            statusClass = 'text-red-600 dark:text-red-400';
+        } else {
+            statusText = stage.wait_message || i18n.pending;
+            statusClass = 'text-slate-500';
+        }
+
+        // 审批人信息
+        const approverName = stage.approver_name || i18n.pending;
+        const approverInitial = approverName.charAt(0).toUpperCase();
+
+        // 审批意见
+        let commentHtml = '';
+        if (stage.comment && (isCompleted || isRejected)) {
+            commentHtml = `
+                <div class="text-xs text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded ml-2 border border-slate-200 dark:border-slate-700">"${stage.comment}"</div>
+            `;
+        }
+
+        // 当前节点的操作区域
+        let operationHtml = '';
+        if (isCurrent && stage.can_approve) {
+            operationHtml = `
+                <div class="bg-primary/5 dark:bg-slate-800 border border-primary/20 dark:border-primary/20 rounded-lg p-4 mt-3 shadow-sm">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <p class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                ${stage.stage_name}
+                                <span class="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">${i18n.currentNode}</span>
+                            </p>
+                            <p class="text-xs text-slate-500 mt-1">${stage.description || i18n.waitingApproval}</p>
+                        </div>
+                        <div class="flex -space-x-2">
+                            <div class="h-8 w-8 rounded-full ring-2 ring-white dark:ring-slate-900 bg-purple-600 flex items-center justify-center text-white text-xs z-10">${approverInitial}</div>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <textarea id="approvalComment" class="w-full text-sm border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 focus:ring-primary focus:border-primary placeholder-slate-400 dark:text-slate-200 shadow-sm" placeholder="${i18n.waitingApproval}..." rows="2"></textarea>
+                        <div class="flex gap-3">
+                            <button onclick="processApproval('approve')" class="flex-1 bg-primary hover:bg-blue-600 text-white text-sm py-1.5 px-4 rounded-md font-medium transition-colors shadow-sm flex justify-center items-center gap-1">
+                                <span class="material-symbols-outlined text-sm">check_circle</span>
+                                ${i18n.approve}
+                            </button>
+                            <button onclick="processApproval('reject')" class="flex-1 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 border border-red-200 dark:border-red-900/50 text-sm py-1.5 px-4 rounded-md font-medium transition-colors flex justify-center items-center gap-1">
+                                <span class="material-symbols-outlined text-sm">cancel</span>
+                                ${i18n.reject}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 节点透明度
+        const opacityClass = isPending ? 'opacity-50' : '';
+        const isLast = stage.is_last || false;
+
+        // 连接线颜色
+        const lineDownColor = isCompleted ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-700';
+        const lineUpColor = stage.prev_completed ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-700';
+
+        // 徽章样式
+        let badgeClass = '';
+        if (isCompleted) {
+            badgeClass = 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300';
+        } else if (isCurrent) {
+            badgeClass = 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300';
+        } else if (isRejected) {
+            badgeClass = 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300';
+        } else {
+            badgeClass = 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
+        }
+
+        return `
+            <div class="relative pl-8 ${opacityClass}">
+                ${!isLast ? `<div class="absolute left-[9px] top-5 bottom-0 w-0.5 ${lineDownColor} -mb-14"></div>` : ''}
+                <div class="absolute left-[9px] top-0 h-[10px] w-0.5 ${lineUpColor} -mt-14"></div>
+                <span class="absolute left-0 top-0 flex h-5 w-5 z-10">
+                    ${animationClass}
+                    <span class="relative inline-flex rounded-full h-5 w-5 ${circleClass} ring-4 ring-white dark:ring-slate-900 items-center justify-center">
+                        ${circleIcon}
+                    </span>
+                </span>
+                <div class="flex items-center justify-between">
+                    <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        ${stage.stage_name}
+                        <span class="text-xs ${statusClass} font-medium ml-2">${statusText}</span>
+                    </p>
+                    ${stage.completed_time ? `<p class="text-xs text-slate-400 dark:text-slate-500 font-mono">${formatDateTime(stage.completed_time)}</p>` : ''}
+                </div>
+                <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${badgeClass}">
+                    <span class="w-4 h-4 rounded-full ${isCompleted ? 'bg-green-500' : isCurrent ? 'bg-amber-500' : isRejected ? 'bg-red-500' : 'bg-slate-400'} text-white flex items-center justify-center text-[10px] font-bold">${approverInitial}</span>
+                    ${approverName}
+                </div>
+                ${commentHtml ? `<div class="mt-1">${commentHtml}</div>` : ''}
+                ${operationHtml}
+            </div>
+        `;
+    }
+
+    // =====================
+    // 提交审批
+    // =====================
+    window.submitApproval = function() {
+        openConfirmModal('submitApprovalModal', {
+            onConfirm: async function() {
+                try {
+                    const response = await fetch(`${approvalConfig.apiBasePath}/${approvalConfig.objectId}/submit`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': approvalConfig.csrfToken
+                        },
+                        body: JSON.stringify({})
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        window.location.reload();
+                    } else {
+                        alert(data.message || i18n.submitFailed);
+                    }
+                } catch (error) {
+                    console.error('提交审批失败:', error);
+                    alert(i18n.networkError);
+                }
+            }
+        });
+    };
+
+    // =====================
+    // 召回审批
+    // =====================
+    window.recallApproval = function() {
+        openConfirmModal('recallApprovalModal', {
+            onConfirm: async function() {
+                try {
+                    const response = await fetch(`${approvalConfig.apiBasePath}/${approvalConfig.objectId}/recall`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': approvalConfig.csrfToken
+                        },
+                        body: JSON.stringify({})
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        window.location.reload();
+                    } else {
+                        alert(data.message || i18n.recallFailed);
+                    }
+                } catch (error) {
+                    console.error('召回审批失败:', error);
+                    alert(i18n.networkError);
+                }
+            }
+        });
+    };
+
+    // =====================
+    // 重新提交审批
+    // =====================
+    window.resubmitApproval = function() {
+        openConfirmModal('resubmitApprovalModal', {
+            onConfirm: async function() {
+                try {
+                    const response = await fetch(`${approvalConfig.apiBasePath}/${approvalConfig.objectId}/resubmit`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': approvalConfig.csrfToken
+                        },
+                        body: JSON.stringify({})
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        window.location.reload();
+                    } else {
+                        alert(data.message || i18n.submitFailed);
+                    }
+                } catch (error) {
+                    console.error('重新提交审批失败:', error);
+                    alert(i18n.networkError);
+                }
+            }
+        });
+    };
+
+    // =====================
+    // 审批人执行审批操作（直接执行，无确认对话框）
+    // =====================
+    window.processApproval = async function(action) {
+        const comment = document.getElementById('approvalComment')?.value || '';
+        const instanceId = currentApprovalInstanceId;
+
+        if (!instanceId) {
+            alert(i18n.approvalInstanceNotFound);
+            return;
+        }
+
+        // 禁用按钮，显示加载状态
+        const buttons = document.querySelectorAll('[onclick^="processApproval"]');
+        const originalContents = [];
+        buttons.forEach((btn, index) => {
+            originalContents[index] = btn.innerHTML;
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            // 显示加载中
+            btn.innerHTML = `<span class="material-symbols-outlined text-sm animate-spin">sync</span> ${i18n.processing}`;
+        });
+
+        try {
+            // 使用 FormData 格式，后端使用 request.form.get() 获取参数
+            const formData = new URLSearchParams();
+            formData.append('action', action);
+            formData.append('comment', comment);
+
+            const response = await fetch(`/approval/approve/${instanceId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': approvalConfig.csrfToken
+                },
+                body: formData.toString()
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                // 成功后直接刷新页面，不显示通知
+                window.location.reload();
+            } else {
+                // 失败时显示错误信息
+                alert(data.message || i18n.operationFailed);
+                // 重新启用按钮并恢复原内容
+                buttons.forEach((btn, index) => {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    btn.innerHTML = originalContents[index];
+                });
+            }
+        } catch (error) {
+            console.error('审批操作失败:', error);
+            alert(i18n.networkError);
+            // 重新启用按钮并恢复原内容
+            buttons.forEach((btn, index) => {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                btn.innerHTML = originalContents[index];
+            });
+        }
+    };
+
+    // =====================
+    // 显示审批历史
+    // =====================
+    window.showApprovalHistory = function() {
+        // TODO: 实现审批历史模态框
+        alert('{{ _("审批历史功能待实现") }}');
+    };
+
+    // =====================
+    // Toast 提示
+    // =====================
+    function showToast(type, message) {
+        if (typeof window.showNotification === 'function') {
+            window.showNotification(type, message);
+        } else {
+            alert(message);
+        }
+    }
+
+    // =====================
+    // 格式化日期时间
+    // =====================
+    function formatDateTime(isoString) {
+        if (!isoString) return '';
+        try {
+            const date = new Date(isoString);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hour = String(date.getHours()).padStart(2, '0');
+            const minute = String(date.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day} ${hour}:${minute}`;
+        } catch (e) {
+            return isoString;
+        }
+    }
+
+{% if dynamic_mode %}
+    // =====================
+    // 动态模式：导出公共接口
+    // =====================
+    exports.init = function(objectId, objectStatus, creatorName) {
+        approvalConfig.objectId = objectId;
+        approvalConfig.objectStatus = objectStatus || 'draft';
+        approvalConfig.creatorName = creatorName || '';
+
+        // 只有非草稿状态才加载审批流程
+        if (objectId && objectStatus && objectStatus !== 'draft') {
+            loadApprovalFlow();
+        } else {
+            // 草稿状态显示空状态
+            renderEmptyApprovalState();
+        }
+    };
+
+    exports.reload = loadApprovalFlow;
+
+    exports.getInstanceId = function() {
+        return currentApprovalInstanceId;
+    };
+
+})(window.{{ namespace }});
+{% else %}
+    // =====================
+    // 静态模式：自动初始化
+    // =====================
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadApprovalFlow);
+    } else {
+        loadApprovalFlow();
+    }
+
+})();
+{% endif %}
+</script>
+{% endmacro %}

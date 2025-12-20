@@ -811,13 +811,8 @@ def get_field_distinct_values(object_type, field_name):
                 lang = 'zh'
             values = [v[lang] for v in PROJECT_STAGE_LABELS.values()]
         elif field_name == 'currency':
-            from app.utils.dictionary_helpers import CURRENCY_TYPE_LABELS
-            from app.utils.i18n import get_current_language
-            try:
-                lang = get_current_language()
-            except:
-                lang = 'zh'
-            values = [v[lang] for v in CURRENCY_TYPE_LABELS.values()]
+            from app.utils.dictionary_helpers import get_currency_type_options
+            values = [name for code, name in get_currency_type_options()]
         elif field_name in ['status', 'approval_status']:
             from app.utils.dictionary_helpers import APPROVAL_STATUS_LABELS
             from app.utils.i18n import get_current_language

@@ -326,7 +326,7 @@
                 <!-- 操作按钮组 -->
                 <div class="btn-toolbar justify-content-end" role="toolbar">
                     {% if current_user.role == 'admin' or current_user.id == dev_product.created_by %}
-                    {{ render_button(_('编辑产品'), href=url_for('product_management.edit_product', id=dev_product.id), color='warning', icon='fas fa-edit') }}
+                    {{ render_button(_('编辑产品'), href=url_for('rd_product.edit_product', id=dev_product.id), color='warning', icon='fas fa-edit') }}
                     {% endif %}
 
                     {% if dev_product.status != '申请入库' and dev_product.status != '已入库' and dev_product.created_by == current_user.id %}
@@ -341,7 +341,7 @@
                     {{ render_button(_('删除产品'), color='danger', icon='fas fa-trash', attrs='type="button" data-bs-toggle="modal" data-bs-target="#deleteModal"') }}
                     {% endif %}
 
-                    {{ render_button(_('返回列表'), href=url_for('product_management.index'), color='secondary', icon='fas fa-arrow-left') }}
+                    {{ render_button(_('返回列表'), href=url_for('rd_product.index'), color='secondary', icon='fas fa-arrow-left') }}
                 </div>
             </div>
         </div>
@@ -503,7 +503,7 @@
                     <small class="text-muted">{{ _('PDF文档') }}</small>
                 </div>
                 <div>
-                    {{ render_button(_('下载'), href=url_for('product_management.download_pdf', id=dev_product.id), color='primary', icon='fas fa-download', attrs='target="_blank"') }}
+                    {{ render_button(_('下载'), href=url_for('rd_product.download_pdf', id=dev_product.id), color='primary', icon='fas fa-download', attrs='target="_blank"') }}
                 </div>
             </div>
         </div>
@@ -571,7 +571,7 @@
             </div>
             <div class="modal-footer">
                 {{ render_button('取消', '#', color='secondary', attrs='type="button" data-bs-dismiss="modal"') }}
-                <form action="{{ url_for('product_management.delete_product', id=dev_product.id) }}" method="post">
+                <form action="{{ url_for('rd_product.delete_product', id=dev_product.id) }}" method="post">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     {{ render_button('确认删除', '#', color='danger', type='submit') }}
                 </form>
@@ -593,7 +593,7 @@
             </div>
             <div class="modal-footer">
                 {{ render_button('取消', '#', color='secondary', attrs='type="button" data-bs-dismiss="modal"') }}
-                <form action="{{ url_for('product_management.apply_product', id=dev_product.id) }}" method="post">
+                <form action="{{ url_for('rd_product.apply_product', id=dev_product.id) }}" method="post">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     {{ render_button('确认申请', '#', color='success', type='submit') }}
                 </form>
@@ -615,7 +615,7 @@
             </div>
             <div class="modal-footer">
                 {{ render_button('取消', '#', color='secondary', attrs='type="button" data-bs-dismiss="modal"') }}
-                <form action="{{ url_for('product_management.approve_product', id=dev_product.id) }}" method="post">
+                <form action="{{ url_for('rd_product.approve_product', id=dev_product.id) }}" method="post">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     {{ render_button('确认入库', '#', color='success', type='submit') }}
                 </form>

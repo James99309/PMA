@@ -8,7 +8,7 @@ from app.permissions import permission_required
 from app.models.project import Project
 from app.models.action import Action
 from sqlalchemy import or_, func, desc, text
-from datetime import datetime
+from datetime import datetime, date
 import difflib
 import json
 import re
@@ -32,7 +32,22 @@ from app.utils.change_tracker import ChangeTracker
 from app.helpers.approval_helpers import get_object_approval_instance, get_available_templates
 from app.utils.access_control import can_start_approval
 from app.utils.country_names import get_country_names
+from app.utils.query_filters import (
+    extract_filter_params, apply_filters_to_query, extract_sort_params,
+    extract_pagination_params, build_list_query, build_ajax_response
+)
 
+# ============================================================
+# 客户管理筛选配置
+# ============================================================
+CUSTOMER_FILTER_CONFIG = {
+    'search': {'type': 'ilike', 'fields': ['company_name']},
+    'owner_filter': {'type': 'exact', 'field': 'owner_id'},
+    'company_type': {'type': 'exact'},
+    'industry': {'type': 'exact'},
+    'country': {'type': 'exact'},
+    'status_filter': {'type': 'exact', 'field': 'status'},
+}
 
 customer = Blueprint('customer', __name__)
 
@@ -201,52 +216,32 @@ def get_existing_filter_options(all_viewable_companies):
 @customer.route('/')
 @permission_required('customer', 'view')
 def list_companies():
-    search = request.args.get('search', '')
-    
-    # 滚动加载参数
-    offset = request.args.get('offset', 0, type=int)
-    limit = request.args.get('limit', 20, type=int)
-    
-    # 限制每次加载数量的范围
-    if limit not in [10, 20, 30, 50]:
-        limit = 20
-    
+    # 使用公共筛选工具提取参数
+    filters = extract_filter_params(request.args, CUSTOMER_FILTER_CONFIG)
+    offset, limit = extract_pagination_params(request.args, default_limit=20, max_limit=50)
+
+    # 提取变量（用于模板显示和配置构建）
+    search = filters.get('search', '')
+    owner_filter = filters.get('owner_filter', '')
+    company_type_filter = filters.get('company_type', '')
+    industry_filter = filters.get('industry', '')
+    country_filter = filters.get('country', '')
+    status_filter = filters.get('status_filter', '')
+
     # 初始化查询：使用权限控制
     query = get_viewable_data(Company, current_user)
-    
-    # 搜索过滤
-    if search:
-        query = query.filter(Company.company_name.ilike(f'%{search}%'))
-    
-    # 筛选条件
-    owner_filter = request.args.get('owner_filter')
-    company_type_filter = request.args.get('company_type')
-    industry_filter = request.args.get('industry')
-    country_filter = request.args.get('country')
-    status_filter = request.args.get('status_filter')
-    
-    if owner_filter:
-        query = query.filter(Company.owner_id == owner_filter)
-    if company_type_filter:
-        query = query.filter(Company.company_type == company_type_filter)
-    if industry_filter:
-        query = query.filter(Company.industry == industry_filter)
-    if country_filter:
-        query = query.filter(Company.country == country_filter)
-    if status_filter:
-        query = query.filter(Company.status == status_filter)
-    
+
+    # 使用公共工具应用筛选
+    query = apply_filters_to_query(query, Company, filters, CUSTOMER_FILTER_CONFIG)
+
     # 获取排序参数
-    sort_field = request.args.get('sort', 'updated_at')
-    sort_order = request.args.get('order', 'desc')
-    
-    # 验证排序字段是否有效
     valid_sort_fields = ['company_code', 'company_name', 'company_type', 'industry',
                          'country', 'region', 'address', 'status', 'owner_id',
                          'updated_at', 'created_at']
-
-    if sort_field not in valid_sort_fields:
-        sort_field = 'updated_at'
+    sort_field, sort_order = extract_sort_params(
+        request.args, default_sort='updated_at', default_order='desc',
+        allowed_fields=valid_sort_fields
+    )
 
     # 添加排序
     if hasattr(Company, sort_field):
@@ -258,7 +253,7 @@ def list_companies():
 
     # 获取总记录数
     total_count = query.count()
-    
+
     # 滚动加载查询
     companies = query.offset(offset).limit(limit).all()
     
@@ -525,7 +520,7 @@ def list_companies():
                 {
                     'key': 'owner',
                     'field': 'owner_id',
-                    'label': _(mapping_manager.get_field_display_name('company', 'owner_id')),
+                    'label': _('负责人'),
                     'type': 'badge',
                     'render': 'render_owner',
                     'width': '120px',
@@ -537,7 +532,8 @@ def list_companies():
                     'label': _(mapping_manager.get_field_display_name('company', 'company_name')),
                     'type': 'link',
                     'url_template': '/customer/{id}/view',
-                    'width': '200px',
+                    'width': '240px',
+                    'min_width': '200px',
                     'sort_type': 'string'
                 },
                 {
@@ -661,14 +657,27 @@ def list_companies():
         }
     }
     
-    return render_template('customer/list.html', 
-                          companies=companies, 
+    # 检查是否为AJAX请求（无限滚动）
+    if request.args.get('ajax') == '1' or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        # 返回表格行HTML片段
+        rows_html = render_template('customer/tw_list_rows.html',
+                                   companies=companies,
+                                   country_code_to_name=country_code_to_name)
+        return jsonify({
+            'html': rows_html,
+            'has_more': has_more,
+            'offset': offset,
+            'total_count': total_count
+        })
+
+    return render_template('customer/tw_list.html',
+                          companies=companies,
                           total_count=total_count,
                           has_more=has_more,
                           offset=offset,
                           limit=limit,
-                          search_term=search, 
-                          sort_field=sort_field, 
+                          search_term=search,
+                          sort_field=sort_field,
                           sort_order=sort_order,
                           owner_filter=owner_filter,
                           all_users=all_users,
@@ -687,40 +696,27 @@ def list_companies():
 def companies_list_ajax():
     """客户列表AJAX筛选API"""
     try:
-        # 获取搜索和筛选参数
-        search = request.args.get('search', '').strip()
-        owner_filter = request.args.get('owner_filter', '')
-        company_type_filter = request.args.get('company_type', '')
-        industry_filter = request.args.get('industry', '')
-        country_filter = request.args.get('country', '')
-        status_filter = request.args.get('status_filter', '')
-        
-        # 分页参数
-        offset = request.args.get('offset', 0, type=int)
-        limit = request.args.get('limit', 20, type=int)
-        
-        # 排序参数
+        # 使用公共筛选工具提取参数
+        filters = extract_filter_params(request.args, CUSTOMER_FILTER_CONFIG)
+        offset, limit = extract_pagination_params(request.args, default_limit=20, max_limit=100)
+
+        # 排序参数（AJAX使用 sort_field/sort_direction）
         sort_field = request.args.get('sort_field', '')
         sort_direction = request.args.get('sort_direction', 'asc')
-        
+
+        # 提取变量（用于统计计算）
+        search = filters.get('search', '')
+        owner_filter = filters.get('owner_filter', '')
+        company_type_filter = filters.get('company_type', '')
+        industry_filter = filters.get('industry', '')
+        country_filter = filters.get('country', '')
+        status_filter = filters.get('status_filter', '')
+
         # 基础查询
         query = get_viewable_data(Company, current_user)
-        
-        # 应用搜索条件
-        if search:
-            query = query.filter(Company.company_name.ilike(f'%{search}%'))
-        
-        # 应用筛选条件
-        if owner_filter:
-            query = query.filter(Company.owner_id == owner_filter)
-        if company_type_filter:
-            query = query.filter(Company.company_type == company_type_filter)
-        if industry_filter:
-            query = query.filter(Company.industry == industry_filter)
-        if country_filter:
-            query = query.filter(Company.country == country_filter)
-        if status_filter:
-            query = query.filter(Company.status == status_filter)
+
+        # 使用公共工具应用筛选
+        query = apply_filters_to_query(query, Company, filters, CUSTOMER_FILTER_CONFIG)
         
         # 使用通用排序服务
         from app.utils.sorting_service import SortingService, create_user_relation_config, create_basic_field_mappings
@@ -772,22 +768,9 @@ def companies_list_ajax():
         )
         
         # 计算统计数据 - 基于当前筛选条件的结果
-        # 重新构建基础查询以获取筛选后的统计数据
+        # 重新构建基础查询以获取筛选后的统计数据（复用公共筛选工具）
         base_filtered_query = get_viewable_data(Company, current_user)
-        
-        # 应用相同的筛选条件
-        if search:
-            base_filtered_query = base_filtered_query.filter(Company.company_name.ilike(f'%{search}%'))
-        if owner_filter:
-            base_filtered_query = base_filtered_query.filter(Company.owner_id == owner_filter)
-        if company_type_filter:
-            base_filtered_query = base_filtered_query.filter(Company.company_type == company_type_filter)
-        if industry_filter:
-            base_filtered_query = base_filtered_query.filter(Company.industry == industry_filter)
-        if country_filter:
-            base_filtered_query = base_filtered_query.filter(Company.country == country_filter)
-        if status_filter:
-            base_filtered_query = base_filtered_query.filter(Company.status == status_filter)
+        base_filtered_query = apply_filters_to_query(base_filtered_query, Company, filters, CUSTOMER_FILTER_CONFIG)
         
         # 计算项目客户统计（基于筛选后的结果，使用优化的SQL查询）
         # 直接使用SQL子查询统计项目关联的客户
@@ -1130,25 +1113,25 @@ def view_company(company_id):
     # 获取共享相关数据
     from app.utils.sharing import SharingService, get_shareable_users_tree
     can_edit_sharing = SharingService.can_edit_sharing_settings(current_user, company, 'customer')
-    
-    # 检查是否能查看共享设置（即使不能编辑）
-    can_view_sharing = False
-    if current_user.role == 'admin':
-        can_view_sharing = True
-    elif current_user.has_permission('customer', 'view'):
-        # 检查权限级别
-        permission_level = current_user.get_permission_level('customer')
-        if permission_level in ['system', 'company', 'department']:
-            can_view_sharing = True
-        elif permission_level == 'personal' and company.owner_id == current_user.id:
-            can_view_sharing = True
-    
+    can_view_sharing = SharingService.can_view_sharing_settings(current_user, company, 'customer')
+
     # 如果能编辑或查看共享设置，获取可共享用户树
     if can_edit_sharing or can_view_sharing:
         shareable_users_tree = get_shareable_users_tree(current_user, 'customer')
     else:
         shareable_users_tree = []
-    
+
+    # 获取已共享用户详细信息（用于显示头像）
+    shared_users_info = []
+    if company.shared_with_users:
+        shared_user_ids = company.shared_with_users[:10]  # 最多10个
+        shared_users = User.query.filter(User.id.in_(shared_user_ids)).all()
+        for user in shared_users:
+            shared_users_info.append({
+                'id': user.id,
+                'name': user.real_name or user.username
+            })
+
     # 获取国际化的国家名称映射
     from app.utils.i18n import get_current_language
     country_code_to_name = get_country_names(get_current_language())
@@ -1177,6 +1160,15 @@ def view_company(company_id):
         filter_by_dept = current_user.role != 'admin'
         user_tree_data = generate_user_tree_data(filter_by_department=filter_by_dept)
 
+    # 获取客户关联的报价单（通过项目）
+    from app.models.quotation import Quotation
+    quotations = []
+    if viewable_projects:
+        viewable_project_ids_list = [p.id for p in viewable_projects]
+        quotations = Quotation.query.filter(
+            Quotation.project_id.in_(viewable_project_ids_list)
+        ).order_by(Quotation.created_at.desc()).limit(10).all()
+
     # 智能返回逻辑：保留筛选条件
     return_url = request.args.get('return_url')
     if return_url:
@@ -1191,19 +1183,21 @@ def view_company(company_id):
     if not return_url:
         return_url = url_for('customer.list_companies')
 
-    return render_template('customer/view.html', 
-                          company=company, 
-                          contacts=viewable_contacts, 
+    return render_template('customer/tw_view.html',
+                          company=company,
+                          contacts=viewable_contacts,
                           all_contacts=all_contacts,  # 用于查重
-                          actions=actions, 
+                          actions=actions,
                           viewable_actions=viewable_actions,
                           pagination=pagination,
                           projects=projects,
                           viewable_projects=viewable_projects,
+                          quotations=quotations,  # 报价单列表
                           country_code_to_name=country_code_to_name,
                           can_edit_sharing=can_edit_sharing,
                           can_view_sharing=can_view_sharing,
                           shareable_users_tree=shareable_users_tree,
+                          shared_users_info=shared_users_info,
                           COMPANY_TYPE_OPTIONS=get_company_type_options(),
                           INDUSTRY_OPTIONS=get_industry_options(),
                           STATUS_OPTIONS=get_status_options(),
@@ -1213,118 +1207,6 @@ def view_company(company_id):
                           get_object_approval_instance=get_object_approval_instance,
                           get_available_templates=get_available_templates,
                           can_start_approval=can_start_approval)
-
-@customer.route('/add', methods=['GET', 'POST'])
-@permission_required('customer', 'create')
-def add_company():
-    if request.method == 'POST':
-        try:
-            data = request.form.to_dict()
-            # 移除csrf_token和所有非Company字段
-            for key in ['csrf_token', 'contact_name', 'contact_department', 'contact_position', 'contact_phone', 'contact_email', 'contact_notes']:
-                data.pop(key, None)
-            # 强制写入活跃状态
-            data['status'] = 'active'
-            # 设置客户归属人为当前用户
-            data['owner_id'] = current_user.id
-            company = Company(**data)
-            db.session.add(company)
-            db.session.commit()
-            
-            # 记录创建历史
-            try:
-                ChangeTracker.log_create(company)
-            except Exception as track_err:
-                logger.warning(f"记录客户创建历史失败: {str(track_err)}")
-            
-            # 新增：每次添加客户后自动刷新活跃度和更新时间
-            company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
-            update_active_status(company)
-            db.session.commit()
-            # 通知新客户创建
-            from app.services.event_dispatcher import notify_customer_created
-            notify_customer_created(company, current_user)
-            flash(_('客户创建成功！'), 'success')
-            return redirect(url_for('customer.list_companies'))
-        except Exception as e:
-            db.session.rollback()
-            import traceback
-            # 增强日志输出，包含表单内容和traceback
-            flash('保存失败：' + str(e) + '<br>表单内容：' + str(dict(request.form)) + '<br>' + traceback.format_exc(), 'danger')
-    
-    return render_template('customer/add.html', COMPANY_TYPE_OPTIONS=get_company_type_options(),
-                          INDUSTRY_OPTIONS=get_industry_options(),
-                          STATUS_OPTIONS=get_status_options(),
-                          REPORT_SOURCE_OPTIONS=get_report_source_options())
-
-@customer.route('/edit/<int:company_id>', methods=['GET', 'POST'])
-@login_required
-# 注意：不使用 @permission_required 装饰器 - 创建者可以编辑自己的客户数据
-def edit_company(company_id):
-    company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
-
-    # 使用统一的数据权限检查（包含数据归属逻辑）
-    if not can_edit_company_info(current_user, company):
-        flash(_('您没有权限编辑此企业信息'), 'danger')
-        return redirect(url_for('customer.view_company', company_id=company_id))
-
-    # 获取return_url（GET从query参数，POST从form）
-    return_url = request.args.get('return_url') if request.method == 'GET' else request.form.get('return_url')
-
-    # 验证return_url安全性
-    if return_url:
-        from urllib.parse import urlparse
-        parsed = urlparse(return_url)
-        # 只允许相对路径，拒绝绝对URL
-        if parsed.netloc:
-            return_url = None
-
-    if request.method == 'POST':
-        try:
-            # 导入历史记录跟踪器
-            from app.utils.change_tracker import ChangeTracker
-
-            # 捕获修改前的值
-            old_values = ChangeTracker.capture_old_values(company)
-
-            data = request.form.to_dict()
-            # 移除status字段，禁止编辑
-            data.pop('status', None)
-            # 移除return_url字段，不应存入数据库
-            data.pop('return_url', None)
-            for key, value in data.items():
-                setattr(company, key, value)
-            db.session.commit()
-
-            # 记录变更历史
-            try:
-                new_values = ChangeTracker.get_new_values(company, old_values.keys())
-                ChangeTracker.log_update(company, old_values, new_values)
-            except Exception as track_err:
-                logger.warning(f"记录客户变更历史失败: {str(track_err)}")
-
-            # 更新客户活跃状态
-            check_company_activity(company_id=company_id, days_threshold=1)
-            flash(_('客户信息已更新！'), 'success')
-
-            # 始终返回详情页，同时保留 return_url 参数传递给详情页
-            # 这样详情页的"返回列表"按钮仍能回到带筛选的列表页
-            if return_url:
-                return redirect(url_for('customer.view_company',
-                                       company_id=company.id,
-                                       return_url=return_url))
-            else:
-                return redirect(url_for('customer.view_company', company_id=company.id))
-        except Exception as e:
-            db.session.rollback()
-            flash('保存失败：' + str(e), 'danger')
-
-    return render_template('customer/edit.html', company=company,
-                          return_url=return_url,
-                          COMPANY_TYPE_OPTIONS=get_company_type_options(),
-                          INDUSTRY_OPTIONS=get_industry_options(),
-                          STATUS_OPTIONS=get_status_options(),
-                          REPORT_SOURCE_OPTIONS=get_report_source_options())
 
 @customer.route('/api/delete-confirm/<int:company_id>')
 @login_required
@@ -1553,16 +1435,22 @@ def analyze_company_dependencies(company):
 def delete_company(company_id):
     company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
 
+    # 检查是否是 JSON 请求（AJAX）
+    is_json_request = request.is_json or request.headers.get('Content-Type', '').startswith('application/json')
+
     # 使用统一的数据权限检查（包含数据归属逻辑）
     if not can_edit_data(company, current_user):
+        if is_json_request:
+            return jsonify({'success': False, 'message': _('您没有权限删除此企业')})
         flash('您没有权限删除此企业', 'danger')
         return redirect(url_for('customer.list_companies'))
 
-    # 检查是否强制删除
-    force_delete = request.form.get('force_delete') == 'true'
-    if not force_delete:
-        # 如果不是强制删除，重定向到确认页面
-        return redirect(url_for('customer.delete_confirm', company_id=company_id))
+    # 对于非 JSON 请求，检查是否强制删除
+    if not is_json_request:
+        force_delete = request.form.get('force_delete') == 'true'
+        if not force_delete:
+            # 如果不是强制删除，重定向到确认页面
+            return redirect(url_for('customer.delete_confirm', company_id=company_id))
 
 
     try:
@@ -1651,9 +1539,14 @@ def delete_company(company_id):
         # 然后删除公司 (这将级联删除联系人，因为在模型中设置了cascade='all, delete-orphan')
         db.session.delete(company)
         db.session.commit()
+
+        if is_json_request:
+            return jsonify({'success': True, 'message': _('企业删除成功')})
         flash('企业删除成功！', 'success')
     except Exception as e:
         db.session.rollback()
+        if is_json_request:
+            return jsonify({'success': False, 'message': _('删除失败：') + str(e)})
         flash('删除失败：' + str(e), 'danger')
 
     return redirect(url_for('customer.list_companies'))
@@ -1859,6 +1752,320 @@ def add_action_api(contact_id):
         traceback_str = traceback.format_exc()
         return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500
 
+
+@customer.route('/api/quick-add-action', methods=['POST'])
+@permission_required('customer', 'create')
+def quick_add_action_api():
+    """快速添加行动记录API - 用于客户详情页面底部快速输入"""
+    try:
+        if not request.is_json:
+            return jsonify({'success': False, 'message': _('请求必须是JSON格式')}), 400
+
+        data = request.json
+        company_id = data.get('company_id')
+        contact_id = data.get('contact_id')
+        communication = data.get('communication', '').strip()
+
+        # 验证必填字段
+        if not company_id:
+            return jsonify({'success': False, 'message': _('客户ID不能为空')}), 400
+        if not contact_id:
+            return jsonify({'success': False, 'message': _('请选择联系人')}), 400
+        if not communication:
+            return jsonify({'success': False, 'message': _('行动记录内容不能为空')}), 400
+
+        # 验证公司和联系人存在
+        company = Company.query.get(company_id)
+        if not company:
+            return jsonify({'success': False, 'message': _('客户不存在')}), 404
+
+        contact = Contact.query.get(contact_id)
+        if not contact or contact.company_id != company_id:
+            return jsonify({'success': False, 'message': _('联系人不存在或不属于该客户')}), 404
+
+        # 创建行动记录（使用当前日期）
+        action = Action(
+            date=date.today(),
+            contact_id=contact_id,
+            company_id=company_id,
+            communication=communication,
+            owner_id=current_user.id,
+            is_shared=True
+        )
+
+        db.session.add(action)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': _('行动记录添加成功'),
+            'data': {
+                'id': action.id,
+                'date': action.date.isoformat(),
+                'contact_name': contact.name,
+                'communication': action.communication
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@customer.route('/api/<int:company_id>/add_action', methods=['POST'])
+@login_required
+@permission_required('customer', 'create')
+def api_add_action_for_company(company_id):
+    """AJAX添加行动记录API - 用于客户详情页模态框"""
+    try:
+        company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
+
+        # 获取JSON数据
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': _('无效的请求数据')}), 400
+
+        communication = data.get('communication', '').strip()
+        date_str = data.get('date', '')
+        project_id = data.get('project_id')
+        contact_id = data.get('contact_id')
+        is_shared = data.get('is_shared', True)
+
+        # 验证必填字段
+        if not communication:
+            return jsonify({'success': False, 'message': _('请填写沟通情况')}), 400
+        if not date_str:
+            return jsonify({'success': False, 'message': _('请选择日期')}), 400
+
+        # 解析日期
+        try:
+            action_date = datetime.strptime(date_str, '%Y-%m-%d')
+        except ValueError:
+            return jsonify({'success': False, 'message': _('日期格式无效')}), 400
+
+        # 创建行动记录
+        action = Action(
+            date=action_date,
+            contact_id=int(contact_id) if contact_id else None,
+            company_id=company_id,
+            project_id=int(project_id) if project_id else None,
+            communication=communication,
+            owner_id=current_user.id,
+            is_shared=is_shared
+        )
+        db.session.add(action)
+        db.session.commit()
+
+        # 更新客户活跃状态
+        check_company_activity(company_id=company_id, days_threshold=1)
+
+        # 构建返回数据
+        owner_name = current_user.real_name or current_user.username
+        result = {
+            'id': action.id,
+            'date': action.date.isoformat() if action.date else '',
+            'communication': action.communication,
+            'owner_name': owner_name,
+            'owner_id': action.owner_id,
+            'contact_name': action.contact.name if action.contact else None,
+            'project_name': action.project.project_name if action.project else None
+        }
+
+        return jsonify({
+            'success': True,
+            'message': _('行动记录添加成功'),
+            'data': result
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"添加行动记录失败: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'{_("添加行动记录失败")}: {str(e)}'
+        }), 500
+
+
+@customer.route('/api/<int:company_id>/add_contact', methods=['POST'])
+@login_required
+@permission_required('customer', 'create')
+def api_add_contact(company_id):
+    """AJAX添加联系人API - 用于客户详情页模态框"""
+    try:
+        company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
+
+        # 获取JSON数据
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': _('无效的请求数据')}), 400
+
+        name = data.get('name', '').strip()
+        department = data.get('department', '').strip()
+        position = data.get('position', '').strip()
+        phone = data.get('phone', '').strip()
+        email = data.get('email', '').strip()
+        notes = data.get('notes', '').strip()
+        is_primary = data.get('is_primary', False)
+
+        # 验证必填字段
+        if not name:
+            return jsonify({'success': False, 'message': _('请填写联系人姓名')}), 400
+
+        # 查重：同公司下所有联系人（不论owner）
+        duplicate = Contact.query.filter_by(company_id=company_id, name=name).first()
+        if duplicate:
+            if duplicate.owner_id != current_user.id:
+                return jsonify({'success': False, 'message': _('该客户已有同名联系人（不可见）')}), 400
+            else:
+                return jsonify({'success': False, 'message': _('该客户已有同名联系人')}), 400
+
+        # 创建联系人
+        contact = Contact(
+            company_id=company_id,
+            name=name,
+            department=department,
+            position=position,
+            phone=phone,
+            email=email,
+            notes=notes,
+            owner_id=current_user.id
+        )
+
+        db.session.add(contact)
+
+        # 设置为主要联系人
+        if is_primary:
+            contact.set_as_primary()
+
+        db.session.commit()
+
+        # 记录创建历史
+        try:
+            ChangeTracker.log_create(contact)
+        except Exception as track_err:
+            logger.warning(f"记录联系人创建历史失败: {str(track_err)}")
+
+        # 更新客户活跃度
+        company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+        update_active_status(company)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': _('联系人添加成功'),
+            'data': {
+                'id': contact.id,
+                'name': contact.name,
+                'department': contact.department,
+                'position': contact.position,
+                'phone': contact.phone,
+                'email': contact.email,
+                'is_primary': contact.is_primary
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"添加联系人失败: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'{_("添加联系人失败")}: {str(e)}'
+        }), 500
+
+
+@customer.route('/api/contacts/<int:contact_id>/edit', methods=['POST'])
+@login_required
+@permission_required('customer', 'edit')
+def api_edit_contact(contact_id):
+    """AJAX编辑联系人API - 用于联系人详情页模态框"""
+    try:
+        contact = Contact.query.get_or_404(contact_id)
+        company = contact.company
+
+        # 检查编辑权限
+        if not can_edit_contact(current_user, contact):
+            return jsonify({'success': False, 'message': _('您没有权限编辑此联系人')}), 403
+
+        # 获取JSON数据
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': _('无效的请求数据')}), 400
+
+        name = data.get('name', '').strip()
+        department = data.get('department', '').strip()
+        position = data.get('position', '').strip()
+        phone = data.get('phone', '').strip()
+        email = data.get('email', '').strip()
+        notes = data.get('notes', '').strip()
+        is_primary = data.get('is_primary', False)
+
+        # 验证必填字段
+        if not name:
+            return jsonify({'success': False, 'message': _('请填写联系人姓名')}), 400
+
+        # 查重：同公司下其他联系人（排除自己）
+        duplicate = Contact.query.filter(
+            Contact.company_id == company.id,
+            Contact.name == name,
+            Contact.id != contact_id
+        ).first()
+        if duplicate:
+            return jsonify({'success': False, 'message': _('该客户已有同名联系人')}), 400
+
+        # 捕获修改前的值
+        old_values = ChangeTracker.capture_old_values(contact)
+
+        # 更新联系人信息
+        contact.name = name
+        contact.department = department
+        contact.position = position
+        contact.phone = phone
+        contact.email = email
+        contact.notes = notes
+
+        # 设置为主要联系人
+        if is_primary and not contact.is_primary:
+            contact.set_as_primary()
+        elif not is_primary and contact.is_primary:
+            contact.is_primary = False
+
+        db.session.commit()
+
+        # 记录变更历史
+        try:
+            new_values = ChangeTracker.get_new_values(contact, old_values.keys())
+            ChangeTracker.log_update(contact, old_values, new_values)
+        except Exception as track_err:
+            logger.warning(f"记录联系人变更历史失败: {str(track_err)}")
+
+        # 更新客户活跃度
+        company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+        update_active_status(company)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': _('联系人更新成功'),
+            'data': {
+                'id': contact.id,
+                'name': contact.name,
+                'department': contact.department,
+                'position': contact.position,
+                'phone': contact.phone,
+                'email': contact.email,
+                'notes': contact.notes,
+                'is_primary': contact.is_primary
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"编辑联系人失败: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'{_("编辑联系人失败")}: {str(e)}'
+        }), 500
+
+
 @customer.route('/api/companies/<company_type>')
 @permission_required('customer', 'view')
 def api_companies_by_type(company_type):
@@ -1985,6 +2192,168 @@ def search_company_api():
         results.append(result)
     
     return jsonify({'results': results})
+
+
+@customer.route('/api/company/<int:company_id>')
+@login_required
+@permission_required('customer', 'view')
+def api_get_company(company_id):
+    """API端点 - 获取客户数据用于表单编辑"""
+    try:
+        company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
+
+        # 检查编辑权限
+        if not can_edit_company_info(current_user, company):
+            return jsonify({'success': False, 'message': _('您没有权限编辑此客户')}), 403
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'id': company.id,
+                'company_code': company.company_code,
+                'company_name': company.company_name,
+                'country': company.country or '',
+                'region': company.region or '',
+                'address': company.address or '',
+                'industry': company.industry or '',
+                'company_type': company.company_type or '',
+                'source': company.source or '',
+                'notes': company.notes or '',
+                'status': company.status or 'active'
+            }
+        })
+    except Exception as e:
+        logger.error(f"获取客户数据失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@customer.route('/api/company/create', methods=['POST'])
+@login_required
+@permission_required('customer', 'create')
+def api_create_company():
+    """API端点 - 创建新客户"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': _('无效的请求数据')}), 400
+
+        # 验证必填字段
+        required_fields = ['company_name', 'country', 'region', 'company_type', 'source']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'message': _('请填写所有必填字段')}), 400
+
+        # 创建新公司
+        company = Company(
+            company_name=data.get('company_name'),
+            country=data.get('country'),
+            region=data.get('region'),
+            address=data.get('address', ''),
+            industry=data.get('industry', ''),
+            company_type=data.get('company_type'),
+            source=data.get('source'),
+            notes=data.get('notes', ''),
+            status='active',
+            owner_id=current_user.id
+        )
+        db.session.add(company)
+        db.session.commit()
+
+        # 记录创建历史
+        try:
+            ChangeTracker.log_create(company)
+        except Exception as track_err:
+            logger.warning(f"记录客户创建历史失败: {str(track_err)}")
+
+        return jsonify({
+            'success': True,
+            'message': _('客户创建成功'),
+            'data': {
+                'id': company.id,
+                'company_name': company.company_name
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"创建客户失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@customer.route('/api/company/<int:company_id>/update', methods=['POST'])
+@login_required
+@permission_required('customer', 'edit')
+def api_update_company(company_id):
+    """API端点 - 更新客户数据"""
+    try:
+        company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
+
+        # 检查编辑权限
+        if not can_edit_company_info(current_user, company):
+            return jsonify({'success': False, 'message': _('您没有权限编辑此客户')}), 403
+
+        # 获取JSON数据
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': _('无效的请求数据')}), 400
+
+        # 导入历史记录跟踪器
+        from app.utils.change_tracker import ChangeTracker
+
+        # 捕获修改前的值
+        old_values = ChangeTracker.capture_old_values(company)
+
+        # 允许更新的字段
+        allowed_fields = ['company_name', 'country', 'region', 'address',
+                         'industry', 'company_type', 'source', 'notes']
+
+        for field in allowed_fields:
+            if field in data:
+                setattr(company, field, data[field])
+
+        db.session.commit()
+
+        # 记录变更历史
+        try:
+            new_values = ChangeTracker.get_new_values(company, old_values.keys())
+            ChangeTracker.log_update(company, old_values, new_values)
+        except Exception as track_err:
+            logger.warning(f"记录客户变更历史失败: {str(track_err)}")
+
+        # 更新客户活跃状态
+        check_company_activity(company_id=company_id, days_threshold=1)
+
+        return jsonify({
+            'success': True,
+            'message': _('客户信息已更新'),
+            'data': {
+                'id': company.id,
+                'company_name': company.company_name
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"更新客户数据失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@customer.route('/api/company/options')
+@login_required
+@permission_required('customer', 'view')
+def api_company_form_options():
+    """API端点 - 获取客户表单选项（行业、类型、来源等）"""
+    try:
+        return jsonify({
+            'success': True,
+            'data': {
+                'industries': [{'value': v, 'label': l} for v, l in get_industry_options()],
+                'company_types': [{'value': v, 'label': l} for v, l in get_company_type_options()],
+                'sources': [{'value': v, 'label': l} for v, l in get_report_source_options()]
+            }
+        })
+    except Exception as e:
+        logger.error(f"获取表单选项失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 
 @customer.route('/api/contacts/search_by_name')
 @permission_required('customer', 'view')
@@ -3062,7 +3431,7 @@ def batch_delete_companies():
         return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500
 
 @customer.route('/api/actions/<int:action_id>/delete', methods=['POST'])
-@permission_required('customer', 'delete')
+@permission_required('customer', 'view')
 def delete_action_api(action_id):
     """通过API删除行动记录"""
     current_app.logger.info(f"开始删除行动记录，ID: {action_id}")
@@ -3119,9 +3488,10 @@ def view_contact(contact_id):
         flash('您没有权限查看此联系人信息', 'danger')
         return redirect(url_for('customer.list_companies'))
     company = contact.company
-    # 使用权限过滤获取该联系人的行动记录
+    # 使用权限过滤获取该联系人的行动记录（预加载项目关系）
     from app.utils.access_control import get_viewable_data
-    actions = get_viewable_data(Action, current_user, special_filters=[Action.contact_id == contact.id]).order_by(Action.created_at.desc()).all()
+    from sqlalchemy.orm import joinedload
+    actions = get_viewable_data(Action, current_user, special_filters=[Action.contact_id == contact.id]).options(joinedload(Action.project)).order_by(Action.created_at.desc()).all()
     owner_ids = [action.owner_id for action in actions if action.owner_id]
     if owner_ids:
         owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
@@ -3154,11 +3524,16 @@ def view_contact(contact_id):
     if has_change_owner_permission:
         filter_by_dept = current_user.role != 'admin'
         user_tree_data = generate_user_tree_data(filter_by_department=filter_by_dept)
-    
-    return render_template('customer/contact_view.html', contact=contact, company=company, actions=actions,
+
+    # 获取与该企业相关的项目（通过项目-客户关联表）
+    from app.models.project_customer_association import ProjectCustomerAssociation
+    projects = [assoc.project for assoc in company.project_associations.all()]
+
+    return render_template('customer/tw_contact_view.html', contact=contact, company=company, actions=actions,
                           all_users=all_users,
                           has_change_owner_permission=has_change_owner_permission,
                           user_tree_data=user_tree_data,
+                          projects=projects,
                           COMPANY_TYPE_OPTIONS=get_company_type_options(),
                           INDUSTRY_OPTIONS=get_industry_options(),
                           STATUS_OPTIONS=get_status_options(),
@@ -3304,11 +3679,14 @@ def get_action_replies(action_id):
     
     replies = ActionReply.query.filter_by(action_id=action_id, parent_reply_id=None).order_by(ActionReply.created_at.asc()).all()
     def build_tree(reply):
+        # 返回 ISO 格式带 UTC 标记，前端可正确转换为本地时间
+        created_at_iso = reply.created_at.strftime('%Y-%m-%dT%H:%M:%SZ') if reply.created_at else ''
         return {
             'id': reply.id,
             'content': reply.content,
             'owner': reply.owner.real_name or reply.owner.username,
-            'created_at': reply.created_at.strftime('%Y-%m-%d %H:%M'),
+            'owner_id': reply.owner_id,
+            'created_at': created_at_iso,
             'can_delete': (current_user.id == reply.owner_id or current_user.role == 'admin'),
             'children': [build_tree(child) for child in reply.children]
         }
@@ -3317,7 +3695,7 @@ def get_action_replies(action_id):
 # 添加回复
 @customer.route('/action/<int:action_id>/reply', methods=['POST'])
 @login_required
-@permission_required('customer', 'create')
+@permission_required('customer', 'view')
 def add_action_reply(action_id):
     """通过API添加行动记录回复"""
     action = Action.query.get_or_404(action_id)
@@ -3342,7 +3720,7 @@ def add_action_reply(action_id):
 # 删除回复
 @customer.route('/action/reply/<int:reply_id>/delete', methods=['POST'])
 @login_required
-@permission_required('customer', 'delete')
+@permission_required('customer', 'view')
 def delete_action_reply(reply_id):
     """通过API删除行动记录回复"""
     from app.models.action import ActionReply

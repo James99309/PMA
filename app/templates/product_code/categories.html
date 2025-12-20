@@ -5,12 +5,24 @@
 
 {% block styles %}
 {{ super() }}
+<!-- Tailwind CSS for spec dictionary modal -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+    tailwind.config = {
+        prefix: 'tw-',
+        corePlugins: {
+            preflight: false,
+        }
+    }
+</script>
+<!-- Material Symbols for Tailwind components -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet" />
 <style>
     /* 标准化页面头部区域在固定导航下的间距调整 - 与其他模块保持一致 */
     .page-with-fixed-nav .page-header-with-actions {
         margin-top: 2rem !important; /* 与其他模块一致：2rem = 32px */
     }
-    
+
     /* 产品分类页面主容器顶部留白，避免被fixed导航遮挡 */
     .container-fluid.page-with-fixed-nav {
         margin-top: 72px !important;
@@ -21,6 +33,22 @@
         }
     }
 
+    /* Tailwind 模态框样式覆盖，避免与 Bootstrap 冲突 */
+    #specDictModal .material-symbols-outlined {
+        font-family: 'Material Symbols Outlined';
+        font-size: 24px;
+    }
+
+    /* 主题色变量 for Tailwind components */
+    :root {
+        --color-primary: #0d6efd;
+    }
+
+    /* Tailwind primary color class */
+    .tw-bg-primary { background-color: var(--color-primary) !important; }
+    .tw-text-primary { color: var(--color-primary) !important; }
+    .tw-border-primary { border-color: var(--color-primary) !important; }
+    .tw-ring-primary { --tw-ring-color: var(--color-primary) !important; }
 </style>
 {% endblock %}
 

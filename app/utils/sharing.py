@@ -243,7 +243,58 @@ class SharingService:
         
         # 其他模型类型或没有指定模型类型时，依赖基本编辑权限检查
         return True
-    
+
+    @staticmethod
+    def can_view_sharing_settings(user, data_obj, model_type=None):
+        """
+        检查用户是否可以查看指定数据的共享设置
+
+        规则：
+        1. 如果能编辑共享设置，当然能查看
+        2. 管理员可以查看所有
+        3. system/company/department 级别权限可以查看对应范围内的数据共享设置
+        4. personal 级别只有数据 owner 可以查看
+
+        参数:
+            user: 用户对象
+            data_obj: 数据对象
+            model_type: 模型类型 ('project', 'customer', 'company' 等)
+
+        返回:
+            bool: 是否有权限查看共享设置
+        """
+        # 如果能编辑，当然能查看
+        if SharingService.can_edit_sharing_settings(user, data_obj, model_type):
+            return True
+
+        # 管理员可以查看所有
+        if user.role == 'admin':
+            return True
+
+        # 确定模块名称用于权限检查
+        if model_type == 'project':
+            module_name = 'project'
+        elif model_type in ['customer', 'company']:
+            module_name = 'customer'
+        else:
+            module_name = model_type
+
+        # 检查查看权限
+        if not module_name or not user.has_permission(module_name, 'view'):
+            return False
+
+        # 检查权限级别
+        permission_level = user.get_permission_level(module_name)
+
+        if permission_level in ['system', 'company', 'department']:
+            # 高级别权限可以查看（但不一定能编辑）
+            return True
+        elif permission_level == 'personal':
+            # personal 级别只有 owner 可以查看
+            return hasattr(data_obj, 'owner_id') and data_obj.owner_id == user.id
+
+        return False
+
     @staticmethod
     def update_sharing_from_request(data_obj, user, model_type=None):
         """
@@ -361,18 +412,28 @@ def get_shareable_users_tree(current_user, model_type=None):
     
     # 按公司和部门组织数据
     company_tree = {}
-    
+
+    # 获取公司厂商信息
+    from app.models.dictionary import Dictionary
+    company_vendor_info = {}
+    company_dicts = Dictionary.query.filter_by(type='company').all()
+    for comp_dict in company_dicts:
+        company_vendor_info[comp_dict.value] = comp_dict.is_vendor
+
     for user in shareable_users:
         company_name = user.company_name or _('未指定公司')
         department = user.department or None
-        
+
         # 创建公司节点
         if company_name not in company_tree:
+            # 获取企业的厂商状态
+            is_vendor = company_vendor_info.get(company_name, False)
             company_tree[company_name] = {
                 'id': f'company_{hash(company_name) % 10000}',
                 'name': company_name,
                 'type': 'company',
                 'selectable': True,
+                'is_vendor': is_vendor,
                 'children': [],
                 'departments': {},
                 'direct_users': []

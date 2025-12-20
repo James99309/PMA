@@ -22,12 +22,27 @@ import os
 from werkzeug.utils import secure_filename
 from app.utils.file_url_helper import normalize_file_url
 from app.helpers.approval_helpers import (
-    get_approval_permission_service, 
+    get_approval_permission_service,
     get_field_edit_service,
     check_universal_approval_permission
 )
+from app.utils.query_filters import (
+    extract_filter_params, apply_filters_to_query, extract_sort_params,
+    extract_pagination_params
+)
 
 logger = logging.getLogger(__name__)
+
+# ============================================================
+# 报销单筛选配置（与报价单/客户/项目管理保持一致的通用模式）
+# ============================================================
+# 注意：search 字段不使用通用工具，因为需要同时搜索报销单编号、标题和客户名称（跨表）
+EXPENSE_FILTER_CONFIG = {
+    'owner_id': {'type': 'exact', 'field': 'owner_id'},
+    'status': {'type': 'exact', 'field': 'status'},
+    'customer_id': {'type': 'exact', 'field': 'customer_id'},
+    # search 需要跨表查询，在查询中手动处理
+}
 
 def is_cloud_environment():
     """检测是否在云端环境运行"""
@@ -50,422 +65,520 @@ expense = Blueprint('expense', __name__)
 @login_required
 @permission_required('expense', 'view')
 def expense_list():
-    """报销单列表 - 优化版本"""
-    # 获取筛选参数
-    search = request.args.get('search', '').strip()
-    customer_id = request.args.get('customer_id', '')
-    owner_id = request.args.get('owner_id', '')
-    expense_category = request.args.get('expense_category', '')
-    status = request.args.get('status', '')
-    
-    # 1. 使用权限控制函数获取可查看的报销单数据
-    from app.utils.access_control import get_viewable_data
-    
-    # 获取基本的报销单信息，应用权限过滤
-    base_query = get_viewable_data(Expense, current_user).with_entities(
-        Expense.id,
-        Expense.expense_number,
-        Expense.title,
-        Expense.total_amount,
-        Expense.currency,
-        Expense.status,
-        Expense.created_at,
-        Expense.customer_id,
-        Expense.project_id,
-        Expense.owner_id
-    )
-    
-    # 2. 在JOIN之前先应用非搜索筛选条件（减少数据量）
-    if customer_id:
-        base_query = base_query.filter(Expense.customer_id == customer_id)
-    if owner_id:
-        base_query = base_query.filter(Expense.owner_id == owner_id)
-    if status:
-        base_query = base_query.filter(Expense.status == status)
-    
-    # 3. 只在需要搜索时才JOIN相关表
-    if search:
-        # 有搜索条件时才JOIN
-        search_query = base_query.join(Company, Expense.customer_id == Company.id)\
-                                .outerjoin(Project, Expense.project_id == Project.id)\
-                                .filter(
-                                    or_(
-                                        Expense.expense_number.ilike(f'%{search}%'),
-                                        Expense.title.ilike(f'%{search}%'),
-                                        Company.company_name.ilike(f'%{search}%')
-                                    )
-                                )
-        expenses = search_query.order_by(desc(Expense.created_at)).all()
-    else:
-        # 无搜索条件时直接查询，避免不必要的JOIN
-        expenses = base_query.order_by(desc(Expense.created_at)).all()
-    
-    # 4. 批量获取关联数据（避免N+1查询）
-    if expenses:
-        # 收集所有需要的ID
-        customer_ids = list(set(e.customer_id for e in expenses if e.customer_id))
-        project_ids = list(set(e.project_id for e in expenses if e.project_id))
-        owner_ids = list(set(e.owner_id for e in expenses if e.owner_id))
-        expense_ids = [e.id for e in expenses]
-        
-        # 批量查询关联数据
-        customers = {c.id: c.company_name for c in 
-                    Company.query.filter(Company.id.in_(customer_ids)).all()} if customer_ids else {}
-        
-        projects = {p.id: p.project_name for p in 
-                   Project.query.filter(Project.id.in_(project_ids)).all()} if project_ids else {}
-        
-        owners = {u.id: u for u in 
-                 User.query.filter(User.id.in_(owner_ids)).all()} if owner_ids else {}
-        
-        # 批量查询detail_count（使用子查询优化）
-        detail_counts = dict(
-            db.session.query(
-                ExpenseDetail.expense_id,
-                func.count(ExpenseDetail.id)
-            ).filter(ExpenseDetail.expense_id.in_(expense_ids))
-            .group_by(ExpenseDetail.expense_id).all()
+    """报销单列表 - 使用通用工具"""
+    try:
+        # ============================================================
+        # 1. 使用通用工具提取参数
+        # ============================================================
+        filters = extract_filter_params(request.args, EXPENSE_FILTER_CONFIG)
+        offset, limit = extract_pagination_params(request.args, default_limit=30, max_limit=100)
+
+        # 提取变量（search 从 request.args 获取，因为需要跨表搜索）
+        search = request.args.get('search', '').strip()
+        customer_id = filters.get('customer_id', '')
+        owner_id = filters.get('owner_id', '')
+        status_filter = filters.get('status', '')
+
+        # 获取排序参数
+        valid_sort_fields = ['expense_number', 'created_at', 'total_amount', 'status', 'owner_id']
+        sort_field, sort_order = extract_sort_params(
+            request.args, default_sort='created_at', default_order='desc',
+            allowed_fields=valid_sort_fields
         )
-    else:
-        customers = {}
-        projects = {}
-        owners = {}
-        detail_counts = {}
-    
-    # 5. 格式化数据
-    formatted_expenses = []
-    for expense in expenses:
-        # 获取User对象
-        user_obj = owners.get(expense.owner_id)
-        owner_display = ""
-        if user_obj:
-            if hasattr(user_obj, 'real_name') and user_obj.real_name:
-                owner_display = user_obj.real_name
-            elif hasattr(user_obj, 'username'):
-                owner_display = user_obj.username
+
+        # ============================================================
+        # 2. 构建查询（权限控制）
+        # ============================================================
+        query = get_viewable_data(Expense, current_user).options(
+            joinedload(Expense.owner),
+            joinedload(Expense.customer),
+            joinedload(Expense.project),
+            joinedload(Expense.contact)
+        )
+
+        # ============================================================
+        # 3. 应用筛选（使用通用工具 + 手动处理特殊情况）
+        # ============================================================
+        query = apply_filters_to_query(query, Expense, filters, EXPENSE_FILTER_CONFIG)
+
+        # 标记是否已经JOIN了Company表
+        company_joined = False
+
+        # 全局搜索（同时搜索报销单编号、标题和客户名称，需要JOIN）
+        if search:
+            query = query.outerjoin(Company, Expense.customer_id == Company.id)
+            query = query.filter(
+                or_(
+                    Expense.expense_number.ilike(f'%{search}%'),
+                    Expense.title.ilike(f'%{search}%'),
+                    Company.company_name.ilike(f'%{search}%')
+                )
+            )
+            company_joined = True
+
+        # ============================================================
+        # 4. 应用排序
+        # ============================================================
+        if hasattr(Expense, sort_field):
+            order_attr = getattr(Expense, sort_field)
+        else:
+            order_attr = Expense.created_at
+
+        query = query.order_by(order_attr.desc() if sort_order == 'desc' else order_attr.asc())
+
+        # ============================================================
+        # 5. 分页
+        # ============================================================
+        total_count = query.count()
+        expenses = query.offset(offset).limit(limit).all()
+        has_more = (offset + limit) < total_count
+
+        # 为报销单添加关联数据用于显示
+        for exp in expenses:
+            # 添加客户名称
+            if hasattr(exp, 'customer') and exp.customer:
+                exp.customer_name = exp.customer.company_name
             else:
-                owner_display = str(user_obj)
-        
-        formatted_row = SimpleNamespace(
-            id=expense.id,
-            expense_number=expense.expense_number,
-            title=expense.title,
-            total_amount=expense.total_amount,
-            currency=expense.currency,
-            status=expense.status,
-            created_at=expense.created_at,
-            customer_name=customers.get(expense.customer_id, _('未指定')),
-            project_name=projects.get(expense.project_id, '-'),
-            owner=owner_display,
-            owner_obj=user_obj,
-            detail_count=detail_counts.get(expense.id, 0)
-        )
-        formatted_expenses.append(formatted_row)
-    
-    # 6. 优化统计查询：使用权限过滤的查询获取所有统计数据
-    stats_query = get_viewable_data(Expense, current_user)
-    
-    # 如果有搜索条件，应用相同的搜索过滤到统计查询
-    if search:
-        stats_query = stats_query.join(Company, Expense.customer_id == Company.id)\
-                                .outerjoin(Project, Expense.project_id == Project.id)\
-                                .filter(
-                                    or_(
-                                        Expense.expense_number.ilike(f'%{search}%'),
-                                        Expense.title.ilike(f'%{search}%'),
-                                        Company.company_name.ilike(f'%{search}%')
-                                    )
-                                )
-    
-    # 应用其他筛选条件到统计查询
-    if customer_id:
-        stats_query = stats_query.filter(Expense.customer_id == customer_id)
-    if owner_id:
-        stats_query = stats_query.filter(Expense.owner_id == owner_id)
-    if status:
-        stats_query = stats_query.filter(Expense.status == status)
-    
-    # 使用单个查询获取所有统计数据（避免多次查询）
-    stats_result = stats_query.with_entities(
-        func.count(Expense.id).label('total_count'),
-        func.coalesce(func.sum(Expense.total_amount), 0).label('total_amount'),
-        func.sum(case(
-            (Expense.status == 'pending', 1),
-            else_=0
-        )).label('pending_count'),
-        func.sum(case(
-            (Expense.status == 'pending', Expense.total_amount),
-            else_=0
-        )).label('pending_amount'),
-        func.sum(case(
-            (Expense.status == 'paid', 1),
-            else_=0
-        )).label('paid_count'),
-        func.sum(case(
-            (Expense.status == 'paid', Expense.total_amount),
-            else_=0
-        )).label('paid_amount'),
-        func.sum(case(
-            (Expense.status == 'awaiting_payment', 1),
-            else_=0
-        )).label('awaiting_count'),
-        func.sum(case(
-            (Expense.status == 'awaiting_payment', Expense.total_amount),
-            else_=0
-        )).label('awaiting_amount')
-    ).first()
-    
-    total_count = stats_result.total_count or 0
-    total_amount = stats_result.total_amount or 0
-    pending_count = stats_result.pending_count or 0
-    pending_amount = stats_result.pending_amount or 0
-    paid_count = stats_result.paid_count or 0
-    paid_amount = stats_result.paid_amount or 0
-    awaiting_count = stats_result.awaiting_count or 0
-    awaiting_amount = stats_result.awaiting_amount or 0
-    
-    # 获取筛选选项数据 - 直接查询有报销单的用户
-    # 1. 获取所有有报销单的用户
-    # 注意：User.is_active 是一个 Python 属性，不能用于 SQL 过滤；应使用映射列 User._is_active
-    users = (
-        User.query
-        .join(Expense, User.id == Expense.owner_id)
-        .filter(Expense.is_deleted == False, User._is_active == True)
-        .distinct()
-        .order_by(User.real_name, User.username)
-        .all()
-    )
-    
-    # 2. 获取实际存在的客户ID（基于权限过滤的报销单数据）
-    unique_customer_ids_query = get_viewable_data(Expense, current_user)\
-        .filter(Expense.customer_id.isnot(None))\
-        .with_entities(Expense.customer_id.distinct())
-    
-    unique_customer_ids = {row[0] for row in unique_customer_ids_query.all()}
-    
-    # 只查询需要的客户，确保不包含已删除的客户
-    customers = Company.query.filter(
-        Company.id.in_(unique_customer_ids),
-        Company.is_deleted == False
-    ).order_by(Company.company_name).all() if unique_customer_ids else []
-    
-    # 3. 获取实际存在的审批状态（基于权限过滤的报销单数据）
-    unique_status_query = get_viewable_data(Expense, current_user)\
-        .filter(Expense.status.isnot(None))\
-        .filter(Expense.status != '')\
-        .with_entities(Expense.status.distinct())
-    
-    unique_statuses = {row[0] for row in unique_status_query.all()}
-    
-    # 基于实际存在的状态构建状态选项
-    status_options = []
-    for status_key, status_label in EXPENSE_STATUS:
-        if status_key in unique_statuses:
-            status_options.append({
-                'value': status_key,
-                'label': status_label,
-                'translate': True
-            })
-    
-    # 按状态重要性排序（草稿、待审批、已通过、已拒绝、待支付、已支付）
-    status_order = {'draft': 1, 'pending': 2, 'approved': 3, 'rejected': 4, 'awaiting_payment': 5, 'paid': 6}
-    status_options.sort(key=lambda x: status_order.get(x['value'], 999))
-    
-    # 构建筛选配置
-    filter_config = {
-        'action_url': url_for('expense.expense_list'),
-        'form_id': 'expenseFilterForm',
-        'reset_url': url_for('expense.expense_list'),
-        'auto_submit': True,  # 启用下拉框自动筛选
-        'dynamic_reset_button': True,  # 启用动态重置按钮
-        'search_field_id': 'search',  # 搜索框ID，用于重置按钮检测
-        'search_field': {
-            'name': 'search',
-            'label': _('搜索'),
-            'placeholder': _('报销单号、标题或客户名称'),
-            'value': search,
-            'col_width': 4
-        },
-        'filter_fields': [
-            {
-                'name': 'customer_id',
-                'label': _(mapping_manager.get_field_display_name('expense', 'customer_id')),
-                'all_option_text': _('全部客户'),
-                'current_value': customer_id,
-                'col_width': 2,
-                'options': [{'value': str(c.id), 'label': c.company_name, 'translate': False} for c in customers]
+                exp.customer_name = '-'
+
+            # 添加项目名称
+            if hasattr(exp, 'project') and exp.project:
+                exp.project_name = exp.project.project_name
+            else:
+                exp.project_name = '-'
+
+            # 添加联系人名称
+            if hasattr(exp, 'contact') and exp.contact:
+                exp.contact_name = exp.contact.name
+            else:
+                exp.contact_name = '-'
+
+        # ============================================================
+        # 6. 获取筛选选项数据
+        # ============================================================
+        # 获取实际存在的用户（有报销单的）
+        unique_owner_ids_query = get_viewable_data(Expense, current_user)\
+            .filter(Expense.owner_id.isnot(None))\
+            .with_entities(Expense.owner_id.distinct())
+
+        unique_owner_ids = {row[0] for row in unique_owner_ids_query.all()}
+
+        available_users = User.query.filter(
+            User.id.in_(unique_owner_ids)
+        ).order_by(User.real_name, User.username).all()
+
+        # 获取实际存在的客户ID（基于权限过滤的报销单数据）
+        unique_customer_ids_query = get_viewable_data(Expense, current_user)\
+            .filter(Expense.customer_id.isnot(None))\
+            .with_entities(Expense.customer_id.distinct())
+
+        unique_customer_ids = {row[0] for row in unique_customer_ids_query.all()}
+
+        available_customers = Company.query.filter(
+            Company.id.in_(unique_customer_ids),
+            Company.is_deleted == False
+        ).order_by(Company.company_name).all() if unique_customer_ids else []
+
+        # 获取实际存在的状态（基于权限过滤的报销单数据）
+        unique_status_query = get_viewable_data(Expense, current_user)\
+            .filter(Expense.status.isnot(None))\
+            .filter(Expense.status != '')\
+            .with_entities(Expense.status.distinct())
+
+        unique_statuses = {row[0] for row in unique_status_query.all()}
+
+        # 基于实际存在的状态构建状态选项
+        status_options = []
+        for status_key, status_label in EXPENSE_STATUS:
+            if status_key in unique_statuses:
+                status_options.append({
+                    'value': status_key,
+                    'label': _(status_label)
+                })
+
+        # 按状态重要性排序
+        status_order = {'draft': 1, 'pending': 2, 'approved': 3, 'rejected': 4, 'awaiting_payment': 5, 'paid': 6}
+        status_options.sort(key=lambda x: status_order.get(x['value'], 999))
+
+        # ============================================================
+        # 7. 计算统计数据
+        # ============================================================
+        stats_query = get_viewable_data(Expense, current_user)
+
+        # 应用相同的筛选条件到统计查询
+        if search:
+            stats_query = stats_query.outerjoin(Company, Expense.customer_id == Company.id)
+            stats_query = stats_query.filter(
+                or_(
+                    Expense.expense_number.ilike(f'%{search}%'),
+                    Expense.title.ilike(f'%{search}%'),
+                    Company.company_name.ilike(f'%{search}%')
+                )
+            )
+
+        if customer_id:
+            stats_query = stats_query.filter(Expense.customer_id == customer_id)
+        if owner_id:
+            stats_query = stats_query.filter(Expense.owner_id == owner_id)
+        if status_filter:
+            stats_query = stats_query.filter(Expense.status == status_filter)
+
+        # 使用单个查询获取所有统计数据
+        stats_result = stats_query.with_entities(
+            func.count(Expense.id).label('total_count'),
+            func.coalesce(func.sum(Expense.total_amount), 0).label('total_amount'),
+            func.sum(case(
+                (Expense.status == 'pending', 1),
+                else_=0
+            )).label('pending_count'),
+            func.sum(case(
+                (Expense.status == 'pending', Expense.total_amount),
+                else_=0
+            )).label('pending_amount'),
+            func.sum(case(
+                (Expense.status == 'paid', 1),
+                else_=0
+            )).label('paid_count'),
+            func.sum(case(
+                (Expense.status == 'paid', Expense.total_amount),
+                else_=0
+            )).label('paid_amount'),
+            func.sum(case(
+                (Expense.status == 'awaiting_payment', 1),
+                else_=0
+            )).label('awaiting_count'),
+            func.sum(case(
+                (Expense.status == 'awaiting_payment', Expense.total_amount),
+                else_=0
+            )).label('awaiting_amount')
+        ).first()
+
+        stats_total_count = stats_result.total_count or 0
+        stats_total_amount = stats_result.total_amount or 0
+        pending_count = stats_result.pending_count or 0
+        pending_amount = stats_result.pending_amount or 0
+        paid_count = stats_result.paid_count or 0
+        paid_amount = stats_result.paid_amount or 0
+        awaiting_count = stats_result.awaiting_count or 0
+        awaiting_amount = stats_result.awaiting_amount or 0
+
+        # ============================================================
+        # 8. 构建标准化配置
+        # ============================================================
+        filter_config = {
+            'action_url': url_for('expense.expense_list'),
+            'form_id': 'filterForm',
+            'reset_url': url_for('expense.expense_list'),
+
+            'search_field': {
+                'name': 'search',
+                'label': _(mapping_manager.get_field_display_name('common', 'search')),
+                'placeholder': _('报销单号、标题或客户名称'),
+                'value': search,
+                'col_width': 4
             },
-            {
-                'name': 'owner_id',
-                'label': _(mapping_manager.get_field_display_name('expense', 'owner_id')),
-                'all_option_text': _('全部申请人'),
-                'current_value': owner_id,
-                'col_width': 2,
-                'options': [{'value': str(u.id), 'label': u.real_name or u.username, 'translate': False} for u in users]
-            },
-            # 移除报销科目筛选，因为现在在明细表中，可以考虑后续通过明细表联查实现
-            {
-                'name': 'status',
-                'label': _(mapping_manager.get_field_display_name('expense', 'status')),
-                'all_option_text': _('全部状态'),
-                'current_value': status,
-                'col_width': 2,
-                'options': status_options
-            }
-        ],
-        'search_button_text': _('搜索'),
-        'reset_button_text': _('重置')
-    }
-    
-    # 使用通用列表组件配置
-    list_config = {
-        'module_name': 'expense',
-        'title': _('报销管理'),
-        'ajax_mode': True,
-        
-        # 统计卡片配置
-        'stats': {
-            'cards': [
+
+            'filter_fields': [
                 {
-                    'id': 'total',
-                    'title': _('全部报销'),
-                    'icon': 'fas fa-receipt',
-                    'value': total_count,
-                    'amount': total_amount / 10000,
-                    'unit': _('单'),
-                    'amount_unit': _('万元'),
-                    'color': 'primary',
-                    'clickable': True,
-                    'click_params': {}
-                },
-                {
-                    'id': 'pending',
-                    'title': _('待审批'),
-                    'icon': 'fas fa-clock',
-                    'value': pending_count,
-                    'amount': pending_amount / 10000,
-                    'unit': _('单'),
-                    'amount_unit': _('万元'),
-                    'color': 'warning',
-                    'clickable': True,
-                    'click_params': {'status': 'pending'}
-                },
-                {
-                    'id': 'awaiting_payment',
-                    'title': _('待支付'),
-                    'icon': 'fas fa-hourglass-half',
-                    'value': awaiting_count,
-                    'amount': awaiting_amount / 10000,
-                    'unit': _('单'),
-                    'amount_unit': _('万元'),
-                    'color': 'info',
-                    'clickable': True,
-                    'click_params': {'status': 'awaiting_payment'}
-                },
-                {
-                    'id': 'paid',
-                    'title': _('已支付'),
-                    'icon': 'fas fa-money-check-alt',
-                    'value': paid_count,
-                    'amount': paid_amount / 10000,
-                    'unit': _('单'),
-                    'amount_unit': _('万元'),
-                    'color': 'success',
-                    'clickable': True,
-                    'click_params': {'status': 'paid'}
-                }
-            ]
-        },
-        
-        # 筛选配置
-        'filter': filter_config,
-        
-        # 表格配置
-        'table': {
-            'ajax_target': 'expenseTableBody',
-            'title': _('报销列表'),
-            'icon': 'fas fa-table',
-            'table_name': 'expense',        # 指定数据库表名用于动态映射
-            'columns': [
-                {
-                    'key': 'expense_number',
-                    'field': 'expense_number',
-                    'label': _(mapping_manager.get_field_display_name('expense', 'expense_number')),
-                    'type': 'link',
-                    'url_template': '/expense/{id}',
-                    'render': 'render_expense_number',
-                    'width': '140px',
-                    'sort_type': 'string'
-                },
-                {
-                    'key': 'owner',
-                    'field': 'owner_id',
-                    'label': _(mapping_manager.get_field_display_name('expense', 'owner_id')),
-                    'type': 'text',
-                    'align': 'start',
-                    'width': '100px',
-                    'sort_type': 'string'
-                },
-                {
-                    'key': 'status',
-                    'field': 'status',
-                    'label': _(mapping_manager.get_field_display_name('expense', 'status')),
-                    'type': 'badge',
-                    'render': 'render_expense_status_badge',
-                    'align': 'start',
-                    'width': '100px',
-                    'sort_type': 'string'
-                },
-                {
-                    'key': 'total_amount',
-                    'field': 'total_amount',
-                    'label': _(mapping_manager.get_field_display_name('expense', 'total_amount')),
-                    'type': 'number',
-                    'format': 'currency',
-                    'align': 'end',
-                    'width': '100px',
-                    'sort_type': 'currency'
-                },
-                {
-                    'key': 'customer_name',
-                    'field': 'customer_id',
+                    'name': 'customer_id',
                     'label': _(mapping_manager.get_field_display_name('expense', 'customer_id')),
-                    'type': 'text',
-                    'width': '150px',
-                    'sort_type': 'string'
+                    'all_option_text': _('全部客户'),
+                    'current_value': customer_id if customer_id and request.args else '',
+                    'col_width': 2,
+                    'options': [
+                        {'value': str(c.id), 'label': c.company_name}
+                        for c in available_customers
+                    ]
                 },
                 {
-                    'key': 'contact_name',
-                    'field': 'contact_id',
-                    'label': _(mapping_manager.get_field_display_name('expense', 'contact_id')),
-                    'type': 'text',
-                    'width': '120px',
-                    'sort_type': 'string'
+                    'name': 'owner_id',
+                    'label': _(mapping_manager.get_field_display_name('expense', 'owner_id')),
+                    'all_option_text': _('全部申请人'),
+                    'current_value': owner_id if owner_id and request.args else '',
+                    'col_width': 2,
+                    'options': [
+                        {'value': str(user.id), 'label': user.real_name or user.username}
+                        for user in available_users
+                    ]
                 },
                 {
-                    'key': 'project_name',
-                    'field': 'project_id',
-                    'label': _(mapping_manager.get_field_display_name('expense', 'project_id')),
-                    'type': 'text',
-                    'width': '150px',
-                    'sort_type': 'string'
-                },
-                {
-                    'key': 'created_at',
-                    'field': 'created_at',
-                    'label': _(mapping_manager.get_field_display_name('expense', 'created_at')),
-                    'type': 'date',
-                    'format': '%Y-%m-%d',
-                    'width': '120px',
-                    'sort_type': 'date'
+                    'name': 'status',
+                    'label': _(mapping_manager.get_field_display_name('expense', 'status')),
+                    'all_option_text': _('全部状态'),
+                    'current_value': status_filter if status_filter and request.args else '',
+                    'col_width': 2,
+                    'options': status_options
                 }
-            ]
+            ],
+
+            'auto_submit': True,
+            'ajax_mode': True,
+            'dynamic_reset_button': True,
+            'adaptive_width': True,
+            'adaptive_button_layout': True,
+
+            'search_button_text': _('搜索'),
+            'reset_button_text': _('重置')
         }
-    }
-    
-    return render_template('expense/expense_list.html', 
-                         list_config=list_config,
-                         expenses=formatted_expenses)
+
+        # 通用列表组件配置
+        list_config = {
+            'module_name': 'expense',
+            'title': None,
+            'ajax_mode': True,
+
+            # 无限滚动配置
+            'infinite_scroll': {
+                'enabled': True,
+                'page_size': 30,
+                'scroll_threshold': 100,
+                'container_selector': '.table-responsive'
+            },
+
+            # 统计卡片配置
+            'stats': {
+                'cards': [
+                    {
+                        'id': 'total',
+                        'title': _('全部报销'),
+                        'icon': 'fas fa-receipt',
+                        'value': stats_total_count,
+                        'amount': round(stats_total_amount / 10000, 2),
+                        'unit': _('单'),
+                        'amount_unit': _('万元'),
+                        'color': 'primary',
+                        'clickable': True,
+                        'click_params': {},
+                        'data_key': 'total'
+                    },
+                    {
+                        'id': 'pending',
+                        'title': _('待审批'),
+                        'icon': 'fas fa-clock',
+                        'value': pending_count,
+                        'amount': round(pending_amount / 10000, 2),
+                        'unit': _('单'),
+                        'amount_unit': _('万元'),
+                        'color': 'warning',
+                        'clickable': True,
+                        'click_params': {'status': 'pending'},
+                        'data_key': 'pending'
+                    },
+                    {
+                        'id': 'awaiting_payment',
+                        'title': _('待支付'),
+                        'icon': 'fas fa-hourglass-half',
+                        'value': awaiting_count,
+                        'amount': round(awaiting_amount / 10000, 2),
+                        'unit': _('单'),
+                        'amount_unit': _('万元'),
+                        'color': 'info',
+                        'clickable': True,
+                        'click_params': {'status': 'awaiting_payment'},
+                        'data_key': 'awaiting_payment'
+                    },
+                    {
+                        'id': 'paid',
+                        'title': _('已支付'),
+                        'icon': 'fas fa-money-check-alt',
+                        'value': paid_count,
+                        'amount': round(paid_amount / 10000, 2),
+                        'unit': _('单'),
+                        'amount_unit': _('万元'),
+                        'color': 'success',
+                        'clickable': True,
+                        'click_params': {'status': 'paid'},
+                        'data_key': 'paid'
+                    }
+                ]
+            },
+
+            # 筛选配置
+            'filter': filter_config,
+
+            # 表格配置
+            'table': {
+                'ajax_target': 'expenseTableBody',
+                'title': _('报销列表'),
+                'icon': 'fas fa-table',
+                'fixed_height_scroll': True,
+                'enhanced_striping': True,
+                'table_name': None,
+                'columns': [
+                    {
+                        'key': 'expense_number',
+                        'field': 'expense_number',
+                        'label': _(mapping_manager.get_field_display_name('expense', 'expense_number')),
+                        'type': 'link',
+                        'url_template': '/expense/{id}',
+                        'width': '140px',
+                        'sort_type': 'string'
+                    },
+                    {
+                        'key': 'owner',
+                        'field': 'owner_id',
+                        'label': _(mapping_manager.get_field_display_name('expense', 'owner_id')),
+                        'type': 'text',
+                        'width': '100px',
+                        'sort_type': 'string'
+                    },
+                    {
+                        'key': 'status',
+                        'field': 'status',
+                        'label': _(mapping_manager.get_field_display_name('expense', 'status')),
+                        'type': 'badge',
+                        'render': 'render_expense_status_badge',
+                        'width': '100px',
+                        'sort_type': 'string'
+                    },
+                    {
+                        'key': 'total_amount',
+                        'field': 'total_amount',
+                        'label': _(mapping_manager.get_field_display_name('expense', 'total_amount')),
+                        'type': 'number',
+                        'format': 'currency',
+                        'align': 'end',
+                        'width': '120px',
+                        'sort_type': 'currency'
+                    },
+                    {
+                        'key': 'customer_name',
+                        'field': 'customer_id',
+                        'label': _(mapping_manager.get_field_display_name('expense', 'customer_id')),
+                        'type': 'text',
+                        'width': '150px',
+                        'sort_type': 'string'
+                    },
+                    {
+                        'key': 'contact_name',
+                        'field': 'contact_id',
+                        'label': _(mapping_manager.get_field_display_name('expense', 'contact_id')),
+                        'type': 'text',
+                        'width': '100px',
+                        'sort_type': 'string'
+                    },
+                    {
+                        'key': 'project_name',
+                        'field': 'project_id',
+                        'label': _(mapping_manager.get_field_display_name('expense', 'project_id')),
+                        'type': 'text',
+                        'width': '150px',
+                        'sort_type': 'string'
+                    },
+                    {
+                        'key': 'created_at',
+                        'field': 'created_at',
+                        'label': _(mapping_manager.get_field_display_name('expense', 'created_at')),
+                        'type': 'date',
+                        'format': '%Y-%m-%d',
+                        'width': '120px',
+                        'sort_type': 'date'
+                    }
+                ]
+            }
+        }
+
+        return render_template('expense/tw_list.html',
+                              expenses=expenses,
+                              sort_field=sort_field,
+                              sort_order=sort_order,
+                              offset=offset,
+                              limit=limit,
+                              has_more=has_more,
+                              total_count=total_count,
+                              available_users=available_users,
+                              available_customers=available_customers,
+                              customer_id=customer_id,
+                              owner_id=owner_id,
+                              status_filter=status_filter,
+                              filter_config=filter_config,
+                              list_config=list_config,
+                              currency_options=get_currency_type_options(),
+                              expense_categories=EXPENSE_CATEGORIES,
+                              default_currency='CNY')
+
+    except Exception as e:
+        logger.error(f"加载报销单列表时出错: {str(e)}", exc_info=True)
+
+        try:
+            db.session.rollback()
+        except Exception as rollback_error:
+            logger.error(f"数据库事务回滚失败: {str(rollback_error)}")
+
+        # 创建错误时的默认配置
+        error_filter_config = {
+            'action_url': url_for('expense.expense_list'),
+            'form_id': 'filterForm',
+            'reset_url': url_for('expense.expense_list'),
+            'search_field': {
+                'name': 'search',
+                'label': _('搜索'),
+                'placeholder': _('报销单号、标题或客户名称'),
+                'value': '',
+                'col_width': 4
+            },
+            'filter_fields': [],
+            'search_button_text': _('搜索'),
+            'reset_button_text': _('重置')
+        }
+
+        error_list_config = {
+            'module_name': 'expense',
+            'title': _('报销管理'),
+            'ajax_mode': True,
+            'stats': {
+                'cards': [
+                    {
+                        'id': 'total',
+                        'title': _('全部报销'),
+                        'icon': 'fas fa-receipt',
+                        'value': 0,
+                        'amount': 0,
+                        'unit': _('单'),
+                        'amount_unit': _('万元'),
+                        'color': 'primary',
+                        'clickable': False,
+                        'data_key': 'total'
+                    }
+                ]
+            },
+            'filter': error_filter_config,
+            'table': {
+                'ajax_target': 'expenseTableBody',
+                'title': _('报销列表'),
+                'icon': 'fas fa-table',
+                'columns': [
+                    {'key': 'expense_number', 'label': _('报销单编号'), 'type': 'text'},
+                    {'key': 'owner', 'label': _('申请人'), 'type': 'text'},
+                    {'key': 'status', 'label': _('状态'), 'type': 'text'},
+                    {'key': 'total_amount', 'label': _('金额'), 'type': 'number'},
+                    {'key': 'customer_name', 'label': _('客户'), 'type': 'text'},
+                    {'key': 'contact_name', 'label': _('联系人'), 'type': 'text'},
+                    {'key': 'project_name', 'label': _('项目'), 'type': 'text'},
+                    {'key': 'created_at', 'label': _('创建时间'), 'type': 'date'}
+                ]
+            }
+        }
+
+        flash(_('加载报销单失败：%s') % str(e), 'danger')
+        return render_template('expense/tw_list.html',
+                              expenses=[],
+                              sort_field='created_at',
+                              sort_order='desc',
+                              offset=0,
+                              limit=30,
+                              has_more=False,
+                              total_count=0,
+                              available_users=[],
+                              available_customers=[],
+                              customer_id='',
+                              owner_id='',
+                              status_filter='',
+                              filter_config=error_filter_config,
+                              list_config=error_list_config,
+                              currency_options=get_currency_type_options(),
+                              expense_categories=EXPENSE_CATEGORIES,
+                              default_currency='CNY')
 
 @expense.route('/ajax/test')
 def test_ajax():
@@ -476,258 +589,190 @@ def test_ajax():
 @login_required
 @permission_required('expense', 'view')
 def expense_list_ajax():
-    """报销列表AJAX端点 - 优化版本"""
+    """报销列表AJAX端点 - 使用通用工具"""
     try:
-        logger.info(f"AJAX请求开始，参数: {dict(request.args)}")
-        
-        # 获取筛选参数
+        # ============================================================
+        # 1. 使用通用工具提取参数
+        # ============================================================
+        filters = extract_filter_params(request.args, EXPENSE_FILTER_CONFIG)
+        offset, limit = extract_pagination_params(request.args, default_limit=30, max_limit=100)
+
+        # 提取变量（search 从 request.args 获取，因为需要跨表搜索）
         search = request.args.get('search', '').strip()
-        customer_id = request.args.get('customer_id', '')
-        owner_id = request.args.get('owner_id', '')
-        status = request.args.get('status', '')
-        
-        # 分页参数
-        offset = request.args.get('offset', 0, type=int)
-        limit = request.args.get('limit', 20, type=int)
-        
+        customer_id = filters.get('customer_id', '')
+        owner_id = filters.get('owner_id', '')
+        status_filter = filters.get('status', '')
+
         # 排序参数
-        sort_field = request.args.get('sort_field', '')
-        sort_direction = request.args.get('sort_direction', 'asc')
-        
-        # 1. 使用权限控制函数获取可查看的报销单数据
-        from app.utils.access_control import get_viewable_data
-        
-        # 获取基本的报销单信息，应用权限过滤
-        base_query = get_viewable_data(Expense, current_user).with_entities(
-            Expense.id,
-            Expense.expense_number,
-            Expense.title,
-            Expense.total_amount,
-            Expense.currency,
-            Expense.status,
-            Expense.created_at,
-            Expense.customer_id,
-            Expense.contact_id,
-            Expense.project_id,
-            Expense.owner_id
+        sort_field = request.args.get('sort_field', 'created_at')
+        sort_direction = request.args.get('sort_direction', 'desc')
+
+        # ============================================================
+        # 2. 构建查询
+        # ============================================================
+        query = get_viewable_data(Expense, current_user).options(
+            joinedload(Expense.owner),
+            joinedload(Expense.customer),
+            joinedload(Expense.project),
+            joinedload(Expense.contact)
         )
-        
-        # 2. 在JOIN之前先应用非搜索筛选条件
-        if customer_id:
-            base_query = base_query.filter(Expense.customer_id == customer_id)
-        if owner_id:
-            base_query = base_query.filter(Expense.owner_id == owner_id)
-        if status:
-            base_query = base_query.filter(Expense.status == status)
-        
-        # 3. 只在需要搜索时才JOIN相关表
+
+        # ============================================================
+        # 3. 应用筛选（使用通用工具 + 手动处理特殊情况）
+        # ============================================================
+        query = apply_filters_to_query(query, Expense, filters, EXPENSE_FILTER_CONFIG)
+
+        # 全局搜索（同时搜索报销单编号、标题和客户名称，需要JOIN）
         if search:
-            search_query = base_query.join(Company, Expense.customer_id == Company.id)\
-                                    .outerjoin(Project, Expense.project_id == Project.id)\
-                                    .filter(
-                                        or_(
-                                            Expense.expense_number.ilike(f'%{search}%'),
-                                            Expense.title.ilike(f'%{search}%'),
-                                            Company.company_name.ilike(f'%{search}%')
-                                        )
-                                    )
-            # 获取总数
-            total_count = search_query.count()
-            # 应用排序
-            query_for_sort = search_query
-        else:
-            # 无搜索条件时直接查询
-            total_count = base_query.count()
-            query_for_sort = base_query
-        
-        # 使用通用排序服务
-        from app.utils.sorting_service import SortingService, create_basic_field_mappings
-        
-        # 创建排序配置
+            query = query.outerjoin(Company, Expense.customer_id == Company.id)
+            query = query.filter(
+                or_(
+                    Expense.expense_number.ilike(f'%{search}%'),
+                    Expense.title.ilike(f'%{search}%'),
+                    Company.company_name.ilike(f'%{search}%')
+                )
+            )
+
+        # ============================================================
+        # 4. 应用排序
+        # ============================================================
+        from app.utils.sorting_service import SortingService, create_user_relation_config, create_basic_field_mappings
+
         sorting_config = {
             'field_mappings': create_basic_field_mappings(Expense, [
-                'expense_number', 'title', 'total_amount', 'status', 'created_at', 'updated_at'
+                'expense_number', 'total_amount', 'status', 'created_at'
             ]),
-            'relation_mappings': {},
+            'relation_mappings': {
+                'owner_id': create_user_relation_config(Expense.owner_id)
+            },
             'default_sort': {'field': 'created_at', 'direction': 'desc'}
         }
-        
-        # 创建排序服务并应用排序
+
         sorting_service = SortingService(Expense, sorting_config)
-        query_for_sort = sorting_service.apply_sort(query_for_sort, sort_field, sort_direction)
-            
-        # 分页查询
-        expenses = query_for_sort.offset(offset).limit(limit).all()
-        
-        # 4. 批量获取关联数据（避免N+1查询）
-        if expenses:
-            customer_ids = list(set(e.customer_id for e in expenses if e.customer_id))
-            contact_ids = list(set(e.contact_id for e in expenses if e.contact_id))
-            project_ids = list(set(e.project_id for e in expenses if e.project_id))
-            owner_ids = list(set(e.owner_id for e in expenses if e.owner_id))
-            expense_ids = [e.id for e in expenses]
-            
-            # 批量查询关联数据
-            customers = {c.id: c.company_name for c in 
-                        Company.query.filter(Company.id.in_(customer_ids)).all()} if customer_ids else {}
-            
-            contacts = {c.id: c.name for c in 
-                       Contact.query.filter(Contact.id.in_(contact_ids)).all()} if contact_ids else {}
-            
-            projects = {p.id: p.project_name for p in 
-                       Project.query.filter(Project.id.in_(project_ids)).all()} if project_ids else {}
-            
-            owners = {u.id: u for u in 
-                     User.query.filter(User.id.in_(owner_ids)).all()} if owner_ids else {}
-            
-            # 批量查询detail_count
-            detail_counts = dict(
-                db.session.query(
-                    ExpenseDetail.expense_id,
-                    func.count(ExpenseDetail.id)
-                ).filter(ExpenseDetail.expense_id.in_(expense_ids))
-                .group_by(ExpenseDetail.expense_id).all()
-            )
-        else:
-            customers = {}
-            contacts = {}
-            projects = {}
-            owners = {}
-            detail_counts = {}
-        
-        # 5. 格式化数据并渲染HTML
-        formatted_results = []
-        for expense in expenses:
-            user_obj = owners.get(expense.owner_id)
-            owner_display = ""
-            if user_obj:
-                if hasattr(user_obj, 'real_name') and user_obj.real_name:
-                    owner_display = user_obj.real_name
-                elif hasattr(user_obj, 'username'):
-                    owner_display = user_obj.username
-                else:
-                    owner_display = str(user_obj)
-            
-            formatted_row = SimpleNamespace(
-                id=expense.id,
-                expense_number=expense.expense_number,
-                title=expense.title,
-                total_amount=expense.total_amount,
-                currency=expense.currency,
-                status=expense.status,
-                created_at=expense.created_at,
-                customer_name=customers.get(expense.customer_id, _('未指定')),
-                contact_name=contacts.get(expense.contact_id, '未指定'),
-                project_name=projects.get(expense.project_id, '-'),
-                owner=owner_display,
-                owner_obj=user_obj,
-                detail_count=detail_counts.get(expense.id, 0)
-            )
-            formatted_results.append(formatted_row)
-        
-        # 检测移动端并使用智能移动卡片
+        query = sorting_service.apply_sort(query, sort_field, sort_direction)
+
+        # ============================================================
+        # 5. 分页
+        # ============================================================
+        total_count = query.count()
+        expenses = query.offset(offset).limit(limit).all()
+
+        # 为报销单添加关联数据用于显示
+        for exp in expenses:
+            if hasattr(exp, 'customer') and exp.customer:
+                exp.customer_name = exp.customer.company_name
+            else:
+                exp.customer_name = '-'
+
+            if hasattr(exp, 'project') and exp.project:
+                exp.project_name = exp.project.project_name
+            else:
+                exp.project_name = '-'
+
+            if hasattr(exp, 'contact') and exp.contact:
+                exp.contact_name = exp.contact.name
+            else:
+                exp.contact_name = '-'
+
+        # ============================================================
+        # 6. 渲染HTML
+        # ============================================================
+        # 检查是否请求 Tailwind 格式（新版页面）
+        use_tw_template = request.args.get('tw', '0') == '1' or request.args.get('ajax', '0') == '1'
+
         from app.utils.mobile_helpers import is_mobile_request
-        
-        if formatted_results:
-            if is_mobile_request():
-                # 智能移动卡片配置
-                smart_mobile_card = {
-                    'module': 'expense',
-                    'title_field': {'field': 'expense_number', 'renderer': 'render_expense_number'},
-                    'link_url': '/expense/{id}',
-                    'badges': [
-                        {'field': 'status', 'renderer': 'expense_status'}
-                    ],
-                    'details': [
-                        {'field': 'title', 'label': mapping_manager.get_field_display_name('expense', 'title')},
-                        {'field': 'customer_name', 'label': mapping_manager.get_field_display_name('expense', 'customer_id')},
-                        {'field': 'owner', 'label': mapping_manager.get_field_display_name('expense', 'owner_id')},
-                        {'field': 'total_amount', 'label': mapping_manager.get_field_display_name('expense', 'total_amount'), 'format': 'currency'},
-                        {'field': 'detail_count', 'label': mapping_manager.get_field_display_name('expense', 'detail_count'), 'suffix': '项'},
-                        {'field': 'created_at', 'label': mapping_manager.get_field_display_name('expense', 'created_at'), 'format': 'date'}
-                    ]
-                }
-                
-                # 使用智能移动卡片模板渲染
-                html = render_template_string('''
+
+        if use_tw_template:
+            # 新版 Tailwind 页面使用的表格行模板
+            html = render_template('expense/tw_list_rows.html', expenses=expenses)
+        elif is_mobile_request():
+            # 移动端：使用智能卡片配置
+            smart_mobile_card = {
+                'module': 'expense',
+                'title_field': {'field': 'expense_number', 'renderer': 'render_expense_number'},
+                'link_url': '/expense/{id}',
+                'badges': [
+                    {'field': 'status', 'renderer': 'expense_status'}
+                ],
+                'details': [
+                    {'field': 'customer_name', 'label': mapping_manager.get_field_display_name('expense', 'customer_id')},
+                    {'field': 'owner', 'label': mapping_manager.get_field_display_name('expense', 'owner_id'), 'renderer': 'owner'},
+                    {'field': 'total_amount', 'label': mapping_manager.get_field_display_name('expense', 'total_amount'), 'format': 'currency'},
+                    {'field': 'created_at', 'label': mapping_manager.get_field_display_name('expense', 'created_at'), 'format': 'date'}
+                ]
+            }
+
+            html = render_template_string('''
                 {% from 'macros/ui_helpers.html' import render_smart_mobile_cards %}
-                {{ render_smart_mobile_cards(items, card_config) }}
-                ''', items=formatted_results, card_config=smart_mobile_card)
-            else:
-                # 桌面端使用传统表格行渲染
-                html_rows = []
-                for formatted_row in formatted_results:
-                    html_row = render_template('expense/expense_rows.html', expense=formatted_row)
-                    html_rows.append(html_row)
-                html = '\n'.join(html_rows)
+                {{ render_smart_mobile_cards(expenses, card_config) }}
+            ''', expenses=expenses, card_config=smart_mobile_card)
         else:
-            if is_mobile_request():
-                html = '<div class="text-center py-4">暂无符合条件的数据</div>'
-            else:
-                html = '<tr><td colspan="8" class="text-center py-4">暂无符合条件的数据</td></tr>'
-        
-        # 6. 优化统计查询：使用权限过滤的查询获取所有统计数据
+            # 桌面端：使用 Tailwind 表格
+            html = render_template('expense/tw_list_rows.html', expenses=expenses)
+
+        # ============================================================
+        # 7. 计算统计数据
+        # ============================================================
         stats_query = get_viewable_data(Expense, current_user)
-        
+
         # 应用相同的筛选条件到统计查询
         if search:
-            stats_query = stats_query.join(Company, Expense.customer_id == Company.id)\
-                                    .outerjoin(Project, Expense.project_id == Project.id)\
-                                    .filter(
-                                        or_(
-                                            Expense.expense_number.ilike(f'%{search}%'),
-                                            Expense.title.ilike(f'%{search}%'),
-                                            Company.company_name.ilike(f'%{search}%')
-                                        )
-                                    )
+            stats_query = stats_query.outerjoin(Company, Expense.customer_id == Company.id)
+            stats_query = stats_query.filter(
+                or_(
+                    Expense.expense_number.ilike(f'%{search}%'),
+                    Expense.title.ilike(f'%{search}%'),
+                    Company.company_name.ilike(f'%{search}%')
+                )
+            )
+
         if customer_id:
             stats_query = stats_query.filter(Expense.customer_id == customer_id)
         if owner_id:
             stats_query = stats_query.filter(Expense.owner_id == owner_id)
-        if status:
-            stats_query = stats_query.filter(Expense.status == status)
-        
-        # 使用单个查询获取所有统计数据
+        if status_filter:
+            stats_query = stats_query.filter(Expense.status == status_filter)
+
         stats_result = stats_query.with_entities(
-            func.count(Expense.id).label('total_stats_count'),
-            func.coalesce(func.sum(Expense.total_amount), 0).label('total_stats_amount'),
+            func.count(Expense.id).label('total_count'),
+            func.coalesce(func.sum(Expense.total_amount), 0).label('total_amount'),
             func.sum(case(
                 (Expense.status == 'pending', 1),
                 else_=0
-            )).label('pending_stats_count'),
+            )).label('pending_count'),
             func.sum(case(
                 (Expense.status == 'pending', Expense.total_amount),
                 else_=0
-            )).label('pending_stats_amount'),
+            )).label('pending_amount'),
             func.sum(case(
                 (Expense.status == 'paid', 1),
                 else_=0
-            )).label('paid_stats_count'),
+            )).label('paid_count'),
             func.sum(case(
                 (Expense.status == 'paid', Expense.total_amount),
                 else_=0
-            )).label('paid_stats_amount'),
+            )).label('paid_amount'),
             func.sum(case(
                 (Expense.status == 'awaiting_payment', 1),
                 else_=0
-            )).label('awaiting_stats_count'),
+            )).label('awaiting_count'),
             func.sum(case(
                 (Expense.status == 'awaiting_payment', Expense.total_amount),
                 else_=0
-            )).label('awaiting_stats_amount')
+            )).label('awaiting_amount')
         ).first()
-        
+
         statistics = {
-            'total_count': stats_result.total_stats_count or 0,
-            'total_amount': (stats_result.total_stats_amount or 0) / 10000,
-            'pending_count': stats_result.pending_stats_count or 0,
-            'pending_amount': (stats_result.pending_stats_amount or 0) / 10000,
-            'paid_count': stats_result.paid_stats_count or 0,
-            'paid_amount': (stats_result.paid_stats_amount or 0) / 10000,
-            'awaiting_count': stats_result.awaiting_stats_count or 0,
-            'awaiting_amount': (stats_result.awaiting_stats_amount or 0) / 10000
+            'total_count': stats_result.total_count or 0,
+            'total_amount': round((stats_result.total_amount or 0) / 10000, 2),
+            'pending_count': stats_result.pending_count or 0,
+            'pending_amount': round((stats_result.pending_amount or 0) / 10000, 2),
+            'paid_count': stats_result.paid_count or 0,
+            'paid_amount': round((stats_result.paid_amount or 0) / 10000, 2),
+            'awaiting_count': stats_result.awaiting_count or 0,
+            'awaiting_amount': round((stats_result.awaiting_amount or 0) / 10000, 2)
         }
-        
+
         return jsonify({
             'success': True,
             'html': html,
@@ -735,7 +780,7 @@ def expense_list_ajax():
             'loaded_count': len(expenses),
             'statistics': statistics
         })
-    
+
     except Exception as e:
         import traceback
         logger.error(f"报销列表AJAX请求失败: {str(e)}")
@@ -743,7 +788,7 @@ def expense_list_ajax():
         return jsonify({
             'success': False,
             'error': str(e),
-            'html': '<tr><td colspan="9" class="text-center text-danger">数据加载失败</td></tr>'
+            'html': '<tr><td colspan="8" class="text-center text-danger">数据加载失败</td></tr>'
         }), 500
 
 @expense.route('/create', methods=['GET', 'POST'])
@@ -1278,12 +1323,20 @@ def expense_detail(id):
         approval_edit_info = check_universal_approval_permission('expense', id, current_user.id, 'edit')
     except Exception as e:
         current_app.logger.warning(f"获取审核阶段可编辑字段信息失败: {str(e)}")
-    
-    return render_template('expense/expense_detail.html', 
+
+    # 编辑权限判断
+    can_edit_this_expense = can_edit_data(expense_obj, current_user) and not expense_obj.is_locked
+
+    # 使用 Tailwind 版本模板
+    return render_template('expense/tw_expense_detail.html',
                          expense=expense_obj,
                          return_url=return_url,
                          return_text=return_text,
-                         approval_edit_info=approval_edit_info)
+                         approval_edit_info=approval_edit_info,
+                         can_edit_this_expense=can_edit_this_expense,
+                         currency_options=get_currency_type_options(),
+                         expense_categories=EXPENSE_CATEGORIES,
+                         default_currency=expense_obj.currency or 'CNY')
 
 @expense.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required

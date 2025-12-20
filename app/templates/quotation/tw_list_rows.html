@@ -1,0 +1,19 @@
+{# 报价单列表表格行模板 - 用于无限滚动AJAX加载 #}
+{% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_project_stage_badge_key, render_tw_project_type_badge %}
+{% from 'components/tw_table_cells.html' import tw_cell_link, tw_cell_link_secondary, tw_cell_badge, tw_cell_date, tw_cell_amount %}
+{% for quotation in quotations %}
+<tr class="table-row-hover transition-colors">
+    {{ tw_cell_badge(render_tw_owner_badge(quotation.owner)) }}
+    {{ tw_cell_link(url_for('quotation.view_quotation', id=quotation.id, tw=1), quotation.quotation_number, min_width='160px') }}
+    {% if quotation.project %}
+    {{ tw_cell_link_secondary(url_for('project.view_project', project_id=quotation.project.id, tw=1), quotation.project.project_name, title=quotation.project.project_name) }}
+    {% else %}
+    <td class="p-3 whitespace-nowrap"><span class="text-slate-400 dark:text-slate-500">-</span></td>
+    {% endif %}
+    {{ tw_cell_amount(quotation.amount, quotation.currency or 'CNY') }}
+    {{ tw_cell_badge(render_tw_project_stage_badge_key(quotation.project_stage)) }}
+    {{ tw_cell_badge(render_tw_project_type_badge(quotation.project_type)) }}
+    {{ tw_cell_date(quotation.updated_at) }}
+    {{ tw_cell_date(quotation.created_at) }}
+</tr>
+{% endfor %}

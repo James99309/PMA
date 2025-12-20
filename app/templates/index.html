@@ -1,1593 +1,334 @@
-{% extends "base.html" %}
-
-{% block title %}{{ _('仪表盘') }} - {{ _('项目管理系统') }}{% endblock %}
-
-{% block content %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_button, render_expense_status_badge %}
-
-<div class="container-fluid page-with-fixed-nav">
-    <!-- 标准化页面头部区域：标题与操作按钮在同一行 - 使用page-header-with-actions模组 -->
-    <div class="page-header-with-actions mb-4">
-        <div class="row align-items-center">
-            <div class="col-auto">
-                <h1 class="page-title mb-0">{{ _('仪表盘') }}</h1>
-            </div>
-            <div class="col">
-                <span class="ms-3 text-muted fs-5">{{ _('欢迎') }}, {{ current_user.real_name or current_user.username or session.get('username', _('访客')) }}</span>
-            </div>
-            <div class="col-auto text-end">
-                <!-- 当前版本号显示 -->
-                <div class="version-display">
-                    <span class="text-muted me-1">{{ _('版本号') }}</span>
-                    <span style="font-family: 'Roboto Mono', 'Courier New', monospace; font-weight: 500;">
-                        {{ app_version if app_version else '1.3.5' }}
-                    </span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row mb-4">
-    {% if has_permission('project', 'view') %}
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">{{ _('最近项目') }}</h5>
-                {{ render_button(_('查看全部'), href=url_for('project.list_projects'), size='sm', color='secondary') }}
-            </div>
-            <div class="card-body">
-                <ul class="list-group list-group-flush">
-                    {% if has_permission('project', 'view') and recent_projects and recent_projects|length > 0 %}
-                        {% for project in recent_projects %}
-                        <li class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <div class="fw-bold" style="font-size: 0.875rem;">
-                                        <a href="{{ url_for('project.view_project', project_id=project.id) }}" class="text-decoration-none text-primary">{{ project.project_name }}</a>
-                                    </div>
-                                    <div class="mt-2">
-                                        <span style="background: #f5f5f5; color: #3098af; border-radius: 8px; padding: 2px 8px; font-weight: 600; font-size: 0.75rem; display: inline-block;">{{ render_project_type(project.project_type) }}</span>
-                                    </div>
-                                </div>
-                                <div class="text-end" style="color: #888; font-size: 0.75rem; min-width: 90px;">
-                                    <div>{{ project.updated_at.strftime('%Y-%m-%d') if project.updated_at else '' }}</div>
-                                    <div>{{ render_owner(project.owner) }}</div>
-                                </div>
-                            </div>
-                        </li>
-                        {% endfor %}
-                    {% elif has_permission('project', 'view') %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            {{ _('您没有最近的项目') }}
-                        </li>
-                    {% else %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center text-muted">
-                            {{ _('无权限查看项目') }}
-                        </li>
-                    {% endif %}
-                </ul>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-
-    {% if has_permission('quotation', 'view') %}
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">{{ _('最近报价') }}</h5>
-                {{ render_button(_('查看全部'), href=url_for('quotation.list_quotations'), size='sm', color='secondary') }}
-            </div>
-            <div class="card-body">
-                <ul class="list-group list-group-flush">
-                    {% if has_permission('quotation', 'view') and recent_quotations and recent_quotations|length > 0 %}
-                        {% for quotation in recent_quotations %}
-                        <li class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <div class="fw-bold" style="font-size: 0.875rem;">
-                                        {{ quotation.project.project_name if quotation.project else _('无项目') }}
-                                    </div>
-                                    <div class="mt-2">
-                                        <a href="{{ url_for('quotation.view_quotation', id=quotation.id) }}" style="background: #f5f5f5; color: #3098af; border-radius: 8px; padding: 2px 8px; font-weight: 600; font-size: 0.75rem; text-decoration: none; display: inline-block;">{{ quotation.quotation_number }}</a>
-                                    </div>
-                                </div>
-                                <div class="text-end" style="color: #888; font-size: 0.75rem; min-width: 90px;">
-                                    <div>{{ quotation.updated_at.strftime('%Y-%m-%d') if quotation.updated_at else '' }}</div>
-                                    <div>{{ render_owner(quotation.owner) }}</div>
-                                </div>
-                            </div>
-                        </li>
-                        {% endfor %}
-                    {% elif has_permission('quotation', 'view') %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            {{ _('您没有最近的报价') }}
-                        </li>
-                    {% else %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center text-muted">
-                            {{ _('无权限查看报价') }}
-                        </li>
-                    {% endif %}
-                </ul>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-
-    {% if has_permission('customer', 'view') %}
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">{{ _('最近客户') }}</h5>
-                {{ render_button(_('查看全部'), href=url_for('customer.list_companies'), size='sm', color='secondary') }}
-            </div>
-            <div class="card-body">
-                <ul class="list-group list-group-flush">
-                    {% if has_permission('customer', 'view') and recent_companies and recent_companies|length > 0 %}
-                        {% for company in recent_companies %}
-                        <li class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <div class="fw-bold" style="font-size: 0.875rem;">
-                                        {% if can_view_company(current_user, company) %}
-                                        <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-decoration-none text-primary">{{ company.company_name }}</a>
-                                        {% else %}
-                                        <span class="text-muted">{{ company.company_name }}</span>
-                                        {% endif %}
-                                    </div>
-                                    <div class="mt-2">
-                                        <span style="background: #f5f5f5; color: #3098af; border-radius: 8px; padding: 2px 8px; font-weight: 600; font-size: 0.75rem; display: inline-block;">{{ company.company_type|company_type_label(get_current_language()) if company.company_type else _('未分类') }}</span>
-                                    </div>
-                                </div>
-                                <div class="text-end" style="color: #888; font-size: 0.75rem; min-width: 90px;">
-                                    <div>{{ company.updated_at.strftime('%Y-%m-%d') if company.updated_at else '' }}</div>
-                                    <div>{{ render_owner(company.owner) }}</div>
-                                </div>
-                            </div>
-                        </li>
-                        {% endfor %}
-                    {% elif has_permission('customer', 'view') %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            {{ _('您没有最近的客户') }}
-                        </li>
-                    {% else %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center text-muted">
-                            {{ _('无权限查看客户') }}
-                        </li>
-                    {% endif %}
-                </ul>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-</div>
-
-<!-- 第二行：添加报销模块 -->
-<div class="row mb-4">
-    {% if has_permission('expense', 'view') %}
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">{{ _('最近报销') }}</h5>
-                {{ render_button(_('查看全部'), href=url_for('expense.expense_list'), size='sm', color='secondary') }}
-            </div>
-            <div class="card-body">
-                <ul class="list-group list-group-flush">
-                    {% if has_permission('expense', 'view') and recent_expenses and recent_expenses|length > 0 %}
-                        {% for expense in recent_expenses %}
-                        <li class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div class="flex-grow-1">
-                                    <div class="fw-bold" style="font-size: 0.875rem;">
-                                        <a href="{{ url_for('expense.expense_detail', id=expense.id) }}" class="text-decoration-none text-primary" title="{{ expense.title }}">
-                                            {%- if expense.title and expense.title|length > 16 -%}
-                                                {{ expense.title[:16] }}...
-                                            {%- else -%}
-                                                {{ expense.title }}
-                                            {%- endif -%}
-                                        </a>
-                                    </div>
-                                    <div class="mt-2 d-flex flex-wrap gap-2 align-items-center">
-                                        <a href="{{ url_for('expense.expense_detail', id=expense.id) }}" style="background: #f5f5f5; color: #3098af; border-radius: 8px; padding: 2px 8px; font-weight: 600; font-size: 0.75rem; text-decoration: none; display: inline-block;">{{ expense.expense_number }}</a>
-                                        {% if expense.approval_status %}
-                                            <div style="font-size: 0.7rem;">{{ render_expense_status_badge(expense.approval_status) }}</div>
-                                        {% endif %}
-                                    </div>
-                                    {% if expense.project %}
-                                    <div class="mt-1" style="font-size: 0.75rem; color: #666;">
-                                        <i class="fas fa-project-diagram me-1"></i>
-                                        {%- if expense.project.project_name and expense.project.project_name|length > 20 -%}
-                                            {{ expense.project.project_name[:20] }}...
-                                        {%- else -%}
-                                            {{ expense.project.project_name }}
-                                        {%- endif -%}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                                <div class="text-end" style="color: #888; font-size: 0.75rem; min-width: 90px;">
-                                    <div>{{ expense.updated_at.strftime('%Y-%m-%d') if expense.updated_at else '' }}</div>
-                                    <div>{{ render_owner(expense.owner) }}</div>
-                                </div>
-                            </div>
-                        </li>
-                        {% endfor %}
-                    {% elif has_permission('expense', 'view') %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            {{ _('您没有最近的报销') }}
-                        </li>
-                    {% else %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center text-muted">
-                            {{ _('无权限查看报销') }}
-                        </li>
-                    {% endif %}
-                </ul>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-</div>
-
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">{{ _('快速操作') }}</h5>
-            </div>
-            <div class="card-body">
-                {% set has_any_action = has_permission('project', 'create') or has_permission('quotation', 'create') or has_permission('customer', 'create') or has_permission('expense', 'create') or current_user.role == 'admin' or has_permission('performance_management', 'view') or current_user.role in ['admin', 'sales_director', 'service_manager'] %}
-                {% if has_any_action %}
-                <div class="row">
-                    {% if has_permission('project', 'create') %}
-                    <div class="col-md-3 mb-3">
-                        {{ render_button(_('新建项目'), href=url_for('project.add_project'), icon='fas fa-plus-circle', extra_class='w-100', size='md') }}
-                    </div>
-                    {% endif %}
-                    {% if has_permission('quotation', 'create') %}
-                    <div class="col-md-3 mb-3">
-                        {{ render_button(_('新建报价'), href=url_for('quotation.create_quotation'), icon='fas fa-file-invoice-dollar', extra_class='w-100', size='md') }}
-                    </div>
-                    {% endif %}
-                    {% if has_permission('customer', 'create') %}
-                    <div class="col-md-3 mb-3">
-                        {{ render_button(_('新建客户'), href=url_for('customer.add_company'), icon='fas fa-building', extra_class='w-100', size='md') }}
-                    </div>
-                    {% endif %}
-                    {% if has_permission('expense', 'create') %}
-                    <div class="col-md-3 mb-3">
-                        {{ render_button(_('新建报销'), href=url_for('expense.create_expense'), icon='fas fa-receipt', extra_class='w-100', size='md') }}
-                    </div>
-                    {% endif %}
-                    {% if current_user.role == 'admin' %}
-                    <div class="col-md-3 mb-3">
-                        {{ render_button(_('查看报表'), href='#', icon='fas fa-chart-line', extra_class='w-100 disabled', size='md', attrs='tabindex="-1" aria-disabled="true"') }}
-                    </div>
-                    {% endif %}
-                    {% if has_permission('performance_management', 'view') or current_user.role in ['admin', 'sales_director', 'service_manager'] %}
-                    <div class="col-md-3 mb-3">
-                        {{ render_button(_('绩效看板'), href=url_for('performance.index'), icon='fas fa-chart-bar', extra_class='w-100', size='md') }}
-                    </div>
-                    {% endif %}
-                </div>
-                {% else %}
-                <div class="text-center py-4 text-muted">
-                    <i class="fas fa-lock fa-2x mb-3"></i>
-                    <p>{{ _('暂无可用的快速操作') }}</p>
-                    <small>{{ _('请联系管理员获取相应权限') }}</small>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 最近工作记录 -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
-                <h5 class="mb-0" style="font-size: 1.1rem;">{{ _('工作记录') }}</h5>
-                <div class="d-flex align-items-center gap-3 flex-wrap">
-                    <!-- 账户筛选 - 仅admin和总监级别显示 -->
-                    <div id="accountFilterContainer" class="d-none">
-                        <select id="accountFilter" class="form-select form-select-sm" style="min-width: 150px;">
-                            <option value="">{{ _('全部账户') }}</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            <div class="card-body p-0">
-                <!-- 加载指示器 -->
-                <div id="recordsLoading" class="text-center p-4">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">{{ _('加载中') }}...</span>
-                    </div>
-                    <div class="mt-2 text-muted">{{ _('正在加载工作记录') }}...</div>
-                </div>
-                
-                <!-- PC端表格 -->
-                <div id="recordsTableContainer" class="d-none d-md-block" style="display: none !important;">
-                    <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light" style="font-size: 0.9rem;">
-                                <tr>
-                                    <th width="10%">{{ _('行动日期') }}</th>
-                                    <th width="8%">{{ _('拥有人') }}</th>
-                                    <th width="12%" style="word-wrap: break-word; white-space: normal;">{{ _('客户') }}</th>
-                                    <th width="8%">{{ _('联系人') }}</th>
-                                    <th width="12%" style="word-wrap: break-word; white-space: normal;">{{ _('关联项目') }}</th>
-                                    <th width="42%">{{ _('行动记录') }}</th>
-                                    <th width="8%">{{ _('回复状态') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody id="recordsTableBody">
-                                <!-- 数据将通过JavaScript填充 -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                
-                <!-- 移动端选项卡 -->
-                <div id="recordsCardContainer" class="d-block d-md-none">
-                    <!-- 选项卡导航 -->
-                    <ul class="nav nav-tabs" id="recordsTabs" role="tablist">
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="recent-tab" data-bs-toggle="tab" data-bs-target="#recent" type="button" role="tab" aria-controls="recent" aria-selected="true" style="font-size: 0.9rem;">
-                                {{ _('最近记录') }}
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="today-tab" data-bs-toggle="tab" data-bs-target="#today" type="button" role="tab" aria-controls="today" aria-selected="false" style="font-size: 0.9rem;">
-                                {{ _('今日记录') }}
-                            </button>
-                        </li>
-                    </ul>
-                    
-                    <!-- 选项卡内容 -->
-                    <div class="tab-content" id="recordsTabContent" style="max-height: 600px; overflow-y: auto;">
-                        <div class="tab-pane fade show active" id="recent" role="tabpanel" aria-labelledby="recent-tab">
-                            <div id="recordsCardList">
-                                <!-- 数据将通过JavaScript填充 -->
-                            </div>
-                        </div>
-                        <div class="tab-pane fade" id="today" role="tabpanel" aria-labelledby="today-tab">
-                            <div id="todayRecordsList">
-                                <!-- 今日数据将通过JavaScript填充 -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 空状态 -->
-                <div id="recordsEmptyState" class="text-center p-4 d-none">
-                    <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
-                    <h6 class="text-muted">{{ _('暂无工作记录') }}</h6>
-                    <p class="text-muted small" id="emptyStateMessage">{{ _('当前筛选条件下没有工作记录') }}</p>
-                </div>
-                
-                <!-- 错误状态 -->
-                <div id="recordsErrorState" class="text-center p-4 d-none">
-                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-                    <h6 class="text-warning">{{ _('加载失败') }}</h6>
-                    <p class="text-muted small">{{ _('无法加载工作记录，请稍后重试') }}</p>
-                    {{ render_button(_('重新加载'), type='button', icon='fas fa-redo', size='sm', color='secondary', onclick='loadRecentRecords()') }}
-                </div>
-            </div>
-            <div class="card-footer bg-light">
-                <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted" id="footerMessage">{{ _('工作记录列表') }}</small>
-                    <small class="text-muted">
-                        <span id="recordsCount">0</span> {{ _('条记录') }}
-                    </small>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">{{ _('系统信息') }}</h5>
-            </div>
-            <div class="card-body">
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span>{{ _('当前用户') }}:</span>
-                        <span>
-                            {{ current_user.real_name or current_user.username or session.get('username', _('访客')) }}
-                        </span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span>{{ _('系统版本') }}:</span>
-                        <span style="font-family: 'Roboto Mono', 'Courier New', monospace; font-weight: 500;">{{ current_version_number or '1.3.5' }}</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span>{{ _('最近升级时间') }}:</span>
-                        <span style="font-family: 'Roboto Mono', 'Courier New', monospace; font-weight: 400;">{{ last_upgrade_time.strftime('%Y-%m-%d %H:%M') if last_upgrade_time else '2025-08-07 17:07' }}</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span>{{ _('上次登录') }}:</span>
-                        <span style="font-family: 'Roboto Mono', 'Courier New', monospace; font-weight: 400;">{{ now.strftime('%Y-%m-%d %H:%M:%S') if now is defined else _('暂无记录') }}</span>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">{{ _('帮助与支持') }}</h5>
-            </div>
-            <div class="card-body">
-                <p>{{ _('如果您在使用过程中遇到任何问题，请联系系统管理员。') }}</p>
-                <ul>
-                    <li>{{ _('邮箱') }}: james111@evertac.net</li>
-                </ul>
-                {{ render_button(_('查看用户手册'), href='#', icon='fas fa-book', extra_class='mt-2 disabled', color='secondary', attrs='tabindex="-1" aria-disabled="true"') }}
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-// 国际化文本变量
-window.i18nTexts = {
-    displayRecentDays: '{{ _("显示最近{days}天的工作记录") }}',
-    noRecentRecords: '{{ _("最近{days}天内没有工作记录") }}',
-    allAccounts: '{{ _("全部账户") }}',
-    todayNoRecords: '{{ _("今日暂无工作记录") }}',
-    loadingReplies: '{{ _("加载回复中") }}',
-    owner: '{{ _("拥有人") }}',
-    customer: '{{ _("客户") }}',
-    contact: '{{ _("联系人") }}',
-    relatedProject: '{{ _("关联项目") }}',
-    actionRecord: '{{ _("行动记录") }}',
-    loadingAccountsFailed: '{{ _("加载账户列表失败") }}',
-    loadingRecordsFailed: '{{ _("加载工作记录失败") }}',
-    // JavaScript按键和交互文本
-    submit: '{{ _("提交") }}',
-    cancel: '{{ _("取消") }}',
-    reply: '{{ _("回复") }}',
-    delete: '{{ _("删除") }}',
-    addReply: '{{ _("添加回复") }}',
-    submitReply: '{{ _("提交回复") }}',
-    replyRecord: '{{ _("回复记录") }}',
-    noReply: '{{ _("暂无回复") }}',
-    enterReplyContent: '{{ _("输入回复内容...") }}',
-    enterNewReplyContent: '{{ _("输入新的回复内容...") }}',
-    pleaseEnterReplyContent: '{{ _("请输入回复内容") }}',
-    confirmDeleteReply: '{{ _("确定要删除这条回复吗？") }}',
-    submitting: '{{ _("提交中...") }}',
-    replySubmitSuccess: '{{ _("回复提交成功") }}',
-    replyDeleteSuccess: '{{ _("回复删除成功") }}',
-    loadRepliesFailed: '{{ _("加载回复失败") }}',
-    submitFailed: '{{ _("提交失败") }}',
-    deleteFailed: '{{ _("删除失败") }}',
-    replied: '{{ _("已回复") }}',
-    noReplyBadge: '{{ _("无回复") }}'
-};
-
-// 最近工作记录功能
-let currentAccountId = null;
-const userRole = '{{ current_user.role }}';
-
-// 无限滚动状态
-let infiniteScrollState = {
-    isLoading: false,
-    hasMore: true,
-    currentOffset: 0
-};
-
-// 页面加载完成后初始化
-document.addEventListener('DOMContentLoaded', function() {
-    initWorkRecords();
-});
-
-// 初始化工作记录功能
-function initWorkRecords() {
-    // 检查是否需要显示账户筛选
-    if (userRole === 'admin' || userRole === 'sales_director' || userRole === 'service_manager') {
-        loadAvailableAccounts();
-        document.getElementById('accountFilterContainer').classList.remove('d-none');
-
-        // 绑定账户筛选事件（仅在有权限时）
-        const accountFilter = document.getElementById('accountFilter');
-        if (accountFilter) {
-            accountFilter.addEventListener('change', function() {
-                currentAccountId = this.value || null;
-                console.log('账户筛选变更:', currentAccountId); // 调试日志
-                // 重置无限滚动状态
-                infiniteScrollState.currentOffset = 0;
-                infiniteScrollState.hasMore = true;
-                loadRecentRecords();
-            });
-        }
-    }
-
-    // 添加窗口大小变化监听器
-    window.addEventListener('resize', handleResponsiveDisplay);
-
-    // 设置无限滚动监听
-    setupInfiniteScrollListeners();
-
-    // 加载初始数据
-    loadRecentRecords();
-}
-
-// 设置无限滚动监听
-function setupInfiniteScrollListeners() {
-    // PC端表格容器滚动监听
-    const tableContainer = document.querySelector('#recordsTableContainer .table-responsive');
-    if (tableContainer) {
-        tableContainer.addEventListener('scroll', function() {
-            handleInfiniteScroll(tableContainer);
-        });
-    }
-
-    // 移动端卡片容器滚动监听
-    const cardContainer = document.querySelector('#recordsTabContent');
-    if (cardContainer) {
-        cardContainer.addEventListener('scroll', function() {
-            handleInfiniteScroll(cardContainer);
-        });
-    }
-}
-
-// 处理无限滚动
-function handleInfiniteScroll(container) {
-    if (infiniteScrollState.isLoading || !infiniteScrollState.hasMore) {
-        return;
-    }
-
-    const scrollTop = container.scrollTop;
-    const scrollHeight = container.scrollHeight;
-    const clientHeight = container.clientHeight;
-    const threshold = 100; // 距离底部100px时触发
-
-    // 检查是否滚动到底部
-    if (scrollTop + clientHeight >= scrollHeight - threshold) {
-        loadRecentRecords(true); // append 模式
-    }
-}
-
-// 处理响应式显示
-function handleResponsiveDisplay() {
-    const isMobile = window.innerWidth < 768; // Bootstrap的md断点
-    const tableContainer = document.getElementById('recordsTableContainer');
-    const cardContainer = document.getElementById('recordsCardContainer');
-    
-    // 只有在两个容器都有内容时才进行切换
-    if (tableContainer.querySelector('#recordsTableBody').children.length > 0 || 
-        cardContainer.querySelector('#recordsCardList').children.length > 0) {
-        
-        if (isMobile) {
-            tableContainer.classList.add('d-none');
-            tableContainer.style.display = 'none !important';
-            cardContainer.classList.remove('d-none');
-        } else {
-            tableContainer.classList.remove('d-none');
-            tableContainer.style.display = ''; // 移除内联样式
-            cardContainer.classList.add('d-none');
-        }
-    }
-}
-
-// 加载可用账户列表
-function loadAvailableAccounts() {
-    fetch('/api/available_accounts')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const select = document.getElementById('accountFilter');
-                // 清空现有选项（保留"全部账户"）
-                select.innerHTML = `<option value="">${window.i18nTexts.allAccounts}</option>`;
-                
-                // 添加账户选项
-                data.data.forEach(account => {
-                    const option = document.createElement('option');
-                    option.value = account.id;
-                    option.textContent = account.name;
-                    select.appendChild(option);
-                });
-            }
-        })
-        .catch(error => {
-            console.error('加载账户列表失败:', error);
-        });
-}
-
-// 加载最近工作记录
-function loadRecentRecords(append = false) {
-    // 如果是 append 模式，不显示全屏加载，只显示底部加载提示
-    if (!append) {
-        showLoading();
-        // 重置时清空现有内容和提示
-        infiniteScrollState.currentOffset = 0;
-        infiniteScrollState.hasMore = true;
-        clearLoadMoreIndicators(); // 清除所有加载提示
-    } else {
-        infiniteScrollState.isLoading = true;
-        showLoadMoreIndicator();
-    }
-
-    let url = '/api/recent_work_records';
-    const params = new URLSearchParams();
-
-    // 添加分页参数
-    params.append('offset', infiniteScrollState.currentOffset);
-    params.append('limit', 20);
-
-    // 添加账户筛选参数
-    if (currentAccountId) {
-        params.append('account_id', currentAccountId);
-    }
-
-    url += '?' + params.toString();
-
-    fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // 更新无限滚动状态
-                infiniteScrollState.currentOffset += data.loaded_count;
-                infiniteScrollState.hasMore = data.has_more;
-
-                // 显示或追加记录
-                displayRecords(data.data, append);
-                updateRecordsCount(data.total);
-            } else {
-                if (!append) {
-                    showErrorState();
-                }
-                console.error('加载工作记录失败:', data.message);
-            }
-        })
-        .catch(error => {
-            if (!append) {
-                showErrorState();
-            }
-            console.error('加载工作记录失败:', error);
-        })
-        .finally(() => {
-            infiniteScrollState.isLoading = false;
-            hideLoadMoreIndicator();
-        });
-}
-
-// 显示加载状态
-function showLoading() {
-    // 显示加载指示器
-    document.getElementById('recordsLoading').classList.remove('d-none');
-    // 隐藏所有其他状态
-    document.getElementById('recordsTableContainer').classList.add('d-none');
-    document.getElementById('recordsCardContainer').classList.add('d-none');
-    document.getElementById('recordsEmptyState').classList.add('d-none');
-    document.getElementById('recordsErrorState').classList.add('d-none');
-}
-
-// 显示记录数据
-function displayRecords(records, append = false) {
-    // 隐藏加载指示器
-    document.getElementById('recordsLoading').classList.add('d-none');
-
-    // 如果是首次加载且没有记录，显示空状态
-    if (!append && (!records || records.length === 0)) {
-        showEmptyState();
-        return;
-    }
-
-    // 隐藏空状态和错误状态
-    document.getElementById('recordsEmptyState').classList.add('d-none');
-    document.getElementById('recordsErrorState').classList.add('d-none');
-
-    // 检测屏幕尺寸，只渲染对应的UI
-    const isMobile = window.innerWidth < 768; // Bootstrap的md断点
-    const tableContainer = document.getElementById('recordsTableContainer');
-    const cardContainer = document.getElementById('recordsCardContainer');
-
-    if (isMobile) {
-        // 移动端：只显示卡片，隐藏表格
-        tableContainer.classList.add('d-none');
-        tableContainer.style.display = 'none !important';
-        cardContainer.classList.remove('d-none');
-        renderCardRecords(records, append);
-    } else {
-        // 桌面端：只显示表格，隐藏卡片
-        tableContainer.classList.remove('d-none');
-        tableContainer.style.display = ''; // 移除内联样式
-        cardContainer.classList.add('d-none');
-        renderTableRecords(records, append);
-    }
-}
-
-// 渲染PC端表格
-function renderTableRecords(records, append = false) {
-    const tbody = document.getElementById('recordsTableBody');
-    if (!append) {
-        tbody.innerHTML = '';
-    }
-    
-    records.forEach(record => {
-        const row = document.createElement('tr');
-        row.style.fontSize = '0.9rem'; // 内容字体统一为0.9rem
-        row.innerHTML = `
-            <td style="white-space: nowrap; font-size: 0.9rem; padding-left: 1rem;">
-                <div class="small">
-                    <span>${record.date}</span><br>
-                    <span class="text-muted">${record.time}</span>
-                </div>
-            </td>
-            <td style="white-space: nowrap; font-size: 0.9rem;">
-                ${record.owner_badge_html || '<span class="badge bg-secondary">无</span>'}
-            </td>
-            <td style="word-wrap: break-word; white-space: normal; font-size: 0.9rem;">
-                ${record.customer_name && record.customer_id ?
-                    `<a href="/customer/${record.customer_id}/view" class="text-decoration-none text-primary">
-                        ${record.customer_name}
-                    </a>` :
-                    '<span class="text-muted">-</span>'
-                }
-            </td>
-            <td style="white-space: nowrap; font-size: 0.9rem;">
-                <span>${record.contact_name || '-'}</span>
-            </td>
-            <td style="word-wrap: break-word; white-space: normal; font-size: 0.9rem;">
-                ${record.project_name ?
-                    `<a href="/project/view/${record.project_id}" class="text-decoration-none">
-                        ${record.project_name}
-                    </a>` :
-                    '<span class="text-muted">-</span>'
-                }
-            </td>
-            <td style="word-wrap: break-word; white-space: normal; max-width: 200px; font-size: 0.9rem;">
-                <div class="communication-content" title="${escapeHtml(record.communication)}">
-                    ${escapeHtml(record.communication)}
-                </div>
-            </td>
-            <td class="text-center" style="white-space: nowrap; font-size: 0.9rem;">
-                <div>
-                    ${record.has_reply ? 
-                        `<span class="badge bg-success" style="cursor: pointer;" onclick="toggleRepliesView(${record.id})">${window.i18nTexts.replied} (${record.reply_count})</span>` : 
-                        `<span class="badge bg-secondary" style="cursor: pointer;" onclick="toggleReplyForm(${record.id})">${window.i18nTexts.noReplyBadge}</span>`
+{% from 'components/tw_work_records.html' import render_tw_work_records, render_tw_work_records_script, render_tw_work_records_styles %}
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_item_list_card.html' import tw_item_list_card, tw_item_list_item, tw_item_list_empty %}
+{% from 'macros/ui_helpers.html' import render_tw_project_stage_badge_key with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('仪表盘') }} - PMA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
                     }
-                    <!-- 回复输入框 -->
-                    <div class="reply-form-container mt-2" id="reply-form-${record.id}" style="display: none;">
-                        <div class="card border-0 shadow-sm">
-                            <div class="card-body p-2">
-                                <textarea class="form-control form-control-sm mb-2" 
-                                         rows="2" 
-                                         placeholder="${window.i18nTexts.enterReplyContent}"
-                                         id="reply-content-${record.id}"></textarea>
-                                <div class="d-flex gap-1">
-                                    <button class="btn btn-primary btn-sm" onclick="submitReply(${record.id})">
-                                        <i class="fas fa-paper-plane me-1"></i>${window.i18nTexts.submit}
-                                    </button>
-                                    <button class="btn btn-secondary btn-sm" onclick="cancelReply(${record.id})">
-                                        ${window.i18nTexts.cancel}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- 回复列表 -->
-                    <div class="replies-container mt-2" id="replies-${record.id}" style="display: none;">
-                        <div class="card border-0 shadow-sm">
-                            <div class="card-body p-2">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <h6 class="card-title mb-0 text-primary">${window.i18nTexts.replyRecord}</h6>
-                                    <div>
-                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="addNewReply(${record.id})">
-                                            <i class="fas fa-plus me-1"></i>${window.i18nTexts.addReply}
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="goToActionDetail(${record.id}, '${record.project_id}', '${record.customer_name}', '${record.customer_id}')">
-                                            <i class="fas fa-external-link-alt me-1"></i>查看详情
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="closeRepliesView(${record.id})">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="replies-list" id="replies-list-${record.id}">
-                                    <div class="text-center text-muted">
-                                        <i class="fas fa-spinner fa-spin me-1"></i>加载中...
-                                    </div>
-                                </div>
-                                <!-- 新回复输入框 -->
-                                <div class="new-reply-form mt-2" id="new-reply-form-${record.id}" style="display: none;">
-                                    <textarea class="form-control form-control-sm mb-2" 
-                                             rows="3" 
-                                             placeholder="${window.i18nTexts.enterNewReplyContent}"
-                                             id="new-reply-content-${record.id}"></textarea>
-                                    <div class="d-flex gap-1">
-                                        <button class="btn btn-primary btn-sm" onclick="submitNewReply(${record.id})">
-                                            <i class="fas fa-paper-plane me-1"></i>${window.i18nTexts.submitReply}
-                                        </button>
-                                        <button class="btn btn-secondary btn-sm" onclick="cancelNewReply(${record.id})">
-                                            ${window.i18nTexts.cancel}
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// 渲染移动端选项卡
-function renderCardRecords(records, append = false) {
-    // 渲染最近记录
-    const recentContainer = document.getElementById('recordsCardList');
-    if (!append) {
-        recentContainer.innerHTML = '';
-    }
-
-    // 渲染今日记录
-    const todayContainer = document.getElementById('todayRecordsList');
-    if (!append) {
-        todayContainer.innerHTML = '';
-    }
-    
-    // 获取今日日期
-    const today = new Date().toISOString().split('T')[0];
-    const todayRecords = records.filter(record => record.date === today);
-    
-    // 渲染最近记录（所有记录）
-    records.forEach(record => {
-        const card = createMobileCard(record);
-        recentContainer.appendChild(card);
-    });
-    
-    // 渲染今日记录
-    if (todayRecords.length > 0) {
-        todayRecords.forEach(record => {
-            const card = createMobileCard(record);
-            todayContainer.appendChild(card);
-        });
-    } else {
-        const emptyCard = document.createElement('div');
-        emptyCard.className = 'text-center p-4';
-        emptyCard.style.fontSize = '0.9rem';
-        emptyCard.innerHTML = `
-            <i class="fas fa-calendar-day fa-2x text-muted mb-2"></i>
-            <div class="text-muted">${window.i18nTexts.todayNoRecords}</div>
-        `;
-        todayContainer.appendChild(emptyCard);
-    }
-}
-
-// 创建移动端卡片
-function createMobileCard(record) {
-    const card = document.createElement('div');
-    card.className = 'border-bottom p-3';
-    card.style.fontSize = '0.9rem'; // 统一字体大小
-    card.innerHTML = `
-        <div class="d-flex justify-content-between align-items-start mb-2">
-            <div class="d-flex align-items-center">
-                <i class="fas fa-calendar-alt text-primary me-2"></i>
-                <span style="font-size: 0.9rem;">${record.date} ${record.time}</span>
-            </div>
-            <div>
-                ${record.has_reply ? 
-                    `<span class="badge bg-success" style="cursor: pointer; font-size: 0.9rem;" onclick="toggleRepliesView(${record.id})">${window.i18nTexts.replied} (${record.reply_count})</span>` : 
-                    `<span class="badge bg-secondary" style="cursor: pointer; font-size: 0.9rem;" onclick="toggleReplyForm(${record.id})">${window.i18nTexts.noReplyBadge}</span>`
                 }
-            </div>
-        </div>
-        
-        <div class="row g-2 mb-2">
-            <div class="col-6">
-                <div class="small text-muted" style="font-size: 0.8rem;">${window.i18nTexts.owner}</div>
-                <div>${record.owner_badge_html || '<span class="badge bg-secondary">无</span>'}</div>
-            </div>
-            <div class="col-6">
-                <div class="small text-muted" style="font-size: 0.8rem;">${window.i18nTexts.customer}</div>
-                <div style="font-size: 0.9rem;">
-                    ${record.customer_name && record.customer_id ? 
-                        `<a href="/customer/${record.customer_id}/view" class="text-decoration-none text-primary">
-                            ${record.customer_name}
-                        </a>` : 
-                        '<span class="text-muted">-</span>'
-                    }
-                </div>
-            </div>
-        </div>
-        
-        <div class="row g-2 mb-2">
-            <div class="col-6">
-                <div class="small text-muted" style="font-size: 0.8rem;">${window.i18nTexts.contact}</div>
-                <div style="font-size: 0.9rem;">${record.contact_name || '-'}</div>
-            </div>
-            ${record.project_name ? `
-            <div class="col-6">
-                <div class="small text-muted" style="font-size: 0.8rem;">${window.i18nTexts.relatedProject}</div>
-                <a href="/project/view/${record.project_id}" class="text-decoration-none fw-bold" style="font-size: 0.9rem;">
-                    ${record.project_name}
-                </a>
-            </div>
-            ` : '<div class="col-6"></div>'}
-        </div>
-        
-        <div class="mb-2">
-            <div class="small text-muted" style="font-size: 0.8rem;">${window.i18nTexts.actionRecord}</div>
-            <div class="communication-content" style="word-wrap: break-word; white-space: normal; font-size: 0.9rem;">${escapeHtml(record.communication)}</div>
-        </div>
-        
-        <!-- 移动端回复输入框 -->
-        <div class="reply-form-container mt-2" id="reply-form-${record.id}" style="display: none;">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body p-2">
-                    <textarea class="form-control form-control-sm mb-2" 
-                             rows="2" 
-                             placeholder="${window.i18nTexts.enterReplyContent}"
-                             id="reply-content-${record.id}"></textarea>
-                    <div class="d-flex gap-1">
-                        <button class="btn btn-primary btn-sm" onclick="submitReply(${record.id})">
-                            <i class="fas fa-paper-plane me-1"></i>${window.i18nTexts.submit}
-                        </button>
-                        <button class="btn btn-secondary btn-sm" onclick="cancelReply(${record.id})">
-                            ${window.i18nTexts.cancel}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- 移动端回复列表 -->
-        <div class="replies-container mt-2" id="replies-${record.id}" style="display: none;">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body p-2">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="card-title mb-0 text-primary" style="font-size: 0.9rem;">${window.i18nTexts.replyRecord}</h6>
-                        <div>
-                            <button class="btn btn-sm btn-outline-primary me-1" onclick="addNewReply(${record.id})" style="font-size: 0.8rem;">
-                                <i class="fas fa-plus me-1"></i>${window.i18nTexts.reply}
-                            </button>
-                            <button class="btn btn-sm btn-outline-secondary me-1" onclick="goToActionDetail(${record.id}, '${record.project_id}', '${record.customer_name}', '${record.customer_id}')">
-                                <i class="fas fa-external-link-alt"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="closeRepliesView(${record.id})">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="replies-list" id="replies-list-${record.id}">
-                        <div class="text-center text-muted">
-                            <i class="fas fa-spinner fa-spin me-1"></i>加载中...
-                        </div>
-                    </div>
-                    <!-- 新回复输入框 -->
-                    <div class="new-reply-form mt-2" id="new-reply-form-${record.id}" style="display: none;">
-                        <textarea class="form-control form-control-sm mb-2" 
-                                 rows="3" 
-                                 placeholder="${window.i18nTexts.enterNewReplyContent}"
-                                 id="new-reply-content-${record.id}"></textarea>
-                        <div class="d-flex gap-1">
-                            <button class="btn btn-primary btn-sm" onclick="submitNewReply(${record.id})">
-                                <i class="fas fa-paper-plane me-1"></i>${window.i18nTexts.submitReply}
-                            </button>
-                            <button class="btn btn-secondary btn-sm" onclick="cancelNewReply(${record.id})">
-                                ${window.i18nTexts.cancel}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    return card;
-}
-
-// 显示空状态
-function showEmptyState() {
-    // 隐藏加载指示器
-    document.getElementById('recordsLoading').classList.add('d-none');
-
-    // 清空数据容器内容
-    const tableBody = document.getElementById('recordsTableBody');
-    if (tableBody) {
-        tableBody.innerHTML = '';
-    }
-    const cardList = document.getElementById('recordsCardList');
-    if (cardList) {
-        cardList.innerHTML = '';
-    }
-    const todayList = document.getElementById('todayRecordsList');
-    if (todayList) {
-        todayList.innerHTML = '';
-    }
-
-    // 隐藏数据容器
-    document.getElementById('recordsTableContainer').classList.add('d-none');
-    document.getElementById('recordsCardContainer').classList.add('d-none');
-    document.getElementById('recordsErrorState').classList.add('d-none');
-    // 显示空状态
-    document.getElementById('recordsEmptyState').classList.remove('d-none');
-}
-
-// 显示错误状态
-function showErrorState() {
-    // 隐藏加载指示器
-    document.getElementById('recordsLoading').classList.add('d-none');
-    // 隐藏数据容器
-    document.getElementById('recordsTableContainer').classList.add('d-none');
-    document.getElementById('recordsCardContainer').classList.add('d-none');
-    document.getElementById('recordsEmptyState').classList.add('d-none');
-    // 显示错误状态
-    document.getElementById('recordsErrorState').classList.remove('d-none');
-}
-
-// 更新记录数量
-function updateRecordsCount(count) {
-    document.getElementById('recordsCount').textContent = count || 0;
-}
-
-// 跳转到行动详情页面
-function goToActionDetail(actionId, projectId, customerName, customerId) {
-    // 如果有关联项目，跳转到项目详情页面
-    if (projectId && projectId !== 'null' && projectId !== '' && projectId !== null) {
-        window.open(`/project/view/${projectId}#action-${actionId}`, '_blank');
-    } else if (customerId && customerId !== 'null' && customerId !== '' && customerId !== null) {
-        // 如果有客户ID，跳转到客户详情页面
-        window.open(`/customer/${customerId}/view#action-${actionId}`, '_blank');
-    } else {
-        // 没有关联信息时的提示
-        alert('该记录没有关联的项目或客户信息');
-    }
-}
-
-// HTML转义函数
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// 文本截断函数
-function truncateText(text, maxLength) {
-    if (!text) return '';
-    if (text.length <= maxLength) return escapeHtml(text);
-    return escapeHtml(text.substring(0, maxLength)) + '...';
-}
-
-// 回复相关功能函数
-// 切换回复输入框显示/隐藏
-function toggleReplyForm(actionId) {
-    const replyForm = document.getElementById(`reply-form-${actionId}`);
-    const textarea = document.getElementById(`reply-content-${actionId}`);
-    
-    if (replyForm.style.display === 'none') {
-        replyForm.style.display = 'block';
-        textarea.focus();
-    } else {
-        replyForm.style.display = 'none';
-        textarea.value = '';
-    }
-}
-
-// 切换回复列表显示/隐藏
-function toggleRepliesView(actionId) {
-    const repliesContainer = document.getElementById(`replies-${actionId}`);
-    
-    if (repliesContainer.style.display === 'none') {
-        repliesContainer.style.display = 'block';
-        loadActionReplies(actionId);
-    } else {
-        repliesContainer.style.display = 'none';
-    }
-}
-
-// 关闭回复列表
-function closeRepliesView(actionId) {
-    const repliesContainer = document.getElementById(`replies-${actionId}`);
-    repliesContainer.style.display = 'none';
-}
-
-// 加载行动记录的回复
-function loadActionReplies(actionId) {
-    const repliesList = document.getElementById(`replies-list-${actionId}`);
-    
-    // 显示加载状态
-    repliesList.innerHTML = `
-        <div class="text-center text-muted">
-            <i class="fas fa-spinner fa-spin me-1"></i>${window.i18nTexts.loadingReplies}...
-        </div>
-    `;
-    
-    // 根据当前页面URL判断使用哪个API路径
-    let apiPath = '';
-    if (window.location.pathname.includes('/customer/')) {
-        apiPath = `/customer/action/${actionId}/replies`;
-    } else if (window.location.pathname.includes('/project/')) {
-        apiPath = `/project/action/${actionId}/replies`;
-    } else {
-        // 仪表盘页面，需要根据记录关联情况判断使用哪个API
-        // 先尝试项目API，如果失败再尝试客户API
-        apiPath = `/project/action/${actionId}/replies`;
-    }
-    
-    fetch(apiPath)
-        .then(response => {
-            if (!response.ok) {
-                // 如果项目API失败，尝试客户API
-                if (apiPath.includes('/project/')) {
-                    return fetch(`/customer/action/${actionId}/replies`);
-                }
-                throw new Error(`HTTP ${response.status}`);
             }
-            return response;
-        })
-        .then(response => response.json())
-        .then(data => {
-            // 后端直接返回回复数组，不是包装在success字段中
-            displayReplies(actionId, data);
-        })
-        .catch(error => {
-            console.error('加载回复失败:', error);
-            repliesList.innerHTML = `
-                <div class="text-center text-muted">
-                    <i class="fas fa-exclamation-triangle me-1 text-warning"></i>
-                    ${window.i18nTexts.loadRepliesFailed}
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
+        /* 通知徽章样式 */
+        .notification-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1.25rem;
+            height: 1.25rem;
+            padding: 0 0.375rem;
+            border-radius: 9999px;
+            background-color: #ef4444;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+    </style>
+    <!-- 工作记录组件样式 -->
+    {{ render_tw_work_records_styles() }}
+    <script>
+        // 深色模式检测
+        if (localStorage.getItem('theme') === 'dark' ||
+            (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-200">
+    {% call(slot) render_tw_layout(active_page='dashboard', show_search=true) %}
+    {% if slot == 'content' %}
+        <!-- 主内容 -->
+        <div class="p-6 lg:p-10">
+                <div class="flex flex-col gap-8">
+                    <!-- 欢迎区域 -->
+                    <div class="flex flex-wrap justify-between gap-3">
+                        <div class="flex min-w-72 flex-col gap-2">
+                            <p class="text-slate-900 dark:text-white tracking-tight text-[32px] font-bold leading-tight">
+                                {{ _('欢迎回来') }}, {{ current_user.real_name or current_user.username }}!
+                            </p>
+                            <p class="text-slate-500 dark:text-slate-400 text-sm font-normal">
+                                {{ _('这是您的业务活动摘要。') }}
+                            </p>
+                        </div>
+                        <div class="text-right text-sm text-slate-500 dark:text-slate-400">
+                            <span>{{ _('版本号') }}</span>
+                            <span class="font-mono font-medium">{{ app_version if app_version else '1.3.5' }}</span>
+                        </div>
+                    </div>
+
+                    <!-- 工作记录组件 -->
+                    {{ render_tw_work_records(
+                        container_id='workRecords',
+                        show_account_filter=true,
+                        max_height='400px',
+                        title=_('工作记录')
+                    ) }}
+
+                    <!-- 三列卡片布局 -->
+                    {# 项目阶段进度映射 #}
+                    {% set stage_progress = {
+                        'discover': 14,
+                        'embed': 28,
+                        'pre_tender': 42,
+                        'tendering': 56,
+                        'awarded': 70,
+                        'quoted': 84,
+                        'signed': 100,
+                        'lost': 50,
+                        'paused': 50
+                    } %}
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- 最近项目 -->
+                        {% if has_permission('project', 'view') %}
+                        <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-slate-900 dark:text-white text-base font-medium leading-normal">{{ _('最近项目') }}</h3>
+                                <a class="text-primary text-sm font-medium hover:underline" href="{{ url_for('project.list_projects') }}">{{ _('查看全部') }}</a>
+                            </div>
+                            {% if recent_projects and recent_projects|length > 0 %}
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-sm">
+                                    <thead>
+                                        <tr>
+                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs">{{ _('项目名称') }}</th>
+                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs">{{ _('状态') }}</th>
+                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs text-right">{{ _('进度') }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for project in recent_projects %}
+                                        {% set current_stage = project.current_stage or 'discover' %}
+                                        {% set progress = stage_progress.get(current_stage, 0) %}
+                                        <tr>
+                                            <td class="py-2 font-medium text-slate-800 dark:text-slate-200 text-sm">
+                                                <a href="{{ url_for('project.view_project', project_id=project.id, tw=1) }}" class="hover:text-primary">
+                                                    {{ project.project_name[:12] }}{% if project.project_name|length > 12 %}...{% endif %}
+                                                </a>
+                                            </td>
+                                            <td class="py-2">
+                                                {{ render_tw_project_stage_badge_key(current_stage) }}
+                                            </td>
+                                            <td class="py-2 text-slate-600 dark:text-slate-300">
+                                                <div class="flex items-center justify-end gap-2">
+                                                    <div class="h-1.5 w-12 rounded-full bg-slate-200 dark:bg-slate-700">
+                                                        {# 进度条颜色：发现/植入-黄色，招标前/招标中-橘色，中标-蓝色，批价/签约-绿色，失败-红色，搁置-灰色 #}
+                                                        <div class="h-full rounded-full {% if current_stage in ['discover', 'embed'] %}bg-yellow-500{% elif current_stage in ['pre_tender', 'tendering'] %}bg-orange-500{% elif current_stage == 'awarded' %}bg-blue-500{% elif current_stage in ['quoted', 'signed'] %}bg-green-500{% elif current_stage == 'lost' %}bg-red-500{% elif current_stage == 'paused' %}bg-gray-400{% else %}bg-primary{% endif %}" style="width: {{ progress }}%;"></div>
+                                                    </div>
+                                                    <span class="text-xs w-8 text-right">{{ progress }}%</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="text-center py-8 text-slate-500 dark:text-slate-400 text-sm">{{ _('您没有最近的项目') }}</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <!-- 最近报价 -->
+                        {% if has_permission('quotation', 'view') %}
+                        <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-slate-900 dark:text-white text-base font-medium leading-normal">{{ _('最近报价') }}</h3>
+                                <a class="text-primary text-sm font-medium hover:underline" href="{{ url_for('quotation.list_quotations') }}">{{ _('查看全部') }}</a>
+                            </div>
+                            {% if recent_quotations and recent_quotations|length > 0 %}
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-sm">
+                                    <thead>
+                                        <tr>
+                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs">{{ _('报价单号') }}</th>
+                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs">{{ _('客户') }}</th>
+                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs text-right">{{ _('金额') }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for quotation in recent_quotations %}
+                                        <tr>
+                                            <td class="py-2 font-medium text-slate-800 dark:text-slate-200 text-sm">
+                                                <a href="{{ url_for('quotation.view_quotation', id=quotation.id, tw=1) }}" class="hover:text-primary">
+                                                    {{ quotation.quotation_number }}
+                                                </a>
+                                            </td>
+                                            <td class="py-2 text-slate-600 dark:text-slate-300 text-sm">
+                                                {{ quotation.customer.company_name[:10] if quotation.customer else '-' }}{% if quotation.customer and quotation.customer.company_name|length > 10 %}...{% endif %}
+                                            </td>
+                                            <td class="py-2 text-slate-800 dark:text-slate-200 font-medium text-sm text-right">
+                                                {{ quotation.currency_symbol }}{{ "{:,.2f}".format(quotation.amount) if quotation.amount else '0.00' }}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="text-center py-8 text-slate-500 dark:text-slate-400 text-sm">{{ _('您没有最近的报价') }}</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                    </div>
+
+                    <!-- 报销模块 -->
+                    {% if has_permission('expense', 'view') %}
+                    <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-slate-900 dark:text-white text-base font-medium">{{ _('最近报销') }}</h3>
+                            <div class="flex items-center gap-2">
+                                {% if has_permission('expense', 'create') %}
+                                <a href="{{ url_for('expense.expense_list', tw=1, action='create') }}" class="flex items-center justify-center gap-1.5 rounded-md h-8 px-3 bg-primary text-white text-xs font-bold hover:bg-primary/90">
+                                    <span class="material-symbols-outlined text-sm">add</span>
+                                    <span>{{ _('新建报销') }}</span>
+                                </a>
+                                {% endif %}
+                                <a class="text-primary text-sm font-medium hover:underline" href="{{ url_for('expense.expense_list') }}">{{ _('查看全部') }}</a>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-4">
+                            {% if recent_expenses and recent_expenses|length > 0 %}
+                                {% for expense in recent_expenses %}
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <div class="flex h-8 w-8 items-center justify-center rounded-full
+                                            {% if expense.approval_status == 'pending' %}bg-yellow-100 dark:bg-yellow-900/50{% endif %}
+                                            {% if expense.approval_status == 'approved' %}bg-green-100 dark:bg-green-900/50{% endif %}
+                                            {% if expense.approval_status == 'rejected' %}bg-red-100 dark:bg-red-900/50{% endif %}
+                                            {% if expense.approval_status == 'draft' %}bg-slate-100 dark:bg-slate-800{% endif %}">
+                                            {% if expense.approval_status == 'pending' %}
+                                            <span class="material-symbols-outlined text-yellow-600 dark:text-yellow-400 text-base">hourglass_top</span>
+                                            {% elif expense.approval_status == 'approved' %}
+                                            <span class="material-symbols-outlined text-green-600 dark:text-green-400 text-base">check_circle</span>
+                                            {% elif expense.approval_status == 'rejected' %}
+                                            <span class="material-symbols-outlined text-red-600 dark:text-red-400 text-base">cancel</span>
+                                            {% else %}
+                                            <span class="material-symbols-outlined text-slate-600 dark:text-slate-400 text-base">draft</span>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <a href="{{ url_for('expense.expense_detail', id=expense.id) }}" class="text-slate-800 dark:text-slate-200 text-sm font-medium hover:text-primary">
+                                                {{ expense.title[:20] if expense.title else expense.expense_number }}{% if expense.title and expense.title|length > 20 %}...{% endif %}
+                                            </a>
+                                            <p class="text-slate-500 dark:text-slate-400 text-xs">
+                                                {% if expense.approval_status == 'pending' %}{{ _('待审批') }}{% endif %}
+                                                {% if expense.approval_status == 'approved' %}{{ _('已批准') }}{% endif %}
+                                                {% if expense.approval_status == 'rejected' %}{{ _('已拒绝') }}{% endif %}
+                                                {% if expense.approval_status == 'draft' %}{{ _('草稿') }}{% endif %}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <p class="text-sm font-medium text-slate-800 dark:text-slate-200">¥{{ "%.2f"|format(expense.total_amount / 100) if expense.total_amount else '0.00' }}</p>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center py-4 text-slate-500 dark:text-slate-400">{{ _('您没有最近的报销') }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
-            `;
-        });
-}
+        </div>
+    {% endif %}
+    {% endcall %}
 
-// 显示回复列表
-function displayReplies(actionId, replies) {
-    const repliesList = document.getElementById(`replies-list-${actionId}`);
-    
-    if (!replies || replies.length === 0) {
-        repliesList.innerHTML = `
-            <div class="text-center text-muted">
-                <i class="fas fa-comment-slash me-1"></i>${window.i18nTexts.noReply}
-            </div>
-        `;
-        return;
-    }
-    
-    // 递归渲染回复树
-    function renderReplyTree(reply, level = 0) {
-        const marginLeft = level * 16; // 每级缩进16px
-        let html = `
-            <div class="reply-item border-bottom py-2 mb-2" style="margin-left: ${marginLeft}px;">
-                <div class="d-flex justify-content-between align-items-start mb-1">
-                    <small class="text-muted">
-                        <i class="fas fa-user me-1"></i>${escapeHtml(reply.owner)}
-                    </small>
-                    <small class="text-muted">
-                        <i class="fas fa-clock me-1"></i>${reply.created_at}
-                    </small>
-                </div>
-                <div class="reply-content" style="font-size: 0.9rem; word-wrap: break-word;">
-                    ${escapeHtml(reply.content)}
-                </div>
-                <div class="mt-1">
-                    <button class="btn btn-sm btn-link p-0 text-primary" onclick="replyToReply(${actionId}, ${reply.id}, '${escapeHtml(reply.owner)}')">
-                        <i class="fas fa-reply me-1"></i>${window.i18nTexts.reply}
-                    </button>
-                    ${reply.can_delete ? `
-                        <button class="btn btn-sm btn-link p-0 text-danger ms-2" onclick="deleteReply(${reply.id}, ${actionId})">
-                            <i class="fas fa-trash me-1"></i>${window.i18nTexts.delete}
-                        </button>
-                    ` : ''}
-                </div>
-            </div>
-        `;
-        
-        // 递归渲染子回复
-        if (reply.children && reply.children.length > 0) {
-            reply.children.forEach(child => {
-                html += renderReplyTree(child, level + 1);
-            });
-        }
-        
-        return html;
-    }
-    
-    const repliesHtml = replies.map(reply => renderReplyTree(reply)).join('');
-    repliesList.innerHTML = repliesHtml;
-}
+    <script>
+    // 国际化文本
+    window.i18nTexts = {
+        displayRecentDays: '{{ _("显示最近{days}天的工作记录") }}',
+        noRecentRecords: '{{ _("最近{days}天内没有工作记录") }}',
+        allAccounts: '{{ _("全部账户") }}',
+        todayNoRecords: '{{ _("今日暂无工作记录") }}',
+        loadingReplies: '{{ _("加载回复中") }}',
+        owner: '{{ _("拥有人") }}',
+        customer: '{{ _("客户") }}',
+        contact: '{{ _("联系人") }}',
+        relatedProject: '{{ _("关联项目") }}',
+        actionRecord: '{{ _("行动记录") }}',
+        loadingAccountsFailed: '{{ _("加载账户列表失败") }}',
+        loadingRecordsFailed: '{{ _("加载工作记录失败") }}',
+        submit: '{{ _("提交") }}',
+        cancel: '{{ _("取消") }}',
+        reply: '{{ _("回复") }}',
+        delete: '{{ _("删除") }}',
+        addReply: '{{ _("添加回复") }}',
+        submitReply: '{{ _("提交回复") }}',
+        replyRecord: '{{ _("回复记录") }}',
+        noReply: '{{ _("暂无回复") }}',
+        noRepliesYet: '{{ _("暂无回复") }}',
+        typeYourReply: '{{ _("输入回复内容...") }}',
+        enterReplyContent: '{{ _("输入回复内容...") }}',
+        enterNewReplyContent: '{{ _("输入新的回复内容...") }}',
+        pleaseEnterReplyContent: '{{ _("请输入回复内容") }}',
+        confirmDeleteReply: '{{ _("确定要删除这条回复吗？") }}',
+        submitting: '{{ _("提交中...") }}',
+        replySubmitSuccess: '{{ _("回复提交成功") }}',
+        replyDeleteSuccess: '{{ _("回复删除成功") }}',
+        loadRepliesFailed: '{{ _("加载回复失败") }}',
+        submitFailed: '{{ _("提交失败") }}',
+        deleteFailed: '{{ _("删除失败") }}',
+        replied: '{{ _("已回复") }}',
+        noReplyBadge: '{{ _("无回复") }}'
+    };
 
-// 删除回复
-function deleteReply(replyId, actionId) {
-    if (!confirm(window.i18nTexts.confirmDeleteReply)) {
-        return;
-    }
-    
-    // 获取CSRF token
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    
-    // 根据当前页面URL判断使用哪个API路径
-    let apiPath = '';
-    if (window.location.pathname.includes('/customer/')) {
-        apiPath = `/customer/action/reply/${replyId}/delete`;
-    } else if (window.location.pathname.includes('/project/')) {
-        apiPath = `/project/action/reply/${replyId}/delete`;
-    } else {
-        // 仪表盘页面，默认使用项目API
-        apiPath = `/project/action/reply/${replyId}/delete`;
-    }
-    
-    fetch(apiPath, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // 重新加载回复列表
-            loadActionReplies(actionId);
-            showNotification(window.i18nTexts.replyDeleteSuccess, 'success');
-        } else {
-            throw new Error(data.message || '删除失败');
-        }
-    })
-    .catch(error => {
-        console.error('删除回复失败:', error);
-        // 如果项目API失败，尝试客户API
-        if (apiPath.includes('/project/')) {
-            fetch(`/customer/action/reply/${replyId}/delete`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    loadActionReplies(actionId);
-                    showNotification(window.i18nTexts.replyDeleteSuccess, 'success');
-                } else {
-                    throw new Error(data.message || '删除失败');
-                }
-            })
-            .catch(err => {
-                showNotification(`${window.i18nTexts.deleteFailed}: ${err.message}`, 'error');
-            });
-        } else {
-            showNotification(`${window.i18nTexts.deleteFailed}: ${error.message}`, 'error');
-        }
-    });
-}
+    // 当前用户ID（用于判断回复显示位置）
+    window.currentUserId = {{ current_user.id }};
 
-// 提交新回复
-function submitNewReply(actionId) {
-    const textarea = document.getElementById(`new-reply-content-${actionId}`);
-    const content = textarea.value.trim();
-    
-    if (!content) {
-        alert(window.i18nTexts.pleaseEnterReplyContent);
-        return;
-    }
-    
-    // 获取CSRF token
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    
-    // 显示提交状态
-    const submitBtn = event.target;
-    const originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>${window.i18nTexts.submitting}`;
-    submitBtn.disabled = true;
-    
-    // 根据当前页面URL判断使用哪个API路径
-    let apiPath = '';
-    if (window.location.pathname.includes('/customer/')) {
-        apiPath = `/customer/action/${actionId}/reply`;
-    } else if (window.location.pathname.includes('/project/')) {
-        apiPath = `/project/action/${actionId}/reply`;
-    } else {
-        // 仪表盘页面，默认使用项目API
-        apiPath = `/project/action/${actionId}/reply`;
-    }
-    
-    fetch(apiPath, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken
-        },
-        body: JSON.stringify({
-            content: content
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // 清空输入框
-            textarea.value = '';
-            // 隐藏输入框
-            cancelNewReply(actionId);
-            // 重新加载回复列表
-            loadActionReplies(actionId);
-            // 显示成功消息
-            showNotification(window.i18nTexts.replySubmitSuccess, 'success');
-        } else {
-            throw new Error(data.message || '提交失败');
-        }
-    })
-    .catch(error => {
-        console.error('提交回复失败:', error);
-        // 如果项目API失败，尝试客户API
-        if (apiPath.includes('/project/')) {
-            fetch(`/customer/action/${actionId}/reply`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-                body: JSON.stringify({
-                    content: content
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    textarea.value = '';
-                    cancelNewReply(actionId);
-                    loadActionReplies(actionId);
-                    showNotification(window.i18nTexts.replySubmitSuccess, 'success');
-                } else {
-                    throw new Error(data.message || '提交失败');
-                }
-            })
-            .catch(err => {
-                showNotification(`${window.i18nTexts.submitFailed}: ${err.message}`, 'error');
-            });
-        } else {
-            showNotification(`${window.i18nTexts.submitFailed}: ${error.message}`, 'error');
-        }
-    })
-    .finally(() => {
-        // 恢复按钮状态
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
-    });
-}
+    // 当前用户姓名缩写（用于回复表单头像，统一取前2个字符大写）
+    window.currentUserInitials = (function() {
+        var name = '{{ current_user.real_name or current_user.username }}';
+        if (!name) return '?';
+        return name.substring(0, 2).toUpperCase();
+    })();
 
-// 提交回复（原有的无回复状态的回复提交）
-function submitReply(actionId) {
-    const textarea = document.getElementById(`reply-content-${actionId}`);
-    const content = textarea.value.trim();
-    
-    if (!content) {
-        alert(window.i18nTexts.pleaseEnterReplyContent);
-        return;
-    }
-    
-    // 获取CSRF token
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    
-    // 显示提交状态
-    const submitBtn = event.target;
-    const originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>${window.i18nTexts.submitting}`;
-    submitBtn.disabled = true;
-    
-    // 根据当前页面URL判断使用哪个API路径
-    let apiPath = '';
-    if (window.location.pathname.includes('/customer/')) {
-        apiPath = `/customer/action/${actionId}/reply`;
-    } else if (window.location.pathname.includes('/project/')) {
-        apiPath = `/project/action/${actionId}/reply`;
-    } else {
-        // 仪表盘页面，默认使用项目API
-        apiPath = `/project/action/${actionId}/reply`;
-    }
-    
-    fetch(apiPath, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken
-        },
-        body: JSON.stringify({
-            content: content
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // 隐藏回复表单
-            cancelReply(actionId);
-            // 重新加载工作记录列表
-            loadRecentRecords();
-            // 显示成功消息
-            showNotification(window.i18nTexts.replySubmitSuccess, 'success');
-        } else {
-            throw new Error(data.message || '提交失败');
-        }
-    })
-    .catch(error => {
-        console.error('提交回复失败:', error);
-        // 如果项目API失败，尝试客户API
-        if (apiPath.includes('/project/')) {
-            fetch(`/customer/action/${actionId}/reply`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-                body: JSON.stringify({
-                    content: content
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    cancelReply(actionId);
-                    loadRecentRecords();
-                    showNotification(window.i18nTexts.replySubmitSuccess, 'success');
-                } else {
-                    throw new Error(data.message || '提交失败');
-                }
-            })
-            .catch(err => {
-                showNotification(`${window.i18nTexts.submitFailed}: ${err.message}`, 'error');
-            });
-        } else {
-            showNotification(`${window.i18nTexts.submitFailed}: ${error.message}`, 'error');
-        }
-    })
-    .finally(() => {
-        // 恢复按钮状态
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
-    });
-}
+    </script>
 
-// 显示通知消息
-function showNotification(message, type = 'info') {
-    const alertClass = type === 'success' ? 'alert-success' : 
-                      type === 'error' ? 'alert-danger' : 
-                      type === 'warning' ? 'alert-warning' : 'alert-info';
-    
-    const notification = document.createElement('div');
-    notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
-    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-    notification.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // 3秒后自动消失
-    setTimeout(() => {
-        if (notification.parentNode) {
-            notification.remove();
-        }
-    }, 3000);
-}
+    <!-- 布局脚本（语言切换、深色模式） -->
+    {{ render_tw_layout_script() }}
 
-// 添加新回复（显示输入框）
-function addNewReply(actionId) {
-    const newReplyForm = document.getElementById(`new-reply-form-${actionId}`);
-    const textarea = document.getElementById(`new-reply-content-${actionId}`);
-    
-    newReplyForm.style.display = 'block';
-    textarea.focus();
-}
-
-// 取消新回复
-function cancelNewReply(actionId) {
-    const newReplyForm = document.getElementById(`new-reply-form-${actionId}`);
-    const textarea = document.getElementById(`new-reply-content-${actionId}`);
-    
-    newReplyForm.style.display = 'none';
-    textarea.value = '';
-}
-
-// 回复某个回复
-function replyToReply(actionId, replyId, replyToUser) {
-    const textarea = document.getElementById(`new-reply-content-${actionId}`);
-    const newReplyForm = document.getElementById(`new-reply-form-${actionId}`);
-    
-    // 设置回复内容前缀
-    const replyPrefix = `@${replyToUser} `;
-    textarea.value = replyPrefix;
-    
-    // 显示输入框并聚焦
-    newReplyForm.style.display = 'block';
-    textarea.focus();
-    
-    // 将光标移到末尾
-    textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
-}
-
-// 取消回复
-function cancelReply(actionId) {
-    const replyForm = document.getElementById(`reply-form-${actionId}`);
-    const textarea = document.getElementById(`reply-content-${actionId}`);
-
-    replyForm.style.display = 'none';
-    textarea.value = '';
-}
-
-// 清除所有加载提示
-function clearLoadMoreIndicators() {
-    // 移除"加载更多"提示
-    const loadMoreIndicator = document.getElementById('loadMoreIndicator');
-    if (loadMoreIndicator) {
-        loadMoreIndicator.remove();
-    }
-
-    // 移除"已加载全部记录"提示
-    const noMoreIndicator = document.getElementById('noMoreDataIndicator');
-    if (noMoreIndicator) {
-        noMoreIndicator.remove();
-    }
-}
-
-// 显示加载更多提示
-function showLoadMoreIndicator() {
-    let indicator = document.getElementById('loadMoreIndicator');
-    if (!indicator) {
-        indicator = document.createElement('div');
-        indicator.id = 'loadMoreIndicator';
-        indicator.className = 'text-center p-3 text-muted';
-        indicator.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> {{ _("加载更多") }}...';
-
-        // 添加到表格底部
-        const tableContainer = document.querySelector('#recordsTableBody');
-        if (tableContainer && tableContainer.parentNode) {
-            tableContainer.parentNode.parentNode.appendChild(indicator);
-        }
-
-        // 添加到卡片底部
-        const cardContainer = document.querySelector('#recordsCardList');
-        if (cardContainer) {
-            cardContainer.parentNode.appendChild(indicator.cloneNode(true));
-        }
-    }
-    indicator.style.display = 'block';
-}
-
-// 隐藏加载更多提示
-function hideLoadMoreIndicator() {
-    const indicator = document.getElementById('loadMoreIndicator');
-    if (indicator) {
-        indicator.style.display = 'none';
-    }
-
-    // 如果没有更多数据，显示提示
-    if (!infiniteScrollState.hasMore && infiniteScrollState.currentOffset > 0) {
-        showNoMoreDataIndicator();
-    }
-}
-
-// 显示"已加载全部记录"提示
-function showNoMoreDataIndicator() {
-    let indicator = document.getElementById('noMoreDataIndicator');
-    if (!indicator) {
-        indicator = document.createElement('div');
-        indicator.id = 'noMoreDataIndicator';
-        indicator.className = 'text-center p-3 text-muted small';
-        indicator.innerHTML = '{{ _("已加载全部记录") }}';
-
-        // 添加到表格底部
-        const tableContainer = document.querySelector('#recordsTableBody');
-        if (tableContainer && tableContainer.parentNode) {
-            tableContainer.parentNode.parentNode.appendChild(indicator);
-        }
-
-        // 添加到卡片底部
-        const cardContainer = document.querySelector('#recordsCardList');
-        if (cardContainer) {
-            cardContainer.parentNode.appendChild(indicator.cloneNode(true));
-        }
-    }
-    indicator.style.display = 'block';
-}
-</script>
-</div>
-{% endblock %}
+    <!-- 工作记录组件脚本 -->
+    {{ render_tw_work_records_script(
+        container_id='workRecords',
+        api_url='/api/recent_work_records',
+        user_role=current_user.role,
+        show_account_filter=true
+    ) }}
+</body>
+</html>

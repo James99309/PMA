@@ -1,0 +1,1210 @@
+{#
+=============================================================================
+规格选项管理模态框组件 (Tailwind 版本)
+=============================================================================
+功能：管理规格字典的选项（指标），支持查看、添加、编辑、删除指标
+
+API 端点（后端：app/routes/spec_dictionary.py）：
+- GET /api/spec-dictionary - 获取规格列表
+- POST /api/spec-dictionary - 创建新规格
+- GET /api/spec-dictionary/<spec_id>/options - 获取规格的指标列表
+- POST /api/spec-dictionary/<spec_id>/options - 创建新指标（自动生成编码）
+- PUT /api/spec-dictionary/options/<option_id> - 更新指标
+- DELETE /api/spec-dictionary/options/<option_id> - 删除指标
+- PUT /api/spec-dictionary/options/<option_id>/toggle - 切换指标状态
+
+使用方式：
+{% from 'components/product/tw_spec_options_modal.html' import tw_spec_options_modal, tw_spec_options_modal_script %}
+{{ tw_spec_options_modal() }}
+{{ tw_spec_options_modal_script() }}
+
+JavaScript 调用：
+SpecOptionsModal.open('规格名称');
+=============================================================================
+#}
+
+{% from 'components/tw_confirm_modal.html' import tw_delete_confirm_modal, tw_confirm_modal_script %}
+{% from 'components/tw_modal_base.html' import tw_modal, tw_sub_modal %}
+
+{% macro tw_spec_options_modal() %}
+<!-- 规格选项管理模态框 -->
+{% call tw_modal('specOptionsModal', title=_('管理规格选项'),
+                 z_index='z-[9999]', max_width='max-w-3xl', max_height='max-h-[90vh]',
+                 close_action='SpecOptionsModal.close()', backdrop_blur=true) %}
+            <!-- 内容区域 -->
+            <div class="flex-1 overflow-y-auto p-6">
+                <!-- 加载状态 -->
+                <div id="specOptionsLoading" class="flex items-center justify-center py-12">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <span class="ml-3 text-slate-500 dark:text-slate-400">{{ _('加载中...') }}</span>
+                </div>
+
+                <!-- 规格不存在提示 -->
+                <div id="specNotFoundPanel" class="hidden">
+                    <div class="text-center py-8">
+                        <span class="material-symbols-outlined text-5xl text-amber-500 mb-3">warning</span>
+                        <p class="text-slate-700 dark:text-slate-300 mb-4">{{ _('该规格在字典中不存在') }}</p>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">{{ _('是否创建此规格？创建后可添加选项值。') }}</p>
+                        <button onclick="SpecOptionsModal.createSpec()"
+                                class="inline-flex items-center gap-2 h-10 px-5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium shadow-md hover:shadow-lg transition-all active:scale-95">
+                            <span class="material-symbols-outlined text-lg">add</span>
+                            {{ _('创建规格') }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 主内容面板 -->
+                <div id="specOptionsMainPanel" class="hidden">
+                    <!-- 添加新选项 -->
+                    <div class="mb-8">
+                        <div class="flex items-center gap-2 mb-4 text-slate-700 dark:text-slate-200 font-medium">
+                            <span class="material-symbols-outlined text-primary text-xl">add_circle</span>
+                            <span>{{ _('添加新选项') }}</span>
+                        </div>
+
+                        <!-- 子分类模式：从规格字典选择 + 创建新选项 -->
+                        <div id="subcategoryAddPanel" class="hidden">
+                            <div class="flex flex-col md:flex-row gap-3">
+                                <div class="flex-grow">
+                                    <select id="availableOptionsSelect"
+                                            class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-shadow">
+                                        <option value="">{{ _('-- 从规格字典中选择 --') }}</option>
+                                    </select>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button id="addSelectedOptionBtn" onclick="SpecOptionsModal.addSelectedOption()"
+                                            disabled
+                                            class="inline-flex items-center justify-center gap-1.5 h-10 px-4 bg-primary text-white rounded-lg text-sm font-semibold shadow-sm transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 disabled:hover:bg-primary">
+                                        <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+                                        {{ _('添加') }}
+                                    </button>
+                                    <button onclick="SpecOptionsModal.openCreateModal()"
+                                            class="inline-flex items-center justify-center gap-1.5 h-10 px-4 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold shadow-sm transition-colors whitespace-nowrap">
+                                        <span class="material-symbols-outlined" style="font-size: 18px;">edit_note</span>
+                                        {{ _('创建') }}
+                                    </button>
+                                </div>
+                            </div>
+                            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                {{ _('选择已有指标直接添加，或点击"创建"添加新指标到规格字典') }}
+                            </p>
+                        </div>
+
+                        <p id="addOptionError" class="mt-2 text-sm text-red-500 hidden"></p>
+                        <p id="addOptionSuccess" class="mt-2 text-sm text-green-500 hidden"></p>
+                        <input type="hidden" id="selectedSpecOptionId" value="" />
+                    </div>
+
+                    <!-- 现有选项列表 -->
+                    <div>
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium">
+                                <span class="material-symbols-outlined text-slate-500 dark:text-slate-400 text-xl">format_list_bulleted</span>
+                                <span>{{ _('现有选项') }}</span>
+                            </div>
+                            <span id="optionCount" class="bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+                            <!-- 单位显示 -->
+                            <span class="ml-auto text-sm text-slate-500 dark:text-slate-400">
+                                {{ _('单位') }}: <span id="specUnitDisplay" class="font-medium text-slate-700 dark:text-slate-300">--</span>
+                            </span>
+                        </div>
+                        <div id="existingOptionsList" class="space-y-3 min-h-[100px]">
+                            <div class="text-center py-8 text-slate-400 dark:text-slate-500">
+                                <span class="material-symbols-outlined text-4xl mb-2">inbox</span>
+                                <p class="text-sm">{{ _('暂无选项') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部按钮 -->
+            <footer class="flex items-center justify-end px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex-shrink-0 bg-slate-50 dark:bg-slate-900/50">
+                <button onclick="SpecOptionsModal.close()"
+                        class="inline-flex justify-center items-center h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                    {{ _('关闭') }}
+                </button>
+            </footer>
+{% endcall %}
+
+<!-- 选项表单子模态框（创建/编辑共用） -->
+{% call tw_sub_modal('optionFormModal', title=_('编辑选项'), icon='edit',
+                     z_index='z-[10000]', max_width='max-w-md',
+                     close_action='SpecOptionsModal.closeFormModal()') %}
+            <div class="px-5 pb-5">
+                <input type="hidden" id="optionFormId" />
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            {{ _('指标值') }}
+                            <span id="optionFormRequired" class="text-red-500 hidden">*</span>
+                        </label>
+                        <input type="text" id="optionFormValue"
+                               class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-colors" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('编码') }}</label>
+                        <input type="text" id="optionFormCode"
+                               class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary font-mono transition-colors" />
+                        <p id="optionFormCodeHint" class="mt-1 text-xs text-slate-500 dark:text-slate-400 hidden">{{ _('输入指标值后自动生成编码，您可以手动修改') }}</p>
+                    </div>
+                    <p id="optionFormError" class="text-sm text-red-500 hidden"></p>
+                    <p id="optionFormLocked" class="text-sm text-amber-500 hidden flex items-center gap-1">
+                        <span class="material-symbols-outlined text-base">lock</span>
+                        {{ _('此选项已被产品使用，指标值和编码无法修改') }}
+                    </p>
+                </div>
+            </div>
+            <div class="px-5 py-4 flex flex-row-reverse gap-3 border-t border-slate-200 dark:border-slate-700 rounded-b-xl">
+                <button id="optionFormSubmitBtn" onclick="SpecOptionsModal.submitForm()"
+                        class="inline-flex justify-center items-center h-10 px-4 rounded-lg text-sm font-semibold text-white shadow-sm transition-colors">
+                    {{ _('保存') }}
+                </button>
+                <button onclick="SpecOptionsModal.closeFormModal()"
+                        class="inline-flex justify-center items-center h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                    {{ _('取消') }}
+                </button>
+            </div>
+{% endcall %}
+
+<!-- 删除确认子模态框（使用通用组件） -->
+{{ tw_delete_confirm_modal(
+    modal_id='deleteOptionModal',
+    title=_('确认删除'),
+    message=_('确定要删除此选项吗？'),
+    confirm_text=_('删除'),
+    cancel_text=_('取消'),
+    z_index='z-[10000]',
+    show_error=true
+) }}
+
+<!-- 引用情况子模态框 -->
+{% call tw_sub_modal('specOptionProductsModal', title=_('引用情况'), icon='link',
+                     z_index='z-[10000]', max_width='max-w-lg',
+                     close_action='SpecOptionsModal.hideProductUsage()') %}
+            <div id="specOptionProductsContent" class="px-5 pb-5 max-h-96 overflow-y-auto">
+                <!-- 动态内容 -->
+            </div>
+            <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-700 rounded-b-xl">
+                <button onclick="SpecOptionsModal.hideProductUsage()"
+                        class="w-full inline-flex justify-center items-center h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                    {{ _('关闭') }}
+                </button>
+            </div>
+{% endcall %}
+
+{% endmacro %}
+
+
+{# 规格选项管理模态框脚本 #}
+{% macro tw_spec_options_modal_script() %}
+{# 引入确认模态框脚本（定义 openConfirmModal/closeConfirmModal） #}
+{{ tw_confirm_modal_script() }}
+<script>
+/**
+ * 规格选项管理模态框控制器
+ *
+ * API 端点：
+ * - GET /api/spec-dictionary - 获取规格列表
+ * - POST /api/spec-dictionary - 创建新规格
+ * - GET /api/spec-dictionary/<spec_id>/options - 获取指标列表
+ * - POST /api/spec-dictionary/<spec_id>/options - 创建指标
+ * - PUT /api/spec-dictionary/options/<option_id> - 更新指标
+ * - DELETE /api/spec-dictionary/options/<option_id> - 删除指标
+ */
+
+// 配置常量
+const SPEC_OPTIONS_CONFIG = {
+    CODE_MAX_LENGTH: 1  // 编码最大长度
+};
+
+const SpecOptionsModal = (function() {
+    // 状态
+    let state = {
+        specId: null,
+        specName: null,
+        specUnit: null,
+        options: [],
+        availableOptions: [],  // 可选择的规格字典指标（子分类模式）
+        onOptionAdded: null,   // 添加选项后的回调
+        // 子分类模式相关
+        mode: 'global',        // 'global' 或 'subcategory'
+        subcategoryId: null,
+        fieldId: null,
+        selectedSpecOptionId: null  // 选中的规格字典指标ID
+    };
+
+    // DOM 元素
+    const elements = {
+        modal: () => document.getElementById('specOptionsModal'),
+        loading: () => document.getElementById('specOptionsLoading'),
+        notFoundPanel: () => document.getElementById('specNotFoundPanel'),
+        mainPanel: () => document.getElementById('specOptionsMainPanel'),
+        title: () => document.getElementById('specOptionsModal-title'),
+        subtitle: () => document.getElementById('specOptionsModal-subtitle'),
+        // specName 已合并到 title 中显示
+        specUnit: () => document.getElementById('specUnitDisplay'),
+        optionCount: () => document.getElementById('optionCount'),
+        optionsList: () => document.getElementById('existingOptionsList'),
+        addError: () => document.getElementById('addOptionError'),
+        addSuccess: () => document.getElementById('addOptionSuccess'),
+        selectedSpecOptionIdInput: () => document.getElementById('selectedSpecOptionId'),
+        // 子分类模式 - 下拉选择
+        subcategoryAddPanel: () => document.getElementById('subcategoryAddPanel'),
+        availableOptionsSelect: () => document.getElementById('availableOptionsSelect'),
+        addSelectedOptionBtn: () => document.getElementById('addSelectedOptionBtn'),
+        // 统一表单模态框（创建/编辑共用）
+        formModal: () => document.getElementById('optionFormModal'),
+        formIcon: () => document.getElementById('optionFormModal-icon'),
+        formTitle: () => document.getElementById('optionFormModal-title'),
+        formId: () => document.getElementById('optionFormId'),
+        formValue: () => document.getElementById('optionFormValue'),
+        formCode: () => document.getElementById('optionFormCode'),
+        formCodeHint: () => document.getElementById('optionFormCodeHint'),
+        formRequired: () => document.getElementById('optionFormRequired'),
+        formError: () => document.getElementById('optionFormError'),
+        formLocked: () => document.getElementById('optionFormLocked'),
+        formSubmitBtn: () => document.getElementById('optionFormSubmitBtn')
+    };
+
+    // 表单模态框模式：'create' 或 'edit'
+    let formMode = 'create';
+
+    /**
+     * 打开模态框
+     * @param {string} specName - 规格名称
+     * @param {Function|Object} optionsOrCallback - 回调函数或配置对象
+     *   配置对象格式: {
+     *     subcategoryId: number,  // 子分类ID（启用子分类模式）
+     *     fieldId: number,        // 字段ID
+     *     mode: 'subcategory',    // 模式
+     *     onOptionAdded: Function // 回调
+     *   }
+     */
+    async function open(specName, optionsOrCallback = null) {
+        state.specName = specName;
+
+        // 解析参数
+        if (typeof optionsOrCallback === 'function') {
+            // 兼容旧的调用方式
+            state.onOptionAdded = optionsOrCallback;
+            state.mode = 'global';
+            state.subcategoryId = null;
+            state.fieldId = null;
+        } else if (optionsOrCallback && typeof optionsOrCallback === 'object') {
+            // 新的配置对象方式
+            state.mode = optionsOrCallback.mode || 'global';
+            state.subcategoryId = optionsOrCallback.subcategoryId || null;
+            state.fieldId = optionsOrCallback.fieldId || null;
+            state.onOptionAdded = optionsOrCallback.onOptionAdded || null;
+        } else {
+            state.mode = 'global';
+            state.subcategoryId = null;
+            state.fieldId = null;
+            state.onOptionAdded = null;
+        }
+
+        // 重置选中状态
+        state.selectedSpecOptionId = null;
+        if (elements.selectedSpecOptionIdInput()) {
+            elements.selectedSpecOptionIdInput().value = '';
+        }
+
+        // 更新标题
+        const modeText = state.mode === 'subcategory' ? '{{ _("子分类指标") }}' : '{{ _("规格选项") }}';
+        elements.title().textContent = `{{ _('管理') }}${modeText} - ${specName}`;
+        const subtitleText = state.mode === 'subcategory' ? '{{ _("仅显示当前子分类下的指标") }}' : '';
+        elements.subtitle().textContent = subtitleText;
+        elements.subtitle().classList.toggle('hidden', !subtitleText);
+
+        // 显示模态框和加载状态
+        elements.modal().classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        showLoading();
+        hideMessages();
+
+        // 重置下拉选择
+        if (elements.availableOptionsSelect()) {
+            elements.availableOptionsSelect().value = '';
+        }
+        if (elements.addSelectedOptionBtn()) {
+            elements.addSelectedOptionBtn().disabled = true;
+        }
+
+        // 加载子分类模式数据
+        if (state.subcategoryId && state.fieldId) {
+            await loadSubcategoryMode();
+        } else {
+            // 参数不完整，显示错误
+            showNotFound();
+        }
+    }
+
+    /**
+     * 加载子分类模式的数据
+     */
+    async function loadSubcategoryMode() {
+        try {
+            // 显示子分类添加面板
+            if (elements.subcategoryAddPanel()) {
+                elements.subcategoryAddPanel().classList.remove('hidden');
+            }
+
+            // 1. 加载子分类已有的指标
+            const optionsResponse = await fetch(`/product-code/api/subcategory/${state.subcategoryId}/field/${state.fieldId}/options`);
+            const optionsResult = await optionsResponse.json();
+
+            if (optionsResult.success) {
+                state.options = optionsResult.data || [];
+                state.specUnit = optionsResult.field_info?.unit || '';
+                // 保存规格ID用于编码预览
+                state.specId = optionsResult.field_info?.spec_id || null;
+
+                // 更新显示（规格名称已在标题中显示）
+                elements.specUnit().textContent = state.specUnit || '-';
+
+                renderOptions();
+            }
+
+            // 2. 加载可选择的规格字典指标（排除已有的）
+            await loadAvailableOptions();
+
+            showMainPanel();
+        } catch (error) {
+            console.error('加载子分类模式数据失败:', error);
+            showError('{{ _("加载失败，请重试") }}');
+        }
+    }
+
+    /**
+     * 加载可选择的规格字典指标（排除已在当前子分类中使用的）
+     */
+    async function loadAvailableOptions() {
+        if (!state.subcategoryId || !state.fieldId) return;
+
+        const selectEl = elements.availableOptionsSelect();
+        if (!selectEl) return;
+
+        // 重置选择框
+        selectEl.innerHTML = '<option value="">{{ _("加载中...") }}</option>';
+
+        try {
+            const url = `/api/spec-dictionary/options/by-name/${encodeURIComponent(state.specName)}?active_only=true&exclude_subcategory_id=${state.subcategoryId}&field_id=${state.fieldId}`;
+            const response = await fetch(url);
+            const result = await response.json();
+
+            if (result.success && result.data) {
+                state.availableOptions = result.data;
+                state.specUnit = result.spec?.unit || state.specUnit;
+                // 保存 specId 以便预览编码功能使用
+                state.specId = result.spec?.id || null;
+                renderAvailableOptions();
+            } else {
+                selectEl.innerHTML = '<option value="">{{ _("暂无可用指标") }}</option>';
+            }
+        } catch (error) {
+            console.error('加载可选指标失败:', error);
+            selectEl.innerHTML = '<option value="">{{ _("加载失败") }}</option>';
+        }
+    }
+
+    /**
+     * 渲染可选择的指标下拉列表
+     */
+    function renderAvailableOptions() {
+        const selectEl = elements.availableOptionsSelect();
+        if (!selectEl) return;
+
+        // 清空并添加默认选项
+        selectEl.innerHTML = '<option value="">{{ _("-- 从规格字典中选择 --") }}</option>';
+
+        if (state.availableOptions.length === 0) {
+            selectEl.innerHTML = '<option value="">{{ _("所有指标都已添加，可点击创建") }}</option>';
+            return;
+        }
+
+        // 添加可选指标
+        state.availableOptions.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt.id;
+            option.dataset.value = opt.value;
+            option.dataset.code = opt.code || '';
+            option.textContent = opt.code ? `${opt.value} (${opt.code})` : opt.value;
+            selectEl.appendChild(option);
+        });
+    }
+
+    /**
+     * 处理下拉选择变化
+     */
+    function handleSelectChange() {
+        const selectEl = elements.availableOptionsSelect();
+        const addBtn = elements.addSelectedOptionBtn();
+        if (!selectEl || !addBtn) return;
+
+        const selectedOption = selectEl.options[selectEl.selectedIndex];
+
+        if (selectEl.value && selectedOption) {
+            // 有选择，启用添加按钮
+            addBtn.disabled = false;
+            state.selectedSpecOptionId = parseInt(selectEl.value);
+        } else {
+            // 无选择，禁用添加按钮
+            addBtn.disabled = true;
+            state.selectedSpecOptionId = null;
+        }
+    }
+
+    /**
+     * 添加选中的指标
+     */
+    async function addSelectedOption() {
+        const selectEl = elements.availableOptionsSelect();
+        if (!selectEl || !selectEl.value) {
+            showError('{{ _("请先选择一个指标") }}');
+            return;
+        }
+
+        const selectedOption = selectEl.options[selectEl.selectedIndex];
+        const value = selectedOption.dataset.value;
+        const code = selectedOption.dataset.code;
+
+        hideMessages();
+
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+            const requestData = {
+                value: value,
+                spec_option_id: state.selectedSpecOptionId,
+                allow_quotation_config: true
+            };
+
+            const response = await fetch(`/product-code/api/subcategory/${state.subcategoryId}/field/${state.fieldId}/options`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify(requestData)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showSuccess(result.message || '{{ _("添加成功") }}');
+
+                // 重置选择
+                selectEl.value = '';
+                state.selectedSpecOptionId = null;
+                if (elements.addSelectedOptionBtn()) {
+                    elements.addSelectedOptionBtn().disabled = true;
+                }
+
+                // 重新加载子分类选项和可选择列表
+                await loadSubcategoryMode();
+
+                // 触发回调（用于刷新外部缓存）
+                if (state.onOptionAdded && typeof state.onOptionAdded === 'function') {
+                    state.onOptionAdded(state.specName);
+                }
+            } else {
+                showError(result.message || '{{ _("添加失败") }}');
+            }
+        } catch (error) {
+            console.error('添加选中指标失败:', error);
+            showError('{{ _("网络错误，请重试") }}');
+        }
+    }
+
+    /**
+     * 关闭模态框
+     */
+    function close() {
+        elements.modal().classList.add('hidden');
+        document.body.style.overflow = '';
+        state.specId = null;
+        state.specName = null;
+        state.options = [];
+        state.availableOptions = [];
+        state.mode = 'global';
+        state.subcategoryId = null;
+        state.fieldId = null;
+        state.selectedSpecOptionId = null;
+
+        // 重置面板显示
+        if (elements.subcategoryAddPanel()) {
+            elements.subcategoryAddPanel().classList.add('hidden');
+        }
+
+        // 重置下拉选择
+        if (elements.availableOptionsSelect()) {
+            elements.availableOptionsSelect().innerHTML = '<option value="">{{ _("-- 从规格字典中选择 --") }}</option>';
+        }
+        if (elements.addSelectedOptionBtn()) {
+            elements.addSelectedOptionBtn().disabled = true;
+        }
+    }
+
+    /**
+     * 打开表单模态框（创建或编辑）
+     * @param {string} mode - 'create' 或 'edit'
+     * @param {Object} optionData - 编辑模式时的选项数据
+     */
+    function openFormModal(mode, optionData = null) {
+        formMode = mode;
+        const isCreate = mode === 'create';
+
+        // 更新标题和图标
+        if (elements.formIcon()) {
+            elements.formIcon().textContent = isCreate ? 'add_circle' : 'edit';
+            elements.formIcon().className = `material-symbols-outlined text-xl mr-2 ${isCreate ? 'text-green-600' : 'text-primary'}`;
+        }
+        if (elements.formTitle()) {
+            elements.formTitle().textContent = isCreate ? '{{ _("创建新指标") }}' : '{{ _("编辑选项") }}';
+        }
+
+        // 更新提交按钮样式和文本
+        const submitBtn = elements.formSubmitBtn();
+        if (submitBtn) {
+            submitBtn.textContent = isCreate ? '{{ _("创建并添加") }}' : '{{ _("保存") }}';
+            submitBtn.className = submitBtn.className.replace(/bg-\w+-\d+/g, '').replace(/hover:bg-\w+\/?\d*/g, '').trim();
+            if (isCreate) {
+                submitBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+            } else {
+                submitBtn.classList.add('bg-primary', 'hover:bg-primary/90');
+            }
+        }
+
+        // 显示/隐藏必填标记和编码提示
+        if (elements.formRequired()) {
+            elements.formRequired().classList.toggle('hidden', !isCreate);
+        }
+        if (elements.formCodeHint()) {
+            elements.formCodeHint().classList.toggle('hidden', !isCreate);
+        }
+
+        // 清空或填充表单
+        if (elements.formId()) elements.formId().value = optionData?.id || '';
+        if (elements.formValue()) {
+            elements.formValue().value = optionData?.value || '';
+            elements.formValue().placeholder = isCreate ? '{{ _("输入指标值") }}' : '';
+        }
+        if (elements.formCode()) {
+            elements.formCode().value = optionData?.code || '';
+            elements.formCode().placeholder = isCreate ? '{{ _("自动生成，可修改") }}' : '';
+        }
+        if (elements.formError()) elements.formError().classList.add('hidden');
+
+        // 编辑模式：处理锁定状态
+        const isLocked = !isCreate && optionData?.is_used === true;
+        if (elements.formLocked()) {
+            elements.formLocked().classList.toggle('hidden', !isLocked);
+        }
+        if (elements.formValue()) {
+            elements.formValue().disabled = isLocked;
+            elements.formValue().classList.toggle('bg-slate-100', isLocked);
+            elements.formValue().classList.toggle('dark:bg-slate-700', isLocked);
+            elements.formValue().classList.toggle('cursor-not-allowed', isLocked);
+        }
+        if (elements.formCode()) {
+            elements.formCode().disabled = isLocked;
+            elements.formCode().classList.toggle('bg-slate-100', isLocked);
+            elements.formCode().classList.toggle('dark:bg-slate-700', isLocked);
+            elements.formCode().classList.toggle('cursor-not-allowed', isLocked);
+        }
+
+        // 显示模态框
+        if (elements.formModal()) {
+            elements.formModal().classList.remove('hidden');
+        }
+    }
+
+    /**
+     * 关闭表单模态框
+     */
+    function closeFormModal() {
+        if (elements.formModal()) {
+            elements.formModal().classList.add('hidden');
+        }
+    }
+
+    /**
+     * 提交表单（创建或编辑）
+     */
+    async function submitForm() {
+        const value = elements.formValue()?.value.trim();
+        const code = elements.formCode()?.value.trim();
+        const errorEl = elements.formError();
+
+        if (!value) {
+            if (errorEl) {
+                errorEl.textContent = '{{ _("指标值不能为空") }}';
+                errorEl.classList.remove('hidden');
+            }
+            return;
+        }
+
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+            if (formMode === 'create') {
+                // 创建模式
+                const requestData = {
+                    value: value,
+                    code: code || undefined,
+                    allow_quotation_config: true
+                };
+
+                const response = await fetch(`/product-code/api/subcategory/${state.subcategoryId}/field/${state.fieldId}/options`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    closeFormModal();
+                    showSuccess(result.message || '{{ _("创建成功") }}');
+                    await loadSubcategoryMode();
+                    if (state.onOptionAdded && typeof state.onOptionAdded === 'function') {
+                        state.onOptionAdded(state.specName);
+                    }
+                } else {
+                    if (errorEl) {
+                        errorEl.textContent = result.message || '{{ _("创建失败") }}';
+                        errorEl.classList.remove('hidden');
+                    }
+                }
+            } else {
+                // 编辑模式
+                const optionId = elements.formId()?.value;
+                const updateUrl = state.mode === 'subcategory'
+                    ? `/product-code/api/subcategory-option/${optionId}`
+                    : `/api/spec-dictionary/options/${optionId}`;
+
+                const response = await fetch(updateUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({ value: value, code: code })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    closeFormModal();
+                    if (state.mode === 'subcategory') {
+                        await loadSubcategoryMode();
+                    }
+                    showSuccess('{{ _("更新成功") }}');
+                    if (state.onOptionAdded && typeof state.onOptionAdded === 'function') {
+                        state.onOptionAdded(state.specName);
+                    }
+                } else {
+                    if (errorEl) {
+                        errorEl.textContent = result.message || '{{ _("更新失败") }}';
+                        errorEl.classList.remove('hidden');
+                    }
+                }
+            }
+        } catch (error) {
+            console.error(formMode === 'create' ? '创建新指标失败:' : '更新选项失败:', error);
+            if (errorEl) {
+                errorEl.textContent = '{{ _("网络错误，请重试") }}';
+                errorEl.classList.remove('hidden');
+            }
+        }
+    }
+
+    /**
+     * 表单模态框中预览编码（创建模式）
+     */
+    async function previewFormCode(value) {
+        if (!state.specId || !value.trim() || formMode !== 'create') {
+            return;
+        }
+
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const response = await fetch(`/api/spec-dictionary/${state.specId}/preview-code`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ value: value.trim() })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                if (elements.formCode()) elements.formCode().value = result.code || '';
+                if (elements.formError()) elements.formError().classList.add('hidden');
+            } else if (result.exists) {
+                if (elements.formCode()) elements.formCode().value = result.code || '';
+                if (elements.formError()) {
+                    elements.formError().textContent = result.message;
+                    elements.formError().classList.remove('hidden');
+                }
+            }
+        } catch (error) {
+            console.error('预览编码失败:', error);
+        }
+    }
+
+    // 向后兼容的别名函数
+    function openCreateModal() { openFormModal('create'); }
+    function closeCreateModal() { closeFormModal(); }
+    function confirmCreate() { submitForm(); }
+    function closeEditModal() { closeFormModal(); }
+    function saveOption() { submitForm(); }
+
+    /**
+     * 显示加载状态
+     */
+    function showLoading() {
+        elements.loading().classList.remove('hidden');
+        elements.notFoundPanel().classList.add('hidden');
+        elements.mainPanel().classList.add('hidden');
+    }
+
+    /**
+     * 显示未找到面板
+     */
+    function showNotFound() {
+        elements.loading().classList.add('hidden');
+        elements.notFoundPanel().classList.remove('hidden');
+        elements.mainPanel().classList.add('hidden');
+    }
+
+    /**
+     * 显示主面板
+     */
+    function showMainPanel() {
+        elements.loading().classList.add('hidden');
+        elements.notFoundPanel().classList.add('hidden');
+        elements.mainPanel().classList.remove('hidden');
+    }
+
+    /**
+     * 隐藏消息
+     */
+    function hideMessages() {
+        elements.addError().classList.add('hidden');
+        elements.addSuccess().classList.add('hidden');
+    }
+
+    /**
+     * 显示错误消息
+     */
+    function showError(message) {
+        elements.addError().textContent = message;
+        elements.addError().classList.remove('hidden');
+        elements.addSuccess().classList.add('hidden');
+    }
+
+    /**
+     * 显示成功消息
+     */
+    function showSuccess(message) {
+        elements.addSuccess().textContent = message;
+        elements.addSuccess().classList.remove('hidden');
+        elements.addError().classList.add('hidden');
+        setTimeout(() => elements.addSuccess().classList.add('hidden'), 3000);
+    }
+
+    /**
+     * 渲染选项列表
+     */
+    function renderOptions() {
+        const container = elements.optionsList();
+        elements.optionCount().textContent = state.options.length;
+
+        if (state.options.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-8 text-slate-400 dark:text-slate-500">
+                    <span class="material-symbols-outlined text-4xl mb-2">inbox</span>
+                    <p class="text-sm">{{ _('暂无选项，请添加') }}</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = state.options.map(opt => `
+            <div class="group flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-transparent hover:border-slate-200 dark:hover:border-slate-600 hover:shadow-sm transition-all duration-200"
+                 data-option-id="${opt.id}">
+                <div class="flex items-center gap-4">
+                    <div class="w-8 h-8 flex items-center justify-center bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded font-semibold text-sm font-mono">
+                        ${escapeHtml(opt.code || '-')}
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        ${opt.is_used === true ? `
+                            <button type="button" onclick="SpecOptionsModal.showProductUsage(${opt.id}, '${escapeHtml(opt.value)}')"
+                                    class="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-medium text-lg">
+                                ${escapeHtml(opt.value)}
+                            </button>
+                        ` : `
+                            <span class="text-slate-900 dark:text-white font-medium text-lg">${escapeHtml(opt.value)}</span>
+                        `}
+                        ${state.specUnit ? `<span class="text-slate-400 dark:text-slate-500 text-sm">${escapeHtml(state.specUnit)}</span>` : ''}
+                    </div>
+                    ${opt.is_active === false ? '<span class="ml-2 text-xs bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded">{{ _("已禁用") }}</span>' : ''}
+                    ${opt.is_used === true ? '<span class="ml-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded flex items-center gap-1"><span class="material-symbols-outlined text-xs">link</span>{{ _("已引用") }}</span>' : ''}
+                </div>
+                <div class="flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                    ${opt.is_used === true ? `
+                        <span class="p-2 text-slate-300 dark:text-slate-600 cursor-not-allowed" title="{{ _('已被产品使用，无法编辑') }}">
+                            <span class="material-symbols-outlined text-[20px]">lock</span>
+                        </span>
+                    ` : `
+                        <button onclick="SpecOptionsModal.openEditModal(${opt.id})"
+                                class="p-2 text-slate-400 hover:text-primary dark:text-slate-400 dark:hover:text-primary transition-colors rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
+                                title="{{ _('编辑') }}">
+                            <span class="material-symbols-outlined text-[20px]">edit</span>
+                        </button>
+                    `}
+                    ${opt.is_used !== true ? `
+                    <button onclick="SpecOptionsModal.openDeleteModal(${opt.id}, '${escapeHtml(opt.value)}')"
+                            class="p-2 text-slate-400 hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400 transition-colors rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
+                            title="{{ _('删除') }}">
+                        <span class="material-symbols-outlined text-[20px]">delete_outline</span>
+                    </button>
+                    ` : ''}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    /**
+     * 创建规格
+     */
+    async function createSpec() {
+        if (!state.specName) return;
+
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const response = await fetch('/api/spec-dictionary', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    name: state.specName,
+                    is_active: true
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                state.specId = result.data.id;
+                state.specUnit = result.data.unit;
+                // 更新显示（规格名称已在标题中显示）
+                elements.specUnit().textContent = result.data.unit || '-';
+                state.options = [];
+                renderOptions();
+                showMainPanel();
+                showSuccess('{{ _("规格创建成功") }}');
+            } else {
+                alert(result.message || '{{ _("创建规格失败") }}');
+            }
+        } catch (error) {
+            console.error('创建规格失败:', error);
+            alert('{{ _("网络错误，请重试") }}');
+        }
+    }
+
+    /**
+     * 添加子分类级指标
+     */
+    async function addSubcategoryOption(value, code) {
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+            // 构建请求数据
+            const requestData = {
+                value: value,
+                code: code || undefined,
+                allow_quotation_config: true
+            };
+
+            // 如果选择了已有的规格字典指标，传递 spec_option_id
+            if (state.selectedSpecOptionId) {
+                requestData.spec_option_id = state.selectedSpecOptionId;
+            }
+
+            const response = await fetch(`/product-code/api/subcategory/${state.subcategoryId}/field/${state.fieldId}/options`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify(requestData)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showSuccess(result.message || '{{ _("添加成功") }}');
+                if (elements.newValue()) elements.newValue().value = '';
+                if (elements.newCode()) elements.newCode().value = '';
+
+                // 重置选中状态
+                state.selectedSpecOptionId = null;
+
+                // 重新加载子分类选项和可选择列表
+                await loadSubcategoryMode();
+
+                // 触发回调（用于刷新外部缓存）
+                if (state.onOptionAdded && typeof state.onOptionAdded === 'function') {
+                    state.onOptionAdded(state.specName);
+                }
+            } else {
+                showError(result.message || '{{ _("添加失败") }}');
+            }
+        } catch (error) {
+            console.error('添加子分类指标失败:', error);
+            showError('{{ _("网络错误，请重试") }}');
+        }
+    }
+
+    /**
+     * 打开编辑模态框
+     */
+    function openEditModal(optionId) {
+        const option = state.options.find(o => o.id === optionId);
+        if (!option) return;
+        openFormModal('edit', option);
+    }
+
+    /**
+     * 打开删除确认模态框（使用通用组件）
+     */
+    function openDeleteModal(optionId, optionValue) {
+        openConfirmModal('deleteOptionModal', {
+            message: `{{ _('确定要删除此选项吗？') }} <span class="font-medium text-slate-900 dark:text-white">${escapeHtml(optionValue)}</span>`,
+            data: { optionId: optionId },
+            autoClose: false,  // 手动控制关闭，以便显示错误
+            onConfirm: async (data) => {
+                try {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                    const deleteUrl = state.mode === 'subcategory'
+                        ? `/product-code/api/subcategory-option/${data.optionId}`
+                        : `/api/spec-dictionary/options/${data.optionId}`;
+
+                    const response = await fetch(deleteUrl, {
+                        method: 'DELETE',
+                        headers: { 'X-CSRFToken': csrfToken }
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        closeConfirmModal('deleteOptionModal');
+                        if (state.mode === 'subcategory') {
+                            await loadSubcategoryMode();
+                        }
+                        showSuccess('{{ _("删除成功") }}');
+                        if (state.onOptionAdded && typeof state.onOptionAdded === 'function') {
+                            state.onOptionAdded(state.specName);
+                        }
+                    } else {
+                        throw new Error(result.message || '{{ _("删除失败") }}');
+                    }
+                } catch (error) {
+                    console.error('删除选项失败:', error);
+                    throw new Error(error.message || '{{ _("网络错误，请重试") }}');
+                }
+            }
+        });
+    }
+
+    /**
+     * 关闭删除确认模态框
+     */
+    function closeDeleteModal() {
+        closeConfirmModal('deleteOptionModal');
+    }
+
+    /**
+     * 确认删除选项（向后兼容，实际逻辑在 openDeleteModal 的 onConfirm 中）
+     */
+    function confirmDelete() {
+        // 由通用组件处理
+    }
+
+    /**
+     * 显示产品使用情况模态框
+     * @param {number} optionId - 指标ID
+     * @param {string} optionValue - 指标值
+     */
+    async function showProductUsage(optionId, optionValue) {
+        const modal = document.getElementById('specOptionProductsModal');
+        const title = modal.querySelector('[data-modal-title]');
+        const content = document.getElementById('specOptionProductsContent');
+
+        // 更新标题
+        if (title) {
+            title.textContent = `"${optionValue}" {{ _('引用情况') }}`;
+        }
+
+        // 显示加载状态
+        content.innerHTML = `
+            <div class="flex items-center justify-center py-12">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <span class="ml-3 text-slate-500 dark:text-slate-400">{{ _('加载中...') }}</span>
+            </div>
+        `;
+        modal.classList.remove('hidden');
+
+        try {
+            const response = await fetch(`/api/spec-dictionary/options/${optionId}/products`);
+            const result = await response.json();
+
+            if (result.success && result.data && result.data.length > 0) {
+                content.innerHTML = result.data.map(s => `
+                    <div class="p-4 border-b border-slate-200 dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div class="font-medium text-slate-900 dark:text-white">${escapeHtml(s.name)}</div>
+                            <span class="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded">
+                                ${s.product_count} {{ _('个产品') }}
+                            </span>
+                        </div>
+                        <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            {{ _('分类') }}: ${escapeHtml(s.category_name || '-')}
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                content.innerHTML = `
+                    <div class="text-center py-8 text-slate-400 dark:text-slate-500">
+                        <span class="material-symbols-outlined text-4xl mb-2">inbox</span>
+                        <p class="text-sm">{{ _('暂无子分类使用此指标') }}</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('获取产品使用列表失败:', error);
+            content.innerHTML = `
+                <div class="text-center py-8 text-red-500">
+                    <span class="material-symbols-outlined text-4xl mb-2">error</span>
+                    <p class="text-sm">{{ _('加载失败') }}</p>
+                </div>
+            `;
+        }
+    }
+
+    /**
+     * 隐藏产品使用情况模态框
+     */
+    function hideProductUsage() {
+        const modal = document.getElementById('specOptionProductsModal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    }
+
+    /**
+     * HTML 转义
+     */
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // ESC 键关闭模态框（删除模态框由通用组件处理）
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const formModal = document.getElementById('optionFormModal');
+            const mainModal = document.getElementById('specOptionsModal');
+
+            if (formModal && !formModal.classList.contains('hidden')) {
+                closeFormModal();
+            } else if (mainModal && !mainModal.classList.contains('hidden')) {
+                close();
+            }
+        }
+    });
+
+    // 防抖定时器（表单模态框）
+    let formCodeTimer = null;
+
+    // 事件监听器初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        // 统一设置编码输入框的最大长度
+        const codeEl = document.getElementById('optionFormCode');
+        if (codeEl) codeEl.maxLength = SPEC_OPTIONS_CONFIG.CODE_MAX_LENGTH;
+
+        // 下拉选择变化事件
+        const selectEl = document.getElementById('availableOptionsSelect');
+        if (selectEl) {
+            selectEl.addEventListener('change', handleSelectChange);
+        }
+
+        // 表单模态框：输入时自动预览编码（仅创建模式）
+        const formValueInput = document.getElementById('optionFormValue');
+        if (formValueInput) {
+            formValueInput.addEventListener('input', function(e) {
+                if (formMode !== 'create') return;
+                const value = e.target.value;
+
+                // 清除之前的定时器
+                if (formCodeTimer) {
+                    clearTimeout(formCodeTimer);
+                }
+
+                // 300ms 后预览编码
+                formCodeTimer = setTimeout(() => {
+                    previewFormCode(value);
+                }, 300);
+            });
+
+            // Enter 键提交
+            formValueInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitForm();
+                }
+            });
+        }
+    });
+
+    // 公开 API
+    return {
+        open,
+        close,
+        createSpec,
+        addSelectedOption,
+        // 统一表单模态框
+        openFormModal,
+        closeFormModal,
+        submitForm,
+        // 编辑模态框（使用统一表单）
+        openEditModal,
+        closeEditModal,    // 别名
+        saveOption,        // 别名
+        // 删除模态框
+        openDeleteModal,
+        closeDeleteModal,
+        confirmDelete,
+        // 产品使用情况模态框
+        showProductUsage,
+        hideProductUsage,
+        // 创建模态框（使用统一表单）
+        openCreateModal,   // 别名
+        closeCreateModal,  // 别名
+        confirmCreate      // 别名
+    };
+})();
+</script>
+{% endmacro %}

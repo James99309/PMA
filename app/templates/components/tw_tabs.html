@@ -1,0 +1,141 @@
+{#
+=============================================================================
+Tailwind 标签页组件
+=============================================================================
+可复用的 Tailwind CSS 标签页导航组件，支持：
+- Material Symbols 图标
+- 计数徽章
+- 深色模式
+- AJAX 切换（不刷新页面）
+
+使用方式：
+{% from 'components/tw_tabs.html' import render_tw_tabs, render_tw_tabs_script %}
+
+<!-- 在页面中渲染标签页 -->
+{{ render_tw_tabs(
+    tabs=[
+        {'key': 'created', 'label': '我发起的', 'icon': 'upload_file', 'count': 5},
+        {'key': 'pending', 'label': '待我审批', 'icon': 'hourglass_top', 'icon_class': 'text-amber-500', 'count': 3}
+    ],
+    current_tab='created'
+) }}
+
+<!-- 在页面底部引入脚本 -->
+{{ render_tw_tabs_script(on_change_callback='onTabChange') }}
+
+参数说明：
+- tabs: 标签页配置列表，每项包含：
+  - key: 标签唯一键
+  - label: 显示文本
+  - icon: Material Symbols 图标名称
+  - icon_class: 图标额外样式类（如 'text-amber-500'）
+  - count: 计数（可选）
+- current_tab: 当前激活的标签键
+=============================================================================
+#}
+
+{# 标签页导航 HTML #}
+{% macro render_tw_tabs(tabs, current_tab) %}
+<nav class="flex flex-wrap gap-1 mb-6 border-b border-slate-200 dark:border-slate-700" role="tablist">
+    {% for tab in tabs %}
+    <a href="#"
+       data-tab="{{ tab.key }}"
+       role="tab"
+       aria-selected="{{ 'true' if tab.key == current_tab else 'false' }}"
+       class="tw-tab-item inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg -mb-px transition-colors
+              {% if tab.key == current_tab %}
+              text-primary border-b-2 border-primary bg-white dark:bg-slate-800
+              {% else %}
+              text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary border-b-2 border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50
+              {% endif %}">
+        {% if tab.icon %}
+        <span class="material-symbols-outlined text-base {{ tab.icon_class or '' }}">{{ tab.icon }}</span>
+        {% endif %}
+        <span>{{ tab.label }}</span>
+        {% if tab.count is defined and tab.count is not none %}
+        <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold rounded-full
+                     {% if tab.key == current_tab %}
+                     bg-primary/10 text-primary
+                     {% else %}
+                     bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300
+                     {% endif %}">
+            {{ tab.count }}
+        </span>
+        {% endif %}
+    </a>
+    {% endfor %}
+</nav>
+{% endmacro %}
+
+
+{# 标签页切换脚本 #}
+{% macro render_tw_tabs_script(on_change_callback='onTabChange') %}
+<script>
+(function() {
+    const tabs = document.querySelectorAll('.tw-tab-item');
+    if (!tabs.length) return;
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', function(e) {
+            e.preventDefault();
+            const tabKey = this.dataset.tab;
+
+            // 更新激活状态
+            tabs.forEach(t => {
+                const isActive = t.dataset.tab === tabKey;
+                t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+
+                if (isActive) {
+                    t.classList.remove('text-slate-500', 'dark:text-slate-400', 'border-transparent', 'hover:bg-slate-50', 'dark:hover:bg-slate-800/50');
+                    t.classList.add('text-primary', 'border-primary', 'bg-white', 'dark:bg-slate-800');
+                } else {
+                    t.classList.add('text-slate-500', 'dark:text-slate-400', 'border-transparent', 'hover:bg-slate-50', 'dark:hover:bg-slate-800/50');
+                    t.classList.remove('text-primary', 'border-primary', 'bg-white', 'dark:bg-slate-800');
+                }
+
+                // 更新计数徽章样式
+                const badge = t.querySelector('span.rounded-full');
+                if (badge) {
+                    if (isActive) {
+                        badge.classList.remove('bg-slate-100', 'dark:bg-slate-700', 'text-slate-600', 'dark:text-slate-300');
+                        badge.classList.add('bg-primary/10', 'text-primary');
+                    } else {
+                        badge.classList.add('bg-slate-100', 'dark:bg-slate-700', 'text-slate-600', 'dark:text-slate-300');
+                        badge.classList.remove('bg-primary/10', 'text-primary');
+                    }
+                }
+            });
+
+            // 调用回调函数
+            if (typeof window.{{ on_change_callback }} === 'function') {
+                window.{{ on_change_callback }}(tabKey);
+            }
+        });
+    });
+})();
+</script>
+{% endmacro %}
+
+
+{# 更新标签页计数 #}
+{% macro render_tw_tabs_update_script() %}
+<script>
+/**
+ * 更新标签页计数
+ * @param {Object} counts - 计数对象，键为标签key，值为计数
+ */
+window.updateTabCounts = function(counts) {
+    if (!counts) return;
+
+    Object.keys(counts).forEach(function(key) {
+        const tab = document.querySelector('.tw-tab-item[data-tab="' + key + '"]');
+        if (tab) {
+            const badge = tab.querySelector('span.rounded-full');
+            if (badge) {
+                badge.textContent = counts[key];
+            }
+        }
+    });
+};
+</script>
+{% endmacro %}

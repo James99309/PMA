@@ -1,0 +1,975 @@
+{#
+=============================================================================
+产品创建/编辑模态框组件 (Tailwind 版)
+=============================================================================
+用于研发产品的快速创建和编辑，只包含基本信息字段。
+规格、描述、附件等在产品详情页补充。
+
+使用方式：
+{% from 'components/product/tw_product_modal.html' import render_product_modal, render_product_modal_script %}
+
+<!-- 在页面中渲染模态框 -->
+{{ render_product_modal() }}
+
+<!-- 在页面底部引入脚本 -->
+{{ render_product_modal_script(categories, regions, csrf_token) }}
+
+JS调用方式：
+ProductModal.openCreate();  // 打开创建模态框
+ProductModal.openEdit(productId);  // 打开编辑模态框
+=============================================================================
+#}
+
+{# 产品模态框 HTML #}
+{% from 'components/tw_modal_base.html' import tw_modal %}
+
+{% macro render_product_modal(product_type='research') %}
+{# 使用统一的模态框骨架 #}
+{% call tw_modal(
+    'productFormModal',
+    title=_('新增产品'),
+    max_width='max-w-2xl',
+    max_height='max-h-[90vh]',
+    close_action='ProductModal.close()',
+    backdrop_blur=true,
+    header_border=false
+) %}
+            <!-- 表单 -->
+            <form id="productModalForm" class="flex-1 flex flex-col overflow-hidden">
+                <input type="hidden" name="product_id" id="productId" value="">
+                <input type="hidden" name="product_type" id="productTypeInput" value="{{ product_type }}">
+
+                <!-- 内容区域（可滚动） -->
+                <div class="flex-1 overflow-y-auto p-6">
+                    <div class="space-y-5">
+                        <!-- 第一行：分类 + 系列 -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- 产品类别 -->
+                            <div>
+                                <label for="categoryId" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    {{ _('产品类别') }}<span class="text-red-500">*</span>
+                                </label>
+                                <select id="categoryId" name="category_id" required
+                                    class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
+                                    <option value="">{{ _('请选择产品类别') }}</option>
+                                </select>
+                            </div>
+
+                            <!-- 产品系列 -->
+                            <div>
+                                <label for="subcategoryId" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    {{ _('产品系列') }}<span class="text-red-500">*</span>
+                                </label>
+                                <select id="subcategoryId" name="subcategory_id" required
+                                    class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
+                                    <option value="">{{ _('请先选择产品类别') }}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 第二行：销售区域 -->
+                        <div>
+                            <label for="regionId" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                {{ _('销售区域') }}<span class="text-red-500">*</span>
+                            </label>
+                            <select id="regionId" name="region_id" required
+                                class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
+                                <option value="">{{ _('请选择销售区域') }}</option>
+                            </select>
+                        </div>
+
+                        <!-- 第三行：产品名称 + 产品型号 -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- 产品名称 -->
+                            <div>
+                                <label for="productName" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    {{ _('产品名称') }}<span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="productName" name="name" required list="productNameList"
+                                    class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm"
+                                    placeholder="{{ _('输入或选择产品名称') }}">
+                                <datalist id="productNameList"></datalist>
+                            </div>
+
+                            <!-- 产品型号 -->
+                            <div>
+                                <label for="productModel" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    {{ _('产品型号') }}<span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="productModel" name="product_model" required list="productModelList"
+                                    class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm"
+                                    placeholder="{{ _('输入或选择产品型号') }}">
+                                <datalist id="productModelList"></datalist>
+                            </div>
+                        </div>
+
+                        <!-- 第四行：零售价 + 货币 + 单位 -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <!-- 零售价 -->
+                            <div>
+                                <label for="retailPrice" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    {{ _('零售价') }}
+                                </label>
+                                <input type="number" id="retailPrice" name="retail_price" step="0.01" min="0"
+                                    class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm"
+                                    placeholder="{{ _('请输入零售价') }}">
+                            </div>
+
+                            <!-- 货币 -->
+                            <div>
+                                <label for="currency" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    {{ _('货币') }}
+                                </label>
+                                <select id="currency" name="currency"
+                                    class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
+                                    <!-- 由 JavaScript 动态填充 -->
+                                </select>
+                            </div>
+
+                            <!-- 单位 -->
+                            <div>
+                                <label for="unit" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    {{ _('单位') }}
+                                </label>
+                                <select id="unit" name="unit"
+                                    class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
+                                    <option value="">{{ _('请选择单位') }}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 第五行：品牌 + 厂商产品标记（仅标准产品显示） -->
+                        {% if product_type == 'standard' %}
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="brandFieldsRow">
+                            <!-- 品牌 -->
+                            <div>
+                                <label for="brand" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    {{ _('品牌') }}
+                                </label>
+                                <input type="text" id="brand" name="brand" list="brandList"
+                                    class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm"
+                                    placeholder="{{ _('输入或选择品牌') }}">
+                                <datalist id="brandList"></datalist>
+                            </div>
+
+                            <!-- 厂商产品标记 -->
+                            <div class="flex items-center">
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 w-full">
+                                    {{ _('产品标记') }}
+                                    <div class="mt-2">
+                                        <label class="inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="isVendorProduct" name="is_vendor_product"
+                                                class="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary dark:bg-slate-800">
+                                            <span class="ml-2 text-sm text-slate-600 dark:text-slate-400">{{ _('厂商产品') }}</span>
+                                        </label>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- 研发目的（仅研发产品显示） -->
+                        {% if product_type == 'research' %}
+                        <div id="developmentPurposeRow">
+                            <label for="developmentPurpose" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                {{ _('研发目的') }}
+                            </label>
+                            <textarea id="developmentPurpose" name="development_purpose" rows="3"
+                                class="form-textarea block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm"
+                                placeholder="{{ _('请输入研发目的或用途说明') }}"></textarea>
+                        </div>
+                        {% endif %}
+
+                        <!-- MN编码预览（只读） -->
+                        <div class="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('MN编码预览') }}</span>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ _('规格部分将在详情页补充后自动生成') }}</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span id="mnCodePreview" class="font-mono text-lg font-semibold text-primary">---</span>
+                                    <input type="hidden" name="mn_code_preview" id="mnCodePreviewInput" value="">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 底部按钮 -->
+                <footer class="flex-shrink-0 flex items-center justify-end gap-3 px-6 py-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                    <button type="button" onclick="ProductModal.close()"
+                        class="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                        {{ _('取消') }}
+                    </button>
+                    <button type="submit" id="productModalSubmitBtn"
+                        class="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-5 text-white text-sm font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-500"
+                        data-create-class="bg-emerald-600 hover:bg-emerald-500"
+                        data-edit-class="bg-blue-600 hover:bg-blue-500">
+                        <span class="submit-text">{{ _('创建') }}</span>
+                        <span class="loading-text hidden">
+                            <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            {{ _('保存中...') }}
+                        </span>
+                    </button>
+                </footer>
+            </form>
+{% endcall %}
+
+<!-- 分类变更确认模态框 -->
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal %}
+{{ tw_confirm_modal(
+    modal_id='categoryChangeConfirmModal',
+    title=_('确认更改分类'),
+    message=_('改变产品分类将删除现有的规格和指标数据，是否继续？'),
+    confirm_text=_('继续'),
+    cancel_text=_('取消'),
+    variant='warning'
+) }}
+
+<!-- 区域变更确认模态框 -->
+{{ tw_confirm_modal(
+    modal_id='regionChangeConfirmModal',
+    title=_('确认更改区域'),
+    message=_('改变销售区域将更新产品编码，是否继续？'),
+    confirm_text=_('继续'),
+    cancel_text=_('取消'),
+    variant='info'
+) }}
+{% endmacro %}
+
+
+{# 产品模态框 JavaScript #}
+{% macro render_product_modal_script(categories, regions, csrf_token, currencies=none, product_type='research') %}
+<script>
+/**
+ * 产品创建/编辑模态框管理器
+ */
+window.ProductModal = (function() {
+    // 配置数据
+    const config = {
+        categories: {{ categories | tojson }},
+        regions: {{ regions | tojson }},
+        currencies: {{ currencies | tojson if currencies else '[]' }},
+        csrfToken: '{{ csrf_token }}',
+        productType: '{{ product_type }}',  // 'research' 或 'standard'
+        urls: {
+            // 研发产品路由
+            save: '{{ url_for("rd_product.save") }}',
+            update: '{{ url_for("rd_product.update_product", id=0) }}'.replace('/0/', '/{id}/'),
+            getProduct: '{{ url_for("rd_product.product_detail", id=0) }}'.replace('/0', '/{id}'),
+            // 标准产品路由
+            standardUpdate: '{{ url_for("product.update_product", id=0) }}'.replace('/0/', '/{id}/'),
+            standardGetProduct: '{{ url_for("product.get_product", id=0) }}'.replace('/0', '/{id}'),
+            // 通用路由
+            getSubcategories: '{{ url_for("rd_product.get_subcategories", category_id=0) }}'.replace('/0/', '/{id}/'),
+            getUnits: '{{ url_for("rd_product.get_all_units") }}',
+            getProductNames: '{{ url_for("rd_product.get_product_names_by_subcategory", subcategory_id=0) }}'.replace('/0', '/{id}'),
+            getModels: '{{ url_for("rd_product.get_models_by_subcategory", subcategory_id=0) }}'.replace('/0', '/{id}'),
+            getBrands: '{{ url_for("product.get_product_brands") }}'
+        },
+        i18n: {
+            createTitle: '{{ _("新增产品") }}',
+            editTitle: '{{ _("编辑产品") }}',
+            createBtn: '{{ _("创建") }}',
+            saveBtn: '{{ _("保存") }}',
+            selectCategory: '{{ _("请先选择产品类别") }}',
+            selectSubcategory: '{{ _("请选择产品系列") }}',
+            saveFailed: '{{ _("保存失败") }}',
+            loadFailed: '{{ _("加载失败") }}'
+        }
+    };
+
+    // 内部状态
+    let isEditMode = false;
+    let currentProductId = null;
+    let subcategoryCache = {};
+    let categoryCodeMap = {};
+    let subcategoryCodeMap = {};
+    let regionCodeMap = {};
+    let isInitialized = false;
+    let modelsData = [];  // 存储型号数据，用于填充默认值
+
+    // DOM元素（延迟初始化）
+    let modal, form, titleEl, submitBtn, categorySelect, subcategorySelect, regionSelect, unitSelect, currencySelect, mnCodePreview, mnCodeInput;
+    let productNameInput, productModelInput, productNameList, productModelList;
+
+    /**
+     * 获取DOM元素
+     */
+    function getElements() {
+        modal = document.getElementById('productFormModal');
+        form = document.getElementById('productModalForm');
+        titleEl = document.getElementById('productFormModal-title');
+        submitBtn = document.getElementById('productModalSubmitBtn');
+        categorySelect = document.getElementById('categoryId');
+        subcategorySelect = document.getElementById('subcategoryId');
+        regionSelect = document.getElementById('regionId');
+        unitSelect = document.getElementById('unit');
+        currencySelect = document.getElementById('currency');
+        mnCodePreview = document.getElementById('mnCodePreview');
+        mnCodeInput = document.getElementById('mnCodePreviewInput');
+        productNameInput = document.getElementById('productName');
+        productModelInput = document.getElementById('productModel');
+        productNameList = document.getElementById('productNameList');
+        productModelList = document.getElementById('productModelList');
+    }
+
+    /**
+     * 初始化
+     */
+    function init() {
+        if (isInitialized) return;
+
+        // 获取DOM元素
+        getElements();
+
+        if (!modal) {
+            console.error('ProductModal: 模态框元素未找到');
+            return;
+        }
+
+        // 填充分类下拉
+        populateCategories();
+        // 填充区域下拉
+        populateRegions();
+        // 填充货币下拉
+        populateCurrencies();
+        // 加载单位列表
+        loadUnits();
+        // 加载品牌列表（仅标准产品）
+        if (config.productType === 'standard') {
+            loadBrands();
+        }
+        // 绑定事件
+        bindEvents();
+
+        isInitialized = true;
+        console.log('ProductModal: 初始化完成');
+    }
+
+    /**
+     * 填充分类下拉
+     */
+    function populateCategories() {
+        categorySelect.innerHTML = '<option value="">' + config.i18n.selectCategory.replace('产品类别', '产品类别') + '</option>';
+        config.categories.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat.id;
+            option.textContent = cat.name;
+            option.dataset.code = cat.code_letter || '';
+            categorySelect.appendChild(option);
+            categoryCodeMap[cat.id] = cat.code_letter || '';
+        });
+    }
+
+    /**
+     * 填充区域下拉
+     */
+    function populateRegions() {
+        regionSelect.innerHTML = '<option value="">{{ _("请选择销售区域") }}</option>';
+        config.regions.forEach(region => {
+            const option = document.createElement('option');
+            option.value = region.id;
+            option.textContent = region.name;
+            option.dataset.code = region.code || '';
+            regionSelect.appendChild(option);
+            regionCodeMap[region.id] = region.code || '';
+        });
+    }
+
+    /**
+     * 填充货币下拉（使用后端传递的字典数据）
+     */
+    function populateCurrencies() {
+        currencySelect.innerHTML = '';
+        if (config.currencies && config.currencies.length > 0) {
+            config.currencies.forEach((item, index) => {
+                const option = document.createElement('option');
+                option.value = item[0];  // code
+                option.textContent = item[1];  // 只显示名称（中文：人民币，英文：CNY）
+                if (index === 0) option.selected = true;  // 默认选中第一个（CNY）
+                currencySelect.appendChild(option);
+            });
+        } else {
+            // 如果没有传递货币数据，使用默认值
+            const defaultOption = document.createElement('option');
+            defaultOption.value = 'CNY';
+            defaultOption.textContent = '{{ _("人民币") }}';
+            defaultOption.selected = true;
+            currencySelect.appendChild(defaultOption);
+        }
+    }
+
+    /**
+     * 加载单位列表
+     */
+    async function loadUnits() {
+        try {
+            const response = await fetch(config.urls.getUnits);
+            const data = await response.json();
+            if (data.units) {
+                unitSelect.innerHTML = '<option value="">{{ _("请选择单位") }}</option>';
+                data.units.forEach(unit => {
+                    const option = document.createElement('option');
+                    option.value = unit;
+                    option.textContent = unit;
+                    unitSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('加载单位列表失败:', error);
+        }
+    }
+
+    /**
+     * 加载品牌列表（仅标准产品）
+     */
+    async function loadBrands() {
+        const brandList = document.getElementById('brandList');
+        if (!brandList) return;
+
+        try {
+            const response = await fetch(config.urls.getBrands);
+            const data = await response.json();
+            if (data.brands) {
+                brandList.innerHTML = '';
+                data.brands.forEach(brand => {
+                    const option = document.createElement('option');
+                    option.value = brand;
+                    brandList.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('加载品牌列表失败:', error);
+        }
+    }
+
+    /**
+     * 加载子分类
+     */
+    async function loadSubcategories(categoryId) {
+        if (!categoryId) {
+            subcategorySelect.innerHTML = '<option value="">' + config.i18n.selectCategory + '</option>';
+            subcategoryCodeMap = {};
+            updateMNCodePreview();
+            return;
+        }
+
+        // 检查缓存
+        if (subcategoryCache[categoryId]) {
+            populateSubcategories(subcategoryCache[categoryId]);
+            return;
+        }
+
+        try {
+            const url = config.urls.getSubcategories.replace('{id}', categoryId);
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.subcategories) {
+                subcategoryCache[categoryId] = data.subcategories;
+                populateSubcategories(data.subcategories);
+            }
+        } catch (error) {
+            console.error('加载子分类失败:', error);
+            subcategorySelect.innerHTML = '<option value="">' + config.i18n.loadFailed + '</option>';
+        }
+    }
+
+    /**
+     * 填充子分类下拉
+     */
+    function populateSubcategories(subcategories) {
+        subcategorySelect.innerHTML = '<option value="">' + config.i18n.selectSubcategory + '</option>';
+        subcategoryCodeMap = {};
+        subcategories.forEach(sub => {
+            const option = document.createElement('option');
+            option.value = sub.id;
+            option.textContent = sub.name;
+            option.dataset.code = sub.code_letter || '';
+            subcategorySelect.appendChild(option);
+            subcategoryCodeMap[sub.id] = sub.code_letter || '';
+        });
+        updateMNCodePreview();
+    }
+
+    /**
+     * 更新MN编码预览
+     */
+    function updateMNCodePreview() {
+        const regionId = regionSelect.value;
+        const categoryId = categorySelect.value;
+        const subcategoryId = subcategorySelect.value;
+
+        const regionCode = regionCodeMap[regionId] || '';
+        const categoryCode = categoryCodeMap[categoryId] || '';
+        const subcategoryCode = subcategoryCodeMap[subcategoryId] || '';
+
+        if (regionCode && categoryCode && subcategoryCode) {
+            const mnCode = regionCode + categoryCode + subcategoryCode;
+            mnCodePreview.textContent = mnCode;
+            mnCodeInput.value = mnCode;
+        } else {
+            mnCodePreview.textContent = '---';
+            mnCodeInput.value = '';
+        }
+    }
+
+    /**
+     * 加载产品名称选项
+     */
+    async function loadProductNames(subcategoryId) {
+        if (!subcategoryId) {
+            productNameList.innerHTML = '';
+            return;
+        }
+
+        try {
+            const url = config.urls.getProductNames.replace('{id}', subcategoryId);
+            const response = await fetch(url);
+            const data = await response.json();
+
+            productNameList.innerHTML = '';
+            if (data.names && data.names.length > 0) {
+                data.names.forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    productNameList.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('加载产品名称失败:', error);
+        }
+    }
+
+    /**
+     * 加载产品型号选项
+     */
+    async function loadProductModels(subcategoryId) {
+        if (!subcategoryId) {
+            productModelList.innerHTML = '';
+            modelsData = [];
+            return;
+        }
+
+        try {
+            const url = config.urls.getModels.replace('{id}', subcategoryId);
+            const response = await fetch(url);
+            const data = await response.json();
+
+            productModelList.innerHTML = '';
+            modelsData = [];  // 清空之前的数据
+
+            if (Array.isArray(data) && data.length > 0) {
+                modelsData = data;  // 存储完整的型号数据
+                data.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.model;
+                    // 添加来源标识便于区分
+                    option.label = `${item.model} (${item.library_type})`;
+                    productModelList.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('加载产品型号失败:', error);
+        }
+    }
+
+    /**
+     * 根据选择的型号填充默认值（价格、货币、单位）
+     */
+    function fillDefaultsByModel(modelValue) {
+        if (!modelValue || modelsData.length === 0) return;
+
+        // 查找匹配的型号数据
+        const modelInfo = modelsData.find(item => item.model === modelValue);
+        if (!modelInfo) return;
+
+        const retailPriceInput = document.getElementById('retailPrice');
+        const currencySelectEl = document.getElementById('currency');
+        const unitSelectEl = document.getElementById('unit');
+
+        // 填充零售价
+        if (modelInfo.retail_price !== null && modelInfo.retail_price !== undefined) {
+            retailPriceInput.value = modelInfo.retail_price;
+            // 移除 placeholder 样式，显示为正常黑色
+            retailPriceInput.classList.remove('text-slate-400', 'dark:text-slate-500');
+            retailPriceInput.classList.add('text-slate-900', 'dark:text-slate-100');
+        }
+
+        // 填充货币
+        if (modelInfo.currency) {
+            currencySelectEl.value = modelInfo.currency;
+            currencySelectEl.classList.remove('text-slate-400', 'dark:text-slate-500');
+            currencySelectEl.classList.add('text-slate-900', 'dark:text-slate-100');
+        }
+
+        // 填充单位
+        if (modelInfo.unit) {
+            unitSelectEl.value = modelInfo.unit;
+            unitSelectEl.classList.remove('text-slate-400', 'dark:text-slate-500');
+            unitSelectEl.classList.add('text-slate-900', 'dark:text-slate-100');
+        }
+
+        console.log('已填充型号默认值:', modelInfo);
+    }
+
+    /**
+     * 处理子分类变化
+     */
+    function onSubcategoryChange() {
+        const subcategoryId = subcategorySelect.value;
+        updateMNCodePreview();
+        loadProductNames(subcategoryId);
+        loadProductModels(subcategoryId);
+    }
+
+    /**
+     * 绑定事件
+     */
+    function bindEvents() {
+        // 分类变化时加载子分类
+        categorySelect.addEventListener('change', function() {
+            loadSubcategories(this.value);
+            // 清空产品名称和型号选项
+            productNameList.innerHTML = '';
+            productModelList.innerHTML = '';
+            modelsData = [];
+        });
+
+        // 子分类变化时更新MN编码并加载产品名称/型号选项
+        subcategorySelect.addEventListener('change', onSubcategoryChange);
+
+        // 区域变化时更新MN编码
+        regionSelect.addEventListener('change', updateMNCodePreview);
+
+        // 产品型号变化时填充默认值
+        productModelInput.addEventListener('input', function() {
+            // 使用防抖，避免输入过程中频繁触发
+            clearTimeout(productModelInput._debounceTimer);
+            productModelInput._debounceTimer = setTimeout(() => {
+                fillDefaultsByModel(this.value);
+            }, 150);
+        });
+
+        // 型号输入框失焦时也检查一次（确保从datalist选择后能触发）
+        productModelInput.addEventListener('change', function() {
+            fillDefaultsByModel(this.value);
+        });
+
+        // 表单提交
+        form.addEventListener('submit', handleSubmit);
+
+        // ESC关闭
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                close();
+            }
+        });
+    }
+
+    /**
+     * 处理表单提交
+     * @param {Event} e - 表单提交事件
+     * @param {Object} confirmations - 确认标记对象 {clearSpecs: bool, regionChange: bool}
+     */
+    async function handleSubmit(e, confirmations = {}) {
+        e.preventDefault();
+
+        // 显示加载状态
+        setLoading(true);
+
+        try {
+            const formData = new FormData(form);
+            const isStandardProduct = config.productType === 'standard';
+
+            // 添加确认标记
+            if (confirmations.clearSpecs) {
+                formData.append('clear_specs_confirmed', 'true');
+            }
+            if (confirmations.regionChange) {
+                formData.append('region_change_confirmed', 'true');
+            }
+
+            // 确定提交URL
+            let url = config.urls.save;  // 创建时统一使用 save（支持两种产品类型）
+            if (isEditMode && currentProductId) {
+                // 编辑时根据产品类型选择不同的更新路由
+                url = isStandardProduct
+                    ? config.urls.standardUpdate.replace('{id}', currentProductId)
+                    : config.urls.update.replace('{id}', currentProductId);
+            }
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': config.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                },
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                close();
+                // 刷新列表或重定向
+                if (result.redirect) {
+                    // 标准产品详情页需要加上 tw=1 参数以使用 Tailwind 版本
+                    let redirectUrl = result.redirect;
+                    if (config.productType === 'standard' && redirectUrl.includes('/detail')) {
+                        redirectUrl += (redirectUrl.includes('?') ? '&' : '?') + 'tw=1';
+                    }
+                    window.location.href = redirectUrl;
+                } else {
+                    window.location.reload();
+                }
+            } else if (result.require_confirmation) {
+                // 需要用户确认，使用 TW 风格确认模态框
+                setLoading(false);
+                const confirmationType = result.confirmation_type || 'category_change';
+                const modalId = confirmationType === 'region_change' ? 'regionChangeConfirmModal' : 'categoryChangeConfirmModal';
+
+                openConfirmModal(modalId, {
+                    message: result.message,
+                    onConfirm: function() {
+                        // 用户确认，重新提交并带上相应的确认标记
+                        const newConfirmations = {...confirmations};
+                        if (confirmationType === 'category_change') {
+                            newConfirmations.clearSpecs = true;
+                        } else if (confirmationType === 'region_change') {
+                            newConfirmations.regionChange = true;
+                        }
+                        handleSubmit(e, newConfirmations);
+                    }
+                });
+            } else {
+                alert(result.message || config.i18n.saveFailed);
+            }
+        } catch (error) {
+            console.error('保存产品失败:', error);
+            alert(config.i18n.saveFailed + ': ' + error.message);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    /**
+     * 设置加载状态
+     */
+    function setLoading(loading) {
+        submitBtn.disabled = loading;
+        submitBtn.querySelector('.submit-text').classList.toggle('hidden', loading);
+        submitBtn.querySelector('.loading-text').classList.toggle('hidden', !loading);
+    }
+
+    /**
+     * 设置按钮颜色（创建=绿色，编辑=蓝色）
+     */
+    function setButtonColor(isEdit) {
+        const createClasses = submitBtn.dataset.createClass.split(' ');
+        const editClasses = submitBtn.dataset.editClass.split(' ');
+
+        if (isEdit) {
+            // 编辑模式：蓝色
+            createClasses.forEach(cls => submitBtn.classList.remove(cls));
+            editClasses.forEach(cls => submitBtn.classList.add(cls));
+        } else {
+            // 创建模式：绿色
+            editClasses.forEach(cls => submitBtn.classList.remove(cls));
+            createClasses.forEach(cls => submitBtn.classList.add(cls));
+        }
+    }
+
+    /**
+     * 打开创建模态框
+     */
+    function openCreate() {
+        isEditMode = false;
+        currentProductId = null;
+
+        // 重置表单
+        form.reset();
+        document.getElementById('productId').value = '';
+
+        // 重置子分类
+        subcategorySelect.innerHTML = '<option value="">' + config.i18n.selectCategory + '</option>';
+        subcategoryCodeMap = {};
+
+        // 更新标题和按钮
+        titleEl.textContent = config.i18n.createTitle;
+        submitBtn.querySelector('.submit-text').textContent = config.i18n.createBtn;
+        setButtonColor(false);  // 创建模式：绿色
+
+        // 重置MN编码预览
+        mnCodePreview.textContent = '---';
+        mnCodeInput.value = '';
+
+        // 清空产品名称和型号选项
+        productNameList.innerHTML = '';
+        productModelList.innerHTML = '';
+        modelsData = [];
+
+        // 显示模态框
+        show();
+    }
+
+    /**
+     * 打开编辑模态框
+     */
+    async function openEdit(productId) {
+        isEditMode = true;
+        currentProductId = productId;
+        const isStandardProduct = config.productType === 'standard';
+
+        // 更新标题和按钮
+        titleEl.textContent = config.i18n.editTitle;
+        submitBtn.querySelector('.submit-text').textContent = config.i18n.saveBtn;
+        setButtonColor(true);  // 编辑模式：蓝色
+
+        // 显示模态框
+        show();
+
+        // 加载产品数据
+        try {
+            // 根据产品类型选择正确的 API
+            const url = isStandardProduct
+                ? config.urls.standardGetProduct.replace('{id}', productId)
+                : config.urls.getProduct.replace('{id}', productId) + '?format=json';
+
+            const response = await fetch(url);
+            const data = await response.json();
+
+            // 处理返回格式差异：
+            // - 研发产品: {success: true, product: {...}}
+            // - 标准产品: {...} 直接返回产品对象
+            let product;
+            if (isStandardProduct) {
+                // 标准产品直接返回产品对象
+                if (data.id) {
+                    product = data;
+                } else if (data.error) {
+                    alert(data.message || config.i18n.loadFailed);
+                    close();
+                    return;
+                }
+            } else {
+                // 研发产品包装在 success/product 中
+                if (data.success && data.product) {
+                    product = data.product;
+                } else {
+                    alert(config.i18n.loadFailed);
+                    close();
+                    return;
+                }
+            }
+
+            if (product) {
+                await fillForm(product);
+            }
+        } catch (error) {
+            console.error('加载产品数据失败:', error);
+            alert(config.i18n.loadFailed + ': ' + error.message);
+            close();
+        }
+    }
+
+    /**
+     * 填充表单数据
+     */
+    async function fillForm(product) {
+        document.getElementById('productId').value = product.id;
+
+        // 设置分类
+        categorySelect.value = product.category_id || '';
+
+        // 加载并设置子分类
+        if (product.category_id) {
+            await loadSubcategories(product.category_id);
+            subcategorySelect.value = product.subcategory_id || '';
+        }
+
+        // 加载产品名称和型号选项（基于子分类）
+        if (product.subcategory_id) {
+            await Promise.all([
+                loadProductNames(product.subcategory_id),
+                loadProductModels(product.subcategory_id)
+            ]);
+        }
+
+        // 设置其他字段
+        regionSelect.value = product.region_id || '';
+        document.getElementById('productName').value = product.name || '';
+        document.getElementById('productModel').value = product.model || '';
+        document.getElementById('retailPrice').value = product.retail_price || '';
+        document.getElementById('currency').value = product.currency || 'CNY';
+        unitSelect.value = product.unit || '';
+
+        // 设置品牌和厂商产品标记（仅标准产品）
+        if (config.productType === 'standard') {
+            const brandInput = document.getElementById('brand');
+            const vendorCheckbox = document.getElementById('isVendorProduct');
+            if (brandInput) {
+                brandInput.value = product.brand || '';
+            }
+            if (vendorCheckbox) {
+                vendorCheckbox.checked = product.is_vendor_product || false;
+            }
+        }
+
+        // 设置研发目的（仅研发产品）
+        if (config.productType === 'research') {
+            const developmentPurposeInput = document.getElementById('developmentPurpose');
+            if (developmentPurposeInput) {
+                developmentPurposeInput.value = product.development_purpose || '';
+            }
+        }
+
+        // 更新MN编码预览
+        updateMNCodePreview();
+    }
+
+    /**
+     * 显示模态框
+     */
+    function show() {
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+
+        // 聚焦第一个输入框
+        setTimeout(() => {
+            const firstInput = modal.querySelector('select:not([disabled]), input:not([type="hidden"]):not([readonly])');
+            if (firstInput) firstInput.focus();
+        }, 100);
+    }
+
+    /**
+     * 关闭模态框
+     */
+    function close() {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+        form.reset();
+        isEditMode = false;
+        currentProductId = null;
+    }
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', init);
+
+    // 公开API
+    return {
+        openCreate: openCreate,
+        openEdit: openEdit,
+        close: close
+    };
+})();
+</script>
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal_script %}
+{{ tw_confirm_modal_script() }}
+{% endmacro %}

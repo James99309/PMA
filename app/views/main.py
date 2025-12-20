@@ -246,6 +246,7 @@ def get_recent_work_records():
             project_id = record.project.id if record.project else None
             
             # 使用render_owner宏生成拥有者徽章HTML
+            owner_initials = ''
             if record.owner:
                 # 判断是否为厂商账户
                 if record.owner.is_vendor_user():
@@ -256,9 +257,18 @@ def get_recent_work_records():
                     # 非厂商账户使用默认造型徽章
                     display_name = record.owner.real_name if record.owner.real_name else record.owner.username
                     owner_badge_html = f'<span class="badge bg-secondary">{display_name}</span>'
+
+                # 计算拥有人姓名缩写（用于 Tailwind 首页头像显示）
+                name = record.owner.real_name or record.owner.username
+                if name:
+                    # 统一取第1个字符（中文取首字，英文取首字母大写）
+                    if any('\u4e00' <= c <= '\u9fff' for c in name):
+                        owner_initials = name[:1]
+                    else:
+                        owner_initials = name[0].upper()
             else:
                 owner_badge_html = '<span class="badge bg-secondary">未知</span>'
-            
+
             record_data = {
                 'id': record.id,
                 'date': record.date.strftime('%Y-%m-%d'),
@@ -273,7 +283,8 @@ def get_recent_work_records():
                 'reply_count': record.replies.count(),
                 'owner_name': record.owner.real_name or record.owner.username if record.owner else '',
                 'owner_badge_html': owner_badge_html,  # 使用render_owner逻辑的徽章HTML
-                'owner_id': record.owner_id
+                'owner_id': record.owner_id,
+                'owner_initials': owner_initials  # 拥有人姓名缩写（用于 Tailwind 首页）
             }
             result.append(record_data)
 

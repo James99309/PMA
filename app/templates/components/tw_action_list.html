@@ -1,0 +1,772 @@
+{#
+=============================================================================
+Tailwind 行动记录列表组件
+=============================================================================
+通用的行动记录列表展示组件，支持多种场景：
+- 项目详情页：基础列表显示
+- 联系人详情页：带删除功能
+- 客户详情页：带回复、快速添加、分页功能（完整功能）
+
+使用方式：
+{% from 'components/tw_action_list.html' import tw_action_list_card, render_tw_action_list_script with context %}
+
+=== 基础使用（项目详情页）===
+{{ tw_action_list_card(
+    actions=project_actions,
+    add_button={'onclick': 'openAddActionModal()'},
+    max_items=10,
+    show_contact=true,
+    show_company=true,
+    view_all_url='#'
+) }}
+
+=== 带删除功能（联系人详情页）===
+{{ tw_action_list_card(
+    actions=actions,
+    add_button={'href': url_for('customer.add_action_for_company', company_id=company.id) ~ '?contact_id=' ~ contact.id},
+    max_items=20,
+    show_contact=false,
+    show_company=false,
+    show_project=true,
+    show_delete=true,
+    delete_callback='deleteAction',
+    time_format='date',
+    min_height='400px'
+) }}
+
+=== 完整功能（客户详情页）===
+{{ tw_action_list_card(
+    actions=viewable_actions,
+    add_button={'onclick': 'openAddActionModal()'},
+    enable_replies=true,
+    container_id='customerReplies',
+    api_prefix='/customer',
+    enable_quick_add=true,
+    quick_add_contacts=contacts,
+    quick_add_company_id=company.id,
+    enable_pagination=true,
+    pagination=pagination,
+    page_url=url_for('customer.view_company', company_id=company.id),
+    has_create_permission=has_permission('customer', 'create'),
+    layout='table'
+) }}
+
+{{ render_tw_action_list_script(
+    container_id='customerReplies',
+    api_prefix='/customer',
+    enable_replies=true,
+    enable_quick_add=true
+) }}
+
+参数说明：
+基础参数：
+- actions: 行动记录列表（必填）
+- title: 标题，默认 '行动记录'
+- add_button: 添加按钮配置，包含 onclick 或 href 或 none
+- max_items: 最大显示条数，默认 10
+- time_format: 时间显示格式，'relative'（相对时间）或 'date'（绝对日期），默认 'relative'
+- view_all_url: 查看全部链接
+- min_height: 最小高度，默认 '600px'
+- show_contact: 是否显示联系人名称，默认 true
+- show_company: 是否显示企业名称，默认 true
+- show_project: 是否显示关联项目链接，默认 false
+- show_delete: 是否显示删除按钮，默认 false
+- delete_callback: 删除按钮的回调函数名
+- container_class: 外层容器的额外 CSS 类
+- layout: 布局样式，'card'（卡片样式）或 'table'（表格行样式），默认 'card'
+
+回复功能参数：
+- enable_replies: 是否启用回复功能，默认 false
+- container_id: 回复容器ID前缀，默认 'actionReplies'
+- api_prefix: API路径前缀，默认 '/customer'
+
+快速添加参数：
+- enable_quick_add: 是否启用快速添加，默认 false
+- quick_add_contacts: 联系人列表（用于快速添加表单）
+- quick_add_company_id: 公司ID（用于快速添加API）
+
+分页参数：
+- enable_pagination: 是否启用分页，默认 false
+- pagination: 分页对象（需包含 pages, has_prev, has_next, prev_num, next_num, page 属性）
+- page_url: 分页链接基础URL
+
+权限参数：
+- has_create_permission: 是否有创建权限，默认 false
+=============================================================================
+#}
+
+{% from 'components/tw_buttons.html' import tw_btn_primary, tw_btn_secondary with context %}
+
+{# 行动记录卡片组件 #}
+{% macro tw_action_list_card(
+    actions,
+    title=none,
+    add_button=none,
+    max_items=10,
+    view_all_url=none,
+    min_height='600px',
+    show_contact=true,
+    show_company=true,
+    show_project=false,
+    show_delete=false,
+    delete_callback='deleteAction',
+    time_format='relative',
+    container_class='',
+    layout='card',
+    enable_replies=false,
+    container_id='actionReplies',
+    api_prefix='/customer',
+    enable_quick_add=false,
+    quick_add_contacts=[],
+    quick_add_company_id=none,
+    enable_pagination=false,
+    pagination=none,
+    page_url='',
+    has_create_permission=false
+) %}
+{% set display_title = title or _('行动记录') %}
+{% set avatar_colors = [
+    'bg-blue-200 text-blue-600 dark:bg-blue-800 dark:text-blue-300',
+    'bg-purple-200 text-purple-600 dark:bg-purple-800 dark:text-purple-300',
+    'bg-teal-200 text-teal-600 dark:bg-teal-800 dark:text-teal-300',
+    'bg-yellow-200 text-yellow-600 dark:bg-yellow-800 dark:text-yellow-300',
+    'bg-red-200 text-red-600 dark:bg-red-800 dark:text-red-300',
+    'bg-green-200 text-green-600 dark:bg-green-800 dark:text-green-300'
+] %}
+{% set solid_avatar_colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-teal-500'] %}
+
+{% if layout == 'table' %}
+{# ===================== 表格布局（客户详情页风格） ===================== #}
+<div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm {{ container_class }}">
+    <div class="flex items-center justify-between">
+        <h1 class="text-xl font-bold text-slate-800 dark:text-slate-200">{{ display_title }}</h1>
+        {% if add_button %}
+            {% if add_button.onclick %}
+            <button type="button" onclick="{{ add_button.onclick }}" class="text-primary text-sm font-medium hover:underline">{{ _('添加记录') }}</button>
+            {% elif add_button.href %}
+            <a href="{{ add_button.href }}" class="text-primary text-sm font-medium hover:underline">{{ _('添加记录') }}</a>
+            {% endif %}
+        {% endif %}
+    </div>
+
+    <!-- 行动记录列表 -->
+    <div class="mt-4">
+        <div class="divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+            {% if actions %}
+                {% for action in actions %}
+                {% set owner_name = action.owner.real_name or action.owner.username if action.owner else '?' %}
+                {% set contact_name = action.contact.name if action.contact else _('未知联系人') %}
+                {% set avatar_color = solid_avatar_colors[(action.owner_id or 0) % 6] %}
+                {% set reply_count = action.replies.count() if enable_replies else 0 %}
+                {% set project_name = action.project.project_name if action.project else '' %}
+
+                <!-- 行动记录行 -->
+                <div class="action-record-row" id="action-row-{{ action.id }}">
+                    <div class="py-4 {% if enable_replies %}cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50{% endif %} -mx-4 px-4 action-row-header"
+                         data-action-id="{{ action.id }}" data-container-id="{{ container_id }}">
+                        <div class="grid grid-cols-[150px_1fr_100px_auto] gap-x-4 items-center">
+                            <!-- 头像 + 联系人 -->
+                            <div class="flex items-center gap-2 truncate">
+                                <div class="flex-shrink-0 size-8 {{ avatar_color }} text-white font-medium rounded-full flex items-center justify-center text-sm" title="{{ owner_name }}">
+                                    {{ owner_name[:1] }}
+                                </div>
+                                <div class="font-semibold text-slate-800 dark:text-slate-200 truncate">{{ contact_name }}</div>
+                            </div>
+                            <!-- 行动内容 -->
+                            <div class="text-slate-700 dark:text-slate-300 truncate">
+                                {% if project_name %}
+                                <span>{{ project_name }}: </span>
+                                {% endif %}
+                                <span class="text-slate-500 dark:text-slate-400">{{ action.communication|truncate(50) }}</span>
+                            </div>
+                            <!-- 时间 -->
+                            <div class="text-xs text-slate-400 dark:text-slate-500 text-right relative-time" data-timestamp="{{ action.created_at.isoformat() if action.created_at else '' }}"></div>
+                            <!-- 回复徽章 + 展开图标 -->
+                            <div class="flex justify-end items-center ml-2">
+                                {% if enable_replies %}
+                                {% if reply_count > 0 %}
+                                <span class="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-xs font-bold rounded-full">{{ reply_count }}</span>
+                                {% else %}
+                                <span class="flex items-center justify-center size-5 bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-300 text-xs font-bold rounded-full">0</span>
+                                {% endif %}
+                                <span class="material-symbols-outlined text-slate-400 dark:text-slate-500 ml-2 expand-icon transition-transform duration-200">expand_more</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if enable_replies %}
+                    <!-- 展开的回复面板 -->
+                    <div class="hidden py-4 -mx-4 px-4 bg-slate-50 dark:bg-slate-800/50 action-reply-panel" id="action-panel-{{ action.id }}">
+                        <!-- 左侧竖线边框的回复区域 -->
+                        <div class="pl-6 border-l-2 border-slate-200 dark:border-slate-700">
+                            <!-- 完整的行动记录内容 -->
+                            <div class="mb-4">
+                                <div class="grid grid-cols-[150px_1fr_100px] gap-x-4 items-start">
+                                    <div class="flex items-center gap-2 truncate">
+                                        <div class="flex-shrink-0 size-8 {{ avatar_color }} text-white font-medium rounded-full flex items-center justify-center text-sm" title="{{ owner_name }}">
+                                            {{ owner_name[:1] }}
+                                        </div>
+                                        <div class="font-semibold text-slate-800 dark:text-slate-200 truncate">{{ contact_name }}</div>
+                                    </div>
+                                    <div class="text-slate-600 dark:text-slate-400 whitespace-pre-wrap">{{ action.communication }}</div>
+                                    <div class="text-xs text-slate-400 dark:text-slate-500 text-right relative-time" data-timestamp="{{ action.created_at.isoformat() if action.created_at else '' }}"></div>
+                                </div>
+                            </div>
+
+                            <!-- 回复列表 -->
+                            <div class="space-y-3" id="{{ container_id }}-replies-list-{{ action.id }}">
+                                <!-- 回复将通过 JS 加载 -->
+                            </div>
+
+                            <!-- 加载中 -->
+                            <div id="{{ container_id }}-replies-loading-{{ action.id }}" class="hidden text-center py-4">
+                                <div class="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                            </div>
+
+                            <!-- 添加回复输入框 -->
+                            {% set current_avatar_color = solid_avatar_colors[(current_user.id or 0) % 6] %}
+                            <div class="flex items-start gap-3 pt-4 mt-4 border-t border-slate-200 dark:border-slate-800">
+                                <div class="flex-shrink-0 size-8 {{ current_avatar_color }} text-white font-medium rounded-full flex items-center justify-center text-sm" title="{{ current_user.real_name or current_user.username }}">
+                                    {{ (current_user.real_name or current_user.username)[:1] }}
+                                </div>
+                                <div class="flex-1">
+                                    <textarea id="{{ container_id }}-reply-textarea-{{ action.id }}"
+                                        class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-slate-800 dark:text-slate-200 focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-slate-300 dark:border-slate-700 bg-background-light dark:bg-background-dark focus:border-primary/80 h-10 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm font-normal leading-normal p-2.5"
+                                        placeholder="{{ _('添加新回复...') }}" rows="1"></textarea>
+                                    <div class="flex justify-end mt-2 gap-2">
+                                        {{ tw_btn_secondary(_('取消'), onclick='window.' ~ container_id ~ 'Actions.collapsePanel(' ~ action.id ~ ')') }}
+                                        {{ tw_btn_primary(_('提交'), onclick='window.' ~ container_id ~ 'Actions.submitReply(' ~ action.id ~ ')') }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="flex flex-col items-center gap-2 py-8">
+                    <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">chat</span>
+                    <span class="text-slate-500 dark:text-slate-400 text-sm">{{ _('暂无行动记录') }}</span>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if enable_pagination and pagination and pagination.pages > 1 %}
+    <!-- 分页 -->
+    <div class="flex justify-center gap-2 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+        {% if pagination.has_prev %}
+        <a href="{{ page_url }}?page={{ pagination.prev_num }}" class="px-3 py-1 text-sm rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">{{ _('上一页') }}</a>
+        {% endif %}
+        <span class="px-3 py-1 text-sm text-slate-600 dark:text-slate-400">{{ pagination.page }} / {{ pagination.pages }}</span>
+        {% if pagination.has_next %}
+        <a href="{{ page_url }}?page={{ pagination.next_num }}" class="px-3 py-1 text-sm rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">{{ _('下一页') }}</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if enable_quick_add and has_create_permission %}
+    <!-- 快速添加记录输入框 -->
+    <div class="flex items-start gap-3 pt-4 mt-4 border-t border-slate-200 dark:border-slate-700" id="{{ container_id }}-quick-add-form">
+        <!-- 当前用户头像 -->
+        <div class="flex-shrink-0 w-9 h-9 bg-primary text-white font-bold rounded-full flex items-center justify-center text-sm">
+            {{ (current_user.real_name or current_user.username)[:2] }}
+        </div>
+        <!-- 输入区域 -->
+        <div class="flex-1">
+            <textarea id="{{ container_id }}-quick-content"
+                      class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                      rows="2"
+                      placeholder="{{ _('快速添加行动记录...') }}"></textarea>
+            <!-- 联系人选择 -->
+            <div class="flex items-center gap-2 mt-2">
+                <label class="text-xs text-slate-500 dark:text-slate-400">{{ _('联系人') }}:</label>
+                <select id="{{ container_id }}-quick-contact" class="text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    <option value="">{{ _('请选择') }}</option>
+                    {% for contact in quick_add_contacts %}
+                    <option value="{{ contact.id }}">{{ contact.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- 操作按钮 -->
+            <div class="flex justify-end gap-2 mt-2" id="{{ container_id }}-quick-buttons" style="display: none;">
+                {{ tw_btn_secondary(_('取消'), id=container_id ~ '-quick-cancel') }}
+                {{ tw_btn_primary(_('提交'), id=container_id ~ '-quick-submit') }}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% else %}
+{# ===================== 卡片布局（原有样式） ===================== #}
+<div class="lg:col-span-1 {{ container_class }}">
+    <div class="lg:sticky lg:top-4 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 p-6 flex flex-col" style="max-height: calc(100vh - 80px); min-height: {{ min_height }};">
+        <div class="flex justify-between items-center mb-6 flex-shrink-0">
+            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ display_title }}</h2>
+            {% if add_button %}
+                {% if add_button.onclick %}
+                <button type="button" onclick="{{ add_button.onclick }}" class="text-primary text-sm font-medium hover:underline">{{ _('添加记录') }}</button>
+                {% elif add_button.href %}
+                <a href="{{ add_button.href }}" class="text-primary text-sm font-medium hover:underline">{{ _('添加记录') }}</a>
+                {% endif %}
+            {% endif %}
+        </div>
+        <div class="space-y-4 flex-1 overflow-y-auto">
+            {% if actions %}
+            {% for action in actions[:max_items] %}
+            {% set owner_name = action.owner.real_name or action.owner.username if action.owner else '?' %}
+            {% set avatar_color = avatar_colors[(action.owner_id or 0) % 6] %}
+            <div class="flex items-start space-x-3 group">
+                <div class="flex-shrink-0 w-8 h-8 {{ avatar_color }} font-bold rounded-full flex items-center justify-center text-xs"
+                    title="{{ owner_name }}">
+                    {{ owner_name[:2]|upper }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    {# 第一行：标题 + 关联项目 + 删除按钮 #}
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                            {# 项目详情场景：显示联系人名称 #}
+                            {% if show_contact and action.contact %}
+                            <p class="font-medium text-slate-800 dark:text-white text-sm">{{ action.contact.name }}</p>
+                            {% endif %}
+                            {# 关联项目链接（联系人详情场景，放在徽章右边） #}
+                            {% if show_project and action.project %}
+                            <a href="{{ url_for('project.view_project', project_id=action.project.id) }}?tw=1"
+                               class="text-sm text-primary hover:underline truncate max-w-[200px] font-medium" title="{{ action.project.project_name }}">{{ action.project.project_name }}</a>
+                            {% endif %}
+                        </div>
+                        {# 删除按钮（所有场景通用） #}
+                        {% if show_delete and (action.owner_id == current_user.id or current_user.role == 'admin') %}
+                        <button type="button" onclick="{{ delete_callback }}({{ action.id }})"
+                            class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-opacity flex-shrink-0"
+                            title="{{ _('删除') }}">
+                            <span class="material-symbols-outlined text-sm">delete</span>
+                        </button>
+                        {% endif %}
+                    </div>
+
+                    {# 企业名称（项目详情场景） #}
+                    {% if show_company and action.company %}
+                    <p class="text-sm text-slate-500 dark:text-slate-400 {% if not show_contact or not action.contact %}font-medium text-slate-800 dark:text-white{% endif %}">
+                        {{ action.company.company_name }}
+                    </p>
+                    {% endif %}
+
+                    {# 沟通内容 #}
+                    <p class="text-sm text-slate-600 dark:text-slate-300 line-clamp-3 mt-1">{{ action.communication|truncate(150) }}</p>
+
+                    {# 时间显示 #}
+                    {% if time_format == 'relative' %}
+                    <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 relative-time"
+                        data-timestamp="{{ action.date.isoformat() if action.date else '' }}"></p>
+                    {% else %}
+                    <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">{{ action.date.strftime('%Y-%m-%d') if action.date else '' }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% if actions|length > max_items %}
+            <div class="text-center pt-2">
+                {% if view_all_url %}
+                <a href="{{ view_all_url }}" class="text-primary text-sm hover:underline">{{ _('查看全部') }} ({{ actions|length }})</a>
+                {% else %}
+                <span class="text-slate-500 text-sm">{{ _('共') }} {{ actions|length }} {{ _('条记录') }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="flex flex-col items-center justify-center py-8 text-center">
+                <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600 mb-2">chat</span>
+                <p class="text-slate-500 dark:text-slate-400 text-sm">{{ _('暂无行动记录') }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endmacro %}
+
+
+{# ===================== 行动记录组件脚本宏 ===================== #}
+{% macro render_tw_action_list_script(
+    container_id='actionReplies',
+    api_prefix='/customer',
+    enable_replies=false,
+    enable_quick_add=false,
+    quick_add_company_id=none
+) %}
+<script>
+(function() {
+    const containerId = '{{ container_id }}';
+    const apiPrefix = '{{ api_prefix }}';
+    const enableReplies = {{ 'true' if enable_replies else 'false' }};
+    const enableQuickAdd = {{ 'true' if enable_quick_add else 'false' }};
+    const companyId = {{ quick_add_company_id or 'null' }};
+
+    // 国际化文本
+    const i18n = window.i18nTexts || {
+        justNow: '{{ _("刚刚") }}',
+        minutesAgo: '{{ _("分钟前") }}',
+        hoursAgo: '{{ _("小时前") }}',
+        daysAgo: '{{ _("天前") }}',
+        monthsAgo: '{{ _("个月前") }}',
+        yearsAgo: '{{ _("年前") }}',
+        delete: '{{ _("删除") }}',
+        confirmDeleteReply: '{{ _("确定要删除这条回复吗？") }}',
+        quickAddSuccess: '{{ _("行动记录添加成功") }}',
+        quickAddError: '{{ _("添加失败，请重试") }}',
+        selectContact: '{{ _("请选择联系人") }}',
+        enterContent: '{{ _("请输入行动记录内容") }}',
+        submitting: '{{ _("提交中...") }}',
+        submit: '{{ _("提交") }}'
+    };
+
+    // 当前展开的面板ID
+    let currentOpenActionId = null;
+
+    // ===================== 工具函数 =====================
+
+    // 格式化相对时间
+    function formatRelativeTime(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffSec = Math.floor(diffMs / 1000);
+        const diffMin = Math.floor(diffSec / 60);
+        const diffHour = Math.floor(diffMin / 60);
+        const diffDay = Math.floor(diffHour / 24);
+        const diffMonth = Math.floor(diffDay / 30);
+        const diffYear = Math.floor(diffDay / 365);
+
+        if (diffSec < 60) return i18n.justNow;
+        if (diffMin < 60) return `${diffMin}${i18n.minutesAgo}`;
+        if (diffHour < 24) return `${diffHour}${i18n.hoursAgo}`;
+        if (diffDay < 30) return `${diffDay}${i18n.daysAgo}`;
+        if (diffMonth < 12) return `${diffMonth}${i18n.monthsAgo}`;
+        return `${diffYear}${i18n.yearsAgo}`;
+    }
+
+    // HTML转义
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // 获取姓名缩写
+    function getInitials(name) {
+        if (!name) return '?';
+        if (/[\u4e00-\u9fff]/.test(name)) {
+            return name.substring(0, 2);
+        }
+        return name.charAt(0).toUpperCase();
+    }
+
+    // 初始化相对时间显示
+    function initRelativeTime() {
+        document.querySelectorAll('.relative-time').forEach(function(el) {
+            const timestamp = el.getAttribute('data-timestamp');
+            if (timestamp) {
+                el.textContent = formatRelativeTime(timestamp);
+            }
+        });
+    }
+
+    // ===================== 回复功能 =====================
+
+    if (enableReplies) {
+        // 折叠面板
+        function collapsePanel(actionId) {
+            const textarea = document.getElementById(containerId + '-reply-textarea-' + actionId);
+            if (textarea) textarea.value = '';
+
+            const panel = document.getElementById('action-panel-' + actionId);
+            const icon = document.querySelector('[data-action-id="' + actionId + '"] .expand-icon');
+            if (panel) panel.classList.add('hidden');
+            if (icon) icon.classList.remove('rotate-180');
+            currentOpenActionId = null;
+        }
+
+        // 加载回复列表
+        function loadReplies(actionId) {
+            const listContainer = document.getElementById(containerId + '-replies-list-' + actionId);
+            const loadingEl = document.getElementById(containerId + '-replies-loading-' + actionId);
+
+            if (loadingEl) loadingEl.classList.remove('hidden');
+
+            fetch(`${apiPrefix}/action/${actionId}/replies`)
+                .then(res => res.json())
+                .then(replies => {
+                    if (loadingEl) loadingEl.classList.add('hidden');
+                    renderReplies(actionId, replies, listContainer);
+                })
+                .catch(error => {
+                    if (loadingEl) loadingEl.classList.add('hidden');
+                    console.error('加载回复失败:', error);
+                });
+        }
+
+        // 渲染回复列表
+        function renderReplies(actionId, replies, container) {
+            if (!container) return;
+            if (!replies || replies.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+            container.innerHTML = '';
+            replies.forEach(reply => {
+                container.appendChild(renderReplyItem(actionId, reply, 0));
+            });
+        }
+
+        // 渲染单个回复项（聊天气泡样式）
+        function renderReplyItem(actionId, reply, depth) {
+            const replyDiv = document.createElement('div');
+            replyDiv.className = 'reply-item';
+
+            const isCurrentUser = reply.owner_id === window.currentUserId;
+            const relativeTime = formatRelativeTime(reply.created_at);
+
+            if (isCurrentUser) {
+                replyDiv.innerHTML = `
+                    <div class="flex justify-end">
+                        <div class="flex items-start gap-2 flex-1">
+                            <div class="flex flex-col items-end flex-1">
+                                <span class="bg-blue-100 dark:bg-blue-900/50 rounded-lg rounded-br-none px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words">${escapeHtml(reply.content)}</span>
+                                <div class="flex items-center gap-2 mt-1">
+                                    ${reply.can_delete ? `<button onclick="window.${containerId}Actions.deleteReply(${actionId}, ${reply.id})" class="text-red-500 hover:text-red-700 text-xs">${i18n.delete}</button>` : ''}
+                                    <span class="text-xs text-slate-400 dark:text-slate-500">${relativeTime}</span>
+                                </div>
+                            </div>
+                            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-white text-xs">
+                                ${getInitials(reply.owner)}
+                            </div>
+                        </div>
+                    </div>
+                    <div id="${containerId}-children-${reply.id}" class="space-y-3 mt-2"></div>
+                `;
+            } else {
+                replyDiv.innerHTML = `
+                    <div class="flex justify-start">
+                        <div class="flex items-start gap-2 flex-1">
+                            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-400 font-bold text-white text-xs">
+                                ${getInitials(reply.owner)}
+                            </div>
+                            <div class="flex flex-col items-start flex-1">
+                                <span class="bg-slate-100 dark:bg-slate-700 rounded-lg rounded-bl-none px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words">${escapeHtml(reply.content)}</span>
+                                <span class="text-xs text-slate-400 dark:text-slate-500 mt-1">${relativeTime}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="${containerId}-children-${reply.id}" class="space-y-3 mt-2"></div>
+                `;
+            }
+
+            // 渲染子回复
+            if (reply.children && reply.children.length > 0) {
+                const childrenContainer = replyDiv.querySelector(`#${containerId}-children-${reply.id}`);
+                reply.children.forEach(child => {
+                    childrenContainer.appendChild(renderReplyItem(actionId, child, depth + 1));
+                });
+            }
+
+            return replyDiv;
+        }
+
+        // 提交回复
+        function submitReply(actionId) {
+            const textarea = document.getElementById(containerId + '-reply-textarea-' + actionId);
+            const content = textarea?.value?.trim();
+            if (!content) return;
+
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+            fetch(`${apiPrefix}/action/${actionId}/reply`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ content })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success !== false) {
+                    textarea.value = '';
+                    loadReplies(actionId);
+                }
+            })
+            .catch(error => console.error('提交回复失败:', error));
+        }
+
+        // 删除回复
+        function deleteReply(actionId, replyId) {
+            if (typeof window.openConfirmModal === 'function') {
+                window.openConfirmModal('replyDeleteConfirmModal', {
+                    onConfirm: function() {
+                        executeDeleteReply(actionId, replyId);
+                    }
+                });
+            } else {
+                if (!confirm(i18n.confirmDeleteReply)) return;
+                executeDeleteReply(actionId, replyId);
+            }
+        }
+
+        function executeDeleteReply(actionId, replyId) {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+            fetch(`${apiPrefix}/action/reply/${replyId}/delete`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success !== false) {
+                    loadReplies(actionId);
+                }
+            })
+            .catch(error => console.error('删除回复失败:', error));
+        }
+
+        // 行点击事件 - 展开/折叠回复面板
+        document.querySelectorAll('.action-row-header[data-container-id="' + containerId + '"]').forEach(function(rowHeader) {
+            rowHeader.addEventListener('click', function() {
+                const actionId = this.getAttribute('data-action-id');
+                const panel = document.getElementById('action-panel-' + actionId);
+                const icon = this.querySelector('.expand-icon');
+
+                if (!panel) return;
+
+                // 如果点击的是当前已展开的面板，则折叠
+                if (currentOpenActionId == actionId) {
+                    panel.classList.add('hidden');
+                    if (icon) icon.classList.remove('rotate-180');
+                    currentOpenActionId = null;
+                } else {
+                    // 先折叠之前展开的面板
+                    if (currentOpenActionId) {
+                        const prevPanel = document.getElementById('action-panel-' + currentOpenActionId);
+                        const prevIcon = document.querySelector('[data-action-id="' + currentOpenActionId + '"] .expand-icon');
+                        if (prevPanel) prevPanel.classList.add('hidden');
+                        if (prevIcon) prevIcon.classList.remove('rotate-180');
+                    }
+
+                    // 展开当前面板
+                    panel.classList.remove('hidden');
+                    if (icon) icon.classList.add('rotate-180');
+                    currentOpenActionId = actionId;
+
+                    // 加载回复列表
+                    loadReplies(actionId);
+                }
+            });
+        });
+
+        // 暴露回复相关API
+        window[containerId + 'Actions'] = {
+            collapsePanel: collapsePanel,
+            loadReplies: loadReplies,
+            submitReply: submitReply,
+            deleteReply: deleteReply
+        };
+    }
+
+    // ===================== 快速添加功能 =====================
+
+    if (enableQuickAdd && companyId) {
+        const contentInput = document.getElementById(containerId + '-quick-content');
+        const contactSelect = document.getElementById(containerId + '-quick-contact');
+        const buttonsDiv = document.getElementById(containerId + '-quick-buttons');
+        const cancelBtn = document.getElementById(containerId + '-quick-cancel');
+        const submitBtn = document.getElementById(containerId + '-quick-submit');
+
+        if (contentInput) {
+            // 显示/隐藏按钮
+            contentInput.addEventListener('focus', function() {
+                if (buttonsDiv) buttonsDiv.style.display = 'flex';
+            });
+
+            // 取消按钮
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', function() {
+                    contentInput.value = '';
+                    if (contactSelect) contactSelect.value = '';
+                    if (buttonsDiv) buttonsDiv.style.display = 'none';
+                    contentInput.blur();
+                });
+            }
+
+            // 提交按钮
+            if (submitBtn) {
+                submitBtn.addEventListener('click', async function() {
+                    const content = contentInput.value.trim();
+                    const contactId = contactSelect?.value;
+
+                    if (!contactId) {
+                        alert(i18n.selectContact);
+                        return;
+                    }
+
+                    if (!content) {
+                        alert(i18n.enterContent);
+                        return;
+                    }
+
+                    // 禁用按钮防止重复提交
+                    submitBtn.disabled = true;
+                    const originalText = submitBtn.textContent;
+                    submitBtn.textContent = i18n.submitting;
+
+                    try {
+                        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                        const response = await fetch(`${apiPrefix}/api/quick-add-action`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken
+                            },
+                            body: JSON.stringify({
+                                company_id: companyId,
+                                contact_id: contactId,
+                                communication: content
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            // 刷新页面显示新记录
+                            window.location.reload();
+                        } else {
+                            alert(data.message || i18n.quickAddError);
+                        }
+                    } catch (error) {
+                        console.error('快速添加行动记录失败:', error);
+                        alert(i18n.quickAddError);
+                    } finally {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = originalText;
+                    }
+                });
+            }
+        }
+    }
+
+    // 初始化
+    initRelativeTime();
+
+    // 暴露格式化相对时间函数为全局函数（供其他组件复用）
+    if (!window.formatRelativeTime) {
+        window.formatRelativeTime = formatRelativeTime;
+    }
+})();
+</script>
+{% endmacro %}

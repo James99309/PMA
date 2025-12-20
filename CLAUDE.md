@@ -7,7 +7,8 @@
 ### **📖 主要规则文档**
 - **CLAUDE.md** (本文件) - 核心原则和基础规范
 - **CLAUDE-I18N.md** - 翻译与国际化规范
-- **CLAUDE-COMPONENTS.md** - 组件和UI规范
+- **CLAUDE-COMPONENTS.md** - Bootstrap 组件和UI规范
+- **CLAUDE-TW-COMPONENTS.md** - Tailwind 组件规范
 - **CLAUDE-JS-TOOLS.md** - JavaScript可复用工具索引
 - **CLAUDE-DATABASE.md** - 数据库备份和迁移规范
 - **CLAUDE-SCRIPTS.md** - 脚本创建与管理规范
@@ -632,12 +633,65 @@ if violations:
 
 ## 🔄 审批组件使用规范
 
-### **新版通用审批组件**
-- **使用组件**：`render_complete_approval_section` (来自 `macros/approval_flow.html`)
-- **组件来源**：从订单审批发展而来的统一标准审批组件
-- **替代组件**：完全替代旧版 `render_approval_section` (来自 `macros/approval_macros.html`)
+### **组件版本**
 
-### **标准使用模式**
+| 组件类型 | 文件位置 | 适用场景 |
+|---------|---------|---------|
+| **Bootstrap 版** | `macros/approval_flow.html` | Bootstrap 风格页面 |
+| **Tailwind 版** | `components/tw_approval_flow.html` | Tailwind 风格页面 |
+
+---
+
+### **Tailwind 审批流程组件（推荐）**
+
+**适用于**: 所有 `tw_*.html` 风格的详情页面
+
+#### **模板导入**
+```jinja2
+{% from 'components/tw_approval_flow.html' import render_tw_approval_flow_card, render_tw_approval_flow_script, render_tw_approval_modals %}
+```
+
+#### **使用步骤**
+
+**1. 渲染审批流程卡片**（放在页面主内容区）
+```jinja2
+{{ render_tw_approval_flow_card(expense.status, container_id='approvalFlowContainer') }}
+```
+
+**2. 渲染确认模态框**（放在模态框区域）
+```jinja2
+{{ render_tw_approval_modals() }}
+```
+
+**3. 渲染审批流程脚本**（放在脚本区域）
+```jinja2
+{{ render_tw_approval_flow_script(
+    'expense',                                    # 对象类型
+    expense.id,                                   # 对象ID
+    expense.status,                               # 对象状态
+    expense.owner.real_name or expense.owner.username,  # 创建人名称
+    '/expense/api/approval',                      # API基础路径
+    'approvalFlowContainer'                       # 容器ID
+) }}
+```
+
+#### **组件功能**
+- ✅ **纯 Tailwind 样式** - 无需引入额外 CSS
+- ✅ **竖向时间线** - 清晰展示审批进度
+- ✅ **内联审批操作** - 审批人可直接在时间线中操作
+- ✅ **动画效果** - 当前节点脉冲动画
+- ✅ **暗色模式** - 完整的 dark mode 支持
+- ✅ **国际化** - 完整的中英文支持
+
+#### **当前使用的页面**
+- `app/templates/project/tw_project_detail.html` - 项目详情
+- `app/templates/expense/tw_expense_detail.html` - 报销单详情
+
+---
+
+### **Bootstrap 审批流程组件**
+
+**适用于**: Bootstrap 风格的详情页面
 
 #### **模板导入**
 ```jinja2
@@ -647,30 +701,18 @@ if violations:
 #### **基本调用**
 ```jinja2
 {{ render_complete_approval_section(
-    object_type='order',          # 对象类型：'order', 'project', 'expense' 等
+    object_type='order',          # 对象类型
     object_id=order.id,           # 对象ID
-    object_status=order.status,   # 对象状态：'draft', 'pending', 'approved', 'rejected' 等
-    current_user_id=current_user.id,     # 当前用户ID
-    creator_id=order.created_by.id,      # 创建人ID
-    container_id='approvalFlowSection',  # 容器ID（可选）
-    options={                     # 选项配置（可选）
+    object_status=order.status,   # 对象状态
+    current_user_id=current_user.id,
+    creator_id=order.created_by.id,
+    container_id='approvalFlowSection',
+    options={
         'operation_title': '审批操作',
-        'flow_title': '审批流程',
-        'description': '创建完成，可以提交审批流程。',
-        'warning': '提交后将进入审批流程，无法直接修改。'
+        'flow_title': '审批流程'
     }
 ) }}
 ```
-
-### **组件功能特性**
-
-#### **自动包含的功能**
-- ✅ **审批操作区域** - 提交、召回、重新提交等操作
-- ✅ **审批流程图** - 可视化流程展示和状态跟踪
-- ✅ **权限控制** - 基于用户角色和创建权限的操作控制
-- ✅ **状态管理** - 自动处理草稿、待审批、已批准、已拒绝等状态
-- ✅ **确认模态框** - 标准化的审批确认和召回确认对话框
-- ✅ **国际化支持** - 完整的中英文切换支持
 
 #### **必需的前端资源**
 ```html
@@ -683,49 +725,31 @@ if violations:
 <script src="{{ url_for('static', filename='js/approval_flow_utils.js') }}"></script>
 ```
 
-### **当前使用的页面**
-- **项目详情页面** - `app/templates/project/detail.html`
-- **报销单详情页面** - `app/templates/expense/expense_detail.html`  
-- **订单详情页面** - `app/templates/inventory/order_detail.html`
+#### **当前使用的页面**
+- `app/templates/project/detail.html` - 项目详情（Bootstrap版）
+- `app/templates/expense/expense_detail.html` - 报销单详情（Bootstrap版）
+- `app/templates/inventory/order_detail.html` - 订单详情
 
-### **迁移指南**
+---
 
-#### **从旧版审批组件迁移**
-```jinja2
-<!-- 旧版用法 ❌ -->
-{% from 'macros/approval_macros.html' import render_approval_section %}
-{{ render_approval_section('customer', company.id, approval_instance, current_user) }}
-
-<!-- 新版用法 ✅ -->
-{% from 'macros/approval_flow.html' import render_complete_approval_section %}
-{{ render_complete_approval_section('customer', company.id, company.status, current_user.id, company.owner_id) }}
-```
-
-#### **清理无用导入**
-```jinja2
-<!-- 需要移除 ❌ -->
-{% from 'macros/approval_macros.html' import render_approval_section %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
-
-<!-- 保留使用 ✅ -->
-{% from 'macros/approval_flow.html' import render_complete_approval_section %}
-```
-
-### **注意事项**
+### **通用注意事项**
 
 #### **权限要求**
-- 只有**创建人**可以看到审批操作区域
+- 只有**创建人**可以看到提交/召回/重新提交按钮
 - 审批流程图对所有有查看权限的用户可见
-- 确保页面有正确的权限检查装饰器
+- 当前审批人可以在时间线中直接操作同意/驳回
 
 #### **状态一致性**
 - 对象状态必须与审批系统状态保持同步
 - 使用标准状态名称：`draft`, `pending`, `approved`, `rejected`, `recalled`
 
-#### **样式兼容性**
-- 组件使用 Bootstrap 5 样式系统
-- 自动适配移动端和桌面端显示
-- 支持现有的页面布局结构
+#### **API 端点**
+审批流程需要后端提供以下 API 端点：
+- `GET /{object_type}/api/approval/{id}/flow` - 获取审批流程数据
+- `POST /{object_type}/api/approval/{id}/submit` - 提交审批
+- `POST /{object_type}/api/approval/{id}/recall` - 召回审批
+- `POST /{object_type}/api/approval/{id}/resubmit` - 重新提交
+- `POST /approval/approve/{instance_id}` - 审批人执行审批操作
 
 ---
 
@@ -861,7 +885,8 @@ from app import create_app, db
 - **核心规范** → 项目根目录 CLAUDE-*.md 文档
 - **完整文档索引** → 查阅 [docs/README.md](docs/README.md)
 - **翻译问题** → 查阅 [CLAUDE-I18N.md](./CLAUDE-I18N.md)
-- **组件使用** → 查阅 [CLAUDE-COMPONENTS.md](./CLAUDE-COMPONENTS.md)
+- **Bootstrap组件** → 查阅 [CLAUDE-COMPONENTS.md](./CLAUDE-COMPONENTS.md)
+- **Tailwind组件** → 查阅 [CLAUDE-TW-COMPONENTS.md](./CLAUDE-TW-COMPONENTS.md)
 - **JavaScript工具** → 查阅 [CLAUDE-JS-TOOLS.md](./CLAUDE-JS-TOOLS.md) ⚠️ **实现功能前必查**
 - **数据库操作** → 查阅 [CLAUDE-DATABASE.md](./CLAUDE-DATABASE.md)
 - **脚本管理** → 查阅 [CLAUDE-SCRIPTS.md](./CLAUDE-SCRIPTS.md)
@@ -915,6 +940,17 @@ def list_view():
 
 ## 📝 规则更新日志
 
+- **2025-12-12**: 📚 **拆分组件文档**
+  - 创建 `CLAUDE-TW-COMPONENTS.md` 独立文档，包含所有 Tailwind 组件规范
+  - `CLAUDE-COMPONENTS.md` 从 3100+ 行减少到 1657 行，仅保留 Bootstrap 组件规范
+  - 更新文档索引和快速参考
+- **2025-12-12**: 🔄 **创建 Tailwind 审批流程组件**
+  - 创建 `components/tw_approval_flow.html` 组件，从项目详情页提取
+  - 提供三个宏：`render_tw_approval_flow_card`、`render_tw_approval_flow_script`、`render_tw_approval_modals`
+  - 纯 Tailwind 样式，无需引入额外 CSS
+  - 更新 `tw_expense_detail.html` 使用新组件
+  - 删除旧版 `render_tw_complete_approval_section`、`render_tw_approval_flow_container`、`render_tw_approval_confirm_modal`
+  - 更新审批组件使用规范文档，区分 Bootstrap 版和 Tailwind 版
 - **2025-10-22**: 🔒 **添加报销单特殊权限规则文档**
   - 明确报销单不使用数据归属机制，属于个人财务数据
   - 详细说明访问权限规则：财务/管理员全部可见，普通用户仅自己+直属下属

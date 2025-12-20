@@ -17,7 +17,8 @@ from app.utils import version_check
 import datetime
 from app.utils.filters import project_type_style, project_stage_style, format_date, format_datetime, format_currency, format_achievement_rate
 from app.utils.dictionary_helpers import (
-    project_type_label, project_stage_label, project_type_label_i18n, project_stage_label_i18n, report_source_label, authorization_status_label, company_type_label, company_type_color, product_situation_label, industry_label, industry_color, status_label, share_permission_label, user_label, get_role_display_name, get_amount_unit_config, get_currency_symbol, get_default_currency
+    project_type_label, project_stage_label, project_type_label_i18n, project_stage_label_i18n, report_source_label, authorization_status_label, company_type_label, company_type_color, product_situation_label, industry_label, industry_color, status_label, share_permission_label, user_label, get_role_display_name, get_amount_unit_config, get_currency_symbol, get_default_currency, approval_status_label, product_type_label, product_status_label, dev_product_status_label, active_status_label,
+    make_i18n_filter
 )
 from app.utils.access_control import can_edit_company_info, can_edit_data, can_change_company_owner, can_start_approval
 from sqlalchemy.exc import OperationalError
@@ -716,16 +717,22 @@ def create_app(config_class=Config):
     app.jinja_env.filters['format_achievement_rate'] = format_achievement_rate
     app.jinja_env.filters['project_type_label'] = project_type_label_i18n
     app.jinja_env.filters['project_stage_label'] = project_stage_label_i18n
-    app.jinja_env.filters['report_source_label'] = report_source_label
-    app.jinja_env.filters['authorization_status_label'] = authorization_status_label
-    app.jinja_env.filters['company_type_label'] = company_type_label
+    # 注册 label 过滤器（使用 make_i18n_filter 包装以支持自动语言检测）
+    app.jinja_env.filters['report_source_label'] = make_i18n_filter(report_source_label)
+    app.jinja_env.filters['authorization_status_label'] = make_i18n_filter(authorization_status_label)
+    app.jinja_env.filters['company_type_label'] = make_i18n_filter(company_type_label)
     app.jinja_env.filters['company_type_color'] = company_type_color
-    app.jinja_env.filters['product_situation_label'] = product_situation_label
-    app.jinja_env.filters['industry_label'] = industry_label
+    app.jinja_env.filters['product_situation_label'] = make_i18n_filter(product_situation_label)
+    app.jinja_env.filters['industry_label'] = make_i18n_filter(industry_label)
     app.jinja_env.filters['industry_color'] = industry_color
-    app.jinja_env.filters['status_label'] = status_label
+    app.jinja_env.filters['status_label'] = make_i18n_filter(status_label)
     app.jinja_env.filters['user_label'] = user_label
-    app.jinja_env.filters['share_permission_label'] = share_permission_label
+    app.jinja_env.filters['share_permission_label'] = make_i18n_filter(share_permission_label)
+    app.jinja_env.filters['approval_status_label'] = make_i18n_filter(approval_status_label)
+    app.jinja_env.filters['product_type_label'] = make_i18n_filter(product_type_label)
+    app.jinja_env.filters['product_status_label'] = make_i18n_filter(product_status_label)
+    app.jinja_env.filters['dev_product_status_label'] = make_i18n_filter(dev_product_status_label)
+    app.jinja_env.filters['active_status_label'] = make_i18n_filter(active_status_label)
 
     def datetimeformat(value):
         if not value:

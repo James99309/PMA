@@ -127,16 +127,16 @@
                     {% if product %}
                         {# 编辑模式：返回产品详情页 #}
                         {% if product_type == 'research' %}
-                            {{ render_button('返回', href=url_for('product_management.product_detail', id=product.id), color='secondary', icon='fas fa-arrow-left') }}
+                            {{ render_button('返回', href=url_for('rd_product.product_detail', id=product.id, tw=1), color='secondary', icon='fas fa-arrow-left') }}
                         {% else %}
-                            {{ render_button('返回', href=url_for('product_route.view_product_detail', id=product.id), color='secondary', icon='fas fa-arrow-left') }}
+                            {{ render_button('返回', href=url_for('product.view_product_detail', id=product.id, tw=1), color='secondary', icon='fas fa-arrow-left') }}
                         {% endif %}
                     {% else %}
                         {# 创建模式：返回列表页 #}
                         {% if product_type == 'research' %}
-                            {{ render_button('返回列表', href=url_for('product_management.index'), color='secondary', icon='fas fa-arrow-left') }}
+                            {{ render_button('返回列表', href=url_for('rd_product.index'), color='secondary', icon='fas fa-arrow-left') }}
                         {% else %}
-                            {{ render_button('返回列表', href=url_for('product_route.product_list'), color='secondary', icon='fas fa-arrow-left') }}
+                            {{ render_button('返回列表', href=url_for('product.product_list'), color='secondary', icon='fas fa-arrow-left') }}
                         {% endif %}
                     {% endif %}
                     {{ render_button('保存产品', onclick='submitProductForm();', color='primary', icon='fas fa-save', attrs='id="submit-btn"') }}
@@ -151,7 +151,7 @@
             产品信息
         </div>
         <div class="card-body">
-            <form id="productForm" method="POST" action="{% if product %}{% if product_type == 'research' %}{{ url_for('product_management.update_product', id=product.id) }}{% else %}{{ url_for('product_route.update_product', id=product.id) }}{% endif %}{% else %}{{ url_for('product_management.save' if product_type == 'research' else 'product_route.create') }}{% endif %}">
+            <form id="productForm" method="POST" action="{% if product %}{% if product_type == 'research' %}{{ url_for('rd_product.update_product', id=product.id) }}{% else %}{{ url_for('product.update_product', id=product.id) }}{% endif %}{% else %}{{ url_for('rd_product.save' if product_type == 'research' else 'product.create_product') }}{% endif %}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <!-- 产品类型：research=研发产品, standard=标准产品 -->
                 <input type="hidden" name="product_type" value="{{ product_type if product_type else 'standard' }}">
@@ -1853,6 +1853,15 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        // 检查是否有规格编码（只有前缀编码不应该检查重复）
+        const hasSpecCodes = Array.from(specsTableBody.querySelectorAll('tr'))
+            .some(row => {
+                const useInCode = row.dataset.useInCode === 'true';
+                const codeInput = row.querySelector('input[name="spec_option_codes[]"]');
+                return useInCode && codeInput && codeInput.value && codeInput.value.trim() !== '';
+            });
+        console.log('[MN检查调试] 是否有规格编码:', hasSpecCodes);
+
         console.log('[MN检查调试] 准备发送API请求到 /product-management/api/check-mn-code');
 
         // 调用API检查重复
@@ -1864,7 +1873,8 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify({
                 mn_code: mnCode,
-                exclude_product_id: isEditMode ? currentProductId : null
+                exclude_product_id: isEditMode ? currentProductId : null,
+                has_spec_codes: hasSpecCodes  // 传递是否有规格编码
             })
         })
         .then(response => {

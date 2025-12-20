@@ -1,0 +1,1660 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_detail_layout.html' import tw_detail_layout with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles with context %}
+{% from 'components/tw_table_card.html' import render_tw_table_card, render_empty_state, render_table_card_styles with
+context %}
+{% from 'components/tw_buttons.html' import tw_btn_primary, tw_btn_secondary, tw_btn_danger, tw_btn_outline, tw_btn_icon
+with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script, tw_status_modal,
+tw_status_modal_script with context %}
+{% from 'components/tw_action_replies.html' import render_tw_action_replies_script with context %}
+{% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_project_stage_badge,
+render_tw_project_type_badge, render_tw_report_source_badge, render_tw_industry_badge, render_tw_active_badge with
+context %}
+{% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
+{% from 'components/tw_form_fields.html' import tw_form_checkbox with context %}
+{% from 'components/tw_action_modal.html' import tw_action_modal, tw_action_modal_script with context %}
+{% from 'components/tw_user_selector_modal.html' import tw_user_selector_modal with context %}
+{% from 'components/tw_sharing_card.html' import tw_sharing_card with context %}
+{% from 'components/tw_action_list.html' import tw_action_list_card with context %}
+{% from 'components/tw_info_card.html' import tw_info_card, tw_info_item with context %}
+{% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
+{% from 'components/tw_editable_table.html' import tw_editable_table, tw_editable_table_styles, tw_editable_table_script with context %}
+{% from 'macros/product_config_modal.html' import render_product_config_modal with context %}
+{% from 'components/tw_product_spec_modal.html' import tw_product_spec_modal, tw_product_spec_modal_script with context %}
+
+{# 产品明细表格列配置（用于报价单创建模态框） #}
+{% set product_columns = [
+    {'key': 'product_name', 'label': _('产品名称'), 'type': 'product-selector', 'required': true, 'width': '160px'},
+    {'key': 'product_model', 'label': _('产品型号'), 'type': 'text', 'readonly': true, 'width': '120px'},
+    {'key': 'product_desc', 'label': _('产品描述'), 'type': 'text', 'readonly': true, 'width': '400px'},
+    {'key': 'brand', 'label': _('品牌'), 'type': 'text', 'readonly': true, 'width': '80px'},
+    {'key': 'unit', 'label': _('单位'), 'type': 'text', 'readonly': true, 'width': '60px'},
+    {'key': 'market_price', 'label': _('市场单价'), 'type': 'currency', 'readonly': true, 'width': '100px', 'align': 'right'},
+    {'key': 'discount', 'label': _('折扣%'), 'type': 'number', 'width': '80px', 'align': 'right', 'default': '100'},
+    {'key': 'unit_price', 'label': _('单价'), 'type': 'currency', 'width': '100px', 'align': 'right'},
+    {'key': 'quantity', 'label': _('数量'), 'type': 'number', 'required': true, 'width': '80px', 'align': 'right', 'default': '1'},
+    {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'width': '100px', 'align': 'right'}
+] %}
+{% set currency_symbol = '¥' if default_currency == 'CNY' else '$' %}
+
+{# 锁定状态徽章 - 内联定义 #}
+{% macro render_tw_lock_status_badge(is_locked) %}
+{% if is_locked %}
+<span
+    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300">
+    <span class="material-symbols-outlined text-sm">lock</span>
+    {{ _('已锁定') }}
+</span>
+{% endif %}
+{% endmacro %}
+
+{# 授权状态徽章 - 内联定义 #}
+{% macro render_tw_authorization_status_badge(auth_code, auth_status, project_type, status) %}
+{% if auth_code %}
+<span
+    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+    <span class="material-symbols-outlined text-sm">verified</span>
+    {{ auth_code }}
+</span>
+{% elif auth_status == 'pending' %}
+<span
+    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300">
+    <span class="material-symbols-outlined text-sm">pending</span>
+    {{ _('申请中') }}
+</span>
+{% elif auth_status == 'rejected' %}
+<span
+    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300">
+    <span class="material-symbols-outlined text-sm">cancel</span>
+    {{ _('已拒绝') }}
+</span>
+{% endif %}
+{% endmacro %}
+
+{# 品牌植入徽章 - 内联定义 #}
+{% macro render_tw_product_situation_badge(situation) %}
+{% if situation %}
+{% set colors = {
+'qualified': 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300',
+'controlled': 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+'not_required': 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
+'unqualified': 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300'
+} %}
+<span
+    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ colors.get(situation, 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300') }}">
+    {{ situation|product_situation_label }}
+</span>
+{% else %}
+<span class="text-slate-400">-</span>
+{% endif %}
+{% endmacro %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ project.project_name }} - {{ _('项目详情') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        [x-cloak] {
+            display: none !important;
+        }
+
+        /* 头像颜色变体 */
+        .avatar-blue {
+            background-color: #3b82f6;
+        }
+
+        .avatar-green {
+            background-color: #22c55e;
+        }
+
+        .avatar-purple {
+            background-color: #a855f7;
+        }
+
+        .avatar-orange {
+            background-color: #f97316;
+        }
+
+        .avatar-pink {
+            background-color: #ec4899;
+        }
+
+        .avatar-teal {
+            background-color: #14b8a6;
+        }
+
+        {{ render_tw_fixed_header_styles() }}
+
+        /* 当前阶段闪烁动画 */
+        @keyframes pulse-ring {
+            0% {
+                box-shadow: 0 0 0 0 rgba(132, 204, 22, 0.7);
+            }
+            50% {
+                box-shadow: 0 0 0 12px rgba(132, 204, 22, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(132, 204, 22, 0);
+            }
+        }
+        .stage-current-pulse {
+            animation: pulse-ring 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+    {{ render_table_card_styles() }}
+    {{ tw_editable_table_styles() }}
+</head>
+
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-200">
+    {% call(slot) render_tw_layout(active_page='project', show_search=true) %}
+    {% if slot == 'content' %}
+    {# 使用统一的详情页布局组件 #}
+    {% set status_badges_content %}
+        {{ render_tw_active_badge(project.is_active) }}
+        {{ render_tw_lock_status_badge(project.is_locked) }}
+    {% endset %}
+    {% set effective_status = project.status or 'draft' %}
+    {% call(detail_slot) tw_detail_layout(
+        breadcrumb_items=[
+            {'label': _('项目管理'), 'url': url_for('project.list_projects')},
+            {'label': project.project_name}
+        ],
+        title=project.project_name,
+        back_url=url_for('project.list_projects'),
+        status_badges=status_badges_content,
+        edit_btn={
+            'show': can_edit_project_button,
+            'onclick': 'openProjectEditModal()'
+        },
+        delete_btn={
+            'show': can_delete_project_button,
+            'onclick': 'confirmDeleteProject(' ~ project.id ~ ')'
+        },
+        extra_actions=[
+            {
+                'show': can_submit_approval and effective_status in ['draft', ''],
+                'label': _('提交审批'),
+                'onclick': 'submitProjectApproval()',
+                'icon': 'send',
+                'color': 'success'
+            },
+            {
+                'show': can_submit_approval and effective_status == 'pending',
+                'label': _('召回审批'),
+                'onclick': 'recallProjectApproval()',
+                'icon': 'undo',
+                'color': 'warning'
+            },
+            {
+                'show': can_submit_approval and effective_status in ['rejected', 'recalled'],
+                'label': _('重新提交'),
+                'onclick': 'resubmitProjectApproval()',
+                'icon': 'refresh',
+                'color': 'success'
+            }
+        ],
+        has_sidebar=true,
+        content_gap='8'
+    ) %}
+        {% if detail_slot == 'full_width' %}
+            <!-- 项目阶段进度条（全宽） -->
+            <div
+                class="bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 p-6">
+                <h2 class="text-lg font-semibold text-slate-800 dark:text-white mb-6">{{ _('项目阶段') }}</h2>
+                <div class="relative">
+                    <!-- 进度条轨道 -->
+                    <div class="absolute left-0 top-4 h-0.5 w-full bg-slate-200 dark:bg-slate-700"></div>
+                    <!-- 已完成进度 -->
+                    {% set stage_keys = ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed']
+                    %}
+
+                    {# 判断是否为失败/搁置状态 #}
+                    {% set is_failed = current_stage_key == 'lost' %}
+                    {% set is_paused = current_stage_key == 'paused' %}
+
+                    {# 获取失败/搁置前的最后一个正常阶段 #}
+                    {% set stage_ns = namespace(last_active='discover') %}
+                    {% if is_failed or is_paused %}
+                    {# 遍历历史找到最后一个正常阶段（非lost/paused） #}
+                    {% for history in stageHistory|reverse %}
+                    {% if history['stage'] not in ['lost', 'paused'] and stage_ns.last_active == 'discover' %}
+                    {% set stage_ns.last_active = history['stage'] %}
+                    {% endif %}
+                    {% endfor %}
+                    {% endif %}
+                    {% set last_active_stage = stage_ns.last_active if (is_failed or is_paused) else none %}
+
+                    {# 计算当前索引：正常情况用current_stage_key，失败/搁置时用last_active_stage #}
+                    {% if is_failed or is_paused %}
+                    {% set current_index = stage_keys.index(last_active_stage) if last_active_stage in stage_keys else 0
+                    %}
+                    {% else %}
+                    {% set current_index = stage_keys.index(current_stage_key) if current_stage_key in stage_keys else 0
+                    %}
+                    {% endif %}
+
+                    {% set progress_width = ((current_index) / (stage_keys|length - 1) * 100)|int if stage_keys|length >
+                    1 else 0 %}
+                    <div class="absolute left-0 top-4 h-0.5 bg-teal-500 transition-all duration-500"
+                        style="width: {{ progress_width }}%"></div>
+
+                    <!-- 阶段节点 -->
+                    <div class="flex justify-between relative">
+                        {% set stage_icons = {
+                        'discover': 'travel_explore',
+                        'embed': 'biotech',
+                        'pre_tender': 'manage_search',
+                        'tendering': 'gavel',
+                        'awarded': 'emoji_events',
+                        'quoted': 'payments',
+                        'signed': 'handshake'
+                        } %}
+
+                        {% for stage_key in stage_keys %}
+                        {% set stage_index = loop.index0 %}
+                        {% set is_completed = stage_index < current_index %} {% set
+                            is_current=stage_key==current_stage_key %} {% set is_pending=stage_index> current_index %}
+
+                            {# 判断当前阶段是否是失败/搁置发生的阶段 #}
+                            {% set is_failed_at = is_failed and stage_key == last_active_stage %}
+                            {% set is_paused_at = is_paused and stage_key == last_active_stage %}
+
+                            {# 获取阶段历史中的日期 - 使用namespace解决Jinja2变量作用域问题 #}
+                            {% set ns = namespace(stage_timestamp='') %}
+                            {% for history in stageHistory %}
+                            {% if history['stage'] == stage_key %}
+                            {# 已完成阶段显示完成时间(endDate)，当前/未来阶段显示开始时间(startDate) #}
+                            {% if is_completed and history['endDate'] %}
+                            {% set ns.stage_timestamp = history['endDate'] %}
+                            {% elif history['startDate'] %}
+                            {% set ns.stage_timestamp = history['startDate'] %}
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+
+                            {# 判断是否为下一个可推进阶段 #}
+                            {% set is_next = (not is_failed and not is_paused and stage_index == current_index + 1 and
+                            stage_key != 'signed') %}
+                            {# 判断当前阶段（正常状态下且非签约） #}
+                            {% set is_current_clickable = (is_current and not is_failed and not is_paused and
+                            current_stage_key != 'signed') %}
+
+                            <div class="text-center flex-1">
+                                <!-- 阶段圆点 - 改为可点击按钮 -->
+                                {% if is_completed %}
+                                <button type="button"
+                                    class="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center mx-auto mb-2 cursor-default"
+                                    data-stage="{{ stage_key }}" data-stage-index="{{ stage_index }}"
+                                    data-is-completed="true" data-is-current="false" data-is-failed="false"
+                                    data-is-paused="false" data-is-next="false">
+                                    <span class="material-symbols-outlined text-white text-xl">{{ stage_icons[stage_key]
+                                        }}</span>
+                                </button>
+                                <p class="text-sm font-medium text-teal-600 dark:text-teal-400">{{
+                                    stage_key|project_stage_label }}</p>
+                                {% if ns.stage_timestamp %}
+                                <p class="text-xs text-slate-500 dark:text-slate-400 relative-time"
+                                    data-timestamp="{{ ns.stage_timestamp }}"></p>
+                                {% endif %}
+                                {% elif is_failed_at %}
+                                {# 失败阶段：红色背景 + X 图标 - 可点击恢复 #}
+                                <button type="button" onclick="handleStageClick(this)"
+                                    class="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-2 ring-4 ring-red-100 dark:ring-red-900/20 cursor-pointer hover:ring-red-200 dark:hover:ring-red-800/40 transition-all"
+                                    data-stage="{{ stage_key }}" data-stage-index="{{ stage_index }}"
+                                    data-is-completed="false" data-is-current="false" data-is-failed="true"
+                                    data-is-paused="false" data-is-next="false">
+                                    <span
+                                        class="material-symbols-outlined fill text-red-500 dark:text-red-400 text-xl">cancel</span>
+                                </button>
+                                <p class="text-sm font-medium text-red-600 dark:text-red-400">{{
+                                    stage_key|project_stage_label }}</p>
+                                <p class="text-xs text-red-500 dark:text-red-400">{{ _('失败') }}</p>
+                                {% elif is_paused_at %}
+                                {# 搁置阶段：灰色背景 + 暂停图标 - 可点击恢复 #}
+                                <button type="button" onclick="handleStageClick(this)"
+                                    class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center mx-auto mb-2 ring-4 ring-slate-200 dark:ring-slate-600/20 cursor-pointer hover:ring-slate-300 dark:hover:ring-slate-500/40 transition-all"
+                                    data-stage="{{ stage_key }}" data-stage-index="{{ stage_index }}"
+                                    data-is-completed="false" data-is-current="false" data-is-failed="false"
+                                    data-is-paused="true" data-is-next="false">
+                                    <span
+                                        class="material-symbols-outlined fill text-slate-500 dark:text-slate-300 text-xl">pause_circle</span>
+                                </button>
+                                <p class="text-sm font-medium text-slate-500 dark:text-slate-400">{{
+                                    stage_key|project_stage_label }}</p>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">{{ _('搁置') }}</p>
+                                {% elif is_current %}
+                                {# 当前阶段：可点击修改状态（非签约） #}
+                                <button type="button" {% if is_current_clickable %}onclick="handleStageClick(this)" {%
+                                    endif %}
+                                    class="w-8 h-8 rounded-full bg-lime-500 flex items-center justify-center mx-auto mb-2 ring-4 ring-lime-500/20 stage-current-pulse {% if is_current_clickable %}cursor-pointer hover:ring-lime-500/40{% else %}cursor-default{% endif %} transition-all"
+                                    data-stage="{{ stage_key }}" data-stage-index="{{ stage_index }}"
+                                    data-is-completed="false" data-is-current="true" data-is-failed="false"
+                                    data-is-paused="false" data-is-next="false">
+                                    <span class="material-symbols-outlined text-white text-xl">{{ stage_icons[stage_key]
+                                        }}</span>
+                                </button>
+                                <p class="text-sm font-medium text-lime-600 dark:text-lime-400">{{
+                                    stage_key|project_stage_label }}</p>
+                                {% else %}
+                                {# 未来阶段：下一个可推进（非signed）可点击 #}
+                                <button type="button" {% if is_next %}onclick="handleStageClick(this)" {% endif %}
+                                    class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center mx-auto mb-2 {% if is_next %}cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600 hover:ring-2 hover:ring-slate-300 dark:hover:ring-slate-500{% else %}cursor-default{% endif %} transition-all"
+                                    data-stage="{{ stage_key }}" data-stage-index="{{ stage_index }}"
+                                    data-is-completed="false" data-is-current="false" data-is-failed="false"
+                                    data-is-paused="false" data-is-next="{{ 'true' if is_next else 'false' }}">
+                                    <span
+                                        class="material-symbols-outlined text-slate-400 dark:text-slate-500 text-xl">{{
+                                        stage_icons[stage_key] }}</span>
+                                </button>
+                                <p class="text-sm font-medium text-slate-500 dark:text-slate-400">{{
+                                    stage_key|project_stage_label }}</p>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+        {% elif detail_slot == 'main' %}
+                    <!-- 项目信息卡片 -->
+                    {% set can_edit_owner = current_stage_key != 'signed' and has_change_owner_permission and (not project.is_locked or current_user.role == 'admin') %}
+                    {{ tw_info_card(
+                        title=_('项目信息'),
+                        columns=2,
+                        show_icon=false,
+                        items=[
+                            {'label': _('项目名称'), 'value': project.project_name},
+                            {'label': _('授权编号'), 'badge': render_tw_authorization_status_badge(project.authorization_code, project.authorization_status, project.project_type, project.status) if (project.authorization_code or project.authorization_status) else none, 'value': '-' if not (project.authorization_code or project.authorization_status) else none},
+                            {'label': _('报备时间'), 'value': project.report_time.strftime('%Y-%m-%d') if project.report_time else '-'},
+                            {'label': _('报备源'), 'badge': render_tw_report_source_badge(project.report_source) if project.report_source else none, 'value': '-' if not project.report_source else none},
+                            {'label': _('品牌植入'), 'badge': render_tw_product_situation_badge(project.product_situation) if project.product_situation else none, 'value': '-' if not project.product_situation else none},
+                            {'label': _('行业'), 'badge': render_tw_industry_badge(project.industry) if project.industry else none, 'value': '-' if not project.industry else none},
+                            {'label': _('创建人'), 'badge': render_tw_owner_badge(project.creator) if project.creator else none, 'value': _('未知') if not project.creator else none},
+                            {'label': _('项目类型'), 'badge': render_tw_project_type_badge(project.project_type) if project.project_type else none, 'value': '-' if not project.project_type else none},
+                            {'label': _('项目负责人'), 'badge': render_tw_owner_badge(project.owner), 'edit_btn': {'onclick': 'openChangeOwnerModal()', 'show': can_edit_owner}},
+                            {'label': _('厂商销售负责人'), 'badge': render_tw_owner_badge(project.vendor_sales_manager) if project.vendor_sales_manager else none, 'value': _('未设置') if not project.vendor_sales_manager else none, 'edit_btn': {'onclick': 'openChangeVendorSalesModal()', 'show': can_edit_owner}},
+                            {'label': _('预测出货时间'), 'value': project.delivery_forecast.strftime('%Y-%m-%d') if project.delivery_forecast else '-'}
+                        ]
+                    ) }}
+
+                    <!-- 3.2 关联客户卡片 -->
+                    <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('关联客户') }}</h3>
+                            {% if can_edit_project_data %}
+                            <button type="button" onclick="showAddCustomerDialog()" class="text-primary text-sm font-medium hover:underline">{{ _('添加客户') }}</button>
+                            {% endif %}
+                        </div>
+                        <div class="table-scroll-container overflow-auto" style="max-height: 280px;">
+                            <table class="w-full text-left text-sm">
+                                <thead class="border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900">
+                                    <tr>
+                                        <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 50%">{{ _('客户') }}</th>
+                                        <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 30%">{{ _('添加人') }}</th>
+                                        <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 20%">{{ _('操作') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="customerAssociationsList">
+                                    {% if customer_associations_data %}
+                                        {% for assoc in customer_associations_data %}
+                                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                            <td class="p-3 font-medium">
+                                                <a href="{{ url_for('customer.view_company', company_id=assoc.company.id) }}" class="text-primary hover:underline">{{ assoc.company.company_name }}</a>
+                                            </td>
+                                            <td class="p-3">{{ render_tw_owner_badge(assoc.created_by) }}</td>
+                                            <td class="p-3">
+                                                {% if assoc.can_remove %}
+                                                <button onclick="removeCustomerAssociation({{ assoc.id }}, '{{ assoc.company.company_name|e }}')" class="text-slate-400 hover:text-red-500 transition-colors" title="{{ _('移除') }}">
+                                                    <span class="material-symbols-outlined text-lg">delete</span>
+                                                </button>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        {{ render_empty_state(_('暂无关联客户'), 'group') }}
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 3.3 报价单卡片 -->
+                    <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('报价单') }}</h3>
+                            {% if can_view_project %}
+                            <button type="button" onclick="openAddQuotationModal()" class="text-primary text-sm font-medium hover:underline">{{ _('添加报价单') }}</button>
+                            {% endif %}
+                        </div>
+                        <div class="table-scroll-container overflow-auto" style="max-height: 280px;">
+                            <table class="w-full text-left text-sm">
+                                <thead class="border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900">
+                                    <tr>
+                                        <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 25%">{{ _('报价单号') }}</th>
+                                        <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 25%">{{ _('客户') }}</th>
+                                        <th class="p-3 text-slate-500 dark:text-slate-400 font-medium text-right" style="width: 20%">{{ _('金额') }}</th>
+                                        <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 15%">{{ _('创建人') }}</th>
+                                        <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 15%">{{ _('更新时间') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="quotationsList">
+                                    {% if project_quotations %}
+                                        {% for quot in project_quotations %}
+                                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                            <td class="p-3 font-medium">
+                                                <a href="{{ url_for('quotation.view_quotation', id=quot.id, tw=1) }}" class="text-primary hover:underline">{{ quot.quotation_number }}</a>
+                                            </td>
+                                            <td class="p-3 text-slate-600 dark:text-slate-300">{{ quot.customer.company_name if quot.customer else '-' }}</td>
+                                            <td class="p-3 text-right font-medium text-slate-800 dark:text-white">{{ quot.currency_symbol or '¥' }}{{ '{:,.2f}'.format(quot.amount or 0) }}</td>
+                                            <td class="p-3">{{ render_tw_owner_badge(quot.owner) }}</td>
+                                            <td class="p-3 text-slate-500 dark:text-slate-400">{{ quot.updated_at.strftime('%Y-%m-%d') if quot.updated_at else '-' }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        {{ render_empty_state(_('暂无报价单'), 'payments') }}
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 3.4 共享设置卡片 -->
+                    {{ tw_sharing_card(
+                        can_view=can_view_sharing,
+                        can_edit=can_edit_sharing,
+                        shared_users=shared_users_info,
+                        open_modal_func='openSharingModal'
+                    ) }}
+
+                    <!-- 3.5 审批流程卡片 - 仅在已提交审批后显示 -->
+                    {% if project.status and project.status not in ['draft', ''] %}
+                    <div class="bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col p-6">
+                        <!-- 卡片头部 -->
+                        <div class="flex justify-between items-center mb-4">
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('审批流程') }}</h3>
+                                <!-- 状态徽章（动态） -->
+                                {% if project.status == 'pending' %}
+                                <span class="px-2 py-0.5 rounded text-xs bg-amber-500/10 text-amber-600 dark:text-amber-500 font-medium border border-amber-500/20">{{ _('进行中') }}</span>
+                                {% elif project.status == 'approved' %}
+                                <span class="px-2 py-0.5 rounded text-xs bg-green-500/10 text-green-600 dark:text-green-500 font-medium border border-green-500/20">{{ _('已通过') }}</span>
+                                {% elif project.status == 'rejected' %}
+                                <span class="px-2 py-0.5 rounded text-xs bg-red-500/10 text-red-600 dark:text-red-500 font-medium border border-red-500/20">{{ _('已拒绝') }}</span>
+                                {% elif project.status == 'recalled' %}
+                                <span class="px-2 py-0.5 rounded text-xs bg-orange-500/10 text-orange-600 dark:text-orange-500 font-medium border border-orange-500/20">{{ _('已召回') }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="showApprovalHistory()" class="text-slate-500 hover:text-primary transition-colors text-sm flex items-center">
+                                    <span class="material-symbols-outlined text-base mr-1">history</span> {{ _('历史记录') }}
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 审批流程内容区域 -->
+                        <div class="relative" id="projectApprovalFlowContainer">
+                            <!-- 由 JavaScript 动态渲染 -->
+                            <div class="flex items-center justify-center py-8">
+                                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                                <span class="ml-2 text-slate-500">{{ _('加载中...') }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+        {% elif detail_slot == 'sidebar' %}
+                <!-- 行动记录（使用通用组件） -->
+                {{ tw_action_list_card(
+                    actions=project_actions,
+                    add_button={'onclick': 'openAddActionModal()'},
+                    max_items=10,
+                    show_contact=true,
+                    show_company=true,
+                    show_delete=true,
+                    delete_callback='deleteAction',
+                    view_all_url='#',
+                    min_height='600px'
+                ) }}
+
+                <!-- 元数据卡片 -->
+                {{ tw_metadata_card_simple(
+                    object_id=project.id,
+                    creator=project.creator,
+                    created_at=project.created_at,
+                    updated_at=project.updated_at,
+                    extra_items=[
+                        {'label': _('最后活动'), 'value': project.last_activity_date.strftime('%Y-%m-%d %H:%M') if project.last_activity_date else '-'}
+                    ]
+                ) }}
+
+        {% endif %}
+    {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 删除确认模态框 -->
+    {{ tw_confirm_modal(
+    modal_id='deleteConfirmModal',
+    title=_('确认删除'),
+    message=_('确定要删除项目「') ~ project.project_name ~ _('」吗？此操作无法撤销。'),
+    confirm_text=_('删除'),
+    cancel_text=_('取消'),
+    variant='danger'
+    ) }}
+
+    <!-- 提交审批确认模态框 -->
+    {{ tw_confirm_modal(
+    modal_id='submitApprovalModal',
+    title=_('提交审批'),
+    message=_('确定要提交审批吗？提交后项目将进入审批流程。'),
+    confirm_text=_('提交'),
+    cancel_text=_('取消'),
+    variant='primary'
+    ) }}
+
+    <!-- 召回审批确认模态框 -->
+    {{ tw_confirm_modal(
+    modal_id='recallApprovalModal',
+    title=_('召回审批'),
+    message=_('确定要召回审批吗？召回后项目将返回草稿状态。'),
+    confirm_text=_('召回'),
+    cancel_text=_('取消'),
+    variant='warning'
+    ) }}
+
+    <!-- 重新提交审批确认模态框 -->
+    {{ tw_confirm_modal(
+    modal_id='resubmitApprovalModal',
+    title=_('重新提交审批'),
+    message=_('确定要重新提交审批吗？'),
+    confirm_text=_('重新提交'),
+    cancel_text=_('取消'),
+    variant='primary'
+    ) }}
+
+    <!-- 删除行动记录确认模态框 -->
+    {{ tw_confirm_modal(
+    modal_id='deleteActionModal',
+    title=_('确认删除'),
+    message=_('确定要删除这条行动记录吗？此操作无法撤销。'),
+    confirm_text=_('删除'),
+    cancel_text=_('取消'),
+    variant='danger'
+    ) }}
+
+    <!-- 添加行动记录模态框 (使用通用组件) -->
+    {{ tw_action_modal(
+        context_type='project',
+        context_id=project.id,
+        context_name=project.project_name,
+        companies=customer_associations_data,
+        sidebar_info={
+            'title': _('项目信息'),
+            'items': [
+                {'label': _('项目名称'), 'value': project.project_name},
+                {'label': _('当前阶段'), 'value': current_stage_key|project_stage_label},
+                {'label': _('项目负责人'), 'value': project.owner.real_name or project.owner.username if project.owner else '-'}
+            ],
+            'list_title': _('关联客户'),
+            'list_items': customer_associations_data|map(attribute='company.company_name')|list if customer_associations_data else []
+        }
+    ) }}
+
+    <!-- 报价单创建模态框 -->
+    {% if can_view_project %}
+    {% call tw_form_modal(
+        modal_id='quotationFormModal',
+        title=_('新建报价单'),
+        submit_text=_('创建'),
+        cancel_text=_('取消'),
+        size='xl'
+    ) %}
+    {% include 'quotation/partials/_quotation_modal_fields.html' %}
+    {% endcall %}
+
+    <!-- 产品配置模态框 -->
+    {{ render_product_config_modal() }}
+
+    <!-- 产品规格选择模态框 -->
+    {{ tw_product_spec_modal() }}
+    {% endif %}
+
+    <!-- 布局脚本 -->
+    {{ render_tw_layout_script() }}
+
+    <!-- 确认模态框脚本 -->
+    {{ tw_confirm_modal_script() }}
+
+    <!-- 全局国际化文本（供 tw_action_replies 组件使用） -->
+    <script>
+        window.i18nTexts = window.i18nTexts || {};
+        window.i18nTexts.justNow = '{{ _("刚刚") }}';
+        window.i18nTexts.minutesAgo = '{{ _("分钟前") }}';
+        window.i18nTexts.hoursAgo = '{{ _("小时前") }}';
+        window.i18nTexts.daysAgo = '{{ _("天前") }}';
+        window.i18nTexts.monthsAgo = '{{ _("个月前") }}';
+        window.i18nTexts.yearsAgo = '{{ _("年前") }}';
+    </script>
+
+    <!-- 行动记录回复组件脚本（提供 formatRelativeTime 全局函数） -->
+    {{ render_tw_action_replies_script(container_id='projectActions', api_prefix='/project') }}
+
+    <!-- 页面脚本 -->
+    <script>
+        (function () {
+            const projectId = {{ project.id }};
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        // 国际化文本
+        const i18n = {
+            deleteSuccess: '{{ _("项目删除成功") }}',
+            deleteError: '{{ _("删除失败，请重试") }}',
+            removeSuccess: '{{ _("移除成功") }}',
+            removeError: '{{ _("移除失败，请重试") }}'
+        };
+
+        // 初始化相对时间显示（使用全局 formatRelativeTime 函数）
+        document.querySelectorAll('.relative-time').forEach(function (el) {
+            const timestamp = el.getAttribute('data-timestamp');
+            if (timestamp && window.formatRelativeTime) {
+                el.textContent = window.formatRelativeTime(timestamp);
+            }
+        });
+
+        // 删除项目确认
+        window.confirmDeleteProject = function (id) {
+            openConfirmModal('deleteConfirmModal', {
+                onConfirm: async function () {
+                    try {
+                        const response = await fetch(`/project/api/${id}/delete`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken
+                            }
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            window.location.href = '{{ url_for("project.list_projects") }}';
+                        } else {
+                            alert(data.message || i18n.deleteError);
+                        }
+                    } catch (error) {
+                        console.error('删除失败:', error);
+                        alert(i18n.deleteError);
+                    }
+                }
+            });
+        };
+
+        // 删除行动记录
+        let pendingDeleteActionId = null;
+        window.deleteAction = function(actionId) {
+            pendingDeleteActionId = actionId;
+            openConfirmModal('deleteActionModal', {
+                onConfirm: async function() {
+                    if (!pendingDeleteActionId) return;
+                    try {
+                        const response = await fetch(`/customer/api/actions/${pendingDeleteActionId}/delete`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken
+                            }
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            window.location.reload();
+                        } else {
+                            alert(data.message || i18n.deleteError);
+                        }
+                    } catch (error) {
+                        console.error('删除行动记录失败:', error);
+                        alert(i18n.deleteError);
+                    }
+                    pendingDeleteActionId = null;
+                }
+            });
+        };
+
+        // =====================
+        // 审批流程相关函数
+        // =====================
+
+        // 页面加载后初始化审批流程
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadProjectApprovalFlow);
+        } else {
+            // DOM已经就绪
+            loadProjectApprovalFlow();
+        }
+
+        // 加载审批流程
+        async function loadProjectApprovalFlow() {
+            // 如果审批流程容器不存在（草稿状态下隐藏），直接返回
+            const container = document.getElementById('projectApprovalFlowContainer');
+            if (!container) return;
+
+            try {
+                const response = await fetch(`/project/api/approval/${projectId}/flow`);
+                const data = await response.json();
+
+                if (data.success && data.approval_flow) {
+                    renderApprovalTimeline(data.approval_flow);
+                } else if (data.success && data.has_approval === false) {
+                    // 没有审批流程，显示空状态
+                    renderEmptyApprovalState();
+                } else {
+                    // 其他情况也显示空状态
+                    renderEmptyApprovalState();
+                }
+            } catch (error) {
+                console.error('加载审批流程失败:', error);
+                renderEmptyApprovalState();
+            }
+        }
+
+        // 渲染空状态（草稿或无审批流程）
+        function renderEmptyApprovalState() {
+            const container = document.getElementById('projectApprovalFlowContainer');
+            if (!container) return;
+
+            const status = '{{ project.status or "draft" }}';
+            let html = '';
+
+            if (status === 'draft' || status === '' || status === 'None') {
+                html = `
+                    <div class="text-center py-8">
+                        <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">edit_note</span>
+                        <p class="mt-2 text-slate-500 dark:text-slate-400">{{ _('项目尚未提交审批') }}</p>
+                        <p class="text-sm text-slate-400 dark:text-slate-500">{{ _('点击下方按钮提交审批') }}</p>
+                    </div>
+                `;
+            } else {
+                html = `
+                    <div class="text-center py-8">
+                        <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">description</span>
+                        <p class="mt-2 text-slate-500 dark:text-slate-400">{{ _('暂无审批流程') }}</p>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        // 渲染审批时间线（竖向）
+        function renderApprovalTimeline(flowData) {
+            const container = document.getElementById('projectApprovalFlowContainer');
+            if (!container) return;
+
+            // 保存审批实例ID供后续使用
+            window.currentApprovalInstanceId = flowData.instance_id;
+
+            let html = `
+                <div class="space-y-14">
+            `;
+
+            // 添加提交申请节点
+            html += renderSubmitNode(flowData);
+
+            // 渲染各审批阶段
+            const stagesCount = flowData.stages.length;
+            flowData.stages.forEach((stage, index) => {
+                stage.is_last = (index === stagesCount - 1);
+                // 第一个节点的前一个是提交申请（已完成），后续节点看前一个审批节点状态
+                if (index === 0) {
+                    stage.prev_completed = true; // 提交申请节点总是已完成
+                } else {
+                    stage.prev_completed = flowData.stages[index - 1].status === 'approved';
+                }
+                html += renderStageNode(stage, flowData);
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // 渲染提交申请节点
+        function renderSubmitNode(flowData) {
+            const creatorName = '{{ project.creator.real_name or project.creator.username if project.creator else _("未知") }}';
+            const submitTime = flowData.started_at || '';
+            // 提交申请节点已完成，向下的连接线是绿色
+            const lineColorClass = 'bg-green-500';
+
+            return `
+                <div class="relative pl-8">
+                    <!-- 连接线从图标中心向下延伸（绿色，表示已完成） -->
+                    <div class="absolute left-[9px] top-5 bottom-0 w-0.5 ${lineColorClass} -mb-14"></div>
+                    <!-- 图标 -->
+                    <div class="absolute left-0 top-0 h-5 w-5 rounded-full bg-green-500 ring-4 ring-white dark:ring-slate-900 flex items-center justify-center z-10">
+                        <span class="material-symbols-outlined text-white text-xs">check</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                            {{ _('提交申请') }}
+                            <span class="text-xs text-slate-500 font-normal ml-2">{{ _('发起项目审批流程') }}</span>
+                        </p>
+                        ${submitTime ? `<p class="text-xs text-slate-400 dark:text-slate-500 font-mono">${submitTime}</p>` : ''}
+                    </div>
+                    <!-- 用户徽章 -->
+                    <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                        <span class="w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-bold">${creatorName.charAt(0).toUpperCase()}</span>
+                        ${creatorName}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 渲染审批阶段节点
+        function renderStageNode(stage, flowData) {
+            const isCompleted = stage.status === 'approved';
+            const isCurrent = stage.status === 'current';
+            const isPending = stage.status === 'pending';
+            const isRejected = stage.status === 'rejected';
+
+            // 圆圈样式
+            let circleClass = '';
+            let circleIcon = '';
+            let animationClass = '';
+
+            if (isCompleted) {
+                circleClass = 'bg-green-500';
+                circleIcon = '<span class="material-symbols-outlined text-white text-xs">check</span>';
+            } else if (isCurrent) {
+                circleClass = 'bg-amber-500';
+                circleIcon = '<span class="material-symbols-outlined text-white text-xs">pending</span>';
+                animationClass = `
+                    <span class="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75 animate-ping"></span>
+                `;
+            } else if (isRejected) {
+                circleClass = 'bg-red-500';
+                circleIcon = '<span class="material-symbols-outlined text-white text-xs">close</span>';
+            } else {
+                circleClass = 'bg-slate-200 dark:bg-slate-600';
+                circleIcon = '';
+            }
+
+            // 状态文字
+            let statusText = '';
+            let statusClass = '';
+            if (isCompleted) {
+                statusText = '{{ _("已同意") }}';
+                statusClass = 'text-green-600 dark:text-green-400';
+            } else if (isCurrent) {
+                statusText = '{{ _("当前节点") }}';
+                statusClass = 'text-amber-600 dark:text-amber-400';
+            } else if (isRejected) {
+                statusText = '{{ _("已拒绝") }}';
+                statusClass = 'text-red-600 dark:text-red-400';
+            } else {
+                statusText = stage.wait_message || '{{ _("待处理") }}';
+                statusClass = 'text-slate-500';
+            }
+
+            // 审批人信息
+            const approverName = stage.approver_name || '{{ _("待定") }}';
+            const approverInitial = approverName.charAt(0).toUpperCase();
+
+            // 审批意见
+            let commentHtml = '';
+            if (stage.comment && (isCompleted || isRejected)) {
+                commentHtml = `
+                    <div class="text-xs text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded ml-2 border border-slate-200 dark:border-slate-700">"${stage.comment}"</div>
+                `;
+            }
+
+            // 当前节点的操作区域
+            let operationHtml = '';
+            if (isCurrent && stage.can_approve) {
+                operationHtml = `
+                    <div class="bg-primary/5 dark:bg-slate-800 border border-primary/20 dark:border-primary/20 rounded-lg p-4 mt-3 shadow-sm">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <p class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                    ${stage.stage_name}
+                                    <span class="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">{{ _('当前节点') }}</span>
+                                </p>
+                                <p class="text-xs text-slate-500 mt-1">${stage.description || '{{ _("等待审批") }}'}</p>
+                            </div>
+                            <div class="flex -space-x-2">
+                                <div class="h-8 w-8 rounded-full ring-2 ring-white dark:ring-slate-900 bg-purple-600 flex items-center justify-center text-white text-xs z-10">${approverInitial}</div>
+                            </div>
+                        </div>
+                        <div class="space-y-3">
+                            <textarea id="approvalComment" class="w-full text-sm border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 focus:ring-primary focus:border-primary placeholder-slate-400 dark:text-slate-200 shadow-sm" placeholder="{{ _('请输入审批意见...') }}" rows="2"></textarea>
+                            <div class="flex gap-3">
+                                <button onclick="processProjectApproval('approve')" class="flex-1 bg-primary hover:bg-blue-600 text-white text-sm py-1.5 px-4 rounded-md font-medium transition-colors shadow-sm flex justify-center items-center gap-1">
+                                    <span class="material-symbols-outlined text-sm">check_circle</span>
+                                    {{ _('同意') }}
+                                </button>
+                                <button onclick="processProjectApproval('reject')" class="flex-1 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 border border-red-200 dark:border-red-900/50 text-sm py-1.5 px-4 rounded-md font-medium transition-colors flex justify-center items-center gap-1">
+                                    <span class="material-symbols-outlined text-sm">cancel</span>
+                                    {{ _('驳回') }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 节点透明度
+            const opacityClass = isPending ? 'opacity-50' : '';
+            // 是否是最后一个节点
+            const isLast = stage.is_last || false;
+
+            // 连接线颜色：已完成的节点向下是绿色，未完成的是灰色
+            const lineDownColor = isCompleted ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-700';
+            // 向上的连接线颜色：根据前一个节点状态（提交申请节点肯定是绿色，所以第一个审批节点向上是绿色）
+            const lineUpColor = stage.prev_completed ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-700';
+
+            // 徽章样式
+            let badgeClass = '';
+            if (isCompleted) {
+                badgeClass = 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300';
+            } else if (isCurrent) {
+                badgeClass = 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300';
+            } else if (isRejected) {
+                badgeClass = 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300';
+            } else {
+                badgeClass = 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
+            }
+
+            return `
+                <div class="relative pl-8 ${opacityClass}">
+                    <!-- 连接线向下延伸（非最后节点） -->
+                    ${!isLast ? `<div class="absolute left-[9px] top-5 bottom-0 w-0.5 ${lineDownColor} -mb-14"></div>` : ''}
+                    <!-- 连接线向上（从上一节点） -->
+                    <div class="absolute left-[9px] top-0 h-[10px] w-0.5 ${lineUpColor} -mt-14"></div>
+                    <!-- 图标 -->
+                    <span class="absolute left-0 top-0 flex h-5 w-5 z-10">
+                        ${animationClass}
+                        <span class="relative inline-flex rounded-full h-5 w-5 ${circleClass} ring-4 ring-white dark:ring-slate-900 items-center justify-center">
+                            ${circleIcon}
+                        </span>
+                    </span>
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                            ${stage.stage_name}
+                            <span class="text-xs ${statusClass} font-medium ml-2">${statusText}</span>
+                        </p>
+                        ${stage.completed_time ? `<p class="text-xs text-slate-400 dark:text-slate-500 font-mono">${formatDateTime(stage.completed_time)}</p>` : ''}
+                    </div>
+                    <!-- 用户徽章 -->
+                    <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${badgeClass}">
+                        <span class="w-4 h-4 rounded-full ${isCompleted ? 'bg-green-500' : isCurrent ? 'bg-amber-500' : isRejected ? 'bg-red-500' : 'bg-slate-400'} text-white flex items-center justify-center text-[10px] font-bold">${approverInitial}</span>
+                        ${approverName}
+                    </div>
+                    ${commentHtml ? `<div class="mt-1">${commentHtml}</div>` : ''}
+                    ${operationHtml}
+                </div>
+            `;
+        }
+
+        // 提交项目审批
+        window.submitProjectApproval = function() {
+            openConfirmModal('submitApprovalModal', {
+                onConfirm: async function() {
+                    try {
+                        const response = await fetch(`/project/api/approval/${projectId}/submit`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken
+                            },
+                            body: JSON.stringify({})
+                        });
+                        const data = await response.json();
+
+                        if (data.success) {
+                            window.location.reload();
+                        } else {
+                            alert(data.message || '{{ _("提交失败") }}');
+                        }
+                    } catch (error) {
+                        console.error('提交审批失败:', error);
+                        alert('{{ _("网络错误") }}');
+                    }
+                }
+            });
+        };
+
+        // 召回审批
+        window.recallProjectApproval = function() {
+            openConfirmModal('recallApprovalModal', {
+                onConfirm: async function() {
+                    try {
+                        const response = await fetch(`/project/api/approval/${projectId}/recall`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken
+                            },
+                            body: JSON.stringify({})
+                        });
+                        const data = await response.json();
+
+                        if (data.success) {
+                            window.location.reload();
+                        } else {
+                            alert(data.message || '{{ _("召回失败") }}');
+                        }
+                    } catch (error) {
+                        console.error('召回审批失败:', error);
+                        alert('{{ _("网络错误") }}');
+                    }
+                }
+            });
+        };
+
+        // 重新提交审批
+        window.resubmitProjectApproval = function() {
+            openConfirmModal('resubmitApprovalModal', {
+                onConfirm: async function() {
+                    try {
+                        const response = await fetch(`/project/api/approval/${projectId}/resubmit`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken
+                            },
+                            body: JSON.stringify({})
+                        });
+                        const data = await response.json();
+
+                        if (data.success) {
+                            window.location.reload();
+                        } else {
+                            alert(data.message || '{{ _("提交失败") }}');
+                        }
+                    } catch (error) {
+                        console.error('重新提交审批失败:', error);
+                        alert('{{ _("网络错误") }}');
+                    }
+                }
+            });
+        };
+
+        // 审批人执行审批操作（直接执行，无确认对话框）
+        window.processProjectApproval = async function(action) {
+            const comment = document.getElementById('approvalComment')?.value || '';
+            const instanceId = window.currentApprovalInstanceId;
+
+            if (!instanceId) {
+                alert('{{ _("审批实例未找到") }}');
+                return;
+            }
+
+            // 禁用按钮，显示加载状态
+            const buttons = document.querySelectorAll('[onclick^="processProjectApproval"]');
+            const originalContents = [];
+            buttons.forEach((btn, index) => {
+                originalContents[index] = btn.innerHTML;
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+                btn.innerHTML = `<span class="material-symbols-outlined text-sm animate-spin">sync</span> {{ _("处理中...") }}`;
+            });
+
+            try {
+                // 使用 FormData 格式，后端使用 request.form.get() 获取参数
+                const formData = new URLSearchParams();
+                formData.append('action', action);
+                formData.append('comment', comment);
+
+                const response = await fetch(`/approval/approve/${instanceId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: formData.toString()
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    // 成功后直接刷新页面，不显示通知
+                    window.location.reload();
+                } else {
+                    // 失败时显示错误信息
+                    alert(data.message || '{{ _("操作失败") }}');
+                    // 重新启用按钮并恢复原内容
+                    buttons.forEach((btn, index) => {
+                        btn.disabled = false;
+                        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        btn.innerHTML = originalContents[index];
+                    });
+                }
+            } catch (error) {
+                console.error('审批操作失败:', error);
+                alert('{{ _("网络错误") }}');
+                // 重新启用按钮并恢复原内容
+                buttons.forEach((btn, index) => {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    btn.innerHTML = originalContents[index];
+                });
+            }
+        };
+
+        // 显示审批历史
+        window.showApprovalHistory = function() {
+            // TODO: 实现审批历史模态框
+            alert('{{ _("审批历史功能待实现") }}');
+        };
+
+        // 简单的 Toast 提示函数（如果页面没有的话）
+        function showToast(type, message) {
+            if (typeof window.showNotification === 'function') {
+                window.showNotification(type, message);
+            } else {
+                alert(message);
+            }
+        }
+
+        // 格式化日期时间
+        function formatDateTime(isoString) {
+            if (!isoString) return '';
+            try {
+                const date = new Date(isoString);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hour = String(date.getHours()).padStart(2, '0');
+                const minute = String(date.getMinutes()).padStart(2, '0');
+                return `${year}-${month}-${day} ${hour}:${minute}`;
+            } catch (e) {
+                return isoString;
+            }
+        }
+
+        // 打开阶段推进模态框
+        window.openStageProgressModal = function () {
+            // TODO: 实现阶段推进模态框
+            alert('阶段推进功能待实现');
+        };
+
+        // 显示添加客户对话框
+        window.showAddCustomerDialog = function () {
+            // TODO: 实现添加客户对话框
+            alert('添加客户功能待实现');
+        };
+
+        // 移除客户关联
+        window.removeCustomerAssociation = async function (id, name) {
+            if (!confirm(`确定要移除客户「${name}」的关联吗？`)) return;
+
+            try {
+                const response = await fetch(`/project/api/remove_customer_association/${id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    // 刷新页面以更新列表
+                    window.location.reload();
+                } else {
+                    alert(data.message || i18n.removeError);
+                }
+            } catch (error) {
+                console.error('移除失败:', error);
+                alert(i18n.removeError);
+            }
+        };
+
+        // 打开共享模态框 - 已在底部共享模态框脚本中实现
+        // 打开修改负责人/厂商负责人模态框 - 已在底部模态框脚本中实现
+
+        }) ();
+    </script>
+
+    <!-- 阶段切换模态框 -->
+    <!-- 1. 状态修改对话框 - 使用通用组件 -->
+    {{ tw_status_modal(
+    modal_id='stageStatusModal',
+    title=_('修改阶段状态'),
+    reason_label=_('原因'),
+    reason_placeholder=_('请输入原因...'),
+    buttons=[
+    {'id': 'lost', 'label': _('失败'), 'icon': 'cancel', 'variant': 'danger', 'fill': true},
+    {'id': 'paused', 'label': _('搁置'), 'icon': 'pause_circle', 'variant': 'default', 'fill': true}
+    ],
+    cancel_text=_('取消')
+    ) }}
+
+    <!-- 2. 阶段推进确认对话框 - 使用通用组件 -->
+    {{ tw_confirm_modal(
+    modal_id='stageAdvanceModal',
+    title=_('确认推进阶段'),
+    message=_('确定要将项目推进到该阶段吗？'),
+    confirm_text=_('确认'),
+    cancel_text=_('取消'),
+    variant='primary',
+    icon='arrow_forward'
+    ) }}
+
+    <!-- 3. 恢复确认对话框 - 使用通用组件 -->
+    {{ tw_confirm_modal(
+    modal_id='stageRecoverModal',
+    title=_('恢复阶段状态'),
+    message=_('确定要恢复该状态吗？项目将恢复到原来的阶段。'),
+    confirm_text=_('恢复正常阶段'),
+    cancel_text=_('取消'),
+    variant='success',
+    icon='restart_alt'
+    ) }}
+
+    <!-- 阶段切换交互脚本 -->
+    <script>
+        (function () {
+            // 阶段配置
+            const projectId = {{ project.id }};
+
+        const currentStageKey = '{{ current_stage_key }}';
+        const isFailed = currentStageKey === 'lost';
+        const isPaused = currentStageKey === 'paused';
+        // 计算失败/搁置前的最后活跃阶段
+        {% set js_last_active = namespace(stage = 'discover') %}
+        {% if current_stage_key in ['lost', 'paused'] %}
+        {% for history in stageHistory | reverse %}
+        {% if history['stage'] not in ['lost', 'paused'] and js_last_active.stage == 'discover' %}
+        {% set js_last_active.stage = history['stage'] %}
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+        const lastActiveStage = '{{ js_last_active.stage if current_stage_key in ['lost', 'paused'] else current_stage_key }}';
+
+        const stageLabels = {
+            'discover': '{{ _("发现") }}',
+            'embed': '{{ _("植入") }}',
+            'pre_tender': '{{ _("招标前") }}',
+            'tendering': '{{ _("招标中") }}',
+            'awarded': '{{ _("中标") }}',
+            'quoted': '{{ _("批价") }}',
+            'signed': '{{ _("签约") }}',
+            'lost': '{{ _("失败") }}',
+            'paused': '{{ _("搁置") }}'
+        };
+
+        let pendingStage = null;  // 待操作的阶段
+
+        // 处理阶段点击
+        window.handleStageClick = function (button) {
+            const stage = button.dataset.stage;
+            const isCurrentBtn = button.dataset.isCurrent === 'true';
+            const isFailedBtn = button.dataset.isFailed === 'true';
+            const isPausedBtn = button.dataset.isPaused === 'true';
+            const isNextBtn = button.dataset.isNext === 'true';
+
+            if (isFailedBtn || isPausedBtn) {
+                // 点击失败/搁置的阶段 → 显示恢复对话框
+                showRecoverModal(isFailedBtn ? 'lost' : 'paused');
+            } else if (isCurrentBtn) {
+                // 点击当前阶段 → 显示状态修改对话框
+                showStatusChangeModal(stage);
+            } else if (isNextBtn) {
+                // 点击下一个阶段 → 显示推进确认对话框
+                showAdvanceModal(stage);
+            }
+        };
+
+        // 状态修改对话框 - 使用通用组件
+        function showStatusChangeModal(stage) {
+            const stageName = stageLabels[stage] || stage;
+            openStatusModal('stageStatusModal', {
+                target: stageName,
+                onAction: function (actionId, reason) {
+                    updateStage(actionId, reason);
+                }
+            });
+        }
+
+        // 阶段推进对话框 - 使用通用组件
+        function showAdvanceModal(stage) {
+            pendingStage = stage;
+            const stageName = stageLabels[stage] || stage;
+            openConfirmModal('stageAdvanceModal', {
+                title: '{{ _("确认推进阶段") }}',
+                message: '{{ _("确定要将项目推进到") }} "' + stageName + '" {{ _("阶段吗？") }}',
+                onConfirm: function () {
+                    updateStage(pendingStage);
+                    pendingStage = null;
+                }
+            });
+        }
+
+        // 恢复对话框 - 使用通用组件
+        function showRecoverModal(status) {
+            const statusName = stageLabels[status] || status;
+            openConfirmModal('stageRecoverModal', {
+                title: '{{ _("恢复阶段") }}',
+                message: '{{ _("确定要从") }} "' + statusName + '" {{ _("状态恢复吗？项目将恢复到原来的阶段。") }}',
+                onConfirm: function () {
+                    updateStage(lastActiveStage);
+                }
+            });
+        }
+
+        // 调用API更新阶段
+        async function updateStage(newStage, reason = '') {
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+                const response = await fetch('/project/api/update_stage', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({
+                        project_id: projectId,
+                        current_stage: newStage,
+                        remarks: reason
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    // 刷新页面显示新状态
+                    window.location.reload();
+                } else {
+                    alert(data.message || '{{ _("操作失败") }}');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('{{ _("网络错误") }}');
+            }
+        }
+
+    }) ();
+    </script>
+
+    <!-- 通用模态框脚本 -->
+    {{ tw_confirm_modal_script() }}
+    {{ tw_status_modal_script() }}
+    {{ tw_form_modal_script() }}
+
+    <!-- 项目编辑模态框 -->
+    {% call tw_form_modal(
+    modal_id='projectFormModal',
+    title=_('编辑项目'),
+    submit_text=_('保存'),
+    cancel_text=_('取消'),
+    size='lg'
+    ) %}
+    {% with project_id=project.id %}
+    {% include 'project/partials/_project_form_fields.html' %}
+    {% endwith %}
+    {% endcall %}
+
+    <!-- 项目表单JS -->
+    <script src="{{ url_for('static', filename='js/project-form.js') }}"></script>
+
+    <!-- 项目编辑逻辑 -->
+    <script>
+        (function () {
+            const projectId = {{ project.id }};
+        let formInitialized = false;
+        let isNameValid = true;
+
+        const i18n = {
+            projectType: '{{ _("请选择项目类型") }}',
+            industry: '{{ _("请选择行业") }}',
+            reportSource: '{{ _("请选择报备源") }}',
+            productSituation: '{{ _("请选择产品情况") }}',
+            owner: '{{ _("请选择项目负责人") }}',
+            vendorSales: '{{ _("请选择厂商销售负责人") }}',
+            similarProjects: '{{ _("相似项目") }}',
+            referenceNotice: '{{ _("以上项目名称仅供参考，请确保输入的名称不与已有项目重复") }}',
+            projectNameExists: '{{ _("该项目名称已存在") }}',
+            saving: '{{ _("保存中...") }}',
+            save: '{{ _("保存") }}',
+            saveError: '{{ _("保存失败，请重试") }}'
+        };
+
+        // 打开编辑模态框
+        window.openProjectEditModal = async function () {
+            try {
+                // 初始化表单（首次）
+                if (!formInitialized) {
+                    const initResult = await ProjectForm.init({
+                        placeholders: i18n
+                    });
+
+                    if (!initResult) {
+                        alert('{{ _("初始化表单失败") }}');
+                        return;
+                    }
+
+                    // 初始化名称查重
+                    ProjectForm.initNameCheck({
+                        inputId: 'project_name',
+                        excludeId: projectId,
+                        i18n: i18n,
+                        onValidChange: function (valid) {
+                            isNameValid = valid;
+                            const submitBtn = document.getElementById('projectFormModal-submit-btn');
+                            if (submitBtn) {
+                                submitBtn.disabled = !valid;
+                            }
+                        }
+                    });
+
+                    formInitialized = true;
+                }
+
+                // 加载项目数据
+                const projectData = await ProjectForm.loadProjectData(projectId);
+                if (!projectData) {
+                    alert('{{ _("加载项目数据失败") }}');
+                    return;
+                }
+
+                // 填充表单数据
+                ProjectForm.populateFormData(projectData, {
+                    placeholders: i18n
+                });
+
+                // 打开模态框
+                openFormModal('projectFormModal');
+            } catch (error) {
+                console.error('打开编辑模态框失败:', error);
+                alert('{{ _("打开编辑模态框失败") }}');
+            }
+        };
+
+        // 绑定表单提交事件
+        document.addEventListener('DOMContentLoaded', function () {
+            const form = document.getElementById('projectFormModal-form');
+            if (form) {
+                form.addEventListener('submit', async function (e) {
+                    e.preventDefault();
+
+                    if (!isNameValid) {
+                        alert('{{ _("项目名称已存在，请修改") }}');
+                        return;
+                    }
+
+                    await ProjectForm.submit('projectFormModal-form', 'edit', projectId, {
+                        i18n: i18n,
+                        onSuccess: function (result) {
+                            closeFormModal('projectFormModal');
+                            // 刷新页面以显示更新后的数据
+                            window.location.reload();
+                        },
+                        onError: function (msg) {
+                            alert(msg);
+                        }
+                    });
+                });
+            }
+        });
+    }) ();
+    </script>
+
+    <!-- 添加行动记录模态框脚本 (使用通用组件) -->
+    {{ tw_action_modal_script(
+        context_type='project',
+        context_id=project.id,
+        api_endpoint='/project/api/' ~ project.id ~ '/add_action',
+        contacts_api='/project/api/get_company_contacts'
+    ) }}
+
+    {% if can_edit_sharing %}
+    <!-- 共享设置模态框 (使用通用组件) -->
+    {{ tw_user_selector_modal(
+        modal_id='sharingModal',
+        title=_('共享设置'),
+        event_name='open-sharing-modal',
+        users_tree=shareable_users_tree,
+        mode='multi',
+        selected_users=shared_users_info,
+        show_share_toggle=true,
+        share_enabled=project.share_enabled,
+        save_url='/project/update_project_sharing/' ~ project.id,
+        searchable=true,
+        empty_text=_('暂无可共享的用户')
+    ) }}
+    {% endif %}
+
+    {% if has_change_owner_permission %}
+    <!-- 修改项目负责人模态框 (使用通用组件) -->
+    {{ tw_user_selector_modal(
+        modal_id='changeOwnerModal',
+        title=_('修改项目负责人'),
+        event_name='open-change-owner-modal',
+        users_tree=shareable_users_tree,
+        mode='single',
+        selected_user_id=project.owner_id,
+        form_action=url_for('project.change_project_owner', project_id=project.id),
+        field_name='new_owner_id',
+        searchable=true,
+        empty_text=_('没有找到匹配的用户')
+    ) }}
+
+    <!-- 修改厂商销售负责人模态框 (使用通用组件 + 厂商过滤) -->
+    {{ tw_user_selector_modal(
+        modal_id='changeVendorSalesModal',
+        title=_('修改厂商销售负责人'),
+        event_name='open-change-vendor-sales-modal',
+        users_tree=shareable_users_tree,
+        mode='single',
+        selected_user_id=project.vendor_sales_manager_id,
+        form_action=url_for('project.change_vendor_sales_manager', project_id=project.id),
+        field_name='vendor_sales_manager_id',
+        vendor_only=true,
+        searchable=true,
+        empty_text=_('没有找到厂商用户')
+    ) }}
+    {% endif %}
+
+    <!-- 报价单创建模态框相关脚本 -->
+    {% if can_view_project %}
+    <!-- 可编辑表格脚本 -->
+    {{ tw_editable_table_script(table_id='quotationProductTable', config={
+        'columns': product_columns,
+        'currency': default_currency,
+        'currency_symbol': currency_symbol,
+        'api_endpoints': {
+            'categories': '/api/products/categories',
+            'productsByCategory': '/api/products/by-category',
+            'subcategories': '/api/products/subcategories',
+            'productsBySubcategory': '/api/products/by-subcategory',
+            'productModels': '/api/products/models',
+            'productSpecs': '/api/products/specs',
+            'productSearch': '/api/products/search'
+        }
+    }) }}
+
+    <!-- 产品选择器 -->
+    <script src="{{ url_for('static', filename='js/product-selector.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/product-config-modal.js') }}"></script>
+
+    <!-- 产品规格选择模态框脚本 -->
+    {{ tw_product_spec_modal_script() }}
+
+    <!-- 报价单模态框模块 -->
+    <script src="{{ url_for('static', filename='js/quotation-modal.js') }}"></script>
+    <script>
+    (function() {
+        // 初始化报价单模态框模块（预设当前项目）
+        QuotationModal.init({
+            i18n: {
+                loading: '{{ _("加载中...") }}',
+                pleaseSelectProject: '{{ _("-- 请先选择项目 --") }}',
+                pleaseSelectCustomer: '{{ _("请选择客户") }}',
+                noCustomersFound: '{{ _("该项目暂无关联客户") }}',
+                pleaseSelectContact: '{{ _("请选择联系人") }}',
+                noContactsFound: '{{ _("该客户暂无联系人") }}',
+                creating: '{{ _("创建中...") }}',
+                create: '{{ _("创建") }}',
+                saving: '{{ _("保存中...") }}',
+                save: '{{ _("保存") }}',
+                saveError: '{{ _("保存失败，请重试") }}',
+                loadError: '{{ _("加载数据失败，请重试") }}',
+                projectRequired: '{{ _("请选择关联项目") }}',
+                customerRequired: '{{ _("请选择客户") }}',
+                productRequired: '{{ _("请至少添加一个产品") }}',
+                manualInput: '{{ _("手动输入") }}',
+                tempIndicator: '{{ _("临时") }}',
+                noProjectsFound: '{{ _("未找到匹配的项目") }}',
+                newQuotation: '{{ _("新建报价单") }}'
+            },
+            urls: {
+                createQuotation: '{{ url_for("quotation.create_quotation") }}',
+                searchProjects: '/quotation/search_projects',
+                getProjectCustomers: '/quotation/get_project_customers',
+                getCustomerContacts: '/quotation/get_customer_contacts'
+            },
+            presetProjectId: {{ project.id }},
+            presetProjectName: '{{ project.project_name|replace("'", "\\'")|replace("\n", " ") }}'
+        });
+    })();
+    </script>
+    {% endif %}
+
+</body>
+
+</html>

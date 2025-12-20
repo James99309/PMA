@@ -36,17 +36,17 @@ class QuotationApprovalStatus:
         'signed': 'signed_approved'
     }
 
-    # 审核状态标签
-    STATUS_LABELS = {
-        'pending': {'zh': '待审核', 'color': '#6c757d'},
-        'discover_approved': {'zh': '发现审核', 'color': '#17a2b8'},
-        'embed_approved': {'zh': '植入审核', 'color': '#007bff'},
-        'pre_tender_approved': {'zh': '招标前审核', 'color': '#28a745'},
-        'tendering_approved': {'zh': '招标中审核', 'color': '#ffc107'},
-        'awarded_approved': {'zh': '中标审核', 'color': '#fd7e14'},
-        'quoted_approved': {'zh': '批价审核', 'color': '#e83e8c'},
-        'signed_approved': {'zh': '签约审核', 'color': '#6f42c1'},
-        'rejected': {'zh': '审核驳回', 'color': '#dc3545'}
+    # 审核状态颜色（标签文本从 dictionary_helpers.PROJECT_STAGE_LABELS 获取）
+    STATUS_COLORS = {
+        'pending': '#6c757d',
+        'discover_approved': '#17a2b8',
+        'embed_approved': '#007bff',
+        'pre_tender_approved': '#28a745',
+        'tendering_approved': '#ffc107',
+        'awarded_approved': '#fd7e14',
+        'quoted_approved': '#e83e8c',
+        'signed_approved': '#6f42c1',
+        'rejected': '#dc3545'
     }
 
     @classmethod
@@ -55,9 +55,24 @@ class QuotationApprovalStatus:
         return cls.STAGE_TO_APPROVAL.get(stage)
 
     @classmethod
-    def get_status_label(cls, status):
-        """获取状态标签"""
-        return cls.STATUS_LABELS.get(status, {'zh': status, 'color': '#6c757d'})
+    def get_status_label(cls, status, lang='zh'):
+        """获取状态标签，从 dictionary_helpers 获取阶段名称"""
+        from app.utils.dictionary_helpers import project_stage_label, approval_status_label
+
+        color = cls.STATUS_COLORS.get(status, '#6c757d')
+
+        # 解析状态：如 'discover_approved' -> 'discover'
+        if status.endswith('_approved'):
+            stage_key = status.replace('_approved', '')
+            label = project_stage_label(stage_key, lang)
+        elif status == 'pending':
+            label = approval_status_label('pending', lang)
+        elif status == 'rejected':
+            label = approval_status_label('rejected', lang)
+        else:
+            label = status
+
+        return {'label': label, 'color': color}
 
 class Quotation(db.Model):
     __tablename__ = 'quotations'

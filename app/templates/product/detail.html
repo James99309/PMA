@@ -263,9 +263,9 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h2>{{ _('产品详情') }}</h2>
                 <div>
-                    {{ render_button(_('返回列表'), url_for('product_route.product_list'), color='secondary', icon='fas fa-arrow-left') }}
+                    {{ render_button(_('返回列表'), url_for('product.product_list'), color='secondary', icon='fas fa-arrow-left') }}
                     {% if has_permission('product', 'edit') %}
-                    {{ render_button(_('编辑产品'), url_for('product_route.edit_product_page', id=product.id), color='primary', icon='fas fa-edit') }}
+                    {{ render_button(_('编辑产品'), url_for('product.edit_product_page', id=product.id), color='primary', icon='fas fa-edit') }}
                     {% endif %}
                     {% if has_permission('product', 'delete') %}
                     {{ render_button(_('删除产品'), '#', color='danger', icon='fas fa-trash', attrs='onclick="confirmDeleteProduct()"') }}
@@ -285,14 +285,14 @@
                         <div class="h5 mt-1" style="margin-left: 0.5em; font-weight: normal;">{{ product.model or '-' }}</div>
                     </div>
                     <div class="product-nav-buttons d-flex gap-2">
-                        <a href="{% if prev_product_id %}{{ url_for('product_route.view_product_detail', id=prev_product_id) }}{% else %}#{% endif %}"
+                        <a href="{% if prev_product_id %}{{ url_for('product.view_product_detail', id=prev_product_id) }}{% else %}#{% endif %}"
                            class="btn btn-outline-secondary btn-sm rounded-circle d-flex align-items-center justify-content-center{% if not prev_product_id %} disabled{% endif %}"
                            style="width: 36px; height: 36px;"
                            {% if not prev_product_id %}tabindex="-1" aria-disabled="true"{% endif %}
                            title="{{ _('上一个产品') }}">
                             <i class="fas fa-chevron-left"></i>
                         </a>
-                        <a href="{% if next_product_id %}{{ url_for('product_route.view_product_detail', id=next_product_id) }}{% else %}#{% endif %}"
+                        <a href="{% if next_product_id %}{{ url_for('product.view_product_detail', id=next_product_id) }}{% else %}#{% endif %}"
                            class="btn btn-outline-secondary btn-sm rounded-circle d-flex align-items-center justify-content-center{% if not next_product_id %} disabled{% endif %}"
                            style="width: 36px; height: 36px;"
                            {% if not next_product_id %}tabindex="-1" aria-disabled="true"{% endif %}
@@ -431,7 +431,7 @@
                                     <div class="product-property">
                                         <div class="property-label">{{ _('产品二维码') }}</div>
                                         <div class="property-value">
-                                            <img src="{{ url_for('product_route.generate_product_qrcode', id=product.id) }}"
+                                            <img src="{{ url_for('product.generate_product_qrcode', id=product.id) }}"
                                                  alt="{{ _('产品二维码') }}"
                                                  class="product-qrcode"
                                                  style="width: 120px; height: 120px; border: 1px solid #dee2e6; border-radius: 4px;">
@@ -512,7 +512,7 @@
                         container_id='productRelationsList',
                         title='',
                         icon='',
-                        api_url=url_for('product_management.get_product_relations', product_id=product.id),
+                        api_url=url_for('rd_product.get_product_relations', product_id=product.id),
                         columns=[
                             {'key': 'product_name', 'label': _('产品名称'), 'width': '25%'},
                             {'key': 'product_model', 'label': _('型号'), 'width': '20%'},
@@ -671,7 +671,7 @@
                         {% endif %}
 
                         {% if effective_pdf %}
-                            {{ render_button(_('下载'), href=url_for('product_route.download_pdf', id=product.id), color='primary', icon='fas fa-download', attrs={'target': '_blank'}) }}
+                            {{ render_button(_('下载'), href=url_for('product.download_pdf', id=product.id), color='primary', icon='fas fa-download', attrs={'target': '_blank'}) }}
                         {% endif %}
 
                         {% if has_permission('product', 'edit') %}
@@ -755,7 +755,7 @@ if (typeof pdfjsLib !== 'undefined') {
 
 function loadPdfPreview() {
     // 使用effective_pdf（支持分类共享）
-    const pdfUrl = '{{ url_for("product_route.get_pdf_preview", id=product.id) if effective_pdf else "" }}';
+    const pdfUrl = '{{ url_for("product.get_pdf_preview", id=product.id) if effective_pdf else "" }}';
     if (!pdfUrl) {
         showPdfError();
         return;
@@ -816,7 +816,7 @@ function showPdfError() {
 
 function openPdfInNewWindow() {
     // 使用effective_pdf（支持分类共享）
-    const pdfUrl = '{{ url_for("product_route.get_pdf_preview", id=product.id) if effective_pdf else "" }}';
+    const pdfUrl = '{{ url_for("product.get_pdf_preview", id=product.id) if effective_pdf else "" }}';
     if (pdfUrl) {
         window.open(pdfUrl, '_blank');
     } else {
@@ -952,13 +952,13 @@ function toggleMNLock(lock) {
         title: '{{ _("确认锁定") }}',
         message: '{{ _("确定要锁定此产品的MN编码吗？锁定后MN编码将不会自动更新。") }}',
         confirmText: '{{ _("锁定") }}',
-        url: '{{ url_for("product_route.lock_product_mn", id=product.id) }}',
+        url: '{{ url_for("product.lock_product_mn", id=product.id) }}',
         successMsg: '{{ _("MN编码已锁定") }}'
     } : {
         title: '{{ _("确认解锁") }}',
         message: '{{ _("确定要解锁此产品的MN编码吗？解锁后MN编码将可以被修改。") }}',
         confirmText: '{{ _("解锁") }}',
-        url: '{{ url_for("product_route.unlock_product_mn", id=product.id) }}',
+        url: '{{ url_for("product.unlock_product_mn", id=product.id) }}',
         successMsg: '{{ _("MN编码已解锁") }}'
     };
 
@@ -1030,7 +1030,7 @@ function executeDeleteProduct() {
             showTopNotification('{{ _("产品已成功删除！") }}', 'success', 2000);
             // 延迟后跳转到产品列表页面
             setTimeout(() => {
-                window.location.href = '{{ url_for("product_route.product_list") }}';
+                window.location.href = '{{ url_for("product.product_list") }}';
             }, 2000);
         } else {
             showTopNotification('{{ _("删除失败") }}: ' + (data.message || '{{ _("未知错误") }}'), 'error');
@@ -1118,7 +1118,7 @@ document.addEventListener('DOMContentLoaded', function() {
             {% from 'macros/product_tree_selector.html' import render_product_tree_selector %}
             {{ render_product_tree_selector(
                 container_id='relationProductSelector',
-                api_url=url_for('product_management.get_product_tree'),
+                api_url=url_for('rd_product.get_product_tree'),
                 selected_product_ids=[],
                 show_badges=True,
                 show_icons=False,
@@ -1241,7 +1241,7 @@ function openAddRelationModal() {
     resetRelationTypeOptions();
 
     // 获取已有的关联产品ID列表，更新产品树排除列表
-    fetch('{{ url_for("product_management.get_product_relations", product_id=product.id) }}')
+    fetch('{{ url_for("rd_product.get_product_relations", product_id=product.id) }}')
         .then(response => response.json())
         .then(result => {
             if (result.success) {
@@ -1504,7 +1504,7 @@ function saveMutualExclusionGroup(data) {
     saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{{ _("保存中...") }}';
 
     // 发送请求到互斥组API
-    fetch('{{ url_for("product_management.batch_add_mutual_exclusion_group", product_id=product.id) }}', {
+    fetch('{{ url_for("rd_product.batch_add_mutual_exclusion_group", product_id=product.id) }}', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -1544,7 +1544,7 @@ function saveNormalRelations(data) {
     saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{{ _("保存中...") }}';
 
     // 发送请求到普通关联API
-    fetch('{{ url_for("product_management.batch_add_product_relations", product_id=product.id) }}', {
+    fetch('{{ url_for("rd_product.batch_add_product_relations", product_id=product.id) }}', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -1770,7 +1770,7 @@ window.deleteRelation = function(relationId) {
             cancelText: '{{ _("取消") }}',
             dialogId: 'deleteRelationDialog',
             onConfirm: () => {
-                fetch(`{{ url_for('product_management.delete_product_relation', product_id=product.id, relation_id=0) }}`.replace('/0', `/${relationId}`), {
+                fetch(`{{ url_for('rd_product.delete_product_relation', product_id=product.id, relation_id=0) }}`.replace('/0', `/${relationId}`), {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1808,7 +1808,7 @@ window.deleteMutualGroup = function(groupId) {
             cancelText: '{{ _("取消") }}',
             dialogId: 'deleteMutualGroupDialog',
             onConfirm: () => {
-                fetch(`{{ url_for('product_management.delete_mutual_exclusion_group', product_id=product.id) }}`, {
+                fetch(`{{ url_for('rd_product.delete_mutual_exclusion_group', product_id=product.id) }}`, {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json',

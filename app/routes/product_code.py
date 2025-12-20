@@ -242,6 +242,15 @@ def get_next_coding_position(category_id=None, subcategory_id=None, exclude_fiel
 # 路由函数
 # ============================================================================
 
+# Tailwind 风格产品分类管理页面
+@product_code_bp.route('/tw-categories', methods=['GET'])
+@login_required
+@product_manager_required
+def tw_categories():
+    """Tailwind 风格的产品分类管理页面"""
+    return render_template('product_code/tw_category_management.html')
+
+
 # 管理员和产品经理视图 - 产品分类管理
 @product_code_bp.route('/categories', methods=['GET'])
 @login_required
@@ -1200,42 +1209,154 @@ def generator():
 @login_required
 @permission_required('product_code', 'view')
 def api_category_subcategories(id):
+    """获取分类下的子分类列表"""
+    category = ProductCategory.query.get(id)
+    if not category:
+        return jsonify({'success': False, 'message': '分类不存在'}), 404
+
     # 按display_order字段升序排序
     subcategories = ProductSubcategory.query.filter_by(category_id=id).order_by(ProductSubcategory.display_order).all()
-    result = [
-        {'id': s.id, 'name': s.name, 'code_letter': s.code_letter, 'display_order': s.display_order}
-        for s in subcategories
-    ]
-    return jsonify(result)
+
+    result = []
+    for s in subcategories:
+        # 检查是否被使用
+        used_in_dev = db.session.execute(
+            text("SELECT 1 FROM dev_products WHERE subcategory_id = :id LIMIT 1"),
+            {"id": s.id}
+        ).first() is not None
+
+        pattern = f"{category.code_letter}{s.code_letter}%"
+        used_by_code = db.session.execute(
+            text("SELECT 1 FROM dev_products WHERE mn_code LIKE :pattern LIMIT 1"),
+            {"pattern": pattern}
+        ).first() is not None
+
+        result.append({
+            'id': s.id,
+            'name': s.name,
+            'code_letter': s.code_letter,
+            'display_order': s.display_order,
+            'is_used': used_in_dev or used_by_code
+        })
+
+    return jsonify({'success': True, 'data': result})
+
+
+@product_code_bp.route('/api/category/<int:category_id>/fields', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def api_category_fields(category_id):
+    """获取分类级规格字段列表
+
+    返回该分类下定义的分类级字段（会被所有子分类继承）
+    """
+    category = ProductCategory.query.get(category_id)
+    if not category:
+        return jsonify({'success': False, 'message': '分类不存在'}), 404
+
+    # 获取分类级字段
+    fields = ProductCodeField.query.filter_by(
+        category_id=category_id,
+        subcategory_id=None,  # 分类级字段
+        field_type='spec'
+    ).order_by(ProductCodeField.position).all()
+
+    result = []
+    for field in fields:
+        # 检查字段是否被使用（在任意子分类中有选项被产品使用）
+        is_used = check_category_field_used(category_id, field.id)
+        result.append({
+            'id': field.id,
+            'name': field.name,
+            'position': field.position,
+            'use_in_code': field.use_in_code,
+            'is_required': field.is_required,
+            'allow_quotation_config': field.allow_quotation_config or False,
+            'is_used': is_used
+        })
+
+    return jsonify({'success': True, 'data': result})
+
+
+def check_category_field_used(category_id, field_id):
+    """检查分类级字段是否被使用
+
+    判断条件：该字段被研发产品引用（与排序保存时的检查逻辑一致）
+    """
+    # 获取字段信息
+    field = ProductCodeField.query.get(field_id)
+    if not field:
+        return False
+
+    # 检查研发产品是否使用了该字段（与 update_category_fields_order 检查逻辑一致）
+    used_count = db.session.execute(
+        text("""
+            SELECT COUNT(*) FROM dev_product_specs dps
+            INNER JOIN dev_products dp ON dps.dev_product_id = dp.id
+            INNER JOIN product_subcategories ps ON dp.subcategory_id = ps.id
+            WHERE dps.field_name = :field_name
+            AND ps.category_id = :category_id
+        """),
+        {"field_name": field.name, "category_id": category_id}
+    ).scalar() or 0
+
+    return used_count > 0
+
 
 @product_code_bp.route('/api/subcategory/<int:id>/fields', methods=['GET'])
 @login_required
 @permission_required('product_code', 'view')
 def api_subcategory_fields(id):
+    """获取子分类的规格字段列表（包括继承的分类级字段）"""
+    subcategory = ProductSubcategory.query.get(id)
+    if not subcategory:
+        return jsonify({'success': False, 'message': '子分类不存在'}), 404
+
+    # 获取分类级继承的字段
+    category_fields = ProductCodeField.query.filter_by(
+        category_id=subcategory.category_id,
+        subcategory_id=None,
+        field_type='spec'
+    ).order_by(ProductCodeField.position).all()
+
     # 获取子分类特定的字段
-    subcategory_fields = ProductCodeField.query.filter_by(subcategory_id=id).order_by(ProductCodeField.position).all()
-    
-    # 获取产地区字段（通用字段）
-    origin_fields = ProductCodeField.query.filter_by(field_type='origin_location').order_by(ProductCodeField.position).all()
-    
-    # 合并字段
-    all_fields = origin_fields + subcategory_fields
+    subcategory_fields = ProductCodeField.query.filter_by(
+        subcategory_id=id,
+        field_type='spec'
+    ).order_by(ProductCodeField.position).all()
+
     result = []
-    
-    for field in all_fields:
-        options = ProductCodeFieldOption.query.filter_by(field_id=field.id).all()
-        field_data = {
+
+    # 添加继承的分类级字段
+    for field in category_fields:
+        is_used = check_field_used_in_subcategory(field.name, id, field.id)
+        result.append({
             'id': field.id,
             'name': field.name,
-            'type': field.field_type,
             'position': field.position,
-            'max_length': field.max_length,
-            'required': field.is_required,
-            'options': [{'id': opt.id, 'value': opt.value, 'code': opt.code} for opt in options]
-        }
-        result.append(field_data)
-    
-    return jsonify(result)
+            'use_in_code': field.use_in_code,
+            'is_required': field.is_required,
+            'is_inherited': True,
+            'is_used': is_used
+        })
+
+    # 添加子分类自己的字段
+    for field in subcategory_fields:
+        is_used = check_field_used_in_subcategory(field.name, id, field.id)
+        result.append({
+            'id': field.id,
+            'name': field.name,
+            'position': field.position,
+            'use_in_code': field.use_in_code,
+            'is_required': field.is_required,
+            'is_inherited': False,
+            'is_used': is_used
+        })
+
+    # 按位置排序
+    result.sort(key=lambda x: x['position'] or 999)
+
+    return jsonify({'success': True, 'data': result})
 
 @product_code_bp.route('/generate-preview', methods=['POST'])
 @login_required
@@ -1721,6 +1842,7 @@ def update_categories_order():
 @product_code_bp.route('/api/subcategory/<int:id>/update-fields-order', methods=['POST'])
 @login_required
 @product_manager_required
+@csrf.exempt
 def update_fields_order(id):
     """更新规格字段的顺序"""
     if not request.is_json:
@@ -1889,6 +2011,7 @@ def update_fields_order(id):
 @product_code_bp.route('/api/category/<int:id>/update-fields-order', methods=['POST'])
 @login_required
 @product_manager_required
+@csrf.exempt
 def update_category_fields_order(id):
     """更新分类级规格字段的顺序
 
@@ -2595,16 +2718,21 @@ def get_available_specs(subcategory_id):
 @csrf.exempt
 def create_field():
     """
-    创建产品代码字段（子分类级自有字段）
+    创建产品代码字段（支持分类级和子分类级）
 
     Request Body:
         {
-            "subcategory_id": int,
-            "name": str,
+            "category_id": int,      # 分类ID（创建分类级字段时使用）
+            "subcategory_id": int,   # 子分类ID（创建子分类级字段时使用）
+            "name": str,             # 规格名称
             "is_required": bool,
             "use_in_code": bool,
             "allow_quotation_config": bool
         }
+
+    注意：category_id 和 subcategory_id 二选一
+    - 提供 category_id：创建分类级字段（被所有子分类继承）
+    - 提供 subcategory_id：创建子分类级字段（仅该子分类使用）
 
     Returns:
         JSON: {success, message, data}
@@ -2612,82 +2740,150 @@ def create_field():
     try:
         data = request.get_json()
 
+        category_id = data.get('category_id')
         subcategory_id = data.get('subcategory_id')
         name = data.get('name', '').strip()
         is_required = data.get('is_required', False)
         use_in_code = data.get('use_in_code', False)
         allow_quotation_config = data.get('allow_quotation_config', False)
 
-        # 验证必填字段
-        if not subcategory_id or not name:
+        # 验证必填字段：必须提供 category_id 或 subcategory_id 其中之一
+        if not name:
             return jsonify({
                 'success': False,
-                'message': '子分类ID和规格名称不能为空'
+                'message': '规格名称不能为空'
             }), 400
 
-        # 验证子分类是否存在
-        subcategory = ProductSubcategory.query.get(subcategory_id)
-        if not subcategory:
+        if not category_id and not subcategory_id:
             return jsonify({
                 'success': False,
-                'message': '子分类不存在'
-            }), 404
-
-        # 检查规格名称是否已存在于当前子分类
-        existing_field = ProductCodeField.query.filter_by(
-            subcategory_id=subcategory_id,
-            name=name,
-            field_type='spec'
-        ).first()
-
-        if existing_field:
-            return jsonify({
-                'success': False,
-                'message': f'规格"{name}"已存在于当前产品分类中'
+                'message': '必须提供分类ID或子分类ID'
             }), 400
 
-        # 如果纳入编码，检查编码位置是否已满
-        if use_in_code:
-            active_code_fields_count = ProductCodeField.query.filter_by(
-                subcategory_id=subcategory_id,
-                use_in_code=True
-            ).count()
+        if category_id and subcategory_id:
+            return jsonify({
+                'success': False,
+                'message': '不能同时提供分类ID和子分类ID'
+            }), 400
 
-            if active_code_fields_count >= 10:
+        # ========== 分类级字段 ==========
+        if category_id:
+            # 验证分类是否存在
+            category = ProductCategory.query.get(category_id)
+            if not category:
                 return jsonify({
                     'success': False,
-                    'message': '规格编码位置已满（最多10个位置），请取消其他规格的编码选择后再添加'
-                }), 400
+                    'message': '分类不存在'
+                }), 404
 
-            # 计算新的编码位置
-            max_code_position = db.session.query(db.func.max(ProductCodeField.position))\
-                .filter_by(subcategory_id=subcategory_id, use_in_code=True).scalar()
+            # 检查规格名称是否已存在于当前分类
+            existing_field = ProductCodeField.query.filter_by(
+                category_id=category_id,
+                subcategory_id=None,
+                name=name,
+                field_type='spec'
+            ).first()
 
-            new_position = 4 if max_code_position is None else max_code_position + 1
-
-            if new_position > 13:
+            if existing_field:
                 return jsonify({
                     'success': False,
-                    'message': '编码位置已满（最多10个编码字段，位置4-13）'
+                    'message': f'规格"{name}"已存在于当前分类中'
                 }), 400
+
+            # 计算分类级字段的位置
+            if use_in_code:
+                max_code_position = db.session.query(db.func.max(ProductCodeField.position))\
+                    .filter_by(category_id=category_id, subcategory_id=None, use_in_code=True).scalar()
+                new_position = 4 if max_code_position is None else max_code_position + 1
+                if new_position > 13:
+                    return jsonify({
+                        'success': False,
+                        'message': '编码位置已满（最多10个编码字段，位置4-13）'
+                    }), 400
+            else:
+                max_position = db.session.query(db.func.max(ProductCodeField.position))\
+                    .filter_by(category_id=category_id, subcategory_id=None).scalar() or 13
+                new_position = max(max_position + 1, 14)
+
+            # 创建分类级字段
+            new_field = ProductCodeField(
+                category_id=category_id,
+                subcategory_id=None,  # 分类级字段
+                name=name,
+                field_type='spec',
+                description='',
+                position=new_position,
+                max_length=1,
+                is_required=is_required,
+                use_in_code=use_in_code,
+                allow_quotation_config=allow_quotation_config if use_in_code else False
+            )
+
+        # ========== 子分类级字段 ==========
         else:
-            # 不纳入编码，使用更大的位置值
-            max_position = db.session.query(db.func.max(ProductCodeField.position))\
-                .filter_by(subcategory_id=subcategory_id).scalar() or 13
-            new_position = max(max_position + 1, 14)
+            # 验证子分类是否存在
+            subcategory = ProductSubcategory.query.get(subcategory_id)
+            if not subcategory:
+                return jsonify({
+                    'success': False,
+                    'message': '子分类不存在'
+                }), 404
 
-        # 创建新字段
-        new_field = ProductCodeField(
-            subcategory_id=subcategory_id,
-            name=name,
-            field_type='spec',
-            description='',  # 不再使用描述字段
-            position=new_position,
-            max_length=1,  # 固定为1位
-            is_required=is_required,
-            use_in_code=use_in_code,
-            allow_quotation_config=allow_quotation_config if use_in_code else False
-        )
+            # 检查规格名称是否已存在于当前子分类
+            existing_field = ProductCodeField.query.filter_by(
+                subcategory_id=subcategory_id,
+                name=name,
+                field_type='spec'
+            ).first()
+
+            if existing_field:
+                return jsonify({
+                    'success': False,
+                    'message': f'规格"{name}"已存在于当前产品分类中'
+                }), 400
+
+            # 如果纳入编码，检查编码位置是否已满
+            if use_in_code:
+                active_code_fields_count = ProductCodeField.query.filter_by(
+                    subcategory_id=subcategory_id,
+                    use_in_code=True
+                ).count()
+
+                if active_code_fields_count >= 10:
+                    return jsonify({
+                        'success': False,
+                        'message': '规格编码位置已满（最多10个位置），请取消其他规格的编码选择后再添加'
+                    }), 400
+
+                # 计算新的编码位置
+                max_code_position = db.session.query(db.func.max(ProductCodeField.position))\
+                    .filter_by(subcategory_id=subcategory_id, use_in_code=True).scalar()
+
+                new_position = 4 if max_code_position is None else max_code_position + 1
+
+                if new_position > 13:
+                    return jsonify({
+                        'success': False,
+                        'message': '编码位置已满（最多10个编码字段，位置4-13）'
+                    }), 400
+            else:
+                # 不纳入编码，使用更大的位置值
+                max_position = db.session.query(db.func.max(ProductCodeField.position))\
+                    .filter_by(subcategory_id=subcategory_id).scalar() or 13
+                new_position = max(max_position + 1, 14)
+
+            # 创建子分类级字段
+            new_field = ProductCodeField(
+                subcategory_id=subcategory_id,
+                name=name,
+                field_type='spec',
+                description='',
+                position=new_position,
+                max_length=1,
+                is_required=is_required,
+                use_in_code=use_in_code,
+                allow_quotation_config=allow_quotation_config if use_in_code else False
+            )
 
         db.session.add(new_field)
         db.session.commit()
@@ -2701,7 +2897,8 @@ def create_field():
                 'position': new_field.position,
                 'is_required': new_field.is_required,
                 'use_in_code': new_field.use_in_code,
-                'allow_quotation_config': new_field.allow_quotation_config or False
+                'allow_quotation_config': new_field.allow_quotation_config or False,
+                'is_category_level': new_field.category_id is not None
             }
         })
 
@@ -3556,6 +3753,46 @@ def toggle_option_status_api(option_id):
 # ============================================================================
 # 产品分类管理 API
 # ============================================================================
+
+@product_code_bp.route('/api/categories', methods=['GET'])
+@login_required
+@product_manager_required
+@csrf.exempt
+def get_categories_api():
+    """获取所有产品分类列表"""
+    try:
+        categories = ProductCategory.get_ordered_list()
+
+        result = []
+        for category in categories:
+            # 检查是否被使用
+            used_in_dev = db.session.execute(
+                text("SELECT 1 FROM dev_products WHERE category_id = :id LIMIT 1"),
+                {"id": category.id}
+            ).first() is not None
+
+            # 检查是否有子分类
+            subcategory_count = ProductSubcategory.query.filter_by(category_id=category.id).count()
+
+            result.append({
+                'id': category.id,
+                'name': category.name,
+                'code_letter': category.code_letter,
+                'description': category.description or '',
+                'display_order': category.display_order,
+                'is_used': used_in_dev or subcategory_count > 0,
+                'subcategory_count': subcategory_count
+            })
+
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+
+    except Exception as e:
+        current_app.logger.error(f'获取分类列表失败: {str(e)}')
+        return jsonify({'success': False, 'message': f'获取失败: {str(e)}'}), 500
+
 
 @product_code_bp.route('/api/categories', methods=['POST'])
 @login_required
@@ -4539,6 +4776,418 @@ def update_inherited_field_config(subcategory_id, field_id):
         }), 500
 
 
+@product_code_bp.route('/api/category/<int:category_id>/field/<int:field_id>/options', methods=['GET'])
+@login_required
+@csrf.exempt
+def get_category_field_options(category_id, field_id):
+    """
+    获取分类级字段的选项列表（指标）
+
+    用于规格选项管理模态框的分类模式，返回该字段的分类级选项（subcategory_id=NULL）
+
+    Returns:
+        {
+            "success": true,
+            "data": [...],
+            "field_info": {...}
+        }
+    """
+    try:
+        # 验证分类存在
+        category = ProductCategory.query.get(category_id)
+        if not category:
+            return jsonify({
+                'success': False,
+                'message': '分类不存在'
+            }), 404
+
+        # 验证字段存在且是分类级字段
+        field = ProductCodeField.query.get(field_id)
+        if not field:
+            return jsonify({
+                'success': False,
+                'message': '字段不存在'
+            }), 404
+
+        if field.category_id != category_id:
+            return jsonify({
+                'success': False,
+                'message': '该字段不属于指定分类'
+            }), 400
+
+        # 获取分类级选项（subcategory_id=NULL）
+        options = ProductCodeFieldOption.query.filter_by(
+            field_id=field_id,
+            subcategory_id=None  # 分类级选项
+        ).order_by(ProductCodeFieldOption.position).all()
+
+        # 检查每个选项是否被产品使用
+        options_data = []
+        for option in options:
+            # 检查是否被使用
+            from app.models.product_code import ProductCodeFieldValue
+            used_count = ProductCodeFieldValue.query.filter(
+                ProductCodeFieldValue.option_id == option.id
+            ).count()
+            is_used = used_count > 0
+
+            options_data.append({
+                'id': option.id,
+                'value': option.effective_value,
+                'code': option.effective_code or '',
+                'spec_option_id': option.spec_option_id,
+                'price_adjustment': option.price_adjustment or 0,
+                'allow_quotation_config': option.allow_quotation_config,
+                'is_active': option.is_active,
+                'is_used': is_used
+            })
+
+        # 获取字段单位和规格ID（从规格字典）
+        spec_dict = SpecificationDictionary.query.filter_by(name=field.name).first()
+        field_unit = spec_dict.unit if spec_dict else ''
+        spec_id = spec_dict.id if spec_dict else None
+
+        return jsonify({
+            'success': True,
+            'data': options_data,
+            'field_info': {
+                'name': field.name,
+                'unit': field_unit,
+                'spec_id': spec_id
+            }
+        })
+
+    except Exception as e:
+        current_app.logger.error(f'获取分类级字段选项失败: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'获取失败: {str(e)}'
+        }), 500
+
+
+@product_code_bp.route('/api/category/<int:category_id>/field/<int:field_id>/options', methods=['POST'])
+@login_required
+@product_manager_required
+@csrf.exempt
+def add_category_field_option(category_id, field_id):
+    """
+    为分类级字段添加选项（指标）
+
+    添加的选项会被该分类下所有子分类继承
+
+    Request Body:
+        {
+            "spec_option_id": int,           # 规格字典选项ID（可选）
+            "value": str,                    # 选项值（spec_option_id 为空时必填）
+            "description": str,              # 描述（可选）
+            "price_adjustment": int,         # 价格增量（分）
+            "allow_quotation_config": bool   # 是否允许报价配置
+        }
+    """
+    from app.routes.spec_dictionary import generate_smart_code
+
+    try:
+        # 验证分类存在
+        category = ProductCategory.query.get(category_id)
+        if not category:
+            return jsonify({
+                'success': False,
+                'message': '分类不存在'
+            }), 404
+
+        # 验证字段存在且是分类级字段
+        field = ProductCodeField.query.get(field_id)
+        if not field:
+            return jsonify({
+                'success': False,
+                'message': '字段不存在'
+            }), 404
+
+        if field.category_id != category_id or field.subcategory_id is not None:
+            return jsonify({
+                'success': False,
+                'message': '字段不是该分类的分类级字段'
+            }), 400
+
+        data = request.get_json()
+        spec_option_id = data.get('spec_option_id')
+        value = data.get('value', '').strip()
+        code = data.get('code', '').strip()
+        description = data.get('description', '').strip()
+        price_adjustment = data.get('price_adjustment', 0)
+        allow_quotation_config = data.get('allow_quotation_config', True)
+
+        # 处理 spec_option_id
+        if spec_option_id:
+            spec_option = SpecificationOption.query.get(spec_option_id)
+            if not spec_option:
+                return jsonify({
+                    'success': False,
+                    'message': '规格字典选项不存在'
+                }), 404
+            value = spec_option.value
+        else:
+            if not value:
+                return jsonify({
+                    'success': False,
+                    'message': '选项值不能为空'
+                }), 400
+
+            if field.field_type == 'spec':
+                spec_dict = SpecificationDictionary.query.filter_by(name=field.name).first()
+                if not spec_dict:
+                    return jsonify({
+                        'success': False,
+                        'message': f'规格 "{field.name}" 不在规格字典中，请先在规格管理中添加'
+                    }), 400
+
+                spec_option = SpecificationOption.query.filter_by(
+                    spec_id=spec_dict.id,
+                    value=value
+                ).first()
+
+                if not spec_option:
+                    if code:
+                        existing_code = SpecificationOption.query.filter_by(
+                            spec_id=spec_dict.id,
+                            code=code
+                        ).first()
+                        if existing_code:
+                            return jsonify({
+                                'success': False,
+                                'message': f'编码 "{code}" 已存在'
+                            }), 400
+                        unique_code = code
+                    else:
+                        unique_code = generate_smart_code(spec_dict.id, value)
+                        if not unique_code:
+                            return jsonify({
+                                'success': False,
+                                'message': '无法生成唯一编码'
+                            }), 500
+
+                    spec_option = SpecificationOption(
+                        spec_id=spec_dict.id,
+                        value=value,
+                        code=unique_code,
+                        description=description if description else None,
+                        is_active=True
+                    )
+                    db.session.add(spec_option)
+                    db.session.flush()
+
+                spec_option_id = spec_option.id
+            else:
+                spec_option = None
+                spec_option_id = None
+
+        # 检查是否已存在相同选项（分类级：subcategory_id=NULL）
+        if spec_option_id:
+            existing = ProductCodeFieldOption.query.filter_by(
+                field_id=field_id,
+                subcategory_id=None,  # 分类级选项
+                spec_option_id=spec_option_id
+            ).first()
+        else:
+            existing = ProductCodeFieldOption.query.filter_by(
+                field_id=field_id,
+                subcategory_id=None,
+                value=value
+            ).first()
+
+        if existing:
+            return jsonify({
+                'success': False,
+                'message': f'选项"{value}"已存在'
+            }), 400
+
+        # 计算位置
+        max_position = db.session.query(db.func.max(ProductCodeFieldOption.position)).filter_by(
+            field_id=field_id,
+            subcategory_id=None  # 分类级选项
+        ).scalar() or 0
+
+        # 创建分类级选项
+        new_option = ProductCodeFieldOption(
+            field_id=field_id,
+            subcategory_id=None,  # 分类级选项
+            spec_option_id=spec_option_id,
+            value=value if not spec_option_id else None,
+            code=spec_option.code if spec_option else None,
+            description=description if description else None,
+            price_adjustment=price_adjustment,
+            allow_quotation_config=allow_quotation_config,
+            position=max_position + 1,
+            is_active=True
+        )
+
+        db.session.add(new_option)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': '选项添加成功（将被所有子分类继承）',
+            'data': {
+                'option_id': new_option.id,
+                'value': new_option.effective_value,
+                'code': new_option.effective_code or '',
+                'price_adjustment': new_option.price_adjustment or 0,
+                'allow_quotation_config': new_option.allow_quotation_config,
+                'spec_option_id': spec_option_id
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'添加分类级选项失败: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'添加失败: {str(e)}'
+        }), 500
+
+
+@product_code_bp.route('/api/subcategory/<int:subcategory_id>/field/<int:field_id>/options', methods=['GET'])
+@login_required
+@csrf.exempt
+def get_subcategory_field_options(subcategory_id, field_id):
+    """
+    获取子分类下某字段的选项列表
+
+    用于规格选项管理模态框的子分类模式，只返回该子分类下已添加的指标
+
+    Returns:
+        {
+            "success": true,
+            "data": [
+                {
+                    "id": 1,
+                    "value": "400-450",
+                    "code": "4",
+                    "spec_option_id": 10,
+                    "price_adjustment": 0,
+                    "allow_quotation_config": true,
+                    "is_active": true,
+                    "is_used": false
+                }
+            ],
+            "field_info": {
+                "name": "频率范围",
+                "unit": "MHz"
+            }
+        }
+    """
+    try:
+        # 验证子分类存在
+        subcategory = ProductSubcategory.query.get(subcategory_id)
+        if not subcategory:
+            return jsonify({
+                'success': False,
+                'message': '子分类不存在'
+            }), 404
+
+        # 验证字段存在
+        field = ProductCodeField.query.get(field_id)
+        if not field:
+            return jsonify({
+                'success': False,
+                'message': '字段不存在'
+            }), 404
+
+        # 获取该子分类下该字段的所有选项
+        # 对于继承的分类级字段，需要同时查询分类级选项（subcategory_id=NULL）和子分类特有选项
+        if field.is_category_level:
+            # 继承的分类级字段：查询分类级 + 子分类级选项
+            options = ProductCodeFieldOption.query.filter(
+                ProductCodeFieldOption.field_id == field_id,
+                db.or_(
+                    ProductCodeFieldOption.subcategory_id.is_(None),  # 分类级共享
+                    ProductCodeFieldOption.subcategory_id == subcategory_id  # 子分类特有
+                )
+            ).order_by(ProductCodeFieldOption.position).all()
+        else:
+            # 子分类自己的字段：只查询子分类级选项
+            options = ProductCodeFieldOption.query.filter_by(
+                field_id=field_id,
+                subcategory_id=subcategory_id
+            ).order_by(ProductCodeFieldOption.position).all()
+
+        # 检查每个选项是否被产品使用
+        options_data = []
+        for option in options:
+            opt_value = option.effective_value
+
+            # 检查是否被产品使用（与 fields.html 页面的逻辑一致）
+            from app.models.product import Product
+            from app.models.product_spec import ProductSpec
+            from app.models.dev_product import DevProduct, DevProductSpec
+
+            # 简化检查逻辑，暂时跳过 is_used 检查以排查问题
+            try:
+                used_in_product_code = False
+                if option.effective_code:
+                    used_in_product_code = db.session.query(Product).filter(
+                        Product.product_code.like(f'%{option.effective_code}%'),
+                        Product.subcategory_id == subcategory_id,
+                        Product.is_deleted.is_(False)
+                    ).first() is not None
+
+                used_in_dev_spec = db.session.query(DevProductSpec).filter(
+                    DevProductSpec.field_name == field.name,
+                    DevProductSpec.field_value == opt_value
+                ).join(DevProduct).filter(
+                    DevProduct.subcategory_id == subcategory_id,
+                    DevProduct.is_deleted.is_(False)
+                ).first() is not None
+
+                used_in_product_spec = db.session.query(ProductSpec).filter(
+                    ProductSpec.field_name == field.name,
+                    ProductSpec.field_value == opt_value
+                ).join(Product).filter(
+                    Product.subcategory_id == subcategory_id,
+                    Product.is_deleted.is_(False)
+                ).first() is not None
+            except Exception as e:
+                current_app.logger.error(f'检查选项使用状态失败: {e}')
+                used_in_product_code = False
+                used_in_dev_spec = False
+                used_in_product_spec = False
+
+            is_used = used_in_product_code or used_in_dev_spec or used_in_product_spec
+
+            options_data.append({
+                'id': option.id,
+                'value': option.effective_value,
+                'code': option.effective_code or '',
+                'spec_option_id': option.spec_option_id,
+                'price_adjustment': option.price_adjustment or 0,
+                'allow_quotation_config': option.allow_quotation_config,
+                'is_active': option.is_active,
+                'is_used': is_used
+            })
+
+        # 获取字段单位和规格ID（从规格字典）
+        spec_dict = SpecificationDictionary.query.filter_by(name=field.name).first()
+        field_unit = spec_dict.unit if spec_dict else ''
+        spec_id = spec_dict.id if spec_dict else None
+
+        return jsonify({
+            'success': True,
+            'data': options_data,
+            'field_info': {
+                'name': field.name,
+                'unit': field_unit,
+                'spec_id': spec_id  # 用于前端编码预览
+            }
+        })
+
+    except Exception as e:
+        current_app.logger.error(f'获取子分类字段选项失败: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'获取失败: {str(e)}'
+        }), 500
+
+
 @product_code_bp.route('/api/subcategory/<int:subcategory_id>/field/<int:field_id>/options', methods=['POST'])
 @login_required
 @product_manager_required
@@ -4578,15 +5227,20 @@ def add_subcategory_field_option(subcategory_id, field_id):
                 'message': '字段不存在'
             }), 404
 
-        if not field.is_category_level or field.category_id != subcategory.category_id:
+        # 验证字段属于该子分类（继承的分类级字段 或 子分类自己的字段）
+        is_inherited_field = field.is_category_level and field.category_id == subcategory.category_id
+        is_own_field = field.subcategory_id == subcategory_id
+
+        if not is_inherited_field and not is_own_field:
             return jsonify({
                 'success': False,
-                'message': '只能为继承的分类级字段添加子分类选项'
+                'message': '字段不属于该子分类'
             }), 400
 
         data = request.get_json()
         spec_option_id = data.get('spec_option_id')
         value = data.get('value', '').strip()
+        code = data.get('code', '').strip()  # 用户自定义编码
         description = data.get('description', '').strip()
         price_adjustment = data.get('price_adjustment', 0)
         allow_quotation_config = data.get('allow_quotation_config', True)
@@ -4626,12 +5280,26 @@ def add_subcategory_field_option(subcategory_id, field_id):
 
                 if not spec_option:
                     # 在规格字典中创建新指标
-                    unique_code = generate_smart_code(spec_dict.id, value)
-                    if not unique_code:
-                        return jsonify({
-                            'success': False,
-                            'message': '无法生成唯一编码，编码空间已用尽'
-                        }), 500
+                    # 优先使用用户提供的编码，否则自动生成
+                    if code:
+                        # 验证用户提供的编码是否唯一
+                        existing_code = SpecificationOption.query.filter_by(
+                            spec_id=spec_dict.id,
+                            code=code
+                        ).first()
+                        if existing_code:
+                            return jsonify({
+                                'success': False,
+                                'message': f'编码 "{code}" 已存在，请使用其他编码'
+                            }), 400
+                        unique_code = code
+                    else:
+                        unique_code = generate_smart_code(spec_dict.id, value)
+                        if not unique_code:
+                            return jsonify({
+                                'success': False,
+                                'message': '无法生成唯一编码，编码空间已用尽'
+                            }), 500
 
                     spec_option = SpecificationOption(
                         spec_id=spec_dict.id,
@@ -4724,6 +5392,8 @@ def update_subcategory_field_option(option_id):
 
     Request Body:
         {
+            "value": str,                    # 指标值（会更新关联的SpecificationOption）
+            "code": str,                     # 编码（会更新关联的SpecificationOption）
             "price_adjustment": int,         # 价格增量（分）
             "allow_quotation_config": bool   # 是否允许报价配置
         }
@@ -4744,6 +5414,34 @@ def update_subcategory_field_option(option_id):
             }), 400
 
         data = request.get_json()
+
+        # 更新 value 和 code（实际存储在 SpecificationOption 中）
+        if option.spec_option_id and ('value' in data or 'code' in data):
+            spec_option = SpecificationOption.query.get(option.spec_option_id)
+            if spec_option:
+                # 检查是否被其他地方使用（产品、报价等）
+                # 如果被使用，暂时允许修改（可以根据需要添加限制）
+
+                if 'value' in data:
+                    new_value = data['value'].strip()
+                    if new_value:
+                        spec_option.value = new_value
+
+                if 'code' in data:
+                    new_code = data['code'].strip()
+                    if new_code:
+                        # 验证编码唯一性（在同一规格字典内）
+                        existing_code = SpecificationOption.query.filter(
+                            SpecificationOption.spec_id == spec_option.spec_id,
+                            SpecificationOption.code == new_code,
+                            SpecificationOption.id != spec_option.id
+                        ).first()
+                        if existing_code:
+                            return jsonify({
+                                'success': False,
+                                'message': f'编码 "{new_code}" 已存在，请使用其他编码'
+                            }), 400
+                        spec_option.code = new_code
 
         if 'price_adjustment' in data:
             option.price_adjustment = data['price_adjustment']
@@ -4780,6 +5478,10 @@ def update_subcategory_field_option(option_id):
 @csrf.exempt
 def delete_subcategory_field_option(option_id):
     """删除子分类的字段选项"""
+    from app.models.product import Product
+    from app.models.product_spec import ProductSpec
+    from app.models.dev_product import DevProduct, DevProductSpec
+
     try:
         option = ProductCodeFieldOption.query.get(option_id)
         if not option:
@@ -4795,8 +5497,50 @@ def delete_subcategory_field_option(option_id):
                 'message': '只能删除子分类级选项'
             }), 400
 
-        # 检查选项是否被产品使用
-        if option.is_used:
+        # 检查选项是否被产品使用（计算 is_used）
+        subcategory_id = option.subcategory_id
+        field = option.field
+        opt_value = option.effective_value
+
+        is_used = False
+        try:
+            # 检查产品编码中是否使用
+            if option.effective_code:
+                used_in_product_code = db.session.query(Product).filter(
+                    Product.product_code.like(f'%{option.effective_code}%'),
+                    Product.subcategory_id == subcategory_id,
+                    Product.is_deleted.is_(False)
+                ).first() is not None
+                if used_in_product_code:
+                    is_used = True
+
+            # 检查研发产品规格中是否使用
+            if not is_used and field:
+                used_in_dev_spec = db.session.query(DevProductSpec).filter(
+                    DevProductSpec.field_name == field.name,
+                    DevProductSpec.field_value == opt_value
+                ).join(DevProduct).filter(
+                    DevProduct.subcategory_id == subcategory_id,
+                    DevProduct.is_deleted.is_(False)
+                ).first() is not None
+                if used_in_dev_spec:
+                    is_used = True
+
+            # 检查产品规格中是否使用
+            if not is_used and field:
+                used_in_product_spec = db.session.query(ProductSpec).filter(
+                    ProductSpec.field_name == field.name,
+                    ProductSpec.field_value == opt_value
+                ).join(Product).filter(
+                    Product.subcategory_id == subcategory_id,
+                    Product.is_deleted.is_(False)
+                ).first() is not None
+                if used_in_product_spec:
+                    is_used = True
+        except Exception as e:
+            current_app.logger.error(f'检查选项使用状态失败: {e}')
+
+        if is_used:
             return jsonify({
                 'success': False,
                 'message': '该选项已被产品使用，无法删除'

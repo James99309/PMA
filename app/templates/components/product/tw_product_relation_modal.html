@@ -1,0 +1,983 @@
+{#
+  Tailwind 风格关联产品选择弹窗组件
+
+  功能说明:
+  - 左侧：产品树状选择器（可搜索、可展开/折叠）
+  - 右侧：已选产品标签展示 + 配置选项
+  - 支持配置类型：必选配件、推荐配件、互斥组（必选/可选）
+  - 支持数量设置、互斥组名称、默认选项等功能
+
+  使用示例:
+  {% from 'components/product/tw_product_relation_modal.html' import render_tw_product_relation_modal, render_tw_product_relation_script %}
+  {{ render_tw_product_relation_modal() }}
+  {{ render_tw_product_relation_script(product_id, api_base_url, exclude_ids) }}
+
+  作者: Claude AI
+  创建日期: 2025-12-12
+#}
+
+{% macro render_tw_product_relation_modal() %}
+<!-- 关联产品选择弹窗 -->
+<div id="productRelationModal"
+     class="fixed inset-0 z-50 hidden">
+    <!-- 背景遮罩 -->
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+         onclick="window.closeProductRelationModal()"></div>
+
+    <!-- 弹窗主体 - 固定尺寸 -->
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden animate-fade-in-up"
+             style="width: 900px; height: 600px;">
+
+            <!-- 弹窗头部 -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <div class="flex items-center space-x-2">
+                    <span class="material-symbols-outlined text-primary">link</span>
+                    <h2 class="text-xl font-semibold text-slate-900 dark:text-white">{{ _('添加关联产品') }}</h2>
+                </div>
+                <button onclick="window.closeProductRelationModal()"
+                        class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-700">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <!-- 弹窗内容 - 左右分栏 -->
+            <div class="flex-1 flex overflow-hidden min-h-0">
+                <!-- 左侧：产品树选择器 -->
+                <div class="w-1/2 border-r border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden">
+                    <!-- 搜索框 - 固定 -->
+                    <div class="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 pointer-events-none">
+                                <span class="material-symbols-outlined text-lg">search</span>
+                            </span>
+                            <input type="text"
+                                   id="relationProductSearch"
+                                   class="w-full py-2 pl-10 pr-4 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-slate-900 dark:text-white placeholder-slate-400"
+                                   placeholder="{{ _('搜索产品型号或名称...') }}">
+                        </div>
+                    </div>
+
+                    <!-- 产品树容器 - 可滚动 -->
+                    <div id="relationProductTree" class="flex-1 overflow-y-auto p-4">
+                        <!-- 加载状态 -->
+                        <div id="treeLoadingState" class="flex items-center justify-center py-8">
+                            <svg class="animate-spin h-6 w-6 text-primary mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span class="text-slate-500">{{ _('正在加载产品数据...') }}</span>
+                        </div>
+
+                        <!-- 产品树内容 -->
+                        <ul id="productTreeContent" class="space-y-1 text-sm select-none hidden">
+                            <!-- 由JavaScript动态生成 -->
+                        </ul>
+
+                        <!-- 空状态 -->
+                        <div id="treeEmptyState" class="hidden text-center py-8">
+                            <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">inventory_2</span>
+                            <p class="mt-2 text-slate-500">{{ _('暂无可选产品') }}</p>
+                        </div>
+
+                        <!-- 搜索无结果 -->
+                        <div id="treeNoResultState" class="hidden text-center py-8">
+                            <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">search_off</span>
+                            <p class="mt-2 text-slate-500">{{ _('未找到匹配的产品') }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧：已选产品与配置 -->
+                <div class="w-1/2 flex flex-col overflow-y-auto p-6">
+                    <!-- 已选产品展示区域 -->
+                    <div class="space-y-3 mb-6">
+                        <label class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('当前已选择：') }}</label>
+                        <div id="selectedProductsBadges"
+                             class="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg p-3 min-h-[60px] flex flex-wrap gap-2">
+                            <span class="text-sm text-slate-400">{{ _('请从左侧选择产品') }}</span>
+                        </div>
+                    </div>
+
+                    <!-- 配置选项区域（初始隐藏） -->
+                    <div id="configurationOptions" class="space-y-4 hidden">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- 配置类型 -->
+                            <div class="flex flex-col space-y-1.5">
+                                <label class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('配置类型') }}</label>
+                                <select id="relationTypeSelect"
+                                        class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm shadow-sm focus:border-primary focus:ring focus:ring-primary/20 dark:text-white py-2 px-3">
+                                    <option value="required_accessory">{{ _('必选配件') }}</option>
+                                    <option value="recommended">{{ _('推荐配件') }}</option>
+                                </select>
+                            </div>
+
+                            <!-- 数量 -->
+                            <div class="flex flex-col space-y-1.5">
+                                <label class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('数量') }}</label>
+                                <input type="number"
+                                       id="defaultQuantityInput"
+                                       class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm shadow-sm focus:border-primary focus:ring focus:ring-primary/20 dark:text-white py-2 px-3"
+                                       min="1"
+                                       value="1">
+                            </div>
+
+                            <!-- 互斥组名称（初始隐藏） -->
+                            <div id="mutualGroupNameField" class="flex flex-col space-y-1.5 hidden">
+                                <label class="text-sm font-semibold text-slate-900 dark:text-white">
+                                    {{ _('互斥组名称') }} <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text"
+                                       id="mutualGroupNameInput"
+                                       class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm shadow-sm focus:border-primary focus:ring focus:ring-primary/20 dark:text-white py-2 px-3 placeholder-slate-400"
+                                       placeholder="{{ _('例如：电源线规格') }}">
+                            </div>
+
+                            <!-- 默认选项（初始隐藏） -->
+                            <div id="mutualDefaultField" class="flex flex-col space-y-1.5 hidden">
+                                <label class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('默认选项') }}</label>
+                                <select id="mutualDefaultSelect"
+                                        class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm shadow-sm focus:border-primary focus:ring focus:ring-primary/20 dark:text-white py-2 px-3">
+                                    <option value="">{{ _('无默认') }}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 互斥组说明提示 -->
+                        <div id="mutualGroupHint" class="hidden">
+                            <div class="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                                <div class="flex items-start gap-2">
+                                    <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-lg flex-shrink-0">info</span>
+                                    <div class="text-sm text-amber-800 dark:text-amber-300">
+                                        <p class="font-medium">{{ _('互斥组说明') }}</p>
+                                        <p class="mt-1 text-amber-700 dark:text-amber-400">{{ _('互斥组内的产品只能选择其中一个，适用于相同功能但规格不同的配件。') }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 空选择提示 -->
+                    <div id="emptySelectionHint" class="flex-1 flex items-center justify-center">
+                        <div class="text-center">
+                            <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600">touch_app</span>
+                            <p class="mt-3 text-sm text-slate-500">{{ _('从左侧产品树中选择要关联的产品') }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 弹窗底部按钮 (参考共享账户样式) -->
+            <div class="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-b-lg flex justify-end space-x-4 flex-shrink-0">
+                <button onclick="window.closeProductRelationModal()"
+                        class="bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">
+                    {{ _('取消') }}
+                </button>
+                <button id="saveRelationBtn"
+                        onclick="window.saveProductRelations()"
+                        disabled
+                        class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    {{ _('确认') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    @keyframes fade-in-up {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    .animate-fade-in-up {
+        animation: fade-in-up 0.3s ease-out;
+    }
+
+    /* 树子节点展开动画 - 贝尔曲线缓冲 (参考共享账户样式) */
+    .tree-children {
+        overflow: hidden;
+        transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .tree-children.collapsed {
+        max-height: 0;
+        opacity: 0;
+    }
+    .tree-children.expanded {
+        max-height: 500px;
+        opacity: 1;
+    }
+
+    /* 已选产品标签样式 */
+    .product-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.375rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        background-color: rgb(14 165 233); /* primary */
+        color: white;
+        box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        transition: background-color 0.15s ease;
+    }
+    .product-badge:hover {
+        background-color: rgb(2 132 199); /* primary darker */
+    }
+    .product-badge .remove-btn {
+        margin-left: 0.5rem;
+        opacity: 0.8;
+        cursor: pointer;
+        transition: opacity 0.15s ease;
+    }
+    .product-badge .remove-btn:hover {
+        opacity: 1;
+    }
+</style>
+{% endmacro %}
+
+
+{% macro render_tw_product_relation_script(product_id, api_base_url='/product-management/api', exclude_ids=[]) %}
+<script>
+(function() {
+    'use strict';
+
+    // ============== 配置 ==============
+    const CONFIG = {
+        productId: {{ product_id }},
+        apiBaseUrl: '{{ api_base_url }}',
+        excludeIds: {{ exclude_ids | tojson }},
+        csrfToken: document.querySelector('meta[name="csrf-token"]')?.content || ''
+    };
+
+    // ============== 状态管理 ==============
+    const state = {
+        treeData: [],           // 产品树数据
+        selectedProducts: [],   // 已选产品列表 [{id, name, model, mn}, ...]
+        expandedNodes: new Set(), // 展开的节点ID集合
+        searchKeyword: '',      // 搜索关键字
+        existingRelationIds: [] // 已存在的关联产品ID
+    };
+
+    // ============== 国际化文本 ==============
+    const i18n = {
+        required: '{{ _("必选配件") }}',
+        recommended: '{{ _("推荐配件") }}',
+        mutualRequired: '{{ _("互斥组（必选）") }}',
+        mutualOptional: '{{ _("互斥组（可选）") }}',
+        noDefault: '{{ _("无默认") }}',
+        saveSuccess: '{{ _("保存成功") }}',
+        saveFailed: '{{ _("保存失败") }}',
+        pleaseSelectProduct: '{{ _("请从左侧选择产品") }}',
+        pleaseInputGroupName: '{{ _("请输入互斥组名称") }}'
+    };
+
+    // ============== DOM 元素（延迟获取）==============
+    let elements = null;
+
+    function getElements() {
+        if (!elements || !elements.modal) {
+            elements = {
+                modal: document.getElementById('productRelationModal'),
+                searchInput: document.getElementById('relationProductSearch'),
+                treeContainer: document.getElementById('productTreeContent'),
+                loadingState: document.getElementById('treeLoadingState'),
+                emptyState: document.getElementById('treeEmptyState'),
+                noResultState: document.getElementById('treeNoResultState'),
+                selectedBadges: document.getElementById('selectedProductsBadges'),
+                configOptions: document.getElementById('configurationOptions'),
+                emptyHint: document.getElementById('emptySelectionHint'),
+                relationTypeSelect: document.getElementById('relationTypeSelect'),
+                quantityInput: document.getElementById('defaultQuantityInput'),
+                mutualGroupNameField: document.getElementById('mutualGroupNameField'),
+                mutualGroupNameInput: document.getElementById('mutualGroupNameInput'),
+                mutualDefaultField: document.getElementById('mutualDefaultField'),
+                mutualDefaultSelect: document.getElementById('mutualDefaultSelect'),
+                mutualGroupHint: document.getElementById('mutualGroupHint'),
+                saveBtn: document.getElementById('saveRelationBtn')
+            };
+        }
+        return elements;
+    }
+
+    // ============== 初始化 ==============
+    function init() {
+        const els = getElements();
+        // 绑定搜索事件
+        els.searchInput?.addEventListener('input', debounce(handleSearch, 300));
+
+        // 绑定配置类型变化事件
+        els.relationTypeSelect?.addEventListener('change', handleRelationTypeChange);
+    }
+
+    // ============== 打开弹窗 ==============
+    window.openProductRelationModal = async function() {
+        const els = getElements();
+        // 显示弹窗
+        els.modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+
+        // 重置状态
+        resetState();
+
+        // 加载已有关联产品ID
+        await loadExistingRelations();
+
+        // 加载产品树
+        await loadProductTree();
+    };
+
+    // ============== 关闭弹窗 ==============
+    window.closeProductRelationModal = function() {
+        const els = getElements();
+        els.modal.classList.add('hidden');
+        document.body.style.overflow = '';
+        resetState();
+    };
+
+    // ============== 重置状态 ==============
+    function resetState() {
+        const els = getElements();
+        state.selectedProducts = [];
+        state.expandedNodes.clear();
+        state.searchKeyword = '';
+
+        // 重置表单
+        if (els.searchInput) els.searchInput.value = '';
+        if (els.relationTypeSelect) els.relationTypeSelect.value = 'required_accessory';
+        if (els.quantityInput) els.quantityInput.value = 1;
+        if (els.mutualGroupNameInput) els.mutualGroupNameInput.value = '';
+
+        // 重置UI
+        updateSelectedBadges();
+        updateConfigurationVisibility();
+        resetRelationTypeOptions();
+    }
+
+    // ============== 加载已有关联 ==============
+    async function loadExistingRelations() {
+        try {
+            const response = await fetch(`${CONFIG.apiBaseUrl}/product/${CONFIG.productId}/relations`);
+            const result = await response.json();
+
+            if (result.success) {
+                state.existingRelationIds = extractAllProductIds(result);
+            }
+        } catch (error) {
+            console.error('加载已有关联失败:', error);
+        }
+    }
+
+    // ============== 提取所有已添加产品ID ==============
+    function extractAllProductIds(result) {
+        const ids = [];
+
+        // 普通关联产品
+        if (result.data && Array.isArray(result.data)) {
+            result.data.forEach(item => {
+                if (item.related_product_id) ids.push(item.related_product_id);
+            });
+        }
+
+        // 互斥组内产品
+        if (result.groups && typeof result.groups === 'object') {
+            Object.values(result.groups).forEach(group => {
+                if (group.products && Array.isArray(group.products)) {
+                    group.products.forEach(item => {
+                        if (item.related_product_id) ids.push(item.related_product_id);
+                    });
+                }
+            });
+        }
+
+        return [...new Set(ids)];
+    }
+
+    // ============== 加载产品树 ==============
+    async function loadProductTree() {
+        showLoading();
+
+        try {
+            const response = await fetch('/product-management/api/product-tree');
+            const result = await response.json();
+
+            if (result.success && result.data) {
+                state.treeData = result.data;
+                renderTree();
+            } else {
+                showEmpty();
+            }
+        } catch (error) {
+            console.error('加载产品树失败:', error);
+            showEmpty();
+        }
+    }
+
+    // ============== 渲染产品树 ==============
+    function renderTree() {
+        const els = getElements();
+        const filteredData = filterTreeData(state.treeData, state.searchKeyword);
+
+        if (filteredData.length === 0) {
+            if (state.searchKeyword) {
+                showNoResult();
+            } else {
+                showEmpty();
+            }
+            return;
+        }
+
+        els.treeContainer.innerHTML = renderTreeNodes(filteredData, 0);
+        els.treeContainer.classList.remove('hidden');
+        els.loadingState.classList.add('hidden');
+        els.emptyState.classList.add('hidden');
+        els.noResultState.classList.add('hidden');
+
+        // 绑定事件
+        bindTreeEvents();
+    }
+
+    // ============== 渲染树节点 ==============
+    function renderTreeNodes(nodes, level) {
+        return nodes.map(node => {
+            const isCategory = node.type === 'category';
+            const isSubcategory = node.type === 'subcategory';
+            const isProduct = node.type === 'product';
+            const hasChildren = node.children && node.children.length > 0;
+            const isExpanded = state.expandedNodes.has(node.id);
+            // 对于产品节点，使用 product_id（真正的数字ID），而非 id（"prod_123" 格式的字符串）
+            const realProductId = isProduct ? (node.product_id || node.id) : node.id;
+            const isExcluded = isProduct && (CONFIG.excludeIds.includes(realProductId) || state.existingRelationIds.includes(realProductId) || realProductId === CONFIG.productId);
+            const isSelected = isProduct && state.selectedProducts.some(p => p.id === realProductId);
+
+            const paddingLeft = level * 1.5;
+
+            // 分类/子分类节点添加悬停展开事件
+            const hoverEvents = hasChildren ? `onmouseenter="window.expandTreeNode('${node.id}')" onmouseleave="window.collapseTreeNode('${node.id}')"` : '';
+
+            let html = `<li data-node-id="${node.id}" data-node-type="${node.type}" ${hoverEvents} class="border-b border-slate-200 dark:border-slate-700 last:border-b-0">`;
+
+            // 节点内容
+            html += `<div class="tree-node-item flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">`;
+
+            // 左侧：分类用圆点，产品用圆形复选框
+            if (isProduct) {
+                // 产品：圆形复选框（TW风格）
+                const checkedClass = isSelected ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600';
+                const disabledClass = isExcluded ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer';
+                const clickHandler = isExcluded ? '' : `onclick="event.stopPropagation(); window.handleProductTextClick(${realProductId})"`;
+                html += `
+                    <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors mr-3 flex-shrink-0 ${checkedClass} ${disabledClass}"
+                         data-product-id="${realProductId}"
+                         data-product-name="${escapeHtml(node.name || '')}"
+                         data-product-model="${escapeHtml(node.model || '')}"
+                         data-product-mn="${escapeHtml(node.mn || '')}"
+                         ${clickHandler}>
+                        ${isSelected ? '<span class="material-symbols-outlined text-white" style="font-size: 14px;">check</span>' : ''}
+                    </div>
+                `;
+            } else {
+                // 分类/子分类：圆点
+                html += `<span class="w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-500 mr-3 flex-shrink-0"></span>`;
+            }
+
+            // 节点文本
+            if (isProduct) {
+                const disabledClass = isExcluded ? 'opacity-50' : '';
+                const spec = node.description || '';
+                // 点击整个文本区域也可以选中
+                const clickHandler = isExcluded ? '' : `onclick="event.stopPropagation(); window.handleProductTextClick(${realProductId})"`;
+                html += `
+                    <div class="flex-1 min-w-0 ${disabledClass} cursor-pointer" ${clickHandler}>
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-900 dark:text-white font-medium">${escapeHtml(node.model || node.name || '-')}</span>
+                            <span class="text-slate-400 dark:text-slate-500 text-xs">${escapeHtml(node.mn || '')}</span>
+                        </div>
+                        ${spec ? `<p class="text-xs text-slate-400 dark:text-slate-500">${escapeHtml(spec)}</p>` : ''}
+                    </div>
+                `;
+            } else {
+                // 分类/子分类文本
+                html += `<span class="flex-1 text-slate-700 dark:text-slate-300 font-medium">${escapeHtml(node.name || '-')}</span>`;
+            }
+
+            // 右侧箭头（如果有子节点）
+            if (hasChildren) {
+                html += `
+                    <span class="material-symbols-outlined text-lg text-slate-400 dark:text-slate-500 ml-2 tree-toggle-icon transition-transform ${isExpanded ? 'rotate-90' : ''}"
+                          onclick="event.stopPropagation(); window.toggleTreeNode('${node.id}')">chevron_right</span>
+                `;
+            }
+
+            html += `</div>`;
+
+            // 子节点 - 使用贝尔曲线动画类
+            if (hasChildren) {
+                const expandClass = isExpanded ? 'expanded' : 'collapsed';
+                html += `<ul class="tree-children pl-8 border-t border-slate-200 dark:border-slate-700 ${expandClass}">`;
+                html += renderTreeNodes(node.children, level + 1);
+                html += `</ul>`;
+            }
+
+            html += `</li>`;
+            return html;
+        }).join('');
+    }
+
+    // ============== 过滤树数据 ==============
+    function filterTreeData(nodes, keyword) {
+        if (!keyword) return nodes;
+
+        const lowerKeyword = keyword.toLowerCase();
+
+        return nodes.map(node => {
+            const nodeMatches = (node.name || '').toLowerCase().includes(lowerKeyword) ||
+                               (node.model || '').toLowerCase().includes(lowerKeyword) ||
+                               (node.mn || '').toLowerCase().includes(lowerKeyword);
+
+            let filteredChildren = [];
+            if (node.children && node.children.length > 0) {
+                filteredChildren = filterTreeData(node.children, keyword);
+            }
+
+            if (nodeMatches || filteredChildren.length > 0) {
+                // 搜索时自动展开包含结果的节点
+                if (filteredChildren.length > 0) {
+                    state.expandedNodes.add(node.id);
+                }
+                return {
+                    ...node,
+                    children: filteredChildren.length > 0 ? filteredChildren : node.children
+                };
+            }
+
+            return null;
+        }).filter(Boolean);
+    }
+
+    // ============== 绑定树事件 ==============
+    function bindTreeEvents() {
+        const els = getElements();
+        // 点击分类/子分类节点展开/折叠
+        els.treeContainer.querySelectorAll('.tree-node-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                // 如果点击的是圆形复选框或箭头图标，不处理
+                if (e.target.closest('[data-product-id]') || e.target.closest('.tree-toggle-icon')) return;
+
+                const li = this.closest('li');
+                const nodeId = li.dataset.nodeId;
+                const nodeType = li.dataset.nodeType;
+
+                if (nodeType !== 'product') {
+                    window.toggleTreeNode(nodeId);
+                }
+            });
+        });
+    }
+
+    // ============== 切换节点展开/折叠 ==============
+    window.toggleTreeNode = function(nodeId) {
+        if (state.expandedNodes.has(nodeId)) {
+            collapseNodeWithAnimation(nodeId);
+        } else {
+            expandNodeWithAnimation(nodeId);
+        }
+    };
+
+    // ============== 悬停展开/折叠的延迟计时器 ==============
+    const hoverExpandTimers = {};
+    const hoverCollapseTimers = {};
+
+    // ============== 悬停展开节点（延迟300ms）==============
+    window.expandTreeNode = function(nodeId) {
+        // 清除折叠计时器
+        if (hoverCollapseTimers[nodeId]) {
+            clearTimeout(hoverCollapseTimers[nodeId]);
+            hoverCollapseTimers[nodeId] = null;
+        }
+        // 如果已经有展开计时器在运行，不重复设置
+        if (hoverExpandTimers[nodeId]) return;
+
+        // 设置300ms延迟后展开
+        hoverExpandTimers[nodeId] = setTimeout(() => {
+            hoverExpandTimers[nodeId] = null;
+            if (!state.expandedNodes.has(nodeId)) {
+                expandNodeWithAnimation(nodeId);
+            }
+        }, 300);
+    };
+
+    // ============== 悬停离开折叠节点 ==============
+    window.collapseTreeNode = function(nodeId) {
+        // 清除展开计时器
+        if (hoverExpandTimers[nodeId]) {
+            clearTimeout(hoverExpandTimers[nodeId]);
+            hoverExpandTimers[nodeId] = null;
+        }
+        // 延迟200ms折叠，给用户时间移动到子节点
+        hoverCollapseTimers[nodeId] = setTimeout(() => {
+            hoverCollapseTimers[nodeId] = null;
+            if (state.expandedNodes.has(nodeId)) {
+                collapseNodeWithAnimation(nodeId);
+            }
+        }, 200);
+    };
+
+    // ============== 点击产品文本区域选中 ==============
+    window.handleProductTextClick = function(productId) {
+        const els = getElements();
+        const dataDiv = els.treeContainer.querySelector(`div[data-product-id="${productId}"]`);
+        if (!dataDiv) return;
+
+        const productName = dataDiv.dataset.productName;
+        const productModel = dataDiv.dataset.productModel;
+        const productMn = dataDiv.dataset.productMn;
+
+        // 检查当前是否已在选中列表中
+        const existingIndex = state.selectedProducts.findIndex(p => p.id === productId);
+        const isInState = existingIndex !== -1;
+
+        if (!isInState) {
+            // 添加到选中列表
+            state.selectedProducts.push({
+                id: productId,
+                name: productName,
+                model: productModel,
+                mn: productMn
+            });
+        } else {
+            // 从选中列表移除
+            state.selectedProducts.splice(existingIndex, 1);
+        }
+
+        // 重新渲染树以更新选中状态显示
+        renderTree();
+        updateSelectedBadges();
+        updateConfigurationVisibility();
+        updateRelationTypeOptions();
+    };
+
+    // ============== 展开节点动画 ==============
+    function expandNodeWithAnimation(nodeId) {
+        const els = getElements();
+        const li = els.treeContainer.querySelector(`li[data-node-id="${nodeId}"]`);
+        if (!li) return;
+
+        state.expandedNodes.add(nodeId);
+
+        const childrenUl = li.querySelector(':scope > ul.tree-children');
+        const toggleIcon = li.querySelector(':scope > .tree-node-item .tree-toggle-icon');
+
+        if (childrenUl) {
+            childrenUl.classList.remove('collapsed');
+            childrenUl.classList.add('expanded');
+        }
+        if (toggleIcon) {
+            toggleIcon.textContent = 'arrow_drop_down';
+        }
+    }
+
+    // ============== 折叠节点动画 ==============
+    function collapseNodeWithAnimation(nodeId) {
+        const els = getElements();
+        const li = els.treeContainer.querySelector(`li[data-node-id="${nodeId}"]`);
+        if (!li) return;
+
+        state.expandedNodes.delete(nodeId);
+
+        const childrenUl = li.querySelector(':scope > ul.tree-children');
+        const toggleIcon = li.querySelector(':scope > .tree-node-item .tree-toggle-icon');
+
+        if (childrenUl) {
+            childrenUl.classList.remove('expanded');
+            childrenUl.classList.add('collapsed');
+        }
+        if (toggleIcon) {
+            toggleIcon.textContent = 'arrow_right';
+        }
+    }
+
+    // ============== 处理圆形复选框点击（已弃用，改用 handleProductTextClick）==============
+    window.handleCircularCheckbox = function(checkbox) {
+        // 已弃用
+    };
+
+    // ============== 移除选中的产品 ==============
+    window.removeSelectedProduct = function(productId) {
+        state.selectedProducts = state.selectedProducts.filter(p => p.id !== productId);
+
+        // 重新渲染树以更新选中状态显示
+        renderTree();
+        updateSelectedBadges();
+        updateConfigurationVisibility();
+        updateRelationTypeOptions();
+    };
+
+    // ============== 更新已选标签 ==============
+    function updateSelectedBadges() {
+        const els = getElements();
+        if (state.selectedProducts.length === 0) {
+            els.selectedBadges.innerHTML = `<span class="text-sm text-slate-400">${i18n.pleaseSelectProduct}</span>`;
+            els.saveBtn.disabled = true;
+            return;
+        }
+
+        els.selectedBadges.innerHTML = state.selectedProducts.map(product => `
+            <div class="product-badge">
+                <span>${escapeHtml(product.model || product.name)} - ${escapeHtml(product.mn || '-')}</span>
+                <span class="remove-btn material-symbols-outlined text-sm" onclick="event.stopPropagation(); window.removeSelectedProduct(${product.id})">delete</span>
+            </div>
+        `).join('');
+
+        els.saveBtn.disabled = false;
+    }
+
+    // ============== 更新配置区域可见性 ==============
+    function updateConfigurationVisibility() {
+        const els = getElements();
+        const hasSelection = state.selectedProducts.length > 0;
+
+        els.configOptions.classList.toggle('hidden', !hasSelection);
+        els.emptyHint.classList.toggle('hidden', hasSelection);
+    }
+
+    // ============== 更新配置类型选项 ==============
+    function updateRelationTypeOptions() {
+        const count = state.selectedProducts.length;
+
+        if (count >= 2) {
+            // 添加互斥组选项
+            addMutualExclusionOptions();
+        } else {
+            // 移除互斥组选项
+            removeMutualExclusionOptions();
+        }
+
+        // 更新默认选项下拉框
+        updateMutualDefaultOptions();
+    }
+
+    // ============== 添加互斥组选项 ==============
+    function addMutualExclusionOptions() {
+        const els = getElements();
+        const select = els.relationTypeSelect;
+        if (select.querySelector('option[value="mutual_exclusion_required"]')) return;
+
+        select.innerHTML += `
+            <option value="mutual_exclusion_required">${i18n.mutualRequired}</option>
+            <option value="mutual_exclusion_optional">${i18n.mutualOptional}</option>
+        `;
+    }
+
+    // ============== 移除互斥组选项 ==============
+    function removeMutualExclusionOptions() {
+        const els = getElements();
+        const select = els.relationTypeSelect;
+        const currentValue = select.value;
+
+        // 如果当前选择的是互斥组，切换回必选配件
+        if (currentValue.startsWith('mutual_exclusion')) {
+            select.value = 'required_accessory';
+            handleRelationTypeChange();
+        }
+
+        // 移除互斥组选项
+        select.querySelectorAll('option[value^="mutual_exclusion"]').forEach(opt => opt.remove());
+    }
+
+    // ============== 重置配置类型选项 ==============
+    function resetRelationTypeOptions() {
+        const els = getElements();
+        els.relationTypeSelect.innerHTML = `
+            <option value="required_accessory">${i18n.required}</option>
+            <option value="recommended">${i18n.recommended}</option>
+        `;
+        handleRelationTypeChange();
+    }
+
+    // ============== 处理配置类型变化 ==============
+    function handleRelationTypeChange() {
+        const els = getElements();
+        const value = els.relationTypeSelect.value;
+        const isMutualExclusion = value.startsWith('mutual_exclusion');
+
+        els.mutualGroupNameField.classList.toggle('hidden', !isMutualExclusion);
+        els.mutualDefaultField.classList.toggle('hidden', !isMutualExclusion);
+        els.mutualGroupHint.classList.toggle('hidden', !isMutualExclusion);
+
+        if (isMutualExclusion) {
+            updateMutualDefaultOptions();
+        }
+    }
+
+    // ============== 更新默认选项下拉框 ==============
+    function updateMutualDefaultOptions() {
+        const els = getElements();
+        const select = els.mutualDefaultSelect;
+        select.innerHTML = `<option value="">${i18n.noDefault}</option>`;
+
+        state.selectedProducts.forEach(product => {
+            select.innerHTML += `<option value="${product.id}">${escapeHtml(product.model || product.name)} - ${escapeHtml(product.mn || '-')}</option>`;
+        });
+    }
+
+    // ============== 搜索处理 ==============
+    function handleSearch(e) {
+        state.searchKeyword = e.target.value.trim();
+        renderTree();
+    }
+
+    // ============== 保存关联 ==============
+    window.saveProductRelations = async function() {
+        const els = getElements();
+        const relationType = els.relationTypeSelect.value;
+        const quantity = parseInt(els.quantityInput.value) || 1;
+        const isMutualExclusion = relationType.startsWith('mutual_exclusion');
+
+        if (state.selectedProducts.length === 0) {
+            alert(i18n.pleaseSelectProduct);
+            return;
+        }
+
+        if (isMutualExclusion) {
+            const groupName = els.mutualGroupNameInput.value.trim();
+            if (!groupName) {
+                alert(i18n.pleaseInputGroupName);
+                els.mutualGroupNameInput.focus();
+                return;
+            }
+
+            // 保存互斥组
+            await saveMutualExclusionGroup(groupName, relationType === 'mutual_exclusion_required', quantity);
+        } else {
+            // 保存普通关联
+            await saveNormalRelations(relationType, quantity);
+        }
+    };
+
+    // ============== 保存普通关联 ==============
+    async function saveNormalRelations(relationType, quantity) {
+        try {
+            const response = await fetch(`${CONFIG.apiBaseUrl}/product/${CONFIG.productId}/relations/batch`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': CONFIG.csrfToken
+                },
+                body: JSON.stringify({
+                    product_ids: state.selectedProducts.map(p => p.id),
+                    relation_type: relationType,
+                    default_quantity: quantity
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                window.closeProductRelationModal();
+                // 刷新关联列表
+                if (typeof window.loadProductRelations === 'function') {
+                    window.loadProductRelations();
+                }
+            } else {
+                alert(result.message || i18n.saveFailed);
+            }
+        } catch (error) {
+            console.error('保存关联失败:', error);
+            alert(i18n.saveFailed);
+        }
+    }
+
+    // ============== 保存互斥组 ==============
+    async function saveMutualExclusionGroup(groupName, isRequired, quantity) {
+        try {
+            const els = getElements();
+            const defaultProductId = els.mutualDefaultSelect.value;
+
+            const response = await fetch(`${CONFIG.apiBaseUrl}/product/${CONFIG.productId}/relations/batch-mutual-group`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': CONFIG.csrfToken
+                },
+                body: JSON.stringify({
+                    product_ids: state.selectedProducts.map(p => p.id),
+                    group_name: groupName,
+                    is_required: isRequired,
+                    default_quantity: quantity,
+                    default_product_id: defaultProductId ? parseInt(defaultProductId) : null
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                window.closeProductRelationModal();
+                // 刷新关联列表
+                if (typeof window.loadProductRelations === 'function') {
+                    window.loadProductRelations();
+                }
+            } else {
+                alert(result.message || i18n.saveFailed);
+            }
+        } catch (error) {
+            console.error('保存互斥组失败:', error);
+            alert(i18n.saveFailed);
+        }
+    }
+
+    // ============== 工具函数 ==============
+    function showLoading() {
+        const els = getElements();
+        els.loadingState.classList.remove('hidden');
+        els.treeContainer.classList.add('hidden');
+        els.emptyState.classList.add('hidden');
+        els.noResultState.classList.add('hidden');
+    }
+
+    function showEmpty() {
+        const els = getElements();
+        els.loadingState.classList.add('hidden');
+        els.treeContainer.classList.add('hidden');
+        els.emptyState.classList.remove('hidden');
+        els.noResultState.classList.add('hidden');
+    }
+
+    function showNoResult() {
+        const els = getElements();
+        els.loadingState.classList.add('hidden');
+        els.treeContainer.classList.add('hidden');
+        els.emptyState.classList.add('hidden');
+        els.noResultState.classList.remove('hidden');
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    // 初始化
+    init();
+})();
+</script>
+{% endmacro %}

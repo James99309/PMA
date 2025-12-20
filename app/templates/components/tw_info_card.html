@@ -1,0 +1,257 @@
+{#
+=============================================================================
+Tailwind 信息卡片组件
+=============================================================================
+可复用的键值对信息展示卡片，适用于：
+- 客户档案
+- 联系人档案
+- 项目信息
+- 报价单信息
+- 等等
+
+使用方式：
+{% from 'components/tw_info_card.html' import tw_info_card, tw_info_item %}
+
+示例1 - 带图标单列：
+{{ tw_info_card(
+    title=_('客户档案'),
+    items=[
+        {'icon': 'business', 'label': _('企业类型'), 'value': company.company_type},
+        {'icon': 'apartment', 'label': _('行业'), 'value': company.industry},
+        {'icon': 'public', 'label': _('国家'), 'value': company.country},
+        {'icon': 'person', 'label': _('负责人'), 'value': company.owner.real_name}
+    ]
+) }}
+
+示例2 - 无图标两列：
+{{ tw_info_card(
+    title=_('项目信息'),
+    columns=2,
+    show_icon=false,
+    items=[
+        {'label': _('项目名称'), 'value': project.project_name},
+        {'label': _('当前阶段'), 'value': project.current_stage, 'badge': render_stage_badge(project.current_stage)},
+        {'label': _('负责人'), 'value': project.owner.real_name},
+        {'label': _('创建日期'), 'value': project.created_at|date}
+    ],
+    action_btn={'label': _('编辑'), 'icon': 'edit', 'onclick': 'openEditModal()'}
+) }}
+
+示例3 - 带链接的值：
+{{ tw_info_card(
+    title=_('联系人档案'),
+    columns=2,
+    items=[
+        {'icon': 'phone', 'label': _('电话'), 'value': contact.phone, 'link': 'tel:' ~ contact.phone},
+        {'icon': 'email', 'label': _('邮箱'), 'value': contact.email, 'link': 'mailto:' ~ contact.email},
+        {'icon': 'business', 'label': _('所属企业'), 'value': company.name, 'link': url_for('customer.view', id=company.id)}
+    ]
+) }}
+
+参数说明：
+- title: 卡片标题
+- items: 信息项列表，每项包含：
+  - icon: Material Symbols 图标名称（可选）
+  - label: 标签文本
+  - value: 值（为空时显示"未指定"或自动隐藏）
+  - link: 值的链接（可选）
+  - badge: 徽章HTML（可选，替代value显示）
+  - hide_empty: 值为空时是否隐藏该项，默认false
+- columns: 列数，1或2，默认1
+- show_icon: 是否显示图标，默认true
+- action_btn: 操作按钮配置 {label, icon, onclick, href}
+- show_action: 是否显示操作按钮，默认true
+- empty_text: 空值显示文本，默认"未指定"
+- card_class: 额外的卡片CSS类
+=============================================================================
+#}
+
+{# 信息卡片组件 #}
+{% macro tw_info_card(
+    title='',
+    items=[],
+    columns=1,
+    show_icon=true,
+    action_btn=none,
+    show_action=true,
+    empty_text=none,
+    card_class=''
+) %}
+{% set default_empty = empty_text or _('未指定') %}
+<div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 {{ card_class }}">
+    {% if title or (show_action and action_btn) %}
+    <div class="flex items-center justify-between mb-4">
+        {% if title %}
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ title }}</h3>
+        {% endif %}
+        {% if show_action and action_btn %}
+        {% if action_btn.href %}
+        <a href="{{ action_btn.href }}" class="text-primary text-sm font-medium hover:underline flex items-center gap-1">
+            {% if action_btn.icon %}
+            <span class="material-symbols-outlined text-base">{{ action_btn.icon }}</span>
+            {% endif %}
+            {{ action_btn.label or _('操作') }}
+        </a>
+        {% elif action_btn.onclick %}
+        <button type="button" onclick="{{ action_btn.onclick }}" class="text-primary text-sm font-medium hover:underline flex items-center gap-1">
+            {% if action_btn.icon %}
+            <span class="material-symbols-outlined text-base">{{ action_btn.icon }}</span>
+            {% endif %}
+            {{ action_btn.label or _('操作') }}
+        </button>
+        {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="{% if columns == 2 %}grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4{% else %}flex flex-col gap-4{% endif %} text-sm">
+        {% for item in items %}
+        {% set has_value = item.value is defined and item.value is not none and item.value != '' %}
+        {% set should_hide = item.hide_empty and not has_value and not item.badge %}
+
+        {% if not should_hide %}
+        <div class="flex items-start gap-3">
+            {% if show_icon and item.icon %}
+            <span class="material-symbols-outlined text-base text-slate-500 dark:text-slate-400 mt-0.5">{{ item.icon }}</span>
+            {% endif %}
+            <div class="flex-1 min-w-0">
+                <p class="text-slate-500 dark:text-slate-400 text-sm flex items-center gap-1">
+                    {{ item.label }}
+                    {% if item.edit_btn and (item.edit_btn.show is not defined or item.edit_btn.show) %}
+                    <button onclick="{{ item.edit_btn.onclick }}" class="p-0.5 rounded text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="{{ _('修改') }}">
+                        <span class="material-symbols-outlined text-sm">edit</span>
+                    </button>
+                    {% endif %}
+                </p>
+                {% if item.badge %}
+                <div class="mt-0.5">{{ item.badge }}</div>
+                {% elif has_value %}
+                <p class="text-slate-800 dark:text-slate-200 font-medium {% if item.link %}hover:text-primary{% endif %}">
+                    {% if item.link %}
+                    <a href="{{ item.link }}" class="hover:text-primary">{{ item.value }}</a>
+                    {% else %}
+                    {{ item.value }}
+                    {% endif %}
+                </p>
+                {% else %}
+                <p class="text-slate-400 dark:text-slate-500">{{ default_empty }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 简化的信息项宏（用于自定义布局） #}
+{% macro tw_info_item(icon='', label='', value='', link='', badge=none, empty_text=none, show_icon=true) %}
+{% set default_empty = empty_text or _('未指定') %}
+{% set has_value = value is defined and value is not none and value != '' %}
+<div class="flex items-start gap-3">
+    {% if show_icon and icon %}
+    <span class="material-symbols-outlined text-base text-slate-500 dark:text-slate-400 mt-0.5">{{ icon }}</span>
+    {% endif %}
+    <div class="flex-1 min-w-0">
+        <p class="text-slate-500 dark:text-slate-400 text-sm">{{ label }}</p>
+        {% if badge %}
+        <div class="mt-0.5">{{ badge }}</div>
+        {% elif has_value %}
+        <p class="text-slate-800 dark:text-slate-200 font-medium text-sm">
+            {% if link %}
+            <a href="{{ link }}" class="hover:text-primary">{{ value }}</a>
+            {% else %}
+            {{ value }}
+            {% endif %}
+        </p>
+        {% else %}
+        <p class="text-slate-400 dark:text-slate-500 text-sm">{{ default_empty }}</p>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 紧凑的信息行（无图标，标签和值在同一行） #}
+{% macro tw_info_row(label='', value='', link='', badge=none, empty_text=none) %}
+{% set default_empty = empty_text or _('未指定') %}
+{% set has_value = value is defined and value is not none and value != '' %}
+<div class="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
+    <span class="text-slate-500 dark:text-slate-400 text-sm">{{ label }}</span>
+    {% if badge %}
+    {{ badge }}
+    {% elif has_value %}
+    {% if link %}
+    <a href="{{ link }}" class="text-slate-800 dark:text-slate-200 font-medium text-sm hover:text-primary">{{ value }}</a>
+    {% else %}
+    <span class="text-slate-800 dark:text-slate-200 font-medium text-sm">{{ value }}</span>
+    {% endif %}
+    {% else %}
+    <span class="text-slate-400 dark:text-slate-500 text-sm">{{ default_empty }}</span>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{# 信息卡片（紧凑行样式） #}
+{% macro tw_info_card_compact(
+    title='',
+    items=[],
+    action_btn=none,
+    show_action=true,
+    empty_text=none,
+    card_class=''
+) %}
+{% set default_empty = empty_text or _('未指定') %}
+<div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 {{ card_class }}">
+    {% if title or (show_action and action_btn) %}
+    <div class="flex items-center justify-between mb-4">
+        {% if title %}
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ title }}</h3>
+        {% endif %}
+        {% if show_action and action_btn %}
+        {% if action_btn.href %}
+        <a href="{{ action_btn.href }}" class="text-primary text-sm font-medium hover:underline flex items-center gap-1">
+            {% if action_btn.icon %}
+            <span class="material-symbols-outlined text-base">{{ action_btn.icon }}</span>
+            {% endif %}
+            {{ action_btn.label or _('操作') }}
+        </a>
+        {% elif action_btn.onclick %}
+        <button type="button" onclick="{{ action_btn.onclick }}" class="text-primary text-sm font-medium hover:underline flex items-center gap-1">
+            {% if action_btn.icon %}
+            <span class="material-symbols-outlined text-base">{{ action_btn.icon }}</span>
+            {% endif %}
+            {{ action_btn.label or _('操作') }}
+        </button>
+        {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="divide-y divide-slate-100 dark:divide-slate-800">
+        {% for item in items %}
+        {% set has_value = item.value is defined and item.value is not none and item.value != '' %}
+        {% set should_hide = item.hide_empty and not has_value and not item.badge %}
+
+        {% if not should_hide %}
+        <div class="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
+            <span class="text-slate-500 dark:text-slate-400 text-sm">{{ item.label }}</span>
+            {% if item.badge %}
+            {{ item.badge }}
+            {% elif has_value %}
+            {% if item.link %}
+            <a href="{{ item.link }}" class="text-slate-800 dark:text-slate-200 font-medium text-sm hover:text-primary">{{ item.value }}</a>
+            {% else %}
+            <span class="text-slate-800 dark:text-slate-200 font-medium text-sm">{{ item.value }}</span>
+            {% endif %}
+            {% else %}
+            <span class="text-slate-400 dark:text-slate-500 text-sm">{{ default_empty }}</span>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+</div>
+{% endmacro %}

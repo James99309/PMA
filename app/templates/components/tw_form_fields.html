@@ -1,0 +1,201 @@
+{#
+=============================================================================
+Tailwind 表单字段组件
+=============================================================================
+可复用的表单字段组件，支持多种输入类型。
+
+使用方式：
+{% from 'components/tw_form_fields.html' import tw_form_field, tw_form_select, tw_form_textarea %}
+
+{{ tw_form_field('username', _('用户名'), required=true, placeholder=_('请输入用户名')) }}
+{{ tw_form_select('status', _('状态'), options=[{'value': '1', 'label': '启用'}], required=true) }}
+{{ tw_form_textarea('description', _('描述'), rows=4) }}
+
+组件列表：
+- tw_form_field - 文本输入框
+- tw_form_select - 下拉选择框
+- tw_form_textarea - 多行文本框
+- tw_form_checkbox - 圆形复选框（Alpine.js）
+- tw_form_card - 表单分组卡片
+- tw_form_row - 多列布局容器
+=============================================================================
+#}
+
+{# ============= 文本输入框 ============= #}
+{#
+参数：
+- name: 字段名称（同时用作id）
+- label: 标签文本
+- type: 输入类型，默认 'text'
+- placeholder: 占位文本
+- value: 默认值
+- required: 是否必填
+- readonly: 是否只读
+- disabled: 是否禁用
+- help_text: 帮助文本
+- error: 错误消息
+- class: 额外CSS类
+#}
+{% macro tw_form_field(name, label, type='text', placeholder='', value='', required=false, readonly=false, disabled=false, help_text='', error='', class='') %}
+<div class="{{ class }}">
+    <label for="{{ name }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ label }}
+        {% if required %}<span class="text-red-500">*</span>{% endif %}
+    </label>
+    <input type="{{ type }}" id="{{ name }}" name="{{ name }}"
+           class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm
+                  {% if error %}border-red-500 focus:border-red-500 focus:ring-red-500{% endif %}
+                  {% if readonly %}bg-slate-50 dark:bg-slate-800/50{% endif %}"
+           placeholder="{{ placeholder }}"
+           value="{{ value }}"
+           {% if required %}required{% endif %}
+           {% if readonly %}readonly{% endif %}
+           {% if disabled %}disabled{% endif %}>
+    {% if help_text %}
+    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ help_text }}</p>
+    {% endif %}
+    {% if error %}
+    <p class="mt-1 text-xs text-red-500">{{ error }}</p>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{# ============= 下拉选择框 ============= #}
+{#
+参数：
+- name: 字段名称
+- label: 标签文本
+- options: 选项列表 [{'value': '', 'label': ''}]
+- value: 当前选中值
+- required: 是否必填
+- disabled: 是否禁用
+- placeholder: 占位选项文本
+- help_text: 帮助文本
+- error: 错误消息
+- class: 额外CSS类
+#}
+{% macro tw_form_select(name, label, options=[], value='', required=false, disabled=false, placeholder='', help_text='', error='', class='') %}
+<div class="{{ class }}">
+    <label for="{{ name }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ label }}
+        {% if required %}<span class="text-red-500">*</span>{% endif %}
+    </label>
+    <select id="{{ name }}" name="{{ name }}"
+            class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm
+                   {% if error %}border-red-500 focus:border-red-500 focus:ring-red-500{% endif %}"
+            {% if required %}required{% endif %}
+            {% if disabled %}disabled{% endif %}>
+        {% if placeholder %}
+        <option value="">{{ placeholder }}</option>
+        {% endif %}
+        {% for option in options %}
+        <option value="{{ option.value }}" {% if option.value == value %}selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+    </select>
+    {% if help_text %}
+    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ help_text }}</p>
+    {% endif %}
+    {% if error %}
+    <p class="mt-1 text-xs text-red-500">{{ error }}</p>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{# ============= 多行文本框 ============= #}
+{#
+参数：
+- name: 字段名称
+- label: 标签文本
+- placeholder: 占位文本
+- value: 默认值
+- rows: 行数，默认 3
+- required: 是否必填
+- readonly: 是否只读
+- disabled: 是否禁用
+- help_text: 帮助文本
+- error: 错误消息
+- class: 额外CSS类
+#}
+{% macro tw_form_textarea(name, label, placeholder='', value='', rows=3, required=false, readonly=false, disabled=false, help_text='', error='', class='') %}
+<div class="{{ class }}">
+    <label for="{{ name }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ label }}
+        {% if required %}<span class="text-red-500">*</span>{% endif %}
+    </label>
+    <textarea id="{{ name }}" name="{{ name }}" rows="{{ rows }}"
+              class="form-textarea block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm resize-none shadow-sm
+                     {% if error %}border-red-500 focus:border-red-500 focus:ring-red-500{% endif %}
+                     {% if readonly %}bg-slate-50 dark:bg-slate-800/50{% endif %}"
+              placeholder="{{ placeholder }}"
+              {% if required %}required{% endif %}
+              {% if readonly %}readonly{% endif %}
+              {% if disabled %}disabled{% endif %}>{{ value }}</textarea>
+    {% if help_text %}
+    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ help_text }}</p>
+    {% endif %}
+    {% if error %}
+    <p class="mt-1 text-xs text-red-500">{{ error }}</p>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{# ============= 圆形复选框（Alpine.js） ============= #}
+{#
+参数：
+- label: 标签文本
+- checked: 是否选中
+- help_text: 帮助文本
+- alpine_model: Alpine.js 数据模型名
+- class: 额外CSS类
+#}
+{% macro tw_form_checkbox(label, checked=false, help_text='', alpine_model='', class='') %}
+<div class="{{ class }} pt-2">
+    <label class="flex items-start cursor-pointer" @click.prevent="{{ alpine_model }} = !{{ alpine_model }}">
+        <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0 mt-0.5"
+            :class="{{ alpine_model }} ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'">
+            <span x-show="{{ alpine_model }}" class="material-symbols-outlined text-white" style="font-size: 14px;">check</span>
+        </div>
+        <div class="ml-3">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ label }}</span>
+            {% if help_text %}
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ help_text }}</p>
+            {% endif %}
+        </div>
+    </label>
+</div>
+{% endmacro %}
+
+
+{# ============= 表单分组卡片 ============= #}
+{#
+参数：
+- title: 卡片标题
+- class: 额外CSS类
+
+使用 {% call %} 语法传入内容
+#}
+{% macro tw_form_card(title='', class='') %}
+<div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 {{ class }}">
+    {% if title %}
+    <h4 class="text-base font-semibold text-slate-900 dark:text-white mb-5">{{ title }}</h4>
+    {% endif %}
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+
+{# ============= 表单行（多列布局） ============= #}
+{#
+参数：
+- cols: 列数，默认 2
+
+使用 {% call %} 语法传入内容
+#}
+{% macro tw_form_row(cols=2) %}
+<div class="grid grid-cols-1 md:grid-cols-{{ cols }} gap-x-6 gap-y-0">
+    {{ caller() }}
+</div>
+{% endmacro %}

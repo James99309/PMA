@@ -180,6 +180,9 @@ class ProductFileService:
         Returns:
             Response: PDF预览响应
         """
+        # 强制刷新会话，确保获取最新数据
+        db.session.expire_all()
+
         product = Product.query.get_or_404(product_id)
 
         # 获取有效的PDF路径（产品自身或分类共享）
@@ -225,7 +228,7 @@ class ProductFileService:
                 )
 
         except Exception as e:
-            logger.error(f"获取PDF预览内容失败: {str(e)}")
+            logger.error(f"获取PDF预览内容失败: product_id={product_id}, effective_pdf={effective_pdf}, error={str(e)}", exc_info=True)
             return jsonify({'error': '获取PDF预览内容失败'}), 500
 
     def clear_file(self, product_id: int, file_type: str) -> dict:
@@ -439,8 +442,14 @@ class ProductFileService:
                 # 更新子分类文件
                 if file_type == 'image':
                     subcategory.image_path = file_url
+                    # 清空产品自身文件引用（因为_cleanup_and_upload已删除旧文件）
+                    if product.image_path:
+                        product.image_path = None
                 else:
                     subcategory.pdf_path = file_url
+                    # 清空产品自身文件引用（因为_cleanup_and_upload已删除旧文件）
+                    if product.pdf_path:
+                        product.pdf_path = None
 
                 # 清理旧的子分类文件
                 if old_subcategory_file:
@@ -553,6 +562,17 @@ class ProductFileService:
             file_url = self._cleanup_and_upload_generic(product, file, file_type, bucket_type)
             if not file_url:
                 return {'success': False, 'error': f'{file_type}上传失败'}
+
+            # 调试：验证上传后的URL是否可访问
+            if file_url.startswith('http'):
+                import requests as req
+                try:
+                    head_resp = req.head(file_url, timeout=10)
+                    logger.info(f"🔍 上传后URL验证: {file_url} -> status={head_resp.status_code}")
+                    if head_resp.status_code >= 400:
+                        logger.warning(f"⚠️ 上传后URL不可访问: {file_url} -> {head_resp.status_code}")
+                except Exception as url_err:
+                    logger.warning(f"⚠️ 上传后URL验证失败: {file_url} -> {str(url_err)}")
 
             if update_category:
                 # 用户选择覆盖子分类文件

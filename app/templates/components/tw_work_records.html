@@ -1,0 +1,901 @@
+{#
+=============================================================================
+Tailwind 工作记录组件
+=============================================================================
+可复用的工作记录表格组件，支持：
+- 固定高度滚动
+- 无限滚动加载更多
+- 账户筛选（可选）
+- 深色模式
+- 国际化
+- 行内展开回复（点击回复徽章展开/收起）
+- 嵌套回复（支持回复其他人的回复）
+- 列宽拖拽调整
+- 文本截断省略
+- 单行显示（禁止换行）
+
+使用方式：
+{% from 'components/tw_work_records.html' import render_tw_work_records, render_tw_work_records_script, render_tw_work_records_styles %}
+
+<!-- 在 head 中引入样式 -->
+{{ render_tw_work_records_styles() }}
+
+<!-- 在页面中渲染组件 -->
+{{ render_tw_work_records(
+    container_id='workRecords',
+    show_account_filter=true,
+    max_height='400px',
+    title=_('工作记录')
+) }}
+
+<!-- 在页面底部引入脚本 -->
+{{ render_tw_work_records_script(
+    container_id='workRecords',
+    api_url='/api/recent_work_records',
+    user_role=current_user.role
+) }}
+=============================================================================
+#}
+
+{# 工作记录组件样式 #}
+{% macro render_tw_work_records_styles() %}
+<style>
+    /* 工作记录表格 - 固定列宽模式 */
+    .work-records-table {
+        table-layout: fixed;
+    }
+    /* 表格行悬停效果 */
+    .wr-row-hover:hover {
+        background-color: rgba(19, 127, 236, 0.05);
+    }
+    .dark .wr-row-hover:hover {
+        background-color: rgba(19, 127, 236, 0.1);
+    }
+    /* 单元格文本截断和禁止换行 */
+    .work-records-table .wr-cell {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .work-records-table .wr-cell a,
+    .work-records-table .wr-cell span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    /* 行动记录列 - 可展开 */
+    .work-records-table .wr-cell-expandable {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: default;
+        max-height: 1.5em;
+        transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                    white-space 0s 0.15s;
+    }
+    .work-records-table .wr-cell-expandable.expanded {
+        white-space: pre-wrap;
+        word-break: break-word;
+        text-overflow: clip;
+        max-height: 500px;
+        transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                    white-space 0s 0s;
+    }
+    /* 列分割线和拖拽手柄 */
+    .wr-column-resizer {
+        position: absolute;
+        right: -2px;
+        top: 0;
+        width: 5px;
+        height: 100%;
+        background: transparent;
+        cursor: col-resize;
+        z-index: 10;
+    }
+    .wr-column-resizer::after {
+        content: '';
+        position: absolute;
+        right: 2px;
+        top: 25%;
+        width: 1px;
+        height: 50%;
+        background: #cbd5e1;
+        transition: all 0.15s;
+    }
+    .wr-column-resizer:hover::after,
+    .wr-column-resizer.resizing::after {
+        width: 3px;
+        right: 1px;
+        top: 10%;
+        height: 80%;
+        background: #3b82f6;
+        border-radius: 2px;
+    }
+    .dark .wr-column-resizer::after {
+        background: #475569;
+    }
+    .dark .wr-column-resizer:hover::after,
+    .dark .wr-column-resizer.resizing::after {
+        background: #3b82f6;
+    }
+    /* 拖拽时禁止选择文本 */
+    body.wr-resizing {
+        user-select: none;
+        cursor: col-resize !important;
+    }
+    body.wr-resizing * {
+        cursor: col-resize !important;
+    }
+    /* 表格滚动条样式 */
+    .wr-table-scroll::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    .wr-table-scroll::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 3px;
+    }
+    .wr-table-scroll::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+    }
+    .wr-table-scroll::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+    .dark .wr-table-scroll::-webkit-scrollbar-track {
+        background: #1e293b;
+    }
+    .dark .wr-table-scroll::-webkit-scrollbar-thumb {
+        background: #475569;
+    }
+</style>
+{% endmacro %}
+
+{# 工作记录组件 HTML 结构 #}
+{% macro render_tw_work_records(container_id='records', show_account_filter=false, max_height='400px', title=None) %}
+<div id="{{ container_id }}Container" class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-slate-900 dark:text-white text-base font-medium">{{ title if title else _('工作记录') }}</h3>
+        {% if show_account_filter %}
+        <div id="{{ container_id }}AccountFilterContainer" class="hidden">
+            <select id="{{ container_id }}AccountFilter" class="text-sm rounded-lg border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
+                <option value="">{{ _('全部账户') }}</option>
+            </select>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 加载状态 -->
+    <div id="{{ container_id }}Loading" class="text-center py-8">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div class="mt-2 text-slate-500 dark:text-slate-400">{{ _('正在加载工作记录') }}...</div>
+    </div>
+
+    <!-- 列表容器 - 固定高度滚动 -->
+    <div id="{{ container_id }}TableWrapper" class="hidden wr-table-scroll" style="max-height: {{ max_height }}; overflow-y: auto; overflow-x: auto;">
+        <table id="{{ container_id }}Table" class="w-full work-records-table" style="min-width: 900px;">
+            <thead class="sticky top-0 z-10 bg-white dark:bg-slate-900">
+                <tr>
+                    <th class="pb-2 text-left text-slate-500 dark:text-slate-400 font-medium text-xs whitespace-nowrap" style="width: 10%; position: relative;">
+                        <span>{{ _('行动日期') }}</span>
+                        <div class="wr-column-resizer"></div>
+                    </th>
+                    <th class="pb-2 text-left text-slate-500 dark:text-slate-400 font-medium text-xs whitespace-nowrap" style="width: 8%; position: relative;">
+                        <span>{{ _('拥有人') }}</span>
+                        <div class="wr-column-resizer"></div>
+                    </th>
+                    <th class="pb-2 text-left text-slate-500 dark:text-slate-400 font-medium text-xs whitespace-nowrap" style="width: 15%; position: relative;">
+                        <span>{{ _('客户') }}</span>
+                        <div class="wr-column-resizer"></div>
+                    </th>
+                    <th class="pb-2 text-left text-slate-500 dark:text-slate-400 font-medium text-xs whitespace-nowrap" style="width: 15%; position: relative;">
+                        <span>{{ _('关联项目') }}</span>
+                        <div class="wr-column-resizer"></div>
+                    </th>
+                    <th class="pb-2 text-left text-slate-500 dark:text-slate-400 font-medium text-xs whitespace-nowrap" style="width: 42%; position: relative;">
+                        <span>{{ _('行动记录') }}</span>
+                        <div class="wr-column-resizer"></div>
+                    </th>
+                    <th class="pb-2 text-center text-slate-500 dark:text-slate-400 font-medium text-xs whitespace-nowrap" style="width: 10%;">
+                        <span>{{ _('回复状态') }}</span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody id="{{ container_id }}TableBody" class="">
+                <!-- 数据通过JS填充 -->
+            </tbody>
+        </table>
+        <!-- 加载更多指示器 -->
+        <div id="{{ container_id }}LoadingMore" class="hidden text-center py-4">
+            <div class="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+            <span class="ml-2 text-slate-500 dark:text-slate-400 text-sm">{{ _('加载更多') }}...</span>
+        </div>
+    </div>
+
+    <!-- 空状态 -->
+    <div id="{{ container_id }}EmptyState" class="hidden text-center py-8">
+        <span class="material-symbols-outlined text-4xl text-slate-400 dark:text-slate-600 mb-2">description</span>
+        <p class="text-slate-500 dark:text-slate-400">{{ _('暂无工作记录') }}</p>
+    </div>
+
+    <!-- 错误状态 -->
+    <div id="{{ container_id }}ErrorState" class="hidden text-center py-8">
+        <span class="material-symbols-outlined text-4xl text-yellow-500 mb-2">warning</span>
+        <p class="text-slate-500 dark:text-slate-400">{{ _('加载失败') }}</p>
+        <button onclick="window.{{ container_id }}Component.reload()" class="mt-2 px-4 py-2 text-sm text-primary hover:underline">
+            {{ _('重新加载') }}
+        </button>
+    </div>
+
+    <!-- 底部信息 -->
+    <div class="mt-4 flex justify-end items-center text-sm text-slate-500 dark:text-slate-400">
+        <span><span id="{{ container_id }}Count">0</span> {{ _('条记录') }}</span>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 工作记录组件 JavaScript #}
+{% macro render_tw_work_records_script(container_id='records', api_url='/api/recent_work_records', user_role='', show_account_filter=false) %}
+<script>
+(function() {
+    const containerId = '{{ container_id }}';
+    const apiUrl = '{{ api_url }}';
+    const userRole = '{{ user_role }}';
+    const showAccountFilter = {{ 'true' if show_account_filter else 'false' }};
+
+    // 组件状态
+    let currentAccountId = null;
+    let state = {
+        isLoading: false,
+        hasMore: true,
+        currentOffset: 0,
+        limit: 20
+    };
+
+    // 存储每条记录的源类型（project 或 customer）
+    const recordSourceMap = {};
+
+    // DOM 元素缓存
+    const elements = {
+        loading: () => document.getElementById(containerId + 'Loading'),
+        tableWrapper: () => document.getElementById(containerId + 'TableWrapper'),
+        tableBody: () => document.getElementById(containerId + 'TableBody'),
+        emptyState: () => document.getElementById(containerId + 'EmptyState'),
+        errorState: () => document.getElementById(containerId + 'ErrorState'),
+        loadingMore: () => document.getElementById(containerId + 'LoadingMore'),
+        count: () => document.getElementById(containerId + 'Count'),
+        accountFilter: () => document.getElementById(containerId + 'AccountFilter'),
+        accountFilterContainer: () => document.getElementById(containerId + 'AccountFilterContainer')
+    };
+
+    // 初始化
+    function init() {
+        // 账户筛选（管理员和总监级别）
+        if (showAccountFilter && (userRole === 'admin' || userRole === 'sales_director' || userRole === 'service_manager')) {
+            loadAvailableAccounts();
+            const filterContainer = elements.accountFilterContainer();
+            if (filterContainer) {
+                filterContainer.classList.remove('hidden');
+            }
+
+            const accountFilter = elements.accountFilter();
+            if (accountFilter) {
+                accountFilter.addEventListener('change', function() {
+                    currentAccountId = this.value || null;
+                    state.currentOffset = 0;
+                    state.hasMore = true;
+                    loadRecords();
+                });
+            }
+        }
+
+        // 滚动加载更多
+        const tableWrapper = elements.tableWrapper();
+        if (tableWrapper) {
+            tableWrapper.addEventListener('scroll', function() {
+                if (state.isLoading || !state.hasMore) return;
+
+                const scrollTop = this.scrollTop;
+                const scrollHeight = this.scrollHeight;
+                const clientHeight = this.clientHeight;
+
+                // 距离底部100px时加载更多
+                if (scrollTop + clientHeight >= scrollHeight - 100) {
+                    loadRecords(true);
+                }
+            });
+        }
+
+        // 加载初始数据
+        loadRecords();
+    }
+
+    // 加载可用账户列表
+    function loadAvailableAccounts() {
+        fetch('/api/available_accounts')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const select = elements.accountFilter();
+                    if (select) {
+                        select.innerHTML = `<option value="">${window.i18nTexts?.allAccounts || '全部账户'}</option>`;
+                        data.data.forEach(account => {
+                            const option = document.createElement('option');
+                            option.value = account.id;
+                            option.textContent = account.name;
+                            select.appendChild(option);
+                        });
+                    }
+                }
+            })
+            .catch(error => console.error('加载账户列表失败:', error));
+    }
+
+    // 加载工作记录
+    function loadRecords(append = false) {
+        if (state.isLoading) return;
+
+        if (!append) {
+            showLoading();
+            state.currentOffset = 0;
+            state.hasMore = true;
+        } else {
+            state.isLoading = true;
+            const loadingMore = elements.loadingMore();
+            if (loadingMore) loadingMore.classList.remove('hidden');
+        }
+
+        let url = apiUrl;
+        const params = new URLSearchParams();
+        params.append('offset', state.currentOffset);
+        params.append('limit', state.limit);
+        if (currentAccountId) {
+            params.append('account_id', currentAccountId);
+        }
+        url += '?' + params.toString();
+
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    state.currentOffset += data.loaded_count;
+                    state.hasMore = data.has_more;
+                    displayRecords(data.data, append);
+                    updateCount(data.total);
+                } else {
+                    if (!append) showErrorState();
+                }
+            })
+            .catch(error => {
+                if (!append) showErrorState();
+                console.error('加载工作记录失败:', error);
+            })
+            .finally(() => {
+                state.isLoading = false;
+                const loadingMore = elements.loadingMore();
+                if (loadingMore) loadingMore.classList.add('hidden');
+            });
+    }
+
+    // 显示加载状态
+    function showLoading() {
+        elements.loading()?.classList.remove('hidden');
+        elements.tableWrapper()?.classList.add('hidden');
+        elements.emptyState()?.classList.add('hidden');
+        elements.errorState()?.classList.add('hidden');
+    }
+
+    // 显示空状态
+    function showEmptyState() {
+        elements.loading()?.classList.add('hidden');
+        elements.tableWrapper()?.classList.add('hidden');
+        elements.errorState()?.classList.add('hidden');
+        elements.emptyState()?.classList.remove('hidden');
+    }
+
+    // 显示错误状态
+    function showErrorState() {
+        elements.loading()?.classList.add('hidden');
+        elements.tableWrapper()?.classList.add('hidden');
+        elements.emptyState()?.classList.add('hidden');
+        elements.errorState()?.classList.remove('hidden');
+    }
+
+    // 渲染记录
+    function displayRecords(records, append = false) {
+        elements.loading()?.classList.add('hidden');
+
+        if (!append && (!records || records.length === 0)) {
+            showEmptyState();
+            return;
+        }
+
+        elements.emptyState()?.classList.add('hidden');
+        elements.errorState()?.classList.add('hidden');
+        elements.tableWrapper()?.classList.remove('hidden');
+
+        const tbody = elements.tableBody();
+        if (!tbody) return;
+
+        if (!append) {
+            tbody.innerHTML = '';
+        }
+
+        const i18n = window.i18nTexts || {};
+
+        records.forEach(record => {
+            // 存储记录源类型：有 project_id 则为 project，否则为 customer
+            recordSourceMap[record.id] = record.project_id ? 'project' : 'customer';
+
+            // 主数据行
+            const dataRow = document.createElement('tr');
+            dataRow.className = 'wr-row-hover text-sm';
+            dataRow.innerHTML = `
+                <td class="py-2 wr-cell text-slate-600 dark:text-slate-300">
+                    ${record.date}
+                </td>
+                <td class="py-2 wr-cell">
+                    <div class="flex h-8 w-8 items-center justify-center rounded-full ${getAvatarColor(record.owner_id)} font-bold text-xs" title="${escapeHtml(record.owner_name || '')}">
+                        ${getInitials(record.owner_name)}
+                    </div>
+                </td>
+                <td class="py-2 pr-6 wr-cell" title="${escapeHtml(record.customer_name || '')}${record.contact_name ? ' - ' + escapeHtml(record.contact_name) : ''}">
+                    ${record.customer_name && record.customer_id ?
+                        `<a href="/customer/${record.customer_id}/view" class="font-medium text-slate-800 dark:text-slate-200 hover:text-primary">${escapeHtml(record.customer_name)}</a>` :
+                        '<span class="text-slate-400">-</span>'
+                    }
+                </td>
+                <td class="py-2 pr-6 wr-cell" title="${escapeHtml(record.project_name || '')}">
+                    ${record.project_name ?
+                        `<a href="/project/view/${record.project_id}" class="font-medium text-slate-500 dark:text-slate-400 hover:text-primary">${escapeHtml(record.project_name)}</a>` :
+                        '<span class="text-slate-400">-</span>'
+                    }
+                </td>
+                <td class="py-2 pr-6 wr-cell-expandable text-slate-600 dark:text-slate-300"
+                    onmouseenter="this.classList.add('expanded')"
+                    onmouseleave="this.classList.remove('expanded')">${escapeHtml(record.communication)}</td>
+                <td class="py-2 text-center">
+                    <span class="cursor-pointer select-none inline-flex items-center gap-1"
+                          onclick="window.${containerId}Component.toggleReply(${record.id}, this)">
+                        ${record.has_reply
+                            ? `<span class="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-xs font-bold rounded-full">${record.reply_count}</span>`
+                            : `<span class="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-slate-300 dark:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-full">0</span>`
+                        }
+                        <span class="material-symbols-outlined text-slate-400 transition-transform duration-200" style="font-size: 16px;">expand_more</span>
+                    </span>
+                </td>
+            `;
+            tbody.appendChild(dataRow);
+
+            // 回复面板行（默认隐藏）
+            const replyRow = document.createElement('tr');
+            replyRow.id = `${containerId}-reply-panel-${record.id}`;
+            replyRow.className = 'hidden reply-panel';
+            replyRow.innerHTML = `
+                <td colspan="6" class="p-0 bg-slate-50 dark:bg-slate-800/50">
+                    <div class="p-4">
+                        <!-- 回复列表 -->
+                        <div id="${containerId}-replies-list-${record.id}" class="space-y-3 mb-4"></div>
+                        <!-- 加载中 -->
+                        <div id="${containerId}-replies-loading-${record.id}" class="hidden text-center py-4">
+                            <div class="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                        </div>
+                        <!-- 添加新回复表单 -->
+                        <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                            <div class="flex items-start gap-3">
+                                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${getAvatarColor(window.currentUserId)} font-bold text-xs">
+                                    ${window.currentUserInitials || '?'}
+                                </div>
+                                <div class="flex-1">
+                                    <textarea id="${containerId}-reply-textarea-${record.id}"
+                                        class="form-input w-full resize-none rounded-lg text-slate-800 dark:text-slate-200 focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-slate-300 dark:border-slate-700 bg-background-light dark:bg-background-dark focus:border-primary/80 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm font-normal leading-normal p-3"
+                                        placeholder="${i18n.typeYourReply || '输入回复内容...'}" rows="1"></textarea>
+                                    <div class="flex justify-end mt-2 gap-2">
+                                        <button type="button" onclick="window.${containerId}Component.cancelReply(${record.id})"
+                                            class="px-4 py-2 text-slate-600 dark:text-slate-400 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                                            ${i18n.cancel || '取消'}
+                                        </button>
+                                        <button type="button" onclick="window.${containerId}Component.submitReply(${record.id})"
+                                            class="px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg shadow-sm hover:bg-primary/90">
+                                            ${i18n.submit || '提交'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(replyRow);
+        });
+    }
+
+    // 更新记录数
+    function updateCount(count) {
+        const countEl = elements.count();
+        if (countEl) countEl.textContent = count || 0;
+    }
+
+    // HTML转义
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // 当前展开的面板ID
+    let currentOpenPanelId = null;
+
+    // 折叠所有面板
+    function collapseAllPanels() {
+        if (currentOpenPanelId) {
+            const panel = document.getElementById(`${containerId}-reply-panel-${currentOpenPanelId}`);
+            if (panel) panel.classList.add('hidden');
+            // 重置图标
+            const badge = document.querySelector(`[onclick*="toggleReply(${currentOpenPanelId},"]`);
+            if (badge) {
+                const icon = badge.querySelector('.material-symbols-outlined');
+                if (icon) icon.style.transform = 'rotate(0deg)';
+            }
+            currentOpenPanelId = null;
+        }
+    }
+
+    // 切换回复面板显示
+    function toggleReply(actionId, badgeEl) {
+        const panel = document.getElementById(`${containerId}-reply-panel-${actionId}`);
+        const icon = badgeEl.querySelector('.material-symbols-outlined');
+
+        if (panel.classList.contains('hidden')) {
+            // 先折叠其他已展开的面板
+            if (currentOpenPanelId && currentOpenPanelId !== actionId) {
+                collapseAllPanels();
+            }
+            // 展开当前面板
+            panel.classList.remove('hidden');
+            if (icon) icon.style.transform = 'rotate(180deg)';
+            currentOpenPanelId = actionId;
+            loadReplies(actionId);
+        } else {
+            // 收起
+            panel.classList.add('hidden');
+            if (icon) icon.style.transform = 'rotate(0deg)';
+            currentOpenPanelId = null;
+        }
+    }
+
+    // 点击外部区域折叠面板
+    document.addEventListener('click', function(e) {
+        if (!currentOpenPanelId) return;
+
+        const panel = document.getElementById(`${containerId}-reply-panel-${currentOpenPanelId}`);
+        const badge = document.querySelector(`[onclick*="toggleReply(${currentOpenPanelId},"]`);
+
+        // 如果点击的不是面板内部也不是徽章，则折叠
+        if (panel && !panel.contains(e.target) && badge && !badge.contains(e.target)) {
+            collapseAllPanels();
+        }
+    });
+
+    // 获取记录对应的API前缀
+    function getApiPrefix(actionId) {
+        const source = recordSourceMap[actionId];
+        // 如果有记录源信息则使用，否则根据URL判断
+        if (source) {
+            return source === 'project' ? '/project' : '/customer';
+        }
+        // 降级方案：根据URL判断
+        return window.location.pathname.includes('/customer/') ? '/customer' : '/project';
+    }
+
+    // 加载回复列表
+    function loadReplies(actionId) {
+        const listContainer = document.getElementById(`${containerId}-replies-list-${actionId}`);
+        const loadingEl = document.getElementById(`${containerId}-replies-loading-${actionId}`);
+
+        if (loadingEl) loadingEl.classList.remove('hidden');
+
+        const apiPath = `${getApiPrefix(actionId)}/action/${actionId}/replies`;
+
+        fetch(apiPath)
+            .then(res => res.json())
+            .then(replies => {
+                if (loadingEl) loadingEl.classList.add('hidden');
+                renderReplies(actionId, replies, listContainer);
+            })
+            .catch(error => {
+                if (loadingEl) loadingEl.classList.add('hidden');
+                console.error('加载回复失败:', error);
+            });
+    }
+
+    // 渲染回复列表（支持嵌套）
+    function renderReplies(actionId, replies, container) {
+        if (!container) return;
+
+        // 无回复时清空列表区域，直接显示输入框
+        if (!replies || replies.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        container.innerHTML = '';
+        replies.forEach(reply => {
+            container.appendChild(renderReplyItem(actionId, reply, 0));
+        });
+    }
+
+    // 格式化相对时间（支持 ISO 8601 格式的 UTC 时间）
+    function formatRelativeTime(dateStr) {
+        if (!dateStr) return '';
+        // ISO 格式如 "2025-10-18T05:32:00Z" 会被正确解析为 UTC
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffSec = Math.floor(diffMs / 1000);
+        const diffMin = Math.floor(diffSec / 60);
+        const diffHour = Math.floor(diffMin / 60);
+        const diffDay = Math.floor(diffHour / 24);
+        const diffMonth = Math.floor(diffDay / 30);
+        const diffYear = Math.floor(diffDay / 365);
+
+        if (diffSec < 60) return '刚刚';
+        if (diffMin < 60) return `${diffMin}分钟前`;
+        if (diffHour < 24) return `${diffHour}小时前`;
+        if (diffDay < 30) return `${diffDay}天前`;
+        if (diffMonth < 12) return `${diffMonth}个月前`;
+        return `${diffYear}年前`;
+    }
+
+    // 渲染单个回复项（聊天气泡样式）
+    // 当前用户的回复在右边，其他人的回复在左边
+    function renderReplyItem(actionId, reply, depth) {
+        const i18n = window.i18nTexts || {};
+        const maxDepth = 3; // 最大嵌套深度
+
+        const replyDiv = document.createElement('div');
+        replyDiv.className = 'reply-item';
+
+        // 判断是否是当前用户的回复
+        const isCurrentUser = reply.owner_id === window.currentUserId;
+        const relativeTime = formatRelativeTime(reply.created_at);
+
+        if (isCurrentUser) {
+            // 当前用户回复 - 右对齐，气泡在左，头像在右
+            replyDiv.innerHTML = `
+                <div class="flex justify-end">
+                    <div class="flex items-start gap-2">
+                        <div class="flex flex-col items-end">
+                            <span class="w-fit max-w-xs bg-blue-100 dark:bg-blue-900/50 rounded-lg rounded-br-none px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words">${escapeHtml(reply.content)}</span>
+                            <div class="flex items-center gap-2 mt-1">
+                                ${reply.can_delete ? `<button onclick="window.${containerId}Component.deleteReply(${actionId}, ${reply.id})" class="text-red-500 hover:text-red-700 text-xs">${i18n.delete || '删除'}</button>` : ''}
+                                <span class="text-xs text-slate-400 dark:text-slate-500">${relativeTime}</span>
+                            </div>
+                        </div>
+                        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${getAvatarColor(reply.owner_id)} font-bold text-xs" title="${escapeHtml(reply.owner || '')}">
+                            ${getInitials(reply.owner)}
+                        </div>
+                    </div>
+                </div>
+                <div id="${containerId}-children-${reply.id}" class="space-y-3 mt-2"></div>
+            `;
+        } else {
+            // 其他人回复 - 左对齐，头像在左，气泡在右
+            replyDiv.innerHTML = `
+                <div class="flex justify-start">
+                    <div class="flex items-start gap-2">
+                        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${getAvatarColor(reply.owner_id)} font-bold text-xs" title="${escapeHtml(reply.owner || '')}">
+                            ${getInitials(reply.owner)}
+                        </div>
+                        <div class="flex flex-col items-start">
+                            <span class="w-fit max-w-xs bg-slate-100 dark:bg-slate-700 rounded-lg rounded-bl-none px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words">${escapeHtml(reply.content)}</span>
+                            <span class="text-xs text-slate-400 dark:text-slate-500 mt-1">${relativeTime}</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="${containerId}-children-${reply.id}" class="space-y-3 mt-2"></div>
+            `;
+        }
+
+        // 渲染子回复
+        if (reply.children && reply.children.length > 0) {
+            const childrenContainer = replyDiv.querySelector(`#${containerId}-children-${reply.id}`);
+            reply.children.forEach(child => {
+                childrenContainer.appendChild(renderReplyItem(actionId, child, depth + 1));
+            });
+        }
+
+        return replyDiv;
+    }
+
+    // 获取姓名缩写（2个字符）
+    function getInitials(name) {
+        if (!name) return '?';
+        return name.substring(0, 2).toUpperCase();
+    }
+
+    // 获取用户头像颜色（根据用户ID）- 淡色背景 + 深色文字
+    const avatarColors = [
+        'bg-blue-200 text-blue-600 dark:bg-blue-800 dark:text-blue-300',
+        'bg-purple-200 text-purple-600 dark:bg-purple-800 dark:text-purple-300',
+        'bg-teal-200 text-teal-600 dark:bg-teal-800 dark:text-teal-300',
+        'bg-yellow-200 text-yellow-600 dark:bg-yellow-800 dark:text-yellow-300',
+        'bg-red-200 text-red-600 dark:bg-red-800 dark:text-red-300',
+        'bg-green-200 text-green-600 dark:bg-green-800 dark:text-green-300'
+    ];
+    function getAvatarColor(userId) {
+        if (!userId) return avatarColors[0];
+        return avatarColors[userId % 6];
+    }
+
+    // 提交主回复
+    function submitReply(actionId) {
+        const textarea = document.getElementById(`${containerId}-reply-textarea-${actionId}`);
+        const content = textarea?.value?.trim();
+        if (!content) return;
+
+        const apiPath = `${getApiPrefix(actionId)}/action/${actionId}/reply`;
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        console.log('提交回复:', { actionId, apiPath, csrfToken: csrfToken ? '已获取' : '未获取', content });
+
+        fetch(apiPath, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ content })
+        })
+        .then(res => {
+            console.log('响应状态:', res.status);
+            if (!res.ok) {
+                return res.text().then(text => {
+                    console.error('错误响应:', text);
+                    throw new Error(`HTTP ${res.status}: ${text}`);
+                });
+            }
+            return res.json();
+        })
+        .then(data => {
+            console.log('响应数据:', data);
+            if (data.success !== false) {
+                textarea.value = '';
+                loadReplies(actionId);
+                // 更新徽章显示
+                updateReplyBadge(actionId);
+            }
+        })
+        .catch(error => console.error('提交回复失败:', error));
+    }
+
+    // 取消回复（收起面板）
+    function cancelReply(actionId) {
+        const textarea = document.getElementById(`${containerId}-reply-textarea-${actionId}`);
+        if (textarea) textarea.value = '';
+
+        const panel = document.getElementById(`${containerId}-reply-panel-${actionId}`);
+        if (panel) panel.classList.add('hidden');
+
+        // 重置图标
+        const badge = document.querySelector(`[onclick*="toggleReply(${actionId},"]`);
+        if (badge) {
+            const icon = badge.querySelector('.material-symbols-outlined');
+            if (icon) icon.style.transform = 'rotate(0deg)';
+        }
+    }
+
+    // 删除回复
+    function deleteReply(actionId, replyId) {
+        const i18n = window.i18nTexts || {};
+        if (!confirm(i18n.confirmDeleteReply || '确定要删除这条回复吗？')) return;
+
+        const apiPath = `${getApiPrefix(actionId)}/action/reply/${replyId}/delete`;
+
+        fetch(apiPath, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success !== false) {
+                loadReplies(actionId);
+                updateReplyBadge(actionId);
+            }
+        })
+        .catch(error => console.error('删除回复失败:', error));
+    }
+
+    // 更新回复徽章（重新加载后更新）
+    function updateReplyBadge(actionId) {
+        // 简单刷新整个列表以更新徽章状态
+        // 更精细的做法是只更新单个记录，但这里为了简单起见刷新全部
+        // 实际项目中可以通过返回值更新
+    }
+
+    // ========== 列宽拖拽调整功能 ==========
+    // 计算表头文字的实际渲染宽度
+    function getTextWidth(text, font) {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        context.font = font;
+        return context.measureText(text).width;
+    }
+
+    function initColumnResizers() {
+        const table = document.getElementById(containerId + 'Table');
+        if (!table) return;
+
+        const resizers = table.querySelectorAll('.wr-column-resizer');
+
+        resizers.forEach(resizer => {
+            resizer.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const th = this.parentElement;
+                const startX = e.pageX;
+                const startWidth = th.offsetWidth;
+
+                // 实时计算最小宽度（基于表头文字）
+                const headerText = th.querySelector('span');
+                let minWidth = 60;
+                if (headerText) {
+                    const computedStyle = window.getComputedStyle(headerText);
+                    const font = `${computedStyle.fontWeight} ${computedStyle.fontSize} ${computedStyle.fontFamily}`;
+                    const textWidth = getTextWidth(headerText.textContent, font);
+                    minWidth = Math.ceil(textWidth) + 40; // 文字宽度 + padding + 拖拽手柄空间
+                }
+
+                document.body.classList.add('wr-resizing');
+                this.classList.add('resizing');
+
+                function onMouseMove(e) {
+                    const width = startWidth + (e.pageX - startX);
+                    if (width >= minWidth) {
+                        th.style.width = width + 'px';
+                    }
+                }
+
+                function onMouseUp() {
+                    document.body.classList.remove('wr-resizing');
+                    resizer.classList.remove('resizing');
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                }
+
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+        });
+    }
+
+    // 暴露公共API
+    window[containerId + 'Component'] = {
+        reload: () => loadRecords(false),
+        loadMore: () => loadRecords(true),
+        toggleReply: toggleReply,
+        submitReply: submitReply,
+        cancelReply: cancelReply,
+        deleteReply: deleteReply
+    };
+
+    // 页面加载完成后初始化
+    function fullInit() {
+        init();
+        initColumnResizers();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', fullInit);
+    } else {
+        fullInit();
+    }
+})();
+</script>
+{% endmacro %}

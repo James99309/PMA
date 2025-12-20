@@ -1,0 +1,144 @@
+{#
+=============================================================================
+Tailwind 元数据卡片组件
+=============================================================================
+用于详情页侧边栏显示元数据信息（状态、ID、创建者、时间等）
+
+使用方式：
+{% from 'components/tw_metadata_card.html' import tw_metadata_card %}
+
+{{ tw_metadata_card(
+    title=_('元数据'),
+    items=[
+        {'label': _('状态'), 'value': render_tw_status_badge(obj.status), 'is_html': true},
+        {'label': _('ID'), 'value': '#' ~ obj.id},
+        {'label': _('创建者'), 'value': obj.creator.real_name or obj.creator.username},
+        {'label': _('创建时间'), 'value': obj.created_at.strftime('%Y-%m-%d')},
+        {'label': _('更新时间'), 'value': obj.updated_at.strftime('%Y-%m-%d %H:%M')}
+    ]
+) }}
+
+参数说明：
+- title: 卡片标题，默认 '元数据'
+- items: 数据项数组，每项包含：
+  - label: 标签文本
+  - value: 值（文本或HTML）
+  - is_html: 是否为HTML内容（如徽章），默认 false
+- show_title: 是否显示标题，默认 true
+=============================================================================
+#}
+
+{% macro tw_metadata_card(title=none, items=[], show_title=true) %}
+{% set _title = title or _('元数据') %}
+
+<div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div class="p-6">
+        {% if show_title %}
+        <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">{{ _title }}</h4>
+        {% endif %}
+        <div class="space-y-3 text-sm">
+            {% for item in items %}
+            <div class="flex justify-between items-center">
+                <span class="text-slate-500 dark:text-slate-400">{{ item.label }}</span>
+                {% if item.is_html %}
+                <span>{{ item.value }}</span>
+                {% else %}
+                <span class="text-slate-900 dark:text-white">{{ item.value or '-' }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{#
+=============================================================================
+简化版：快速创建常用元数据卡片
+=============================================================================
+针对常见场景的便捷宏，自动处理格式化
+
+使用方式：
+{{ tw_metadata_card_simple(
+    status_badge=render_tw_status_badge(obj.status),
+    object_id=obj.id,
+    creator=obj.creator,
+    created_at=obj.created_at,
+    updated_at=obj.updated_at
+) }}
+=============================================================================
+#}
+
+{% macro tw_metadata_card_simple(
+    status_badge=none,
+    object_id=none,
+    creator=none,
+    created_at=none,
+    updated_at=none,
+    title=none,
+    extra_items=[]
+) %}
+{% set _title = title or _('元数据') %}
+
+<div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div class="p-6">
+        <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">{{ _title }}</h4>
+        <div class="space-y-3 text-sm">
+            {# 状态徽章 #}
+            {% if status_badge %}
+            <div class="flex justify-between items-center">
+                <span class="text-slate-500 dark:text-slate-400">{{ _('状态') }}</span>
+                <span>{{ status_badge }}</span>
+            </div>
+            {% endif %}
+
+            {# 对象ID #}
+            {% if object_id %}
+            <div class="flex justify-between items-center">
+                <span class="text-slate-500 dark:text-slate-400">{{ _('ID') }}</span>
+                <span class="text-slate-900 dark:text-white">#{{ object_id }}</span>
+            </div>
+            {% endif %}
+
+            {# 创建者 #}
+            {% if creator %}
+            <div class="flex justify-between items-center">
+                <span class="text-slate-500 dark:text-slate-400">{{ _('创建者') }}</span>
+                <span class="text-slate-900 dark:text-white">
+                    {{ creator.real_name if creator.real_name else creator.username if creator.username else '-' }}
+                </span>
+            </div>
+            {% endif %}
+
+            {# 创建时间 #}
+            {% if created_at %}
+            <div class="flex justify-between items-center">
+                <span class="text-slate-500 dark:text-slate-400">{{ _('创建时间') }}</span>
+                <span class="text-slate-900 dark:text-white">{{ created_at.strftime('%Y-%m-%d') if created_at else '-' }}</span>
+            </div>
+            {% endif %}
+
+            {# 更新时间 #}
+            {% if updated_at %}
+            <div class="flex justify-between items-center">
+                <span class="text-slate-500 dark:text-slate-400">{{ _('更新时间') }}</span>
+                <span class="text-slate-900 dark:text-white">{{ updated_at.strftime('%Y-%m-%d %H:%M') if updated_at else '-' }}</span>
+            </div>
+            {% endif %}
+
+            {# 额外项目 #}
+            {% for item in extra_items %}
+            <div class="flex justify-between items-center">
+                <span class="text-slate-500 dark:text-slate-400">{{ item.label }}</span>
+                {% if item.is_html %}
+                <span>{{ item.value }}</span>
+                {% else %}
+                <span class="text-slate-900 dark:text-white">{{ item.value or '-' }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endmacro %}

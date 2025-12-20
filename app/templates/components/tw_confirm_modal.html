@@ -1,0 +1,541 @@
+{#
+=============================================================================
+Tailwind 确认模态框组件
+=============================================================================
+可复用的 Tailwind CSS 确认模态框组件，用于删除确认、操作确认等场景。
+
+使用方式：
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script %}
+
+<!-- 在页面中渲染模态框 -->
+{{ tw_confirm_modal(
+    modal_id='deleteModal',
+    title=_('确认删除'),
+    message=_('您确定要删除这条记录吗？此操作无法撤销。'),
+    confirm_text=_('删除'),
+    cancel_text=_('取消'),
+    variant='danger'
+) }}
+
+<!-- 在页面底部引入脚本 -->
+{{ tw_confirm_modal_script() }}
+
+JavaScript 使用：
+// 打开模态框
+openConfirmModal('deleteModal', {
+    title: '确认删除',
+    message: '您确定要删除这条记录吗？',
+    onConfirm: function() {
+        // 执行删除操作
+    }
+});
+
+// 关闭模态框
+closeConfirmModal('deleteModal');
+
+参数：
+- modal_id: 模态框唯一ID（必填）
+- title: 标题文本
+- message: 提示消息
+- confirm_text: 确认按钮文本
+- cancel_text: 取消按钮文本
+- variant: 样式变体 'danger' | 'warning' | 'info'，默认 'danger'
+- icon: 图标名称（Material Symbols），默认根据 variant 自动选择
+=============================================================================
+#}
+
+{# 导入关闭按钮组件 #}
+{% from 'components/tw_modal_base.html' import tw_close_btn %}
+
+{# 确认模态框 HTML #}
+{% macro tw_confirm_modal(modal_id, title='', message='', confirm_text='', cancel_text='', variant='danger', icon='', z_index='z-50', show_error=false) %}
+{% set variant_config = {
+    'danger': {'icon': 'warning', 'icon_color': 'text-red-500', 'btn_bg': 'bg-red-600 hover:bg-red-700 focus:ring-red-500'},
+    'warning': {'icon': 'warning', 'icon_color': 'text-amber-500', 'btn_bg': 'bg-amber-600 hover:bg-amber-700 focus:ring-amber-500'},
+    'info': {'icon': 'info', 'icon_color': 'text-blue-500', 'btn_bg': 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'},
+    'primary': {'icon': 'arrow_forward', 'icon_color': 'text-primary', 'btn_bg': 'bg-primary hover:bg-primary/90 focus:ring-primary'},
+    'success': {'icon': 'refresh', 'icon_color': 'text-teal-500', 'btn_bg': 'bg-teal-500 hover:bg-teal-600 focus:ring-teal-500'}
+} %}
+{% set config = variant_config[variant] or variant_config['danger'] %}
+{% set actual_icon = icon or config.icon %}
+
+<div id="{{ modal_id }}" class="fixed inset-0 {{ z_index }} hidden" role="dialog" aria-modal="true">
+    <!-- 背景遮罩 -->
+    <div class="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/75 transition-opacity" onclick="closeConfirmModal('{{ modal_id }}')"></div>
+
+    <!-- 模态框容器 -->
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-slate-100 dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-sm transform transition-all">
+            <!-- 内容区域 -->
+            <div class="p-5 text-left">
+                <h3 class="flex items-center text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3">
+                    <span class="material-symbols-outlined {{ config.icon_color }} text-xl mr-2">{{ actual_icon }}</span>
+                    <span id="{{ modal_id }}-title">{{ title or _('确认操作') }}</span>
+                </h3>
+                <p id="{{ modal_id }}-message" class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                    {{ message or _('您确定要执行此操作吗？') }}
+                </p>
+                {% if show_error %}
+                <p id="{{ modal_id }}-error" class="text-sm text-red-500 mt-3 hidden"></p>
+                {% endif %}
+            </div>
+
+            <!-- 按钮区域 -->
+            <div class="px-5 py-4 flex flex-row-reverse gap-3 border-t border-slate-200 dark:border-slate-700 rounded-b-xl">
+                <button type="button" id="{{ modal_id }}-confirm-btn"
+                    class="inline-flex justify-center items-center h-10 px-4 rounded-lg text-sm font-semibold text-white shadow-sm {{ config.btn_bg }} transition-colors">
+                    {% if variant == 'success' %}
+                    <span class="material-symbols-outlined mr-1.5" style="font-size: 18px;">{{ actual_icon }}</span>
+                    {% endif %}
+                    {{ confirm_text or _('确认') }}
+                </button>
+                <button type="button" onclick="closeConfirmModal('{{ modal_id }}')"
+                    class="inline-flex justify-center items-center h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                    {{ cancel_text or _('取消') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 确认模态框 JavaScript #}
+{% macro tw_confirm_modal_script() %}
+<script>
+(function() {
+    // 存储每个模态框的回调函数和数据
+    window._confirmModalCallbacks = window._confirmModalCallbacks || {};
+    window._confirmModalData = window._confirmModalData || {};
+
+    // 打开确认模态框
+    // options: { title, message, data, onConfirm, autoClose }
+    window.openConfirmModal = function(modalId, options) {
+        options = options || {};
+        const modal = document.getElementById(modalId);
+        if (!modal) {
+            console.error('Modal not found:', modalId);
+            return;
+        }
+
+        // 更新标题和消息（如果提供）
+        if (options.title) {
+            const titleEl = document.getElementById(modalId + '-title');
+            if (titleEl) titleEl.textContent = options.title;
+        }
+        if (options.message) {
+            const messageEl = document.getElementById(modalId + '-message');
+            if (messageEl) messageEl.innerHTML = options.message;
+        }
+
+        // 存储数据和回调
+        window._confirmModalData[modalId] = options.data || null;
+        window._confirmModalCallbacks[modalId] = {
+            onConfirm: options.onConfirm || null,
+            autoClose: options.autoClose !== false  // 默认自动关闭
+        };
+
+        // 隐藏错误消息
+        hideConfirmModalError(modalId);
+
+        // 绑定确认按钮事件
+        const confirmBtn = document.getElementById(modalId + '-confirm-btn');
+        if (confirmBtn) {
+            // 移除旧的事件监听器
+            const newBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+
+            newBtn.addEventListener('click', async function() {
+                const callbacks = window._confirmModalCallbacks[modalId];
+                const data = window._confirmModalData[modalId];
+                if (typeof callbacks?.onConfirm === 'function') {
+                    try {
+                        await callbacks.onConfirm(data);
+                        if (callbacks.autoClose) {
+                            closeConfirmModal(modalId);
+                        }
+                    } catch (error) {
+                        // 回调抛出异常时不关闭，显示错误
+                        showConfirmModalError(modalId, error.message || '{{ _("操作失败") }}');
+                    }
+                } else if (callbacks?.autoClose) {
+                    closeConfirmModal(modalId);
+                }
+            });
+        }
+
+        // 显示模态框
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    };
+
+    // 关闭确认模态框
+    window.closeConfirmModal = function(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+        // 清除回调和数据
+        if (window._confirmModalCallbacks) {
+            delete window._confirmModalCallbacks[modalId];
+        }
+        if (window._confirmModalData) {
+            delete window._confirmModalData[modalId];
+        }
+        // 隐藏错误消息
+        hideConfirmModalError(modalId);
+    };
+
+    // 获取模态框存储的数据
+    window.getConfirmModalData = function(modalId) {
+        return window._confirmModalData?.[modalId] || null;
+    };
+
+    // 显示错误消息
+    window.showConfirmModalError = function(modalId, message) {
+        const errorEl = document.getElementById(modalId + '-error');
+        if (errorEl) {
+            errorEl.textContent = message;
+            errorEl.classList.remove('hidden');
+        }
+    };
+
+    // 隐藏错误消息
+    window.hideConfirmModalError = function(modalId) {
+        const errorEl = document.getElementById(modalId + '-error');
+        if (errorEl) {
+            errorEl.classList.add('hidden');
+        }
+    };
+
+    // ESC 键关闭所有模态框
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('[role="dialog"]:not(.hidden)').forEach(function(modal) {
+                closeConfirmModal(modal.id);
+            });
+        }
+    });
+})();
+</script>
+{% endmacro %}
+
+
+{# 快捷方式：删除确认模态框 #}
+{% macro tw_delete_confirm_modal(modal_id='deleteConfirmModal', title='', message='', confirm_text='', cancel_text='', z_index='z-50', show_error=true) %}
+{{ tw_confirm_modal(
+    modal_id=modal_id,
+    title=title or _('确认删除'),
+    message=message or _('您确定要删除这条记录吗？此操作无法撤销。'),
+    confirm_text=confirm_text or _('删除'),
+    cancel_text=cancel_text or _('取消'),
+    variant='danger',
+    icon='warning',
+    z_index=z_index,
+    show_error=show_error
+) }}
+{% endmacro %}
+
+
+{#
+=============================================================================
+自定义内容模态框组件
+=============================================================================
+支持自定义内容区域（如输入框、多按钮等）的模态框。
+
+使用方式：
+{% call tw_custom_modal(modal_id='statusModal', title=_('修改状态'), subtitle=_('设置状态')) %}
+    <!-- 自定义内容 -->
+    <textarea id="reasonInput"></textarea>
+    <div class="grid grid-cols-2 gap-3">
+        <button onclick="doAction1()">操作1</button>
+        <button onclick="doAction2()">操作2</button>
+    </div>
+{% endcall %}
+
+参数：
+- modal_id: 模态框唯一ID（必填）
+- title: 标题文本
+- subtitle: 副标题文本（可选）
+- icon: 图标名称（Material Symbols），可选
+- icon_color: 图标颜色类，默认 'text-slate-500'
+- show_close_btn: 是否显示右上角关闭按钮，默认 true
+- show_cancel_btn: 是否显示底部取消按钮，默认 true
+- cancel_text: 取消按钮文本
+- max_width: 最大宽度，默认 'max-w-md'
+=============================================================================
+#}
+{% macro tw_custom_modal(modal_id, title='', subtitle='', icon='', icon_color='text-slate-500', show_close_btn=true, show_cancel_btn=true, cancel_text='', max_width='max-w-md') %}
+<div id="{{ modal_id }}" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+    <!-- 背景遮罩 -->
+    <div class="fixed inset-0 bg-gray-900/30 dark:bg-gray-900/50 transition-opacity" onclick="closeCustomModal('{{ modal_id }}')"></div>
+
+    <!-- 模态框容器 -->
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full {{ max_width }} border border-slate-200 dark:border-slate-800 transform transition-all">
+            <!-- 头部区域 -->
+            <div class="p-6 pb-4">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        {% if icon %}
+                        <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                            <span class="material-symbols-outlined {{ icon_color }}">{{ icon }}</span>
+                        </div>
+                        {% endif %}
+                        <div>
+                            <h3 id="{{ modal_id }}-title" class="text-lg font-semibold text-slate-900 dark:text-white">{{ title or _('操作') }}</h3>
+                            {% if subtitle %}
+                            <p id="{{ modal_id }}-subtitle" class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{{ subtitle }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if show_close_btn %}{{ tw_close_btn('closeCustomModal(\'' ~ modal_id ~ '\')') }}{% endif %}
+                </div>
+            </div>
+
+            <!-- 自定义内容区域 -->
+            <div id="{{ modal_id }}-content" class="px-6 pb-6">
+                {{ caller() }}
+            </div>
+
+            <!-- 底部按钮区域 -->
+            {% if show_cancel_btn %}
+            <div class="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-800 rounded-b-xl flex justify-end">
+                <button type="button" onclick="closeCustomModal('{{ modal_id }}')"
+                    class="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm font-semibold">
+                    {{ cancel_text or _('取消') }}
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 自定义模态框 JavaScript（包含在 tw_confirm_modal_script 中）#}
+{# 如果只使用自定义模态框，可以单独引入此脚本 #}
+{% macro tw_custom_modal_script() %}
+<script>
+(function() {
+    // 打开自定义模态框
+    window.openCustomModal = function(modalId, options) {
+        options = options || {};
+        const modal = document.getElementById(modalId);
+        if (!modal) {
+            console.error('Modal not found:', modalId);
+            return;
+        }
+
+        // 更新标题（如果提供）
+        if (options.title) {
+            const titleEl = document.getElementById(modalId + '-title');
+            if (titleEl) titleEl.textContent = options.title;
+        }
+        // 更新副标题（如果提供）
+        if (options.subtitle) {
+            const subtitleEl = document.getElementById(modalId + '-subtitle');
+            if (subtitleEl) subtitleEl.textContent = options.subtitle;
+        }
+
+        // 显示模态框
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+
+        // 聚焦第一个输入框（如果有）
+        setTimeout(function() {
+            const firstInput = modal.querySelector('input, textarea, select');
+            if (firstInput) firstInput.focus();
+        }, 100);
+    };
+
+    // 关闭自定义模态框
+    window.closeCustomModal = function(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+    };
+
+    // ESC 键关闭（与确认模态框共用）
+    if (!window._customModalEscBound) {
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('[role="dialog"]:not(.hidden)').forEach(function(modal) {
+                    if (typeof closeCustomModal === 'function') {
+                        closeCustomModal(modal.id);
+                    }
+                    if (typeof closeConfirmModal === 'function') {
+                        closeConfirmModal(modal.id);
+                    }
+                });
+            }
+        });
+        window._customModalEscBound = true;
+    }
+})();
+</script>
+{% endmacro %}
+
+
+{#
+=============================================================================
+状态选择模态框组件（专用）
+=============================================================================
+带输入框和多个操作按钮的状态选择模态框，适用于设置失败/搁置等状态场景。
+
+使用方式：
+{{ tw_status_modal(
+    modal_id='stageStatusModal',
+    title=_('修改阶段状态'),
+    subtitle_prefix=_('为'),
+    subtitle_suffix=_('阶段设置状态'),
+    reason_label=_('原因'),
+    reason_placeholder=_('请输入原因...'),
+    buttons=[
+        {'id': 'lost', 'label': _('失败'), 'icon': 'cancel', 'variant': 'danger'},
+        {'id': 'paused', 'label': _('搁置'), 'icon': 'pause_circle', 'variant': 'default'}
+    ],
+    cancel_text=_('取消')
+) }}
+
+JavaScript 使用：
+openStatusModal('stageStatusModal', {
+    subtitle: '为 "发现" 阶段设置状态',
+    onAction: function(actionId, reason) {
+        console.log('选择了:', actionId, '原因:', reason);
+    }
+});
+=============================================================================
+#}
+{% macro tw_status_modal(modal_id, title='', subtitle_prefix='', subtitle_suffix='', reason_label='', reason_placeholder='', buttons=[], cancel_text='') %}
+{% set button_variants = {
+    'danger': 'border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400',
+    'warning': 'border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600 dark:text-amber-400',
+    'success': 'border-teal-200 dark:border-teal-900/50 bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 dark:hover:bg-teal-900/30 text-teal-600 dark:text-teal-400',
+    'default': 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400'
+} %}
+<div id="{{ modal_id }}" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+    <!-- 背景遮罩 -->
+    <div class="fixed inset-0 bg-gray-900/30 dark:bg-gray-900/50 transition-opacity" onclick="closeStatusModal('{{ modal_id }}')"></div>
+
+    <!-- 模态框容器 -->
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-md border border-slate-200 dark:border-slate-800 transform transition-all">
+            <!-- 头部区域 -->
+            <div class="p-6 {% if not subtitle_prefix and not subtitle_suffix %}pb-4{% endif %}">
+                <div class="flex justify-between items-start">
+                    <h3 id="{{ modal_id }}-title" class="text-lg font-semibold text-slate-800 dark:text-white">{{ title or _('修改状态') }}</h3>
+                    {{ tw_close_btn('closeStatusModal(\'' ~ modal_id ~ '\')') }}
+                </div>
+                {% if subtitle_prefix or subtitle_suffix %}
+                <p id="{{ modal_id }}-subtitle" class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    {{ subtitle_prefix }} '<span id="{{ modal_id }}-target" class="font-medium text-slate-700 dark:text-slate-300"></span>' {{ subtitle_suffix }}
+                </p>
+                {% endif %}
+            </div>
+
+            <!-- 内容区域 -->
+            <div class="px-6 pb-6 space-y-4">
+                <!-- 原因输入框 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ reason_label or _('原因') }}</label>
+                    <textarea id="{{ modal_id }}-reason" rows="3"
+                        class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                        placeholder="{{ reason_placeholder or _('请输入原因...') }}"></textarea>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div class="grid grid-cols-{{ buttons|length }} gap-3">
+                    {% for btn in buttons %}
+                    {% set variant_class = button_variants[btn.variant] if btn.variant in button_variants else button_variants['default'] %}
+                    <button type="button" onclick="triggerStatusAction('{{ modal_id }}', '{{ btn.id }}')"
+                        class="w-full flex items-center justify-center h-10 px-4 border rounded-lg transition-colors text-sm {{ variant_class }}">
+                        <span class="material-symbols-outlined{% if btn.fill %} fill{% endif %} mr-2 text-xl">{{ btn.icon or 'check' }}</span>
+                        <span class="font-semibold">{{ btn.label }}</span>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- 底部取消按钮 -->
+            <div class="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-800 rounded-b-xl flex justify-end">
+                <button type="button" onclick="closeStatusModal('{{ modal_id }}')"
+                    class="inline-flex justify-center items-center h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                    {{ cancel_text or _('取消') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 状态选择模态框 JavaScript #}
+{% macro tw_status_modal_script() %}
+<script>
+(function() {
+    // 存储每个状态模态框的回调函数
+    window._statusModalCallbacks = window._statusModalCallbacks || {};
+
+    // 打开状态模态框
+    window.openStatusModal = function(modalId, options) {
+        options = options || {};
+        const modal = document.getElementById(modalId);
+        if (!modal) {
+            console.error('Status modal not found:', modalId);
+            return;
+        }
+
+        // 更新目标名称
+        if (options.target) {
+            const targetEl = document.getElementById(modalId + '-target');
+            if (targetEl) targetEl.textContent = options.target;
+        }
+
+        // 清空原因输入框
+        const reasonEl = document.getElementById(modalId + '-reason');
+        if (reasonEl) reasonEl.value = '';
+
+        // 存储回调
+        window._statusModalCallbacks[modalId] = options.onAction || null;
+
+        // 显示模态框
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+
+        // 聚焦输入框
+        if (reasonEl) {
+            setTimeout(function() { reasonEl.focus(); }, 100);
+        }
+    };
+
+    // 关闭状态模态框
+    window.closeStatusModal = function(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+        // 清除回调
+        if (window._statusModalCallbacks) {
+            delete window._statusModalCallbacks[modalId];
+        }
+    };
+
+    // 触发状态操作
+    window.triggerStatusAction = function(modalId, actionId) {
+        const callback = window._statusModalCallbacks[modalId];
+        const reasonEl = document.getElementById(modalId + '-reason');
+        const reason = reasonEl ? reasonEl.value.trim() : '';
+
+        if (typeof callback === 'function') {
+            callback(actionId, reason);
+        }
+        closeStatusModal(modalId);
+    };
+})();
+</script>
+{% endmacro %}

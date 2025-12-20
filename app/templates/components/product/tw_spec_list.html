@@ -1,0 +1,64 @@
+{# 规格列表组件 - 用于产品库和研发库 #}
+
+{#
+渲染规格列表（只显示有值的规格，缺失规格由JS在编辑时加载）
+
+参数:
+- specs: 规格列表
+- can_edit: 是否有编辑权限
+- container_id: 容器ID，默认 'productSpecsContainer'
+- list_id: 列表ID，默认 'productSpecsList'
+- empty_id: 空消息ID，默认 'emptySpecsMessage'
+#}
+{% macro render_tw_spec_list(specs, can_edit=false, container_id='productSpecsContainer', list_id='productSpecsList', empty_id='emptySpecsMessage') %}
+<div id="{{ container_id }}" class="px-0">
+    {# 只显示有值的规格，缺失的编码规格在点击编辑后由JS加载 #}
+    {% set existing_specs = specs | selectattr('field_value') | list %}
+    {% if existing_specs and existing_specs|length > 0 %}
+    <dl id="{{ list_id }}">
+        {% for spec in existing_specs %}
+        <div class="spec-row px-6 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-t border-slate-100 dark:border-slate-800 first:border-t-0"
+             data-spec-id="{{ spec.id }}"
+             data-field-name="{{ spec.field_name }}"
+             data-field-id="{{ spec.field_id or '' }}"
+             data-field-value="{{ spec.field_value or '' }}"
+             data-field-code="{{ spec.field_code or '' }}"
+             data-unit="{{ spec.unit or '' }}"
+             data-include-in-desc="{{ 'true' if spec.include_in_description else 'false' }}">
+            <div class="flex-1 grid grid-cols-3 gap-4">
+                <dt class="text-sm font-medium text-slate-500 dark:text-slate-400 spec-name">{{ spec.field_name }}</dt>
+                <dd class="spec-value text-sm text-slate-900 dark:text-slate-200 col-span-2 mt-0 flex items-center gap-2">
+                    <span class="value-display">{{ spec.field_value }}</span>
+                    <span class="unit-display text-slate-400">{{ spec.unit or '' }}</span>
+                    <!-- 编辑选择框（编辑模式显示） -->
+                    <select class="value-select hidden w-32 px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200" data-field-name="{{ spec.field_name }}">
+                        <option value="{{ spec.field_value }}">{{ spec.field_value }}</option>
+                    </select>
+                    <span class="unit-edit hidden text-slate-400">{{ spec.unit or '' }}</span>
+                </dd>
+            </div>
+            <!-- 操作按钮（编辑模式显示） -->
+            <div class="spec-actions hidden flex items-center gap-1 ml-4">
+                <button type="button" onclick="toggleSpecEdit(this)" class="p-1.5 text-slate-400 hover:text-primary rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('编辑') }}">
+                    <span class="material-symbols-outlined text-lg">edit</span>
+                </button>
+                {% if not spec.field_code and not spec.is_coded %}
+                <button type="button" onclick="deleteSpec(this)" class="p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('删除') }}">
+                    <span class="material-symbols-outlined text-lg">delete</span>
+                </button>
+                {% endif %}
+                <button type="button" onclick="toggleSpecInDescription(this)" class="p-1.5 text-slate-400 hover:text-amber-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('从描述中排除') if spec.include_in_description else _('包含到描述中') }}">
+                    <span class="material-symbols-outlined text-lg">{{ 'visibility' if spec.include_in_description else 'visibility_off' }}</span>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </dl>
+    {% else %}
+    <div id="{{ empty_id }}" class="px-6 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+        <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600 mb-2 block">list</span>
+        {{ _('暂无规格信息') }}
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
