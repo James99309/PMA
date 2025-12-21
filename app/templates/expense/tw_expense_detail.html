@@ -580,18 +580,6 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
 
     <script>
         // ============================================================
-        // 调试信息 - 每个变量单独输出，便于定位问题
-        // ============================================================
-        console.log('[DEBUG 1] 报销单详情脚本开始加载');
-        try { console.log('[DEBUG 2] can_edit_this_expense:', {{ 'true' if can_edit_this_expense else 'false' }}); } catch(e) { console.error('[DEBUG 2] ERROR:', e); }
-        try { console.log('[DEBUG 3] expense.status:', {{ expense.status|tojson }}); } catch(e) { console.error('[DEBUG 3] ERROR:', e); }
-        try { console.log('[DEBUG 4] expense.is_locked:', {{ 'true' if expense.is_locked else 'false' }}); } catch(e) { console.error('[DEBUG 4] ERROR:', e); }
-        try { console.log('[DEBUG 5] approval_edit_info exists:', {{ 'true' if approval_edit_info else 'false' }}); } catch(e) { console.error('[DEBUG 5] ERROR:', e); }
-        try { console.log('[DEBUG 6] approval_edit_info.can_edit:', {{ 'true' if approval_edit_info and approval_edit_info.can_edit else 'false' }}); } catch(e) { console.error('[DEBUG 6] ERROR:', e); }
-        {% set can_use_edit_modal_debug = (can_edit_this_expense and expense.status in ['draft', 'rejected', 'recalled']) or (approval_edit_info and approval_edit_info.can_edit) %}
-        try { console.log('[DEBUG 7] can_use_edit_modal:', {{ 'true' if can_use_edit_modal_debug else 'false' }}); } catch(e) { console.error('[DEBUG 7] ERROR:', e); }
-
-        // ============================================================
         // 全局变量和国际化
         // ============================================================
         const expenseId = {{ expense.id }};
@@ -705,7 +693,6 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
 
         // 将删除函数暴露到全局作用域
         window.confirmDeleteExpense = confirmDeleteExpense;
-        console.log('[DEBUG] confirmDeleteExpense 函数已定义');
 
         // ============================================================
         // 审批操作 - 直接定义在window上以便立即可用
@@ -882,9 +869,7 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
         // 编辑报销单模态框
         // ============================================================
         {% set can_use_edit_modal = (can_edit_this_expense and expense.status in ['draft', 'rejected', 'recalled']) or (approval_edit_info and approval_edit_info.can_edit) %}
-        console.log('[DEBUG] 进入编辑模态框区域, can_use_edit_modal:', {{ 'true' if can_use_edit_modal else 'false' }});
         {% if can_use_edit_modal %}
-        console.log('[DEBUG] 开始定义 expenseData');
         // 报销单数据（用于编辑模态框）- 使用 tojson 确保安全转义
         const expenseData = {
             id: {{ expense.id }},
@@ -914,17 +899,14 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
                 {% endfor %}
             ]
         };
-        console.log('[DEBUG] expenseData 定义完成:', expenseData);
 
         // 打开编辑模态框（普通编辑）
         window.openEditExpenseModal = function () {
             ExpenseModal.openEdit(expenseData);
         };
-        console.log('[DEBUG] openEditExpenseModal 函数已定义');
 
         // 打开审批编辑模态框（只能编辑指定字段）
         {% if approval_edit_info and approval_edit_info.can_edit %}
-        console.log('[DEBUG] 定义 openApprovalEditModal');
         window.openApprovalEditModal = function () {
             const editableFields = {{ approval_edit_info.editable_fields|tojson if approval_edit_info.editable_fields else '[]' }};
             ExpenseModal.openEdit(expenseData, {
@@ -933,19 +915,8 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
                 stepName: {{ (approval_edit_info.step_name or "")|tojson }}
             });
         };
-        console.log('[DEBUG] openApprovalEditModal 函数已定义');
         {% endif %}
-        {% else %}
-        console.log('[DEBUG] can_use_edit_modal 为 false，跳过 expenseData 和 openEditExpenseModal 定义');
         {% endif %}
-
-        // ============================================================
-        // 脚本加载完成确认
-        // ============================================================
-        console.log('[DEBUG] 报销单详情脚本加载完成');
-        console.log('[DEBUG] 函数状态检查:');
-        console.log('[DEBUG]   - confirmDeleteExpense:', typeof window.confirmDeleteExpense);
-        console.log('[DEBUG]   - openEditExpenseModal:', typeof window.openEditExpenseModal);
     </script>
 
     {% if can_use_edit_modal %}

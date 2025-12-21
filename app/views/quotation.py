@@ -61,13 +61,20 @@ def list_quotations():
         # ============================================================
         # 1. 使用通用工具提取参数（替代手动解析）
         # ============================================================
+        from app.utils.query_filters import apply_default_owner_filter
         filters = extract_filter_params(request.args, QUOTATION_FILTER_CONFIG)
         offset, limit = extract_pagination_params(request.args, default_limit=30, max_limit=100)
 
         # 提取变量用于模板显示（search 从 request.args 获取，因为需要跨表搜索）
         search = request.args.get('search', '').strip()
-        owner_filter = filters.get('owner_filter', '')
         project_stage_filter = filters.get('project_stage_filter', '')
+
+        # 默认筛选：首次加载时只显示当前用户的报价单
+        owner_filter = apply_default_owner_filter(
+            request.args, filters, current_user.id,
+            owner_field='owner_filter',
+            filter_keys=['search', 'project_stage_filter', 'project_type_filter', 'project']
+        )
         project_search = request.args.get('project', '')
 
         # 获取排序参数
@@ -308,7 +315,7 @@ def list_quotations():
                     'name': 'owner_filter',
                     'label': _('负责人'),
                     'all_option_text': _('全部负责人'),
-                    'current_value': owner_filter if owner_filter and request.args else '',
+                    'current_value': owner_filter,
                     'col_width': 2,
                     'options': [
                         {'value': str(user.id), 'label': user.real_name or user.username}

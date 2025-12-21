@@ -217,12 +217,19 @@ def get_existing_filter_options(all_viewable_companies):
 @permission_required('customer', 'view')
 def list_companies():
     # 使用公共筛选工具提取参数
+    from app.utils.query_filters import apply_default_owner_filter
     filters = extract_filter_params(request.args, CUSTOMER_FILTER_CONFIG)
     offset, limit = extract_pagination_params(request.args, default_limit=20, max_limit=50)
 
     # 提取变量（用于模板显示和配置构建）
     search = filters.get('search', '')
-    owner_filter = filters.get('owner_filter', '')
+
+    # 默认筛选：首次加载时只显示当前用户的客户
+    owner_filter = apply_default_owner_filter(
+        request.args, filters, current_user.id,
+        owner_field='owner_filter',
+        filter_keys=['search', 'company_type', 'industry', 'country', 'status_filter']
+    )
     company_type_filter = filters.get('company_type', '')
     industry_filter = filters.get('industry', '')
     country_filter = filters.get('country', '')

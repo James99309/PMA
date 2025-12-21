@@ -70,14 +70,21 @@ def expense_list():
         # ============================================================
         # 1. 使用通用工具提取参数
         # ============================================================
+        from app.utils.query_filters import apply_default_owner_filter
         filters = extract_filter_params(request.args, EXPENSE_FILTER_CONFIG)
         offset, limit = extract_pagination_params(request.args, default_limit=30, max_limit=100)
 
         # 提取变量（search 从 request.args 获取，因为需要跨表搜索）
         search = request.args.get('search', '').strip()
         customer_id = filters.get('customer_id', '')
-        owner_id = filters.get('owner_id', '')
         status_filter = filters.get('status', '')
+
+        # 默认筛选：首次加载时只显示当前用户的报销单
+        owner_id = apply_default_owner_filter(
+            request.args, filters, current_user.id,
+            owner_field='owner_id',
+            filter_keys=['search', 'status', 'customer_id']
+        )
 
         # 获取排序参数
         valid_sort_fields = ['expense_number', 'created_at', 'total_amount', 'status', 'owner_id']
@@ -294,7 +301,7 @@ def expense_list():
                     'name': 'owner_id',
                     'label': _(mapping_manager.get_field_display_name('expense', 'owner_id')),
                     'all_option_text': _('全部申请人'),
-                    'current_value': owner_id if owner_id and request.args else '',
+                    'current_value': owner_id,
                     'col_width': 2,
                     'options': [
                         {'value': str(user.id), 'label': user.real_name or user.username}

@@ -155,7 +155,16 @@ def list_projects():
     query = get_viewable_data(Project, current_user).options(joinedload(Project.owner))
 
     # 使用公共筛选工具提取参数并应用筛选（支持 filter_ 前缀的旧版参数）
+    from app.utils.query_filters import apply_default_owner_filter
     filters = extract_filter_params(request.args, PROJECT_FILTER_CONFIG, prefix='filter_')
+
+    # 默认筛选：首次加载时只显示当前用户的项目
+    owner_id = apply_default_owner_filter(
+        request.args, filters, current_user.id,
+        owner_field='owner_id',
+        filter_keys=['search', 'current_stage', 'industry', 'project_type', 'is_active', 'filter_owner_id']
+    )
+
     query = apply_filters_to_query(query, Project, filters, PROJECT_FILTER_CONFIG)
 
     # 提取搜索和排序参数（用于模板显示）
@@ -297,7 +306,7 @@ def list_projects():
                 'name': 'owner_id',
                 'label': _(mapping_manager.get_field_display_name('project', 'owner_id')),
                 'all_option_text': _('全部负责人'),
-                'current_value': request.args.get('owner_id', ''),
+                'current_value': owner_id,
                 'col_width': 2,
                 'options': (lambda: (
                     t4 := time.time(),

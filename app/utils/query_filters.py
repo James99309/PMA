@@ -571,6 +571,54 @@ def build_list_query(
     return query, filters, sort_field, sort_order, offset, limit
 
 
+def apply_default_owner_filter(
+    request_args: Dict[str, Any],
+    filters: Dict[str, Any],
+    current_user_id: int,
+    owner_field: str = 'owner_filter',
+    filter_keys: Optional[List[str]] = None
+) -> str:
+    """
+    应用默认的负责人筛选（首次加载时只显示当前用户的数据）
+
+    当URL中没有任何筛选参数时，默认按当前用户筛选。
+    当用户明确选择"全部"或使用其他筛选条件时，正常显示。
+
+    Args:
+        request_args: 请求参数字典 (request.args)
+        filters: 已提取的筛选参数字典（会被修改）
+        current_user_id: 当前用户ID
+        owner_field: 负责人筛选字段名（如 'owner_filter', 'owner_id'）
+        filter_keys: 需要检查的筛选参数列表，None则使用默认列表
+
+    Returns:
+        owner_filter 的值（用于模板显示）
+
+    使用示例:
+        filters = extract_filter_params(request.args, FILTER_CONFIG)
+        owner_filter = apply_default_owner_filter(
+            request.args, filters, current_user.id,
+            owner_field='owner_filter',
+            filter_keys=['search', 'status', 'type']
+        )
+    """
+    # 默认检查的筛选参数
+    if filter_keys is None:
+        filter_keys = ['search', 'status', 'type', 'category']
+
+    # 检查是否有任何筛选参数
+    has_any_filter = owner_field in request_args or any(k in request_args for k in filter_keys)
+
+    if not has_any_filter:
+        # 首次加载，默认按当前用户筛选
+        owner_value = str(current_user_id)
+        filters[owner_field] = owner_value
+        return owner_value
+    else:
+        # 用户已操作筛选器，使用实际值
+        return filters.get(owner_field, '')
+
+
 def build_ajax_response(
     items: list,
     html: str,
