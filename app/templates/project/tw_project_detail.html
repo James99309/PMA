@@ -1212,18 +1212,18 @@ context %}
         // 打开阶段推进模态框
         window.openStageProgressModal = function () {
             // TODO: 实现阶段推进模态框
-            alert('阶段推进功能待实现');
+            alert('{{ _("阶段推进功能待实现") }}');
         };
 
         // 显示添加客户对话框
         window.showAddCustomerDialog = function () {
             // TODO: 实现添加客户对话框
-            alert('添加客户功能待实现');
+            alert('{{ _("添加客户功能待实现") }}');
         };
 
         // 移除客户关联
         window.removeCustomerAssociation = async function (id, name) {
-            if (!confirm(`确定要移除客户「${name}」的关联吗？`)) return;
+            if (!confirm(`{{ _("确定要移除客户") }}「${name}」{{ _("的关联吗？") }}`)) return;
 
             try {
                 const response = await fetch(`/project/api/remove_customer_association/${id}`, {

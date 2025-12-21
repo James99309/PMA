@@ -536,7 +536,7 @@
             return response.blob();
         })
         .then(blob => {
-            if (blob.size === 0) throw new Error('PDF文件为空');
+            if (blob.size === 0) throw new Error('{{ _("PDF文件为空") }}');
 
             const url = window.URL.createObjectURL(blob);
             const newWindow = window.open(url, '_blank');

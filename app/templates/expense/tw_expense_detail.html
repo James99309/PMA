@@ -560,6 +560,17 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
 
     <script>
         // ============================================================
+        // 调试信息
+        // ============================================================
+        console.log('[DEBUG] 报销单详情脚本开始加载');
+        console.log('[DEBUG] can_edit_this_expense:', {{ 'true' if can_edit_this_expense else 'false' }});
+        console.log('[DEBUG] expense.status:', '{{ expense.status }}');
+        console.log('[DEBUG] expense.is_locked:', {{ 'true' if expense.is_locked else 'false' }});
+        console.log('[DEBUG] approval_edit_info:', {{ approval_edit_info|tojson|default('null') }});
+        {% set can_use_edit_modal_debug = (can_edit_this_expense and expense.status in ['draft', 'rejected', 'recalled']) or (approval_edit_info and approval_edit_info.can_edit) %}
+        console.log('[DEBUG] can_use_edit_modal:', {{ 'true' if can_use_edit_modal_debug else 'false' }});
+
+        // ============================================================
         // 全局变量和国际化
         // ============================================================
         const expenseId = {{ expense.id }};
@@ -672,6 +683,7 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
 
         // 将删除函数暴露到全局作用域
         window.confirmDeleteExpense = confirmDeleteExpense;
+        console.log('[DEBUG] confirmDeleteExpense 函数已定义');
 
         // ============================================================
         // 审批操作 - 直接定义在window上以便立即可用

@@ -5,5217 +5,5495 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PMA 1.0\n"
-"Report-Msgid-Bugs-To: support@pma.com\n"
-"POT-Creation-Date: 2024-12-15 10:00+0800\n"
-"PO-Revision-Date: 2024-12-15 10:00+0800\n"
-"Last-Translator: PMA Team\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2024-01-01 00:00+0800\n"
+"PO-Revision-Date: 2024-01-01 00:00+0800\n"
+"Last-Translator: \n"
 "Language: en\n"
-"Language-Team: en <support@pma.com>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1)\n"
+"Language-Team: en <en@example.com>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.17.0\n"
+"Generated-By: Babel\n"
 
-# 客户模块翻译
+msgid "没有更多数据"
+msgstr "No more data"
+msgid "加载数据失败"
+msgstr "Failed to load data"
+msgid "请选择来源"
+msgstr "Please select source"
+msgid "创建中..."
+msgstr "Creating..."
+msgid "保存失败，请重试"
+msgstr "Save failed, please try again"
+msgid "加载数据失败，请重试"
+msgstr "Failed to load data, please try again"
+msgid "相似企业"
+msgstr "Similar Companies"
+msgid "该企业名称已存在"
+msgstr "This company name already exists"
 msgid "您没有权限查看此客户信息"
 msgstr "You do not have permission to view this customer information"
-
-
-msgid "您没有权限查看此客户信息"
-msgstr "You do not have permission to view this customer information"
-
-
 msgid "客户创建成功！"
 msgstr "Customer created successfully!"
-
-
-msgid "您没有权限编辑此企业信息"
-msgstr "You do not have permission to edit this company information"
-
-
-msgid "客户信息已更新！"
-msgstr "Customer information has been updated!"
-
-
 msgid "语言参数缺失"
 msgstr "Language parameter is missing"
-
-
 msgid "不支持的语言"
 msgstr "Unsupported language"
-
-
 msgid "语言切换成功"
 msgstr "Language switched successfully"
-
-
 msgid "语言切换失败"
 msgstr "Language switch failed"
-
-
 msgid "服务器错误"
 msgstr "Server error"
-
-
 msgid "语言设置"
 msgstr "Language Settings"
-
-
 msgid "简体中文"
 msgstr "Simplified Chinese"
-
-
 msgid "English"
 msgstr "English"
-
-
 msgid "国际化演示"
 msgstr "Internationalization Demo"
-
-
 msgid "客户管理系统 - 国际化演示"
 msgstr "Customer Management System - I18n Demo"
-
-
 msgid "当前语言"
 msgstr "Current Language"
-
-
 msgid "客户基本信息"
 msgstr "Customer Basic Information"
-
-
 msgid "公司名称"
 msgstr "Company Name"
-
-
 msgid "行业"
 msgstr "Industry"
-
-
 msgid "状态"
 msgstr "Status"
-
-
 msgid "国家"
 msgstr "Country"
-
-
 msgid "创建时间"
 msgstr "Created"
-
-
 msgid "操作按钮示例"
 msgstr "Action Buttons Example"
-
-
 msgid "添加客户"
 msgstr "Add Customer"
-
-
 msgid "编辑客户"
 msgstr "Edit Customer"
-
-
 msgid "查看详情"
 msgstr "View Details"
-
-
 msgid "删除客户"
 msgstr "Delete Customer"
-
-
 msgid "导出数据"
 msgstr "Export Data"
-
-
 msgid "系统状态信息"
 msgstr "System Status Information"
-
-
 msgid "成功消息示例"
 msgstr "Success Message Examples"
-
-
 msgid "客户信息更新成功！"
 msgstr "Customer information updated successfully!"
-
-
 msgid "数据导出完成！"
 msgstr "Data export completed!"
-
-
 msgid "警告消息示例"
 msgstr "Warning Message Examples"
-
-
 msgid "该客户已存在，请检查"
 msgstr "This customer already exists, please check"
-
-
 msgid "支持的语言"
 msgstr "Supported Languages"
-
-
 msgid "语言切换说明"
 msgstr "Language Switching Instructions"
-
-
 msgid "语言偏好会自动保存到您的账户中。"
 msgstr "Language preferences will be automatically saved to your account."
-
-
 msgid "返回客户列表"
 msgstr "Back to Customer List"
-
-
 msgid "制造业"
 msgstr "Manufacturing"
-
-
 msgid "科技"
 msgstr "Technology"
-
-
 msgid "金融"
 msgstr "Finance"
-
-
 msgid "医疗"
 msgstr "Healthcare"
-
-
 msgid "教育"
 msgstr "Education"
-
-
 msgid "零售"
 msgstr "Retail"
-
-
 msgid "房地产"
 msgstr "Real Estate"
-
-
 msgid "能源"
 msgstr "Energy"
-
-
 msgid "交通运输"
 msgstr "Transportation"
-
-
 msgid "其他"
 msgstr "Other"
-
-
 msgid "活跃"
 msgstr "Active"
-
-
 msgid "非活跃"
 msgstr "Inactive"
-
-
-msgid "潜在客户"
-msgstr "Potential"
-
-
 msgid "已关闭"
 msgstr "Closed"
-
-
 msgid "客户管理"
 msgstr "Customer"
-
-
 msgid "客户列表"
 msgstr "Customer List"
-
-
-msgid "搜索企业名称..."
-msgstr "Search company name..."
-
-
-msgid "输入企业名称进行搜索，可查看所有企业的基本信息（含非自己的客户）"
-msgstr "Enter company name to search, view basic information of all companies (including non-own customers)"
-
-
 msgid "搜索联系人..."
 msgstr "Search contacts..."
-
-
-msgid "输入联系人姓名搜索，点击可跳转到相应企业"
-msgstr "Enter contact name to search, click to jump to corresponding company"
-
-
 msgid "添加企业"
 msgstr "Add Company"
-
-
 msgid "项目管理系统"
 msgstr "Project Management System"
-
-
 msgid "联系人详情"
 msgstr "Contact Details"
-
-
 msgid "操作按钮组"
 msgstr "Action Button Group"
-
-
 msgid "返回企业"
 msgstr "Back to Company"
-
-
 msgid "编辑联系人"
 msgstr "Edit Contact"
-
-
 msgid "删除联系人"
 msgstr "Delete Contact"
-
-
 msgid "部门"
 msgstr "Department"
-
-
 msgid "职位"
 msgstr "Position"
-
-
 msgid "电话"
 msgstr "Phone"
-
-
 msgid "所有者"
 msgstr "Owner"
-
-
 msgid "邮箱"
 msgstr "Email"
-
-
 msgid "备注"
 msgstr "Notes"
-
-
 msgid "暂无备注"
 msgstr "No notes"
-
-
 msgid "主要联系人"
 msgstr "Primary Contact"
-
-
 msgid "行动记录"
 msgstr "Action Records"
-
-
 msgid "添加行动记录"
 msgstr "Add Action Record"
-
-
 msgid "记录人"
 msgstr "Recorded by"
-
-
 msgid "删除此行动记录"
 msgstr "Delete this action record"
-
-
 msgid "暂无行动记录"
 msgstr "No action records"
-
-
 msgid "确认删除"
 msgstr "Confirm Delete"
-
-
 msgid "确定要删除这条行动记录吗？"
 msgstr "Are you sure you want to delete this action record?"
-
-
 msgid "此操作不可撤销。"
 msgstr "This action cannot be undone."
-
-
 msgid "取消"
 msgstr "Cancel"
-
-
 msgid "提示"
 msgstr "Notification"
-
-
 msgid "操作结果会显示在这里"
 msgstr "Operation result will be displayed here"
-
-
 msgid "处理中..."
 msgstr "Processing..."
-
-
 msgid "成功"
 msgstr "Success"
-
-
 msgid "错误"
 msgstr "Error"
-
-
 msgid "删除过程中发生错误，请稍后重试"
 msgstr "An error occurred during deletion, please try again later"
-
-
 msgid "启用联系人独立权限设置"
 msgstr "Enable independent permission settings for contact"
-
-
 msgid "禁止共享该联系人"
 msgstr "Disable sharing for this contact"
-
-
 msgid "选中后，即使公司设置了共享，该联系人也不会被共享给其他用户"
 msgstr "If checked, this contact will not be shared with other users even if the company has sharing enabled"
-
-
 msgid "返回客户详情"
 msgstr "Back to Customer Details"
-
-
 msgid "设为主要联系人"
 msgstr "Set as primary contact"
-
-
 msgid "主要联系人会在客户列表中优先显示"
 msgstr "Primary contact will be shown first in the customer list"
-
-
 msgid "请填写联系人姓名"
 msgstr "Please enter contact name"
-
-
 msgid "联系人添加成功"
 msgstr "Contact added successfully"
-
-
 msgid "添加联系人失败"
 msgstr "Failed to add contact"
-
-
 msgid "该客户已有同名联系人"
 msgstr "This customer already has a contact with the same name"
-
-
 msgid "该客户已有同名联系人（不可见）"
 msgstr "This customer already has a contact with the same name (not visible)"
-
-
 msgid "编辑企业"
 msgstr "Edit Company"
-
-
 msgid "企业代码"
 msgstr "Company Code"
-
-
 msgid "企业名称"
 msgstr "Company Name"
-
-
 msgid "国家/地区"
 msgstr "Country/Region"
-
-
 msgid "请选择国家"
 msgstr "Please select country"
-
-
 msgid "省/州"
 msgstr "State/Province"
-
-
 msgid "请选择省/州"
 msgstr "Please select state/province"
-
-
 msgid "详细地址"
 msgstr "Detailed Address"
-
-
 msgid "示例：中国 北京市 朝阳区xx路"
 msgstr "Example: China Beijing Chaoyang District XX Road"
-
-
 msgid "请选择行业"
 msgstr "Please select industry"
-
-
 msgid "企业类型"
 msgstr "Company Type"
-
-
 msgid "请选择企业类型"
 msgstr "Please select company type"
-
-
 msgid "请选择联系人"
 msgstr "Please select contact"
-
-
 msgid "关联项目"
 msgstr "Related Project"
-
-
 msgid "无"
 msgstr "None"
-
-
 msgid "日期"
 msgstr "Date"
-
-
 msgid "请选择日期"
 msgstr "Please select date"
-
-
 msgid "沟通情况"
 msgstr "Communication"
-
-
 msgid "请填写沟通情况"
 msgstr "Please fill in communication details"
-
-
 msgid "的历史行动记录"
 msgstr "'s action history"
-
-
-msgid "该联系人暂无历史行动记录"
-msgstr "This contact has no action history"
-
-
 msgid "记录行动"
 msgstr "Record Action"
-
-
 msgid "请选择项目"
 msgstr "Please select project"
-
-
-msgid "行动记录统计"
-msgstr "Action Statistics"
-
-
-msgid "总共记录了"
-msgstr "Total recorded"
-
-
-msgid "次沟通行动"
-msgstr "communication actions"
-
-
 msgid "历史沟通记录"
 msgstr "Communication History"
-
-
-msgid "上次沟通"
-msgstr "Last Communication"
-
-
 msgid "保存中..."
 msgstr "Saving..."
-
-
 msgid "提交数据时发生错误，请稍后重试"
 msgstr "Error occurred while submitting data, please try again later"
-
-
 msgid "欢迎"
 msgstr "Welcome"
-
-
-msgid "访客"
-msgstr "Guest"
-
-
 msgid "最近项目"
 msgstr "Recent Projects"
-
-
 msgid "最近报价"
 msgstr "Recent Quotations"
-
-
-msgid "最近客户"
-msgstr "Recent Customers"
-
-
 msgid "您没有最近的项目"
 msgstr "You have no recent projects"
-
-
 msgid "您没有最近的报价"
 msgstr "You have no recent quotations"
-
-
-msgid "您没有最近的客户"
-msgstr "You have no recent customers"
-
-
 msgid "无项目"
 msgstr "No Project"
-
-
 msgid "未分类"
 msgstr "Uncategorized"
-
-
 msgid "快速操作"
 msgstr "Quick Actions"
-
-
 msgid "新建项目"
 msgstr "Create Project"
-
-
 msgid "新建报价"
 msgstr "Create Quotation"
-
-
 msgid "新建客户"
 msgstr "Create Customer"
-
-
-msgid "查看报表"
-msgstr "View Reports"
-
-
 msgid "最近工作记录"
 msgstr "Recent Work Records"
-
-
 msgid "全部账户"
 msgstr "All Accounts"
-
-
-msgid "正在加载工作记录..."
-msgstr "Loading work records..."
-
-
 msgid "行动日期"
 msgstr "Action Date"
-
-
 msgid "拥有人"
 msgstr "Owner"
-
-
 msgid "联系人"
 msgstr "Contact"
-
-
 msgid "回复状态"
 msgstr "Reply Status"
-
-
-msgid "最近记录"
-msgstr "Recent Records"
-
-
-msgid "今日记录"
-msgstr "Today's Records"
-
-
-msgid "暂无最近工作记录"
-msgstr "No recent work records"
-
-
-msgid "最近5天内没有工作记录"
-msgstr "No work records in the last 5 days"
-
-
 msgid "加载失败"
 msgstr "Loading Failed"
-
-
-msgid "无法加载工作记录，请稍后重试"
-msgstr "Unable to load work records, please try again later"
-
-
 msgid "重新加载"
 msgstr "Reload"
-
-
-msgid "显示最近5天的工作记录"
-msgstr "Show work records from the last 5 days"
-
-
 msgid "条记录"
 msgstr "records"
-
-
 msgid "系统信息"
 msgstr "System Information"
-
-
 msgid "当前用户"
 msgstr "Current User"
-
-
-msgid "系统版本"
-msgstr "System Version"
-
-
-msgid "上次登录"
-msgstr "Last Login"
-
-
 msgid "暂无记录"
 msgstr "No Records"
-
-
-msgid "帮助与支持"
-msgstr "Help & Support"
-
-
-msgid "如果您在使用过程中遇到任何问题，请联系系统管理员。"
-msgstr "If you encounter any issues while using the system, please contact the system administrator."
-
-
-msgid "查看用户手册"
-msgstr "View User Manual"
-
-
 msgid "招投标阶段"
 msgstr "Bidding Stage"
-
-
 msgid "中标阶段"
 msgstr "Awarded Stage"
-
-
 msgid "批价阶段"
 msgstr "Price Approval Stage"
-
-
 msgid "项目列表"
 msgstr "Project List"
-
-
-msgid "显示统计总览"
-msgstr "Show Statistics Overview"
-
-
-msgid "搜索项目名称..."
-msgstr "Search project name..."
-
-
 msgid "只看自己"
 msgstr "My Projects Only"
-
-
 msgid "批量导入"
 msgstr "Batch Import"
-
-
 msgid "创建项目"
 msgstr "Create Project"
-
-
 msgid "批量删除"
 msgstr "Batch Delete"
-
-
-msgid "暂无项目数据"
-msgstr "No project data"
-
-
 msgid "无编号"
 msgstr "No Number"
-
-
 msgid "厂商负责人"
 msgstr "Vendor Manager"
-
-
 msgid "报价"
 msgstr "Quotation"
-
-
 msgid "元"
 msgstr "Yuan"
-
-
 msgid "直接用户"
 msgstr "End User"
-
-
 msgid "报备"
 msgstr "Report"
-
-
 msgid "出货预测"
 msgstr "Delivery Forecast"
-
-
 msgid "创建"
 msgstr "Created"
-
-
 msgid "更新"
 msgstr "Updated"
-
-
 msgid "授权编号"
 msgstr "Authorization Code"
-
-
 msgid "项目名称"
 msgstr "Project"
-
-
 msgid "进度"
 msgstr "Progress"
-
-
 msgid "活跃状态"
 msgstr "Status"
-
-
 msgid "当前阶段"
 msgstr "Stage"
-
-
 msgid "项目类型"
 msgstr "Type"
-
-
 msgid "报备来源"
 msgstr "Source"
-
-
 msgid "设计院及顾问"
 msgstr "Consultant"
-
-
 msgid "总承包单位"
 msgstr "Main Contractor"
-
-
 msgid "系统集成商"
 msgstr "System Integrator"
-
-
-msgid "出货预期日期"
-msgstr "Delivery"
-
-
 msgid "报备日期"
 msgstr "Report"
-
-
 msgid "更新时间"
 msgstr "Update"
-
-
 msgid "创建日期"
 msgstr "Creation"
-
-
 msgid "筛选..."
 msgstr "Filter..."
-
-
 msgid "审批中"
 msgstr "Under Approval"
-
-
 msgid "已驳回"
 msgstr "Rejected"
-
-
 msgid "未申请"
 msgstr "Not Applied"
-
-
 msgid "查看报价单详情"
 msgstr "View Quotation Details"
-
-
 msgid "滚动到顶部"
 msgstr "Scroll to Top"
-
-
 msgid "滚动到底部"
 msgstr "Scroll to Bottom"
-
-
 msgid "添加项目"
 msgstr "Add Project"
-
-
 msgid "项目信息"
 msgstr "Project Information"
-
-
 msgid "请选择报备来源"
 msgstr "Please select report source"
-
-
 msgid "请选择项目类型"
 msgstr "Please select project type"
-
-
 msgid "品牌情况"
 msgstr "Brand"
-
-
 msgid "请选择品牌情况"
 msgstr "Please select brand situation"
-
-
 msgid "参与单位"
 msgstr "Participating"
-
-
 msgid "请选择用户"
 msgstr "Please select user"
-
-
-msgid "请选择设计院及顾问"
-msgstr "Please select consultant"
-
-
-msgid "请选择总承包单位"
-msgstr "Please select main contractor"
-
-
-msgid "请选择系统集成商"
-msgstr "Please select system integrator"
-
-
 msgid "经销商"
 msgstr "Dealer"
-
-
-msgid "请选择经销商"
-msgstr "Please select dealer"
-
-
 msgid "阶段说明"
 msgstr "Stage Description"
-
-
 msgid "当前阶段情况说明"
 msgstr "Current Stage Description"
-
-
 msgid "保存"
 msgstr "Save"
-
-
 msgid "不可编辑"
 msgstr "Not Editable"
-
-
 msgid "出货预测日期"
 msgstr "Delivery Forecast Date"
-
-
 msgid "厂商销售负责人"
 msgstr "Vendor"
-
-
 msgid "请选择厂商销售负责人"
 msgstr "Please select vendor sales manager"
-
-
 msgid "报价管理"
-msgstr "Quotation Management"
-
-
+msgstr "Quotation"
 msgid "报价单列表"
 msgstr "Quotation List"
-
-
-msgid "搜索项目名称或授权编号..."
-msgstr "Search project name or authorization code..."
-
-
 msgid "清除搜索"
 msgstr "Clear Search"
-
-
 msgid "创建报价单"
 msgstr "Create Quotation"
-
-# 编辑报价单页面新增翻译
-
-msgid "-- 请选择客户 --"
-msgstr "-- Please select customer --"
-
-
-msgid "-- 请选择型号 --"
-msgstr "-- Please select model --"
-
-
 msgid "其他项目"
 msgstr "Other Projects"
-
-
 msgid "保存失败"
 msgstr "Save Failed"
-
-
 msgid "请至少添加一个产品明细"
 msgstr "Please add at least one product detail"
-
-
-msgid "请添加至少一个有效的产品明细"
-msgstr "Please add at least one valid product detail"
-
-
-msgid "加载产品明细数据失败，请手动添加产品"
-msgstr "Failed to load product details, please add products manually"
-
-
-msgid "暂无报价单数据"
-msgstr "No quotation data"
-
-
 msgid "编辑报价单"
 msgstr "Edit Quotation"
-
-
 msgid "查看报价单"
 msgstr "View Quotation"
-
-
 msgid "删除报价单"
 msgstr "Delete Quotation"
-
-
 msgid "报价单详情"
 msgstr "Quotation Details"
-
-
 msgid "报价单号"
 msgstr "Quotation ID"
-
-
 msgid "报价金额"
 msgstr "Quotation Amount"
-
-
 msgid "报价日期"
 msgstr "Quotation Date"
-
-
 msgid "有效期"
 msgstr "Valid Until"
-
-
 msgid "产品信息"
 msgstr "Product Information"
-
-
 msgid "产品名称"
 msgstr "Name"
-
-
 msgid "产品型号"
 msgstr "Model"
-
-
 msgid "数量"
 msgstr "Quantity"
-
-
 msgid "单价"
 msgstr "Unit Price"
-
-
 msgid "小计"
 msgstr "Subtotal"
-
-
 msgid "总计"
 msgstr "Total"
-
-
 msgid "税率"
 msgstr "Tax Rate"
-
-
-msgid "含税金额"
-msgstr "Tax Inclusive Amount"
-
-
 msgid "产品列表"
 msgstr "Product List"
-
-
 msgid "产品详情"
 msgstr "Product Details"
-
-
 msgid "添加产品"
 msgstr "Add Product"
-
-
 msgid "编辑产品"
 msgstr "Edit"
-
-
 msgid "删除产品"
 msgstr "Delete"
-
-
 msgid "产品分类"
 msgstr "Category"
-
-
 msgid "产品描述"
 msgstr "Description"
-
-
 msgid "产品规格"
 msgstr "Specifications"
-
-
 msgid "产品图片"
 msgstr "Image"
-
-
 msgid "库存数量"
 msgstr "Stock Quantity"
-
-
 msgid "产品状态"
 msgstr "Status"
-
-
 msgid "在售"
 msgstr "Active"
-
-
-msgid "停售"
-msgstr "Inactive"
-
-
 msgid "暂无产品数据"
 msgstr "No product data"
-
-
 msgid "搜索产品..."
 msgstr "Search..."
-
-
 msgid "产品代码"
 msgstr "Product Code"
-
-
 msgid "标准价格"
 msgstr "Standard Price"
-
-
-msgid "最低价格"
-msgstr "Minimum Price"
-
-
-msgid "最高价格"
-msgstr "Maximum Price"
-
-
 msgid "供应商"
 msgstr "Supplier"
-
-
 msgid "制造商"
 msgstr "Manufacturer"
-
-
-msgid "产品重量"
-msgstr "Product Weight"
-
-
-msgid "产品尺寸"
-msgstr "Dimensions"
-
-
 msgid "保修期"
 msgstr "Warranty Period"
-
-
 msgid "技术参数"
 msgstr "Parameters"
-
-
-msgid "使用说明"
-msgstr "Usage Instructions"
-
-
-msgid "安装指南"
-msgstr "Installation Guide"
-
-
-msgid "维护保养"
-msgstr "Maintenance"
-
-
 msgid "产品库管理"
 msgstr "Product Management"
-
-
-msgid "输入关键词搜索产品名称、MN号、型号、品牌、类别等"
-msgstr "Enter keywords to search product name, MN number, model, brand, category, etc."
-
-
 msgid "搜索"
 msgstr "Search"
-
-
 msgid "重置"
 msgstr "Reset"
-
-
-msgid "支持搜索产品名称、MN号、型号、品牌、产品类型、产品类别等字段"
-msgstr "Supports searching product name, MN number, model, brand, product type, product category and other fields"
-
-
 msgid "新增产品"
 msgstr "Add"
-
-
 msgid "加载中..."
 msgstr "Loading..."
-
-
 msgid "共"
 msgstr "Total"
-
-
 msgid "产品类型"
 msgstr "Type"
-
-
 msgid "产品类别"
 msgstr "Category"
-
-
 msgid "产品MN号"
 msgstr "MN"
-
-
 msgid "规格说明"
 msgstr "Specifications"
-
-
 msgid "品牌"
 msgstr "Brand"
-
-
 msgid "单位"
 msgstr "Unit"
-
-
 msgid "市场价格"
 msgstr "Market Price"
-
-
 msgid "生产状态"
 msgstr "Status"
-
-
 msgid "数据所有者"
 msgstr "Owner"
-
-
 msgid "拥有者"
 msgstr "Owner"
-
-
 msgid "操作"
 msgstr "Actions"
-
-
 msgid "加载更多数据..."
 msgstr "Loading more data..."
-
-
-msgid "全部数据已加载完成"
-msgstr "All data has been loaded"
-
-
 msgid "项目详情"
 msgstr "Project Details"
-
-
 msgid "查看评分详情"
 msgstr "View Rating Details"
-
-
 msgid "返回列表"
 msgstr "Back to List"
-
-
 msgid "编辑项目"
 msgstr "Edit Project"
-
-
 msgid "删除项目"
 msgstr "Delete"
-
-
 msgid "项目阶段跟踪"
 msgstr "Stage Tracking"
-
-
 msgid "项目基本信息"
 msgstr "Project Information"
-
-
 msgid "报备时间"
 msgstr "Report"
-
-
-msgid "预计交付时间"
-msgstr "Delivery"
-
-
 msgid "最后更新"
 msgstr "Updated"
-
-
 msgid "添加报价"
 msgstr "Add Quotation"
-
-
 msgid "修改"
 msgstr "Modify"
-
-
 msgid "相关项目"
 msgstr "Projects"
-
-
 msgid "项目编号"
 msgstr "ID"
-
-
 msgid "负责人"
 msgstr "Representative"
-
-
-msgid "暂无相关项目"
-msgstr "No related projects"
-
-
 msgid "添加联系人"
 msgstr "Add Contacts"
-
-
 msgid "查看更多"
 msgstr "View More"
-
-
 msgid "查看全部"
 msgstr "View All"
-
-
 msgid "审批流程"
 msgstr "Approval Process"
-
-
 msgid "申请授权编号"
 msgstr "Apply for Authorization Code"
-
-
 msgid "审批状态"
 msgstr "Approval Status"
-
-
 msgid "申请人"
 msgstr "Applicant"
-
-
-msgid "申请时间"
-msgstr "Application Time"
-
-
 msgid "当前审批人"
 msgstr "Current Approver"
-
-
 msgid "处理时间"
 msgstr "Processing Time"
-
-
-msgid "处理意见"
-msgstr "Processing Comments"
-
-
 msgid "锁定状态"
 msgstr "Locked"
-
-
 msgid "已锁定"
 msgstr "Locked"
-
-
 msgid "未锁定"
 msgstr "Unlocked"
-
-
 msgid "最后活动"
 msgstr "Last Activity"
-
-
 msgid "不活跃"
 msgstr "Inactive"
-
-
 msgid "阈值"
 msgstr "Threshold"
-
-
 msgid "天"
 msgstr "days"
-
-
-msgid "相关单位"
-msgstr "Organizations"
-
-
 msgid "未设置"
 msgstr "Not Set"
-
-
-msgid "正在加载规格字段..."
-msgstr "Loading spec fields..."
-
-
 msgid "统计分析"
 msgstr "Analysis"
-
-
-msgid "项目概览"
-msgstr "Overview"
-
-
-msgid "阶段分析"
-msgstr "Stage Analysis"
-
-
-msgid "报价分析"
-msgstr "Quotation Analysis"
-
-
-msgid "时间分析"
-msgstr "Time Analysis"
-
-
 msgid "项目统计总览"
 msgstr "Project Overview"
-
-
 msgid "加载中"
 msgstr "Loading"
-
-
 msgid "正在加载数据，请稍候..."
 msgstr "Loading data, please wait..."
-
-
 msgid "正在加载统计数据"
 msgstr "Loading data"
-
-
 msgid "有效项目"
 msgstr "Valid Projects"
-
-
 msgid "有效项目总数和总金额（排除签约、失败、搁置状态，包含所有授权状态）"
 msgstr "Total number and amount of valid projects (excluding signed, failed, and suspended status, including all authorization status)"
-
-
 msgid "项"
 msgstr "items"
-
-
 msgid "万元"
 msgstr "10K CNY"
-
-
 msgid "业务推进"
 msgstr "Business Progress"
-
-
 msgid "本月内项目状态有推进的统计"
 msgstr "Statistics of projects with status progress this month"
-
-
 msgid "签约"
 msgstr "Signed"
-
-
 msgid "当前已签约的项目统计"
 msgstr "Statistics of currently signed projects"
-
-
 msgid "失败"
 msgstr "Failed"
-
-
 msgid "当前处于失败状态的项目统计"
 msgstr "Statistics of projects currently in failed status"
-
-
 msgid "搁置"
 msgstr "Suspended"
-
-
 msgid "当前处于搁置状态的项目统计"
 msgstr "Statistics of projects currently in suspended status"
-
-
 msgid "发现"
 msgstr "Discovery"
-
-
 msgid "当前处于发现阶段的项目统计"
 msgstr "Statistics of projects currently in discovery stage"
-
-
 msgid "植入"
 msgstr "Implant"
-
-
 msgid "当前处于植入阶段的项目统计"
 msgstr "Statistics of projects currently in implementation stage"
-
-
 msgid "月"
 msgstr "Month"
-
-
 msgid "进度追踪"
 msgstr "Progress Tracking"
-
-
 msgid "目标"
 msgstr "Target"
-
-
 msgid "招标前"
 msgstr "Pre-tender"
-
-
 msgid "当前处于招标前阶段的项目统计"
 msgstr "Statistics of projects currently in pre-tender stage"
-
-
 msgid "招标中"
 msgstr "Tendering"
-
-
 msgid "中标"
 msgstr "Awarded"
-
-
 msgid "批价"
 msgstr "Price Approval"
-
-
 msgid "报价编号"
 msgstr "Quotation Number"
-
-
 msgid "总价"
 msgstr "Total Price"
-
-
 msgid "项目阶段"
 msgstr "Project Stage"
-
-
 msgid "姓名"
 msgstr "Name"
-
-
 msgid "项目行动记录"
 msgstr "Project Action Records"
-
-
 msgid "返回项目"
 msgstr "Back to Project"
-
-
 msgid "相关企业"
 msgstr "Related Company"
-
-
 msgid "请选择企业（可选）"
 msgstr "Select company (optional)"
-
-
 msgid "当前步骤"
 msgstr "Current Step"
-
-
 msgid "审批人"
 msgstr "Approver"
-
-
 msgid "待审批"
 msgstr "Pending Approval"
-
-
 msgid "审批流程图"
 msgstr "Approval Workflow Diagram"
-
-
 msgid "步骤"
 msgstr "Step"
-
-
 msgid "已通过"
 msgstr "Approved"
-
-
 msgid "已拒绝"
 msgstr "Rejected"
-
-
 msgid "批价审核"
 msgstr "Quote Approved"
-
-
 msgid "签约审核"
 msgstr "Contract Approved"
-
-
 msgid "审批时间"
 msgstr "Approval Time"
-
-
 msgid "流程结束"
 msgstr "Process End"
-
-
 msgid "审批已通过"
 msgstr "Approval Completed"
-
-
 msgid "审批已拒绝"
 msgstr "Approval Rejected"
-
-
 msgid "审批进行中"
 msgstr "Approval In Progress"
-
-
 msgid "完成时间"
 msgstr "Completion Time"
-
-
 msgid "授权编号审批"
 msgstr "Authorization Code Approval"
-
-
 msgid "此步骤需要授权编号配置，请点击下方按钮进入审批页面。"
 msgstr "This step requires authorization code configuration. Please click the button below to enter the approval page."
-
-
 msgid "进行授权"
 msgstr "Authorize"
-
-
 msgid "审批操作"
 msgstr "Approval Action"
-
-
 msgid "审批意见"
 msgstr "Approval Comment"
-
-
 msgid "请输入您的审批意见..."
 msgstr "Please enter your approval comment..."
-
-
 msgid "同意"
 msgstr "Approve"
-
-
 msgid "拒绝"
 msgstr "Reject"
-
-
 msgid "全选"
 msgstr "Select All"
-
-
 msgid "批价单编号"
 msgstr "Pricing Order Number"
-
-
 msgid "订单编号"
 msgstr "Order Number"
-
-
 msgid "供应商/客户"
 msgstr "Supplier/Customer"
-
-
 msgid "关联业务"
 msgstr "Related Business"
-
-
 msgid "提交人"
 msgstr "Submitter"
-
-
 msgid "发起时间"
 msgstr "Initiation Time"
-
-
 msgid "无项目编号"
 msgstr "No Project Number"
-
-
 msgid "无关联项目"
 msgstr "No Associated Project"
-
-
 msgid "无关联"
 msgstr "No Association"
-
-
 msgid "无项目名称"
 msgstr "No Project Name"
-
-
 msgid "无客户"
 msgstr "No Customer"
-
-
 msgid "无关联公司"
 msgstr "No Associated Company"
-
-
 msgid "草稿"
 msgstr "Draft"
-
-
 msgid "未知状态"
 msgstr "Unknown Status"
-
-
 msgid "暂无待审批的流程"
 msgstr "No pending approval processes"
-
-
 msgid "暂无审批记录"
 msgstr "No approval records"
-
-
 msgid "暂无已创建的流程"
 msgstr "No created processes"
-
-
 msgid "确认批量删除"
 msgstr "Confirm Batch Delete"
-
-
 msgid "您确定要删除选中的"
 msgstr "Are you sure you want to delete the selected"
-
-
 msgid "个审批流程吗？"
 msgstr "approval processes?"
-
-
 msgid "此操作不可撤销！"
 msgstr "This operation cannot be undone!"
-
-
 msgid "召回"
 msgstr "Recall"
-
-
 msgid "详情不可用"
 msgstr "Details Not Available"
-
-
 msgid "基本信息"
 msgstr "Basic Information"
-
-
 msgid "流程状态"
 msgstr "Process Status"
-
-
 msgid "通过"
 msgstr "Approve"
-
-
 msgid "暂无审批流程"
 msgstr "No approval process"
-
-
 msgid "请先选择联系人"
 msgstr "Select contact first"
-
-
 msgid "导入数据"
 msgstr "Import Data"
-
-
 msgid "导入客户"
 msgstr "Import Customers"
-
-
 msgid "导入联系人"
 msgstr "Import Contacts"
-
-
 msgid "客户负责人"
 msgstr "Customer Owner"
-
-
-msgid "暂无可见企业数据。"
-msgstr "No visible company data."
-
-
 msgid "已创建联系人"
 msgstr "Contact Created"
-
-
-msgid "暂无可见企业数据"
-msgstr "No visible company data"
-
-
 msgid "业务机会管理系统"
 msgstr "Opportunity Management System"
-
-
 msgid "仪表盘"
 msgstr "Dashboard"
-
-
 msgid "业务管理"
 msgstr "Opportunity"
-
-
 msgid "项目管理"
 msgstr "Project"
-
-
 msgid "报价单管理"
 msgstr "Quotation"
-
-
 msgid "植入产品分析"
 msgstr "Product Analysis"
-
-
 msgid "产品管理"
 msgstr "Product"
-
-
 msgid "产品库"
 msgstr "Product"
-
-
 msgid "研发产品库"
 msgstr "R&D Product"
-
 msgid "研发库"
 msgstr "R&D Product"
-
-
 msgid "销售地区"
 msgstr "Region"
-
-
 msgid "订单结算"
 msgstr "Order"
-
-
 msgid "订单管理"
 msgstr "Order"
-
-
 msgid "结算管理"
 msgstr "Settlement"
-
-
 msgid "库存管理"
 msgstr "Inventory"
-
-
 msgid "账户管理"
 msgstr "Account"
-
-
 msgid "账户列表"
 msgstr "Account"
-
-
 msgid "权限管理"
 msgstr "Permission"
-
-
 msgid "字典管理"
 msgstr "Role"
-
-
 msgid "角色字典"
 msgstr "Role"
-
-
 msgid "企业字典"
 msgstr "Company"
-
-
 msgid "部门字典"
 msgstr "Department"
-
-
 msgid "系统管理"
 msgstr "System"
-
-
 msgid "项目已获得授权编号，类型无法修改"
 msgstr "Project has obtained authorization code, type cannot be modified"
-
-
-msgid "请选择归属账户"
-msgstr "Please select owner account"
-
-
-msgid "上传Excel文件 (.xlsx或.xls)"
-msgstr "Upload Excel file (.xlsx or .xls)"
-
-
-msgid "请上传包含客户数据的Excel文件，系统将查找名为\"customer database\"的工作表进行导入"
-msgstr "Please upload an Excel file containing customer data. The system will look for a worksheet named \"customer database\" for import"
-
-
-msgid "状态 → 状态（默认为\"活跃\"）"
-msgstr "Status → Status (default \"Active\")"
-
-
-msgid "备注 → 备注（如为\"none\"则导入为空）"
-msgstr "Notes → Notes (import as empty if \"none\")"
-
-
-msgid "创建时间 → 创建时间（保留原始创建日期，导入时间将记录在\"更新时间\"字段）"
-msgstr "Creation Time → Creation Time (preserve original creation date, import time will be recorded in \"Update Time\" field)"
-
-
-msgid "请上传包含联系人数据的Excel文件，系统将查找名为\"contact database\"的工作表进行导入"
-msgstr "Please upload an Excel file containing contact data. The system will look for a worksheet named \"contact database\" for import"
-
-
-msgid "邮件信箱 → 邮箱"
-msgstr "Email Address → Email"
-
-
 msgid "企业名称或客户信息"
 msgstr "Company name or customer information"
-
-
 msgid "全部负责人"
 msgstr "All Representatives"
-
-
 msgid "全部类型"
 msgstr "All Types"
-
-
 msgid "全部行业"
 msgstr "All Industries"
-
-
 msgid "全部国家"
 msgstr "All Countries"
-
-
 msgid "全部状态"
 msgstr "All Status"
-
-
 msgid "企业列表"
 msgstr "Company List"
-
-
-msgid "客户名称已存在，无法保存，请更换名称或联系管理员"
-msgstr "Customer name already exists, cannot save. Please use a different name or contact the administrator"
-
-
-msgid "相似企业（仅供参考）"
-msgstr "Similar Companies (For Reference Only)"
-
-
 msgid "以上企业名称仅供参考，请确保输入的名称不与已有企业重复"
 msgstr "The above company names are for reference only. Please ensure the name you enter does not duplicate existing companies"
-
-
 msgid "搜索企业失败"
 msgstr "Failed to search companies"
-
-
-msgid "此字段为必填项"
-msgstr "This field is required"
-
-
-msgid "请填写以下必填字段："
-msgstr "Please fill in the following required fields:"
-
-
 msgid "删除行动记录"
 msgstr "Delete Action Record"
-
-
 msgid "全部企业"
 msgstr "All Companies"
-
-
 msgid "活跃企业"
 msgstr "Active Companies"
-
-
 msgid "直接客户"
 msgstr "Direct Customers"
-
-
 msgid "项目客户"
 msgstr "Project Customers"
-
-
 msgid "家"
 msgstr "Companies"
-
-
 msgid "正在加载数据..."
 msgstr "Loading data..."
-
-
 msgid "系统参数设置"
 msgstr "Parameter"
-
-
 msgid "版本管理"
 msgstr "Version"
-
-
 msgid "审批流程配置"
 msgstr "Workflow"
-
-
 msgid "通知中心"
 msgstr "Notification"
-
-
 msgid "历史记录"
 msgstr "History"
-
-
 msgid "数据库备份"
 msgstr "Backup"
-
-
 msgid "个人设置"
 msgstr "Personal Settings"
-
-
 msgid "审批中心"
 msgstr "Approval Center"
-
-
 msgid "消息中心"
 msgstr "Notification Center"
-
-
-msgid "绩效仪表盘"
-msgstr "Performance Dashboard"
-
-
-msgid "退出系统"
-msgstr "Logout"
-
-
 msgid "退出登录"
 msgstr "Logout"
-
-
 msgid "用户"
 msgstr "User"
-
-
 msgid "未处理审批"
 msgstr "Pending Approvals"
-
-
-msgid "添加企业须知"
-msgstr "Company Addition Notice"
-
-
-msgid "系统会检查您输入的企业名称是否已经存在。如果企业已存在："
-msgstr "The system will check if the company name you entered already exists. If the company exists:"
-
-
-msgid "您可以看到已存在企业的名称作为参考"
-msgstr "You can see the names of existing companies for reference"
-
-
-msgid "系统不会允许您添加名称完全相同的企业（忽略大小写和空格）"
-msgstr "The system will not allow you to add companies with identical names (ignoring case and spaces)"
-
-
-msgid "如需修改已有企业信息，请联系管理员"
-msgstr "If you need to modify existing company information, please contact the administrator"
-
-
 msgid "主要联系人信息"
 msgstr "Primary Contact Information"
-
-
 msgid "联系人姓名"
 msgstr "Contact Name"
-
-
 msgid "客户详情"
 msgstr "Customer Details"
-
-
 msgid "联系人列表"
 msgstr "Contact List"
-
-
 msgid "地址信息"
 msgstr "Address Information"
-
-
 msgid "其他信息"
 msgstr "Other Information"
-
-
 msgid "编辑"
 msgstr "Edit"
-
-
 msgid "删除"
 msgstr "Delete"
-
-
 msgid "查看"
 msgstr "View"
-
-
 msgid "返回"
 msgstr "Back"
-
-
 msgid "未指定"
 msgstr "Not specified"
-
-
 msgid "无联系人"
 msgstr "No contacts"
-
-
 msgid "沟通内容"
 msgstr "Communication"
-
-
-msgid "最近跟进"
-msgstr "Last Follow-up"
-
-
-msgid "普通联系人"
-msgstr "Regular Contact"
-
-
 msgid "记录时间"
 msgstr "Record Time"
-
-
-msgid "跟进人"
-msgstr "Follow-up By"
-
-
-msgid "通信记录"
-msgstr "Communication Record"
-
-
 msgid "客户共享设置"
 msgstr "Customer Sharing Settings"
-
-
 msgid "共享给以下用户"
 msgstr "Share with following users"
-
-
 msgid "共享联系人"
 msgstr "Share Contacts"
-
-
-msgid "同时共享该客户下的所有联系人"
-msgstr "Also share all contacts under this customer"
-
-
 msgid "保存设置"
 msgstr "Save Settings"
-
-
 msgid "修改拥有人"
 msgstr "Change Owner"
-
-
 msgid "选择新拥有人"
 msgstr "Select New Owner"
-
-
 msgid "确认修改"
 msgstr "Confirm Change"
-
-
 msgid "创建人"
 msgstr "Creator"
-
-
-msgid "暂无联系人数据"
-msgstr "No contact data"
-
-
 msgid "展开"
 msgstr "Expand"
-
-
 msgid "回复"
 msgstr "Reply"
-
-
 msgid "项目说明"
 msgstr "Project Description"
-
-
 msgid "项目说明卡片"
 msgstr "Project Description Card"
-
-
 msgid "阶段更新中，请稍候"
 msgstr "Updating stage, please wait"
-
-
 msgid "确定要恢复到主线阶段吗"
 msgstr "Are you sure you want to restore to the main stage"
-
-
 msgid "确定要将项目阶段切换为"
 msgstr "Are you sure you want to switch the project stage to"
-
-
 msgid "吗"
-msgstr ""
-
-
+msgstr "?"
 msgid "您确定要将项目从"
 msgstr "Are you sure you want to advance the project from"
-
-
 msgid "阶段推进到"
 msgstr "stage to"
-
-
 msgid "阶段吗"
 msgstr "stage"
-
-
 msgid "此操作将更新项目的当前阶段状态，不可回退"
 msgstr "This operation will update the project's current stage status and cannot be undone"
-
-
 msgid "正在创建批价单"
 msgstr "Creating pricing order"
-
-
 msgid "创建批价单失败"
 msgstr "Failed to create pricing order"
-
-
 msgid "创建批价单错误"
 msgstr "Error creating pricing order"
-
-
 msgid "创建批价单时发生错误"
 msgstr "Error occurred while creating pricing order"
-
-
 msgid "确认推进项目阶段"
 msgstr "Confirm Stage Advancement"
-
-
 msgid "确认推进"
 msgstr "Confirm Advancement"
-
-
 msgid "输入回复内容..."
 msgstr "Enter reply content..."
-
-
 msgid "提交"
 msgstr "Submit"
-
-
 msgid "上一页"
 msgstr "Previous"
-
-
 msgid "下一页"
 msgstr "Next"
-
-
 msgid "添加记录"
 msgstr "Add Record"
-
-
 msgid "暂无关联项目"
 msgstr "No related projects"
-
-
-msgid "欢迎登录销售项目管理系统"
-msgstr "Welcome to Sales Project Management System"
-
-
 msgid "用户名或邮箱"
 msgstr "Username or Email"
-
-
 msgid "请输入用户名或邮箱"
 msgstr "Please enter username or email"
-
-
 msgid "密码"
 msgstr "Password"
-
-
 msgid "请输入密码"
 msgstr "Please enter password"
-
-
 msgid "记住我"
 msgstr "Remember me"
-
-
 msgid "登录"
 msgstr "Login"
-
-
 msgid "忘记密码?"
 msgstr "Forgot password?"
-
-
 msgid "区域"
 msgstr "Region"
-
-
 msgid "地址"
 msgstr "Address"
-
-
-msgid "显示项目总览"
-msgstr "Show Overview"
-
-
-msgid "隐藏项目总览"
-msgstr "Hide Overview"
-
-
 msgid "阶段分布统计"
 msgstr "Stage Distribution"
-
-
 msgid "阶段趋势分析"
 msgstr "Stage Trend Analysis"
-
-
-msgid "相关单位:"
-msgstr "Related Units:"
-
-
-msgid "设计院:"
-msgstr "Design Institute:"
-
-
-msgid "总承包:"
-msgstr "Main Contractor:"
-
-
-msgid "系统集成:"
-msgstr "System Integration:"
-
-
-msgid "经销商:"
-msgstr "Dealer:"
-
-
 msgid "权限控制"
 msgstr "Permission Control"
-
-
 msgid "报价单编号"
 msgstr "Quotation Number"
-
-
 msgid "项目"
 msgstr "Project"
-
-
 msgid "报价单"
 msgstr "Quotation"
-
-
 msgid "订单"
 msgstr "Order"
-
-
 msgid "批价单"
 msgstr "Pricing Order"
-
-
 msgid "项目产品"
 msgstr "Project Product"
-
-
 msgid "渠道产品"
 msgstr "Channel Product"
-
-
 msgid "第三方产品"
 msgstr "Third Party Product"
-
-
 msgid "输入新的回复内容..."
 msgstr "Enter new reply content..."
-
-
 msgid "请输入回复内容"
 msgstr "Please enter reply content"
-
-
 msgid "确定要删除这条回复吗？"
 msgstr "Are you sure you want to delete this reply?"
-
-
 msgid "提交中..."
 msgstr "Submitting..."
-
-
 msgid "回复提交成功"
 msgstr "Reply submitted successfully"
-
-
 msgid "回复删除成功"
 msgstr "Reply deleted successfully"
-
-
 msgid "加载回复失败"
 msgstr "Failed to load replies"
-
-
 msgid "提交失败"
 msgstr "Submit failed"
-
-
 msgid "删除失败"
 msgstr "Delete failed"
-
-
 msgid "绩效看板"
 msgstr "Performance Dashboard"
-
-
-msgid "查看历史天数"
-msgstr "View History Days"
-
-
-msgid "显示最近7天的工作记录"
-msgstr "Show work records from the last 7 days"
-
-
-msgid "最近7天内没有工作记录"
-msgstr "No work records in the last 7 days"
-
-
 msgid "管理员"
 msgstr "Administrator"
-
-
-msgid "业务管理员"
-msgstr "Business Administrator"
-
-
 msgid "财务总监"
 msgstr "Finance Director"
-
-
 msgid "销售总监"
 msgstr "Sales Director"
-
-
 msgid "厂商用户"
 msgstr "Vendor User"
-
-
 msgid "客户销售"
 msgstr "Customer Sales"
-
-
 msgid "产品经理"
 msgstr "Product Manager"
-
-
 msgid "服务经理"
 msgstr "Service Manager"
-
-
 msgid "库存列表"
 msgstr "Inventory List"
-
-
 msgid "批量添加库存"
 msgstr "Batch Add Inventory"
-
-
-msgid "总客户"
-msgstr "Total Customers"
-
-
 msgid "生产中"
 msgstr "In Production"
-
-
 msgid "已停产"
 msgstr "Discontinued"
-
-
 msgid "待上市"
 msgstr "Upcoming"
-
-
 msgid "完全结算"
 msgstr "Fully Settled"
-
-
 msgid "部分结算"
 msgstr "Partially Settled"
-
-
 msgid "待结算"
 msgstr "Pending Settlement"
-
-
 msgid "已结算"
 msgstr "Settled"
-
-
 msgid "请先选择企业（可选）"
 msgstr "Please select a company (optional)"
-
-
 msgid "请选择联系人（可选）"
 msgstr "Please select a contact (optional)"
-
-
 msgid "该企业无联系人"
 msgstr "No contacts for this company"
-
-
 msgid "获取联系人失败"
 msgstr "Failed to fetch contacts"
-
-
 msgid "加载联系人失败"
 msgstr "Failed to load contacts"
-
-
 msgid "输入项目名称..."
 msgstr "Enter project name..."
-
-
 msgid "项目行业"
 msgstr "Industry"
-
-
 msgid "请选择项目行业"
 msgstr "Please select industry"
-
-
-msgid "请选择或搜索直接用户"
-msgstr "Please select or search direct users"
-
-
-msgid "请选择或搜索设计院及顾问"
-msgstr "Please select or search design institutes and consultants"
-
-
-msgid "请选择或搜索总承包单位"
-msgstr "Please select or search general contractors"
-
-
-msgid "请选择或搜索系统集成商"
-msgstr "Please select or search system integrators"
-
-
-msgid "请选择或搜索经销商"
-msgstr "Please select or search dealers"
-
-
 msgid "搜索失败"
 msgstr "Search failed"
-
-
 msgid "返回项目详情"
 msgstr "Back to Project Details"
-
-
 msgid "输入项目名称或授权码进行搜索..."
 msgstr "Search project name or authorization code..."
-
-
-msgid "选择项目后自动填充"
-msgstr "Auto-filled after project selection"
-
-
 msgid "货币类型"
 msgstr "Currency Type"
-
-
 msgid "人民币"
 msgstr "Chinese Yuan"
-
-
 msgid "美元"
 msgstr "US Dollar"
-
-
 msgid "新加坡元"
 msgstr "Singapore Dollar"
-
-
 msgid "马来西亚林吉特"
 msgstr "Malaysian Ringgit"
-
-
 msgid "印尼盾"
 msgstr "Indonesian Rupiah"
-
-
 msgid "泰铢"
 msgstr "Thai Baht"
-
-
 msgid "产品明细"
 msgstr "Product Details"
-
-
 msgid "通用组件"
 msgstr "Generic Component"
-
-
 msgid "使用通用产品明细组件"
 msgstr "Using generic product detail component"
-
-
-msgid "表格可横向滚动查看更多内容"
-msgstr "Table can be scrolled horizontally to view more content"
-
-
 msgid "市场单价"
 msgstr "Market Unit Price"
-
-
 msgid "折扣率%"
 msgstr "Discount Rate %"
-
-
 msgid "折扣率"
 msgstr "Discount Rate"
-
-
 msgid "折扣率(%)"
 msgstr "Discount Rate (%%)"
-
-
 msgid "已预选项目"
 msgstr "Preselected Project"
-
-
-msgid "没有找到项目"
-msgstr "No projects found"
-
-
 msgid "获取项目列表失败"
 msgstr "Failed to get project list"
-
-
-msgid "请求超时，请刷新页面重试"
-msgstr "Request timeout, please refresh and try again"
-
-
-msgid "内部项目"
-msgstr "Internal Project"
-
-
-msgid "合作伙伴项目"
-msgstr "Partner Project"
-
-
-msgid "战略项目"
-msgstr "Strategic Project"
-
-
 msgid "方案设计"
 msgstr "Solution Design"
-
-
-msgid "方案提交"
-msgstr "Proposal Submission"
-
-
 msgid "合同签署"
 msgstr "Contract Signing"
-
-
-msgid "项目实施"
-msgstr "Project Implementation"
-
-
-msgid "项目交付"
-msgstr "Project Delivery"
-
-
 msgid "项目结束"
 msgstr "Project Closure"
-
-
 msgid "已取消"
 msgstr "Cancelled"
-
-
 msgid "项目ID无效，请重新选择项目"
 msgstr "Invalid project ID, please select a project again"
-
-
 msgid "请至少添加一个有效的产品明细"
 msgstr "Please add at least one valid product item"
-
-
 msgid "个"
 msgstr "pcs"
-
-
-msgid "正在加载项目信息"
-msgstr "Loading project information"
-
-
-msgid "加载项目信息失败"
-msgstr "Failed to load project information"
-
-
 msgid "未知错误"
 msgstr "Unknown error"
-
-
-msgid "项目不存在或已被删除"
-msgstr "Project does not exist or has been deleted"
-
-
-msgid "没有权限访问该项目"
-msgstr "No permission to access this project"
-
-
 msgid "服务器内部错误"
 msgstr "Internal server error"
-
-
-msgid "请求超时"
-msgstr "Request timeout"
-
-
 msgid "未找到匹配的项目"
 msgstr "No matching projects found"
-
-
 msgid "未知"
 msgstr "Unknown"
-
-
 msgid "请选择左侧类别"
 msgstr "Please select a category on the left"
-
-
 msgid "请选择产品名称"
 msgstr "Please select a product name"
-
-
 msgid "请选择产品型号"
 msgstr "Please select a product model"
-
-
 msgid "无产品类别"
 msgstr "No product categories"
-
-
 msgid "此类别下无产品"
 msgstr "No products in this category"
-
-
 msgid "此产品下无型号"
 msgstr "No models for this product"
-
-
 msgid "此型号下无规格"
 msgstr "No specifications for this model"
-
-
-msgid "默认规格"
-msgstr "Default specification"
-
-
 msgid "加载产品失败"
 msgstr "Failed to load products"
-
-
 msgid "加载类别失败"
 msgstr "Failed to load categories"
-
-
 msgid "表单验证时发生错误"
 msgstr "Error occurred during form validation"
-
-
-msgid "加载项目信息时出错"
-msgstr "Error loading project information"
-
-
-msgid "是否要将所有价格从"
-msgstr "Do you want to convert all prices from "
-
-
 msgid "转换为"
 msgstr " to "
-
-
-msgid "价格转换失败，请重试"
-msgstr "Price conversion failed, please try again"
-
-
 msgid "销售重点"
 msgstr "Sales Focus"
-
-
 msgid "渠道跟进"
 msgstr "Channel Follow-up"
-
-
 msgid "客户服务"
 msgstr "Customer Service"
-
-
-msgid "概念验证"
-msgstr "Proof of Concept"
-
-
 msgid "初步接触"
 msgstr "Initial Contact"
-
-
-msgid "需求分析"
-msgstr "Requirements Analysis"
-
-
 msgid "商务谈判"
 msgstr "Business Negotiation"
-
-
-msgid "验收测试"
-msgstr "Acceptance Testing"
-
-
-msgid "维护支持"
-msgstr "Maintenance Support"
-
-
 msgid "暂停"
 msgstr "On Hold"
-
-
 msgid "业务机会"
 msgstr "Business Opportunity"
-
-
 msgid "类型"
 msgstr "Type"
-
-
 msgid "阶段"
 msgstr "Stage"
-
-
-msgid "搜索成功，找到"
-msgstr "Search successful, found"
-
-
 msgid "个项目"
 msgstr "projects"
-
-
 msgid "点击选择产品..."
 msgstr "Click to select..."
-
-
 msgid "总计金额"
 msgstr "Total Amount"
-
-
 msgid "清除选择"
 msgstr "Clear Selection"
-
-
 msgid "智能合并"
 msgstr "Smart Merge"
-
-
 msgid "清空筛选"
 msgstr "Clear Filters"
-
-
 msgid "解析文件"
 msgstr "Parse File"
-
-
-msgid "确认导入"
-msgstr "Confirm Import"
-
-
-msgid "应用智能推荐"
-msgstr "Apply Smart Recommendations"
-
-
-msgid "全部导入为新用户"
-msgstr "Import All as New Users"
-
-
-msgid "全部忽略不导入"
-msgstr "Ignore All, Do Not Import"
-
-
-msgid "全部覆盖"
-msgstr "Override All"
-
-
-msgid "全部保留现有数据"
-msgstr "Keep All Existing Data"
-
-
-msgid "解析文件失败，请确保文件格式正确"
-msgstr "Failed to parse file, please ensure the file format is correct"
-
-
-msgid "删除企业确认"
-msgstr "Confirm Company Deletion"
-
-
-msgid "没有可删除的企业"
-msgstr "No companies to delete"
-
-
-msgid "获取删除确认信息失败，请重试"
-msgstr "Failed to get deletion confirmation info, please try again"
-
-
-msgid "删除此企业将影响"
-msgstr "Deleting this company will affect"
-
-
-msgid "条关联数据"
-msgstr "related data items"
-
-
-msgid "取消全部"
-msgstr "Cancel All"
-
-
 msgid "跳过此项"
 msgstr "Skip This Item"
-
-
 msgid "中国"
 msgstr "China"
-
-
 msgid "美国"
 msgstr "United States"
-
-
 msgid "德国"
 msgstr "Germany"
-
-
 msgid "日本"
 msgstr "Japan"
-
-
 msgid "韩国"
 msgstr "South Korea"
-
-
 msgid "新加坡"
 msgstr "Singapore"
-
-
 msgid "马来西亚"
 msgstr "Malaysia"
-
-
 msgid "泰国"
 msgstr "Thailand"
-
-
 msgid "全部"
 msgstr "All"
-
-
 msgid "修改项目拥有人"
 msgstr "Change Project Owner"
-
-
 msgid "关闭"
 msgstr "Close"
-
-
 msgid "确定要删除这个联系人吗？"
 msgstr "Are you sure you want to delete this contact?"
-
-
 msgid "删除联系人失败"
 msgstr "Failed to delete contact"
-
-
 msgid "删除联系人失败，请重试！"
 msgstr "Failed to delete contact, please try again!"
-
-
 msgid "您没有权限删除此联系人"
 msgstr "You do not have permission to delete this contact"
-
-
 msgid "提交回复失败"
 msgstr "Failed to submit reply"
-
-
 msgid "删除失败，请重试"
 msgstr "Delete failed, please try again"
-
-
-msgid "加载删除确认信息失败"
-msgstr "Failed to load delete confirmation information"
-
-
 msgid "自动共享客户下所有联系人"
 msgstr "Automatically share all contacts under this customer"
-
-
-msgid "点击选择/取消，支持滚动"
-msgstr "Click to select/cancel, scrolling supported"
-
-
 msgid "保存共享设置"
 msgstr "Save Sharing Settings"
-
-
 msgid "报价总额"
 msgstr "Quotation"
-
-
 msgid "添加行动"
 msgstr "Add Action"
-
-
 msgid "添加"
 msgstr "Add"
-
-
 msgid "回复区"
 msgstr "Reply Area"
-
-
 msgid "AJAX加载回复树"
 msgstr "AJAX load reply tree"
-
-
 msgid "审批编号"
 msgstr "Approval Number"
-
-
 msgid "流程名称"
 msgstr "Process Name"
-
-
 msgid "已审批"
 msgstr "Approved"
-
-
 msgid "已确认"
 msgstr "Confirmed"
-
-
 msgid "已发货"
 msgstr "Shipped"
-
-
 msgid "已完成"
 msgstr "Completed"
-
-
 msgid "待入库"
 msgstr "Pending Receipt"
-
-
 msgid "部分入库"
 msgstr "Partially Received"
-
-
 msgid "全部入库"
 msgstr "Fully Received"
-
-
 msgid "已批准"
 msgstr "Approved"
-
-
 msgid "已执行"
 msgstr "Executed"
-
-
 msgid "零库存"
 msgstr "Out of Stock"
-
-
 msgid "低库存"
 msgstr "Low Stock"
-
-
 msgid "正常库存"
 msgstr "Normal Stock"
-
-
 msgid "正常"
 msgstr "Normal"
-
-
 msgid "充足"
 msgstr "Sufficient"
-
-
 msgid "公司"
 msgstr "Company"
-
-
 msgid "全部公司"
 msgstr "All Companies"
-
-
 msgid "入库状态"
 msgstr "Inventory Status"
-
-
 msgid "订单号或公司名称"
 msgstr "Order Number or Company Name"
-
-
 msgid "结算单号、项目名称或产品名称"
 msgstr "Settlement Number, Project Name or Product Name"
-
-
 msgid "结算单公司"
 msgstr "Settlement Company"
-
-
 msgid "全部目标公司"
 msgstr "All Target Companies"
-
-
 msgid "结算目标公司"
 msgstr "Settlement Target Company"
-
-
 msgid "结算状态"
 msgstr "Settlement Status"
-
-
 msgid "结算公司"
 msgstr "Settlement Company"
-
-
 msgid "Search"
 msgstr "搜索"
-
-
-msgid "Settlement order number or project name"
-msgstr "结算单编号或项目名称"
-
-
-msgid "Settlement Company"
-msgstr "结算公司"
-
-
 msgid "All Companies"
 msgstr "全部公司"
-
-
-msgid "Settlement Status"
-msgstr "结算状态"
-
-
 msgid "结算单编号或项目名称"
 msgstr "Settlement order number or project name"
-
-
 msgid "MN号、型号或产品名称"
 msgstr "MN number, model or product name"
-
-
 msgid "库存状态"
 msgstr "Stock Status"
-
-
 msgid "全部公司（聚合视图）"
 msgstr "All Companies (Aggregate View)"
-
-
-msgid "全部拥有者"
-msgstr "All Owners"
-
-
 msgid "厂商"
 msgstr "Vendor"
-
-
 msgid "订单列表"
 msgstr "Order List"
-
-
 msgid "创建订单"
 msgstr "Create Order"
-
-
 msgid "导出订单列表"
 msgstr "Export Order List"
-
-
 msgid "全部订单"
 msgstr "All Orders"
-
-
 msgid "已入库"
 msgstr "Received"
-
-
 msgid "单"
 msgstr "orders"
-
-
 msgid "订单日期"
 msgstr "Order Date"
-
-
 msgid "预期日期"
 msgstr "Expected Date"
-
-
 msgid "总数量"
 msgstr "Total Quantity"
-
-
-msgid "暂无订单数据"
-msgstr "No order data"
-
-
-msgid "订单列表分页"
-msgstr "Order List Pagination"
-
-
 msgid "筛选失败"
 msgstr "Filter Failed"
-
-
 msgid "结算明细记录"
 msgstr "Settlement Detail Records"
-
-
 msgid "结算明细列表"
 msgstr "Settlement Detail List"
-
-
-msgid "暂无结算明细数据"
-msgstr "No settlement detail data"
-
-
-msgid "确认标记此项为已结算"
-msgstr "Confirm to mark this item as settled"
-
-
 msgid "操作失败，请重试"
 msgstr "Operation failed, please try again"
-
-
 msgid "总结算单数"
 msgstr "Total Settlement Orders"
-
-
 msgid "结算单列表"
 msgstr "Settlement Order List"
-
-
 msgid "结算单编号"
 msgstr "Settlement Order Number"
-
-
 msgid "产品数量"
 msgstr "Product Quantity"
-
-
 msgid "结算情况"
 msgstr "Settlement Status"
-
-
 msgid "无公司"
 msgstr "No Company"
-
-
-msgid "暂无结算单记录"
-msgstr "No settlement order records"
-
-
-msgid "结算明细列表分页"
-msgstr "Settlement Detail List Pagination"
-
-
-msgid "标记已结算"
-msgstr "Mark as Settled"
-
-
 msgid "结算时间"
 msgstr "Settlement Time"
-
-
 msgid "万"
 msgstr "10K"
-
-
 msgid "条"
 msgstr "items"
-
-
 msgid "本月结算"
 msgstr "This Month Settlement"
-
-
 msgid "产品MN"
 msgstr "Product MN"
-
-
 msgid "导出结算明细"
 msgstr "Export Settlement Details"
-
-
 msgid "返回结算单列表"
 msgstr "Back to Settlement List"
-
-
 msgid "导出结算单"
 msgstr "Export Settlement Orders"
-
-
 msgid "总结算"
 msgstr "Total Settlements"
-
-
 msgid "全部明细"
 msgstr "All Details"
-
-
 msgid "总金额"
 msgstr "Total Amount"
-
-
 msgid "订单号"
 msgstr "Order Number"
-
-
 msgid "型号/规格"
 msgstr "Model/Spec"
-
-
 msgid "MN号"
 msgstr "MN Number"
-
-
 msgid "当前库存"
 msgstr "Current Stock"
-
-
 msgid "最低库存"
 msgstr "Min Stock"
-
-
 msgid "总库存项目"
 msgstr "Total Stock Items"
-
-
 msgid "低库存预警"
 msgstr "Low Stock Alert"
-
-
 msgid "渠道经理"
 msgstr "Channel Manager"
-
-
 msgid "首页"
 msgstr "Home"
-
-
 msgid "植入总额合计"
 msgstr "Total Implant Amount"
-
-
 msgid "点击确认产品明细"
 msgstr "Click to confirm product details"
-
-
 msgid "仅解决方案经理和管理员可以确认"
 msgstr "Only solution managers and administrators can confirm"
-
-
 msgid "产品明细已确认"
 msgstr "Product details confirmed"
-
-
 msgid "未确认"
 msgstr "Unconfirmed"
-
-
 msgid "序号"
 msgstr "No."
-
-
 msgid "市场价"
 msgstr "Market Price"
-
-
 msgid "产品料号"
 msgstr "Product Part Number"
-
-
 msgid "暂无产品明细"
 msgstr "No product details"
-
-
 msgid "添加产品明细"
 msgstr "Add Product Details"
-
-
 msgid "导出"
 msgstr "Export"
-
-
 msgid "点击取消确认"
 msgstr "Click to cancel confirmation"
-
-
 msgid "报销管理"
 msgstr "Expense"
-
-
 msgid "新建报销"
 msgstr "New Expense"
-
-
 msgid "最近报销"
 msgstr "Recent Expenses"
-
-
 msgid "您没有最近的报销"
 msgstr "You have no recent expenses"
-
-
-msgid "无权限查看报销"
-msgstr "No permission to view expenses"
-
-
 msgid "报销单列表"
 msgstr "Expense List"
-
-
 msgid "创建报销单"
 msgstr "Create Expense"
-
-
 msgid "新建报销单"
 msgstr "New Expense"
-
-
 msgid "编辑报销单"
 msgstr "Edit Expense"
-
-
 msgid "报销单详情"
 msgstr "Expense Details"
-
-
 msgid "报销标题"
 msgstr "Expense Title"
-
-
 msgid "报销科目"
 msgstr "Expense Category"
-
-
 msgid "报销金额"
 msgstr "Expense Amount"
-
-
 msgid "报销总额"
 msgstr "Total Amount"
-
-
 msgid "不关联客户模式"
 msgstr "No Customer Mode"
-
-
 msgid "默认客户名称-姓名-YYDDHHS"
 msgstr "Default-CustomerName-Name-YYDDHHS"
-
-
 msgid "输入公司名称进行搜索..."
 msgstr "Search by company name..."
-
-
 msgid "输入项目名称进行搜索..."
 msgstr "Search by project name..."
-
-
 msgid "请先选择关联客户"
 msgstr "Please select a customer first"
-
-
 msgid "请描述报销的背景、目的等总体说明"
 msgstr "Please describe the background, purpose, and general details of the expense"
-
-
 msgid "添加明细"
 msgstr "Add Item"
-
-
 msgid "暂无报销明细，请点击"添加明细"按钮"
-msgstr "No expense items yet. Click \"Add Item\" to begin."
-
-
+msgstr "No expense items yet. Click \"
 msgid "条明细"
 msgstr "items"
-
-
 msgid "报销额"
 msgstr "Amount"
-
-
 msgid "单据"
 msgstr "Docs"
-
-
 msgid "币"
 msgstr "Cur"
-
-
 msgid "发生日期"
 msgstr "Expense Date"
-
-
 msgid "报销说明"
 msgstr "Expense Description"
-
-
-msgid "归属部门"
-msgstr "Department"
-
-
-msgid "个人费用"
-msgstr "Personal Expense"
-
-
 msgid "审批备注"
 msgstr "Approval Notes"
-
-
 msgid "招待费"
 msgstr "Entertainment"
-
-
 msgid "市内交通"
 msgstr "Local Transport"
-
-
 msgid "差旅住宿"
 msgstr "Travel & Accommodation"
-
-
 msgid "办公用品"
 msgstr "Office Supplies"
-
-
 msgid "通讯费"
 msgstr "Communication"
-
-
 msgid "油费"
 msgstr "Fuel"
-
-
 msgid "停车费"
 msgstr "Parking"
-
-
 msgid "餐费"
 msgstr "Meals"
-
-
 msgid "全部报销"
 msgstr "All Expenses"
-
-
-msgid "全部科目"
-msgstr "All Categories"
-
-
-msgid "自动共享相关项目"
-msgstr "Auto-share Related Projects"
-
-
-msgid "包括该客户作为最终用户、经销商、承包商、集成商、设计院的项目（仅查看权限）"
-msgstr "Include projects where this customer is the end user, dealer, contractor, integrator, or design institute (view-only permission)"
-
-
 msgid "共享此记录"
 msgstr "Share this record"
-
-
 msgid "取消勾选后，此记录仅对管理员和上级账户可见"
 msgstr "When unchecked, this record will only be visible to admins and superior accounts"
-
-
-msgid "5天"
-msgstr "5 days"
-
-
-msgid "6天"
-msgstr "6 days"
-
-
 msgid "7天"
 msgstr "7 days"
-
-
-msgid "8天"
-msgstr "8 days"
-
-
-msgid "9天"
-msgstr "9 days"
-
-
-msgid "10天"
-msgstr "10 days"
-
-
 msgid "正在加载工作记录"
 msgstr "Loading work records"
-
-
 msgid "显示最近{days}天的工作记录"
 msgstr "Display work records from the last {days} days"
-
-
 msgid "最近{days}天内没有工作记录"
 msgstr "No work records in the last {days} days"
-
-
 msgid "今日暂无工作记录"
 msgstr "No work records today"
-
-
 msgid "加载回复中"
 msgstr "Loading replies"
-
-
 msgid "客户"
 msgstr "Client"
-
-
 msgid "采购订单"
 msgstr "Purchase Order"
-
-
 msgid "库存"
 msgstr "Inventory"
-
-
 msgid "结算单"
 msgstr "Settlement"
-
-
 msgid "加载账户列表失败"
 msgstr "Failed to load account list"
-
-
 msgid "加载工作记录失败"
 msgstr "Failed to load work records"
-
-
-msgid "项目统计图表"
-msgstr "Project Statistics Charts"
-
-
 msgid "统计图表功能将在通用组件稳定后重新集成"
 msgstr "Statistics chart function will be reintegrated after the universal components stabilize"
-
-
 msgid "未找到匹配的选项"
 msgstr "No matching options found"
-
-
 msgid "项目名称重复，无法保存！"
 msgstr "Project name already exists, cannot save!"
-
-
 msgid "未找到匹配的企业"
 msgstr "No matching companies found"
-
-
 msgid "暂无数据"
 msgstr "No data available"
-
-
 msgid "创建批价单"
 msgstr "Create Pricing Order"
-
-
 msgid "删除失败，请重试！"
 msgstr "Delete failed, please try again!"
-
-
 msgid "确定要删除这个项目吗？删除后将无法恢复，请谨慎操作！"
 msgstr "Are you sure you want to delete this project? This action cannot be undone, please proceed with caution!"
-
-
 msgid "项目名称或客户名称"
 msgstr "Project name or customer name"
-
-
-msgid "全部拥有人"
-msgstr "All Owners"
-
-
 msgid "全部阶段"
 msgstr "All Stages"
-
-
 msgid "当前使用通用列表组件提供的统计功能"
 msgstr "Currently using statistics functionality provided by universal list components"
-
-
 msgid "全部来源"
 msgstr "All Sources"
-
-
 msgid "全部项目"
 msgstr "All Projects"
-
-
 msgid "来源"
 msgstr "Source"
-
-# New quotation module translations - added 2025-08-02 (checked for duplicates)
-
 msgid "批量导入报价单"
 msgstr "Batch Import Quotations"
-
-
-msgid "上传Excel文件"
-msgstr "Upload Excel File"
-
-
-msgid "请上传包含报价单数据的Excel文件，系统将根据项目名称自动分组生成报价单及明细"
-msgstr "Please upload an Excel file containing quotation data. The system will automatically group and generate quotations and details by project name"
-
-
-msgid "查看Excel格式要求"
-msgstr "View Excel Format Requirements"
-
-
-msgid "Excel表格必须包含以下列"
-msgstr "Excel table must contain the following columns"
-
-
-msgid "必填，将按此字段分组为不同报价单"
-msgstr "Required, will be grouped into different quotations by this field"
-
-
-msgid "作为报价单明细项"
-msgstr "As quotation detail items"
-
-
 msgid "产品单价"
 msgstr "Product Unit Price"
-
-
-msgid "产品总价"
-msgstr "Product Total Price"
-
-
-msgid "正在处理数据"
-msgstr "Processing data"
-
-
-msgid "报价单导入预览"
-msgstr "Quotation Import Preview"
-
-
 msgid "明细数量"
 msgstr "Detail Quantity"
-
-
-msgid "个报价单吗？此操作无法撤销。"
-msgstr "quotations? This operation cannot be undone."
-
-
 msgid "输入项目名称或授权码进行搜索"
 msgstr "Enter project name or authorization code to search"
-
-
 msgid "手动输入"
 msgstr "Manual Input"
-
-
 msgid "临时"
 msgstr "Temporary"
-
-
 msgid "确定要复制这个报价单吗？"
 msgstr "Are you sure you want to copy this quotation?"
-
-
 msgid "复制报价单时出错"
 msgstr "Error occurred while copying quotation"
-
-
 msgid "确定要删除这个报价单吗？"
 msgstr "Are you sure you want to delete this quotation?"
-
-
 msgid "删除请求出错，请重试"
 msgstr "Delete request error, please try again"
-
-
 msgid "请选择至少一种导出格式"
 msgstr "Please select at least one export format"
-
-
 msgid "正在生成PDF"
 msgstr "Generating PDF"
-
-
 msgid "PDF已在新窗口中打开"
 msgstr "PDF opened in new window"
-
-
 msgid "PDF已在新标签页中打开"
 msgstr "PDF opened in new tab"
-
-
 msgid "正在生成Excel"
 msgstr "Generating Excel"
-
-
 msgid "Excel文件已开始下载"
 msgstr "Excel file download started"
-
-
 msgid "加载报价单失败：%s"
 msgstr "Failed to load quotation: %s"
-
-
 msgid "报价单创建失败：%s"
 msgstr "Failed to create quotation: %s"
-
-
 msgid "您没有权限编辑此报价单"
 msgstr "You do not have permission to edit this quotation"
-
-
 msgid "报价单更新成功！"
 msgstr "Quotation updated successfully!"
-
-
 msgid "报价单更新失败：%s"
 msgstr "Failed to update quotation: %s"
-
-
 msgid "您没有权限复制此报价单"
 msgstr "You do not have permission to copy this quotation"
-
-
 msgid "报价单复制成功！"
 msgstr "Quotation copied successfully!"
-
-
 msgid "报价单复制失败：%s"
 msgstr "Failed to copy quotation: %s"
-
-
 msgid "您没有权限删除此报价单"
 msgstr "You do not have permission to delete this quotation"
-
-
 msgid "报价单删除成功！"
 msgstr "Quotation deleted successfully!"
-
-
 msgid "删除失败：%s"
 msgstr "Delete failed: %s"
-
-
 msgid "您没有权限查看此报价单"
 msgstr "You do not have permission to view this quotation"
-
-
 msgid "您没有权限查看该报价单关联的项目"
 msgstr "You do not have permission to view the project associated with this quotation"
-
-
 msgid "加载报价单详情失败：%s"
 msgstr "Failed to load quotation details: %s"
-
-
 msgid "您没有权限修改该报价单的拥有人"
 msgstr "You do not have permission to modify the owner of this quotation"
-
-
 msgid "请选择新的拥有人"
 msgstr "Please select a new owner"
-
-
 msgid "新拥有人不存在"
 msgstr "New owner does not exist"
-
-
 msgid "报价单拥有人已更新"
 msgstr "Quotation owner has been updated"
-
-
 msgid "权限不足，无法导出该报价单"
 msgstr "Insufficient permissions to export this quotation"
-
-
 msgid "导出PDF失败：%s"
 msgstr "Failed to export PDF: %s"
-
-
 msgid "权限不足，无法下载该报价单"
 msgstr "Insufficient permissions to download this quotation"
-
-
 msgid "下载PDF失败：%s"
 msgstr "Failed to download PDF: %s"
-
-
 msgid "导出Excel失败：%s"
 msgstr "Failed to export Excel: %s"
-
-
 msgid "Word模板"
 msgstr "Word Template"
-
-
 msgid "导出Word"
 msgstr "Export Word"
-
-
 msgid "使用Word模板"
 msgstr "Using Word template"
-
-
 msgid "Word模板转PDF"
 msgstr "Word template to PDF"
-
-
 msgid "正在生成Word"
 msgstr "Generating Word"
-
-
 msgid "Word文件已开始下载"
 msgstr "Word file download started"
-
-
 msgid "导出Word失败：%s"
 msgstr "Failed to export Word: %s"
-
-
 msgid "使用Excel模板"
 msgstr "Using Excel template"
-
-
 msgid "更新失败"
 msgstr "Update failed"
-
-
 msgid "数据准备失败"
 msgstr "Data preparation failed"
-
-
 msgid "产品明细组件未正确初始化"
 msgstr "Product detail component not properly initialized"
-
-
 msgid "报价单创建成功！"
 msgstr "Quotation created successfully!"
-
-
 msgid "创建失败"
 msgstr "Creation failed"
-
-
 msgid "返回详情"
 msgstr "Back to Details"
-
-
 msgid "保存报价单"
 msgstr "Save Quotation"
-
-
 msgid "产品明细管理器未初始化"
 msgstr "Product detail manager not initialized"
-
-
 msgid "请检查产品明细"
 msgstr "Please check product details"
-
-
 msgid "点击产品名称选择产品，支持搜索、四级联动和手动输入"
 msgstr "Click product name to select products, supports search, four-level linkage and manual input"
-
-
 msgid "点击产品名称选择产品，支持搜索和四级联动"
 msgstr "Click product name to select products, supports search and four-level linkage"
-
-
 msgid "手动输入字段，可以修改"
 msgstr "Manual input field, editable"
-
-
 msgid "临时产品无市场价和折扣"
 msgstr "Temporary products have no market price and discount"
-
-
 msgid "请选择产品"
 msgstr "Please select a product"
-
-
 msgid "请输入有效的数量"
 msgstr "Please enter a valid quantity"
-
-
 msgid "请输入有效的价格"
 msgstr "Please enter a valid price"
-
-
 msgid "验证错误"
 msgstr "Validation error"
-
-
 msgid "删除行"
 msgstr "Delete row"
-
-
 msgid "搜索产品"
 msgstr "Search products"
-
-
 msgid "选择产品"
 msgstr "Select product"
-
-
 msgid "折扣率(%%)"
 msgstr "Discount Rate (%%)"
-
-
 msgid "全部报价单"
 msgstr "All Quotations"
-
-
 msgid "份"
 msgstr "pieces"
-
-
 msgid "报价单编号或项目名称"
 msgstr "Quotation number or project name"
-
-
 msgid "产品型号、MN编码或描述"
 msgstr "Product model, MN code or description"
-
-
 msgid "全部分类"
 msgstr "All Categories"
-
-
 msgid "全部创建者"
 msgstr "All Creators"
-
-
 msgid "全部产品"
 msgstr "All Products"
-
-
 msgid "研发中"
 msgstr "In Development"
-
-
 msgid "子分类"
 msgstr "Subcategory"
-
-
 msgid "MN编码"
 msgstr "MN Code"
-
-
 msgid "产品编码"
 msgstr "Product Code"
-
-
 msgid "规格编码"
 msgstr "Spec Code"
-
-
 msgid "编码已锁定"
 msgstr "Code Locked"
-
-
 msgid "编码未锁定"
 msgstr "Code Unlocked"
-
-
 msgid "点击切换锁定状态"
 msgstr "Click to toggle lock status"
-
-
 msgid "确定要锁定产品编码吗？锁定后将无法通过修改规格来更新产品编码。"
 msgstr "Are you sure you want to lock the product code? Once locked, product code cannot be updated by modifying specs."
-
-
 msgid "确定要解锁产品编码吗？解锁后修改规格将会更新产品编码。"
 msgstr "Are you sure you want to unlock the product code? Once unlocked, modifying specs will update the product code."
-
-
 msgid "产品编码已锁定"
 msgstr "Product code locked"
-
-
 msgid "产品编码已解锁"
 msgstr "Product code unlocked"
-
-
 msgid "编码冲突"
 msgstr "Code Conflict"
-
-
 msgid "新的规格编码与以下产品冲突，无法保存："
 msgstr "The new spec code conflicts with the following product and cannot be saved:"
-
-
 msgid "当前产品"
 msgstr "Current Product"
-
-
 msgid "冲突产品"
 msgstr "Conflicting Product"
-
-
 msgid "新编码"
 msgstr "New Code"
-
-
 msgid "请修改规格值以生成不同的编码。"
 msgstr "Please modify spec values to generate a different code."
-
-
 msgid "知道了"
 msgstr "Got it"
-
-
 msgid "当前编码"
 msgstr "Current Code"
-
-
 msgid "冲突规格"
 msgstr "Conflicting Specs"
-
-
 msgid "您没有权限编辑此产品"
 msgstr "You do not have permission to edit this product"
-
-
 msgid "您没有权限查看此产品"
 msgstr "You do not have permission to view this product"
-
-
 msgid "您没有权限删除此产品"
 msgstr "You do not have permission to delete this product"
-
-
 msgid "您没有权限更新此产品"
 msgstr "You do not have permission to update this product"
-
-
 msgid "产品更新成功！"
 msgstr "Product updated successfully!"
-
-
 msgid "产品已成功删除"
 msgstr "Product deleted successfully"
-
-
 msgid "未选择要删除的产品"
 msgstr "No products selected for deletion"
-
-
 msgid "该产品没有PDF文件"
 msgstr "This product has no PDF file"
-
-
 msgid "PDF文件不存在"
 msgstr "PDF file does not exist"
-
-
 msgid "下载PDF文件失败"
 msgstr "Failed to download PDF file"
-
-
-msgid "新产品已成功添加到研发产品库，自定义规格字段也已同步到产品分类模块"
-msgstr "New product has been successfully added to the development product library, and custom specification fields have been synchronized to the product classification module"
-
-
 msgid "更新产品失败: %s"
 msgstr "Failed to update product: %s"
-
-
 msgid "删除产品失败: %s"
 msgstr "Failed to delete product: %s"
-
-
 msgid "成功删除 %d 个产品"
 msgstr "Successfully deleted %d products"
-
-
 msgid "您没有权限删除其中的 %d 个产品"
 msgstr "You do not have permission to delete %d of these products"
-
-
 msgid "新增研发产品"
 msgstr "Add R&D Product"
-
-
 msgid "MN编码预览"
 msgstr "MN Code Preview"
-
-
 msgid "自动生成"
 msgstr "Auto Generated"
-
-
 msgid "当前产品名称在规格管理中没有定义规格的编码位置"
 msgstr "The current product name has no specification encoding positions defined in specification management"
-
-
 msgid "要创建有效的产品规格，需要先在规格管理中定义该产品名称下的规格和编码位置。"
 msgstr "To create valid product specifications, you need to first define specifications and encoding positions for this product name in specification management."
-
-
-msgid "编辑研发产品"
-msgstr "Edit R&D Product"
-
-
 msgid "研发产品详情"
 msgstr "R&D Product Details"
-
-
 msgid "申请入库"
 msgstr "Apply for Stock Entry"
-
-
 msgid "审核入库"
 msgstr "Approve Stock Entry"
-
-
 msgid "全部品牌"
 msgstr "All Brands"
-
-
 msgid "总产品数"
 msgstr "Total Products"
-
-
 msgid "型号"
 msgstr "Model"
-
-
 msgid "规格"
 msgstr "Specification"
-
-
 msgid "价格"
 msgstr "Price"
-
-
-msgid "文件名必须是英文字符（字母、数字、点、下划线、连字符）"
-msgstr "Filename must contain only English characters (letters, numbers, dots, underscores, hyphens)"
-
-
 msgid "厂商产品，计入植入合计"
 msgstr "Vendor product, included in implantation total"
-
-
 msgid "产品文档"
 msgstr "Product Documentation"
-
-
 msgid "PDF文档"
 msgstr "PDF Document"
-
-
 msgid "下载"
 msgstr "Download"
-
-
 msgid "导出功能开发中..."
 msgstr "Export feature under development..."
-
-
 msgid "产品名称、MN号或型号"
 msgstr "Product name, MN number or model"
-
-
 msgid "全部类别"
 msgstr "All Categories"
-
-
 msgid "账户设置"
 msgstr "Account Settings"
-
-
 msgid "模块权限"
 msgstr "Module Permissions"
-
-
 msgid "数据归属权限"
 msgstr "Data Access Permissions"
-
-
 msgid "绩效管理"
 msgstr "Performance Management"
-
-
 msgid "编辑个人信息"
 msgstr "Edit Personal Information"
-
-
 msgid "用户名"
 msgstr "Username"
-
-
 msgid "用户名不可修改"
 msgstr "Username cannot be modified"
-
-
 msgid "真实姓名"
 msgstr "Real Name"
-
-
 msgid "邮箱地址"
 msgstr "Email Address"
-
-
 msgid "电话号码"
 msgstr "Phone Number"
-
-
 msgid "公司信息由管理员设置"
 msgstr "Company information is set by administrator"
-
-
 msgid "部门信息由管理员设置"
 msgstr "Department information is set by administrator"
-
-
 msgid "角色由管理员分配"
 msgstr "Role assigned by administrator"
-
-
 msgid "系统管理员特权"
 msgstr "System Administrator Privileges"
-
-
 msgid "营销总监特权"
 msgstr "Sales Director Privileges"
-
-
 msgid "渠道经理特权"
 msgstr "Channel Manager Privileges"
-
-
 msgid "特殊权限"
 msgstr "Special Permissions"
-
-
 msgid "保存更改"
 msgstr "Save Changes"
-
-
 msgid "当前权限"
 msgstr "Current Permissions"
-
-
 msgid "权限由系统管理员配置，如需调整请联系管理员"
 msgstr "Permissions are configured by system administrator. Please contact administrator for adjustments"
-
-
 msgid "模块"
 msgstr "Module"
-
-
 msgid "暂无权限模块"
 msgstr "No permission modules"
-
-
 msgid "数据归属关系由系统根据您的部门和角色自动分配，如需调整请联系管理员"
 msgstr "Data ownership relationships are automatically assigned by the system based on your department and role. Please contact administrator for adjustments"
-
-
 msgid "您可以访问以下用户的数据"
 msgstr "You can access data from the following users"
-
-
 msgid "暂无数据归属关系"
 msgstr "No data ownership relationships"
-
-
 msgid "拥有系统所有功能的完全访问权限"
 msgstr "Full access to all system functions"
-
-
 msgid "可以管理所有用户账户和权限配置"
 msgstr "Can manage all user accounts and permission configurations"
-
-
 msgid "可以查看、编辑、删除所有数据"
 msgstr "Can view, edit, and delete all data"
-
-
 msgid "可以配置系统参数和审批流程"
 msgstr "Can configure system parameters and approval workflows"
-
-
 msgid "可以访问系统管理和维护功能"
 msgstr "Can access system administration and maintenance functions"
-
-
 msgid "可以查看所有销售重点和渠道跟进项目的详情"
 msgstr "Can view details of all sales focus and channel follow-up projects"
-
-
 msgid "可以查看销售重点和渠道跟进项目的报价单详情"
 msgstr "Can view quotation details for sales focus and channel follow-up projects"
-
-
 msgid "只能查看自己创建的客户信息（除非设置为部门负责人）"
 msgstr "Can only view customer information created by themselves (unless set as department manager)"
-
-
 msgid "对于非自己创建的项目，仅具有查看权限"
 msgstr "For projects not created by themselves, only have view permissions"
-
-
 msgid "无法编辑或删除其他用户的项目和报价单"
 msgstr "Cannot edit or delete projects and quotations created by other users"
-
-
 msgid "无法操作其他用户项目的阶段推进"
 msgstr "Cannot operate stage advancement for other users' projects"
-
-
 msgid "可以查看所有渠道跟进项目的详情和报价单"
 msgstr "Can view details and quotations of all channel follow-up projects"
-
-
 msgid "可以访问其他用户创建的渠道项目数据"
 msgstr "Can access channel project data created by other users"
-
-
 msgid "对于非自己创建的渠道项目，仅具有查看权限"
 msgstr "For channel projects not created by themselves, only have view permissions"
-
-
 msgid "无法编辑或删除其他用户的渠道项目和报价单"
 msgstr "Cannot edit or delete channel projects and quotations created by other users"
-
-
 msgid "个人绩效管理"
 msgstr "Personal Performance Management"
-
-
 msgid "我的绩效统计"
 msgstr "My Performance Statistics"
-
-
 msgid "查看我的绩效数据和完成情况"
 msgstr "View my performance data and completion status"
-
-
 msgid "查看绩效统计"
 msgstr "View Performance Statistics"
-
-
 msgid "绩效目标设置"
 msgstr "Performance Target Settings"
-
-
 msgid "设置和管理我的绩效目标"
 msgstr "Set and manage my performance targets"
-
-
 msgid "设置目标"
 msgstr "Set Targets"
-
-
 msgid "绩效指标说明"
 msgstr "Performance Indicators Description"
-
-
 msgid "植入额"
 msgstr "Implantation Amount"
-
-
 msgid "基于报价单明细中的产品数量 × 市场价格计算，按报价单创建日期统计"
 msgstr "Calculated based on product quantity × market price in quotation details, counted by quotation creation date"
-
-
 msgid "销售额"
 msgstr "Sales Amount"
-
-
 msgid "基于已审批通过的批价单总金额统计，按批价单审批日期统计"
 msgstr "Based on total amount of approved pricing orders, counted by pricing order approval date"
-
-
 msgid "新增客户数"
 msgstr "New Customer Count"
-
-
 msgid "统计每月新增的客户记录数"
 msgstr "Count of new customer records added each month"
-
-
 msgid "新增项目数"
 msgstr "New Project Count"
-
-
 msgid "统计每月新增的项目记录数"
 msgstr "Count of new project records added each month"
-
-
 msgid "五星项目增量"
 msgstr "Five-Star Project Increment"
-
-
 msgid "统计五星项目的月度增量（相对于基线月的增长）"
 msgstr "Monthly increment statistics of five-star projects (growth relative to baseline month)"
-
-
 msgid "注意事项"
 msgstr "Notes"
-
-
 msgid "所有金额指标在数据库中以人民币（CNY）为基准存储"
 msgstr "All amount indicators are stored in the database based on Chinese Yuan (CNY)"
-
-
 msgid "可在目标设置中选择显示货币，系统会自动进行汇率转换"
 msgstr "You can select display currency in target settings, the system will automatically perform exchange rate conversion"
-
-
 msgid "五星项目增量从系统启用该功能的首月开始计算"
 msgstr "Five-star project increment calculation starts from the first month when this feature was enabled in the system"
-
-
 msgid "行业统计基于客户创建时选择的行业字段进行分类"
 msgstr "Industry statistics are classified based on the industry field selected when creating customers"
-
-
 msgid "找不到用户信息"
 msgstr "User information not found"
-
-
 msgid "邮箱不能为空"
 msgstr "Email cannot be empty"
-
-
 msgid "此邮箱已被其他账户使用"
 msgstr "This email is already used by another account"
-
-
 msgid "个人信息更新成功"
 msgstr "Personal information updated successfully"
-
-
 msgid "PDF文件大小不能超过12MB"
 msgstr "PDF file size cannot exceed 12MB"
-
-
 msgid "您没有权限查看已停产的产品"
 msgstr "You do not have permission to view discontinued products"
-
-
 msgid "查看产品详情失败: %s"
 msgstr "Failed to view product details: %s"
-
-
 msgid "导出产品"
 msgstr "Export Products"
-
-
 msgid "创建新产品"
 msgstr "Create New Product"
-
-
 msgid "选择或输入产品名称"
 msgstr "Select or enter product name"
-
-
-msgid "选择或输入产品型号"
-msgstr "Select or enter product model"
-
-
-msgid "输入MN号"
-msgstr "Enter MN number"
-
-
 msgid "生成MN号"
 msgstr "Generate MN Number"
-
-
-msgid "MN号必须唯一"
-msgstr "MN number must be unique"
-
-
-msgid "规格与价格"
-msgstr "Specifications & Pricing"
-
-
 msgid "选择产品类型"
 msgstr "Select Product Type"
-
-
-msgid "选择或输入产品品牌"
-msgstr "Select or enter product brand"
-
-
-msgid "请选择或输入品牌"
-msgstr "Please select or enter brand"
-
-
 msgid "选择单位"
 msgstr "Select Unit"
-
-
 msgid "货币"
 msgstr "Currency"
-
-
-msgid "产品规格说明"
-msgstr "Product specification description"
-
-
 msgid "计量单位"
 msgstr "Unit of Measurement"
-
-# Notification center module translations - added 2025-08-02
-
 msgid "管理您的通知订阅设置，选择您想要接收通知的账户及其相关行为。"
 msgstr "Manage your notification subscription settings and select the accounts and their related behaviors for which you want to receive notifications."
-
-
 msgid "解决方案经理特权设置"
 msgstr "Solution Manager Privilege Settings"
-
-
 msgid "作为解决方案经理，您可以接收全局的报价单和项目相关邮件通知。"
 msgstr "As a solution manager, you can receive global email notifications for quotations and project-related activities."
-
-
 msgid "报价单通知"
 msgstr "Quotation Notifications"
-
-
 msgid "报价单新建通知"
 msgstr "New Quotation Notifications"
-
-
 msgid "报价单更新通知"
 msgstr "Quotation Update Notifications"
-
-
 msgid "项目通知"
 msgstr "Project Notifications"
-
-
 msgid "项目新建通知"
 msgstr "New Project Notifications"
-
-
 msgid "项目阶段推进通知"
 msgstr "Project Stage Progress Notifications"
-
-
 msgid "保存特权设置"
 msgstr "Save Privilege Settings"
-
-
 msgid "账户行为订阅设置"
 msgstr "Account Behavior Subscription Settings"
-
-
 msgid "选择您想要接收通知的账户及其相关行为，系统将在事件发生时通过邮件通知您。"
 msgstr "Select the accounts and their related behaviors for which you want to receive notifications. The system will notify you via email when events occur."
-
-
 msgid "选择接收账户"
 msgstr "Select Receiving Accounts"
-
-
 msgid "搜索账户..."
 msgstr "Search accounts..."
-
-
 msgid "我"
 msgstr "Me"
-
-
 msgid "选择接收的行为通知"
 msgstr "Select Behavior Notifications to Receive"
-
-
 msgid "请在左侧选择要订阅的账户"
 msgstr "Please select accounts to subscribe to on the left"
-
-
 msgid "恢复默认"
 msgstr "Restore Defaults"
-
-
 msgid "取消全选"
 msgstr "Deselect All"
-
-
 msgid "特权设置已保存"
 msgstr "Privilege settings saved"
-
-
 msgid "订阅设置已保存"
 msgstr "Subscription settings saved"
-
-
 msgid "保存订阅失败"
 msgstr "Failed to save subscription"
-
-# Performance management page translations - added 2025-08-02
-
 msgid "统计概览"
 msgstr "Statistics Overview"
-
-
 msgid "月度详情"
 msgstr "Monthly Details"
-
-
 msgid "目标管理"
 msgstr "Target Management"
-
-
 msgid "趋势分析"
 msgstr "Trend Analysis"
-
-
 msgid "绩效数据加载失败，请刷新页面重试"
 msgstr "Failed to load performance data, please refresh the page and try again"
-
-
 msgid "数据加载失败"
 msgstr "Data loading failed"
-
-
 msgid "请求失败"
 msgstr "Request failed"
-
-
 msgid "绩效管理页面初始化完成"
 msgstr "Performance management page initialization completed"
-
-
-
 msgid "目标设置"
 msgstr "Target Settings"
-
-
 msgid "行业分布概览"
 msgstr "Industry Distribution Overview"
-
-
 msgid "新增客户"
 msgstr "New Customers"
-
-
 msgid "新增项目"
 msgstr "New Projects"
-
-
 msgid "医疗健康"
 msgstr "Healthcare"
-
-
 msgid "酒店服务"
 msgstr "Hospitality"
-
-
 msgid "我发起的"
 msgstr "Created by Me"
-
-
 msgid "待我审批"
 msgstr "Pending My Approval"
-
-
 msgid "待我审批的"
 msgstr "Pending My Approval"
-
-
 msgid "批价单审批"
 msgstr "Pricing Order Approval"
-
-
 msgid "订单审批"
 msgstr "Order Approval"
-
 msgid "审批数据加载失败，请刷新页面重试"
 msgstr "Failed to load approval data, please refresh and try again"
-
-
 msgid "AJAX请求失败"
 msgstr "AJAX request failed"
-
-
 msgid "审批中心页面初始化完成"
 msgstr "Approval center page initialization completed"
-
-
-
-
 msgid "审批列表"
 msgstr "Approval List"
-
-
 msgid "审批编号、流程名称或业务关键词"
 msgstr "Approval number, process name or business keywords"
-
-
 msgid "未知类型"
 msgstr "Unknown Type"
-
-
-
 msgid "全部审批"
 msgstr "All Approvals"
-
-
 msgid "业务类型"
 msgstr "Business Type"
-
-
 msgid "共享设置"
 msgstr "Sharing Settings"
-
-
 msgid "审批详情"
 msgstr "Approval Details"
-
-
 msgid "审批流程详情"
 msgstr "Approval Process Details"
-
-
 msgid "返回业务对象"
 msgstr "Return to Business Object"
-
-
 msgid "无法获取项目信息或项目已被删除"
 msgstr "Unable to get project information or project has been deleted"
-
-
 msgid "无法获取报价单信息或报价单已被删除"
 msgstr "Unable to get quotation information or quotation has been deleted"
-
-
 msgid "未知流程"
 msgstr "Unknown Process"
-
-
 msgid "进度摘要"
 msgstr "Progress Summary"
-
-
 msgid "完成进度"
 msgstr "Completion Progress"
-
-
 msgid "无效的批价单审批ID"
 msgstr "Invalid pricing order approval ID"
-
-
 msgid "无效的审批实例ID"
 msgstr "Invalid approval instance ID"
-
-
 msgid "参数不完整，无法发起审批"
 msgstr "Incomplete parameters, unable to initiate approval"
-
-
 msgid "您没有权限发起此审批流程"
 msgstr "You do not have permission to initiate this approval process"
-
-
 msgid "审批流程模板不存在"
 msgstr "Approval process template does not exist"
-
-
 msgid "无法锁定项目，可能已被其他流程锁定"
 msgstr "Unable to lock project, may already be locked by another process"
-
-
 msgid "审批流程已成功发起"
 msgstr "Approval process has been successfully initiated"
-
-
 msgid "发起审批失败，请检查是否已存在审批流程或模板是否有效"
 msgstr "Failed to initiate approval, please check if an approval process already exists or if the template is valid"
-
-
 msgid "无效的审批操作"
 msgstr "Invalid approval operation"
-
-
 msgid "找不到审批实例"
 msgstr "Approval instance not found"
-
-
 msgid "审批实例已成功删除"
 msgstr "Approval instance has been successfully deleted"
-
-
 msgid "删除审批实例失败"
 msgstr "Failed to delete approval instance"
-
-
 msgid "您没有权限进行此审批操作"
 msgstr "You do not have permission to perform this approval operation"
-
-
 msgid "此授权步骤仅适用于项目"
 msgstr "This authorization step is only applicable to projects"
-
-
 msgid "找不到相关项目"
 msgstr "Related project not found"
-
-
 msgid "请选择要删除的审批流程"
 msgstr "Please select the approval process to delete"
-
-
 msgid "批量删除操作失败，请稍后重试"
 msgstr "Batch delete operation failed, please try again later"
-
-
 msgid "确定要删除此审批流程吗？此操作不可逆。"
 msgstr "Are you sure you want to delete this approval process? This action cannot be undone."
-
-
 msgid "警告：删除审批流程可能会影响业务数据完整性！"
 msgstr "Warning: Deleting approval process may affect business data integrity!"
-
-
 msgid "版本号"
 msgstr "Version"
-
-
 msgid "最近升级时间"
 msgstr "Last Upgrade Time"
-
-
 msgid "已回复"
 msgstr "Replied"
-
-
 msgid "无回复"
 msgstr "No Reply"
-
-
 msgid "绩效配置"
 msgstr "Performance Configuration"
-
-# 新增的界面翻译
-
 msgid "缩小"
 msgstr "Zoom Out"
-
-
 msgid "放大"
 msgstr "Zoom In"
-
-
 msgid "适应窗口"
 msgstr "Fit to Window"
-
-
 msgid "发票上传未完成"
 msgstr "Invoice upload incomplete"
-
-
 msgid "点击预览发票"
 msgstr "Click to preview invoice"
-
-
 msgid "发票上传未完成，请重新编辑报销单并上传发票。"
 msgstr "Invoice upload incomplete. Please edit the expense report and upload the invoice."
-
-
 msgid "文件下载失败，请尝试右键另存为"
 msgstr "File download failed, please try right-click and save as"
-
-
 msgid "发票文件下载失败，请联系管理员检查文件状态"
 msgstr "Invoice file download failed, please contact administrator to check file status"
-
-# 项目模块缺失的翻译
-
 msgid "报备源"
 msgstr "Report Source"
-
 msgid "产品情况"
 msgstr "Product Situation"
-
 msgid "品牌植入"
 msgstr "Brand Status"
-
 msgid "预测出货时间"
 msgstr "Delivery Forecast"
-
 msgid "项目负责人"
 msgstr "Project Owner"
-
 msgid "关联客户"
 msgstr "Related Customer"
-
 msgid "添加人"
 msgstr "Added By"
-
 msgid "添加报价单"
 msgstr "Add Quote"
-
 msgid "暂无报价单"
 msgstr "No quotes"
-
 msgid "金额"
 msgstr "Amount"
-
 msgid "保存确认"
 msgstr "Save Confirmation"
-
 msgid "编码更新预览"
 msgstr "Code Update Preview"
-
 msgid "编码类型"
 msgstr "Code Type"
-
 msgid "更新前"
 msgstr "Before"
-
 msgid "更新后"
 msgstr "After"
-
 msgid "结果"
 msgstr "Result"
-
-msgid "产品MN"
-msgstr "Product MN"
-
 msgid "规格MN"
 msgstr "Spec MN"
-
 msgid "不更新"
 msgstr "No update"
-
 msgid "将更新"
 msgstr "Will update"
-
 msgid "产品描述将根据规格重新生成。"
 msgstr "Product description will be regenerated based on specifications."
-
 msgid "无法保存"
 msgstr "Cannot Save"
-
 msgid "以下规格缺少编码，无法保存："
 msgstr "The following specifications are missing codes and cannot be saved: "
-
 msgid "确定要保存规格更改吗？产品描述将根据规格重新生成。"
 msgstr "Are you sure you want to save the specification changes? Product description will be regenerated."
-
 msgid "选择规格..."
 msgstr "Select specification..."
-
 msgid "请先选择规格"
 msgstr "Please select a specification first"
-
 msgid "没有可用的规格"
 msgstr "No available specifications"
-
 msgid "该规格暂无可用指标"
 msgstr "No available options for this specification"
-
 msgid "从描述中排除"
 msgstr "Exclude from description"
-
 msgid "包含到描述中"
 msgstr "Include in description"
-
 msgid "改变产品分类将删除现有的规格和指标数据，是否继续？"
 msgstr "Changing product category will delete existing specifications and attributes. Continue?"
-
 msgid "确认更改分类"
 msgstr "Confirm Category Change"
-
 msgid "继续"
 msgstr "Continue"
-
 msgid "确认更改区域"
 msgstr "Confirm Region Change"
-
 msgid "改变销售区域将更新产品编码，是否继续？"
 msgstr "Changing sales region will update the product code. Continue?"
-
 msgid "规格字典"
 msgstr "Spec Dictionary"
-
 msgid "规格字典管理"
 msgstr "Specification Dictionary Management"
-
 msgid "规格字典用于标准化产品规格输入，避免重复录入和拼写不一致。添加的规格将在研发产品管理中提供输入建议。"
 msgstr "The specification dictionary is used to standardize product specification input, avoiding duplicate entries and spelling inconsistencies. Added specifications will provide input suggestions in R&D product management."
-
 msgid "请选择一个规格"
 msgstr "Please select a specification"
-
 msgid "从左侧列表中选择规格查看详情"
 msgstr "Select a specification from the left list to view details"
-
 msgid "所有规格"
 msgstr "All Specifications"
-
 msgid "搜索规格..."
 msgstr "Search specifications..."
-
 msgid "添加规格"
 msgstr "Add Specification"
-
 msgid "编辑规格"
 msgstr "Edit Specification"
-
 msgid "删除规格"
 msgstr "Delete Specification"
-
 msgid "规格名称"
 msgstr "Specification Name"
-
 msgid "的指标列表"
 msgstr " Options"
-
 msgid "添加指标"
 msgstr "Add Option"
-
 msgid "指标值"
 msgstr "Option Value"
-
 msgid "编码"
 msgstr "Code"
-
 msgid "自动生成，可修改"
 msgstr "Auto-generated, can be modified"
-
-msgid "自动生成"
-msgstr "Auto-generated"
-
 msgid "条指标记录"
 msgstr "option records"
-
 msgid "如：频率范围、充电电流"
 msgstr "e.g., Frequency Range, Charging Current"
-
 msgid "如：MHz、dBm、mA"
 msgstr "e.g., MHz, dBm, mA"
-
 msgid "启用此规格"
 msgstr "Enable this specification"
-
 msgid "如：400-450、单向-上行"
 msgstr "e.g., 400-450, One-way-Uplink"
-
 msgid "可选，描述此指标的用途"
 msgstr "Optional, describe the purpose of this option"
-
 msgid "确定要删除此规格吗？此操作无法撤销。"
 msgstr "Are you sure you want to delete this specification? This action cannot be undone."
-
 msgid "暂无规格"
 msgstr "No specifications"
-
 msgid "暂无指标，点击上方按钮添加"
 msgstr "No options yet, click the button above to add"
-
-msgid "确认删除"
-msgstr "Confirm Delete"
+msgid "客户档案"
+msgstr "Customer Profile"
+msgid "暂无联系人"
+msgstr "No contacts"
+msgid "确定要删除客户「"
+msgstr "Are you sure you want to delete customer \"
+msgid "」吗？此操作无法撤销。"
+msgstr "\"
+msgid "确定要删除这条回复吗？此操作无法撤销。"
+msgstr "Are you sure you want to delete this reply? This action cannot be undone."
+msgid "客户信息"
+msgstr "Customer Info"
+msgid "客户名称"
+msgstr "Customer Name"
+msgid "客户类型"
+msgstr "Customer Type"
+msgid "联系人数"
+msgstr "Contacts Count"
+msgid "人"
+msgstr "people"
+msgid "请输入联系人姓名"
+msgstr "Please enter contact name"
+msgid "请输入部门"
+msgstr "Please enter department"
+msgid "请输入职位"
+msgstr "Please enter position"
+msgid "请输入电话"
+msgstr "Please enter phone"
+msgid "请输入邮箱"
+msgstr "Please enter email"
+msgid "请输入备注"
+msgstr "Please enter notes"
+msgid "暂无可共享的用户"
+msgstr "No users available for sharing"
+msgid "刚刚"
+msgstr "Just now"
+msgid "分钟前"
+msgstr "minutes ago"
+msgid "小时前"
+msgstr "hours ago"
+msgid "天前"
+msgstr "days ago"
+msgid "个月前"
+msgstr "months ago"
+msgid "年前"
+msgstr "years ago"
+msgid "行动记录添加成功"
+msgstr "Action record added successfully"
+msgid "添加失败，请重试"
+msgstr "Failed to add, please try again"
+msgid "请输入行动记录内容"
+msgstr "Please enter action record content"
+msgid "客户删除成功"
+msgstr "Customer deleted successfully"
+msgid "网络错误，请重试"
+msgstr "Network error, please try again"
+msgid "报销列表"
+msgstr "Expense List"
+msgid "发票预览"
+msgstr "Invoice Preview"
+msgid "该客户暂无联系人"
+msgstr "No contacts for this customer"
+msgid "无匹配结果"
+msgstr "No matching results"
+msgid "报销单创建成功"
+msgstr "Expense created successfully"
+msgid "保存成功"
+msgstr "Saved successfully"
+msgid "请填写必填项"
+msgstr "Please fill in required fields"
+msgid "请至少添加一条报销明细"
+msgstr "Please add at least one expense item"
+msgid "提交审批失败"
+msgstr "Failed to submit for approval"
+msgid "用户主动召回"
+msgstr "User recalled"
+msgid "召回审批失败"
+msgstr "Failed to recall approval"
+msgid "重新提交失败"
+msgstr "Failed to resubmit"
+msgid "提交审批"
+msgstr "Submit for Approval"
+msgid "确定要提交审批吗？提交后将进入审批流程，无法直接修改报销信息。"
+msgstr "Are you sure you want to submit for approval? Once submitted, the expense cannot be directly modified."
+msgid "确定要提交审批吗？"
+msgstr "Are you sure you want to submit for approval?"
+msgid "召回审批"
+msgstr "Recall Approval"
+msgid "确定要召回审批吗？召回后流程将停止，状态将回到草稿状态。"
+msgstr "Are you sure you want to recall the approval? The process will stop and status will return to draft."
+msgid "确定要召回审批吗？"
+msgstr "Are you sure you want to recall the approval?"
+msgid "重新提交审批"
+msgstr "Resubmit for Approval"
+msgid "确定要重新提交审批吗？"
+msgstr "Are you sure you want to resubmit for approval?"
+msgid "重新提交"
+msgstr "Resubmit"
+msgid "编辑字段"
+msgstr "Edit Fields"
+msgid "报销主题"
+msgstr "Expense Subject"
+msgid "报销总金额"
+msgstr "Total Amount"
+msgid "关联信息"
+msgstr "Related Info"
+msgid "暂无关联信息"
+msgstr "No related info"
+msgid "费用描述"
+msgstr "Expense Description"
+msgid "发票金额"
+msgstr "Invoice Amount"
+msgid "汇率"
+msgstr "Exchange Rate"
+msgid "发票"
+msgstr "Invoice"
+msgid "报销明细"
+msgstr "Expense Items"
+msgid "暂无报销明细"
+msgstr "No expense items"
+msgid "确定要删除这个报销单吗？此操作不可恢复。"
+msgstr "Are you sure you want to delete this expense? This action cannot be undone."
+msgid "确认删除报销单"
+msgstr "Confirm Delete Expense"
+msgid "删除成功"
+msgstr "Deleted successfully"
+msgid "审批流程已启动"
+msgstr "Approval process started"
+msgid "审批流程已召回"
+msgstr "Approval process recalled"
+msgid "召回中..."
+msgstr "Recalling..."
+msgid "审批流程已重新提交"
+msgstr "Approval process resubmitted"
+msgid "导出功能开发中"
+msgstr "Export feature is under development"
+msgid "图片加载失败"
+msgstr "Failed to load image"
+msgid "请选择报备源"
+msgstr "Please select report source"
+msgid "请选择产品情况"
+msgstr "Please select product situation"
+msgid "请选择项目负责人"
+msgstr "Please select project manager"
+msgid "相似项目"
+msgstr "Similar Projects"
+msgid "以上项目名称仅供参考，请确保输入的名称不与已有项目重复"
+msgstr "The above project names are for reference only. Please ensure your input does not duplicate existing projects."
+msgid "该项目名称已存在"
+msgstr "This project name already exists"
+msgid "初始化表单失败"
+msgstr "Failed to initialize form"
+msgid "打开创建模态框失败"
+msgstr "Failed to open create modal"
+msgid "项目名称已存在，请修改"
+msgstr "Project name already exists, please modify"
+msgid "折扣%"
+msgstr "Discount %"
+msgid "申请中"
+msgstr "Pending"
+msgid "移除"
+msgstr "Remove"
+msgid "暂无关联客户"
+msgstr "No related customers"
+msgid "进行中"
+msgstr "In Progress"
+msgid "已召回"
+msgstr "Recalled"
+msgid "确定要删除项目「"
+msgstr "Are you sure you want to delete project \"
+msgid "确定要提交审批吗？提交后项目将进入审批流程。"
+msgstr "Are you sure you want to submit for approval? The project will enter the approval process."
+msgid "确定要召回审批吗？召回后项目将返回草稿状态。"
+msgstr "Are you sure you want to recall? The project will return to draft status."
+msgid "确定要删除这条行动记录吗？此操作无法撤销。"
+msgstr "Are you sure you want to delete this action record? This action cannot be undone."
+msgid "新建报价单"
+msgstr "Create Quotation"
+msgid "项目删除成功"
+msgstr "Project deleted successfully"
+msgid "移除成功"
+msgstr "Removed successfully"
+msgid "移除失败，请重试"
+msgstr "Failed to remove, please try again"
+msgid "项目尚未提交审批"
+msgstr "Project has not been submitted for approval"
+msgid "点击下方按钮提交审批"
+msgstr "Click the button below to submit for approval"
+msgid "提交申请"
+msgstr "Submit Request"
+msgid "发起项目审批流程"
+msgstr "Start project approval process"
+msgid "已同意"
+msgstr "Approved"
+msgid "当前节点"
+msgstr "Current Step"
+msgid "待处理"
+msgstr "Pending"
+msgid "待定"
+msgstr "To Be Determined"
+msgid "阶段推进功能待实现"
+msgstr "Stage progression feature is under development"
+msgid "添加客户功能待实现"
+msgstr "Add customer feature is under development"
+msgid "重新提交审批失败"
+msgstr "Failed to resubmit for approval"
+msgid "审批操作失败"
+msgstr "Approval operation failed"
+msgid "删除行动记录失败"
+msgstr "Failed to delete action record"
+msgid "移除失败"
+msgstr "Failed to remove"
+msgid "打开编辑模态框失败"
+msgstr "Failed to open edit modal"
+msgid "-- 请先选择项目 --"
+msgstr "-- Please select project first --"
+msgid "该项目暂无关联客户"
+msgstr "No customers related to this project"
+msgid "请选择关联项目"
+msgstr "Please select related project"
+msgid "请选择客户"
+msgstr "Please select customer"
+msgid "请至少添加一个产品"
+msgstr "Please add at least one product"
+msgid "生成批价单"
+msgstr "Generate Pricing Order"
+msgid "报价阶段"
+msgstr "Quotation Stage"
+msgid "植入总额"
+msgstr "Total Installation Amount"
+msgid "关联报价单"
+msgstr "Related Quotations"
+msgid "暂无关联报价单"
+msgstr "No related quotations"
+msgid "确定要删除这个报价单吗？此操作不可恢复。"
+msgstr "Are you sure you want to delete this quotation? This action cannot be undone."
+msgid "导出报价单"
+msgstr "Export Quotation"
+msgid "选择导出格式"
+msgstr "Select Export Format"
+msgid "导出Excel"
+msgstr "Export Excel"
+msgid "导出PDF"
+msgstr "Export PDF"
+msgid "操作失败"
+msgstr "Operation failed"
+msgid "PDF下载已开始"
+msgstr "PDF download started"
+msgid "导出PDF失败"
+msgstr "Failed to export PDF"
+msgid "PDF文件已开始下载"
+msgstr "PDF file download started"
+msgid "报价单已更新"
+msgstr "Quotation updated"
+msgid "即将上市"
+msgstr "Coming Soon"
+msgid "停产"
+msgstr "Discontinued"
+msgid "上一个产品"
+msgstr "Previous Product"
+msgid "下一个产品"
+msgstr "Next Product"
+msgid "产品概览"
+msgstr "Product Overview"
+msgid "上传图片"
+msgstr "Upload Image"
+msgid "清除图片"
+msgstr "Clear Image"
+msgid "应用"
+msgstr "Apply"
+msgid "关联产品配置"
+msgstr "Related Product Configuration"
+msgid "普通关联"
+msgstr "Normal Relation"
+msgid "互斥组"
+msgstr "Exclusive Group"
+msgid "添加关联"
+msgstr "Add Relation"
+msgid "暂无关联产品配置"
+msgstr "No related product configuration"
+msgid "上传PDF"
+msgstr "Upload PDF"
+msgid "产品规格书"
+msgstr "Product Specification"
+msgid "点击下载或预览"
+msgstr "Click to download or preview"
+msgid "暂无文档"
+msgstr "No document"
+msgid "预览"
+msgstr "Preview"
+msgid "暂无文档可预览"
+msgstr "No document to preview"
+msgid "暂无文档可下载"
+msgstr "No document to download"
+msgid "价格信息"
+msgstr "Price Info"
+msgid "暂无"
+msgstr "None"
+msgid "订单统计"
+msgstr "Order Statistics"
+msgid "切换锁定状态失败"
+msgstr "Failed to toggle lock status"
+msgid "清除文件失败"
+msgstr "Failed to clear file"
+msgid "检查分类文件状态失败"
+msgstr "Failed to check category file status"
+msgid "上传错误"
+msgstr "Upload error"
+msgid "加载关联产品失败"
+msgstr "Failed to load related products"
+msgid "删除关联产品失败"
+msgstr "Failed to delete related product"
+msgid "删除互斥组失败"
+msgstr "Failed to delete exclusive group"
+msgid "研发库管理"
+msgstr "R&D Product Management"
+msgid "研发产品列表"
+msgstr "R&D Product List"
+msgid "新建"
+msgstr "New"
+msgid "发起入库审批"
+msgstr "Submit for Inventory Approval"
+msgid "该研发产品已成功入库！"
+msgstr "This R&D product has been successfully added to inventory!"
+msgid "查看产品库记录"
+msgstr "View Product Record"
+msgid "销售区域"
+msgstr "Sales Region"
+msgid "研发用途"
+msgstr "R&D Purpose"
+msgid "市场价格（预估）"
+msgstr "Market Price (Estimated)"
+msgid "元数据"
+msgstr "Metadata"
+msgid "确定要删除此研发产品吗？删除后将无法恢复，请谨慎操作。"
+msgstr "Are you sure you want to delete this R&D product? This action cannot be undone."
+msgid "确定要发起入库审批流程吗？审批通过后，研发产品将自动转入产品库。"
+msgstr "Are you sure you want to submit for inventory approval? After approval, the R&D product will be automatically added to the product library."
+msgid "确认发起"
+msgstr "Confirm Submit"
+msgid "产品删除成功"
+msgstr "Product deleted successfully"
+msgid "上传成功"
+msgstr "Upload successful"
+msgid "上传失败"
+msgstr "Upload failed"
+msgid "审批流程已发起！"
+msgstr "Approval process started!"
+msgid "发起审批失败"
+msgstr "Failed to submit approval"
+msgid "确定要发起入库审批流程吗？"
+msgstr "Are you sure you want to submit for inventory approval?"
+msgid "审批通过后，研发产品将自动转入产品库。"
+msgstr "After approval, the R&D product will be automatically added to the product library."
+msgid "将使用审批流程"
+msgstr "Will use approval process"
+msgid "系统检测到多个审批流程模板，请联系管理员配置默认模板。"
+msgstr "Multiple approval templates detected. Please contact admin to configure default template."
+msgid "没有可用的审批流程模板"
+msgstr "No available approval template"
+msgid "审批流程模板ID无效"
+msgstr "Invalid approval template ID"
+msgid "不支持的图片格式！请选择 JPG、PNG 或 GIF 文件"
+msgstr "Unsupported image format! Please select JPG, PNG or GIF file"
+msgid "订单数量"
+msgstr "Order Quantity"
+msgid "设计总量"
+msgstr "Design Total"
+msgid "产品二维码"
+msgstr "Product QR Code"
+msgid "扫描二维码查看产品详情"
+msgstr "Scan QR code to view product details"
+msgid "产品ID"
+msgstr "Product ID"
+msgid "确定要删除此产品吗？删除后将无法恢复，请谨慎操作。"
+msgstr "Are you sure you want to delete this product? This action cannot be undone."
+msgid "确认清除"
+msgstr "Confirm Clear"
+msgid "确定要清除此文件吗？此操作不可撤销。"
+msgstr "Are you sure you want to clear this file? This action cannot be undone."
+msgid "清除"
+msgstr "Clear"
+msgid "锁定产品编码"
+msgstr "Lock Product Code"
+msgid "锁定"
+msgstr "Lock"
+msgid "解锁产品编码"
+msgstr "Unlock Product Code"
+msgid "解锁"
+msgstr "Unlock"
+msgid "分类已有共享文件"
+msgstr "Category already has shared file"
+msgid "覆盖分类"
+msgstr "Override Category"
+msgid "仅用于自身"
+msgstr "Use for self only"
+msgid "清除成功"
+msgstr "Cleared successfully"
+msgid "清除失败"
+msgstr "Failed to clear"
+msgid "必选配件"
+msgstr "Required Accessory"
+msgid "推荐配件"
+msgstr "Recommended Accessory"
+msgid "互斥组（必选）"
+msgstr "Exclusive Group (Required)"
+msgid "互斥组（可选）"
+msgstr "Exclusive Group (Optional)"
+msgid "用户主动删除"
+msgstr "User deleted"
+msgid "确认清除图片"
+msgstr "Confirm Clear Image"
+msgid "确认清除PDF"
+msgstr "Confirm Clear PDF"
+msgid "确定要清除此图片吗？"
+msgstr "Are you sure you want to clear this image?"
+msgid "确定要清除此PDF文档吗？"
+msgstr "Are you sure you want to clear this PDF document?"
+msgid "图片文件太大！最大允许 12MB"
+msgstr "Image file too large! Maximum 12MB allowed"
+msgid "请选择PDF文件"
+msgstr "Please select a PDF file"
+msgid "PDF文件太大！最大允许 12MB"
+msgstr "PDF file too large! Maximum 12MB allowed"
+msgid "图片"
+msgstr "Image"
+msgid "分类"
+msgstr "Category"
+msgid "已有共享"
+msgstr "has shared file"
+msgid "，请选择操作方式："
+msgstr ", please select operation:"
+msgid "暂无普通关联配置"
+msgstr "No normal relation configuration"
+msgid "暂无互斥组配置"
+msgstr "No exclusive group configuration"
+msgid "确认删除此关联产品？此操作无法撤销。"
+msgstr "Confirm delete this related product? This action cannot be undone."
+msgid "确认删除互斥组"
+msgstr "Confirm Delete Exclusive Group"
+msgid "确认删除整个互斥组及其所有产品？此操作无法撤销。"
+msgstr "Confirm delete the entire exclusive group and all its products? This action cannot be undone."
+msgid "确认删除规格"
+msgstr "Confirm Delete Specification"
+msgid "确认删除此规格？此操作无法撤销。"
+msgstr "Confirm delete this specification? This action cannot be undone."
+msgid "确定"
+msgstr "Confirm"
+msgid "暂无规格信息"
+msgstr "No specification info"
+msgid "选择规格"
+msgstr "Select Specification"
+msgid "没有可添加的规格"
+msgstr "No specifications to add"
+msgid "暂无可用选项"
+msgstr "No available options"
+msgid "等待审批"
+msgstr "Waiting for Approval"
+msgid "请输入审批意见..."
+msgstr "Please enter approval comments..."
+msgid "驳回"
+msgstr "Reject"
+msgid "网络错误"
+msgstr "Network Error"
+msgid "召回失败"
+msgstr "Recall Failed"
+msgid "审批实例未找到"
+msgstr "Approval instance not found"
+msgid "审批历史功能待实现"
+msgstr "Approval history feature is under development"
+msgid "修改阶段状态"
+msgstr "Modify Stage Status"
+msgid "原因"
+msgstr "Reason"
+msgid "请输入原因..."
+msgstr "Please enter reason..."
+msgid "确认推进阶段"
+msgstr "Confirm Stage Advancement"
+msgid "确定要将项目推进到该阶段吗？"
+msgstr "Are you sure you want to advance the project to this stage?"
+msgid "确认"
+msgstr "Confirm"
+msgid "恢复阶段状态"
+msgstr "Restore Stage Status"
+msgid "确定要恢复该状态吗？项目将恢复到原来的阶段。"
+msgstr "Are you sure you want to restore this status? The project will return to its original stage."
+msgid "恢复正常阶段"
+msgstr "Restore Normal Stage"
+msgid "确定要将项目推进到"
+msgstr "Are you sure you want to advance the project to "
+msgid "阶段吗？"
+msgstr " stage?"
+msgid "恢复阶段"
+msgstr "Restore Stage"
+msgid "确定要从"
+msgstr "Are you sure you want to restore from "
+msgid "状态恢复吗？项目将恢复到原来的阶段。"
+msgstr " status? The project will return to its original stage."
+msgid "加载项目数据失败"
+msgstr "Failed to load project data"
+msgid "修改项目负责人"
+msgstr "Change Project Manager"
+msgid "没有找到匹配的用户"
+msgstr "No matching users found"
+msgid "修改厂商销售负责人"
+msgstr "Change Vendor Sales Manager"
+msgid "没有找到厂商用户"
+msgstr "No vendor users found"
+msgid "工作记录"
+msgstr "Work Records"
+msgid "添加回复"
+msgstr "Add Reply"
+msgid "提交回复"
+msgstr "Submit Reply"
+msgid "回复记录"
+msgstr "Reply Records"
+msgid "暂无回复"
+msgstr "No replies"
+msgid "欢迎回来"
+msgstr "Welcome back"
+msgid "这是您的业务活动摘要。"
+msgstr "This is your business activity summary."
+msgid "暂无批价单"
+msgstr "No pricing orders"
+msgid "基于此报价单创建批价单，开始批价流程"
+msgstr "Create pricing order based on this quotation to start pricing process"
+msgid "展开审批流程"
+msgstr "Expand approval flow"
+msgid "折叠审批流程"
+msgstr "Collapse approval flow"
+msgid "批价单位"
+msgstr "Pricing Company"
+msgid "输入公司名称搜索..."
+msgstr "Search company name..."
+msgid "厂商直签"
+msgstr "Direct with Vendor"
+msgid "分销商"
+msgstr "Distributor"
+msgid "包括代理商"
+msgstr "Including agents"
+msgid "厂家提货"
+msgstr "Vendor Pickup"
+msgid "您没有权限查看结算单信息"
+msgstr "You do not have permission to view settlement information"
+msgid "总折扣"
+msgstr "Total Discount"
+msgid "分销利润"
+msgstr "Distribution Profit"
+msgid "提交批价审批"
+msgstr "Submit Pricing Approval"
+msgid "确定要提交批价单审批吗？提交后将进入审批流程。"
+msgstr "Are you sure you want to submit pricing order for approval? It will enter the approval process."
+msgid "召回批价审批"
+msgstr "Recall Pricing Approval"
+msgid "确定要召回批价单审批吗？召回后流程将停止，状态将回到草稿状态。"
+msgstr "Are you sure you want to recall pricing approval? The process will stop and return to draft status."
+msgid "确定要重新提交批价单审批吗？"
+msgstr "Are you sure you want to resubmit pricing order for approval?"
+msgid "删除批价单"
+msgstr "Delete Pricing Order"
+msgid "确定要删除此批价单吗？此操作不可恢复。"
+msgstr "Are you sure you want to delete this pricing order? This action cannot be undone."
+msgid "放弃修改"
+msgstr "Discard Changes"
+msgid "您有未保存的修改，确定要放弃这些修改吗？"
+msgstr "You have unsaved changes. Are you sure you want to discard them?"
+msgid "继续编辑"
+msgstr "Continue Editing"
+msgid "确定要保存当前修改吗？"
+msgstr "Are you sure you want to save current changes?"
+msgid "加载批价单失败"
+msgstr "Failed to load pricing order"
+msgid "未找到匹配的公司"
+msgstr "No matching company found"
+msgid "保存渠道信息失败"
+msgstr "Failed to save channel info"
+msgid "保存批价单折扣率失败"
+msgstr "Failed to save pricing order discount rate"
+msgid "保存结算单折扣率失败"
+msgstr "Failed to save settlement discount rate"
+msgid "保存明细失败"
+msgstr "Failed to save details"
+msgid "删除明细失败"
+msgstr "Failed to delete details"
+msgid "格式"
+msgstr "Format"
+msgid "批价单 PDF"
+msgstr "Pricing Order PDF"
+msgid "结算单 PDF"
+msgstr "Settlement PDF"
+msgid "批价单 Word"
+msgstr "Pricing Order Word"
+msgid "结算单 Word"
+msgstr "Settlement Word"
+msgid "规格选择"
+msgstr "Specification Selection"
+msgid "下一步"
+msgstr "Next Step"
+msgid "配置选择"
+msgstr "Configuration Selection"
+msgid "匹配产品"
+msgstr "Matching Products"
+msgid "暂无可选配置"
+msgstr "No configurations available"
+msgid "合计"
+msgstr "Total"
+msgid "确认选择"
+msgstr "Confirm Selection"
+msgid "所有规格已确定"
+msgstr "All specifications confirmed"
+msgid "包含"
+msgstr "Includes"
+msgid "暂无可选规格"
+msgstr "No specifications available"
+msgid "无需额外配置，可直接确认"
+msgstr "No additional configuration needed, you can confirm directly"
+msgid "必选配置"
+msgstr "Required Configuration"
+msgid "自动选中"
+msgstr "Auto Selected"
+msgid "必选配置组"
+msgstr "Required Configuration Group"
+msgid "推荐配置"
+msgstr "Recommended Configuration"
+msgid "可选配置组"
+msgstr "Optional Configuration Group"
+msgid "已选配置"
+msgstr "Selected Configurations"
+msgid "必选"
+msgstr "Required"
+msgid "推荐"
+msgstr "Recommended"
+msgid "可选"
+msgstr "Optional"
+msgid "请完成所有规格选择"
+msgstr "Please complete all specification selections"
+msgid "没有匹配的产品"
+msgstr "No matching products"
+msgid "请选择"
+msgstr "Please select"
+msgid "产品确认"
+msgstr "Product Confirmation"
+msgid "上一步"
+msgstr "Previous Step"
+msgid "暂无产品"
+msgstr "No products"
+msgid "暂无图片"
+msgstr "No image"
+msgid "点击图片可预览大图"
+msgstr "Click image to preview"
+msgid "已选中"
+msgstr "Selected"
+msgid "选择此产品"
+msgstr "Select this product"
+msgid "已选择"
+msgstr "Selected"
+msgid "已选产品"
+msgstr "Selected Product"
+msgid "点击选择产品"
+msgstr "Click to select product"
+msgid "行动描述"
+msgstr "Action Description"
+msgid "请输入行动描述..."
+msgstr "Please enter action description..."
+msgid "行动类型"
+msgstr "Action Type"
+msgid "电话沟通"
+msgstr "Phone Call"
+msgid "客户拜访"
+msgstr "Customer Visit"
+msgid "邮件沟通"
+msgstr "Email Communication"
+msgid "微信沟通"
+msgstr "WeChat Communication"
+msgid "确认操作"
+msgstr "Confirm Action"
+msgid "您确定要执行此操作吗？"
+msgstr "Are you sure you want to perform this action?"
+msgid "确认取消"
+msgstr "Confirm Cancel"
+msgid "此操作无法撤销"
+msgstr "This action cannot be undone"
+msgid "删除确认"
+msgstr "Delete Confirmation"
+msgid "请确认删除操作"
+msgstr "Please confirm the delete action"
+msgid "正在处理..."
+msgstr "Processing..."
+msgid "选择用户"
+msgstr "Select User"
+msgid "搜索用户..."
+msgstr "Search users..."
+msgid "暂无可选用户"
+msgstr "No users available"
+msgid "已选用户"
+msgstr "Selected Users"
+msgid "可选用户"
+msgstr "Available Users"
+msgid "详情页面"
+msgstr "Detail Page"
+msgid "相关操作"
+msgstr "Related Actions"
+msgid "更多信息"
+msgstr "More Information"
+msgid "操作记录"
+msgstr "Operation Records"
+msgid "行动列表"
+msgstr "Action List"
+msgid "加载更多"
+msgstr "Load More"
+msgid "已加载全部"
+msgstr "All loaded"
+msgid "流程步骤"
+msgstr "Process Steps"
+msgid "价格卡片"
+msgstr "Price Card"
+msgid "原价"
+msgstr "Original Price"
+msgid "折后价"
+msgstr "Discounted Price"
+msgid "折扣"
+msgstr "Discount"
+msgid "排序"
+msgstr "Sort"
+msgid "升序"
+msgstr "Ascending"
+msgid "降序"
+msgstr "Descending"
+msgid "重置筛选"
+msgstr "Reset Filters"
+msgid "应用筛选"
+msgstr "Apply Filters"
+msgid "表单"
+msgstr "Form"
+msgid "请填写表单"
+msgstr "Please fill in the form"
+msgid "信息卡片"
+msgstr "Info Card"
+msgid "切换主题"
+msgstr "Switch Theme"
+msgid "统计"
+msgstr "Statistics"
+msgid "环比"
+msgstr "Month-over-Month"
+msgid "增长"
+msgstr "Growth"
+msgid "下降"
+msgstr "Decline"
+msgid "时间线"
+msgstr "Timeline"
+msgid "暂无时间记录"
+msgstr "No timeline records"
+msgid "警告"
+msgstr "Warning"
+msgid "类别树"
+msgstr "Category Tree"
+msgid "展开全部"
+msgstr "Expand All"
+msgid "折叠全部"
+msgstr "Collapse All"
+msgid "文件上传"
+msgstr "File Upload"
+msgid "点击上传"
+msgstr "Click to Upload"
+msgid "拖拽文件到此处"
+msgstr "Drag files here"
+msgid "或"
+msgstr "or"
+msgid "浏览文件"
+msgstr "Browse Files"
+msgid "标签页"
+msgstr "Tabs"
+msgid "工作记录列表"
+msgstr "Work Records List"
+msgid "回复数"
+msgstr "Replies"
+msgid "您确定要删除这条记录吗？此操作无法撤销。"
+msgstr "Are you sure you want to delete this record? This action cannot be undone."
+msgid "修改状态"
+msgstr "Change Status"
+msgid "设置状态"
+msgstr "Set Status"
+msgid "为"
+msgstr " to "
+msgid "阶段设置状态"
+msgstr "Set stage status"
+msgid "请输入行动内容..."
+msgstr "Please enter action content..."
+msgid "选择行动类型"
+msgstr "Select action type"
+msgid "清空选择"
+msgstr "Clear Selection"
+msgid "渠道类型"
+msgstr "Channel Type"
+msgid "渠道公司"
+msgstr "Channel Company"
+msgid "结算折扣率"
+msgstr "Settlement Discount Rate"
+msgid "批价折扣率"
+msgstr "Pricing Discount Rate"
+msgid "编辑批价单"
+msgstr "Edit Pricing Order"
+msgid "批价单详情"
+msgstr "Pricing Order Details"
+msgid "批价单明细"
+msgstr "Pricing Order Items"
+msgid "结算单明细"
+msgstr "Settlement Items"
+msgid "批价金额"
+msgstr "Pricing Amount"
+msgid "结算金额"
+msgstr "Settlement Amount"
+msgid "保存修改"
+msgstr "Save Changes"
+msgid "确认提交"
+msgstr "Confirm Submit"
+msgid "正在加载..."
+msgstr "Loading..."
+msgid "数据异常"
+msgstr "Data Error"
+msgid "请输入搜索关键词"
+msgstr "Please enter search keywords"
+msgid "无搜索结果"
+msgstr "No search results"
+msgid "请输入企业名称"
+msgstr "Please enter company name"
+msgid "请输入备注信息"
+msgstr "Please enter notes"
+msgid "请输入支付相关备注..."
+msgstr "Please enter payment notes..."
+msgid "暂无审批数据"
+msgstr "No approval data"
+msgid "报价单信息"
+msgstr "Quotation Information"
+msgid "发起人"
+msgstr "Initiator"
+msgid "当前状态"
+msgstr "Current Status"
+msgid "支付操作"
+msgstr "Payment Operation"
+msgid "支付备注"
+msgstr "Payment Notes"
+msgid "确认支付"
+msgstr "Confirm Payment"
+msgid "拒绝支付"
+msgstr "Reject Payment"
+msgid "报销单审批"
+msgstr "Expense Approval"
+msgid "审批流程模板详情"
+msgstr "Approval Template Details"
+msgid "编辑模板"
+msgstr "Edit Template"
+msgid "模板名称"
+msgstr "Template Name"
+msgid "适用业务对象"
+msgstr "Applicable Business Object"
+msgid "必填字段"
+msgstr "Required Fields"
+msgid "是否已使用"
+msgstr "Is In Use"
+msgid "已关联审批实例"
+msgstr "Has Associated Approval Instances"
+msgid "（已关联实例的模板只能修改名称和状态）"
+msgstr "(Templates with associated instances can only modify name and status)"
+msgid "未使用"
+msgstr "Not Used"
+msgid "快照机制保护"
+msgstr "Snapshot Protection"
+msgid "修改模板不会影响已创建的审批流程。每个审批实例都有独立的快照数据，完全隔离模板变更的影响。"
+msgstr "Modifying the template will not affect created approval processes. Each approval instance has independent snapshot data, completely isolated from template changes."
+msgid "当前有"
+msgstr "Currently has"
+msgid "个已完成实例，"
+msgstr " completed instances, "
+msgid "个进行中实例。"
+msgstr " in-progress instances."
+msgid "进行中的审批流程受快照机制完全保护，您可以安全地修改模板结构。"
+msgstr "In-progress approval processes are fully protected by the snapshot mechanism. You can safely modify the template structure."
+msgid "编辑审批流程模板"
+msgstr "Edit Approval Template"
+msgid "新建审批流程模板"
+msgstr "Create Approval Template"
+msgid "确定要移除客户"
+msgstr "Are you sure you want to remove customer"
+msgid "的关联吗？"
+msgstr "'s association?"
+msgid "搜索项目..."
+msgstr "Search project..."
+msgid "选择联系人"
+msgstr "Select Contact"
+msgid "输入报价单备注信息..."
+msgstr "Enter quotation notes..."
+msgid "PDF文件为空"
+msgstr "PDF file is empty"
+msgid "(可选) 调整规格生成新产品"
+msgstr "(Optional) Adjust specs to create new product"
+msgid "-- 从规格字典中选择 --"
+msgstr "-- Select from spec dictionary --"
+msgid "-- 请先选择客户 --"
+msgstr "-- Please select project first --"
+msgid "API请求失败: {status}"
+msgstr "API request failed: {status}"
+msgid "MN编号"
+msgstr "MN Number"
+msgid "MN编码已锁定"
+msgstr "MN code is locked"
+msgid "MN编码未锁定"
+msgstr "MN code is unlocked"
+msgid "PDF上传成功"
+msgstr "PDF uploaded successfully"
+msgid "PDF文件"
+msgstr "PDF File"
+msgid "PDF文件太大！最大允许 12MB，当前文件"
+msgstr "PDF file too large! Maximum 12MB, current file"
+msgid "万美元万元"
+msgstr "10K USD/CNY"
+msgid "三方"
+msgstr "Third party"
+msgid "上一个"
+msgstr "Previous"
+msgid "上传"
+msgstr "Upload"
+msgid "上传PDF文档"
+msgstr "Upload PDF document"
+msgid "上传中..."
+msgstr "Uploading..."
+msgid "上传产品文件"
+msgstr "Upload product files"
+msgid "上传图片和PDF文件"
+msgstr "Upload images and PDF files"
+msgid "上传成功！"
+msgstr "Upload successful!"
+msgid "上传文件"
+msgstr "Upload file"
+msgid "上传过程中发生错误，请重试"
+msgstr "Error during upload, please retry"
+msgid "上海"
+msgstr "Shanghai"
+msgid "上海市"
+msgstr "Shanghai"
+msgid "上级审批"
+msgstr "Superior approval"
+msgid "下一个"
+msgstr "Next"
+msgid "下载PDF"
+msgstr "Download PDF"
+msgid "下载备份"
+msgstr "Download backup"
+msgid "下载失败"
+msgstr "Download failed"
+msgid "下载文件"
+msgstr "Download file"
+msgid "不关联客户模式下无需选择联系人"
+msgstr "No need to select contact in non-customer mode"
+msgid "不关联客户模式下，报销说明为必填项"
+msgstr "In non-customer mode, expense description is required"
+msgid "不可操作"
+msgstr "Cannot operate"
+msgid "不支持预览"
+msgstr "Preview not supported"
+msgid "不能为空"
+msgstr "Cannot be empty"
+msgid "两次输入的密码不一致"
+msgstr "Passwords do not match"
+msgid "个产品"
+msgstr " products"
+msgid "个人级"
+msgstr "Personal level"
+msgid "个人绩效详细统计"
+msgstr "Personal performance statistics"
+msgid "个备份文件"
+msgstr " backup files"
+msgid "个客户"
+msgstr " customers"
+msgid "个更多"
+msgstr " more"
+msgid "个月标准质保"
+msgstr " months standard warranty"
+msgid "个用户的绩效数据"
+msgstr " users' performance data"
+msgid "中等尺寸 (120x120px)"
+msgstr "Medium (120x120px)"
+msgid "为不同角色配置专属的绩效考核方案"
+msgstr "Configure dedicated performance assessment plans for different roles"
+msgid "为产品"
+msgstr "for product"
+msgid "为指定公司批量添加产品库存"
+msgstr "Batch add product inventory for specified company"
+msgid "为空"
+msgstr "is empty"
+msgid "主要"
+msgstr "Primary"
+msgid "主要内容区域：左侧信息(2/3)、右侧行动记录(1/3)"
+msgstr "Main content area: left info (2/3), right action records (1/3)"
+msgid "于"
+msgstr "at"
+msgid "互斥组内的产品只能选择其中一个，适用于相同功能但规格不同的配件。"
+msgstr "Only one product can be selected from a mutual exclusion group, suitable for accessories with same function but different specs."
+msgid "互斥组名称"
+msgstr "Group name"
+msgid "互斥组说明"
+msgstr "Group description"
+msgid "交付地址"
+msgstr "Delivery address"
+msgid "交付时间"
+msgstr "Delivery time"
+msgid "交付条款"
+msgstr "Delivery terms"
+msgid "产品"
+msgstr "Product"
+msgid "产品PDF"
+msgstr "Product PDF"
+msgid "产品分析"
+msgstr "Product analysis"
+msgid "产品分类管理"
+msgstr "Product category management"
+msgid "产品列表集成效果"
+msgstr "Product list integration effect"
+msgid "产品名称、型号、描述或MN号"
+msgstr "Product name, model, description or MN number"
+msgid "产品库引用"
+msgstr "Product library reference"
+msgid "产品明细列表"
+msgstr "Product details list"
+msgid "产品未找到"
+msgstr "Product not found"
+msgid "产品标记"
+msgstr "Product tag"
+msgid "产品系列"
+msgstr "Product series"
+msgid "产品编码定义说明"
+msgstr "Product code definition description"
+msgid "产品规格信息将在产品编辑时添加"
+msgstr "Product specification info will be added when editing product"
+msgid "产品配置"
+msgstr "Product configuration"
+msgid "产品阶段跟踪"
+msgstr "Product stage tracking"
+msgid "仅保存到此产品，不影响其他产品"
+msgstr "Only save to this product, does not affect others"
+msgid "仅显示当前子分类下的指标"
+msgstr "Only show indicators under current subcategory"
+msgid "仅用于此产品"
+msgstr "Only for this product"
+msgid "从左侧产品树中选择要关联的产品"
+msgstr "Select products to associate from the product tree on the left"
+msgid "从规格字典中选择"
+msgstr "Select from spec dictionary"
+msgid "付款条件"
+msgstr "Payment terms"
+msgid "付款条款"
+msgstr "Payment terms"
+msgid "代码示例"
+msgstr "Code example"
+msgid "价格增量"
+msgstr "Price increment"
+msgid "价格有效期"
+msgstr "Price validity"
+msgid "企业"
+msgstr "Company"
+msgid "企业名称字典管理"
+msgstr "Company name dictionary"
+msgid "企业字典管理"
+msgstr "Company dictionary management"
+msgid "企业官方邮箱"
+msgstr "Company official email"
+msgid "企业已锁定，来自项目客户关联"
+msgstr "Company locked, from project customer association"
+msgid "企业电话"
+msgstr "Company phone"
+msgid "企业级"
+msgstr "Company level"
+msgid "企业联系电话"
+msgstr "Company phone"
+msgid "企业详细信息"
+msgstr "Company details"
+msgid "企业资产管理"
+msgstr "Company assets management"
+msgid "企业邮箱"
+msgstr "Company email"
+msgid "传真"
+msgstr "Fax"
+msgid "传真号码"
+msgstr "Fax number"
+msgid "传统审批信息"
+msgstr "Traditional approval info"
+msgid "位置"
+msgstr "Location"
+msgid "使用示例"
+msgstr "Usage example"
+msgid "使用英文和下划线"
+msgstr "Use English and underscores"
+msgid "例如：电源线规格"
+msgstr "Example: Power cable specification"
+msgid "保存个人权限"
+msgstr "Save personal permissions"
+msgid "保存中"
+msgstr "Saving"
+msgid "保存产品"
+msgstr "Save product"
+msgid "保存信息"
+msgstr "Save info"
+msgid "保存后将自动返回企业详情页面"
+msgstr "Will automatically return to company details after saving"
+msgid "保存失败 ({status}): 服务器内部错误"
+msgstr "Save failed ({status}): Server internal error"
+msgid "保存失败："
+msgstr "Save failed:"
+msgid "保存并选择"
+msgstr "Save and select"
+msgid "保存报销单"
+msgstr "Save expense"
+msgid "保存权限设置"
+msgstr "Save permission settings"
+msgid "保存用户"
+msgstr "Save user"
+msgid "保存记录"
+msgstr "Save record"
+msgid "保存配置"
+msgstr "Save config"
+msgid "保留"
+msgstr "Keep"
+msgid "信息预览"
+msgstr "Info preview"
+msgid "修改联系人负责人"
+msgstr "Change contact owner"
+msgid "停留："
+msgstr "Duration:"
+msgid "入库"
+msgstr "Stock in"
+msgid "入库吗"
+msgstr " be stocked in?"
+msgid "入库审批流程"
+msgstr "Stock in approval flow"
+msgid "入库时间"
+msgstr "Stock in time"
+msgid "全部型号"
+msgstr "All models"
+msgid "公司信息"
+msgstr "Company info"
+msgid "共享给以下用户："
+msgstr "Shared with:"
+msgid "关于此项目的详细说明"
+msgstr "Detailed description of this project"
+msgid "关联数据"
+msgstr "Associated data"
+msgid "内容高度"
+msgstr "Content height"
+msgid "农业"
+msgstr "Agriculture"
+msgid "减价"
+msgstr "Price decrease"
+msgid "出库"
+msgstr "Stock out"
+msgid "分类名称"
+msgstr "Category name"
+msgid "分类已有共享"
+msgstr "Category already has sharing"
+msgid "分类规格会被该分类下所有子分类继承，指标在子分类中管理"
+msgstr "Category specs will be inherited by all subcategories, indicators are managed in subcategories"
+msgid "切换中"
+msgstr "Switching"
+msgid "切换导航"
+msgstr "Toggle navigation"
+msgid "切换语言"
+msgstr "Switch language"
+msgid "刚刚到达"
+msgstr "Just arrived"
+msgid "创建完成，可以提交审批流程。"
+msgstr "Created, can submit for approval."
+msgid "创建客户"
+msgstr "Create customer"
+msgid "创建并添加"
+msgstr "Create and add"
+msgid "创建成功"
+msgstr "Created successfully"
+msgid "创建批价单时出错，请重试"
+msgstr "Error creating pricing order, please retry"
+msgid "创建报价"
+msgstr "Create quotation"
+msgid "创建新指标"
+msgstr "Create new indicator"
+msgid "创建新项目"
+msgstr "Create new project"
+msgid "创建测试批价单"
+msgstr "Create test pricing order"
+msgid "创建者"
+msgstr "Creator"
+msgid "创建规格"
+msgstr "Create specification"
+msgid "创建规格失败"
+msgstr "Create specification failed"
+msgid "删除备份"
+msgstr "Delete backup"
+msgid "删除过程中发生错误"
+msgstr "Error occurred during deletion"
+msgid "到达时间："
+msgstr "Arrival time:"
+msgid "到达："
+msgstr "Arrival:"
+msgid "刷新"
+msgstr "Refresh"
+msgid "刷新中"
+msgstr "Refreshing"
+msgid "刷新失败"
+msgstr "Refresh failed"
+msgid "刷新数据"
+msgstr "Refresh data"
+msgid "前"
+msgstr " ago"
+msgid "前往项目列表创建批价单"
+msgstr "Go to project list to create pricing order"
+msgid "前往项目创建页面"
+msgstr "Go to project creation page"
+msgid "加价"
+msgstr "Price increase"
+msgid "加载PDF预览..."
+msgstr "Loading PDF preview..."
+msgid "加载产品树失败，请刷新页面重试"
+msgstr "Failed to load product tree, please refresh and retry"
+msgid "加载列表失败，请刷新页面重试"
+msgstr "Failed to load list, please refresh and retry"
+msgid "加载图片中..."
+msgstr "Loading image..."
+msgid "加载失败，请重试"
+msgstr "Load failed, please retry"
+msgid "加载客户失败"
+msgstr "Failed to load customer"
+msgid "加载报价单列表失败"
+msgstr "Failed to load quotation list"
+msgid "加载报价单列表失败，请重试"
+msgstr "Failed to load quotation list, please retry"
+msgid "加载更多..."
+msgstr "Load more..."
+msgid "匹配"
+msgstr "Match"
+msgid "单据总数"
+msgstr "Total documents"
+msgid "单据数量"
+msgstr "Document count"
+msgid "占1/3"
+msgstr "Takes 1/3"
+msgid "厂商产品"
+msgstr "Vendor products"
+msgid "厂商标记"
+msgstr "Vendor tag"
+msgid "厂商账户可查看经销商信息"
+msgstr "Vendor accounts can view dealer information"
+msgid "原MN"
+msgstr "Original MN"
+msgid "原产地"
+msgstr "Origin"
+msgid "原始发票货币金额"
+msgstr "Original invoice currency amount"
+msgid "参与编码"
+msgstr "Participate in coding"
+msgid "参数"
+msgstr "Parameters"
+msgid "发现相似项目名称"
+msgstr "Similar project names found"
+msgid "发票下载失败"
+msgstr "Invoice download failed"
+msgid "发票图片"
+msgstr "Invoice image"
+msgid "发票图片不存在或已损坏"
+msgstr "Invoice image does not exist or is corrupted"
+msgid "发票图片路径无效"
+msgstr "Invoice image path invalid"
+msgid "发票数据缺失"
+msgstr "Invoice data missing"
+msgid "发票文件下载失败"
+msgstr "Invoice file download failed"
+msgid "发票货币"
+msgstr "Invoice currency"
+msgid "发票货币→报销单货币的汇率"
+msgstr "Invoice currency → Expense currency exchange rate"
+msgid "发起失败"
+msgstr "Initiate failed"
+msgid "发起审批"
+msgstr "Initiate approval"
+msgid "发起审批流程"
+msgstr "Initiate approval flow"
+msgid "发送邀请邮件"
+msgstr "Send invitation email"
+msgid "取消按钮文本"
+msgstr "Cancel button text"
+msgid "只能访问自己创建或被分享的数据"
+msgstr "Can only access self-created or shared data"
+msgid "召回后流程将停止，状态将回到草稿状态。"
+msgstr "After recall, process will stop and status will return to draft."
+msgid "召回失败："
+msgstr "Recall failed:"
+msgid "召回审批失败，请重试"
+msgstr "Recall approval failed, please retry"
+msgid "可从当前分类下已有产品名称中选择"
+msgstr "Can select from existing product names under current category"
+msgid "可以提交审批流程"
+msgstr "Can submit for approval"
+msgid "可以访问本企业内所有数据"
+msgstr "Can access all data in own company"
+msgid "可以访问本部门内所有数据"
+msgstr "Can access all data in own department"
+msgid "可以访问系统内所有数据，不受数据归属限制"
+msgstr "Can access all data in the system without restrictions"
+msgid "可在当前审核阶段编辑"
+msgstr "Editable in current review stage"
+msgid "可在当前审核阶段编辑汇率"
+msgstr "Exchange rate editable in current review stage"
+msgid "可查看"
+msgstr "Can view"
+msgid "可编辑字段"
+msgstr "Editable fields"
+msgid "右侧行动记录区域"
+msgstr "Right side action records area"
+msgid "号19楼"
+msgstr " No. 19F"
+msgid "合价"
+msgstr "Total price"
+msgid "合同签订后"
+msgstr "After contract signing"
+msgid "合并"
+msgstr "Merge"
+msgid "合并设置"
+msgstr "Merge settings"
+msgid "合并预览"
+msgstr "Merge preview"
+msgid "名称"
+msgstr "Name"
+msgid "向用户发送账户激活邮件"
+msgstr "Send account activation email to user"
+msgid "吗？此操作不可恢复"
+msgstr "? This action cannot be undone"
+msgid "吗？此操作不可恢复。"
+msgstr "? This action cannot be undone."
+msgid "吗？此操作不可撤销"
+msgstr "? This action cannot be undone"
+msgid "否"
+msgstr "No"
+msgid "含义"
+msgstr "Meaning"
+msgid "启动批价流程"
+msgstr "Start pricing flow"
+msgid "启用"
+msgstr "Enable"
+msgid "启用共享"
+msgstr "Enable sharing"
+msgid "周\n质保"
+msgstr " weeks\nwarranty"
+msgid "周趋势"
+msgstr "Weekly trend"
+msgid "和源通信"
+msgstr "Heyuan Communication"
+msgid "响应"
+msgstr "Response"
+msgid "图片alt文本"
+msgstr "Image alt text"
+msgid "图片上传成功"
+msgstr "Image uploaded successfully"
+msgid "图片上传成功！"
+msgstr "Image uploaded successfully!"
+msgid "图片上传成功！页面将自动刷新"
+msgstr "Image uploaded successfully! Page will refresh automatically"
+msgid "图片文件"
+msgstr "Image file"
+msgid "图片文件太大！最大允许 12MB，当前文件"
+msgstr "Image file too large! Maximum 12MB, current file"
+msgid "图片预览"
+msgstr "Image preview"
+msgid "在新窗口中打开"
+msgstr "Open in new window"
+msgid "在此页面您可以设置该用户能够查看哪些其他用户的数据。注意：用户只能查看这些数据，不能编辑或删除。"
+msgstr "On this page, you can set which other users' data this user can view. Note: Users can only view this data, not edit or delete."
+msgid "地区"
+msgstr "Region"
+msgid "型号编码"
+msgstr "Model code"
+msgid "型号规格"
+msgstr "Model specifications"
+msgid "基准价"
+msgstr "Base price"
+msgid "基础功能正常"
+msgstr "Basic functionality normal"
+msgid "处理"
+msgstr "Process"
+msgid "处理中"
+msgstr "Processing"
+msgid "处理时间："
+msgstr "Processing time:"
+msgid "处理："
+msgstr "Processing:"
+msgid "备份失败"
+msgstr "Backup failed"
+msgid "备份失败：未生成备份文件"
+msgstr "Backup failed: backup file not generated"
+msgid "备份完成！"
+msgstr "Backup complete!"
+msgid "备注信息"
+msgstr "Notes"
+msgid "复制失败"
+msgstr "Copy failed"
+msgid "大尺寸 (200x200px)"
+msgstr "Large (200x200px)"
+msgid "天内付款"
+msgstr " days payment"
+msgid "如有问题"
+msgstr "If you have questions"
+msgid "如：ACME公司"
+msgstr "E.g.: ACME Corp"
+msgid "如：PA、LNA、Mixer"
+msgstr "E.g.: PA, LNA, Mixer"
+msgid "如：功放芯片、低噪放"
+msgstr "E.g.: Power amp chip, LNA"
+msgid "如：台、个、套"
+msgstr "E.g.: Unit, Piece, Set"
+msgid "如：客户销售"
+msgstr "E.g.: Customer Sales"
+msgid "子分类共享图片"
+msgstr "Subcategory shared images"
+msgid "子分类名称"
+msgstr "Subcategory name"
+msgid "子分类指标"
+msgstr "Subcategory indicators"
+msgid "字段名称"
+msgstr "Field name"
+msgid "字段类型"
+msgstr "Field type"
+msgid "季度详情"
+msgstr "Quarterly details"
+msgid "安全令牌未找到"
+msgstr "Security token not found"
+msgid "完善个人信息"
+msgstr "Complete personal info"
+msgid "完成此次记录后将显示在这里"
+msgstr "After completing this record, it will be displayed here"
+msgid "审批"
+msgstr "Approval"
+msgid "审批人："
+msgstr "Approver:"
+msgid "审批处理失败："
+msgstr "Approval processing failed:"
+msgid "审批已成功召回"
+msgstr "Approval successfully recalled"
+msgid "审批流程已发起！页面即将刷新..."
+msgstr "Approval flow initiated! Page will refresh..."
+msgid "审批流程已完成。"
+msgstr "Approval flow completed."
+msgid "审批流程被召回"
+msgstr "Approval flow recalled"
+msgid "审批流程被拒绝"
+msgstr "Approval flow rejected"
+msgid "审批流程进行中，已有人员审批，无法召回。"
+msgstr "Approval in progress, someone has already approved, cannot recall."
+msgid "审批流程进行中，您可以召回流程。"
+msgstr "Approval in progress, you can recall the process."
+msgid "审批被拒绝提醒"
+msgstr "Approval rejection reminder"
+msgid "审核阶段不可上传发票"
+msgstr "Cannot upload invoices in review stage"
+msgid "审核阶段不可进行此操作"
+msgstr "Cannot perform this operation in review stage"
+msgid "审核阶段此字段不可编辑"
+msgstr "This field is not editable in review stage"
+msgid "审核阶段编辑模式"
+msgstr "Review stage edit mode"
+msgid "客户行业"
+msgstr "Customer industry"
+msgid "容器样式"
+msgstr "Container style"
+msgid "容器高度"
+msgstr "Container height"
+msgid "导出功能加载失败"
+msgstr "Export function load failed"
+msgid "导出报销单"
+msgstr "Export expense report"
+msgid "导出选项"
+msgstr "Export options"
+msgid "将使用审批流程："
+msgstr "Will use approval flow:"
+msgid "将在确认报价单时创建新产品"
+msgstr "Will create new product when confirming quotation"
+msgid "将自动生成：报销说明前6字-姓名-YYMMDDHHS"
+msgstr "Will auto generate: First 6 chars of description-Name-YYMMDDHHS"
+msgid "将自动生成：报销说明前6字-账号-YYMMDDHHS"
+msgstr "Will auto generate: First 6 chars of description-Account-YYMMDDHHS"
+msgid "尊敬的"
+msgstr "Dear"
+msgid "小尺寸 (60x60px)"
+msgstr "Small (60x60px)"
+msgid "小时"
+msgstr "hour(s)"
+msgid "尚未提交审批"
+msgstr "Not submitted for approval yet"
+msgid "尺寸"
+msgstr "Size"
+msgid "展开侧边栏"
+msgstr "Expand sidebar"
+msgid "已停产的产品不会在报价单中显示"
+msgstr "Discontinued products will not be displayed in quotations"
+msgid "已入库产品列表"
+msgstr "Stocked products list"
+msgid "已加载全部数据"
+msgstr "All data loaded"
+msgid "已发送"
+msgstr "Sent"
+msgid "已存在相同规格产品"
+msgstr "Product with same specification already exists"
+msgid "已完全结算"
+msgstr "Fully settled"
+msgid "已引用"
+msgstr "Referenced"
+msgid "已有项目"
+msgstr "Existing projects"
+msgid "已添加"
+msgstr "Added"
+msgid "已激活"
+msgstr "Activated"
+msgid "已禁用"
+msgstr "Disabled"
+msgid "已被产品使用，无法编辑"
+msgstr "Used by products, cannot edit"
+msgid "已选目标"
+msgstr "Selected targets"
+msgid "已配置"
+msgstr "Configured"
+msgid "带国家号"
+msgstr "With country code"
+msgid "平均单价"
+msgstr "Average unit price"
+msgid "年度汇总"
+msgstr "Annual summary"
+msgid "库存信息"
+msgstr "Inventory information"
+msgid "库存关联结算记录"
+msgstr "Inventory settlement records"
+msgid "库存报表"
+msgstr "Inventory report"
+msgid "库存操作"
+msgstr "Inventory operation"
+msgid "库存调整"
+msgstr "Inventory adjustment"
+msgid "建议使用字母"
+msgstr "Suggest using letters"
+msgid "建议包含：沟通目的、讨论内容、结果总结、后续计划等"
+msgstr "Suggest including: communication purpose, discussion content, result summary, follow-up plans, etc."
+msgid "建议联系管理员迁移数据"
+msgstr "Suggest contacting admin to migrate data"
+msgid "开启后，团队成员可以查看此沟通记录；关闭后仅管理员和上级可见"
+msgstr "When enabled, team members can view this record; when disabled, only admins and superiors can see"
+msgid "开始检测"
+msgstr "Start detection"
+msgid "引用情况"
+msgstr "Reference status"
+msgid "强制应用后的样式"
+msgstr "Style after force apply"
+msgid "归属关系"
+msgstr "Affiliation"
+msgid "当前中标阶段的项目统计"
+msgstr "Project statistics in won stage"
+msgid "当前可见用户列表"
+msgstr "Currently visible user list"
+msgid "当前处于招标阶段的项目统计"
+msgstr "Project statistics in tender stage"
+msgid "当前审核阶段"
+msgstr "Current review stage"
+msgid "当前已选择："
+msgstr "Currently selected:"
+msgid "当前批价阶段的项目统计"
+msgstr "Project statistics in pricing stage"
+msgid "当前月份"
+msgstr "Current month"
+msgid "当前选择"
+msgstr "Current selection"
+msgid "当前阶段\"
+msgstr "Current stage\"
+msgid "当前项目名称"
+msgstr "Current project name"
+msgid "当项目拥有人不是厂商企业账户时，可以指定厂商销售负责人"
+msgstr "When project owner is not a vendor company account, you can specify vendor sales manager"
+msgid "待"
+msgstr "Pending"
+msgid "待分配"
+msgstr "To be allocated"
+msgid "待合并"
+msgstr "To be merged"
+msgid "待审核"
+msgstr "Pending review"
+msgid "待确认状态"
+msgstr "Pending confirmation"
+msgid "待配置"
+msgstr "To be configured"
+msgid "必填"
+msgstr "Required"
+msgid "必须全局唯一且符合英文命名规范"
+msgstr "Must be globally unique and follow English naming conventions"
+msgid "快速添加行动记录..."
+msgstr "Quick add action record..."
+msgid "总经理审核"
+msgstr "General manager review"
+msgid "您可以通过右上角的用户菜单中的"
+msgstr "You can access from user menu in the top right"
+msgid "您可以重新发起审批流程"
+msgstr "You can reinitiate the approval flow"
+msgid "您可以重新提交。"
+msgstr "You can resubmit."
+msgid "您暂无权限审批此阶段"
+msgstr "You do not have permission to approve this stage"
+msgid "您没有权限发起此审批流程。只有数据拥有者和项目的厂商销售负责人可以发起审批。"
+msgstr "You do not have permission to initiate this approval flow. Only data owners and project vendor sales managers can initiate."
+msgid "您确定要拒绝此审批吗？"
+msgstr "Are you sure to reject this approval?"
+msgid "您确定要通过此审批吗？"
+msgstr "Are you sure to approve this approval?"
+msgid "您还没有创建任何批价单"
+msgstr "You haven't created any pricing orders"
+msgid "我可以查看的用户"
+msgstr "Users I can view"
+msgid "我自己"
+msgstr "Myself"
+msgid "户"
+msgstr "accounts"
+msgid "所在公司"
+msgstr "Company"
+msgid "所属企业"
+msgstr "Company"
+msgid "所有产品均已添加，无可选产品"
+msgstr "All products have been added, no products available"
+msgid "所有产品都已处理完毕"
+msgstr "All products have been processed"
+msgid "所有指标都已添加，可点击创建"
+msgstr "All indicators added, click to create"
+msgid "所有用户"
+msgstr "All users"
+msgid "手机号"
+msgstr "Mobile"
+msgid "执行合并"
+msgstr "Execute merge"
+msgid "批价单PDF"
+msgstr "Pricing order PDF"
+msgid "批价单分页"
+msgstr "Pricing order pagination"
+msgid "批价单列表"
+msgstr "Pricing order list"
+msgid "批价单创建成功"
+msgstr "Pricing order created successfully"
+msgid "批价单创建成功，正在跳转"
+msgstr "Pricing order created, redirecting"
+msgid "批价单功能测试"
+msgstr "Pricing order function test"
+msgid "批价单号"
+msgstr "Pricing order number"
+msgid "批价单将基于已确认的产品明细创建，提交后将进入审批流程。"
+msgstr "Pricing order will be created based on confirmed product details, will enter approval flow after submission."
+msgid "批价单已提交审批！"
+msgstr "Pricing order submitted for approval!"
+msgid "批价单编辑"
+msgstr "Edit pricing order"
+msgid "批价总额"
+msgstr "Pricing total"
+msgid "折扣金额"
+msgstr "Discount amount"
+msgid "报价单产品明细尚未确认，无法提交批价单。"
+msgstr "Quotation product details not confirmed, cannot submit pricing order."
+msgid "报价单产品明细尚未确认，无法提交批价单。请先确认产品明细。"
+msgstr "Quotation product details not confirmed, cannot submit pricing order. Please confirm product details first."
+msgid "报价单未关联项目"
+msgstr "Quotation not associated with project"
+msgid "报价客户"
+msgstr "Quote customer"
+msgid "报销单"
+msgstr "Expense report"
+msgid "报销单创建完成，可以提交审批流程。"
+msgstr "Expense report created, can submit for approval."
+msgid "报销单发票"
+msgstr "Expense invoices"
+msgid "报销单号"
+msgstr "Expense number"
+msgid "报销单审批操作"
+msgstr "Expense approval operation"
+msgid "报销单审批流程"
+msgstr "Expense approval flow"
+msgid "报销明细删除成功"
+msgstr "Expense item deleted successfully"
+msgid "报销明细组件未正确初始化"
+msgstr "Expense details component not initialized properly"
+msgid "抱歉"
+msgstr "Sorry"
+msgid "拒绝原因"
+msgstr "Rejection reason"
+msgid "拒绝审批人"
+msgstr "Rejected by"
+msgid "拒绝时间"
+msgstr "Rejected at"
+msgid "拒绝流程"
+msgstr "Rejection process"
+msgid "指标"
+msgstr "Indicator"
+msgid "指标值不能为空"
+msgstr "Indicator value cannot be empty"
+msgid "指标名称"
+msgstr "Indicator name"
+msgid "指标规格"
+msgstr "Indicator specification"
+msgid "按创建时间排序"
+msgstr "Sort by creation time"
+msgid "按匹配度排序，一页显示更多信息"
+msgstr "Sort by match score, show more info per page"
+msgid "按钮添加"
+msgstr "button to add"
+msgid "推荐目标"
+msgstr "Recommended target"
+msgid "推进后将无法直接回退"
+msgstr "Cannot directly rollback after advancing"
+msgid "描述"
+msgstr "Description"
+msgid "描述或"
+msgstr "Description or"
+msgid "提交后将进入审批流程"
+msgstr "Will enter approval flow after submission"
+msgid "提交后将进入审批流程，无法直接修改报销信息。"
+msgstr "Will enter approval flow after submission, cannot directly modify expense info."
+msgid "提交后需等待管理员审核"
+msgstr "Need to wait for admin review after submission"
+msgid "提交失败，请稍后重试"
+msgstr "Submit failed, please retry later"
+msgid "提交失败："
+msgstr "Submit failed:"
+msgid "提交审批失败，请重试"
+msgstr "Submit approval failed, please retry"
+msgid "提交批价"
+msgstr "Submit pricing"
+msgid "提交按钮文本"
+msgstr "Submit button text"
+msgid "搜索..."
+msgstr "Search..."
+msgid "搜索中..."
+msgstr "Searching..."
+msgid "搜索产品型号或名称..."
+msgstr "Search product model or name..."
+msgid "搜索分类..."
+msgstr "Search category..."
+msgid "搜索用户"
+msgstr "Search user"
+msgid "操作人"
+msgstr "Operator"
+msgid "操作类型"
+msgstr "Operation type"
+msgid "支持图片和PDF文件预览，自动检测文件类型，提供多种尺寸选项"
+msgstr "Supports image and PDF preview, auto-detects file type, provides multiple size options"
+msgid "支持格式"
+msgstr "Supported formats"
+msgid "收到"
+msgstr "Received"
+msgid "收起"
+msgstr "Collapse"
+msgid "收起侧边栏"
+msgstr "Collapse sidebar"
+msgid "收起详情"
+msgstr "Collapse details"
+msgid "政府"
+msgstr "Government"
+msgid "数字和特殊字符的组合"
+msgstr "combination of numbers and special characters"
+msgid "数据库备份管理"
+msgstr "Database backup management"
+msgid "数据归属关系管理"
+msgstr "Data affiliation management"
+msgid "数据归属权限设置"
+msgstr "Data affiliation permission settings"
+msgid "数量分布"
+msgstr "Quantity distribution"
+msgid "文件"
+msgstr "File"
+msgid "文件URL地址（必需）"
+msgstr "File URL (required)"
+msgid "文件下载失败"
+msgstr "File download failed"
+msgid "文件为空"
+msgstr "File is empty"
+msgid "文件将命名为"
+msgstr "File will be named"
+msgid "文件类型"
+msgstr "File type"
+msgid "文件类型：image, pdf, auto"
+msgstr "File type: image, pdf, auto"
+msgid "文件预览"
+msgstr "File preview"
+msgid "文件预览组件演示"
+msgstr "File preview component demo"
+msgid "新MN"
+msgstr "New MN"
+msgid "新增企业名称"
+msgstr "Add company name"
+msgid "新增客户实际"
+msgstr "New customer actual"
+msgid "新增客户目标"
+msgstr "New customer target"
+msgid "新增用户"
+msgstr "Add user"
+msgid "新增行动记录"
+msgstr "New action record"
+msgid "新增项目实际"
+msgstr "New project actual"
+msgid "新增项目目标"
+msgstr "New project target"
+msgid "新客户创建通知"
+msgstr "New customer creation notification"
+msgid "新密码"
+msgstr "New password"
+msgid "新窗口被阻止"
+msgstr "New window blocked"
+msgid "新项目创建通知"
+msgstr "New project creation notification"
+msgid "无可用的审批模板，请联系管理员"
+msgstr "No available approval templates, please contact admin"
+msgid "无增量"
+msgstr "No increment"
+msgid "无所有者"
+msgstr "No owner"
+msgid "无法保存:"
+msgstr "Cannot save:"
+msgid "无法修改"
+msgstr "Cannot modify"
+msgid "无法加载PDF预览"
+msgstr "Cannot load PDF preview"
+msgid "无法找到当前审批阶段信息"
+msgstr "Cannot find current approval stage information"
+msgid "无法提交批价"
+msgstr "Cannot submit pricing"
+msgid "无法直接修改项目信息"
+msgstr "Cannot directly modify project info"
+msgid "无法获取报价单"
+msgstr "Cannot get quotation"
+msgid "无法预览"
+msgstr "Cannot preview"
+msgid "无科目"
+msgstr "No subject"
+msgid "无线交换机"
+msgstr "Wireless switch"
+msgid "无需进一步操作"
+msgstr "No further action needed"
+msgid "无默认"
+msgstr "No default"
+msgid "明细信息："
+msgstr "Details:"
+msgid "是"
+msgstr "Yes"
+msgid "是厂商"
+msgstr "Is vendor"
+msgid "是否创建此规格？创建后可添加选项值。"
+msgstr "Create this specification? Can add option values after creation."
+msgid "是否刷新当前页面应用新语言"
+msgstr "Refresh current page to apply new language?"
+msgid "是否可滚动"
+msgstr "Is scrollable"
+msgid "是否显示控制按钮"
+msgstr "Show control buttons"
+msgid "是系统内部使用的英文标识符"
+msgstr "Is English identifier used internally"
+msgid "是部门负责人"
+msgstr "Is department head"
+msgid "显示/隐藏筛选器"
+msgstr "Show/hide filters"
+msgid "显示文本"
+msgstr "Display text"
+msgid "显示给用户的企业名称"
+msgstr "Company name displayed to user"
+msgid "显示给用户的角色名称"
+msgstr "Role name displayed to user"
+msgid "普陀区"
+msgstr "Putuo District"
+msgid "智能客户合并工具"
+msgstr "Smart customer merge tool"
+msgid "智能检测重复客户，支持灵活选择目标客户和被合并客户"
+msgstr "Smart detection of duplicate customers, supports flexible selection of target and merged customers"
+msgid "暂无产品图片"
+msgstr "No product images"
+msgid "暂无产品文档"
+msgstr "No product documents"
+msgid "暂无关联客户，点击上方"
+msgstr "No associated customers, click above"
+msgid "暂无分类"
+msgstr "No categories"
+msgid "暂无可用指标"
+msgstr "No available indicators"
+msgid "暂无可选产品"
+msgstr "No products available"
+msgid "暂无可选择的用户"
+msgstr "No users available"
+msgid "暂无子分类使用此指标"
+msgstr "No subcategories use this indicator"
+msgid "暂无工作记录"
+msgstr "No work records"
+msgid "暂无当月数据"
+msgstr "No data for current month"
+msgid "暂无报价单，点击上方按钮添加"
+msgstr "No quotations, click button above to add"
+msgid "暂无沟通记录"
+msgstr "No communication records"
+msgid "暂无研发产品记录"
+msgstr "No R&D product records"
+msgid "暂无绩效数据"
+msgstr "No performance data"
+msgid "暂无行业统计数据"
+msgstr "No industry statistics data"
+msgid "暂无规格字段"
+msgstr "No spec fields"
+msgid "暂无选项"
+msgstr "No options"
+msgid "暂无选项，请添加"
+msgstr "No options, please add"
+msgid "暂未被产品库引用"
+msgstr "Not referenced by product library yet"
+msgid "更新分类共享文件，所有使用分类文件的产品都会更新"
+msgstr "Update category shared files, all products using category files will be updated"
+msgid "更新成功"
+msgstr "Updated successfully"
+msgid "更新确认徽章状态"
+msgstr "Update confirmation badge status"
+msgid "最后备份"
+msgstr "Last backup"
+msgid "最大"
+msgstr "Maximum"
+msgid "最新"
+msgstr "Latest"
+msgid "最近沟通"
+msgstr "Recent communication"
+msgid "月份"
+msgstr "Month"
+msgid "月度完成趋势"
+msgstr "Monthly completion trend"
+msgid "月度趋势"
+msgstr "Monthly trend"
+msgid "月趋势"
+msgstr "Monthly trend"
+msgid "服务器响应格式错误："
+msgstr "Server response format error:"
+msgid "服务器返回了非"
+msgstr "Server returned non-"
+msgid "未关联项目"
+msgstr "Not associated with project"
+msgid "未到达"
+msgstr "Not arrived"
+msgid "未发现需要合并的重复客户"
+msgstr "No duplicate customers found that need merging"
+msgid "未审批"
+msgstr "Not approved"
+msgid "未找到"
+msgstr "Not found"
+msgid "未找到匹配的产品"
+msgstr "No matching products found"
+msgid "未找到编码为"
+msgstr "Code not found for"
+msgid "未添加"
+msgstr "Not added"
+msgid "未激活"
+msgstr "Not activated"
+msgid "未激活的账号无法登录系统"
+msgstr "Inactive accounts cannot log in to the system"
+msgid "未知联系人"
+msgstr "Unknown contact"
+msgid "未选择任何产品"
+msgstr "No products selected"
+msgid "未选择任何用户"
+msgstr "No users selected"
+msgid "未选择用户"
+msgstr "No user selected"
+msgid "未配置API地址"
+msgstr "API address not configured"
+msgid "本地"
+msgstr "Local"
+msgid "本月新增"
+msgstr "New this month"
+msgid "权限"
+msgstr "Permission"
+msgid "权限级别"
+msgstr "Permission level"
+msgid "权限级别说明"
+msgstr "Permission level description"
+msgid "查看原图"
+msgstr "View original"
+msgid "查看客户详情"
+msgstr "View customer details"
+msgid "查看批价单列表"
+msgstr "View pricing order list"
+msgid "查看绩效"
+msgstr "View performance"
+msgid "查看项目详情"
+msgstr "View project details"
+msgid "标准产品"
+msgstr "Standard product"
+msgid "标签页配置列表"
+msgstr "Tab configuration list"
+msgid "标记为负责人的用户将在同公司同部门中拥有更高的权限"
+msgstr "Users marked as owners will have higher permissions in the same company and department"
+msgid "标识符"
+msgstr "Identifier"
+msgid "标题文本"
+msgstr "Title text"
+msgid "格式的报价单"
+msgstr " format quotation"
+msgid "检查中"
+msgstr "Checking"
+msgid "检测中..."
+msgstr "Detecting..."
+msgid "检测失败"
+msgstr "Detection failed"
+msgid "检测完成"
+msgstr "Detection complete"
+msgid "植入分析"
+msgstr "Penetration analysis"
+msgid "植入目标"
+msgstr "Penetration target"
+msgid "植入额实际"
+msgstr "Penetration amount actual"
+msgid "植入额目标"
+msgstr "Penetration amount target"
+msgid "模块列表"
+msgstr "Module list"
+msgid "模态框唯一"
+msgstr "Modal unique"
+msgid "橙色"
+msgstr "Orange"
+msgid "正在上传文件..."
+msgstr "Uploading file..."
+msgid "正在分析客户相似度..."
+msgstr "Analyzing customer similarity..."
+msgid "正在切换到"
+msgstr "Switching to"
+msgid "正在创建备份..."
+msgstr "Creating backup..."
+msgid "正在删除备份..."
+msgstr "Deleting backup..."
+msgid "正在加载PDF预览..."
+msgstr "Loading PDF preview..."
+msgid "正在加载产品数据..."
+msgstr "Loading product data..."
+msgid "正在加载可配置规格..."
+msgstr "Loading configurable specifications..."
+msgid "正在加载图表数据"
+msgstr "Loading chart data"
+msgid "正在加载客户数据..."
+msgstr "Loading customer data..."
+msgid "正在加载已选用户"
+msgstr "Loading selected users"
+msgid "正在加载用户列表"
+msgstr "Loading user list"
+msgid "正在加载绩效数据"
+msgstr "Loading performance data"
+msgid "正在加载配置选项..."
+msgstr "Loading configuration options..."
+msgid "正在启动备份任务..."
+msgstr "Starting backup task..."
+msgid "正在检测重复客户..."
+msgstr "Detecting duplicate customers..."
+msgid "正在清理旧备份..."
+msgstr "Cleaning old backups..."
+msgid "正在生成合并建议..."
+msgstr "Generating merge suggestions..."
+msgid "正在计算匹配度..."
+msgstr "Calculating match score..."
+msgid "正数"
+msgstr "Positive"
+msgid "此产品使用旧的产品名称字段"
+msgstr "This product uses old product name field"
+msgid "此字段在当前审批阶段可编辑"
+msgstr "This field is editable in current approval stage"
+msgid "此报销单创建时未关联客户"
+msgstr "This expense was created without associated customer"
+msgid "此报销单状态为"
+msgstr "This expense status is"
+msgid "此操作不可恢复。"
+msgstr "This action cannot be undone."
+msgid "此操作不可撤销！被合并的客户将被删除，其所有数据将转移到目标客户。"
+msgstr "This action cannot be undone! Merged customers will be deleted and all their data will be transferred to target customer."
+msgid "此操作将更新阶段状态"
+msgstr "This will update stage status"
+msgid "此编码定义为产品创建时的快照，记录了编码各位的完整含义，确保历史数据可追溯。"
+msgstr "This code definition is a snapshot at product creation, recording complete meaning of each code position, ensuring historical data traceability."
+msgid "此选项已被产品使用，指标值和编码无法修改"
+msgstr "This option is in use by products, indicator value and code cannot be modified"
+msgid "此邮件为系统自动发送"
+msgstr "This email is automatically sent by the system"
+msgid "武威路"
+msgstr "Wuwei Road"
+msgid "每项包含"
+msgstr "Each item contains"
+msgid "沟通日期"
+msgstr "Communication date"
+msgid "沟通次数"
+msgstr "Communication count"
+msgid "沟通统计"
+msgstr "Communication statistics"
+msgid "没有找到匹配的客户"
+msgstr "No matching customers found"
+msgid "没有找到匹配的项目"
+msgstr "No matching projects found"
+msgid "注意"
+msgstr "Note"
+msgid "流程发起"
+msgstr "Process initiated"
+msgid "添加关联产品"
+msgstr "Add associated products"
+msgid "添加关联客户"
+msgstr "Add associated customer"
+msgid "添加分类"
+msgstr "Add category"
+msgid "添加失败"
+msgstr "Add failed"
+msgid "添加子分类"
+msgstr "Add subcategory"
+msgid "添加库存"
+msgstr "Add inventory"
+msgid "添加成功"
+msgstr "Added successfully"
+msgid "添加或移除用户"
+msgstr "Add or remove users"
+msgid "添加报销明细"
+msgstr "Add expense item"
+msgid "添加报销项目，填写费用发生的详细信息"
+msgstr "Add expense items, fill in expense details"
+msgid "添加新产品系列"
+msgstr "Add new product series"
+msgid "添加新区域"
+msgstr "Add new region"
+msgid "添加新回复..."
+msgstr "Add new reply..."
+msgid "添加新的沟通记录"
+msgstr "Add new communication record"
+msgid "添加新选项"
+msgstr "Add new option"
+msgid "添加者"
+msgstr "Added by"
+msgid "添加规格字段"
+msgstr "Add spec field"
+msgid "添加选中用户"
+msgstr "Add selected users"
+msgid "添加配件"
+msgstr "Add accessories"
+msgid "清理失败"
+msgstr "Cleanup failed"
+msgid "清理完成，删除了"
+msgstr "Cleanup complete, deleted"
+msgid "清理旧备份"
+msgstr "Clean old backups"
+msgid "清空"
+msgstr "Clear"
+msgid "清除失败，请重试"
+msgstr "Clear failed, please retry"
+msgid "渠道"
+msgstr "Channel"
+msgid "滚动功能测试状态"
+msgstr "Scroll function test status"
+msgid "滚动条样式"
+msgstr "Scrollbar style"
+msgid "激活"
+msgstr "Activate"
+msgid "点击上方"
+msgstr "Click above"
+msgid "点击下一阶段节点推进流程"
+msgstr "Click next stage node to advance process"
+msgid "点击下方按钮添加报销项目"
+msgstr "Click button below to add expense item"
+msgid "点击保存修改"
+msgstr "Click to save changes"
+msgid "点击取消关联"
+msgstr "Click to cancel association"
+msgid "点击展开联系人列表"
+msgstr "Click to expand contact list"
+msgid "点击展开联系人列表或输入搜索"
+msgstr "Click to expand contact list or search"
+msgid "点击查看产品库存汇总"
+msgstr "Click to view product inventory summary"
+msgid "点击查看完整PDF"
+msgstr "Click to view full PDF"
+msgid "点击查看审批意见"
+msgstr "Click to view approval comments"
+msgid "点击查看库存详情"
+msgstr "Click to view inventory details"
+msgid "点击模块名称以查看和编辑其权限设置"
+msgstr "Click module name to view and edit its permission settings"
+msgid "点击解锁MN编码"
+msgstr "Click to unlock MN code"
+msgid "点击选择"
+msgstr "Click to select"
+msgid "点击选择为目标客户"
+msgstr "Click to select as target customer"
+msgid "点击选择颜色"
+msgstr "Click to select color"
+msgid "点击锁定MN编码"
+msgstr "Click to lock MN code"
+msgid "点击阶段节点推进流程"
+msgstr "Click stage node to advance process"
+msgid "点击预览查看完整PDF"
+msgstr "Click preview to view full PDF"
+msgid "版权所有"
+msgstr "All rights reserved"
+msgid "状态："
+msgstr "Status:"
+msgid "现有批价单列表"
+msgstr "Existing pricing order list"
+msgid "现有选项"
+msgstr "Existing options"
+msgid "生成"
+msgstr "Generate"
+msgid "生成时间"
+msgstr "Generated at"
+msgid "用于接收系统通知和重要信息"
+msgstr "For receiving system notifications and important messages"
+msgid "用于界面显示"
+msgstr "For UI display"
+msgid "用户管理"
+msgstr "User management"
+msgid "用户角色"
+msgstr "User role"
+msgid "用户详情"
+msgstr "User details"
+msgid "申请注册"
+msgstr "Apply for registration"
+msgid "登录到 PMA 销售项目管理系统"
+msgstr "Login to PMA Sales Project Management System"
+msgid "的产品"
+msgstr "'s product"
+msgid "的关联吗？此操作不可恢复。"
+msgstr "'s association? This action cannot be undone."
+msgid "的绩效数据"
+msgstr "'s performance data"
+msgid "的绩效统计"
+msgstr "'s performance statistics"
+msgid "目标客户"
+msgstr "Target customer"
+msgid "直接下载到本地"
+msgstr "Download directly to local"
+msgid "研发产品"
+msgstr "R&D Product"
+msgid "研发产品库存"
+msgstr "R&D product inventory"
+msgid "研发产品阶段跟踪"
+msgstr "R&D product stage tracking"
+msgid "研发目的"
+msgstr "R&D purpose"
+msgid "确定要删除产品"
+msgstr "Are you sure to delete product"
+msgid "确定要删除吗？"
+msgstr "Are you sure to delete?"
+msgid "确定要删除备份文件"
+msgstr "Are you sure to delete backup file"
+msgid "确定要删除模板"
+msgstr "Are you sure to delete template"
+msgid "确定要删除此选项吗？"
+msgstr "Are you sure to delete this option?"
+msgid "确定要删除联系人「"
+msgstr "Are you sure to delete contact '"
+msgid "确定要删除订单"
+msgstr "Are you sure to delete order"
+msgid "确定要删除该步骤吗"
+msgstr "Are you sure to delete this step"
+msgid "确定要删除这一行吗？"
+msgstr "Are you sure to delete this row?"
+msgid "确定要删除这条回复吗"
+msgstr "Are you sure to delete this reply"
+msgid "确定要删除这条报销明细吗？"
+msgstr "Are you sure you want to delete this expense item?"
+msgid "确定要发起批价流程吗？"
+msgstr "Are you sure to start pricing flow?"
+msgid "确定要召回审批吗？召回后将返回草稿状态。"
+msgstr "Are you sure to recall approval? Will return to draft status after recall."
+msgid "确定要基于此报价单发起批价流程吗？"
+msgstr "Are you sure to start pricing flow based on this quotation?"
+msgid "确定要批准产品"
+msgstr "Are you sure to approve product"
+msgid "确定要提交审批吗？提交后将进入审批流程。"
+msgstr "Are you sure to submit for approval? Will enter approval flow after submission."
+msgid "确定要提交批价单审批吗？提交后将无法修改。"
+msgstr "Are you sure to submit pricing order for approval? Cannot be modified after submission."
+msgid "确定要清理超过30天的旧备份吗？此操作不可恢复。"
+msgstr "Are you sure to clean backups older than 30 days? This action cannot be undone."
+msgid "确定要清除确认徽章吗？"
+msgstr "Are you sure to clear confirmation badge?"
+msgid "确定要申请产品"
+msgstr "Are you sure to apply for product"
+msgid "确定要立即创建备份吗？这可能需要几分钟时间。"
+msgstr "Are you sure to create backup now? This may take a few minutes."
+msgid "确定要解锁此产品的MN编码吗？解锁后MN编码将可以被修改。"
+msgstr "Are you sure to unlock this product's MN code? MN code can be modified after unlock."
+msgid "确定要重新提交审批吗？重新提交后将重置所有审批历史，重新开始审批流程。"
+msgstr "Are you sure to resubmit? Will reset all approval history and restart approval flow."
+msgid "确定要锁定此产品的MN编码吗？锁定后MN编码将不会自动更新。"
+msgstr "Are you sure to lock this product's MN code? MN code will not auto-update after lock."
+msgid "确认删除报销明细"
+msgstr "Confirm delete expense item"
+msgid "确认删除此关联产品？"
+msgstr "Confirm delete this associated product?"
+msgid "确认合并"
+msgstr "Confirm merge"
+msgid "确认合并操作"
+msgstr "Confirm merge operation"
+msgid "确认审核入库"
+msgstr "Confirm review stock in"
+msgid "确认密码"
+msgstr "Confirm password"
+msgid "确认并导出"
+msgstr "Confirm and export"
+msgid "确认徽章"
+msgstr "Confirmation badge"
+msgid "确认提交批价流程"
+msgstr "Confirm submit pricing flow"
+msgid "确认添加"
+msgstr "Confirm add"
+msgid "确认申请入库"
+msgstr "Confirm apply for stock in"
+msgid "确认移除客户关联"
+msgstr "Confirm remove customer association"
+msgid "确认要发起入库审批流程吗？"
+msgstr "Are you sure to start stock in approval flow?"
+msgid "确认解锁"
+msgstr "Confirm unlock"
+msgid "确认设置"
+msgstr "Confirm settings"
+msgid "确认通过"
+msgstr "Confirm approval"
+msgid "确认锁定"
+msgstr "Confirm lock"
+msgid "确认阶段推进"
+msgstr "Confirm stage advance"
+msgid "禁用"
+msgstr "Disable"
+msgid "移除客户关联"
+msgstr "Remove customer association"
+msgid "移除选中用户"
+msgstr "Remove selected users"
+msgid "税费"
+msgstr "Tax"
+msgid "立即备份"
+msgstr "Backup now"
+msgid "立即设置绩效目标"
+msgstr "Set performance targets now"
+msgid "立项中"
+msgstr "In project setup"
+msgid "第"
+msgstr "Page "
+msgid "第{index}条明细的金额必须大于0"
+msgstr "Amount of item {index} must be greater than 0"
+msgid "第{index}条明细的金额必须大于0（发票金额: {invoiceAmount}, 当前金额: {currentAmount}）"
+msgstr "Amount of item {index} must be greater than 0 (Invoice amount: {invoiceAmount}, Current amount: {currentAmount})"
+msgid "等待中"
+msgstr "Waiting"
+msgid "筛选"
+msgstr "Filter"
+msgid "管理"
+msgstr "Manage"
+msgid "管理企业名称字典"
+msgstr "Manage company name dictionary"
+msgid "管理规格选项"
+msgstr "Manage spec options"
+msgid "粉色"
+msgstr "Pink"
+msgid "系统中已创建了一个新客户"
+msgstr "A new customer has been created in the system"
+msgid "系统中已创建了一个新项目"
+msgstr "A new project has been created in the system"
+msgid "系统级"
+msgstr "System level"
+msgid "系统角色"
+msgstr "System role"
+msgid "紫色"
+msgstr "Purple"
+msgid "组件参数说明"
+msgstr "Component parameters"
+msgid "组件滚动已启用"
+msgstr "Component scroll enabled"
+msgid "组件生效"
+msgstr "Component active"
+msgid "结算单PDF"
+msgstr "Settlement order PDF"
+msgid "结算单信息"
+msgstr "Settlement order info"
+msgid "结算单号"
+msgstr "Settlement order number"
+msgid "结算处理"
+msgstr "Settlement processing"
+msgid "结算总额"
+msgstr "Settlement total"
+msgid "结算明细"
+msgstr "Settlement details"
+msgid "统计信息"
+msgstr "Statistics"
+msgid "绩效目标"
+msgstr "Performance targets"
+msgid "绿色"
+msgstr "Green"
+msgid "编码值"
+msgstr "Code value"
+msgid "编码第2位，唯一大写字母A-Z，输入名称后自动生成"
+msgstr "Code position 2, unique uppercase A-Z, auto-generated after entering name"
+msgid "编码第3位，字母A-Z或数字1-9，输入名称后自动生成"
+msgstr "Code position 3, A-Z or 1-9, auto-generated after entering name"
+msgid "编码组成明细"
+msgstr "Code composition details"
+msgid "编辑分类规格"
+msgstr "Edit category specifications"
+msgid "编辑归属"
+msgstr "Edit affiliation"
+msgid "编辑模式下不可修改产品分类"
+msgstr "Cannot modify product category in edit mode"
+msgid "编辑模式下不可修改产品系列"
+msgstr "Cannot modify product series in edit mode"
+msgid "编辑用户"
+msgstr "Edit user"
+msgid "编辑用户信息"
+msgstr "Edit user info"
+msgid "编辑绩效目标"
+msgstr "Edit performance targets"
+msgid "编辑选项"
+msgstr "Edit option"
+msgid "网站地址"
+msgstr "Website"
+msgid "网络存储器"
+msgstr "Network storage"
+msgid "网络请求失败"
+msgstr "Network request failed"
+msgid "网络错误，请稍后重试"
+msgstr "Network error, please retry later"
+msgid "耗时："
+msgstr "Duration:"
+msgid "联系人信息"
+msgstr "Contact information"
+msgid "联系人档案"
+msgstr "Contact profile"
+msgid "联系电话"
+msgstr "Phone"
+msgid "股份有限公司"
+msgstr "Co., Ltd."
+msgid "自动优化为"
+msgstr "Auto optimized to"
+msgid "自动关联"
+msgstr "Auto associate"
+msgid "自动检测"
+msgstr "Auto detect"
+msgid "至少需要保留一条报销明细"
+msgstr "At least one expense item must be kept"
+msgid "英文标识"
+msgstr "English identifier"
+msgid "蓝色"
+msgstr "Blue"
+msgid "蓝色滚动条"
+msgstr "Blue scrollbar"
+msgid "行的"
+msgstr " row's"
+msgid "补充"
+msgstr "Supplement"
+msgid "补充导出信息"
+msgstr "Supplement export info"
+msgid "表单提交地址"
+msgstr "Form action URL"
+msgid "表单方法"
+msgstr "Form method"
+msgid "表单验证失败，请检查输入内容"
+msgstr "Form validation failed, please check input"
+msgid "被合并客户"
+msgstr "Merged customer"
+msgid "覆盖分类文件"
+msgstr "Override category file"
+msgid "规格MN编码预览"
+msgstr "Spec MN code preview"
+msgid "规格创建成功"
+msgstr "Spec created successfully"
+msgid "规格字段"
+msgstr "Spec fields"
+msgid "规格定制"
+msgstr "Spec customization"
+msgid "规格选项"
+msgstr "Spec options"
+msgid "规格部分将在详情页补充后自动生成"
+msgstr "Specification section will be auto-generated after completing details page"
+msgid "角色"
+msgstr "Role"
+msgid "角色与权限说明"
+msgstr "Roles and permissions"
+msgid "角色列表"
+msgstr "Role list"
+msgid "角色字典管理"
+msgstr "Role dictionary management"
+msgid "角色管理"
+msgstr "Role management"
+msgid "角色绩效配置"
+msgstr "Role performance configuration"
+msgid "警告："
+msgstr "Warning:"
+msgid "订单删除成功"
+msgstr "Order deleted successfully"
+msgid "订单滚动功能测试状态"
+msgstr "Order scroll function test status"
+msgid "订单状态"
+msgstr "Order status"
+msgid "订单说明"
+msgstr "Order notes"
+msgid "设置失败"
+msgstr "Set failed"
+msgid "设置失败，请重试"
+msgstr "Set failed, please retry"
+msgid "设置密码"
+msgstr "Set password"
+msgid "设置密码并激活账户"
+msgstr "Set password and activate account"
+msgid "设置确认"
+msgstr "Set confirmation"
+msgid "设置确认徽章"
+msgstr "Set confirmation badge"
+msgid "该产品可能已被删除或编码有误"
+msgstr "This product may have been deleted or the code is incorrect"
+msgid "该产品暂无可定制规格"
+msgstr "This product has no customizable specifications"
+msgid "该产品暂无配置选项"
+msgstr "This product has no configuration options"
+msgid "该分类下暂无子分类"
+msgstr "No subcategories under this category"
+msgid "该子分类下暂无规格字段"
+msgstr "No spec fields under this subcategory"
+msgid "该研发产品已被产品库引用 %(count)s 次"
+msgstr "This R&D product has been referenced %(count)s times in product library"
+msgid "该结算单已完全结算"
+msgstr "This settlement order is fully settled"
+msgid "该规格在字典中不存在"
+msgstr "This specification does not exist in dictionary"
+msgid "详情"
+msgstr "Details"
+msgid "详细地址信息"
+msgstr "Address details"
+msgid "语言切换失败，请稍后重试"
+msgstr "Language switch failed, please retry later"
+msgid "语言切换失败：安全令牌未找到"
+msgstr "Language switch failed: security token not found"
+msgid "语言设置已在其他页面更改"
+msgstr "Language setting has been changed on another page"
+msgid "说明"
+msgstr "Description"
+msgid "请从左侧选择一个分类"
+msgstr "Please select a category from the left"
+msgid "请从左侧选择一个模块"
+msgstr "Please select a module from the left"
+msgid "请从左侧选择产品"
+msgstr "Please select product from the left"
+msgid "请先由解决方案经理或管理员在产品明细区域点击确认徽章，确认产品明细后再提交批价流程。"
+msgstr "Please have the solution manager or admin click the confirm badge in the product details area to confirm before submitting the pricing flow."
+msgid "请先选择一个子分类"
+msgstr "Please select a subcategory first"
+msgid "请先选择一个指标"
+msgstr "Please select an indicator first"
+msgid "请先选择产品类别"
+msgstr "Please select product category first"
+msgid "请先选择企业"
+msgstr "Please select company first"
+msgid "请先选择分类"
+msgstr "Please select category first"
+msgid "请先选择客户"
+msgstr "Please select customer first"
+msgid "请先选择项目"
+msgstr "Please select project first"
+msgid "请再次输入密码"
+msgstr "Please enter password again"
+msgid "请刷新页面重试"
+msgstr "Please refresh page and retry"
+msgid "请勿回复"
+msgstr "Please do not reply"
+msgid "请填写以下信息申请注册账号"
+msgstr "Please fill in the following information to apply for registration"
+msgid "请填写所有必填项"
+msgstr "Please fill in all required fields"
+msgid "请填写报销说明（不关联客户模式下为必填项）"
+msgstr "Please fill in expense description (required in non-customer mode)"
+msgid "请填写项目基本信息以创建新项目"
+msgstr "Please fill in basic project info to create new project"
+msgid "请尝试其他关键词"
+msgstr "Please try other keywords"
+msgid "请尝试右键另存为"
+msgstr "Try right-click save as"
+msgid "请点击下方按钮查看客户详情"
+msgstr "Please click button below to view customer details"
+msgid "请点击下方按钮查看项目详情"
+msgstr "Please click button below to view project details"
+msgid "请确认密码"
+msgstr "Please confirm password"
+msgid "请确认您的审批决定，审批后将自动进入下一阶段或完成审批流程。"
+msgstr "Please confirm your approval decision. After approval, it will automatically proceed to the next stage or complete the flow."
+msgid "请稍后重试"
+msgstr "Please retry later"
+msgid "请等待审批完成或联系相关审批人员。"
+msgstr "Please wait for approval to complete or contact relevant approvers."
+msgid "请联系管理员"
+msgstr "Please contact admin"
+msgid "请联系管理员检查文件状态"
+msgstr "Please contact admin to check file status"
+msgid "请联系系统管理员"
+msgstr "Please contact system admin"
+msgid "请至少保留一条报销明细"
+msgstr "Please keep at least one expense item"
+msgid "请至少选择一个文件上传"
+msgstr "Please select at least one file to upload"
+msgid "请设置您的登录密码以完成账户激活"
+msgstr "Please set your login password to complete account activation"
+msgid "请详细描述本次沟通的内容、讨论的要点、达成的共识等..."
+msgstr "Please describe in detail the communication content, discussion points, consensus reached, etc..."
+msgid "请输入互斥组名称"
+msgstr "Please enter group name"
+msgid "请输入备注信息..."
+msgstr "Please enter notes..."
+msgid "请输入客户名称"
+msgstr "Please enter customer name"
+msgid "请输入您的新密码"
+msgstr "Please enter your new password"
+msgid "请输入指标名称"
+msgstr "Please enter indicator name"
+msgid "请输入有效的邮箱地址"
+msgstr "Please enter a valid email address"
+msgid "请输入本次沟通的详细内容..."
+msgstr "Please enter detailed communication content..."
+msgid "请输入沟通内容"
+msgstr "Please enter communication content"
+msgid "请输入用户名"
+msgstr "Please enter username"
+msgid "请输入真实姓名"
+msgstr "Please enter real name"
+msgid "请输入研发用途"
+msgstr "Please enter R&D purpose"
+msgid "请输入研发目的或用途说明"
+msgstr "Please enter R&D purpose or usage description"
+msgid "请输入联系电话"
+msgstr "Please enter phone number"
+msgid "请输入邮箱地址"
+msgstr "Please enter email address"
+msgid "请输入零售价"
+msgstr "Please enter retail price"
+msgid "请输入项目"
+msgstr "Please enter project"
+msgid "请输入项目名称"
+msgstr "Please enter project name"
+msgid "请选择 PDF 文件"
+msgstr "Please select PDF file"
+msgid "请选择产品类别"
+msgstr "Please select product category"
+msgid "请选择产品类型"
+msgstr "Please select product type"
+msgid "请选择产品系列"
+msgstr "Please select product series"
+msgid "请选择产品规格"
+msgstr "Please select product specification"
+msgid "请选择企业"
+msgstr "Please select company"
+msgid "请选择企业名称"
+msgstr "Please select company name"
+msgid "请选择关联客户"
+msgstr "Please select associated customer"
+msgid "请选择关联项目（可选）"
+msgstr "Please select associated project (optional)"
+msgid "请选择分类"
+msgstr "Please select category"
+msgid "请选择单位"
+msgstr "Please select unit"
+msgid "请选择厂商销售"
+msgstr "Please select vendor sales"
+msgid "请选择合适的流程模板进行审批"
+msgstr "Please select appropriate flow template for approval"
+msgid "请选择客户和联系人"
+msgstr "Please select customer and contact"
+msgid "请选择库存公司"
+msgstr "Please select inventory company"
+msgid "请选择操作类型"
+msgstr "Please select operation type"
+msgid "请选择模板"
+msgstr "Please select template"
+msgid "请选择沟通日期"
+msgstr "Please select communication date"
+msgid "请选择用户角色"
+msgstr "Please select user role"
+msgid "请选择科目"
+msgstr "Please select subject"
+msgid "请选择规格..."
+msgstr "Please select specification..."
+msgid "请选择货币"
+msgstr "Please select currency"
+msgid "请选择部门归属"
+msgstr "Please select department"
+msgid "请选择销售区域"
+msgstr "Please select sales region"
+msgid "请重试"
+msgstr "Please retry"
+msgid "调研中"
+msgstr "In research"
+msgid "负数"
+msgstr "Negative"
+msgid "财务审批"
+msgstr "Finance approval"
+msgid "账号已激活"
+msgstr "Account activated"
+msgid "费用统计"
+msgstr "Expense statistics"
+msgid "跳转到业务详情页面"
+msgstr "Go to business details page"
+msgid "转换为报销单货币后的金额"
+msgstr "Amount converted to expense currency"
+msgid "输入公司名称搜索"
+msgstr "Enter company name to search"
+msgid "输入公司名称搜索有库存的公司"
+msgstr "Enter company name to search companies with inventory"
+msgid "输入回复内容"
+msgstr "Enter reply content"
+msgid "输入或选择产品名称"
+msgstr "Enter or select product name"
+msgid "输入或选择产品型号"
+msgstr "Enter or select product model"
+msgid "输入或选择品牌"
+msgstr "Enter or select brand"
+msgid "输入报价单"
+msgstr "Enter quotation"
+msgid "输入指标值"
+msgstr "Enter indicator value"
+msgid "输入指标值后自动生成编码，您可以手动修改"
+msgstr "Code will be auto-generated after entering indicator value, you can modify manually"
+msgid "输入新名称或搜索已有项目"
+msgstr "Enter new name or search existing projects"
+msgid "输入项目"
+msgstr "Enter project"
+msgid "达成率"
+msgstr "Achievement rate"
+msgid "近30天"
+msgstr "Last 30 days"
+msgid "返回产品列表"
+msgstr "Back to product list"
+msgid "返回产品管理"
+msgstr "Back to product management"
+msgid "返回企业详情"
+msgstr "Back to company details"
+msgid "返回用户管理"
+msgstr "Back to user management"
+msgid "返回登录"
+msgstr "Back to login"
+msgid "返回登录页面"
+msgstr "Back to login page"
+msgid "这些信息将显示在导出文件的备注区域"
+msgstr "This info will be displayed in the notes area of the export file"
+msgid "进行审批"
+msgstr "Proceed with approval"
+msgid "适应"
+msgstr "Auto fit"
+msgid "选择为被合并客户"
+msgstr "Select as merged customer"
+msgid "选择企业名称"
+msgstr "Select company name"
+msgid "选择厂商销售负责人"
+msgstr "Select vendor sales manager"
+msgid "选择审批流程模板"
+msgstr "Select approval flow template"
+msgid "选择客户的联系人"
+msgstr "Select customer contact"
+msgid "选择已有指标直接添加，或点击"
+msgstr "Select existing indicator to add, or click"
+msgid "选择已有项目或输入创建新的"
+msgstr "Select existing project or enter to create new"
+msgid "选择库存公司"
+msgstr "Select inventory company"
+msgid "选择徽章颜色"
+msgstr "Select badge color"
+msgid "选择报价单对应的客户公司"
+msgstr "Select customer company for this quotation"
+msgid "选择相关的项目，有助于更好地追踪沟通进展"
+msgstr "Select related project to better track communication progress"
+msgid "选择结算库存公司"
+msgstr "Select settlement inventory company"
+msgid "选择要记录沟通信息的联系人"
+msgstr "Select contact to record communication"
+msgid "选择角色"
+msgstr "Select role"
+msgid "选择部门"
+msgstr "Select department"
+msgid "通用文件预览组件"
+msgstr "Universal file preview component"
+msgid "通用预览组件未加载或图片"
+msgstr "Universal preview component not loaded or image"
+msgid "邀请操作"
+msgstr "Invitation operation"
+msgid "邮政编码"
+msgstr "Postal code"
+msgid "部分高级功能暂时不可用"
+msgstr "Some advanced features temporarily unavailable"
+msgid "部门归属"
+msgstr "Department"
+msgid "部门级"
+msgstr "Department level"
+msgid "配置数量"
+msgstr "Configuration quantity"
+msgid "配置模板"
+msgstr "Configure template"
+msgid "配置类型"
+msgstr "Configuration type"
+msgid "配置预览"
+msgstr "Configuration preview"
+msgid "采购单价"
+msgstr "Purchase unit price"
+msgid "采购数量"
+msgstr "Purchase quantity"
+msgid "重复客户检测"
+msgstr "Duplicate customer detection"
+msgid "重新提交失败，请重试"
+msgstr "Resubmit failed, please retry"
+msgid "重新提交失败："
+msgstr "Resubmit failed:"
+msgid "重新提交将重置审批历史，重新开始审批流程。"
+msgstr "Resubmit will reset approval history and restart approval flow."
+msgid "重置密码"
+msgstr "Reset password"
+msgid "金额分布"
+msgstr "Amount distribution"
+msgid "销售目标"
+msgstr "Sales target"
+msgid "销售额实际"
+msgstr "Sales amount actual"
+msgid "销售额目标"
+msgstr "Sales amount target"
+msgid "长度至少"
+msgstr "Minimum length"
+msgid "阶段信息："
+msgstr "Stage information:"
+msgid "阶段更新失败"
+msgstr "Stage update failed"
+msgid "阶段更新成功"
+msgstr "Stage updated successfully"
+msgid "阶段管理"
+msgstr "Stage management"
+msgid "阶段详情"
+msgstr "Stage details"
+msgid "集团"
+msgstr "Group"
+msgid "零售价"
+msgstr "Retail price"
+msgid "需要由"
+msgstr "Requires"
+msgid "项目创建完成"
+msgstr "Project created"
+msgid "项目名称可用"
+msgstr "Project name available"
+msgid "项目审批操作"
+msgstr "Project approval operation"
+msgid "项目审批流程"
+msgstr "Project approval flow"
+msgid "项目审核中"
+msgstr "Project under review"
+msgid "项目拥有人"
+msgstr "Project owner"
+msgid "项目授权操作"
+msgstr "Project authorization"
+msgid "项目数量分布"
+msgstr "Project quantity distribution"
+msgid "项目现场交付"
+msgstr "Project site delivery"
+msgid "项目金额分布"
+msgstr "Project amount distribution"
+msgid "预览PDF"
+msgstr "Preview PDF"
+msgid "预览图片"
+msgstr "Preview image"
+msgid "预览尺寸演示"
+msgstr "Preview size demo"
+msgid "预览尺寸：small, medium, large"
+msgstr "Preview size: small, medium, large"
+msgid "预览效果"
+msgstr "Preview effect"
+msgid "额外的CSS类名"
+msgstr "Additional CSS classes"
+msgid "首次检测可能需要较长时间，请耐心等待"
+msgstr "First detection may take longer, please be patient"
+msgid "高性能路由器"
+msgstr "High performance router"
+msgid "黄色"
+msgstr "Yellow"
+msgid "默认"
+msgstr "Default"
+msgid "默认值"
+msgstr "Default value"
+msgid "默认客户名称-账号-YYDDHHS"
+msgstr "Default CustomerName-Account-YYDDHHS"
+msgid "默认滚动条"
+msgstr "Default scrollbar"
+msgid "默认选项"
+msgstr "Default option"
+msgid "默认：{customerName}-{name}-{time}"
+msgstr "Default: {customerName}-{name}-{time}"
+msgid "（仅用于此产品）"
+msgstr "(Only for this product)"
+msgid "（已覆盖分类共享文件）"
+msgstr "(Category shared file overridden)"
+msgid "（已设为分类共享文件）"
+msgstr "(Set as category shared file)"
+msgid "，某些功能可能受限。"
+msgstr ", some features may be limited."
+msgid "待支付"
+msgstr "Pending Payment"
+msgid "已支付"
+msgstr "Paid"
+msgid "全部客户"
+msgstr "All Clients"
+msgid "全部申请人"
+msgstr "All Applicants"
+msgid "报销单编号"
+msgstr "Expense No."
+msgid "ID"
+msgstr "ID"
+msgid "MN编码已解锁"
+msgstr "MN code unlocked"
+msgid "PDF"
+msgstr "PDF"
+msgid "PDF已清除"
+msgstr "PDF cleared"
+msgid "PDF文件上传失败，请检查文件格式和大小"
+msgstr "PDF upload failed, please check file format and size"
+msgid "PDF文件上传过程中发生错误"
+msgstr "Error occurred during PDF upload"
+msgid "下载发票文件失败"
+msgstr "Failed to download invoice file"
+msgid "个联系人"
+msgstr " contacts"
+msgid "个联系人完全一致，将被跳过"
+msgstr " contacts are identical and will be skipped"
+msgid "个项目关联"
+msgstr " project associations"
+msgid "云端文件下载失败，请稍后再试"
+msgstr "Cloud file download failed, please try again later"
+msgid "互斥组至少需要2个产品"
+msgstr "Mutual exclusion group requires at least 2 products"
+msgid "互斥组至少需要选择2个产品"
+msgstr "Please select at least 2 products for mutual exclusion group"
+msgid "产品 \"%(name)s\" 已成功删除"
+msgstr "产品 \"
+msgid "产品名称为必填项"
+msgstr "Product name is required"
+msgid "产品已成功删除！"
+msgstr "Product deleted successfully!"
+msgid "企业删除成功"
+msgstr "Company deleted successfully"
+msgid "全部厂商销售"
+msgstr "All Vendor Sales"
+msgid "出货时间格式不正确"
+msgstr "Shipping date format is incorrect"
+msgid "删除PDF文件失败，请重试"
+msgstr "Failed to delete PDF file, please retry"
+msgid "删除互斥组"
+msgstr "Delete mutual exclusion group"
+msgid "删除产品失败: %(error)s"
+msgstr "Failed to delete product: %(error)s"
+msgid "删除产品时发生错误"
+msgstr "Error occurred while deleting product"
+msgid "删除图片失败，请重试"
+msgstr "Failed to delete image, please retry"
+msgid "删除失败："
+msgstr "Delete failed:"
+msgid "删除过程中发生错误，请重试"
+msgstr "Error during deletion, please retry"
+msgid "加载备份列表失败："
+msgstr "Failed to load backup list:"
+msgid "加载报销单失败：%s"
+msgstr "Failed to load expense: %s"
+msgid "厂商销售负责人不存在"
+msgstr "Vendor sales manager does not exist"
+msgid "厂商销售负责人已更新为 %(name)s"
+msgstr "Vendor sales manager updated to %(name)s"
+msgid "厂商销售负责人必须是厂商企业账户"
+msgstr "Vendor sales manager must be a vendor enterprise account"
+msgid "发票上传失败，请重试"
+msgstr "Invoice upload failed, please retry"
+msgid "发票上传成功"
+msgstr "Invoice uploaded successfully"
+msgid "发票不存在"
+msgstr "Invoice not found"
+msgid "发票删除失败，请重试"
+msgstr "Invoice deletion failed, please retry"
+msgid "发票删除成功"
+msgstr "Invoice deleted successfully"
+msgid "发票图片不存在"
+msgstr "Invoice image not found"
+msgid "发票数据格式错误"
+msgstr "Invoice data format error"
+msgid "发票文件不存在"
+msgstr "Invoice file not found"
+msgid "只支持图片格式：PNG、JPG、JPEG、GIF、WEBP"
+msgstr "Only image formats supported: PNG, JPG, JPEG, GIF, WEBP"
+msgid "只有管理员和商务助理可以使用客户合并工具"
+msgstr "Only admin and business assistants can use the customer merge tool"
+msgid "召回原因（可选）"
+msgstr "Recall reason (optional)"
+msgid "合并中..."
+msgstr "Merging..."
+msgid "合并失败"
+msgstr "Merge failed"
+msgid "合并失败，请重试"
+msgstr "Merge failed, please retry"
+msgid "合并成功！"
+msgstr "Merged successfully!"
+msgid "图片上传失败，请检查文件格式和大小"
+msgstr "Image upload failed, please check file format and size"
+msgid "图片上传过程中发生错误"
+msgstr "Error occurred during image upload"
+msgid "图片已清除"
+msgstr "Image cleared"
+msgid "备份"
+msgstr "Backup"
+msgid "备份年龄"
+msgstr "Backup Age"
+msgid "备份总数"
+msgstr "Total Backups"
+msgid "备份文件列表"
+msgstr "Backup File List"
+msgid "备份文件名"
+msgstr "Backup Filename"
+msgid "备份时间"
+msgstr "Backup Time"
+msgid "存储使用"
+msgstr "Storage Usage"
+msgid "实例ID"
+msgstr "Instance ID"
+msgid "审批实例信息"
+msgstr "Approval Instance Info"
+msgid "客户ID不能为空"
+msgstr "Customer ID cannot be empty"
+msgid "客户不存在"
+msgstr "Customer not found"
+msgid "客户信息已更新"
+msgstr "Customer information updated"
+msgid "客户创建成功"
+msgstr "Customer created successfully"
+msgid "将要合并的数据"
+msgstr "Data to be merged"
+msgid "已加载全部产品数据"
+msgstr "All product data loaded"
+msgid "当前状态的报销单不能编辑"
+msgstr "Expense with current status cannot be edited"
+msgid "您可以通过右上角的用户菜单中的\"语言设置\"来切换界面语言。"
+msgstr "您可以通过右上角的用户菜单中的\"
+msgid "您无权在当前审核阶段编辑此报销单"
+msgstr "You cannot edit this expense at the current review stage"
+msgid "您没有权限上传此报销单的发票"
+msgstr "You do not have permission to upload invoices for this expense"
+msgid "您没有权限下载此发票"
+msgstr "You do not have permission to download this invoice"
+msgid "您没有权限修改该项目的厂商销售负责人"
+msgstr "You do not have permission to modify the vendor sales manager for this project"
+msgid "您没有权限删除此企业"
+msgstr "You do not have permission to delete this company"
+msgid "您没有权限删除此报销单的发票"
+msgstr "You do not have permission to delete invoices for this expense"
+msgid "您没有权限查看此报销单"
+msgstr "You do not have permission to view this expense"
+msgid "您没有权限查看此项目"
+msgstr "You do not have permission to view this project"
+msgid "您没有权限编辑此客户"
+msgstr "You do not have permission to edit this customer"
+msgid "您没有权限编辑此报销单"
+msgstr "You do not have permission to edit this expense"
+msgid "您没有权限编辑此联系人"
+msgstr "You do not have permission to edit this contact"
+msgid "您没有权限编辑此项目"
+msgstr "You do not have permission to edit this project"
+msgid "您没有权限编辑此项目的共享设置"
+msgstr "You do not have permission to edit sharing settings for this project"
+msgid "您没有权限预览此报销单的发票"
+msgstr "You do not have permission to preview invoices for this expense"
+msgid "您确定要召回此审批流程吗？召回后审批流程将被终止，需要重新发起。"
+msgstr "Are you sure you want to recall this approval? The approval process will be terminated and must be restarted."
+msgid "批价单审批流程"
+msgstr "Pricing Order Approval"
+msgid "批价审批流程进行中"
+msgstr "Pricing approval in progress"
+msgid "报备时间格式不正确"
+msgstr "Registration date format is incorrect"
+msgid "报销单号、标题或客户名称"
+msgstr "Expense No., title or customer name"
+msgid "报销单已被锁定，无法编辑"
+msgstr "Expense is locked and cannot be edited"
+msgid "报销单已锁定，无法上传发票"
+msgstr "Expense is locked, cannot upload invoices"
+msgid "报销单已锁定，无法删除发票"
+msgstr "Expense is locked, cannot delete invoices"
+msgid "操作失败，请稍后重试"
+msgstr "Operation failed, please try again later"
+msgid "操作成功！"
+msgstr "Operation successful!"
+msgid "数据将转移到目标客户"
+msgstr "Data will be transferred to target customer"
+msgid "数据库"
+msgstr "Database"
+msgid "数据库类型"
+msgstr "Database Type"
+msgid "文件上传失败，请重试"
+msgstr "File upload failed, please retry"
+msgid "文件下载处理失败"
+msgstr "File download processing failed"
+msgid "文件名"
+msgstr "Filename"
+msgid "文件名不能为空"
+msgstr "Filename cannot be empty"
+msgid "文件大小"
+msgstr "File Size"
+msgid "文件大小不能超过5MB"
+msgstr "File size cannot exceed 5MB"
+msgid "无效的报销单审批ID"
+msgstr "Invalid expense approval ID"
+msgid "无效的订单审批ID"
+msgstr "Invalid order approval ID"
+msgid "无效的请求数据"
+msgstr "Invalid request data"
+msgid "无法保存: "
+msgstr "Cannot save: "
+msgid "无法生成规范化文件名，将使用原始文件名"
+msgstr "Cannot generate normalized filename, will use original filename"
+msgid "日期格式无效"
+msgstr "Invalid date format"
+msgid "暂无关联客户，点击上方\"添加客户\"按钮添加"
+msgstr "暂无关联客户，点击上方\"
+msgid "暂无备份文件，请点击\"立即备份\"按钮创建备份。"
+msgstr "暂无备份文件，请点击\"
+msgid "暂无报销明细，请点击\"添加明细\"按钮"
+msgstr "暂无报销明细，请点击\"
+msgid "更新共享设置失败"
+msgstr "Failed to update sharing settings"
+msgid "更新共享设置时发生错误"
+msgstr "Error updating sharing settings"
+msgid "未命名项目"
+msgstr "Unnamed Project"
+msgid "未指定公司"
+msgstr "Company not specified"
+msgid "条行动记录"
+msgstr " action records"
+msgid "正在加载更多产品数据..."
+msgstr "Loading more product data..."
+msgid "此操作不可恢复，请再次点击删除按钮确认操作。"
+msgstr "This operation cannot be undone. Please click the delete button again to confirm."
+msgid "每个报销明细最多只能上传10张发票"
+msgstr "Each expense item can only upload up to 10 invoices"
+msgid "活跃项目"
+msgstr "Active Projects"
+msgid "添加行动记录失败"
+msgstr "Failed to add action record"
+msgid "清除过程中发生错误"
+msgstr "Error occurred during clearing"
+msgid "点击上方\"上传PDF文档\"按钮添加产品文档"
+msgstr "点击上方\"
+msgid "用于自身"
+msgstr "For self use"
+msgid "目标客户（保留）"
+msgstr "Target Customer (Keep)"
+msgid "确定要清除此PDF文档吗？此操作不可撤销。"
+msgstr "Are you sure you want to clear this PDF? This action cannot be undone."
+msgid "确定要清除此图片吗？此操作不可撤销。"
+msgstr "Are you sure you want to clear this image? This action cannot be undone."
+msgid "确认删除整个互斥组及其所有产品？此操作不可撤销。"
+msgstr "Confirm delete entire mutual exclusion group and all products? This action cannot be undone."
+msgid "确认召回"
+msgstr "Confirm Recall"
+msgid "确认召回审批"
+msgstr "Confirm Recall Approval"
+msgid "确认拒绝"
+msgstr "Confirm Rejection"
+msgid "第{index}个明细项目数据格式错误: {error}"
+msgstr "Item {index} data format error: {error}"
+msgid "第{index}个明细项目的{field}字段为必填项"
+msgstr "The {field} field of item {index} is required"
+msgid "第{index}个明细项目的发票金额必须大于0"
+msgstr "The invoice amount of item {index} must be greater than 0"
+msgid "编辑联系人失败"
+msgstr "Failed to edit contact"
+msgid "联系人不存在或不属于该客户"
+msgstr "Contact does not exist or does not belong to this customer"
+msgid "联系人更新成功"
+msgstr "Contact updated successfully"
+msgid "获取预览失败"
+msgstr "Failed to get preview"
+msgid "行动记录内容不能为空"
+msgstr "Action record content cannot be empty"
+msgid "被合并客户（删除）"
+msgstr "Merged Customer (Delete)"
+msgid "警告：该研发产品已入库"
+msgstr "Warning: This R&D product has been stocked"
+msgid "订单审批流程"
+msgstr "Order Approval"
+msgid "该研发产品已入库，产品库中有 %(count)d 个关联产品。如需删除，请先处理关联产品。"
+msgstr "This R&D product has been stocked. There are %(count)d associated products in the product library. To delete, please handle associated products first."
+msgid "请填写所有必填字段"
+msgstr "Please fill in all required fields"
+msgid "请填写所有必填字段（客户和联系人）"
+msgstr "Please fill in all required fields (customer and contact)"
+msgid "请求必须是JSON格式"
+msgstr "Request must be in JSON format"
+msgid "请至少选择一个产品"
+msgstr "Please select at least one product"
+msgid "请输入召回原因..."
+msgstr "Please enter recall reason..."
+msgid "请选择要上传的发票图片"
+msgstr "Please select invoice images to upload"
+msgid "输入关键词搜索"
+msgstr "Enter keywords to search"
+msgid "选择已有指标直接添加，或点击\"创建\"添加新指标到规格字典"
+msgstr "选择已有指标直接添加，或点击\"
+msgid "重复联系人警告"
+msgstr "Duplicate Contact Warning"
+msgid "销售区域为必填项"
+msgstr "Sales region is required"
+msgid "项目不存在"
+msgstr "Project not found"
+msgid "项目共享设置已更新"
+msgstr "Project sharing settings updated"
+msgid "项目创建成功"
+msgstr "Project created successfully"
+msgid "项目名称已存在"
+msgstr "Project name already exists"
+msgid "项目已签约，自动锁定"
+msgstr "Project signed, automatically locked"
+msgid "项目已被锁定，无法修改厂商销售负责人: %(reason)s"
+msgstr "Project is locked, cannot modify vendor sales manager: %(reason)s"
+msgid "项目更新成功"
+msgstr "Project updated successfully"
+msgid "预览发票文件名失败"
+msgstr "Failed to preview invoice filename"
+msgid "，产品库中有 %d 个关联产品。删除后这些产品将失去来源追溯。"
+msgstr ", there are %d associated products in the product library. After deletion, these products will lose source traceability."
+msgid "厂商销售"
+msgstr "Vendor Sales"
+msgid "活跃度"
+msgstr "Activity"
