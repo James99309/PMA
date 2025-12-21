@@ -121,10 +121,30 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
             }, 3000);
         }
 
+        // 国际化文本（审批相关）- 使用 tojson 确保安全转义
+        const __i18n = {
+            submitting: {{ _("提交中...")|tojson }},
+            submitFailed: {{ _("提交审批失败")|tojson }},
+            recallReason: {{ _("用户主动召回")|tojson }},
+            recallFailed: {{ _("召回审批失败")|tojson }},
+            resubmitFailed: {{ _("重新提交失败")|tojson }},
+            submitTitle: {{ _("提交审批")|tojson }},
+            submitMessage: {{ _("确定要提交审批吗？提交后将进入审批流程，无法直接修改报销信息。")|tojson }},
+            submitText: {{ _("提交")|tojson }},
+            submitConfirm: {{ _("确定要提交审批吗？")|tojson }},
+            recallTitle: {{ _("召回审批")|tojson }},
+            recallMessage: {{ _("确定要召回审批吗？召回后流程将停止，状态将回到草稿状态。")|tojson }},
+            recallText: {{ _("召回")|tojson }},
+            recallConfirm: {{ _("确定要召回审批吗？")|tojson }},
+            resubmitTitle: {{ _("重新提交审批")|tojson }},
+            resubmitMessage: {{ _("确定要重新提交审批吗？")|tojson }},
+            resubmitConfirm: {{ _("确定要重新提交审批吗？")|tojson }}
+        };
+
         // 执行提交审批的实际逻辑
         async function __doSubmitApproval() {
             try {
-                __showMessage('{{ _("提交中...") }}', 'info');
+                __showMessage(__i18n.submitting, 'info');
                 const response = await fetch(`/expense/api/approval/${__expenseId}/submit`, {
                     method: 'POST',
                     headers: {
@@ -138,11 +158,11 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
                     // 成功后直接刷新页面
                     window.location.reload();
                 } else {
-                    __showMessage(data.message || '{{ _("提交审批失败") }}', 'error');
+                    __showMessage(data.message || __i18n.submitFailed, 'error');
                 }
             } catch (error) {
                 console.error('提交审批失败:', error);
-                __showMessage('{{ _("提交审批失败") }}', 'error');
+                __showMessage(__i18n.submitFailed, 'error');
             }
         }
 
@@ -155,17 +175,17 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
                         'Content-Type': 'application/json',
                         'X-CSRFToken': __csrfToken
                     },
-                    body: JSON.stringify({ reason: '{{ _("用户主动召回") }}' })
+                    body: JSON.stringify({ reason: __i18n.recallReason })
                 });
                 const data = await response.json();
                 if (data.success) {
                     window.location.reload();
                 } else {
-                    alert(data.message || '{{ _("召回审批失败") }}');
+                    alert(data.message || __i18n.recallFailed);
                 }
             } catch (error) {
                 console.error('召回审批失败:', error);
-                alert('{{ _("召回审批失败") }}');
+                alert(__i18n.recallFailed);
             }
         }
 
@@ -184,11 +204,11 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
                 if (data.success) {
                     window.location.reload();
                 } else {
-                    alert(data.message || '{{ _("重新提交失败") }}');
+                    alert(data.message || __i18n.resubmitFailed);
                 }
             } catch (error) {
                 console.error('重新提交失败:', error);
-                alert('{{ _("重新提交失败") }}');
+                alert(__i18n.resubmitFailed);
             }
         }
 
@@ -197,14 +217,14 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
             // 等待openConfirmModal可用后调用
             if (typeof window.openConfirmModal === 'function') {
                 window.openConfirmModal('deleteExpenseModal', {
-                    title: '{{ _("提交审批") }}',
-                    message: '{{ _("确定要提交审批吗？提交后将进入审批流程，无法直接修改报销信息。") }}',
-                    confirmText: '{{ _("提交") }}',
+                    title: __i18n.submitTitle,
+                    message: __i18n.submitMessage,
+                    confirmText: __i18n.submitText,
                     onConfirm: () => __doSubmitApproval()
                 });
             } else {
                 // 后备方案
-                if (confirm('{{ _("确定要提交审批吗？") }}')) {
+                if (confirm(__i18n.submitConfirm)) {
                     __doSubmitApproval();
                 }
             }
@@ -214,13 +234,13 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
         window.recallExpenseApproval = function () {
             if (typeof window.openConfirmModal === 'function') {
                 window.openConfirmModal('deleteExpenseModal', {
-                    title: '{{ _("召回审批") }}',
-                    message: '{{ _("确定要召回审批吗？召回后流程将停止，状态将回到草稿状态。") }}',
-                    confirmText: '{{ _("召回") }}',
+                    title: __i18n.recallTitle,
+                    message: __i18n.recallMessage,
+                    confirmText: __i18n.recallText,
                     onConfirm: () => __doRecallApproval()
                 });
             } else {
-                if (confirm('{{ _("确定要召回审批吗？") }}')) {
+                if (confirm(__i18n.recallConfirm)) {
                     __doRecallApproval();
                 }
             }
@@ -230,13 +250,13 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
         window.resubmitExpenseApproval = function () {
             if (typeof window.openConfirmModal === 'function') {
                 window.openConfirmModal('deleteExpenseModal', {
-                    title: '{{ _("重新提交审批") }}',
-                    message: '{{ _("确定要重新提交审批吗？") }}',
-                    confirmText: '{{ _("提交") }}',
+                    title: __i18n.resubmitTitle,
+                    message: __i18n.resubmitMessage,
+                    confirmText: __i18n.submitText,
                     onConfirm: () => __doResubmitApproval()
                 });
             } else {
-                if (confirm('{{ _("确定要重新提交审批吗？") }}')) {
+                if (confirm(__i18n.resubmitConfirm)) {
                     __doResubmitApproval();
                 }
             }
@@ -560,15 +580,16 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
 
     <script>
         // ============================================================
-        // 调试信息
+        // 调试信息 - 每个变量单独输出，便于定位问题
         // ============================================================
-        console.log('[DEBUG] 报销单详情脚本开始加载');
-        console.log('[DEBUG] can_edit_this_expense:', {{ 'true' if can_edit_this_expense else 'false' }});
-        console.log('[DEBUG] expense.status:', '{{ expense.status }}');
-        console.log('[DEBUG] expense.is_locked:', {{ 'true' if expense.is_locked else 'false' }});
-        console.log('[DEBUG] approval_edit_info:', {{ approval_edit_info|tojson|default('null') }});
+        console.log('[DEBUG 1] 报销单详情脚本开始加载');
+        try { console.log('[DEBUG 2] can_edit_this_expense:', {{ 'true' if can_edit_this_expense else 'false' }}); } catch(e) { console.error('[DEBUG 2] ERROR:', e); }
+        try { console.log('[DEBUG 3] expense.status:', {{ expense.status|tojson }}); } catch(e) { console.error('[DEBUG 3] ERROR:', e); }
+        try { console.log('[DEBUG 4] expense.is_locked:', {{ 'true' if expense.is_locked else 'false' }}); } catch(e) { console.error('[DEBUG 4] ERROR:', e); }
+        try { console.log('[DEBUG 5] approval_edit_info exists:', {{ 'true' if approval_edit_info else 'false' }}); } catch(e) { console.error('[DEBUG 5] ERROR:', e); }
+        try { console.log('[DEBUG 6] approval_edit_info.can_edit:', {{ 'true' if approval_edit_info and approval_edit_info.can_edit else 'false' }}); } catch(e) { console.error('[DEBUG 6] ERROR:', e); }
         {% set can_use_edit_modal_debug = (can_edit_this_expense and expense.status in ['draft', 'rejected', 'recalled']) or (approval_edit_info and approval_edit_info.can_edit) %}
-        console.log('[DEBUG] can_use_edit_modal:', {{ 'true' if can_use_edit_modal_debug else 'false' }});
+        try { console.log('[DEBUG 7] can_use_edit_modal:', {{ 'true' if can_use_edit_modal_debug else 'false' }}); } catch(e) { console.error('[DEBUG 7] ERROR:', e); }
 
         // ============================================================
         // 全局变量和国际化
@@ -576,29 +597,30 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
         const expenseId = {{ expense.id }};
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-        // 国际化文本
+        // 国际化文本 - 使用 tojson 确保安全转义
         const i18n = {
-            confirmDeleteTitle: '{{ _("确认删除报销单") }}',
-            confirmDeleteMessage: '{{ _("确定要删除这个报销单吗？此操作不可恢复。") }}',
-            deleteFailed: '{{ _("删除失败，请重试") }}',
-            deleteSuccess: '{{ _("删除成功") }}',
-            submitApproval: '{{ _("提交审批") }}',
-            submitApprovalConfirm: '{{ _("确定要提交审批吗？提交后将进入审批流程，无法直接修改报销信息。") }}',
-            submitting: '{{ _("提交中...") }}',
-            approvalStarted: '{{ _("审批流程已启动") }}',
-            submitFailed: '{{ _("提交审批失败") }}',
-            recallApproval: '{{ _("召回审批") }}',
-            recallApprovalConfirm: '{{ _("确定要召回审批吗？召回后流程将停止，状态将回到草稿状态。") }}',
-            recalling: '{{ _("召回中...") }}',
-            approvalRecalled: '{{ _("审批流程已召回") }}',
-            recallFailed: '{{ _("召回审批失败") }}',
-            resubmitApproval: '{{ _("重新提交审批") }}',
-            resubmitApprovalConfirm: '{{ _("确定要重新提交审批吗？") }}',
-            approvalResubmitted: '{{ _("审批流程已重新提交") }}',
-            resubmitFailed: '{{ _("重新提交失败") }}',
-            exportInDevelopment: '{{ _("导出功能开发中") }}',
-            cancel: '{{ _("取消") }}',
-            userRecall: '{{ _("用户主动召回") }}'
+            confirmDeleteTitle: {{ _("确认删除报销单")|tojson }},
+            confirmDeleteMessage: {{ _("确定要删除这个报销单吗？此操作不可恢复。")|tojson }},
+            deleteFailed: {{ _("删除失败，请重试")|tojson }},
+            deleteSuccess: {{ _("删除成功")|tojson }},
+            submitApproval: {{ _("提交审批")|tojson }},
+            submitApprovalConfirm: {{ _("确定要提交审批吗？提交后将进入审批流程，无法直接修改报销信息。")|tojson }},
+            submitting: {{ _("提交中...")|tojson }},
+            approvalStarted: {{ _("审批流程已启动")|tojson }},
+            submitFailed: {{ _("提交审批失败")|tojson }},
+            recallApproval: {{ _("召回审批")|tojson }},
+            recallApprovalConfirm: {{ _("确定要召回审批吗？召回后流程将停止，状态将回到草稿状态。")|tojson }},
+            recalling: {{ _("召回中...")|tojson }},
+            approvalRecalled: {{ _("审批流程已召回")|tojson }},
+            recallFailed: {{ _("召回审批失败")|tojson }},
+            resubmitApproval: {{ _("重新提交审批")|tojson }},
+            resubmitApprovalConfirm: {{ _("确定要重新提交审批吗？")|tojson }},
+            approvalResubmitted: {{ _("审批流程已重新提交")|tojson }},
+            resubmitFailed: {{ _("重新提交失败")|tojson }},
+            exportInDevelopment: {{ _("导出功能开发中")|tojson }},
+            cancel: {{ _("取消")|tojson }},
+            userRecall: {{ _("用户主动召回")|tojson }},
+            imageLoadFailed: {{ _("图片加载失败")|tojson }}
         };
 
         // 当前预览的发票信息
@@ -830,7 +852,7 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
             } else {
                 content.innerHTML = `
                 <img src="${url}" alt="${filename}" class="max-w-full max-h-[500px] object-contain rounded-lg"
-                     onerror="this.parentElement.innerHTML='<span class=\\'text-red-500\\'>${'{{ _("图片加载失败") }}'}</span>'">
+                     onerror="this.parentElement.innerHTML='<span class=\\'text-red-500\\'>${i18n.imageLoadFailed}</span>'">
             `;
             }
 
@@ -860,54 +882,70 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
         // 编辑报销单模态框
         // ============================================================
         {% set can_use_edit_modal = (can_edit_this_expense and expense.status in ['draft', 'rejected', 'recalled']) or (approval_edit_info and approval_edit_info.can_edit) %}
+        console.log('[DEBUG] 进入编辑模态框区域, can_use_edit_modal:', {{ 'true' if can_use_edit_modal else 'false' }});
         {% if can_use_edit_modal %}
-        // 报销单数据（用于编辑模态框）
+        console.log('[DEBUG] 开始定义 expenseData');
+        // 报销单数据（用于编辑模态框）- 使用 tojson 确保安全转义
         const expenseData = {
             id: {{ expense.id }},
-            title: '{{ expense.title|replace("'", "\\'")|default("", true) }}',
-            currency: '{{ expense.currency or "CNY" }}',
-            description: '{{ expense.description|replace("'", "\\'")|replace("\n", "\\n")|default("", true) }}',
+            title: {{ expense.title|tojson }},
+            currency: {{ (expense.currency or "CNY")|tojson }},
+            description: {{ (expense.description or "")|tojson }},
             customer_id: {{ expense.customer_id or 'null' }},
-            customer_name: '{{ expense.customer.company_name|replace("'", "\\'")|default("", true) if expense.customer else "" }}',
+            customer_name: {{ (expense.customer.company_name if expense.customer else "")|tojson }},
             project_id: {{ expense.project_id or 'null' }},
-            project_name: '{{ expense.project.project_name|replace("'", "\\'")|default("", true) if expense.project else "" }}',
+            project_name: {{ (expense.project.project_name if expense.project else "")|tojson }},
             contact_id: {{ expense.contact_id or 'null' }},
-            contact_name: '{{ expense.contact.name|replace("'", "\\'")|default("", true) if expense.contact else "" }}',
+            contact_name: {{ (expense.contact.name if expense.contact else "")|tojson }},
             details: [
                 {% for detail in expense.details %}
                 {
                     id: {{ detail.id }},
-                    expense_category: '{{ detail.expense_category }}',
-                    expense_date: '{{ detail.expense_date.strftime("%Y-%m-%d") if detail.expense_date else "" }}',
-                    description: '{{ detail.description|replace("'", "\\'")|replace("\n", " ") }}',
+                    expense_category: {{ detail.expense_category|tojson }},
+                    expense_date: {{ (detail.expense_date.strftime("%Y-%m-%d") if detail.expense_date else "")|tojson }},
+                    description: {{ (detail.description or "")|tojson }},
                     document_count: {{ detail.document_count or 1 }},
-                    currency: '{{ detail.currency or "CNY" }}',
+                    currency: {{ (detail.currency or "CNY")|tojson }},
                     invoice_amount: {{ detail.invoice_amount or 0 }},
                     exchange_rate: {{ detail.exchange_rate or 1 }},
                     current_amount: {{ detail.current_amount or 0 }},
-                    invoice_images: {{ detail.invoice_images_list | tojson if detail.invoice_images_list else '[]' }}
+                    invoice_images: {{ detail.invoice_images_list|tojson if detail.invoice_images_list else '[]' }}
                 }{% if not loop.last %},{% endif %}
                 {% endfor %}
             ]
         };
+        console.log('[DEBUG] expenseData 定义完成:', expenseData);
 
         // 打开编辑模态框（普通编辑）
         window.openEditExpenseModal = function () {
             ExpenseModal.openEdit(expenseData);
         };
+        console.log('[DEBUG] openEditExpenseModal 函数已定义');
 
         // 打开审批编辑模态框（只能编辑指定字段）
         {% if approval_edit_info and approval_edit_info.can_edit %}
+        console.log('[DEBUG] 定义 openApprovalEditModal');
         window.openApprovalEditModal = function () {
-            const editableFields = {{ approval_edit_info.editable_fields|tojson }};
+            const editableFields = {{ approval_edit_info.editable_fields|tojson if approval_edit_info.editable_fields else '[]' }};
             ExpenseModal.openEdit(expenseData, {
                 approvalEditMode: true,
                 editableFields: editableFields,
-                stepName: '{{ approval_edit_info.step_name|default("") }}'
+                stepName: {{ (approval_edit_info.step_name or "")|tojson }}
             });
         };
+        console.log('[DEBUG] openApprovalEditModal 函数已定义');
         {% endif %}
+        {% else %}
+        console.log('[DEBUG] can_use_edit_modal 为 false，跳过 expenseData 和 openEditExpenseModal 定义');
         {% endif %}
+
+        // ============================================================
+        // 脚本加载完成确认
+        // ============================================================
+        console.log('[DEBUG] 报销单详情脚本加载完成');
+        console.log('[DEBUG] 函数状态检查:');
+        console.log('[DEBUG]   - confirmDeleteExpense:', typeof window.confirmDeleteExpense);
+        console.log('[DEBUG]   - openEditExpenseModal:', typeof window.openEditExpenseModal);
     </script>
 
     {% if can_use_edit_modal %}
@@ -919,30 +957,30 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
         // 获取 CSRF Token
         const expenseModalCsrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-        // 初始化报销单模态框（编辑模式）
+        // 初始化报销单模态框（编辑模式）- 使用 tojson 确保安全转义
         ExpenseModal.init({
             modalId: 'expenseEditModal',
-            defaultCurrency: '{{ expense.currency or "CNY" }}',
+            defaultCurrency: {{ (expense.currency or "CNY")|tojson }},
             csrfToken: expenseModalCsrfToken,
             i18n: {
-                loading: '{{ _("加载中...") }}',
-                selectCustomerFirst: '{{ _("请先选择关联客户") }}',
-                selectContact: '{{ _("请选择联系人") }}',
-                noContacts: '{{ _("该客户暂无联系人") }}',
-                noResults: '{{ _("无匹配结果") }}',
-                createSuccess: '{{ _("报销单创建成功") }}',
-                createError: '{{ _("创建失败") }}',
-                saveSuccess: '{{ _("保存成功") }}',
-                saveError: '{{ _("保存失败") }}',
-                requiredField: '{{ _("请填写必填项") }}',
-                atLeastOneDetail: '{{ _("请至少添加一条报销明细") }}',
-                createTitle: '{{ _("新建报销单") }}',
-                editTitle: '{{ _("编辑报销单") }}',
-                createBtn: '{{ _("创建") }}',
-                saveBtn: '{{ _("保存") }}'
+                loading: {{ _("加载中...")|tojson }},
+                selectCustomerFirst: {{ _("请先选择关联客户")|tojson }},
+                selectContact: {{ _("请选择联系人")|tojson }},
+                noContacts: {{ _("该客户暂无联系人")|tojson }},
+                noResults: {{ _("无匹配结果")|tojson }},
+                createSuccess: {{ _("报销单创建成功")|tojson }},
+                createError: {{ _("创建失败")|tojson }},
+                saveSuccess: {{ _("保存成功")|tojson }},
+                saveError: {{ _("保存失败")|tojson }},
+                requiredField: {{ _("请填写必填项")|tojson }},
+                atLeastOneDetail: {{ _("请至少添加一条报销明细")|tojson }},
+                createTitle: {{ _("新建报销单")|tojson }},
+                editTitle: {{ _("编辑报销单")|tojson }},
+                createBtn: {{ _("创建")|tojson }},
+                saveBtn: {{ _("保存")|tojson }}
             },
             api: {
-                edit: '{{ url_for("expense.edit_expense", id=expense.id) }}',
+                edit: {{ url_for("expense.edit_expense", id=expense.id)|tojson }},
                 exchangeRate: '/api/exchange-rate',
                 customerSearch: '/api/export-helpers/customers/search',
                 projectSearch: '/api/v1/search/projects/for-expense',
