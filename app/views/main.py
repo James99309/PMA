@@ -154,9 +154,15 @@ def index():
             p.project_type_display = project_type_label(p.project_type, lang_code)
     # 获取数据库类型标识和调试模式
     from flask import current_app
+    import logging
     is_sp8d = current_app.config.get('IS_SP8D', False)
     is_debug = current_app.config.get('DEBUG', False)
     show_manual_download = is_sp8d or is_debug
+
+    # 调试日志 - 用于排查说明书按钮显示问题
+    db_url = current_app.config.get('DATABASE_URL', '')
+    logging.info(f"[DEBUG] DATABASE_URL contains 'pma_db_sp8d': {'pma_db_sp8d' in db_url}")
+    logging.info(f"[DEBUG] IS_SP8D={is_sp8d}, DEBUG={is_debug}, show_manual_download={show_manual_download}")
 
     return render_template('index.html',
                          now=datetime.now(),
