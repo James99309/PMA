@@ -57,6 +57,10 @@ class Config:
     IS_SUPABASE_ENV = 'supabase.com' in DATABASE_URL or 'supabase.co' in DATABASE_URL
     IS_CLOUD_ENV = IS_RENDER_ENV or IS_SUPABASE_ENV
     IS_LOCAL_ENV = not IS_CLOUD_ENV
+
+    # 数据库类型检测 - 通过环境变量 SUPABASE_DB_TYPE 判断
+    SUPABASE_DB_TYPE = os.environ.get('SUPABASE_DB_TYPE', 'local')
+    IS_SP8D = SUPABASE_DB_TYPE == 'sp8d'
     
     # 根据环境调整配置
     if IS_CLOUD_ENV:

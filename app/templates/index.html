@@ -86,9 +86,21 @@
                                 {{ _('这是您的业务活动摘要。') }}
                             </p>
                         </div>
-                        <div class="text-right text-sm text-slate-500 dark:text-slate-400">
-                            <span>{{ _('版本号') }}</span>
-                            <span class="font-mono font-medium">{{ app_version if app_version else '1.3.5' }}</span>
+                        <div class="flex items-center gap-4">
+                            {% if show_manual_download %}
+                            <!-- 说明书下载按钮 - SP8D数据库或开发模式可见 -->
+                            <a href="{{ url_for('static', filename='docs/PMA系统产品使用说明书_V6.1.pdf') }}"
+                               target="_blank"
+                               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-sm font-medium transition-colors"
+                               title="{{ _('查看使用说明书') }}">
+                                <span class="material-symbols-outlined text-base">menu_book</span>
+                                <span>{{ _('使用说明书') }}</span>
+                            </a>
+                            {% endif %}
+                            <div class="text-right text-sm text-slate-500 dark:text-slate-400">
+                                <span>{{ _('版本号') }}</span>
+                                <span class="font-mono font-medium">{{ app_version if app_version else '1.3.5' }}</span>
+                            </div>
                         </div>
                     </div>
 

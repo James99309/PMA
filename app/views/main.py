@@ -152,15 +152,22 @@ def index():
     for p in recent_projects:
         if hasattr(p, 'project_type'):
             p.project_type_display = project_type_label(p.project_type, lang_code)
-    return render_template('index.html', 
-                         now=datetime.now(), 
-                         recent_projects=recent_projects, 
-                         recent_quotations=recent_quotations, 
+    # 获取数据库类型标识和调试模式
+    from flask import current_app
+    is_sp8d = current_app.config.get('IS_SP8D', False)
+    is_debug = current_app.config.get('DEBUG', False)
+    show_manual_download = is_sp8d or is_debug
+
+    return render_template('index.html',
+                         now=datetime.now(),
+                         recent_projects=recent_projects,
+                         recent_quotations=recent_quotations,
                          recent_companies=recent_companies,
                          recent_expenses=recent_expenses,
                          current_version_number=version_number,
                          app_version=app_version,
-                         last_upgrade_time=last_upgrade_time)
+                         last_upgrade_time=last_upgrade_time,
+                         show_manual_download=show_manual_download)
 
 @main.route('/api/recent_work_records')
 @login_required
