@@ -58,9 +58,10 @@ class Config:
     IS_CLOUD_ENV = IS_RENDER_ENV or IS_SUPABASE_ENV
     IS_LOCAL_ENV = not IS_CLOUD_ENV
 
-    # 数据库类型检测 - 通过数据库URL判断
+    # 数据库类型检测 - 通过数据库URL中的Supabase项目ID判断
+    # SP8D: iqcyimnjtnmomvfuwjzw, OVS: pqzviljbpfoqvyfulakl
     SUPABASE_DB_TYPE = os.environ.get('SUPABASE_DB_TYPE', 'local')
-    IS_SP8D = 'pma_db_sp8d' in DATABASE_URL
+    IS_SP8D = 'iqcyimnjtnmomvfuwjzw' in DATABASE_URL
     
     # 根据环境调整配置
     if IS_CLOUD_ENV:
