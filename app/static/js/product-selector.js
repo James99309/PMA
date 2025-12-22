@@ -118,6 +118,19 @@ class ProductSelector {
      * 如果不可用，回退到旧版 ProductConfigModal
      */
     openProductConfigModal(config) {
+        console.log('🔍 ========== ProductSelector.openProductConfigModal() ==========');
+        console.log('  传入的config:');
+        console.log('    - category:', config.category);
+        console.log('    - subcategory:', config.subcategory);
+        console.log('    - model:', config.model);
+        console.log('    - products数量:', config.products ? config.products.length : 0);
+        if (config.products && config.products.length > 0) {
+            console.log('    - 产品列表:');
+            config.products.forEach((p, i) => {
+                console.log(`      [${i}] id=${p.id}, name=${p.product_name || p.name}`);
+            });
+        }
+
         // 优先尝试使用新版 ProductSpecModal (tw_product_spec_modal.html)
         if (typeof ProductSpecModal !== 'undefined') {
             console.log('🎨 Using new ProductSpecModal (Tailwind version)');

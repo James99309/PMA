@@ -670,6 +670,18 @@ const ProductSpecModal = (function() {
      * @param {Object} config 配置对象
      */
     function open(config) {
+        console.log('📦 ========== ProductSpecModal.open() 开始 ==========');
+        console.log('  传入的config:');
+        console.log('    - category:', config.category);
+        console.log('    - subcategory:', config.subcategory);
+        console.log('    - model:', config.model);
+        console.log('    - products数量:', config.products ? config.products.length : 0);
+        if (config.products && config.products.length > 0) {
+            console.log('    - 第一个产品:', config.products[0].product_name || config.products[0].name);
+            console.log('    - 产品ID列表:', config.products.map(p => p.id).join(', '));
+        }
+        console.log('  打开前的state.products数量:', state.products.length);
+
         initElements();
 
         // 重置状态
@@ -688,6 +700,9 @@ const ProductSpecModal = (function() {
             subcategory: config.subcategory || '',
             model: config.model || ''
         };
+
+        console.log('  重置后state.products数量:', state.products.length);
+        console.log('  重置后state.selectedProduct:', state.selectedProduct);
 
         // 更新标题
         if (elements.specCategoryTitle && state.subcategory) {
@@ -713,6 +728,9 @@ const ProductSpecModal = (function() {
         elements.modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
 
+        // 🔧 关键修复：确保只显示步骤1，隐藏步骤2和3
+        showCurrentStep();
+
         // 更新步骤指示器和按钮
         updateStepIndicator();
         updateButtons();
@@ -726,10 +744,47 @@ const ProductSpecModal = (function() {
      * 关闭模态框
      */
     function close() {
+        console.log('🔐 ========== ProductSpecModal.close() 开始 ==========');
+        console.log('  关闭前的状态:');
+        console.log('    - currentStep:', state.currentStep);
+        console.log('    - products数量:', state.products.length);
+        console.log('    - selectedProduct:', state.selectedProduct ? state.selectedProduct.product_name : 'null');
+        console.log('    - userSelections:', JSON.stringify(state.userSelections));
+
         if (elements.modal) {
             elements.modal.classList.add('hidden');
             document.body.style.overflow = '';
         }
+
+        // 重置状态，防止下次打开时残留数据
+        state = {
+            currentStep: 1,
+            products: [],
+            remainingProducts: [],
+            selectedProduct: null,
+            userSelections: {},
+            fixedFields: [],
+            selectableFields: [],
+            selectedConfigs: [],
+            configurations: [],
+            hasStep2: false,
+            allSpecsSelected: false,
+            onConfirm: null,
+            category: '',
+            subcategory: '',
+            model: ''
+        };
+
+        // 清空 DOM 容器
+        if (elements.selectableFields) elements.selectableFields.innerHTML = '';
+        if (elements.fixedFields) elements.fixedFields.innerHTML = '';
+        if (elements.configList) elements.configList.innerHTML = '';
+
+        console.log('  重置后的状态:');
+        console.log('    - currentStep:', state.currentStep);
+        console.log('    - products数量:', state.products.length);
+        console.log('    - selectedProduct:', state.selectedProduct);
+        console.log('🔐 ========== ProductSpecModal.close() 完成 ==========');
     }
 
     /**
@@ -2053,12 +2108,17 @@ const ProductSpecModal = (function() {
      * 确认选择
      */
     function confirm() {
+        console.log('✅ ========== ProductSpecModal.confirm() ==========');
+        console.log('  selectedProduct:', state.selectedProduct ? state.selectedProduct.product_name : 'null');
+        console.log('  selectedConfigs数量:', state.selectedConfigs.length);
+
         if (state.onConfirm && typeof state.onConfirm === 'function') {
             state.onConfirm({
                 product: state.selectedProduct,
                 configurations: state.selectedConfigs
             });
         }
+        console.log('  即将调用close()...');
         close();
     }
 

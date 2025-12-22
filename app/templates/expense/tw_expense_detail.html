@@ -832,13 +832,19 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
             // 判断文件类型
             const isPdf = filename && filename.toLowerCase().endsWith('.pdf');
 
+            // 🔧 使用代理端点确保云端文件正确预览（解决Supabase直接URL导致下载的问题）
+            // 代理端点会正确设置Content-Disposition: inline头
+            const proxyUrl = `/expense/download-invoice/${detailId}/${invoiceIndex}?view=inline&embedded=true`;
+
             if (isPdf) {
                 content.innerHTML = `
-                <iframe src="${url}" class="w-full h-[500px] rounded-lg" frameborder="0"></iframe>
+                <iframe src="${proxyUrl}" class="w-full h-[500px] rounded-lg" frameborder="0"></iframe>
             `;
             } else {
+                // 图片可以直接使用原URL，因为图片通常不会有下载问题
+                // 但为了一致性和权限控制，也使用代理端点
                 content.innerHTML = `
-                <img src="${url}" alt="${filename}" class="max-w-full max-h-[500px] object-contain rounded-lg"
+                <img src="${proxyUrl}" alt="${filename}" class="max-w-full max-h-[500px] object-contain rounded-lg"
                      onerror="this.parentElement.innerHTML='<span class=\\'text-red-500\\'>${i18n.imageLoadFailed}</span>'">
             `;
             }
@@ -849,8 +855,11 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
         function downloadCurrentInvoice() {
             if (!currentInvoice) return;
 
+            // 使用代理端点确保正确下载（包括云端文件）
+            const downloadUrl = `/expense/download-invoice/${currentInvoice.detailId}/${currentInvoice.invoiceIndex}?download=1`;
+
             const link = document.createElement('a');
-            link.href = currentInvoice.url;
+            link.href = downloadUrl;
             link.download = currentInvoice.filename || 'invoice';
             link.style.display = 'none';
             document.body.appendChild(link);
