@@ -625,6 +625,16 @@ context %}
     variant='danger'
     ) }}
 
+    <!-- 移除客户关联确认模态框 -->
+    {{ tw_confirm_modal(
+    modal_id='removeCustomerModal',
+    title=_('移除关联客户'),
+    message=_('确定要移除此客户的关联吗？'),
+    confirm_text=_('移除'),
+    cancel_text=_('取消'),
+    variant='danger'
+    ) }}
+
     <!-- 添加行动记录模态框 (使用通用组件) -->
     {{ tw_action_modal(
         context_type='project',
@@ -1217,33 +1227,39 @@ context %}
 
         // 显示添加客户对话框
         window.showAddCustomerDialog = function () {
-            // TODO: 实现添加客户对话框
-            alert('{{ _("添加客户功能待实现") }}');
+            window.dispatchEvent(new CustomEvent('open-add-customer-modal'));
         };
 
         // 移除客户关联
-        window.removeCustomerAssociation = async function (id, name) {
-            if (!confirm(`{{ _("确定要移除客户") }}「${name}」{{ _("的关联吗？") }}`)) return;
-
-            try {
-                const response = await fetch(`/project/api/remove_customer_association/${id}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
+        let pendingRemoveCustomerId = null;
+        window.removeCustomerAssociation = function (id, name) {
+            pendingRemoveCustomerId = id;
+            openConfirmModal('removeCustomerModal', {
+                message: `{{ _("确定要移除客户") }}「${name}」{{ _("的关联吗？") }}`,
+                onConfirm: async function () {
+                    if (!pendingRemoveCustomerId) return;
+                    try {
+                        const response = await fetch(`/project/api/remove_customer_association/${pendingRemoveCustomerId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken
+                            }
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            window.location.reload();
+                        } else {
+                            alert(data.message || i18n.removeError);
+                        }
+                    } catch (error) {
+                        console.error('移除失败:', error);
+                        alert(i18n.removeError);
+                    } finally {
+                        pendingRemoveCustomerId = null;
                     }
-                });
-                const data = await response.json();
-                if (data.success) {
-                    // 刷新页面以更新列表
-                    window.location.reload();
-                } else {
-                    alert(data.message || i18n.removeError);
                 }
-            } catch (error) {
-                console.error('移除失败:', error);
-                alert(i18n.removeError);
-            }
+            });
         };
 
         // 打开共享模态框 - 已在底部共享模态框脚本中实现
@@ -1607,6 +1623,253 @@ context %}
             'productSearch': '/api/products/search'
         }
     }) }}
+
+    <!-- ==================== 添加客户模态框 ==================== -->
+    <div id="addCustomerModal"
+         x-data="addCustomerModalData()"
+         x-show="open"
+         x-cloak
+         @open-add-customer-modal.window="openModal()"
+         class="fixed inset-0 z-50 overflow-y-auto">
+        <!-- 背景遮罩 -->
+        <div class="fixed inset-0 bg-black/30 dark:bg-black/50 transition-opacity"
+             x-show="open"
+             x-transition:enter="ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="ease-in duration-200"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             @click="open = false">
+        </div>
+
+        <!-- 模态框内容 -->
+        <div class="flex min-h-full items-center justify-center p-4">
+            <div class="relative bg-white dark:bg-slate-900 rounded-lg shadow-2xl w-full max-w-lg transform transition-all"
+                 x-show="open"
+                 x-transition:enter="ease-out duration-300"
+                 x-transition:enter-start="opacity-0 scale-95"
+                 x-transition:enter-end="opacity-100 scale-100"
+                 x-transition:leave="ease-in duration-200"
+                 x-transition:leave-start="opacity-100 scale-100"
+                 x-transition:leave-end="opacity-0 scale-95"
+                 @click.stop>
+
+                <!-- 头部 -->
+                <div class="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-xl font-semibold text-slate-800 dark:text-white">{{ _('添加关联客户') }}</h3>
+                    <button @click="open = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+
+                <!-- 内容 -->
+                <div class="p-6">
+                    <!-- 搜索框 -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('搜索客户') }}</label>
+                        <div class="relative">
+                            <input type="text"
+                                   x-model="searchKeyword"
+                                   @input.debounce.300ms="searchCustomers()"
+                                   class="w-full px-4 py-2 pl-10 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   placeholder="{{ _('输入客户名称搜索...') }}">
+                            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+                            <span x-show="searching" class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 animate-spin">sync</span>
+                        </div>
+                    </div>
+
+                    <!-- 搜索结果列表 -->
+                    <div class="border border-slate-200 dark:border-slate-700 rounded-lg max-h-64 overflow-y-auto">
+                        <!-- 加载状态 -->
+                        <template x-if="searching && searchResults.length === 0">
+                            <div class="p-4 text-center text-slate-400">
+                                <span class="material-symbols-outlined animate-spin">sync</span>
+                                <span class="ml-2">{{ _('搜索中...') }}</span>
+                            </div>
+                        </template>
+
+                        <!-- 搜索结果 -->
+                        <template x-if="!searching && searchResults.length > 0">
+                            <ul class="divide-y divide-slate-200 dark:divide-slate-700">
+                                <template x-for="customer in searchResults" :key="customer.id">
+                                    <li class="p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
+                                        :class="{ 'bg-primary/10': selectedCustomer && selectedCustomer.id === customer.id }"
+                                        @click="selectCustomer(customer)">
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <div class="font-medium text-slate-800 dark:text-white" x-text="customer.name"></div>
+                                                <div class="text-sm text-slate-500 dark:text-slate-400" x-text="customer.location + ' | ' + customer.owner"></div>
+                                            </div>
+                                            <template x-if="!customer.has_permission">
+                                                <span class="text-xs text-amber-600 bg-amber-100 dark:bg-amber-900/30 px-2 py-1 rounded">{{ _('无权限') }}</span>
+                                            </template>
+                                            <template x-if="selectedCustomer && selectedCustomer.id === customer.id">
+                                                <span class="material-symbols-outlined text-primary">check_circle</span>
+                                            </template>
+                                        </div>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+
+                        <!-- 无结果 -->
+                        <template x-if="!searching && searchKeyword.length > 0 && searchResults.length === 0">
+                            <div class="p-4 text-center text-slate-400">
+                                <span class="material-symbols-outlined text-3xl mb-2">search_off</span>
+                                <p>{{ _('未找到匹配的客户') }}</p>
+                            </div>
+                        </template>
+
+                        <!-- 初始状态 -->
+                        <template x-if="!searching && searchKeyword.length === 0 && searchResults.length === 0">
+                            <div class="p-4 text-center text-slate-400">
+                                <span class="material-symbols-outlined text-3xl mb-2">person_search</span>
+                                <p>{{ _('请输入关键词搜索客户') }}</p>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- 已选择的客户 -->
+                    <template x-if="selectedCustomer">
+                        <div class="mt-4 p-3 bg-primary/10 border border-primary/20 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-sm text-slate-500 dark:text-slate-400">{{ _('已选择') }}:</div>
+                                    <div class="font-medium text-slate-800 dark:text-white" x-text="selectedCustomer.name"></div>
+                                </div>
+                                <button @click="selectedCustomer = null" class="text-slate-400 hover:text-red-500">
+                                    <span class="material-symbols-outlined">close</span>
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- 错误提示 -->
+                    <template x-if="errorMessage">
+                        <div class="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm" x-text="errorMessage"></div>
+                    </template>
+                </div>
+
+                <!-- 底部按钮 -->
+                <div class="flex justify-end gap-3 p-6 border-t border-slate-200 dark:border-slate-700">
+                    <button type="button" @click="open = false"
+                            class="px-4 py-2 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                        {{ _('取消') }}
+                    </button>
+                    <button type="button" @click="addCustomer()"
+                            :disabled="!selectedCustomer || !selectedCustomer.has_permission || saving"
+                            :class="{ 'opacity-50 cursor-not-allowed': !selectedCustomer || !selectedCustomer.has_permission || saving }"
+                            class="px-4 py-2 text-white bg-primary hover:bg-blue-600 rounded-lg transition-colors flex items-center gap-2">
+                        <span x-show="saving" class="material-symbols-outlined animate-spin text-lg">progress_activity</span>
+                        <span x-text="saving ? '{{ _('添加中...') }}' : '{{ _('确认添加') }}'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加客户模态框脚本 -->
+    <script>
+    function addCustomerModalData() {
+        const projectId = {{ project.id }};
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        return {
+            open: false,
+            searching: false,
+            saving: false,
+            searchKeyword: '',
+            searchResults: [],
+            selectedCustomer: null,
+            errorMessage: '',
+
+            openModal() {
+                this.open = true;
+                this.searchKeyword = '';
+                this.searchResults = [];
+                this.selectedCustomer = null;
+                this.errorMessage = '';
+            },
+
+            async searchCustomers() {
+                if (this.searchKeyword.length < 1) {
+                    this.searchResults = [];
+                    return;
+                }
+
+                this.searching = true;
+                this.errorMessage = '';
+
+                try {
+                    const response = await fetch(`/customer/api/company/search?keyword=${encodeURIComponent(this.searchKeyword)}`);
+                    const data = await response.json();
+
+                    this.searchResults = (data.results || []).map(item => ({
+                        id: item.id,
+                        name: item.name,
+                        location: item.location || '',
+                        owner: item.owner || '{{ _("未指定") }}',
+                        has_permission: item.has_permission !== false
+                    }));
+                } catch (error) {
+                    console.error('搜索客户失败:', error);
+                    this.errorMessage = '{{ _("搜索失败，请重试") }}';
+                } finally {
+                    this.searching = false;
+                }
+            },
+
+            selectCustomer(customer) {
+                if (this.selectedCustomer && this.selectedCustomer.id === customer.id) {
+                    this.selectedCustomer = null;
+                } else {
+                    this.selectedCustomer = customer;
+                }
+                this.errorMessage = '';
+            },
+
+            async addCustomer() {
+                if (!this.selectedCustomer) return;
+                if (!this.selectedCustomer.has_permission) {
+                    this.errorMessage = '{{ _("您没有权限关联此客户") }}';
+                    return;
+                }
+
+                this.saving = true;
+                this.errorMessage = '';
+
+                try {
+                    const response = await fetch('/project/api/add_customer_association', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({
+                            project_id: projectId,
+                            company_id: this.selectedCustomer.id
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.open = false;
+                        window.location.reload();
+                    } else {
+                        this.errorMessage = data.message || '{{ _("添加失败，请重试") }}';
+                    }
+                } catch (error) {
+                    console.error('添加客户关联失败:', error);
+                    this.errorMessage = '{{ _("网络错误，请重试") }}';
+                } finally {
+                    this.saving = false;
+                }
+            }
+        };
+    }
+    </script>
 
     <!-- 产品选择器 -->
     <script src="{{ url_for('static', filename='js/product-selector.js') }}"></script>
