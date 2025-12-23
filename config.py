@@ -62,6 +62,7 @@ class Config:
     # SP8D: iqcyimnjtnmomvfuwjzw, OVS: pqzviljbpfoqvyfulakl
     SUPABASE_DB_TYPE = os.environ.get('SUPABASE_DB_TYPE', 'local')
     IS_SP8D = 'iqcyimnjtnmomvfuwjzw' in DATABASE_URL
+    IS_OVS = 'pqzviljbpfoqvyfulakl' in DATABASE_URL
     
     # 根据环境调整配置
     if IS_CLOUD_ENV:

@@ -3971,21 +3971,37 @@ def get_product_detail_confirmation_status(quotation_id):
 @login_required
 @permission_required('quotation', 'view')
 def export_pdf(quotation_id):
-    """导出报价单PDF"""
+    """
+    导出报价单PDF（浏览器内打开）
+
+    URL参数:
+        template: 模板类型，可选值：
+            - 'ovs': 使用OVS Singapore模板
+            - 'sp8d': 使用SP8D默认模板
+            - 不传：根据数据库类型自动选择
+
+    示例:
+        /quotation/export_pdf/123?template=ovs
+    """
     try:
         # 查找报价单
         quotation = Quotation.query.get_or_404(quotation_id)
-        
+
         # 检查查看权限
         if not can_view_quotation(current_user, quotation):
             flash(_('权限不足，无法导出该报价单'), 'danger')
             return redirect(url_for('quotation.list_quotations'))
-        
+
+        # 获取模板类型参数
+        template_type = request.args.get('template', None)
+        if template_type and template_type not in ['ovs', 'sp8d']:
+            template_type = None  # 无效参数时使用自动检测
+
         from app.services.evertac_quotation_pdf_generator import EvertacQuotationPDFGenerator
-        
+
         # 生成PDF
         pdf_generator = EvertacQuotationPDFGenerator()
-        pdf_result = pdf_generator.generate_quotation_pdf(quotation)
+        pdf_result = pdf_generator.generate_quotation_pdf(quotation, template_type=template_type)
         pdf_content = pdf_result['content']
         filename = pdf_result['filename']
         
@@ -4010,21 +4026,37 @@ def export_pdf(quotation_id):
 @login_required
 @permission_required('quotation', 'view')
 def download_pdf(quotation_id):
-    """下载报价单PDF"""
+    """
+    下载报价单PDF（强制下载）
+
+    URL参数:
+        template: 模板类型，可选值：
+            - 'ovs': 使用OVS Singapore模板
+            - 'sp8d': 使用SP8D默认模板
+            - 不传：根据数据库类型自动选择
+
+    示例:
+        /quotation/download_pdf/123?template=ovs
+    """
     try:
         # 查找报价单
         quotation = Quotation.query.get_or_404(quotation_id)
-        
+
         # 检查查看权限
         if not can_view_quotation(current_user, quotation):
             flash(_('权限不足，无法下载该报价单'), 'danger')
             return redirect(url_for('quotation.list_quotations'))
-        
+
+        # 获取模板类型参数
+        template_type = request.args.get('template', None)
+        if template_type and template_type not in ['ovs', 'sp8d']:
+            template_type = None  # 无效参数时使用自动检测
+
         from app.services.evertac_quotation_pdf_generator import EvertacQuotationPDFGenerator
-        
+
         # 生成PDF
         pdf_generator = EvertacQuotationPDFGenerator()
-        pdf_result = pdf_generator.generate_quotation_pdf(quotation)
+        pdf_result = pdf_generator.generate_quotation_pdf(quotation, template_type=template_type)
         pdf_content = pdf_result['content']
         filename = pdf_result['filename']
         
@@ -4128,7 +4160,18 @@ def export_word_pdf(quotation_id):
 @login_required
 @permission_required('quotation', 'view')
 def export_excel(quotation_id):
-    """导出报价单Excel（使用Excel模板）"""
+    """
+    导出报价单Excel（使用Excel模板）
+
+    URL参数:
+        template: 模板类型，可选值：
+            - 'ovs': 使用OVS Singapore模板
+            - 'sp8d': 使用SP8D默认模板
+            - 不传：根据数据库类型自动选择
+
+    示例:
+        /quotation/export_excel/123?template=ovs
+    """
     try:
         # 查找报价单
         quotation_obj = Quotation.query.get_or_404(quotation_id)
@@ -4138,11 +4181,16 @@ def export_excel(quotation_id):
             flash(_('权限不足，无法导出该报价单'), 'danger')
             return redirect(url_for('quotation.list_quotations'))
 
+        # 获取模板类型参数
+        template_type = request.args.get('template', None)
+        if template_type and template_type not in ['ovs', 'sp8d']:
+            template_type = None  # 无效参数时使用自动检测
+
         from app.services.word_generator import WordGenerator
 
         # 生成Excel
         word_generator = WordGenerator()
-        excel_result = word_generator.generate_quotation_excel(quotation_obj)
+        excel_result = word_generator.generate_quotation_excel(quotation_obj, template_type=template_type)
         excel_content = excel_result['content']
         filename = excel_result['filename']
 
@@ -4162,6 +4210,62 @@ def export_excel(quotation_id):
         flash(_('导出Excel失败：%s') % str(e), 'danger')
         return redirect(url_for('quotation.view_quotation', id=quotation_id))
 
+
+@quotation.route('/export_excel_pdf/<int:quotation_id>')
+@login_required
+@permission_required('quotation', 'view')
+def export_excel_pdf(quotation_id):
+    """
+    导出报价单PDF（基于Excel模板）
+
+    URL参数:
+        template: 模板类型，可选值：
+            - 'ovs': 使用OVS Singapore模板
+            - 'sp8d': 使用SP8D默认模板
+            - 不传：根据数据库类型自动选择
+
+    示例:
+        /quotation/export_excel_pdf/123?template=ovs
+    """
+    try:
+        # 查找报价单
+        quotation_obj = Quotation.query.get_or_404(quotation_id)
+
+        # 检查查看权限
+        if not can_view_quotation(current_user, quotation_obj):
+            flash(_('权限不足，无法导出该报价单'), 'danger')
+            return redirect(url_for('quotation.list_quotations'))
+
+        # 获取模板类型参数
+        template_type = request.args.get('template', None)
+        if template_type and template_type not in ['ovs', 'sp8d']:
+            template_type = None  # 无效参数时使用自动检测
+
+        from app.services.word_generator import WordGenerator
+
+        # 生成PDF（基于Excel模板）
+        word_generator = WordGenerator()
+        pdf_result = word_generator.generate_quotation_excel_pdf(quotation_obj, template_type=template_type)
+        pdf_content = pdf_result['content']
+        filename = pdf_result['filename']
+
+        # 返回PDF文件
+        from flask import make_response
+        from urllib.parse import quote
+        response = make_response(pdf_content)
+        response.headers['Content-Type'] = 'application/pdf'
+        # 使用URL编码处理中文文件名
+        encoded_filename = quote(filename.encode('utf-8'))
+        response.headers['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{encoded_filename}'
+
+        return response
+
+    except Exception as e:
+        logger.error(f"导出报价单PDF失败: {str(e)}", exc_info=True)
+        flash(_('导出PDF失败：%s') % str(e), 'danger')
+        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+
+
 @quotation.route('/export_pdf_with_info', methods=['POST'])
 @login_required
 @permission_required('quotation', 'view')
@@ -4178,11 +4282,12 @@ def export_pdf_with_info():
         
         quotation_id = data.get('quotation_id')
         export_info = data.get('export_info', {})
-        
-        # 添加调试日志
-        logger.info(f"🚀 PDF导出请求: quotation_id={quotation_id}")
-        logger.info(f"📦 导出信息: {export_info}")
-        
+        template_type = data.get('template_type')
+
+        # 验证模板类型
+        if template_type and template_type not in ['ovs', 'sp8d']:
+            template_type = None
+
         if not quotation_id:
             return jsonify({
                 'success': False,
@@ -4200,10 +4305,10 @@ def export_pdf_with_info():
             }), 403
         
         from app.services.evertac_quotation_pdf_generator import EvertacQuotationPDFGenerator
-        
+
         # 生成PDF
         pdf_generator = EvertacQuotationPDFGenerator()
-        pdf_result = pdf_generator.generate_quotation_pdf(quotation, export_info)
+        pdf_result = pdf_generator.generate_quotation_pdf(quotation, export_info, template_type=template_type)
         pdf_content = pdf_result['content']
         filename = pdf_result['filename']
         

@@ -61,37 +61,68 @@ class EvertacQuotationPDFGenerator(PDFGenerator):
     def _load_field_mapping(self):
         """加载字段映射"""
         return self.template_config.get("字段映射", {})
-    
-    def generate_quotation_pdf(self, quotation, export_info=None):
-        """生成EVERTAC报价单PDF"""
+
+    def _is_ovs_database(self):
+        """检测当前是否使用OVS数据库"""
+        from flask import current_app
+        db_url = current_app.config.get('DATABASE_URL', '')
+        return 'pqzviljbpfoqvyfulakl' in db_url
+
+    def generate_quotation_pdf(self, quotation, export_info=None, template_type=None):
+        """
+        生成报价单PDF
+
+        Args:
+            quotation: Quotation 对象
+            export_info: 导出补充信息（客户、联系人、备注等）
+            template_type: 模板类型，可选值：
+                - 'ovs': 强制使用OVS Singapore模板
+                - 'sp8d': 强制使用SP8D默认模板
+                - None: 根据数据库类型自动选择
+        """
+        # 强制指定模板类型
+        if template_type == 'ovs':
+            return self._generate_quotation_pdf_ovs(quotation, export_info)
+        elif template_type == 'sp8d':
+            return self._generate_quotation_pdf_default(quotation, export_info)
+
+        # 自动检测：OVS数据库使用Singapore专用模板
+        if self._is_ovs_database():
+            return self._generate_quotation_pdf_ovs(quotation, export_info)
+
+        # 原有EVERTAC模板
+        return self._generate_quotation_pdf_default(quotation, export_info)
+
+    def _generate_quotation_pdf_default(self, quotation, export_info=None):
+        """生成EVERTAC报价单PDF（SP8D/默认）"""
         try:
             logger.info(f"🔄 开始生成EVERTAC报价单PDF: {quotation.quotation_number}")
             logger.info(f"📦 收到的导出信息: {export_info}")
-            
+
             # 准备模板数据
             template_data = self._prepare_template_data(quotation, export_info)
-            
+
             # 获取Logo - 优先从用户所属企业字典获取
             logo_base64 = self._get_user_company_logo(quotation.owner)
-            
+
             # 渲染HTML模板
             html_content = self._render_evertac_template(template_data, logo_base64)
-            
+
             # 生成PDF文件名
             project_name = quotation.project.project_name if quotation.project else "Unknown Project"
             safe_project_name = "".join(c for c in project_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
             filename = f"{quotation.quotation_number} - {safe_project_name}.pdf"
-            
+
             # 生成PDF
             pdf_content = self._generate_pdf_from_html(html_content, filename)
-            
+
             logger.info(f"✅ EVERTAC报价单PDF生成成功: {filename}")
-            
+
             return {
                 'content': pdf_content,
                 'filename': filename
             }
-            
+
         except Exception as e:
             logger.error(f"❌ 生成EVERTAC报价单PDF失败: {e}")
             raise
@@ -971,6 +1002,502 @@ class EvertacQuotationPDFGenerator(PDFGenerator):
         except Exception as e:
             logger.error(f"❌ 模板渲染失败: {e}")
             raise
+
+    # ==================== OVS专用方法 ====================
+
+    def _generate_quotation_pdf_ovs(self, quotation, export_info=None):
+        """生成OVS报价单PDF（Singapore模板）"""
+        try:
+            logger.info(f"🔄 开始生成OVS报价单PDF: {quotation.quotation_number}")
+
+            # 准备OVS模板数据
+            template_data = self._prepare_ovs_template_data(quotation, export_info)
+
+            # 获取Singapore公司Logo
+            logo_base64 = self._get_ovs_company_logo()
+
+            # 渲染OVS HTML模板
+            html_content = self._render_ovs_template(template_data, logo_base64)
+
+            # 生成PDF文件名
+            project_name = quotation.project.project_name if quotation.project else "Unknown Project"
+            safe_project_name = "".join(c for c in project_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+            filename = f"{quotation.quotation_number} - {safe_project_name}.pdf"
+
+            # 生成PDF
+            pdf_content = self._generate_pdf_from_html(html_content, filename)
+
+            logger.info(f"✅ OVS报价单PDF生成成功: {filename}")
+
+            return {
+                'content': pdf_content,
+                'filename': filename
+            }
+
+        except Exception as e:
+            logger.error(f"❌ 生成OVS报价单PDF失败: {e}")
+            raise
+
+    def _get_ovs_company_logo(self):
+        """获取OVS Singapore公司Logo"""
+        # 尝试从字典中获取Singapore公司logo
+        try:
+            from app.models.dictionary import Dictionary
+            company_dict = Dictionary.query.filter_by(
+                type='company',
+                value='EVERTAC SOLUTIONS SINGAPORE PTE. LTD.',
+                is_active=True
+            ).first()
+
+            if company_dict and company_dict.logo_content:
+                return company_dict.logo_data_url
+
+            # 备选：尝试获取evertac_singapore_logo
+            return LogoService.get_company_logo('evertac_singapore_logo') or LogoService.get_company_logo('evertac_logo')
+
+        except Exception as e:
+            logger.warning(f"⚠️ 获取OVS公司Logo失败: {e}，使用默认Logo")
+            return LogoService.get_company_logo('evertac_logo')
+
+    def _prepare_ovs_template_data(self, quotation, export_info=None):
+        """准备OVS模板数据"""
+        from datetime import timedelta
+
+        # 日期格式: mm/dd/yyyy
+        created_date = quotation.created_at.strftime('%m/%d/%Y') if quotation.created_at else datetime.now().strftime('%m/%d/%Y')
+        valid_until = quotation.created_at + timedelta(days=30) if quotation.created_at else datetime.now() + timedelta(days=30)
+        valid_until_str = valid_until.strftime('%m/%d/%Y')
+
+        # 客户信息
+        customer_name = ''
+        customer_address = ''
+        if quotation.customer:
+            customer_name = quotation.customer.company_name or ''
+            # 尝试获取地址
+            addr_parts = []
+            if hasattr(quotation.customer, 'street') and quotation.customer.street:
+                addr_parts.append(quotation.customer.street)
+            if hasattr(quotation.customer, 'city') and quotation.customer.city:
+                addr_parts.append(quotation.customer.city)
+            if hasattr(quotation.customer, 'country') and quotation.customer.country:
+                addr_parts.append(quotation.customer.country)
+            customer_address = ', '.join(addr_parts) if addr_parts else ''
+
+        # 联系人信息
+        contact_name = quotation.contact.name if quotation.contact else ''
+        contact_phone = quotation.contact.phone if quotation.contact else ''
+
+        # 准备产品明细（USD格式）
+        details = []
+        for i, detail in enumerate(quotation.details, 1):
+            # 跳过配置产品
+            if detail.is_accessory:
+                continue
+
+            # 产品描述组合
+            desc_parts = []
+            if detail.product_name:
+                desc_parts.append(detail.product_name)
+            if detail.product_model:
+                desc_parts.append(f"Model: {detail.product_model}")
+            if detail.product_desc:
+                spec = detail.product_desc
+                if len(spec) > 100:
+                    spec = spec[:100] + '...'
+                desc_parts.append(spec)
+
+            formatted_detail = {
+                'item_number': len(details) + 1,
+                'product_mn': detail.configured_mn or detail.product_mn or '',
+                'brand': getattr(detail, 'brand', '') or '',
+                'description': '\n'.join(desc_parts) if desc_parts else '',
+                'quantity': detail.quantity or 0,
+                'unit_price': detail.unit_price or 0,
+                'total_price': detail.total_price or 0,
+                'unit_price_formatted': f"${detail.unit_price:,.2f}" if detail.unit_price else "$0.00",
+                'total_price_formatted': f"${detail.total_price:,.2f}" if detail.total_price else "$0.00"
+            }
+            details.append(formatted_detail)
+
+            # 添加配置产品
+            if detail.configurations:
+                for child in detail.configurations:
+                    child_desc_parts = []
+                    if child.product_name:
+                        child_desc_parts.append(f"  - {child.product_name}")
+                    if child.product_model:
+                        child_desc_parts.append(f"    Model: {child.product_model}")
+
+                    child_detail = {
+                        'item_number': len(details) + 1,
+                        'product_mn': child.configured_mn or child.product_mn or '',
+                        'brand': getattr(child, 'brand', '') or '',
+                        'description': '\n'.join(child_desc_parts) if child_desc_parts else '',
+                        'quantity': child.quantity or 0,
+                        'unit_price': child.unit_price or 0,
+                        'total_price': child.total_price or 0,
+                        'unit_price_formatted': f"${child.unit_price:,.2f}" if child.unit_price else "$0.00",
+                        'total_price_formatted': f"${child.total_price:,.2f}" if child.total_price else "$0.00"
+                    }
+                    details.append(child_detail)
+
+        # 计算总计
+        subtotal = sum(d['total_price'] for d in details)
+
+        # Singapore公司信息
+        company_info = {
+            'name': 'EVERTAC SOLUTIONS SINGAPORE PTE. LTD.',
+            'address': '18 Boon Lay Way, #03-117 Tradehub 21, Singapore 609966',
+            'phone': '(65) 65681543',
+            'uen': '202230146C',
+            'website': 'www.evertacsolutions.com'
+        }
+
+        return {
+            'quotation': {
+                'quotation_number': quotation.quotation_number,
+                'created_at': created_date,
+                'valid_until': valid_until_str,
+                'payment_terms': 'Net 30 Days',
+                'shipping_terms': 'FOB Singapore',
+                'validity': '30 Days',
+                'ref_no': quotation.quotation_number,
+                'subtotal': subtotal,
+                'gst': 0,  # 免税
+                'total_amount': subtotal,
+                'subtotal_formatted': f"${subtotal:,.2f}",
+                'gst_formatted': "$0.00",
+                'total_formatted': f"${subtotal:,.2f}",
+                'details': details,
+                'owner': quotation.owner
+            },
+            'customer': {
+                'company_name': customer_name,
+                'address': customer_address
+            },
+            'contact': {
+                'name': contact_name,
+                'phone': contact_phone
+            },
+            'company_info': company_info
+        }
+
+    def _render_ovs_template(self, template_data, logo_base64):
+        """渲染OVS Singapore模板"""
+
+        font_family = self._get_system_font_family()
+        font_face_css = self._get_font_face_css()
+
+        html_template = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quotation - {{ quotation.quotation_number }}</title>
+    <style>
+        """ + font_face_css + """
+
+        @page {
+            size: A4;
+            margin: 1.5cm 1cm;
+        }
+
+        body {
+            font-family: """ + font_family + """;
+            font-size: 9pt;
+            line-height: 1.3;
+            margin: 0;
+            padding: 0;
+            color: #000;
+        }
+
+        .quotation-container {
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .border-table {
+            border: 1px solid #000;
+        }
+
+        .border-table td, .border-table th {
+            border: 1px solid #000;
+            padding: 5pt;
+            vertical-align: top;
+        }
+
+        /* Header section */
+        .header-section {
+            margin-bottom: 10pt;
+        }
+
+        .company-header {
+            text-align: center;
+            margin-bottom: 5pt;
+        }
+
+        .company-name {
+            font-size: 14pt;
+            font-weight: bold;
+            margin-bottom: 3pt;
+        }
+
+        .company-details {
+            font-size: 8pt;
+            color: #333;
+        }
+
+        .quotation-title {
+            text-align: center;
+            font-size: 16pt;
+            font-weight: bold;
+            margin: 10pt 0;
+            background-color: #f0f0f0;
+            padding: 5pt;
+        }
+
+        /* Info table */
+        .info-table {
+            margin-bottom: 10pt;
+        }
+
+        .info-table td {
+            padding: 4pt 8pt;
+        }
+
+        .info-label {
+            font-weight: bold;
+            width: 25%;
+        }
+
+        .info-value {
+            width: 25%;
+        }
+
+        /* Product table */
+        .product-table {
+            margin-bottom: 10pt;
+        }
+
+        .product-table th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+            text-align: center;
+            padding: 6pt;
+        }
+
+        .product-table td {
+            padding: 5pt;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        /* Summary section */
+        .summary-table {
+            width: 50%;
+            margin-left: auto;
+            margin-bottom: 15pt;
+        }
+
+        .summary-table td {
+            padding: 4pt 8pt;
+        }
+
+        .summary-label {
+            text-align: right;
+            font-weight: bold;
+        }
+
+        .summary-value {
+            text-align: right;
+            width: 120px;
+        }
+
+        .total-row {
+            font-weight: bold;
+            font-size: 10pt;
+            background-color: #f5f5f5;
+        }
+
+        /* Signature section */
+        .signature-section {
+            margin-top: 30pt;
+            page-break-inside: avoid;
+        }
+
+        .signature-table {
+            width: 100%;
+        }
+
+        .signature-table td {
+            width: 50%;
+            padding: 10pt;
+            vertical-align: top;
+        }
+
+        .signature-line {
+            border-top: 1px solid #000;
+            margin-top: 40pt;
+            padding-top: 5pt;
+        }
+
+        .signature-label {
+            font-weight: bold;
+            margin-bottom: 5pt;
+        }
+    </style>
+</head>
+<body>
+    <div class="quotation-container">
+        <!-- Company Header -->
+        <div class="header-section">
+            {% if logo_base64 %}
+            <div style="text-align: center; margin-bottom: 5pt;">
+                <img src="{{ logo_base64 }}" alt="Company Logo" style="max-height: 50px;">
+            </div>
+            {% endif %}
+            <div class="company-header">
+                <div class="company-name">{{ company_info.name }}</div>
+                <div class="company-details">
+                    {{ company_info.address }}&nbsp;&nbsp;&nbsp;Tel No: {{ company_info.phone }}<br>
+                    UEN No/GST Reg. No.: {{ company_info.uen }}&nbsp;&nbsp;&nbsp;Website: {{ company_info.website }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Quotation Title -->
+        <div class="quotation-title">QUOTATION</div>
+
+        <!-- Info Table -->
+        <table class="info-table border-table">
+            <tr>
+                <td class="info-label">Company Name:</td>
+                <td class="info-value">{{ customer.company_name }}</td>
+                <td class="info-label">Quotation No.:</td>
+                <td class="info-value">{{ quotation.quotation_number }}</td>
+            </tr>
+            <tr>
+                <td class="info-label">Company Address:</td>
+                <td class="info-value">{{ customer.address }}</td>
+                <td class="info-label">Quotation Date:</td>
+                <td class="info-value">{{ quotation.created_at }}</td>
+            </tr>
+            <tr>
+                <td class="info-label">Contact Person:</td>
+                <td class="info-value">{{ contact.name }}</td>
+                <td class="info-label">Payment Terms:</td>
+                <td class="info-value">{{ quotation.payment_terms }}</td>
+            </tr>
+            <tr>
+                <td class="info-label">Contact No.:</td>
+                <td class="info-value">{{ contact.phone }}</td>
+                <td class="info-label">Shipping Terms:</td>
+                <td class="info-value">{{ quotation.shipping_terms }}</td>
+            </tr>
+            <tr>
+                <td class="info-label"></td>
+                <td class="info-value"></td>
+                <td class="info-label">Validity:</td>
+                <td class="info-value">{{ quotation.validity }}</td>
+            </tr>
+            <tr>
+                <td class="info-label"></td>
+                <td class="info-value"></td>
+                <td class="info-label">Ref No:</td>
+                <td class="info-value">{{ quotation.ref_no }}</td>
+            </tr>
+        </table>
+
+        <!-- Product Table -->
+        <table class="product-table border-table">
+            <thead>
+                <tr>
+                    <th style="width: 5%;">S/N</th>
+                    <th style="width: 12%;">Item No.</th>
+                    <th style="width: 10%;">Brand</th>
+                    <th style="width: 38%;">Description</th>
+                    <th style="width: 8%;">Quantity</th>
+                    <th style="width: 12%;">Unit Price (USD)</th>
+                    <th style="width: 15%;">Amount (USD)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for detail in quotation.details %}
+                <tr>
+                    <td class="text-center">{{ detail.item_number }}</td>
+                    <td>{{ detail.product_mn }}</td>
+                    <td>{{ detail.brand }}</td>
+                    <td style="white-space: pre-wrap;">{{ detail.description }}</td>
+                    <td class="text-center">{{ detail.quantity }}</td>
+                    <td class="text-right">{{ detail.unit_price_formatted }}</td>
+                    <td class="text-right">{{ detail.total_price_formatted }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Summary -->
+        <table class="summary-table border-table">
+            <tr>
+                <td class="summary-label">Total before GST</td>
+                <td class="summary-value">{{ quotation.subtotal_formatted }}</td>
+            </tr>
+            <tr>
+                <td class="summary-label">GST</td>
+                <td class="summary-value">{{ quotation.gst_formatted }}</td>
+            </tr>
+            <tr class="total-row">
+                <td class="summary-label">Total after GST</td>
+                <td class="summary-value">{{ quotation.total_formatted }}</td>
+            </tr>
+        </table>
+
+        <!-- Signature Section -->
+        <div class="signature-section">
+            <table class="signature-table">
+                <tr>
+                    <td>
+                        <div class="signature-label">Evertac Solutions Singapore Pte. Ltd.</div>
+                        <div class="signature-line"></div>
+                    </td>
+                    <td>
+                        <div class="signature-label">Signed and Accepted by Customer:</div>
+                        <div class="signature-line">chop & sign</div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
+        """
+
+        try:
+            rendered_html = render_template_string(
+                html_template,
+                quotation=template_data['quotation'],
+                customer=template_data['customer'],
+                contact=template_data['contact'],
+                company_info=template_data['company_info'],
+                logo_base64=logo_base64
+            )
+            return rendered_html
+        except Exception as e:
+            logger.error(f"❌ OVS模板渲染失败: {e}")
+            raise
+
 
 # 便捷函数
 def generate_evertac_quotation_pdf(quotation):

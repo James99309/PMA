@@ -645,15 +645,42 @@ class WordGenerator:
 
         return pdf_result
 
-    def generate_quotation_excel(self, quotation):
+    def _is_ovs_database(self):
+        """检测当前是否使用OVS数据库"""
+        from flask import current_app
+        db_url = current_app.config.get('DATABASE_URL', '')
+        return 'pqzviljbpfoqvyfulakl' in db_url
+
+    def generate_quotation_excel(self, quotation, template_type=None):
         """
         使用Excel模板生成报价单Excel文档
 
         Args:
             quotation: Quotation 对象
+            template_type: 模板类型，可选值：
+                - 'ovs': 强制使用OVS Singapore模板
+                - 'sp8d': 强制使用SP8D默认模板
+                - None: 根据数据库类型自动选择
 
         Returns:
             dict: {'content': bytes, 'filename': str}
+        """
+        # 强制指定模板类型
+        if template_type == 'ovs':
+            return self._generate_quotation_excel_ovs(quotation)
+        elif template_type == 'sp8d':
+            return self._generate_quotation_excel_default(quotation)
+
+        # 自动检测：OVS数据库使用专用模板
+        if self._is_ovs_database():
+            return self._generate_quotation_excel_ovs(quotation)
+
+        # 原有SP8D/默认模板逻辑
+        return self._generate_quotation_excel_default(quotation)
+
+    def _generate_quotation_excel_default(self, quotation):
+        """
+        使用默认Excel模板生成报价单（SP8D/本地）
 
         模板结构 (EVERTAC_Quotation_Template.xlsx):
         - A7: 客户名称
@@ -720,22 +747,57 @@ class WordGenerator:
                 ws.insert_rows(detail_start_row + template_detail_count, extra_rows)
 
             # 填充明细数据
+            from openpyxl.styles import Alignment
+
+            # 定义对齐样式
+            align_top = Alignment(vertical='top')
+            align_top_wrap = Alignment(wrap_text=True, vertical='top')
+            align_top_center = Alignment(horizontal='center', vertical='top')
+            align_top_right = Alignment(horizontal='right', vertical='top')
+
             for idx, detail in enumerate(all_details):
                 row = detail_start_row + idx
-                ws[f'A{row}'] = idx + 1  # 序号
-                ws[f'B{row}'] = detail.product_name or ''  # 产品名称
-                ws[f'C{row}'] = detail.product_model or ''  # 型号
-                # 规格参数
+
+                # 序号 - 居中顶部对齐
+                ws[f'A{row}'] = idx + 1
+                ws[f'A{row}'].alignment = align_top_center
+
+                # 产品名称 - 顶部对齐
+                ws[f'B{row}'] = detail.product_name or ''
+                ws[f'B{row}'].alignment = align_top
+
+                # 型号 - 顶部对齐
+                ws[f'C{row}'] = detail.product_model or ''
+                ws[f'C{row}'].alignment = align_top
+
+                # 规格参数 - 不截断，保留完整内容，自动换行
                 desc = detail.product_desc or ''
-                if len(desc) > 80:
-                    desc = desc[:80] + '...'
-                ws[f'D{row}'] = desc  # 规格
-                ws[f'E{row}'] = detail.quantity or 0  # 数量
-                ws[f'F{row}'] = detail.unit_price or 0  # 单价
-                ws[f'G{row}'] = f'=E{row}*F{row}'  # 金额公式
-                # 产品编码MN（新增H列）- 优先使用配置后的MN，否则使用产品MN
+                ws[f'D{row}'] = desc
+                ws[f'D{row}'].alignment = align_top_wrap
+
+                # 根据内容计算行高（每行约15点，最小25点）
+                line_count = desc.count('\n') + 1 if desc else 1
+                max_line_length = max(len(line) for line in desc.split('\n')) if desc else 0
+                wrapped_lines = max(line_count, (max_line_length // 40) + 1)
+                row_height = max(25, wrapped_lines * 15)
+                ws.row_dimensions[row].height = row_height
+
+                # 数量 - 居中顶部对齐
+                ws[f'E{row}'] = detail.quantity or 0
+                ws[f'E{row}'].alignment = align_top_center
+
+                # 单价 - 右对齐顶部
+                ws[f'F{row}'] = detail.unit_price or 0
+                ws[f'F{row}'].alignment = align_top_right
+
+                # 金额公式 - 右对齐顶部
+                ws[f'G{row}'] = f'=E{row}*F{row}'
+                ws[f'G{row}'].alignment = align_top_right
+
+                # 产品编码MN - 顶部对齐
                 mn_code = detail.configured_mn or detail.product_mn or ''
-                ws[f'H{row}'] = mn_code  # 产品编码
+                ws[f'H{row}'] = mn_code
+                ws[f'H{row}'].alignment = align_top
 
             # 清除多余的模板行
             if len(all_details) < template_detail_count:
@@ -756,6 +818,24 @@ class WordGenerator:
             ws[f'G{summary_row + 2}'] = '总计 TOTAL'
             ws[f'H{summary_row + 2}'] = f'=H{summary_row}+H{summary_row + 1}'
 
+            # 设置页面打印选项 - 适应一页宽度，纵向布局
+            from openpyxl.worksheet.properties import PageSetupProperties
+
+            ws.page_setup.orientation = 'portrait'  # 纵向打印
+            ws.page_setup.fitToWidth = 1
+            ws.page_setup.fitToHeight = 0  # 0表示不限制高度页数
+
+            # 设置适应页面属性
+            if ws.sheet_properties.pageSetUpPr is None:
+                ws.sheet_properties.pageSetUpPr = PageSetupProperties()
+            ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+            ws.print_options.horizontalCentered = True
+
+            # 设置打印区域
+            last_row = summary_row + 3
+            ws.print_area = f'A1:H{last_row}'
+
             # 保存到内存
             output = BytesIO()
             wb.save(output)
@@ -775,6 +855,307 @@ class WordGenerator:
 
         except Exception as e:
             logger.error(f"生成报价单Excel文档失败: {str(e)}")
+            raise
+
+    def _generate_quotation_excel_ovs(self, quotation):
+        """
+        使用OVS专用Excel模板生成报价单（Singapore模板）
+
+        模板结构 (quotation_template_ovs.xlsx):
+        - D2-D4: 公司信息（已固定在模板中）
+        - B7: Company Name 标签, 值填入后方单元格
+        - G7: Quotation No.
+        - G8: Quotation Date
+        - B9: Company Address
+        - G9: Payment Terms (固定: Net 30 Days)
+        - G10: Shipping Terms (固定: FOB Singapore)
+        - B11: Contact Person
+        - G11: Validity (固定: 30 Days)
+        - B12: Contact No.
+        - G12: Ref No.
+        - 明细从第16行开始: B(S/N) C(Item No.) D(Brand) E(Description) F(Quantity) G(Unit Price USD) H(Amount USD)
+        - 汇总行固定: G38(Total before GST) G39(GST=0) G40(Total after GST)
+        """
+        try:
+            template_path = self._get_template_path('quotation_template_ovs.xlsx')
+            wb = openpyxl.load_workbook(template_path)
+            ws = wb.active
+
+            # 准备基本数据
+            customer_name = quotation.customer.company_name if quotation.customer else ''
+            customer_address = ''
+            if quotation.customer:
+                # 尝试获取客户地址
+                addr_parts = []
+                if hasattr(quotation.customer, 'street') and quotation.customer.street:
+                    addr_parts.append(quotation.customer.street)
+                if hasattr(quotation.customer, 'city') and quotation.customer.city:
+                    addr_parts.append(quotation.customer.city)
+                if hasattr(quotation.customer, 'country') and quotation.customer.country:
+                    addr_parts.append(quotation.customer.country)
+                customer_address = ', '.join(addr_parts) if addr_parts else ''
+
+            contact_name = quotation.contact.name if quotation.contact else ''
+            contact_phone = quotation.contact.phone if quotation.contact else ''
+
+            # 日期格式 mm/dd/yyyy
+            quotation_date = quotation.created_at.strftime('%m/%d/%Y') if quotation.created_at else ''
+            valid_until = (quotation.created_at + timedelta(days=30)).strftime('%m/%d/%Y') if quotation.created_at else ''
+
+            # 填充客户信息
+            # 根据模板合并单元格分析：
+            # - B7:C8 是 "Company Name:" 标签，值填入 D7 (D7:F8 合并)
+            # - B9:C10 是 "Company Address:" 标签，值填入 D9 (D9:F10 合并)
+            # - B11 是 "Contact Person:" 标签，值填入 D11 (D11:F11 合并)
+            # - B12 是 "Contact No.:" 标签，值填入 D12 (D12:F12 合并)
+            # - G7-G12 是右侧标签，值填入 H7-H12
+            ws['D7'] = customer_name       # Company Name: 后
+            ws['D9'] = customer_address    # Company Address: 后
+            ws['D11'] = contact_name       # Contact Person: 后
+            ws['D12'] = contact_phone      # Contact No.: 后
+
+            # 报价信息区域
+            ws['H7'] = quotation.quotation_number  # Quotation No.: 后
+            ws['H8'] = quotation_date              # Quotation Date: 后
+            ws['H9'] = 'Net 30 Days'               # Payment Terms: 固定值
+            ws['H10'] = 'FOB Singapore'            # Shipping Terms: 固定值
+            ws['H11'] = '30 Days'                  # Validity: 固定值
+            ws['H12'] = quotation.quotation_number # Ref No.: 使用报价编号
+
+            # 明细配置
+            detail_start_row = 16
+            template_detail_count = 10  # OVS模板有10行预置行（16-25）
+            summary_row_before_gst = 38  # 固定汇总行位置
+
+            # 收集所有明细（包括子产品）
+            all_details = []
+            for detail in quotation.details:
+                if detail.is_accessory:
+                    continue
+                all_details.append(detail)
+                if detail.configurations:
+                    for child in detail.configurations:
+                        all_details.append(child)
+
+            # 如果明细数量超过模板预置行数，需要插入新行
+            if len(all_details) > template_detail_count:
+                extra_rows = len(all_details) - template_detail_count
+                # 在最后一个模板行之后插入
+                ws.insert_rows(detail_start_row + template_detail_count, extra_rows)
+                # 更新汇总行位置
+                summary_row_before_gst += extra_rows
+
+            # 填充明细数据
+            from openpyxl.styles import Alignment
+
+            # 定义对齐样式
+            align_top = Alignment(vertical='top')
+            align_top_wrap = Alignment(wrap_text=True, vertical='top')
+            align_top_center = Alignment(horizontal='center', vertical='top')
+            align_top_right = Alignment(horizontal='right', vertical='top')
+
+            for idx, detail in enumerate(all_details):
+                row = detail_start_row + idx
+
+                # S/N (序号) - 居中顶部对齐
+                ws[f'B{row}'] = idx + 1
+                ws[f'B{row}'].alignment = align_top_center
+
+                # Item No. - 产品编码MN - 顶部对齐
+                mn_code = detail.configured_mn or detail.product_mn or ''
+                ws[f'C{row}'] = mn_code
+                ws[f'C{row}'].alignment = align_top
+
+                # Brand - 品牌 - 顶部对齐
+                brand = getattr(detail, 'brand', '') or ''
+                ws[f'D{row}'] = brand
+                ws[f'D{row}'].alignment = align_top
+
+                # Description - 产品描述（产品名称 + 型号 + 规格）
+                desc_parts = []
+                if detail.product_name:
+                    desc_parts.append(detail.product_name)
+                if detail.product_model:
+                    desc_parts.append(f"Model: {detail.product_model}")
+                if detail.product_desc:
+                    # 不截断规格描述，保留完整内容
+                    desc_parts.append(detail.product_desc)
+
+                description = '\n'.join(desc_parts) if desc_parts else ''
+                ws[f'E{row}'] = description
+                ws[f'E{row}'].alignment = align_top_wrap
+
+                # 根据内容计算行高（每行约15点，最小30点）
+                line_count = description.count('\n') + 1
+                # 估算每行字符数，E列宽度约50字符
+                max_line_length = max(len(line) for line in description.split('\n')) if description else 0
+                wrapped_lines = max(line_count, (max_line_length // 50) + 1)
+                row_height = max(30, wrapped_lines * 15)
+                ws.row_dimensions[row].height = row_height
+
+                # Quantity - 居中顶部对齐
+                ws[f'F{row}'] = detail.quantity or 0
+                ws[f'F{row}'].alignment = align_top_center
+
+                # Unit Price (USD) - 右对齐顶部
+                ws[f'G{row}'] = detail.unit_price or 0
+                ws[f'G{row}'].alignment = align_top_right
+
+                # Amount (USD) - 公式 - 右对齐顶部
+                ws[f'H{row}'] = f'=F{row}*G{row}'
+                ws[f'H{row}'].alignment = align_top_right
+
+            # 清除多余的模板预置行
+            if len(all_details) < template_detail_count:
+                for idx in range(len(all_details), template_detail_count):
+                    row = detail_start_row + idx
+                    for col in ['B', 'C', 'D', 'E', 'F', 'G', 'H']:
+                        ws[f'{col}{row}'] = ''
+
+            # 计算明细结束行
+            detail_end_row = detail_start_row + max(len(all_details), 1) - 1
+
+            # 更新汇总区域的SUM公式范围
+            # H38 = SUM(H16:H{detail_end_row})
+            ws[f'H{summary_row_before_gst}'] = f'=SUM(H{detail_start_row}:H{detail_end_row})'
+            # H39 = GST (固定为0)
+            ws[f'H{summary_row_before_gst + 1}'] = 0
+            # H40 = Total after GST
+            ws[f'H{summary_row_before_gst + 2}'] = f'=H{summary_row_before_gst}+H{summary_row_before_gst + 1}'
+
+            # 设置页面打印选项 - 适应一页宽度，纵向布局
+            from openpyxl.worksheet.properties import PageSetupProperties
+
+            ws.page_setup.orientation = 'portrait'  # 纵向打印
+            ws.page_setup.fitToWidth = 1
+            ws.page_setup.fitToHeight = 0  # 0表示不限制高度页数
+
+            # 设置适应页面属性
+            if ws.sheet_properties.pageSetUpPr is None:
+                ws.sheet_properties.pageSetUpPr = PageSetupProperties()
+            ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+            ws.print_options.horizontalCentered = True
+
+            # 设置打印区域（OVS模板到汇总行+签名区）
+            last_row = summary_row_before_gst + 12  # 留出签名区域
+            ws.print_area = f'A1:H{last_row}'
+
+            # 保存到内存
+            output = BytesIO()
+            wb.save(output)
+            output.seek(0)
+
+            # 生成文件名
+            project_name = quotation.project.project_name if quotation.project else "Unknown Project"
+            safe_project_name = "".join(c for c in project_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+            filename = f"{quotation.quotation_number} - {safe_project_name}.xlsx"
+
+            logger.info(f"成功生成OVS报价单Excel文档: {filename}")
+
+            return {
+                'content': output.getvalue(),
+                'filename': filename
+            }
+
+        except Exception as e:
+            import traceback
+            logger.error(f"生成OVS报价单Excel文档失败: {str(e)}")
+            logger.error(f"异常详情:\n{traceback.format_exc()}")
+            raise
+
+    def generate_quotation_excel_pdf(self, quotation, template_type=None):
+        """
+        生成报价单PDF（基于Excel模板）
+
+        先生成Excel，然后使用LibreOffice转换为PDF
+
+        Args:
+            quotation: Quotation 对象
+            template_type: 模板类型 ('ovs', 'sp8d', None)
+
+        Returns:
+            dict: {'content': bytes, 'filename': str}
+        """
+        import subprocess
+        import tempfile
+        import shutil
+
+        try:
+            # 1. 先生成Excel
+            excel_result = self.generate_quotation_excel(quotation, template_type=template_type)
+            excel_content = excel_result['content']
+            excel_filename = excel_result['filename']
+
+            # 2. 创建临时目录
+            temp_dir = tempfile.mkdtemp()
+            try:
+                # 保存Excel到临时文件
+                excel_path = os.path.join(temp_dir, excel_filename)
+                with open(excel_path, 'wb') as f:
+                    f.write(excel_content)
+
+                # 3. 使用LibreOffice转换为PDF
+                # 查找LibreOffice
+                soffice_paths = [
+                    '/opt/homebrew/bin/soffice',  # macOS Homebrew
+                    '/usr/bin/soffice',           # Linux
+                    '/usr/bin/libreoffice',       # Linux alternative
+                    '/Applications/LibreOffice.app/Contents/MacOS/soffice',  # macOS App
+                ]
+
+                soffice_cmd = None
+                for path in soffice_paths:
+                    if os.path.exists(path):
+                        soffice_cmd = path
+                        break
+
+                if not soffice_cmd:
+                    raise RuntimeError("LibreOffice未安装，无法转换PDF")
+
+                # 执行转换
+                cmd = [
+                    soffice_cmd,
+                    '--headless',
+                    '--convert-to', 'pdf',
+                    '--outdir', temp_dir,
+                    excel_path
+                ]
+
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+
+                if result.returncode != 0:
+                    logger.error(f"LibreOffice转换失败: {result.stderr}")
+                    raise RuntimeError(f"PDF转换失败: {result.stderr}")
+
+                # 4. 读取生成的PDF
+                pdf_filename = excel_filename.replace('.xlsx', '.pdf')
+                pdf_path = os.path.join(temp_dir, pdf_filename)
+
+                if not os.path.exists(pdf_path):
+                    raise RuntimeError(f"PDF文件未生成: {pdf_path}")
+
+                with open(pdf_path, 'rb') as f:
+                    pdf_content = f.read()
+
+                return {
+                    'content': pdf_content,
+                    'filename': pdf_filename
+                }
+
+            finally:
+                # 清理临时目录
+                shutil.rmtree(temp_dir, ignore_errors=True)
+
+        except Exception as e:
+            import traceback
+            logger.error(f"Excel转PDF失败: {str(e)}")
+            logger.error(f"异常详情:\n{traceback.format_exc()}")
             raise
 
 

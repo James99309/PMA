@@ -298,18 +298,6 @@
         max_width='max-w-sm'
     ) %}
     <div class="space-y-4">
-        <!-- Word导出按钮 -->
-        <button type="button" onclick="exportQuotationWord()"
-            class="w-full flex items-center gap-4 p-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left">
-            <div class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <span class="material-symbols-outlined text-blue-600 dark:text-blue-400">description</span>
-            </div>
-            <div>
-                <p class="font-medium text-slate-900 dark:text-white">{{ _('导出Word') }}</p>
-                <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('使用Word模板') }}</p>
-            </div>
-        </button>
-
         <!-- Excel导出按钮 -->
         <button type="button" onclick="exportQuotationExcel()"
             class="w-full flex items-center gap-4 p-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left">
@@ -318,19 +306,19 @@
             </div>
             <div>
                 <p class="font-medium text-slate-900 dark:text-white">{{ _('导出Excel') }}</p>
-                <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('使用Excel模板') }}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('电子表格格式') }}</p>
             </div>
         </button>
 
         <!-- PDF导出按钮 -->
-        <button type="button" onclick="exportQuotationWordPdf()"
+        <button type="button" onclick="exportQuotationPdfFromExcel()"
             class="w-full flex items-center gap-4 p-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left">
             <div class="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
                 <span class="material-symbols-outlined text-red-600 dark:text-red-400">picture_as_pdf</span>
             </div>
             <div>
                 <p class="font-medium text-slate-900 dark:text-white">{{ _('导出PDF') }}</p>
-                <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('Word模板转PDF') }}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('基于Excel模板') }}</p>
             </div>
         </button>
 
@@ -519,6 +507,7 @@
         const quotationId = '{{ quotation.id }}';
         const requestData = {
             quotation_id: quotationId,
+            template_type: null,
             export_info: {
                 customer: {% if quotation.customer %}{ id: {{ quotation.customer_id }}, name: {{ quotation.customer.company_name | tojson | safe }} }{% else %}null{% endif %},
                 contact: {% if quotation.contact %}{ id: {{ quotation.contact_id }}, name: {{ quotation.contact.name | tojson | safe }} }{% else %}null{% endif %},
@@ -582,29 +571,12 @@
         showMessage('{{ _("Excel文件已开始下载") }}', 'success');
     }
 
-    // 导出Word（Word模板）
-    function exportQuotationWord() {
-        closeCustomModal('quotationExportModal');
-        showMessage('{{ _("正在生成Word") }}...', 'info');
-
-        const downloadUrl = '{{ url_for("quotation.export_word", quotation_id=quotation.id) }}';
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = downloadUrl;
-        a.download = '';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
-        showMessage('{{ _("Word文件已开始下载") }}', 'success');
-    }
-
-    // 导出PDF（Word模板转PDF）
-    function exportQuotationWordPdf() {
+    // 导出PDF（基于Excel模板）
+    function exportQuotationPdfFromExcel() {
         closeCustomModal('quotationExportModal');
         showMessage('{{ _("正在生成PDF") }}...', 'info');
 
-        const downloadUrl = '{{ url_for("quotation.export_word_pdf", quotation_id=quotation.id) }}';
+        const downloadUrl = '{{ url_for("quotation.export_excel_pdf", quotation_id=quotation.id) }}';
         const a = document.createElement('a');
         a.style.display = 'none';
         a.href = downloadUrl;
