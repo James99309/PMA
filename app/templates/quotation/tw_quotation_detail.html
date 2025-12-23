@@ -30,7 +30,8 @@
     {'key': 'discount', 'label': _('折扣%'), 'type': 'number', 'width': '80px', 'align': 'right', 'default': '100'},
     {'key': 'unit_price', 'label': _('单价'), 'type': 'currency', 'width': '100px', 'align': 'right'},
     {'key': 'quantity', 'label': _('数量'), 'type': 'number', 'required': true, 'width': '80px', 'align': 'right', 'default': '1'},
-    {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'width': '100px', 'align': 'right'}
+    {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'width': '100px', 'align': 'right'},
+    {'key': 'product_mn', 'label': _('产品编码'), 'type': 'text', 'readonly': true, 'width': '100px'}
 ] %}
 
 {# 货币符号 #}
@@ -203,7 +204,8 @@
                 {'field': 'quantity', 'label': _('数量'), 'align': 'center'},
                 {'field': 'unit', 'label': _('单位'), 'align': 'center'},
                 {'field': 'unit_price', 'label': _('单价'), 'align': 'right'},
-                {'field': 'total_price', 'label': _('总价'), 'align': 'right'}
+                {'field': 'total_price', 'label': _('总价'), 'align': 'right'},
+                {'field': 'product_mn', 'label': _('产品编码')}
             ] %}
 
             {# 确认状态徽章配置 #}
@@ -231,7 +233,7 @@
                 {% for detail in quotation.details %}
                     {% if not detail.parent_item_id %}
                         {% set main_product_index.value = main_product_index.value + 1 %}
-                        {# 主产品行：序号→产品名称→型号→规格→品牌→数量→单位→单价→总价 #}
+                        {# 主产品行：序号→产品名称→型号→规格→品牌→数量→单位→单价→总价→产品编码 #}
                         <tr class="table-row-hover transition-colors">
                             <td class="p-3 whitespace-nowrap text-center text-sm font-bold text-slate-700 dark:text-slate-300">{{ main_product_index.value }}</td>
                             <td class="p-3 whitespace-nowrap text-sm font-medium text-slate-700 dark:text-slate-300 overflow-hidden text-ellipsis" title="{{ detail.product_name or '' }}">{{ detail.product_name or '-' }}</td>
@@ -242,9 +244,10 @@
                             <td class="p-3 whitespace-nowrap text-sm text-center text-slate-700 dark:text-slate-300">{{ detail.unit or '-' }}</td>
                             <td class="p-3 whitespace-nowrap text-sm text-right text-slate-700 dark:text-slate-300">{{ quotation.currency_symbol }}{{ "{:,.2f}".format(detail.unit_price) if detail.unit_price else '-' }}</td>
                             <td class="p-3 whitespace-nowrap text-sm text-right font-medium text-slate-900 dark:text-white">{{ quotation.currency_symbol }}{{ "{:,.2f}".format(detail.total_price) if detail.total_price else '-' }}</td>
+                            <td class="p-3 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">{{ detail.product_mn or '-' }}</td>
                         </tr>
 
-                        {# 配置产品行：序号→产品名称→型号→规格→品牌→数量→单位→单价→总价 #}
+                        {# 配置产品行：序号→产品名称→型号→规格→品牌→数量→单位→单价→总价→产品编码 #}
                         {% if detail.configurations %}
                             {% for config in detail.configurations %}
                             <tr class="bg-slate-50/50 dark:bg-slate-800/30 table-row-hover transition-colors">
@@ -259,6 +262,7 @@
                                 <td class="p-3 whitespace-nowrap text-sm text-center text-slate-600 dark:text-slate-400">{{ config.unit or '-' }}</td>
                                 <td class="p-3 whitespace-nowrap text-sm text-right text-slate-600 dark:text-slate-400">{{ quotation.currency_symbol }}{{ "{:,.2f}".format(config.unit_price) if config.unit_price else '-' }}</td>
                                 <td class="p-3 whitespace-nowrap text-sm text-right text-slate-600 dark:text-slate-400">{{ quotation.currency_symbol }}{{ "{:,.2f}".format(config.total_price) if config.total_price else '-' }}</td>
+                                <td class="p-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">{{ config.product_mn or '-' }}</td>
                             </tr>
                             {% endfor %}
                         {% endif %}
