@@ -9,8 +9,8 @@ with context %}
 tw_status_modal_script with context %}
 {% from 'components/tw_action_replies.html' import render_tw_action_replies_script with context %}
 {% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_project_stage_badge,
-render_tw_project_type_badge, render_tw_report_source_badge, render_tw_industry_badge, render_tw_active_badge with
-context %}
+render_tw_project_type_badge, render_tw_report_source_badge, render_tw_industry_badge, render_tw_active_badge,
+render_tw_expense_status_badge with context %}
 {% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
 {% from 'components/tw_form_fields.html' import tw_form_checkbox with context %}
 {% from 'components/tw_action_modal.html' import tw_action_modal, tw_action_modal_script with context %}
@@ -415,7 +415,8 @@ context %}
                             {'label': _('项目类型'), 'badge': render_tw_project_type_badge(project.project_type) if project.project_type else none, 'value': '-' if not project.project_type else none},
                             {'label': _('项目负责人'), 'badge': render_tw_owner_badge(project.owner), 'edit_btn': {'onclick': 'openChangeOwnerModal()', 'show': can_edit_owner}},
                             {'label': _('厂商销售负责人'), 'badge': render_tw_owner_badge(project.vendor_sales_manager) if project.vendor_sales_manager else none, 'value': _('未设置') if not project.vendor_sales_manager else none, 'edit_btn': {'onclick': 'openChangeVendorSalesModal()', 'show': can_edit_owner}},
-                            {'label': _('预测出货时间'), 'value': project.delivery_forecast.strftime('%Y-%m-%d') if project.delivery_forecast else '-'}
+                            {'label': _('预测出货时间'), 'value': project.delivery_forecast.strftime('%Y-%m-%d') if project.delivery_forecast else '-'},
+                            {'label': _('累计报销费用'), 'value': '¥{:,.2f}'.format(total_expense_amount or 0)}
                         ]
                     ) }}
 
@@ -501,7 +502,53 @@ context %}
                         </div>
                     </div>
 
-                    <!-- 3.4 共享设置卡片 -->
+                    <!-- 3.4 报销单卡片 -->
+                    <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('报销单') }}</h3>
+                            {% if has_permission('expense', 'create') %}
+                            <button type="button" onclick="openExpenseWithProject()" class="text-primary text-sm font-medium hover:underline">{{ _('添加') }}</button>
+                            {% endif %}
+                        </div>
+                        <div class="table-scroll-container overflow-auto" style="max-height: 280px;">
+                            <table class="w-full text-left text-sm">
+                                <thead class="border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900">
+                                    <tr>
+                                        <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 25%">{{ _('单号') }}</th>
+                                        <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 20%">{{ _('日期') }}</th>
+                                        <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 25%">{{ _('状态') }}</th>
+                                        <th class="p-3 text-slate-500 dark:text-slate-400 font-medium text-right" style="width: 30%">{{ _('金额') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if project_expenses %}
+                                        {% for expense in project_expenses %}
+                                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                            <td class="p-3 font-medium text-primary hover:underline">
+                                                <a href="{{ url_for('expense.expense_detail', id=expense.id) }}?tw=1">{{ expense.expense_number }}</a>
+                                            </td>
+                                            <td class="p-3 text-slate-600 dark:text-slate-300">{{ expense.created_at.strftime('%Y-%m-%d') if expense.created_at else '-' }}</td>
+                                            <td class="p-3">
+                                                {{ render_tw_expense_status_badge(expense.status) }}
+                                            </td>
+                                            <td class="p-3 text-right text-slate-600 dark:text-slate-300">
+                                                {% if expense.total_amount %}
+                                                    ¥{{ '{:,.2f}'.format(expense.total_amount) }}
+                                                {% else %}
+                                                    <span class="text-slate-400">-</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        {{ render_empty_state(_('暂无报销单'), 'receipt_long') }}
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 3.5 共享设置卡片 -->
                     {{ tw_sharing_card(
                         can_view=can_view_sharing,
                         can_edit=can_edit_sharing,
@@ -670,6 +717,17 @@ context %}
 
     <!-- 产品规格选择模态框 -->
     {{ tw_product_spec_modal() }}
+
+    <!-- 报销单创建模态框 -->
+    {% call tw_form_modal(
+        modal_id='expenseFormModal',
+        title=_('新建报销单'),
+        submit_text=_('创建'),
+        cancel_text=_('取消'),
+        size='xl'
+    ) %}
+    {% include 'expense/partials/_expense_modal_fields.html' %}
+    {% endcall %}
     {% endif %}
 
     <!-- 布局脚本 -->
@@ -1914,6 +1972,36 @@ context %}
             presetProjectId: {{ project.id }},
             presetProjectName: '{{ project.project_name|replace("'", "\\'")|replace("\n", " ") }}'
         });
+    })();
+    </script>
+
+    <!-- 报销单模态框模块 -->
+    <script src="{{ url_for('static', filename='js/expense-modal.js') }}"></script>
+    <script>
+    (function() {
+        // 初始化报销单模态框
+        ExpenseModal.init({
+            modalId: 'expenseFormModal',
+            defaultCurrency: '{{ default_currency or "CNY" }}',
+            csrfToken: document.querySelector('meta[name="csrf-token"]')?.content || '',
+            i18n: {
+                createTitle: '{{ _("新建报销单") }}',
+                createBtn: '{{ _("创建") }}',
+                editTitle: '{{ _("编辑报销单") }}',
+                saveBtn: '{{ _("保存") }}',
+                uploadError: '{{ _("上传失败") }}',
+                saving: '{{ _("保存中...") }}'
+            }
+        });
+
+        // 从项目创建报销单
+        window.openExpenseWithProject = function() {
+            ExpenseModal.openCreateWithProject(
+                {{ project.id }},
+                '{{ project.project_name|replace("'", "\\'")|replace("\n", " ") }}',
+                window.location.href
+            );
+        };
     })();
     </script>
     {% endif %}

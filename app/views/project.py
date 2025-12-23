@@ -17,6 +17,7 @@ import pandas as pd
 import json
 from app.models.user import User
 from app.models.quotation import Quotation
+from app.models.expense import Expense, EXPENSE_CATEGORIES
 from app.models.pricing_order import PricingOrder
 from app.models.relation import ProjectMember
 from app.permissions import check_permission, Permissions
@@ -1078,6 +1079,19 @@ def view_project(project_id):
         if can_view_quotation(current_user, quot):
             project_quotations.append(quot)
 
+    # 获取项目关联的报销单数据（用于Tailwind模板）
+    project_expenses = get_viewable_data(Expense, current_user).filter(
+        Expense.project_id == project_id,
+        Expense.is_deleted == False
+    ).order_by(Expense.created_at.desc()).limit(10).all()
+
+    # 计算该项目的累计报销费用（已审批或已支付）
+    total_expense_amount = get_viewable_data(Expense, current_user).filter(
+        Expense.project_id == project_id,
+        Expense.is_deleted == False,
+        Expense.status.in_(['approved', 'paid'])
+    ).with_entities(func.sum(Expense.total_amount)).scalar() or 0
+
     # 检查用户是否可以添加客户关联（基于查看权限）
     # 只要能查看项目，就可以添加客户关联
     can_edit_project_data = True  # 如果能执行到这里，说明已经通过了查看权限检查
@@ -1134,6 +1148,10 @@ def view_project(project_id):
         # 关联客户和报价单数据（用于Tailwind模板）
         customer_associations_data=customer_associations_data,
         project_quotations=project_quotations,
+        # 报销单数据（用于Tailwind模板）
+        project_expenses=project_expenses,
+        total_expense_amount=total_expense_amount,
+        expense_categories=EXPENSE_CATEGORIES,
         # 数据权限
         can_edit_project_data=can_edit_project_data,
         can_submit_approval=can_submit_approval,

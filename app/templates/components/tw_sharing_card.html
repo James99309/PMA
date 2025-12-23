@@ -26,6 +26,8 @@
 =============================================================================
 #}
 
+{% from 'macros/ui_helpers.html' import render_tw_owner_badge with context %}
+
 {% macro tw_sharing_card(can_view, can_edit, shared_users, open_modal_func='openSharingModal', title=None, max_avatars=6, show_expand_button=true) %}
 {% if can_view %}
 <div class="bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 p-6"
@@ -42,20 +44,9 @@
     </div>
     <!-- 用户头像列表 -->
     <div class="flex flex-wrap items-center gap-2">
-        {% set avatar_colors = [
-            'bg-blue-200 text-blue-600 dark:bg-blue-800 dark:text-blue-300',
-            'bg-purple-200 text-purple-600 dark:bg-purple-800 dark:text-purple-300',
-            'bg-teal-200 text-teal-600 dark:bg-teal-800 dark:text-teal-300',
-            'bg-yellow-200 text-yellow-600 dark:bg-yellow-800 dark:text-yellow-300',
-            'bg-red-200 text-red-600 dark:bg-red-800 dark:text-red-300',
-            'bg-green-200 text-green-600 dark:bg-green-800 dark:text-green-300'
-        ] %}
         {% if shared_users %}
         {% for user in shared_users[:max_avatars] %}
-        <div class="w-8 h-8 rounded-full {{ avatar_colors[user.id % 6] }} font-bold flex items-center justify-center text-xs"
-            title="{{ user.name }}">
-            {{ user.name[:2]|upper if user.name else '?' }}
-        </div>
+        {{ render_tw_owner_badge(user, size='md') }}
         {% endfor %}
         {% if shared_users|length > max_avatars %}
         <div class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold text-xs">

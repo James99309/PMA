@@ -220,9 +220,10 @@
 
                     </div>
 
-                    <!-- 报销模块 -->
+                    <!-- 报销模块 - 左右分栏 -->
                     {% if has_permission('expense', 'view') %}
                     <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                        <!-- 标题栏 -->
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="text-slate-900 dark:text-white text-base font-medium">{{ _('最近报销') }}</h3>
                             <div class="flex items-center gap-2">
@@ -235,44 +236,96 @@
                                 <a class="text-primary text-sm font-medium hover:underline" href="{{ url_for('expense.expense_list') }}">{{ _('查看全部') }}</a>
                             </div>
                         </div>
-                        <div class="flex flex-col gap-4">
-                            {% if recent_expenses and recent_expenses|length > 0 %}
-                                {% for expense in recent_expenses %}
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-3">
-                                        <div class="flex h-8 w-8 items-center justify-center rounded-full
-                                            {% if expense.approval_status == 'pending' %}bg-yellow-100 dark:bg-yellow-900/50{% endif %}
-                                            {% if expense.approval_status == 'approved' %}bg-green-100 dark:bg-green-900/50{% endif %}
-                                            {% if expense.approval_status == 'rejected' %}bg-red-100 dark:bg-red-900/50{% endif %}
-                                            {% if expense.approval_status == 'draft' %}bg-slate-100 dark:bg-slate-800{% endif %}">
-                                            {% if expense.approval_status == 'pending' %}
-                                            <span class="material-symbols-outlined text-yellow-600 dark:text-yellow-400 text-base">hourglass_top</span>
-                                            {% elif expense.approval_status == 'approved' %}
-                                            <span class="material-symbols-outlined text-green-600 dark:text-green-400 text-base">check_circle</span>
-                                            {% elif expense.approval_status == 'rejected' %}
-                                            <span class="material-symbols-outlined text-red-600 dark:text-red-400 text-base">cancel</span>
-                                            {% else %}
-                                            <span class="material-symbols-outlined text-slate-600 dark:text-slate-400 text-base">draft</span>
-                                            {% endif %}
+
+                        <!-- 左右分栏区域 -->
+                        <div class="flex gap-6">
+                            <!-- 左侧：报销列表（50%宽度，独立滚动） -->
+                            <div class="w-1/2 max-h-64 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600">
+                                <div class="flex flex-col gap-4">
+                                    {% if recent_expenses and recent_expenses|length > 0 %}
+                                        {% for expense in recent_expenses %}
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex items-center gap-3">
+                                                <div class="flex h-8 w-8 items-center justify-center rounded-full flex-shrink-0
+                                                    {% if expense.approval_status == 'pending' %}bg-yellow-100 dark:bg-yellow-900/50{% endif %}
+                                                    {% if expense.approval_status == 'approved' %}bg-green-100 dark:bg-green-900/50{% endif %}
+                                                    {% if expense.approval_status == 'rejected' %}bg-red-100 dark:bg-red-900/50{% endif %}
+                                                    {% if expense.approval_status == 'draft' %}bg-slate-100 dark:bg-slate-800{% endif %}">
+                                                    {% if expense.approval_status == 'pending' %}
+                                                    <span class="material-symbols-outlined text-yellow-600 dark:text-yellow-400 text-base">hourglass_top</span>
+                                                    {% elif expense.approval_status == 'approved' %}
+                                                    <span class="material-symbols-outlined text-green-600 dark:text-green-400 text-base">check_circle</span>
+                                                    {% elif expense.approval_status == 'rejected' %}
+                                                    <span class="material-symbols-outlined text-red-600 dark:text-red-400 text-base">cancel</span>
+                                                    {% else %}
+                                                    <span class="material-symbols-outlined text-slate-600 dark:text-slate-400 text-base">draft</span>
+                                                    {% endif %}
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <a href="{{ url_for('expense.expense_detail', id=expense.id) }}" class="text-slate-800 dark:text-slate-200 text-sm font-medium hover:text-primary block truncate">
+                                                        {{ expense.title[:20] if expense.title else expense.expense_number }}{% if expense.title and expense.title|length > 20 %}...{% endif %}
+                                                    </a>
+                                                    <p class="text-slate-500 dark:text-slate-400 text-xs">
+                                                        {% if expense.approval_status == 'pending' %}{{ _('待审批') }}{% endif %}
+                                                        {% if expense.approval_status == 'approved' %}{{ _('已批准') }}{% endif %}
+                                                        {% if expense.approval_status == 'rejected' %}{{ _('已拒绝') }}{% endif %}
+                                                        {% if expense.approval_status == 'draft' %}{{ _('草稿') }}{% endif %}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <p class="text-sm font-medium text-slate-800 dark:text-slate-200 flex-shrink-0 ml-2">¥{{ "%.2f"|format(expense.total_amount) if expense.total_amount else '0.00' }}</p>
                                         </div>
-                                        <div>
-                                            <a href="{{ url_for('expense.expense_detail', id=expense.id) }}" class="text-slate-800 dark:text-slate-200 text-sm font-medium hover:text-primary">
-                                                {{ expense.title[:20] if expense.title else expense.expense_number }}{% if expense.title and expense.title|length > 20 %}...{% endif %}
-                                            </a>
-                                            <p class="text-slate-500 dark:text-slate-400 text-xs">
-                                                {% if expense.approval_status == 'pending' %}{{ _('待审批') }}{% endif %}
-                                                {% if expense.approval_status == 'approved' %}{{ _('已批准') }}{% endif %}
-                                                {% if expense.approval_status == 'rejected' %}{{ _('已拒绝') }}{% endif %}
-                                                {% if expense.approval_status == 'draft' %}{{ _('草稿') }}{% endif %}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <p class="text-sm font-medium text-slate-800 dark:text-slate-200">¥{{ "%.2f"|format(expense.total_amount / 100) if expense.total_amount else '0.00' }}</p>
+                                        {% endfor %}
+                                    {% else %}
+                                        <div class="text-center py-4 text-slate-500 dark:text-slate-400">{{ _('您没有最近的报销') }}</div>
+                                    {% endif %}
                                 </div>
-                                {% endfor %}
-                            {% else %}
-                                <div class="text-center py-4 text-slate-500 dark:text-slate-400">{{ _('您没有最近的报销') }}</div>
-                            {% endif %}
+                            </div>
+
+                            <!-- 右侧：统计区域（50%宽度） -->
+                            <div class="w-1/2 border-l border-slate-200 dark:border-slate-700 pl-6">
+                                <!-- 年度总计 -->
+                                <div class="mb-6">
+                                    <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('今年累计') }}</p>
+                                    <p class="text-4xl font-bold text-primary tracking-tight">¥{{ "{:,.2f}".format(expense_year_total) }}</p>
+                                </div>
+                                <!-- 月度折线图 SVG -->
+                                <div class="relative w-full" style="aspect-ratio: 2.5/1;" id="expenseChartContainer">
+                                    <svg class="w-full h-full overflow-visible" viewBox="0 0 800 300" preserveAspectRatio="xMidYMid meet" id="expenseMonthlyChart">
+                                        <!-- 渐变定义 -->
+                                        <defs>
+                                            <linearGradient id="expenseAreaGradient" x1="0" x2="0" y1="0" y2="1">
+                                                <stop offset="0%" stop-color="#2979ff" stop-opacity="0.3"></stop>
+                                                <stop offset="100%" stop-color="#2979ff" stop-opacity="0"></stop>
+                                            </linearGradient>
+                                            <filter id="expenseGlow">
+                                                <feGaussianBlur stdDeviation="2.5" result="coloredBlur"></feGaussianBlur>
+                                                <feMerge>
+                                                    <feMergeNode in="coloredBlur"></feMergeNode>
+                                                    <feMergeNode in="SourceGraphic"></feMergeNode>
+                                                </feMerge>
+                                            </filter>
+                                        </defs>
+                                        <!-- 网格线 -->
+                                        <g class="stroke-slate-200 dark:stroke-slate-700" stroke-width="0.5" id="expenseGridLines"></g>
+                                        <!-- Y轴标签 -->
+                                        <g class="fill-slate-400 dark:fill-slate-500" style="font-size: 18px;" text-anchor="end" id="expenseYLabels"></g>
+                                        <!-- X轴标签 -->
+                                        <g class="fill-slate-500 dark:fill-slate-400" style="font-size: 18px;" text-anchor="middle" id="expenseXLabels"></g>
+                                        <!-- 面积填充 -->
+                                        <path id="expenseAreaPath" fill="url(#expenseAreaGradient)" opacity="0.6"></path>
+                                        <!-- 折线 -->
+                                        <path id="expenseLinePath" fill="none" stroke="#2979ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                                        <!-- 数据点 -->
+                                        <g id="expenseDataPoints"></g>
+                                        <!-- 悬停提示（固定右上角） -->
+                                        <g id="expenseTooltip" visibility="hidden" transform="translate(620, 20)">
+                                            <rect rx="6" height="36" width="160" fill="#1e232d" stroke="#2d333b" stroke-width="1"></rect>
+                                            <text fill="#e2e8f0" style="font-size: 16px;" text-anchor="middle" x="80" y="24"></text>
+                                        </g>
+                                    </svg>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     {% endif %}
@@ -349,5 +402,152 @@
         user_role=current_user.role,
         show_account_filter=true
     ) }}
+
+    {% if has_permission('expense', 'view') %}
+    <!-- SVG 报销月度统计图表 -->
+    <style>
+        .expense-point { cursor: pointer; transition: all 0.15s ease; }
+        .expense-point:hover circle:first-child { filter: drop-shadow(0 0 4px rgba(41, 121, 255, 0.6)); }
+        .glow-point { filter: drop-shadow(0 0 4px rgba(41, 121, 255, 0.6)); }
+    </style>
+    <script>
+    (function() {
+        const monthlyData = {{ expense_monthly_stats | tojson }};
+        const svg = document.getElementById('expenseMonthlyChart');
+        if (!svg) return;
+
+        // 图表区域配置 (viewBox: 800x300)
+        const chartLeft = 40, chartRight = 800, chartTop = 50, chartBottom = 250;
+        const chartWidth = chartRight - chartLeft;
+        const chartHeight = chartBottom - chartTop;
+
+        // 计算最大值，向上取整到合适的刻度
+        const maxVal = Math.max(...monthlyData, 100);
+        let niceMax;
+        if (maxVal <= 500) niceMax = 500;
+        else if (maxVal <= 1000) niceMax = 1000;
+        else if (maxVal <= 2500) niceMax = 2500;
+        else if (maxVal <= 5000) niceMax = 5000;
+        else if (maxVal <= 10000) niceMax = 10000;
+        else niceMax = Math.ceil(maxVal / 5000) * 5000;
+
+        // 格式化Y轴标签
+        function formatYLabel(val) {
+            if (val >= 10000) return (val / 10000).toFixed(1) + '万';
+            if (val >= 1000) return (val / 1000).toFixed(1) + 'k';
+            return val.toString();
+        }
+
+        // 计算坐标
+        function getY(val) { return chartBottom - (val / niceMax) * chartHeight; }
+        function getX(i) { return chartLeft + 26 + (i * (chartWidth - 52) / 11); }
+
+        // 生成网格线和Y轴标签
+        const gridLines = document.getElementById('expenseGridLines');
+        const yLabels = document.getElementById('expenseYLabels');
+        const ySteps = [0, 0.2, 0.4, 0.6, 0.8, 1];
+        ySteps.forEach(step => {
+            const val = niceMax * step;
+            const y = getY(val);
+            // 网格线
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', chartLeft); line.setAttribute('x2', chartRight);
+            line.setAttribute('y1', y); line.setAttribute('y2', y);
+            gridLines.appendChild(line);
+            // Y轴标签
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', '35'); text.setAttribute('y', String(y + 6));
+            text.textContent = formatYLabel(val);
+            yLabels.appendChild(text);
+        });
+
+        // 生成X轴标签
+        const xLabels = document.getElementById('expenseXLabels');
+        for (let i = 0; i < 12; i++) {
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', getX(i)); text.setAttribute('y', '285');
+            text.textContent = String(i + 1);
+            xLabels.appendChild(text);
+        }
+
+        // 生成路径点
+        const points = monthlyData.map((val, i) => ({ x: getX(i), y: getY(val), val: val, month: i + 1 }));
+
+        // 生成平滑曲线路径（使用二次贝塞尔曲线）
+        function getSmoothPath(pts) {
+            if (pts.length < 2) return '';
+            let d = `M${pts[0].x},${pts[0].y}`;
+            for (let i = 0; i < pts.length - 1; i++) {
+                const p0 = pts[i], p1 = pts[i + 1];
+                const midX = (p0.x + p1.x) / 2;
+                // 使用控制点创建平滑曲线
+                d += ` C${midX},${p0.y} ${midX},${p1.y} ${p1.x},${p1.y}`;
+            }
+            return d;
+        }
+
+        const linePath = getSmoothPath(points);
+        document.getElementById('expenseLinePath').setAttribute('d', linePath);
+
+        // 生成面积填充路径
+        const areaPath = linePath + ` L${points[11].x},${chartBottom} L${points[0].x},${chartBottom} Z`;
+        document.getElementById('expenseAreaPath').setAttribute('d', areaPath);
+
+        // 生成数据点和交互
+        const pointsGroup = document.getElementById('expenseDataPoints');
+        const tooltip = document.getElementById('expenseTooltip');
+        const tooltipText = tooltip.querySelector('text');
+        const isDark = document.documentElement.classList.contains('dark');
+        const pointFill = isDark ? '#151a23' : '#ffffff';
+
+        points.forEach((p, i) => {
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            g.setAttribute('class', 'expense-point');
+
+            // 外圈
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y);
+            circle.setAttribute('r', '5');
+            circle.setAttribute('fill', pointFill);
+            circle.setAttribute('stroke', '#60a5fa');
+            circle.setAttribute('stroke-width', '2.5');
+            g.appendChild(circle);
+
+            // 悬停事件 - tooltip固定在右上角
+            g.addEventListener('mouseenter', function() {
+                tooltipText.textContent = `${p.month}{{ _("月") }}: ¥${p.val.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                tooltip.setAttribute('visibility', 'visible');
+                circle.setAttribute('r', '7');
+            });
+
+            g.addEventListener('mouseleave', function() {
+                tooltip.setAttribute('visibility', 'hidden');
+                circle.setAttribute('r', '5');
+            });
+
+            pointsGroup.appendChild(g);
+        });
+
+        // 最大值点添加高亮效果
+        const maxIndex = monthlyData.indexOf(Math.max(...monthlyData));
+        if (monthlyData[maxIndex] > 0) {
+            const maxPointGroup = pointsGroup.children[maxIndex];
+            if (maxPointGroup) {
+                const maxCircle = maxPointGroup.querySelector('circle');
+                maxCircle.setAttribute('class', 'glow-point');
+                maxCircle.setAttribute('r', '7');
+                maxCircle.setAttribute('stroke', '#2979ff');
+                // 添加内部白点
+                const innerDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                innerDot.setAttribute('cx', points[maxIndex].x);
+                innerDot.setAttribute('cy', points[maxIndex].y);
+                innerDot.setAttribute('r', '3');
+                innerDot.setAttribute('fill', 'white');
+                maxPointGroup.appendChild(innerDot);
+            }
+        }
+    })();
+    </script>
+    {% endif %}
 </body>
 </html>

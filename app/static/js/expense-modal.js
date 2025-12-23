@@ -72,35 +72,11 @@
          */
         bindEvents: function() {
             const doBindEvents = () => {
-                // 客户搜索
-                const customerSearch = document.getElementById('expense_customer_search');
-                if (customerSearch) {
-                    customerSearch.addEventListener('input', (e) => this.searchCustomers(e.target.value));
-                    customerSearch.addEventListener('focus', (e) => {
-                        if (e.target.value.length >= 2) this.searchCustomers(e.target.value);
-                    });
-                }
+                // 初始化客户搜索组件
+                this.initCustomerSearchComponent();
 
-                // 清除客户按钮
-                const clearCustomerBtn = document.getElementById('expense_clear_customer');
-                if (clearCustomerBtn) {
-                    clearCustomerBtn.addEventListener('click', () => this.clearCustomer());
-                }
-
-                // 项目搜索
-                const projectSearch = document.getElementById('expense_project_search');
-                if (projectSearch) {
-                    projectSearch.addEventListener('input', (e) => this.searchProjects(e.target.value));
-                    projectSearch.addEventListener('focus', (e) => {
-                        if (e.target.value.length >= 2) this.searchProjects(e.target.value);
-                    });
-                }
-
-                // 清除项目按钮
-                const clearProjectBtn = document.getElementById('expense_clear_project');
-                if (clearProjectBtn) {
-                    clearProjectBtn.addEventListener('click', () => this.clearProject());
-                }
+                // 初始化项目搜索组件
+                this.initProjectSearchComponent();
 
                 // 不关联客户模式切换
                 const noCustomerCheckbox = document.getElementById('expense_no_customer_mode');
@@ -164,6 +140,85 @@
             editExpenseId = null;
             existingDetails = [];
             this.reset();
+
+            if (typeof openFormModal === 'function') {
+                openFormModal(config.modalId, {
+                    title: config.i18n.createTitle,
+                    submitText: config.i18n.createBtn,
+                    onSubmit: () => this.submit()
+                });
+            }
+        },
+
+        /**
+         * 打开创建模态框并预填客户信息（客户字段只读）
+         * @param {number} customerId - 客户ID
+         * @param {string} customerName - 客户名称
+         * @param {string} returnUrl - 创建成功后返回的URL（可选）
+         */
+        openCreateWithCustomer: function(customerId, customerName, returnUrl) {
+            currentMode = 'create';
+            editExpenseId = null;
+            existingDetails = [];
+            this.returnUrl = returnUrl || null;  // 保存返回URL
+            this.reset();
+
+            // 预填客户信息
+            this.selectCustomer(customerId, customerName);
+
+            // 禁用客户搜索和清除按钮（只读模式）
+            const customerSearch = document.getElementById('expense_customer_search');
+            const clearCustomer = document.getElementById('expense_clear_customer');
+            const noCustomerCheckbox = document.getElementById('expense_no_customer_mode');
+
+            if (customerSearch) {
+                customerSearch.readOnly = true;
+                customerSearch.classList.add('bg-slate-100', 'dark:bg-slate-700', 'cursor-not-allowed');
+            }
+            if (clearCustomer) {
+                clearCustomer.classList.add('hidden');
+            }
+            if (noCustomerCheckbox) {
+                noCustomerCheckbox.disabled = true;
+                noCustomerCheckbox.parentElement?.classList.add('opacity-50');
+            }
+
+            if (typeof openFormModal === 'function') {
+                openFormModal(config.modalId, {
+                    title: config.i18n.createTitle,
+                    submitText: config.i18n.createBtn,
+                    onSubmit: () => this.submit()
+                });
+            }
+        },
+
+        /**
+         * 从项目详情页打开创建报销单模态框（预设项目）
+         * @param {number} projectId - 项目ID
+         * @param {string} projectName - 项目名称
+         * @param {string} returnUrl - 创建成功后返回的URL（可选）
+         */
+        openCreateWithProject: function(projectId, projectName, returnUrl) {
+            currentMode = 'create';
+            editExpenseId = null;
+            existingDetails = [];
+            this.returnUrl = returnUrl || null;
+            this.reset();
+
+            // 预填项目信息
+            this.selectProject(projectId, projectName);
+
+            // 禁用项目搜索和清除按钮（只读模式）
+            const projectSearch = document.getElementById('expense_project_search');
+            const clearProject = document.getElementById('expense_clear_project');
+
+            if (projectSearch) {
+                projectSearch.readOnly = true;
+                projectSearch.classList.add('bg-slate-100', 'dark:bg-slate-700', 'cursor-not-allowed');
+            }
+            if (clearProject) {
+                clearProject.classList.add('hidden');
+            }
 
             if (typeof openFormModal === 'function') {
                 openFormModal(config.modalId, {
@@ -756,12 +811,78 @@
         },
 
         /**
-         * 搜索客户
-         * @param {string} query - 搜索关键词
+         * 初始化客户搜索组件
          */
-        searchCustomers: function(query) {
-            if (query.length < 2) {
-                document.getElementById('expense_customer_dropdown')?.classList.add('hidden');
+        initCustomerSearchComponent: function() {
+            const container = document.getElementById('expenseCustomerSearchContainer');
+            if (!container) return;
+
+            // 检查组件是否可用
+            if (typeof CustomerSearchComponent === 'undefined') {
+                console.warn('CustomerSearchComponent 未加载，使用简化版客户搜索');
+                this.initSimpleCustomerSearch();
+                return;
+            }
+
+            // 销毁旧实例
+            if (this.customerSearchComponent) {
+                this.customerSearchComponent = null;
+            }
+
+            // 创建组件实例
+            this.customerSearchComponent = new CustomerSearchComponent({
+                input_id: 'expense_customer_search',
+                dropdown_id: 'expense_customer_dropdown',
+                clear_button_id: 'expense_clear_customer',
+                customer_id_field: 'expense_customer_id',
+                placeholder: config.i18n.selectCustomerFirst || '输入公司名称进行搜索...',
+                api_endpoints: {
+                    search: config.api.customerSearch || '/api/export-helpers/customers/search'
+                },
+                search_config: {
+                    min_length: 1,
+                    delay: 300,
+                    limit: 20
+                }
+            }, container);
+
+            // 监听客户选择事件
+            container.addEventListener('customerSelected', (e) => {
+                const customer = e.detail.customer;
+                if (customer && customer.id) {
+                    this.loadContacts(customer.id);
+                }
+            });
+
+            // 监听客户清除事件
+            container.addEventListener('customerCleared', () => {
+                this.resetContactSelect();
+            });
+        },
+
+        /**
+         * 简化版客户搜索（当组件不可用时的降级方案）
+         */
+        initSimpleCustomerSearch: function() {
+            const customerSearch = document.getElementById('expense_customer_search');
+            if (customerSearch) {
+                customerSearch.addEventListener('input', (e) => this.searchCustomersSimple(e.target.value));
+                customerSearch.addEventListener('focus', (e) => {
+                    if (e.target.value.length >= 1) this.searchCustomersSimple(e.target.value);
+                });
+            }
+            const clearBtn = document.getElementById('expense_clear_customer');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', () => this.clearCustomer());
+            }
+        },
+
+        /**
+         * 简化版客户搜索请求
+         */
+        searchCustomersSimple: function(query) {
+            if (query.length < 1) {
+                document.getElementById('expense_customer_dropdown').style.display = 'none';
                 return;
             }
 
@@ -771,44 +892,56 @@
                     .then(r => r.json())
                     .then(data => {
                         const dropdown = document.getElementById('expense_customer_dropdown');
-                        const results = document.getElementById('expense_customer_results');
+                        const list = dropdown?.querySelector('.customer-list');
 
                         if (data.success && data.results && data.results.length > 0) {
-                            results.innerHTML = data.results.map(c => `
+                            list.innerHTML = data.results.map(c => `
                                 <div class="px-3 py-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-slate-900 dark:text-slate-100"
+                                     data-customer-data='${JSON.stringify(c).replace(/'/g, "&#39;")}'
                                      onclick="ExpenseModal.selectCustomer(${c.id}, '${c.company_name.replace(/'/g, "\\'")}')">
                                     ${c.company_name}
                                 </div>
                             `).join('');
+                            dropdown.querySelector('.no-results').style.display = 'none';
                         } else {
-                            results.innerHTML = `<div class="px-3 py-2 text-sm text-slate-500">${config.i18n.noResults}</div>`;
+                            list.innerHTML = '';
+                            dropdown.querySelector('.no-results').style.display = 'block';
                         }
-                        dropdown?.classList.remove('hidden');
+                        dropdown.style.display = 'block';
                     });
             }, 300);
         },
 
         /**
-         * 选择客户
-         * @param {number} id - 客户ID
-         * @param {string} name - 客户名称
+         * 选择客户（供简化版和外部调用使用）
          */
         selectCustomer: function(id, name) {
             document.getElementById('expense_customer_id').value = id;
             document.getElementById('expense_customer_search').value = name;
-            document.getElementById('expense_customer_dropdown')?.classList.add('hidden');
+            document.getElementById('expense_customer_dropdown').style.display = 'none';
             document.getElementById('expense_clear_customer')?.classList.remove('hidden');
             this.loadContacts(id);
         },
 
         /**
-         * 清除客户
+         * 清除客户选择
          */
         clearCustomer: function() {
             document.getElementById('expense_customer_id').value = '';
             document.getElementById('expense_customer_search').value = '';
             document.getElementById('expense_clear_customer')?.classList.add('hidden');
+            this.resetContactSelect();
 
+            // 如果使用组件，也清除组件状态
+            if (this.customerSearchComponent) {
+                this.customerSearchComponent.clearSelection();
+            }
+        },
+
+        /**
+         * 重置联系人下拉框
+         */
+        resetContactSelect: function() {
             const contactSelect = document.getElementById('expense_contact_id');
             if (contactSelect) {
                 contactSelect.disabled = true;
@@ -818,7 +951,6 @@
 
         /**
          * 加载联系人
-         * @param {number} customerId - 客户ID
          */
         loadContacts: function(customerId) {
             const contactSelect = document.getElementById('expense_contact_id');
@@ -841,57 +973,142 @@
         },
 
         /**
-         * 搜索项目
-         * @param {string} query - 搜索关键词
+         * 初始化项目搜索组件
          */
-        searchProjects: function(query) {
-            if (query.length < 2) {
-                document.getElementById('expense_project_dropdown')?.classList.add('hidden');
+        initProjectSearchComponent: function() {
+            const container = document.getElementById('expenseProjectSearchContainer');
+            if (!container) return;
+
+            // 检查组件是否可用
+            if (typeof ProjectSearchComponent === 'undefined') {
+                console.warn('ProjectSearchComponent 未加载，使用简化版项目搜索');
+                this.initSimpleProjectSearch();
                 return;
             }
 
+            // 销毁旧实例
+            if (this.projectSearchComponent) {
+                this.projectSearchComponent = null;
+            }
+
+            // 创建组件实例
+            this.projectSearchComponent = new ProjectSearchComponent({
+                input_id: 'expense_project_search',
+                dropdown_id: 'expense_project_dropdown',
+                clear_button_id: 'expense_clear_project',
+                project_id_field: 'expense_project_id',
+                placeholder: '输入项目名称进行搜索...',
+                api_endpoints: {
+                    search: config.api.projectSearch || '/api/v1/search/projects'
+                },
+                search_config: {
+                    min_length: 1,
+                    delay: 300,
+                    limit: 20
+                },
+                validation: {
+                    required: false
+                }
+            }, container);
+
+            // 监听项目选择事件
+            container.addEventListener('projectSelected', (e) => {
+                const project = e.detail.project;
+                console.log('已选择项目:', project);
+            });
+
+            // 监听项目清除事件
+            container.addEventListener('projectCleared', () => {
+                console.log('已清除项目选择');
+            });
+        },
+
+        /**
+         * 简化版项目搜索（当组件不可用时的降级方案）
+         */
+        initSimpleProjectSearch: function() {
+            const projectSearch = document.getElementById('expense_project_search');
+            if (projectSearch) {
+                projectSearch.addEventListener('input', (e) => this.searchProjectsSimple(e.target.value));
+                // 点击展开：focus 时触发搜索（支持空搜索）
+                projectSearch.addEventListener('focus', (e) => {
+                    this.searchProjectsSimple(e.target.value);
+                });
+                // 点击外部关闭
+                projectSearch.addEventListener('blur', () => {
+                    setTimeout(() => {
+                        const dropdown = document.getElementById('expense_project_dropdown');
+                        if (dropdown) dropdown.style.display = 'none';
+                    }, 200);
+                });
+            }
+            const clearBtn = document.getElementById('expense_clear_project');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', () => this.clearProject());
+            }
+        },
+
+        /**
+         * 简化版项目搜索请求（支持空搜索实现点击展开）
+         */
+        searchProjectsSimple: function(query) {
+            // 移除长度限制，支持空搜索（点击展开）
+
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
-                fetch(`${config.api.projectSearch}?q=${encodeURIComponent(query)}`)
+                fetch(`${config.api.projectSearch}?q=${encodeURIComponent(query)}&limit=20`)
                     .then(r => r.json())
                     .then(data => {
                         const dropdown = document.getElementById('expense_project_dropdown');
-                        const results = document.getElementById('expense_project_results');
+                        const list = dropdown?.querySelector('.project-list');
 
                         if (data.success && data.data && data.data.length > 0) {
-                            results.innerHTML = data.data.map(p => `
-                                <div class="px-3 py-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-slate-900 dark:text-slate-100"
+                            list.innerHTML = data.data.map(p => {
+                                // 构建元信息（负责人 | 类型 | 阶段）
+                                const metaParts = [];
+                                if (p.owner_name) metaParts.push(p.owner_name);
+                                if (p.project_type_display) metaParts.push(p.project_type_display);
+                                if (p.current_stage_display) metaParts.push(p.current_stage_display);
+
+                                return `
+                                <div class="project-item"
                                      onclick="ExpenseModal.selectProject(${p.id}, '${p.project_name.replace(/'/g, "\\'")}')">
-                                    ${p.project_name}
+                                    <div class="project-item-name">${p.project_name}</div>
+                                    <div class="project-item-meta">${metaParts.join(' | ')}</div>
                                 </div>
-                            `).join('');
+                            `}).join('');
+                            dropdown.querySelector('.no-results').style.display = 'none';
                         } else {
-                            results.innerHTML = `<div class="px-3 py-2 text-sm text-slate-500">${config.i18n.noResults}</div>`;
+                            list.innerHTML = '';
+                            dropdown.querySelector('.no-results').style.display = 'block';
                         }
-                        dropdown?.classList.remove('hidden');
+                        dropdown.style.display = 'block';
                     });
             }, 300);
         },
 
         /**
-         * 选择项目
-         * @param {number} id - 项目ID
-         * @param {string} name - 项目名称
+         * 选择项目（供简化版和外部调用使用）
          */
         selectProject: function(id, name) {
             document.getElementById('expense_project_id').value = id;
             document.getElementById('expense_project_search').value = name;
-            document.getElementById('expense_project_dropdown')?.classList.add('hidden');
+            document.getElementById('expense_project_dropdown').style.display = 'none';
             document.getElementById('expense_clear_project')?.classList.remove('hidden');
         },
 
         /**
-         * 清除项目
+         * 清除项目选择
          */
         clearProject: function() {
             document.getElementById('expense_project_id').value = '';
             document.getElementById('expense_project_search').value = '';
             document.getElementById('expense_clear_project')?.classList.add('hidden');
+
+            // 如果使用组件，也清除组件状态
+            if (this.projectSearchComponent) {
+                this.projectSearchComponent.clearSelection();
+            }
         },
 
         /**
@@ -1062,7 +1279,10 @@
 
                     // 跳转或刷新（缩短延迟时间）
                     setTimeout(() => {
-                        if (data.redirect_url) {
+                        // 优先使用自定义返回URL（如从客户详情页创建时）
+                        if (this.returnUrl) {
+                            window.location.href = this.returnUrl;
+                        } else if (data.redirect_url) {
                             window.location.href = data.redirect_url;
                         } else if (data.expense_id) {
                             window.location.href = `/expense/${data.expense_id}?tw=1`;

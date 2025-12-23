@@ -96,6 +96,7 @@ Tailwind 行动记录列表组件
 #}
 
 {% from 'components/tw_buttons.html' import tw_btn_primary, tw_btn_secondary with context %}
+{% from 'macros/ui_helpers.html' import render_tw_owner_badge with context %}
 
 {# 行动记录卡片组件 #}
 {% macro tw_action_list_card(
@@ -125,15 +126,6 @@ Tailwind 行动记录列表组件
     has_create_permission=false
 ) %}
 {% set display_title = title or _('行动记录') %}
-{% set avatar_colors = [
-    'bg-blue-200 text-blue-600 dark:bg-blue-800 dark:text-blue-300',
-    'bg-purple-200 text-purple-600 dark:bg-purple-800 dark:text-purple-300',
-    'bg-teal-200 text-teal-600 dark:bg-teal-800 dark:text-teal-300',
-    'bg-yellow-200 text-yellow-600 dark:bg-yellow-800 dark:text-yellow-300',
-    'bg-red-200 text-red-600 dark:bg-red-800 dark:text-red-300',
-    'bg-green-200 text-green-600 dark:bg-green-800 dark:text-green-300'
-] %}
-{% set solid_avatar_colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-teal-500'] %}
 
 {% if layout == 'table' %}
 {# ===================== 表格布局（客户详情页风格） ===================== #}
@@ -154,9 +146,7 @@ Tailwind 行动记录列表组件
         <div class="divide-y divide-slate-200 dark:divide-slate-800 text-sm">
             {% if actions %}
                 {% for action in actions %}
-                {% set owner_name = action.owner.real_name or action.owner.username if action.owner else '?' %}
                 {% set contact_name = action.contact.name if action.contact else _('未知联系人') %}
-                {% set avatar_color = solid_avatar_colors[(action.owner_id or 0) % 6] %}
                 {% set reply_count = action.replies.count() if enable_replies else 0 %}
                 {% set project_name = action.project.project_name if action.project else '' %}
 
@@ -167,9 +157,7 @@ Tailwind 行动记录列表组件
                         <div class="grid grid-cols-[150px_1fr_100px_auto] gap-x-4 items-center">
                             <!-- 头像 + 联系人 -->
                             <div class="flex items-center gap-2 truncate">
-                                <div class="flex-shrink-0 size-8 {{ avatar_color }} text-white font-medium rounded-full flex items-center justify-center text-sm" title="{{ owner_name }}">
-                                    {{ owner_name[:1] }}
-                                </div>
+                                {{ render_tw_owner_badge(action.owner, size='md') }}
                                 <div class="font-semibold text-slate-800 dark:text-slate-200 truncate">{{ contact_name }}</div>
                             </div>
                             <!-- 行动内容 -->
@@ -204,9 +192,7 @@ Tailwind 行动记录列表组件
                             <div class="mb-4">
                                 <div class="grid grid-cols-[150px_1fr_100px] gap-x-4 items-start">
                                     <div class="flex items-center gap-2 truncate">
-                                        <div class="flex-shrink-0 size-8 {{ avatar_color }} text-white font-medium rounded-full flex items-center justify-center text-sm" title="{{ owner_name }}">
-                                            {{ owner_name[:1] }}
-                                        </div>
+                                        {{ render_tw_owner_badge(action.owner, size='md') }}
                                         <div class="font-semibold text-slate-800 dark:text-slate-200 truncate">{{ contact_name }}</div>
                                     </div>
                                     <div class="text-slate-600 dark:text-slate-400 whitespace-pre-wrap">{{ action.communication }}</div>
@@ -225,11 +211,8 @@ Tailwind 行动记录列表组件
                             </div>
 
                             <!-- 添加回复输入框 -->
-                            {% set current_avatar_color = solid_avatar_colors[(current_user.id or 0) % 6] %}
                             <div class="flex items-start gap-3 pt-4 mt-4 border-t border-slate-200 dark:border-slate-800">
-                                <div class="flex-shrink-0 size-8 {{ current_avatar_color }} text-white font-medium rounded-full flex items-center justify-center text-sm" title="{{ current_user.real_name or current_user.username }}">
-                                    {{ (current_user.real_name or current_user.username)[:1] }}
-                                </div>
+                                {{ render_tw_owner_badge(current_user, size='md', variant='solid', chars=1) }}
                                 <div class="flex-1">
                                     <textarea id="{{ container_id }}-reply-textarea-{{ action.id }}"
                                         class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-slate-800 dark:text-slate-200 focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-slate-300 dark:border-slate-700 bg-background-light dark:bg-background-dark focus:border-primary/80 h-10 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm font-normal leading-normal p-2.5"
@@ -317,13 +300,8 @@ Tailwind 行动记录列表组件
         <div class="space-y-4 flex-1 overflow-y-auto">
             {% if actions %}
             {% for action in actions[:max_items] %}
-            {% set owner_name = action.owner.real_name or action.owner.username if action.owner else '?' %}
-            {% set avatar_color = avatar_colors[(action.owner_id or 0) % 6] %}
             <div class="flex items-start space-x-3 group">
-                <div class="flex-shrink-0 w-8 h-8 {{ avatar_color }} font-bold rounded-full flex items-center justify-center text-xs"
-                    title="{{ owner_name }}">
-                    {{ owner_name[:2]|upper }}
-                </div>
+                {{ render_tw_owner_badge(action.owner, size='md') }}
                 <div class="flex-1 min-w-0">
                     {# 第一行：标题 + 关联项目 + 删除按钮 #}
                     <div class="flex items-start justify-between gap-2">

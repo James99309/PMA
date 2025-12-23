@@ -389,43 +389,33 @@ def search_projects_without_quotations(query_term: str, user=None, limit: int = 
 
 def search_projects_for_expense(query_term: str, user=None, limit: int = 10) -> List[Dict[str, Any]]:
     """
-    为报销单搜索项目（签约超过1月的项目）
-    
+    为报销单搜索项目
+
     参数:
-        query_term: 搜索关键词
+        query_term: 搜索关键词（支持空搜索，点击展开显示所有项目）
         user: 用户对象
         limit: 返回结果数量限制
-    
+
     返回:
-        签约超过1月的项目列表
+        用户有权限查看的项目列表
     """
     from app.models.project import Project
     from app.models.user import User
     from app.utils.access_control import get_viewable_data
-    from sqlalchemy import and_, or_
-    from datetime import datetime, timedelta
-    
+    from sqlalchemy import or_
+
     try:
         # 获取用户可查看的项目
         projects_query = get_viewable_data(Project, user)
-        
-        # 添加搜索条件
+
+        # 添加搜索条件（支持空搜索）
         if query_term:
             search_condition = or_(
                 Project.project_name.ilike(f'%{query_term}%'),
                 Project.authorization_code.ilike(f'%{query_term}%')
             )
             projects_query = projects_query.filter(search_condition)
-        
-        # 过滤签约超过1个月的项目（基于report_time报备时间）
-        one_month_ago = datetime.now().date() - timedelta(days=30)
-        projects_query = projects_query.filter(
-            and_(
-                Project.report_time.isnot(None),  # 有报备时间
-                Project.report_time <= one_month_ago  # 报备时间超过1个月
-            )
-        )
-        
+
         # 限制结果数量并排序
         projects = projects_query.order_by(Project.project_name).limit(limit).all()
         

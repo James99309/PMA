@@ -471,32 +471,12 @@ class ProjectSearchComponent {
                 break;
         }
         
-        // 专业紧凑布局：两行结构，上行项目名，下行元信息
+        // 简洁布局：项目名称 + 负责人|类型|阶段
+        const metaParts = [ownerName, typeName, stageName].filter(v => v && v !== '未设置' && v !== '未知');
+
         item.innerHTML = `
-            <div class="project-single-line">
-                <div class="project-main-section">
-                    <div class="project-name">${this.escapeHtml(projectName)}</div>
-                    <div class="project-meta-info">
-                        <div class="meta-item">
-                            <span class="meta-label">负责人</span>
-                            <span class="meta-value">${this.escapeHtml(ownerName)}</span>
-                        </div>
-                        <div class="meta-divider"></div>
-                        <div class="meta-item">
-                            <span class="meta-label">阶段</span>
-                            <span class="meta-value">${this.escapeHtml(stageName)}</span>
-                        </div>
-                        <div class="meta-divider"></div>
-                        <div class="meta-item">
-                            <span class="meta-label">类型</span>
-                            <span class="meta-value">${this.escapeHtml(typeName)}</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="permission-icon ${permissionClass}">
-                    <i class="${permissionIcon}"></i>
-                </div>
-            </div>
+            <div class="project-item-name">${this.escapeHtml(projectName)}</div>
+            <div class="project-item-meta">${metaParts.map(v => this.escapeHtml(v)).join(' | ')}</div>
         `;
         
         return item;

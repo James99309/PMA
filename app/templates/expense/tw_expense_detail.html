@@ -216,7 +216,7 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
         window.submitExpenseApproval = function () {
             // 等待openConfirmModal可用后调用
             if (typeof window.openConfirmModal === 'function') {
-                window.openConfirmModal('deleteExpenseModal', {
+                window.openConfirmModal('submitApprovalModal', {
                     title: __i18n.submitTitle,
                     message: __i18n.submitMessage,
                     confirmText: __i18n.submitText,
@@ -233,7 +233,7 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
         // 召回审批 - 使用确认对话框
         window.recallExpenseApproval = function () {
             if (typeof window.openConfirmModal === 'function') {
-                window.openConfirmModal('deleteExpenseModal', {
+                window.openConfirmModal('recallApprovalModal', {
                     title: __i18n.recallTitle,
                     message: __i18n.recallMessage,
                     confirmText: __i18n.recallText,
@@ -249,7 +249,7 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
         // 重新提交审批 - 使用确认对话框
         window.resubmitExpenseApproval = function () {
             if (typeof window.openConfirmModal === 'function') {
-                window.openConfirmModal('deleteExpenseModal', {
+                window.openConfirmModal('resubmitApprovalModal', {
                     title: __i18n.resubmitTitle,
                     message: __i18n.resubmitMessage,
                     confirmText: __i18n.submitText,
@@ -701,7 +701,7 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
         // 提交审批
         window.submitExpenseApproval = async function () {
             const confirmed = await new Promise((resolve) => {
-                window.openConfirmModal('deleteExpenseModal', {
+                window.openConfirmModal('submitApprovalModal', {
                     title: i18n.submitApproval,
                     message: i18n.submitApprovalConfirm,
                     confirmText: i18n.submitApproval,
@@ -741,7 +741,7 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
         // 召回审批
         window.recallExpenseApproval = async function () {
             const confirmed = await new Promise((resolve) => {
-                window.openConfirmModal('deleteExpenseModal', {
+                window.openConfirmModal('recallApprovalModal', {
                     title: i18n.recallApproval,
                     message: i18n.recallApprovalConfirm,
                     confirmText: i18n.recallApproval,
@@ -781,7 +781,7 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
         // 重新提交审批
         window.resubmitExpenseApproval = async function () {
             const confirmed = await new Promise((resolve) => {
-                window.openConfirmModal('deleteExpenseModal', {
+                window.openConfirmModal('resubmitApprovalModal', {
                     title: i18n.resubmitApproval,
                     message: i18n.resubmitApprovalConfirm,
                     confirmText: i18n.resubmitApproval,
@@ -931,6 +931,9 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
     {% if can_use_edit_modal %}
     <!-- 审批字段控制工具 -->
     <script src="{{ url_for('static', filename='js/approval-field-control.js') }}"></script>
+    <!-- 客户和项目搜索组件 -->
+    <script src="{{ url_for('static', filename='js/customer-search.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/project-search.js') }}"></script>
     <!-- 报销单模态框脚本 -->
     <script src="{{ url_for('static', filename='js/expense-modal.js') }}"></script>
     <script>

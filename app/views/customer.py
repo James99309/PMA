@@ -13,7 +13,8 @@ import difflib
 import json
 import re
 import logging
-from app.utils.dictionary_helpers import get_company_type_options, get_industry_options, get_status_options, get_country_options, get_report_source_options, COMPANY_TYPE_LABELS, INDUSTRY_LABELS, STATUS_LABELS, COUNTRY_LABELS
+from app.utils.dictionary_helpers import get_company_type_options, get_industry_options, get_status_options, get_country_options, get_report_source_options, COMPANY_TYPE_LABELS, INDUSTRY_LABELS, STATUS_LABELS, COUNTRY_LABELS, get_currency_type_options
+from app.models.expense import Expense, EXPENSE_CATEGORIES
 from app.utils.chinese_mapping_manager import mapping_manager
 
 # 设置日志记录器
@@ -1176,6 +1177,21 @@ def view_company(company_id):
             Quotation.project_id.in_(viewable_project_ids_list)
         ).order_by(Quotation.created_at.desc()).limit(10).all()
 
+    # 获取客户关联的报销单（基于权限过滤）
+    # 使用 get_viewable_data 确保权限过滤（报销单有特殊权限规则）
+    viewable_expenses_query = get_viewable_data(Expense, current_user).filter(
+        Expense.customer_id == company_id,
+        Expense.is_deleted == False
+    )
+    expenses = viewable_expenses_query.order_by(Expense.created_at.desc()).limit(10).all()
+
+    # 计算该客户的累计报销费用（计算已审批和已支付的报销单）
+    total_expense_amount = get_viewable_data(Expense, current_user).filter(
+        Expense.customer_id == company_id,
+        Expense.is_deleted == False,
+        Expense.status.in_(['approved', 'paid'])  # 已审批或已支付
+    ).with_entities(func.sum(Expense.total_amount)).scalar() or 0
+
     # 智能返回逻辑：保留筛选条件
     return_url = request.args.get('return_url')
     if return_url:
@@ -1200,6 +1216,10 @@ def view_company(company_id):
                           projects=projects,
                           viewable_projects=viewable_projects,
                           quotations=quotations,  # 报价单列表
+                          expenses=expenses,  # 报销单列表
+                          total_expense_amount=total_expense_amount,  # 累计报销费用
+                          currency_options=get_currency_type_options(),  # 报销单货币选项
+                          expense_categories=EXPENSE_CATEGORIES,  # 报销科目选项
                           country_code_to_name=country_code_to_name,
                           can_edit_sharing=can_edit_sharing,
                           can_view_sharing=can_view_sharing,

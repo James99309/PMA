@@ -10,7 +10,7 @@ from app.models.customer import Company
 from app.models.action import Action, ActionReply
 from app.models.user import User
 from app.utils.dictionary_helpers import project_type_label
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, extract, func
 from sqlalchemy.orm import joinedload
 
 logger = logging.getLogger(__name__)
@@ -144,7 +144,35 @@ def index():
                 # 回滚失败的事务
                 db.session.rollback()
                 recent_expenses = []
-    
+
+    # 获取当前用户今年各月份报销统计（用于首页图表）
+    expense_monthly_stats = []
+    expense_year_total = 0
+    if current_user.has_permission('expense', 'view'):
+        try:
+            from app.models.expense import Expense
+            current_year = datetime.now().year
+            # 查询今年每月已提交的报销总额（使用created_at作为时间基准）
+            # 包含 pending/approved/paid 状态，排除草稿和已拒绝
+            monthly_query = db.session.query(
+                extract('month', Expense.created_at).label('month'),
+                func.sum(Expense.total_amount).label('total')
+            ).filter(
+                Expense.owner_id == current_user.id,
+                Expense.is_deleted == False,
+                Expense.status.in_(['pending', 'approved', 'paid']),
+                extract('year', Expense.created_at) == current_year
+            ).group_by(extract('month', Expense.created_at)).all()
+
+            # 构建1-12月的完整数据
+            monthly_dict = {int(m.month): float(m.total or 0) for m in monthly_query}
+            expense_monthly_stats = [monthly_dict.get(i, 0) for i in range(1, 13)]
+            expense_year_total = sum(expense_monthly_stats)
+        except Exception as e:
+            logger.warning(f"报销月度统计查询失败: {str(e)}")
+            expense_monthly_stats = [0] * 12
+            expense_year_total = 0
+
     # 在index视图中，recent_projects处理类型key转中文，支持语言感知
     from app.utils.i18n import get_current_language
     lang_code = get_current_language()
@@ -170,6 +198,8 @@ def index():
                          recent_quotations=recent_quotations,
                          recent_companies=recent_companies,
                          recent_expenses=recent_expenses,
+                         expense_monthly_stats=expense_monthly_stats,
+                         expense_year_total=expense_year_total,
                          current_version_number=version_number,
                          app_version=app_version,
                          last_upgrade_time=last_upgrade_time,

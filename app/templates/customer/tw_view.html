@@ -4,7 +4,7 @@
 {% from 'components/tw_table_card.html' import render_tw_table_card, render_empty_state, render_table_card_styles with context %}
 {% from 'components/tw_action_list.html' import tw_action_list_card, render_tw_action_list_script with context %}
 {% from 'components/tw_buttons.html' import tw_btn_primary, tw_btn_secondary, tw_btn_danger, tw_btn_outline, tw_btn_icon with context %}
-{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script, tw_delete_confirm_modal with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script, tw_delete_confirm_modal, tw_custom_modal, tw_custom_modal_script with context %}
 {% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script, tw_tab_content with context %}
 {% from 'components/tw_form_fields.html' import tw_form_field, tw_form_select, tw_form_textarea, tw_form_checkbox, tw_form_row with context %}
 {% from 'components/tw_action_modal.html' import tw_action_modal, tw_action_modal_script with context %}
@@ -13,7 +13,7 @@
 {% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
 {% from 'components/tw_sharing_card.html' import tw_sharing_card with context %}
 {% from 'components/tw_user_selector_modal.html' import tw_user_selector_modal with context %}
-{% from 'macros/ui_helpers.html' import render_tw_customer_status_badge, render_tw_project_stage_badge_key, render_tw_quotation_badge, render_tw_primary_badge with context %}
+{% from 'macros/ui_helpers.html' import render_tw_customer_status_badge, render_tw_project_stage_badge_key, render_tw_quotation_badge, render_tw_primary_badge, render_tw_expense_status_badge with context %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 <head>
@@ -175,11 +175,12 @@
                                 items=[
                                     {'icon': 'business', 'label': _('企业类型'), 'value': company.company_type|company_type_label if company.company_type else none, 'hide_empty': true},
                                     {'icon': 'apartment', 'label': _('行业'), 'value': company.industry|industry_label if company.industry else none, 'hide_empty': true},
-                                    {'icon': 'source', 'label': _('来源'), 'value': company.source, 'hide_empty': true},
+                                    {'icon': 'source', 'label': _('来源'), 'value': company.source|report_source_label if company.source else none, 'hide_empty': true},
                                     {'icon': 'public', 'label': _('国家/地区'), 'value': country_code_to_name.get(company.country, company.country) if company.country else none, 'hide_empty': true},
                                     {'icon': 'location_city', 'label': _('省/州'), 'value': company.region, 'hide_empty': true},
                                     {'icon': 'location_on', 'label': _('详细地址'), 'value': company.address, 'hide_empty': true},
-                                    {'icon': 'person', 'label': _('负责人'), 'value': company.owner.real_name or company.owner.username if company.owner else none, 'hide_empty': true}
+                                    {'icon': 'person', 'label': _('负责人'), 'value': company.owner.real_name or company.owner.username if company.owner else none, 'hide_empty': true},
+                                    {'icon': 'payments', 'label': _('累计报销费用'), 'value': '¥{:,.2f}'.format(total_expense_amount or 0)}
                                 ]
                             ) }}
 
@@ -285,6 +286,44 @@
                                     {% endfor %}
                                 {% else %}
                                     {{ render_empty_state(_('暂无报价单'), 'description') }}
+                                {% endif %}
+                            {% endcall %}
+
+                            <!-- 报销单列表 -->
+                            {% call render_tw_table_card(
+                                title=_('报销单'),
+                                action_btn={'label': _('添加'), 'onclick': 'openExpenseWithCustomer()'} if has_permission('expense', 'create') else none,
+                                view_all_url=url_for('expense.expense_list') ~ '?customer_id=' ~ company.id,
+                                view_all_text=_('查看全部'),
+                                max_height='280px',
+                                headers=[
+                                    {'label': _('单号'), 'width': '25%'},
+                                    {'label': _('日期'), 'width': '20%'},
+                                    {'label': _('状态'), 'width': '25%'},
+                                    {'label': _('金额'), 'width': '30%', 'align': 'right'}
+                                ]
+                            ) %}
+                                {% if expenses %}
+                                    {% for expense in expenses %}
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                        <td class="p-3 font-medium text-primary hover:underline">
+                                            <a href="{{ url_for('expense.expense_detail', id=expense.id) }}?tw=1">{{ expense.expense_number }}</a>
+                                        </td>
+                                        <td class="p-3 text-slate-600 dark:text-slate-300">{{ expense.created_at.strftime('%Y-%m-%d') if expense.created_at else '-' }}</td>
+                                        <td class="p-3">
+                                            {{ render_tw_expense_status_badge(expense.status) }}
+                                        </td>
+                                        <td class="p-3 text-right text-slate-600 dark:text-slate-300">
+                                            {% if expense.total_amount %}
+                                                ¥{{ '{:,.2f}'.format(expense.total_amount) }}
+                                            {% else %}
+                                                <span class="text-slate-400">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    {{ render_empty_state(_('暂无报销单'), 'receipt_long') }}
                                 {% endif %}
                             {% endcall %}
 
@@ -420,6 +459,54 @@
         searchable=true,
         empty_text=_('暂无可共享的用户')
     ) }}
+    {% endif %}
+
+    {% if has_permission('expense', 'create') %}
+    <!-- 新建报销单表单模态框 -->
+    {% call tw_form_modal(
+        modal_id='expenseFormModal',
+        title=_('新建报销单'),
+        submit_text=_('创建'),
+        cancel_text=_('取消'),
+        size='2xl'
+    ) %}
+    {% include 'expense/partials/_expense_modal_fields.html' %}
+    {% endcall %}
+
+    <!-- 发票预览模态框 -->
+    {% call tw_custom_modal(
+        modal_id='invoicePreviewModal',
+        title=_('发票预览'),
+        icon='receipt',
+        icon_color='text-primary',
+        show_cancel_btn=false,
+        max_width='max-w-4xl'
+    ) %}
+    <div class="relative">
+        <div id="invoicePreviewContent" class="flex items-center justify-center min-h-[300px] bg-slate-100 dark:bg-slate-800 rounded-lg">
+            <span class="text-slate-400">{{ _('加载中...') }}</span>
+        </div>
+        <div class="mt-4 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <button type="button" id="prevInvoiceBtn" onclick="ExpenseModal.prevInvoice()"
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span class="material-symbols-outlined text-lg">chevron_left</span>
+                </button>
+                <span id="invoiceCounter" class="text-sm text-slate-500 dark:text-slate-400">1/1</span>
+                <button type="button" id="nextInvoiceBtn" onclick="ExpenseModal.nextInvoice()"
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span class="material-symbols-outlined text-lg">chevron_right</span>
+                </button>
+            </div>
+            <span id="invoiceFilename" class="text-sm text-slate-500 dark:text-slate-400 truncate max-w-xs"></span>
+            <button type="button" id="downloadInvoiceBtn" onclick="ExpenseModal.downloadCurrentInvoice()"
+                class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                <span class="material-symbols-outlined text-lg">download</span>
+                {{ _('下载') }}
+            </button>
+        </div>
+    </div>
+    {% endcall %}
     {% endif %}
 
     <!-- JavaScript -->
@@ -670,5 +757,50 @@
         enable_quick_add=true,
         quick_add_company_id=company.id
     ) }}
+
+    {% if has_permission('expense', 'create') %}
+    <!-- 自定义模态框脚本（发票预览） -->
+    {{ tw_custom_modal_script() }}
+
+    <!-- 客户和项目搜索组件 -->
+    <script src="{{ url_for('static', filename='js/customer-search.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/project-search.js') }}"></script>
+    <!-- 报销单模态框脚本 -->
+    <script src="{{ url_for('static', filename='js/expense-modal.js') }}"></script>
+    <script>
+    // 初始化报销单模态框
+    ExpenseModal.init({
+        modalId: 'expenseFormModal',
+        defaultCurrency: 'CNY',
+        csrfToken: document.querySelector('meta[name="csrf-token"]')?.content || '',
+        i18n: {
+            loading: '{{ _("加载中...") }}',
+            selectCustomerFirst: '{{ _("请先选择关联客户") }}',
+            selectContact: '{{ _("请选择联系人") }}',
+            noContacts: '{{ _("该客户暂无联系人") }}',
+            noResults: '{{ _("无匹配结果") }}',
+            createSuccess: '{{ _("报销单创建成功") }}',
+            saveSuccess: '{{ _("保存成功") }}',
+            createError: '{{ _("创建失败") }}',
+            saveError: '{{ _("保存失败") }}',
+            requiredField: '{{ _("请填写必填项") }}',
+            atLeastOneDetail: '{{ _("请至少添加一条报销明细") }}',
+            createTitle: '{{ _("新建报销单") }}',
+            editTitle: '{{ _("编辑报销单") }}',
+            createBtn: '{{ _("创建") }}',
+            saveBtn: '{{ _("保存") }}'
+        }
+    });
+
+    // 打开报销单模态框（预填当前客户，创建后返回当前页面）
+    window.openExpenseWithCustomer = function() {
+        ExpenseModal.openCreateWithCustomer(
+            {{ company.id }},
+            '{{ company.company_name|replace("'", "\\'") }}',
+            window.location.href  // 返回当前客户详情页
+        );
+    };
+    </script>
+    {% endif %}
 </body>
 </html>

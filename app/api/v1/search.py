@@ -300,6 +300,7 @@ def search_quotations():
 def search_projects_for_expense_api():
     """
     搜索可用于报销的项目（签约超过1月的项目）
+    支持空搜索：点击展开显示所有符合条件的项目
     """
     try:
         # 检查用户是否有报销单模块的查看权限
@@ -308,26 +309,13 @@ def search_projects_for_expense_api():
                 'success': False,
                 'message': '您没有权限访问报销模块'
             }), 403
-        
+
         query_term = request.args.get('q', '').strip()
-        limit = min(int(request.args.get('limit', 10)), 50)
-        
-        if not query_term:
-            return jsonify({
-                'success': True,
-                'data': [],
-                'message': '搜索关键词不能为空'
-            })
-        
-        if len(query_term) < 1:
-            return jsonify({
-                'success': True,
-                'data': [],
-                'message': '搜索关键词太短'
-            })
-        
+        limit = min(int(request.args.get('limit', 20)), 50)
+
+        # 支持空搜索：点击时展开显示所有符合条件的项目
         results = search_projects_for_expense(query_term, current_user, limit)
-        
+
         return jsonify({
             'success': True,
             'data': results,

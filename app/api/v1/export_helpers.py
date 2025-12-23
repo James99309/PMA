@@ -12,9 +12,10 @@ from app.models.customer import Company, Contact
 from app.models.user import User
 from app.decorators import permission_required
 from app.utils.access_control import get_viewable_data
-from app.utils.dictionary_helpers import company_type_label, company_type_color
+from app.utils.dictionary_helpers import company_type_label, company_type_color, industry_label
 from flask_login import current_user
 import logging
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -33,32 +34,40 @@ def search_customers():
     支持按has_inventory过滤（可选）
     """
     try:
-        # 获取搜索参数
+        # 【调试】步骤1: 获取搜索参数
+        logger.info("🔍 [DEBUG] 步骤1: 开始获取搜索参数")
         search_query = request.args.get('search', '').strip()
-        limit = min(int(request.args.get('limit', 20)), 50)  # 最大50条
+        # 安全解析 limit 参数，处理 undefined/null/非数字情况
+        limit_str = request.args.get('limit', '20')
+        try:
+            limit = min(int(limit_str), 50) if limit_str and limit_str.isdigit() else 20
+        except (ValueError, TypeError):
+            limit = 20
         customer_id = request.args.get('customer_id', '')  # 可选的客户ID过滤
         company_type = request.args.get('company_type', '').strip()  # 可选的公司类型过滤
         has_inventory = request.args.get('has_inventory', '').strip().lower()  # 可选的库存过滤
+        logger.info(f"🔍 [DEBUG] 参数: search='{search_query}', limit={limit}, company_type='{company_type}', has_inventory='{has_inventory}'")
 
-        # 支持空搜索：点击时展开显示所有符合权限的客户（受limit限制）
-        # 无论是否有过滤条件，都允许空搜索，提供一致的用户体验
+        # 【调试】步骤2: 检查当前用户
+        logger.info(f"🔍 [DEBUG] 步骤2: 当前用户 = {current_user.id if current_user else 'None'}, username = {current_user.username if current_user else 'None'}")
 
-        # 构建基础查询
+        # 【调试】步骤3: 构建基础查询
+        logger.info("🔍 [DEBUG] 步骤3: 开始调用 get_viewable_data")
         query = get_viewable_data(Company, current_user)
+        logger.info("🔍 [DEBUG] 步骤3: get_viewable_data 调用成功")
 
         # 应用公司类型过滤
         if company_type:
-            # 支持多个类型，用逗号分隔
+            logger.info(f"🔍 [DEBUG] 步骤4a: 应用公司类型过滤: {company_type}")
             types = [t.strip() for t in company_type.split(',') if t.strip()]
             if types:
-                # 直接使用类型过滤，不进行映射
                 query = query.filter(Company.company_type.in_(types))
 
         # 应用库存过滤
         if has_inventory == 'true':
+            logger.info("🔍 [DEBUG] 步骤4b: 应用库存过滤")
             from app.models.inventory import Inventory
             from app import db
-            # 查询有库存（quantity > 0）的公司ID
             company_ids_with_inventory = db.session.query(Inventory.company_id)\
                 .filter(Inventory.quantity > 0)\
                 .distinct()\
@@ -67,6 +76,7 @@ def search_customers():
 
         # 应用搜索条件
         if search_query:
+            logger.info(f"🔍 [DEBUG] 步骤4c: 应用搜索条件: {search_query}")
             search_conditions = or_(
                 Company.company_name.ilike(f'%{search_query}%'),
                 Company.company_code.ilike(f'%{search_query}%'),
@@ -76,54 +86,64 @@ def search_customers():
 
         # 如果指定了客户ID，直接查找该客户
         if customer_id:
+            logger.info(f"🔍 [DEBUG] 步骤4d: 应用客户ID过滤: {customer_id}")
             query = query.filter(Company.id == customer_id)
-        
-        # 执行查询
+
+        # 【调试】步骤5: 执行查询
+        logger.info("🔍 [DEBUG] 步骤5: 开始执行数据库查询")
         customers = query.limit(limit).all()
+        logger.info(f"🔍 [DEBUG] 步骤5: 查询返回 {len(customers)} 条记录")
         total_count = query.count() if len(customers) == limit else len(customers)
-        
-        # 格式化结果
+
+        # 【调试】步骤6: 格式化结果
+        logger.info("🔍 [DEBUG] 步骤6: 开始格式化结果")
         results = []
-        for customer in customers:
-            # 获取主要联系人信息
-            primary_contact = None
-            if customer.contacts:
-                primary_contact = next((c for c in customer.contacts if c.is_primary), customer.contacts[0] if customer.contacts else None)
-            
-            customer_data = {
-                'id': customer.id,
-                'company_name': customer.company_name or '',
-                'company_code': customer.company_code or '',
-                'contact_person': primary_contact.name if primary_contact else '',
-                'contact_phone': primary_contact.phone if primary_contact else '',
-                'contact_email': primary_contact.email if primary_contact else '',
-                'industry': customer.industry or '',
-                'company_type': customer.company_type or '',
-                # 使用通用函数返回徽章信息（复用系统标准）
-                'company_type_label': company_type_label(customer.company_type) if customer.company_type else '',
-                'company_type_color': company_type_color(customer.company_type) if customer.company_type else '#6c757d',
-                'created_at': customer.created_at.strftime('%Y-%m-%d') if customer.created_at else '',
-                # 添加拥有者信息
-                'owner': {
-                    'id': customer.owner.id if customer.owner else None,
-                    'username': customer.owner.username if customer.owner else '',
-                    'real_name': customer.owner.real_name if customer.owner else '',
-                    'is_vendor_user': customer.owner.is_vendor_user() if customer.owner else False
-                } if customer.owner else None
-            }
-            results.append(customer_data)
-        
+        for idx, customer in enumerate(customers):
+            try:
+                # 获取主要联系人信息
+                primary_contact = None
+                if customer.contacts:
+                    primary_contact = next((c for c in customer.contacts if c.is_primary), customer.contacts[0] if customer.contacts else None)
+
+                customer_data = {
+                    'id': customer.id,
+                    'company_name': customer.company_name or '',
+                    'company_code': customer.company_code or '',
+                    'contact_person': primary_contact.name if primary_contact else '',
+                    'contact_phone': primary_contact.phone if primary_contact else '',
+                    'contact_email': primary_contact.email if primary_contact else '',
+                    'industry': industry_label(customer.industry) if customer.industry else '',
+                    'company_type': customer.company_type or '',
+                    # 使用通用函数返回徽章信息（复用系统标准）
+                    'company_type_label': company_type_label(customer.company_type) if customer.company_type else '',
+                    'company_type_color': company_type_color(customer.company_type) if customer.company_type else '#6c757d',
+                    'created_at': customer.created_at.strftime('%Y-%m-%d') if customer.created_at else '',
+                    # 添加拥有者信息
+                    'owner': {
+                        'id': customer.owner.id if customer.owner else None,
+                        'username': customer.owner.username if customer.owner else '',
+                        'real_name': customer.owner.real_name if customer.owner else '',
+                        'is_vendor_user': customer.owner.is_vendor_user() if customer.owner else False
+                    } if customer.owner else None
+                }
+                results.append(customer_data)
+            except Exception as item_error:
+                logger.error(f"🔍 [DEBUG] 步骤6: 格式化第{idx}条记录失败 (id={customer.id}): {item_error}")
+                logger.error(f"🔍 [DEBUG] 完整堆栈:\n{traceback.format_exc()}")
+                raise
+
         logger.info(f"✅ 客户搜索成功: 查询='{search_query}', 结果={len(results)}条")
-        
+
         return jsonify({
             'success': True,
             'results': results,
             'total': total_count,
             'query': search_query
         })
-        
+
     except Exception as e:
         logger.error(f"❌ 客户搜索失败: {e}")
+        logger.error(f"❌ 完整堆栈:\n{traceback.format_exc()}")
         return jsonify({
             'success': False,
             'error': str(e),

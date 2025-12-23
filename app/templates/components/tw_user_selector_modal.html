@@ -446,7 +446,10 @@ function {{ modal_id }}Data() {
         expandedNodes: defaultExpandedNodes,
         {% if mode == 'multi' %}
         shareEnabled: {{ 'true' if share_enabled else 'false' }},
-        selectedUsers: {{ selected_users|tojson|safe if selected_users else '[]' }},
+        selectedUsers: ({{ selected_users|tojson|safe if selected_users else '[]' }}).map(u => ({
+            ...u,
+            initials: u.initials || (u.name ? u.name.substring(0, 2).toUpperCase() : '?')
+        })),
         {% else %}
         selectedUserId: {{ selected_user_id or 'null' }},
         {% endif %}
