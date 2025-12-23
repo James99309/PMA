@@ -15,9 +15,9 @@
 {% from 'components/tw_product_spec_modal.html' import tw_product_spec_modal, tw_product_spec_modal_script with context %}
 {% from 'components/tw_pricing_order_modal.html' import tw_pricing_order_modal, tw_pricing_order_modal_script with context %}
 
-{# 批价按钮显示条件 #}
-{% set has_approval = (quotation.approval_status and quotation.approval_status not in ['pending', 'rejected'] and quotation.approved_stages) or quotation.confirmation_badge_status == 'confirmed' %}
-{% set can_show_pricing = has_approval and quotation.project and quotation.project.current_stage in ['quoted', 'signed'] %}
+{# 批价按钮显示条件：产品明细确认是必须条件 #}
+{% set is_confirmed = quotation.confirmation_badge_status == 'confirmed' %}
+{% set can_show_pricing = is_confirmed and quotation.project and quotation.project.current_stage in ['quoted', 'signed'] %}
 
 {# 产品明细表格列配置 #}
 {% set product_columns = [

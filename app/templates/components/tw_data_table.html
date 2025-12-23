@@ -209,10 +209,12 @@ Tailwind 数据表格组件
     no_top_radius=false
 ) %}
 <div id="{{ table_id }}Container" class="p-6 bg-white dark:bg-slate-800 {{ 'rounded-b-xl rounded-t-none border-t-0' if no_top_radius else 'rounded-xl' }} shadow-sm border border-slate-200 dark:border-slate-700">
-    {% if title %}
+    {% if title or status_badge %}
     <!-- 表格头部信息 -->
     <div class="flex items-center gap-4 mb-6">
+        {% if title %}
         <h3 class="text-slate-900 dark:text-white text-base font-medium">{{ title }}</h3>
+        {% endif %}
 
         {% if status_badge %}
         <!-- 状态徽章 -->

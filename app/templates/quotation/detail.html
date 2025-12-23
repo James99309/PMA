@@ -187,9 +187,9 @@
                     <div class="btn-group" role="group">
                         {{ render_button(_('返回列表'), url_for('quotation.list_quotations'), color='secondary') }}
 
-                        {# 提交批价按钮：仅在报价单有审核标记且项目在批价/签约阶段时显示 #}
-                        {% set has_approval = (quotation.approval_status and quotation.approval_status not in ['pending', 'rejected'] and quotation.approved_stages) or quotation.confirmation_badge_status == 'confirmed' %}
-                        {% if has_approval and quotation.project and quotation.project.current_stage in ['quoted', 'signed'] %}
+                        {# 提交批价按钮：产品明细确认是必须条件，且项目在批价/签约阶段时显示 #}
+                        {% set is_confirmed = quotation.confirmation_badge_status == 'confirmed' %}
+                        {% if is_confirmed and quotation.project and quotation.project.current_stage in ['quoted', 'signed'] %}
                             {{ render_button(_('提交批价'), color='success', type='button', attrs='onclick="submitPricing(' ~ quotation.id ~ ')"') }}
                         {% endif %}
 
