@@ -383,7 +383,8 @@
                             {'key': 'discount', 'label': _('折扣%'), 'type': 'number', 'align': 'right', 'width': '80px'},
                             {'key': 'unit_price', 'label': _('单价'), 'type': 'currency', 'align': 'right', 'width': '100px'},
                             {'key': 'quantity', 'label': _('数量'), 'type': 'number', 'align': 'right', 'width': '70px'},
-                            {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'align': 'right', 'width': '100px'}
+                            {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'align': 'right', 'width': '100px'},
+                            {'key': 'product_mn', 'label': _('产品编码'), 'type': 'text', 'readonly': true, 'width': '100px'}
                         ] %}
                         <div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
                             <table id="pricingDetailTable" class="w-full editable-table text-sm text-left bg-white dark:bg-slate-900">
@@ -421,7 +422,8 @@
                             {'key': 'discount', 'label': _('折扣%'), 'type': 'number', 'align': 'right', 'width': '80px'},
                             {'key': 'unit_price', 'label': _('单价'), 'type': 'currency', 'align': 'right', 'width': '100px'},
                             {'key': 'quantity', 'label': _('数量'), 'type': 'number', 'align': 'right', 'width': '70px'},
-                            {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'align': 'right', 'width': '100px'}
+                            {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'align': 'right', 'width': '100px'},
+                            {'key': 'product_mn', 'label': _('产品编码'), 'type': 'text', 'readonly': true, 'width': '100px'}
                         ] %}
                         <div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
                             <table id="settlementDetailTable" class="w-full editable-table text-sm text-left bg-white dark:bg-slate-900">
@@ -1472,7 +1474,8 @@ window.PricingOrderModal = (function() {
                 discount: discountRate <= 1 ? (discountRate * 100) : discountRate,
                 unit_price: unitPrice,
                 quantity: quantity,
-                total_price: totalPrice
+                total_price: totalPrice,
+                product_mn: d.product_mn || '-'
             };
         });
 
@@ -1738,7 +1741,8 @@ window.PricingOrderModal = (function() {
                 discount: discountRate <= 1 ? (discountRate * 100) : discountRate,
                 unit_price: unitPrice,
                 quantity: quantity,
-                total_price: totalPrice
+                total_price: totalPrice,
+                product_mn: d.product_mn || '-'
             };
         });
 
@@ -2293,7 +2297,8 @@ window.createPricingOrder = function() {
     {'key': 'discount', 'label': _('折扣%'), 'type': 'number', 'align': 'right', 'width': '80px'},
     {'key': 'unit_price', 'label': _('单价'), 'type': 'currency', 'align': 'right', 'width': '100px'},
     {'key': 'quantity', 'label': _('数量'), 'type': 'number', 'align': 'right', 'width': '70px'},
-    {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'align': 'right', 'width': '100px'}
+    {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'align': 'right', 'width': '100px'},
+    {'key': 'product_mn', 'label': _('产品编码'), 'type': 'text', 'readonly': true, 'width': '100px'}
 ] %}
 {{ tw_editable_table_script(
     table_id='pricingDetailTable',
@@ -2316,7 +2321,8 @@ window.createPricingOrder = function() {
     {'key': 'discount', 'label': _('折扣%'), 'type': 'number', 'align': 'right', 'width': '80px'},
     {'key': 'unit_price', 'label': _('单价'), 'type': 'currency', 'align': 'right', 'width': '100px'},
     {'key': 'quantity', 'label': _('数量'), 'type': 'number', 'align': 'right', 'width': '70px'},
-    {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'align': 'right', 'width': '100px'}
+    {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'align': 'right', 'width': '100px'},
+    {'key': 'product_mn', 'label': _('产品编码'), 'type': 'text', 'readonly': true, 'width': '100px'}
 ] %}
 {{ tw_editable_table_script(
     table_id='settlementDetailTable',

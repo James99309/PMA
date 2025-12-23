@@ -201,6 +201,8 @@ class WordGenerator:
                 self._set_cell_text(cells[6], f'{currency_symbol}{detail.market_price:,.2f}')  # 零售单价
                 self._set_cell_text(cells[7], self._format_discount_rate(detail.discount_rate))  # 折扣率
                 self._set_cell_text(cells[8], f'{currency_symbol}{detail.unit_price:,.2f}')  # 批准单价
+                self._set_cell_text(cells[9], f'{currency_symbol}{detail.total_price:,.2f}')  # 总价（数据库字段）
+                self._set_cell_text(cells[10], detail.product_mn or '')  # 产品编码
 
             # 表格4: 总金额
             table4 = doc.tables[4]
@@ -321,6 +323,8 @@ class WordGenerator:
                 self._set_cell_text(cells[6], f'{currency_symbol}{detail.market_price:,.2f}')  # 零售单价
                 self._set_cell_text(cells[7], self._format_discount_rate(detail.discount_rate))  # 折扣率
                 self._set_cell_text(cells[8], f'{currency_symbol}{detail.unit_price:,.2f}')  # 结算单价
+                self._set_cell_text(cells[9], f'{currency_symbol}{detail.total_price:,.2f}')  # 总价（数据库字段）
+                self._set_cell_text(cells[10], detail.product_mn or '')  # 产品编码
 
             # 表格4: 总金额
             table4 = doc.tables[4]

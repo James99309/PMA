@@ -464,7 +464,7 @@ def convert_approval_item(item, tab):
                 result['started_at'] = item.created_at if hasattr(item, 'created_at') else None
             elif item.wrapper_type == 'expense':
                 result['id'] = f'expense_{item.id}'
-                result['object_id'] = item.id
+                result['object_id'] = item.object_id  # 使用报销单ID，而非审批实例ID
                 result['approval_number'] = f'APV-expense_{item.id}'
                 result['project_name'] = None
                 result['process_name'] = _('报销单审批流程')
@@ -488,7 +488,7 @@ def convert_approval_item(item, tab):
             result['object_id'] = item.object_id if hasattr(item, 'object_id') else None
             result['approval_number'] = f'APV-{item.id}'
             result['object_type'] = item.object_type if hasattr(item, 'object_type') else None
-            result['creator'] = item.created_by_user if hasattr(item, 'created_by_user') else None
+            result['creator'] = item.creator if hasattr(item, 'creator') else None
             result['started_at'] = item.started_at if hasattr(item, 'started_at') else None
 
             # 获取流程名称
@@ -504,7 +504,7 @@ def convert_approval_item(item, tab):
                 from app.models.project import Project
                 project = Project.query.get(item.object_id)
                 if project:
-                    result['project_name'] = project.name
+                    result['project_name'] = project.project_name
 
             # 获取状态
             if hasattr(item, 'status'):
