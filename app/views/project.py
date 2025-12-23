@@ -3894,16 +3894,19 @@ def start_project_approval(project_id):
         # 使用第一个可用模板（通常是"测试流程分支"）
         template = templates[0]
         
-        # 启动审批流程
+        # 启动审批流程（使用 auto_commit=False 确保与项目状态更新在同一事务中）
         from app.helpers.approval_helpers import start_approval_process
         approval_instance = start_approval_process(
             object_type='project',
             object_id=project_id,
             template_id=template.id,
-            user_id=current_user.id
+            user_id=current_user.id,
+            auto_commit=False
         )
-        
+
         if approval_instance:
+            # 更新项目状态为待审批
+            project_obj.status = 'pending'
             db.session.commit()
             logging.info(f"项目 {project_id} 审批流程启动成功，审批实例ID: {approval_instance.id}")
             return jsonify({
@@ -4145,14 +4148,14 @@ def submit_project_approval_standard(project_id):
                 
             template_id = default_template.id
         
-        # 启动审批流程
-        approval_instance = start_approval_process('project', project_id, template_id, current_user.id)
-        
+        # 启动审批流程（使用 auto_commit=False 确保与项目状态更新在同一事务中）
+        approval_instance = start_approval_process('project', project_id, template_id, current_user.id, auto_commit=False)
+
         if approval_instance:
             # 更新项目状态为待审批
             project_obj.status = 'pending'
-            # 确保项目状态更新也在同一个事务中
             db.session.add(project_obj)
+            # 统一提交：审批实例创建 + 项目状态更新
             db.session.commit()
             return jsonify({
                 'success': True,

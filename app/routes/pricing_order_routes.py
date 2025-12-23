@@ -2424,23 +2424,26 @@ def submit_pricing_order_approval(order_id):
                 'message': '未找到可用的审批模板'
             }), 400
         
-        # 启动V2审批流程
+        # 启动V2审批流程（使用 auto_commit=False 确保与批价单状态更新在同一事务中）
         approval_instance = start_approval_process(
-            'pricing_order', 
-            order_id, 
-            template.id, 
-            current_user.id
+            'pricing_order',
+            order_id,
+            template.id,
+            current_user.id,
+            auto_commit=False
         )
-        
+
         if not approval_instance:
+            db.session.rollback()
             logger.error(f"[V2审批] 启动审批流程失败")
             return jsonify({
                 'success': False,
                 'message': '启动审批流程失败'
             })
-        
+
         # 更新批价单状态为待审批
         pricing_order.status = 'pending'
+        # 统一提交：审批实例创建 + 批价单状态更新
         db.session.commit()
         
         logger.info(f"[V2审批] 成功提交: order_id={order_id}, approval_instance={approval_instance.id}")

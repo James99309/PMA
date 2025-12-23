@@ -9010,22 +9010,23 @@ document.addEventListener('DOMContentLoaded', function() {
     <span class="tw-badge" style="background-color: rgba(var(--primary-rgb, 59, 130, 246), 0.1); color: var(--primary-color, #3b82f6);">{{ _('主要') }}</span>
 {% endmacro %}
 
-{# 项目阶段徽章 - Tailwind 风格（使用英文 key） #}
+{# 项目阶段徽章 - Tailwind 风格（使用英文 key + 字典过滤器） #}
 {% macro render_tw_project_stage_badge_key(stage, stage_labels=none) %}
-    {%- set stage_config = {
-        'discover': {'class': 'tw-badge-sky', 'text': _('发现')},
-        'embed': {'class': 'tw-badge-emerald', 'text': _('植入')},
-        'pre_tender': {'class': 'tw-badge-amber', 'text': _('招标前')},
-        'tendering': {'class': 'tw-badge-orange', 'text': _('招标中')},
-        'awarded': {'class': 'tw-badge-teal', 'text': _('中标')},
-        'quoted': {'class': 'tw-badge-yellow', 'text': _('批价')},
-        'signed': {'class': 'tw-badge-blue', 'text': _('签约')},
-        'lost': {'class': 'tw-badge-red', 'text': _('失败')},
-        'paused': {'class': 'tw-badge-gray', 'text': _('搁置')}
+    {# 项目阶段颜色配置 - 使用 project_stage_label 过滤器获取国际化文本 #}
+    {%- set stage_colors = {
+        'discover': 'tw-badge-sky',
+        'embed': 'tw-badge-emerald',
+        'pre_tender': 'tw-badge-amber',
+        'tendering': 'tw-badge-orange',
+        'awarded': 'tw-badge-teal',
+        'quoted': 'tw-badge-yellow',
+        'signed': 'tw-badge-blue',
+        'lost': 'tw-badge-red',
+        'paused': 'tw-badge-gray'
     } -%}
-    {%- set config = stage_config.get(stage, {'class': 'tw-badge-slate', 'text': stage or '-'}) -%}
+    {%- set badge_class = stage_colors.get(stage, 'tw-badge-slate') -%}
     {%- if stage -%}
-    <span class="tw-badge {{ config.class }}">{{ config.text }}</span>
+    <span class="tw-badge {{ badge_class }}">{{ stage|project_stage_label }}</span>
     {%- else -%}
     <span class="text-slate-400 dark:text-slate-500">-</span>
     {%- endif -%}
@@ -9085,7 +9086,10 @@ document.addEventListener('DOMContentLoaded', function() {
         'approved': {'class': 'tw-badge-green', 'zh': '已通过', 'en': 'APPROVED'},
         'rejected': {'class': 'tw-badge-red', 'zh': '已拒绝', 'en': 'REJECTED'},
         'recalled': {'class': 'tw-badge-orange', 'zh': '已召回', 'en': 'RECALLED'},
-        'cancelled': {'class': 'tw-badge-gray', 'zh': '已取消', 'en': 'CANCELLED'}
+        'cancelled': {'class': 'tw-badge-gray', 'zh': '已取消', 'en': 'CANCELLED'},
+        'paid': {'class': 'tw-badge-green', 'zh': '已付款', 'en': 'PAID'},
+        'awaiting_payment': {'class': 'tw-badge-blue', 'zh': '待付款', 'en': 'AWAITING'},
+        'partially_paid': {'class': 'tw-badge-cyan', 'zh': '部分付款', 'en': 'PARTIAL'}
     } -%}
     {%- set config = status_config.get(status, {'class': 'tw-badge-gray', 'zh': status or '未知', 'en': status or 'UNKNOWN'}) -%}
     {%- set lang = session.get('language', 'zh') -%}

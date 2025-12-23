@@ -5098,22 +5098,25 @@ def submit_order_approval_standard(object_id):
         # 使用第一个可用模板
         template = templates[0]
         
-        # 创建审批实例
+        # 创建审批实例（使用 auto_commit=False 确保与订单状态更新在同一事务中）
         approval_instance = start_approval_process(
             object_type='purchase_order',
             object_id=order.id,
             template_id=template.id,
-            user_id=current_user.id
+            user_id=current_user.id,
+            auto_commit=False
         )
-        
+
         if approval_instance:
             # 更新订单状态为审批中
             order.status = 'pending'
+            # 统一提交：审批实例创建 + 订单状态更新
             db.session.commit()
-            
+
             logger.info(f"用户 {current_user.username} 提交订单 {order.order_number} 审批")
             return jsonify({'success': True, 'message': '审批提交成功'})
         else:
+            db.session.rollback()
             return jsonify({'success': False, 'message': '未找到适用的审批流程'})
             
     except Exception as e:

@@ -389,9 +389,10 @@ def get_tw_approval_items(tab, object_type, status, offset=0, limit=20):
                 per_page=per_page
             )
         elif tab == 'expense':
-            approvals = get_user_created_approvals(
+            # 使用专门的报销单权限函数，根据用户权限返回可查看的报销单
+            from app.helpers.approval_helpers import get_user_expense_approvals
+            approvals = get_user_expense_approvals(
                 user_id=current_user.id,
-                object_type='expense',
                 status=status if status else None,
                 page=page,
                 per_page=per_page
@@ -455,7 +456,8 @@ def convert_approval_item(item, tab):
             if item.wrapper_type == 'pricing_order':
                 result['id'] = f'po_{item.id}'
                 result['object_id'] = item.id
-                result['approval_number'] = f'APV-po_{item.id}'
+                # 使用批价单号作为审批编号
+                result['approval_number'] = getattr(item, 'approval_number', None) or f'PO-{item.id}'
                 result['project_name'] = getattr(item, 'project_name', None)
                 result['process_name'] = _('批价单审批流程')
                 result['object_type'] = 'pricing_order'
@@ -465,8 +467,10 @@ def convert_approval_item(item, tab):
             elif item.wrapper_type == 'expense':
                 result['id'] = f'expense_{item.id}'
                 result['object_id'] = item.object_id  # 使用报销单ID，而非审批实例ID
-                result['approval_number'] = f'APV-expense_{item.id}'
-                result['project_name'] = None
+                # 使用报销单编号作为审批编号
+                result['approval_number'] = getattr(item, 'approval_number', None) or f'EXP-{item.object_id}'
+                # 使用关联项目名称
+                result['project_name'] = getattr(item, 'project_name', None)
                 result['process_name'] = _('报销单审批流程')
                 result['object_type'] = 'expense'
                 result['creator'] = item.owner if hasattr(item, 'owner') else None
@@ -475,7 +479,8 @@ def convert_approval_item(item, tab):
             elif item.wrapper_type == 'order':
                 result['id'] = f'order_{item.id}'
                 result['object_id'] = item.id
-                result['approval_number'] = f'APV-order_{item.id}'
+                # 使用订单号作为审批编号
+                result['approval_number'] = getattr(item, 'approval_number', None) or f'ORD-{item.id}'
                 result['project_name'] = None
                 result['process_name'] = _('订单审批流程')
                 result['object_type'] = 'purchase_order'
@@ -486,7 +491,6 @@ def convert_approval_item(item, tab):
             # ApprovalInstance
             result['id'] = item.id
             result['object_id'] = item.object_id if hasattr(item, 'object_id') else None
-            result['approval_number'] = f'APV-{item.id}'
             result['object_type'] = item.object_type if hasattr(item, 'object_type') else None
             result['creator'] = item.creator if hasattr(item, 'creator') else None
             result['started_at'] = item.started_at if hasattr(item, 'started_at') else None
@@ -499,12 +503,29 @@ def convert_approval_item(item, tab):
             else:
                 result['process_name'] = _('未知流程')
 
-            # 获取关联项目名称
+            # 获取关联业务对象的编号作为审批编号
             if result['object_type'] == 'project' and hasattr(item, 'object_id'):
                 from app.models.project import Project
                 project = Project.query.get(item.object_id)
                 if project:
                     result['project_name'] = project.project_name
+                    # 使用授权编号作为审批编号
+                    result['approval_number'] = project.authorization_code or f'PRJ-{item.object_id}'
+                else:
+                    result['approval_number'] = f'APV-{item.id}'
+            elif result['object_type'] == 'quotation' and hasattr(item, 'object_id'):
+                from app.models.quotation import Quotation
+                quotation = Quotation.query.get(item.object_id)
+                if quotation:
+                    # 使用报价单编号作为审批编号
+                    result['approval_number'] = quotation.quotation_number or f'QT-{item.object_id}'
+                    # 获取关联项目名称
+                    if quotation.project:
+                        result['project_name'] = quotation.project.project_name
+                else:
+                    result['approval_number'] = f'APV-{item.id}'
+            else:
+                result['approval_number'] = f'APV-{item.id}'
 
             # 获取状态
             if hasattr(item, 'status'):
@@ -2281,17 +2302,17 @@ def center_ajax():
                 current_app.logger.error(f"get_user_order_approvals调用失败: {str(e)}")
                 approvals = create_empty_pagination(per_page)
         elif tab == 'expense':
-            # 报销单审批
+            # 报销单审批 - 使用专门的权限函数
             try:
-                approvals = get_user_created_approvals(
+                from app.helpers.approval_helpers import get_user_expense_approvals
+                approvals = get_user_expense_approvals(
                     user_id=current_user.id,
-                    object_type='expense',
                     status=status,
                     page=page,
                     per_page=per_page
                 )
             except Exception as e:
-                current_app.logger.error(f"get_expense_approvals调用失败: {str(e)}")
+                current_app.logger.error(f"get_user_expense_approvals调用失败: {str(e)}")
                 approvals = create_empty_pagination(per_page)
         elif tab == 'department':
             from app.helpers.approval_helpers import get_user_department_approvals

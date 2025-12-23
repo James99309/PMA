@@ -100,6 +100,12 @@ class ExpenseApprovalWrapper:
         self.approval_status = expense.status  # 字符串状态，用于 convert_approval_item
         self.expense = expense
 
+        # 🔥 添加审批编号 - 使用报销单编号
+        self.approval_number = expense.expense_number
+
+        # 🔥 添加关联项目名称
+        self.project_name = expense.project.project_name if expense.project else None
+
         # 状态映射 - 确保所有状态都有对应的显示
         if expense.status == 'pending':
             self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
@@ -145,6 +151,9 @@ class PricingOrderApprovalWrapper:
 
         # 关联项目名称
         self.project_name = pricing_order.project.project_name if pricing_order.project else None
+
+        # 🔥 添加审批编号 - 使用批价单号
+        self.approval_number = pricing_order.order_number
 
         # 状态映射
         status_map = {
@@ -219,6 +228,9 @@ class OrderApprovalWrapper:
         self.created_by = order.created_by  # User 对象，用于 convert_approval_item
         self.approval_status = order.status  # 用于 convert_approval_item
         self.order = order
+
+        # 🔥 添加审批编号 - 使用订单号
+        self.approval_number = order.order_number
 
         # 状态映射
         if order.status == 'pending':
@@ -3086,15 +3098,18 @@ def _get_complete_branch_condition(step):
         return step.branch_condition
 
 
-def start_approval_process(object_type, object_id, template_id, user_id=None):
+def start_approval_process(object_type, object_id, template_id, user_id=None, auto_commit=True):
     """发起审批流程
-    
+
     Args:
         object_type: 业务对象类型
         object_id: 业务对象ID
         template_id: 审批流程模板ID
         user_id: 发起人ID，默认为当前登录用户
-        
+        auto_commit: 是否自动提交事务，默认True。
+                     设为False时只flush不commit，由调用者统一提交，
+                     确保审批实例创建和业务对象状态更新在同一事务中。
+
     Returns:
         新建的审批实例对象，如果失败则返回None
     """
@@ -3342,14 +3357,20 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
         if object_type == 'pricing_order':
             from app.models.pricing_order import PricingOrder
             pricing_order_before_commit = PricingOrder.query.get(object_id)
-        
-        db.session.commit()
-        
+
+        # 根据 auto_commit 参数决定是否提交事务
+        if auto_commit:
+            db.session.commit()
+            current_app.logger.info(f"审批实例已提交: auto_commit=True")
+        else:
+            db.session.flush()  # 只flush不commit，由调用者统一提交
+            current_app.logger.info(f"审批实例已flush，等待调用者提交: auto_commit=False")
+
         # 🔧 关键调试：数据库提交后最终检查批价单状态
         if object_type == 'pricing_order':
             from app.models.pricing_order import PricingOrder
             pricing_order_after_commit = PricingOrder.query.get(object_id)
-        
+
         current_app.logger.info(f"成功发起审批流程: {object_type}:{object_id}, 模板ID: {template_id}, 实例ID: {instance.id}")
 
         # 通知第一步审批人
@@ -6252,13 +6273,14 @@ def resubmit_approval(object_type, object_id, user_id):
                     'message': '未找到适用的审批流程模板'
                 }
             
-            # 使用第一个可用模板创建新的审批实例
+            # 使用第一个可用模板创建新的审批实例（使用 auto_commit=False）
             template = templates[0]
-            new_instance = start_approval_process(object_type, object_id, template.id, user_id)
-            
+            new_instance = start_approval_process(object_type, object_id, template.id, user_id, auto_commit=False)
+
             if new_instance:
                 # 更新业务对象状态为待审批
                 update_business_object_status(object_type, object_id, 'pending')
+                # 统一提交：审批实例创建 + 业务对象状态更新
                 db.session.commit()
                 
                 return {
@@ -6470,12 +6492,105 @@ def get_expense_pending_count(user_id=None):
         return 0
 
 
+def get_user_expense_approvals(user_id, status=None, page=1, per_page=20):
+    """获取用户权限范围内的报销单审批记录
+
+    使用 get_viewable_data 函数获取用户有权查看的报销单，
+    权限规则由 access_control.py 中的报销单特殊处理逻辑控制。
+
+    Args:
+        user_id: 用户ID
+        status: 状态筛选
+        page: 页码
+        per_page: 每页数量
+
+    Returns:
+        分页对象，包含ExpenseApprovalWrapper对象列表
+    """
+    from app.models.expense import Expense
+    from app.models.user import User
+    from app.utils.access_control import get_viewable_data
+
+    # 获取用户信息
+    target_user = User.query.get(user_id)
+    if not target_user:
+        try:
+            from flask_sqlalchemy import Pagination
+        except ImportError:
+            from flask_sqlalchemy.pagination import Pagination
+        return Pagination(None, page=page, per_page=per_page, total=0, items=[])
+
+    # 使用通用权限过滤函数获取用户有权查看的报销单
+    query = get_viewable_data(Expense, target_user)
+
+    # 状态筛选
+    if status:
+        if isinstance(status, str):
+            query = query.filter(Expense.status == status.lower())
+        elif hasattr(status, 'name'):
+            # 处理枚举类型
+            status_map = {
+                'PENDING': 'pending',
+                'APPROVED': 'approved',
+                'REJECTED': 'rejected',
+                'DRAFT': 'draft'
+            }
+            if status.name in status_map:
+                query = query.filter(Expense.status == status_map[status.name])
+
+    # 按创建时间倒序排列
+    query = query.order_by(Expense.created_at.desc())
+
+    # 分页
+    try:
+        expenses = query.paginate(page=page, per_page=per_page, error_out=False)
+    except Exception as e:
+        current_app.logger.error(f"报销单审批分页查询失败: {str(e)}")
+        try:
+            from flask_sqlalchemy import Pagination
+        except ImportError:
+            from flask_sqlalchemy.pagination import Pagination
+        expenses = Pagination(query=query, page=page, per_page=per_page, total=0, items=[])
+
+    # 包装为审批实例格式
+    wrapped_items = []
+    for expense in expenses.items:
+        wrapped_items.append(ExpenseApprovalWrapper(expense))
+
+    # 创建新的分页对象
+    try:
+        from flask_sqlalchemy import Pagination
+    except ImportError:
+        class Pagination:
+            def __init__(self, query, page, per_page, total, items):
+                self.query = query
+                self.page = page
+                self.per_page = per_page
+                self.total = total
+                self.items = items
+                self.pages = (total + per_page - 1) // per_page if per_page > 0 else 1
+                self.has_prev = page > 1
+                self.has_next = page < self.pages
+                self.prev_num = page - 1 if self.has_prev else None
+                self.next_num = page + 1 if self.has_next else None
+
+    wrapped_pagination = Pagination(
+        query=query,
+        page=page,
+        per_page=per_page,
+        total=expenses.total,
+        items=wrapped_items
+    )
+
+    return wrapped_pagination
+
+
 def get_tab_counts_for_auto_switch(user_id=None):
     """获取各个页签的审批数量，用于自动切换到有审批提醒的页签
-    
+
     Args:
         user_id: 用户ID，默认为当前登录用户
-        
+
     Returns:
         dict: 各页签的审批数量 {'pending': 数量, 'pricing_order': 数量, 'order': 数量, 'created': 数量}
     """

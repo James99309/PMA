@@ -75,7 +75,8 @@ Tailwind 信息卡片组件
     action_btn=none,
     show_action=true,
     empty_text=none,
-    card_class=''
+    card_class='',
+    footer=none
 ) %}
 {% set default_empty = empty_text or _('未指定') %}
 <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 {{ card_class }}">
@@ -141,6 +142,12 @@ Tailwind 信息卡片组件
         {% endif %}
         {% endfor %}
     </div>
+
+    {% if footer %}
+    <div class="mt-6">
+        {{ footer }}
+    </div>
+    {% endif %}
 </div>
 {% endmacro %}
 

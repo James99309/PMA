@@ -209,17 +209,19 @@ def submit_warehousing_approval(dev_product_id):
                 'message': '审批流程模板不存在或已停用'
             }), 400
 
-        # 创建审批实例
+        # 创建审批实例（使用 auto_commit=False 确保与状态更新在同一事务中）
         from app.helpers.approval_helpers import start_approval_process
 
         approval_instance = start_approval_process(
             object_type='rd_product',
             object_id=dev_product_id,
             template_id=template.id,
-            user_id=current_user.id
+            user_id=current_user.id,
+            auto_commit=False
         )
 
         if not approval_instance:
+            db.session.rollback()
             return jsonify({
                 'success': False,
                 'message': '启动审批流程失败'
@@ -235,6 +237,7 @@ def submit_warehousing_approval(dev_product_id):
             description='提交入库审批，自动进入申请入库阶段'
         )
 
+        # 统一提交：审批实例创建 + 研发产品状态更新
         db.session.commit()
 
         logger.info(f"研发产品入库审批提交成功: DevProduct#{dev_product_id}, ApprovalInstance#{approval_instance.id}")

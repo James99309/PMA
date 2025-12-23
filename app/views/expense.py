@@ -2853,22 +2853,25 @@ def submit_approval(expense_id):
             
             template_id = default_template.id
         
-        # 启动审批流程
+        # 启动审批流程（使用 auto_commit=False 确保与报销单状态更新在同一事务中）
         approval_instance = start_approval_process(
             object_type='expense',
             object_id=expense_id,
             template_id=template_id,
-            user_id=current_user.id
+            user_id=current_user.id,
+            auto_commit=False
         )
-        
+
         if not approval_instance:
+            db.session.rollback()
             return jsonify({
                 'success': False,
                 'message': '启动审批流程失败'
             }), 500
-        
+
         # 更新报销单状态
         expense_obj.status = 'pending'
+        # 统一提交：审批实例创建 + 报销单状态更新
         db.session.commit()
         
         current_app.logger.info(f"报销单 {expense_obj.expense_number} 审批流程已启动，实例ID: {approval_instance.id}")
@@ -2995,22 +2998,25 @@ def resubmit_approval(expense_id):
             
             template_id = default_template.id
         
-        # 重新启动审批流程
+        # 重新启动审批流程（使用 auto_commit=False 确保与报销单状态更新在同一事务中）
         approval_instance = start_approval_process(
             object_type='expense',
             object_id=expense_id,
             template_id=template_id,
-            user_id=current_user.id
+            user_id=current_user.id,
+            auto_commit=False
         )
-        
+
         if not approval_instance:
+            db.session.rollback()
             return jsonify({
                 'success': False,
                 'message': '重新启动审批流程失败'
             }), 500
-        
+
         # 更新报销单状态
         expense_obj.status = 'pending'
+        # 统一提交：审批实例创建 + 报销单状态更新
         db.session.commit()
         
         current_app.logger.info(f"报销单 {expense_obj.expense_number} 审批流程已重新提交，实例ID: {approval_instance.id}")

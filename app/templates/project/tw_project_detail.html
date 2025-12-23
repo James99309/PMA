@@ -400,6 +400,19 @@ render_tw_expense_status_badge with context %}
         {% elif detail_slot == 'main' %}
                     <!-- 项目信息卡片 -->
                     {% set can_edit_owner = current_stage_key != 'signed' and has_change_owner_permission and (not project.is_locked or current_user.role == 'admin') %}
+                    {# 构建项目描述 footer #}
+                    {% set project_description_footer %}
+                        <div>
+                            <p class="text-slate-500 dark:text-slate-400 text-sm mb-2">{{ _('项目描述') }}</p>
+                            <div class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                                {%- if project.stage_description -%}
+                                    {{ project.stage_description }}
+                                {%- else -%}
+                                    <span class="text-slate-400 dark:text-slate-500 italic">{{ _('暂无项目描述') }}</span>
+                                {%- endif -%}
+                            </div>
+                        </div>
+                    {% endset %}
                     {{ tw_info_card(
                         title=_('项目信息'),
                         columns=2,
@@ -417,7 +430,8 @@ render_tw_expense_status_badge with context %}
                             {'label': _('厂商销售负责人'), 'badge': render_tw_owner_badge(project.vendor_sales_manager) if project.vendor_sales_manager else none, 'value': _('未设置') if not project.vendor_sales_manager else none, 'edit_btn': {'onclick': 'openChangeVendorSalesModal()', 'show': can_edit_owner}},
                             {'label': _('预测出货时间'), 'value': project.delivery_forecast.strftime('%Y-%m-%d') if project.delivery_forecast else '-'},
                             {'label': _('累计报销费用'), 'value': '¥{:,.2f}'.format(total_expense_amount or 0)}
-                        ]
+                        ],
+                        footer=project_description_footer
                     ) }}
 
                     <!-- 3.2 关联客户卡片 -->

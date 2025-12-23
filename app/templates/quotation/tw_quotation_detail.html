@@ -5,7 +5,7 @@
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script, tw_custom_modal, tw_custom_modal_script with context %}
 {% from 'components/tw_item_list_card.html' import tw_item_list_card, tw_item_list_item, tw_item_list_empty %}
 {% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles, render_tw_data_table_script, render_empty_row with context %}
-{% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_project_stage_badge, render_tw_project_type_badge with context %}
+{% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_project_stage_badge_key, render_tw_project_type_badge with context %}
 {% from 'components/tw_info_card.html' import tw_info_card with context %}
 {% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
 {% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
@@ -151,7 +151,7 @@
                             {'label': _('关联项目'), 'value': quotation.project.project_name if quotation.project else none, 'link': url_for('project.view_project', project_id=quotation.project.id, tw=1) if quotation.project else none},
                             {'label': _('关联客户'), 'value': quotation.customer.company_name if quotation.customer else none},
                             {'label': _('联系人'), 'value': quotation.contact.name if quotation.contact else none},
-                            {'label': _('报价阶段'), 'badge': render_tw_project_stage_badge(quotation.project_stage) if quotation.project_stage else none},
+                            {'label': _('报价阶段'), 'badge': render_tw_project_stage_badge_key(quotation.project_stage) if quotation.project_stage else none},
                             {'label': _('项目类型'), 'badge': render_tw_project_type_badge(quotation.project_type) if quotation.project_type else none},
                             {'label': _('报价总额'), 'value': quotation.currency_symbol ~ "{:,.2f}".format(quotation.amount) if quotation.amount else quotation.currency_symbol ~ '0.00'},
                             {'label': _('植入总额'), 'value': quotation.currency_symbol ~ "{:,.2f}".format(quotation.implant_total_amount) if quotation.implant_total_amount else quotation.currency_symbol ~ '0.00'},

@@ -654,6 +654,17 @@ class WordGenerator:
 
         Returns:
             dict: {'content': bytes, 'filename': str}
+
+        模板结构 (EVERTAC_Quotation_Template.xlsx):
+        - A7: 客户名称
+        - B9: 联系人
+        - G6: 报价编号
+        - G7: 日期
+        - G8: 有效期
+        - G9: 报价人
+        - G10: 货币
+        - 明细行从14行开始，列：A(序号) B(产品名称) C(型号) D(规格) E(数量) F(单价) G(金额) H(产品编码MN)
+        - 汇总行：G列显示标签，H列显示数值
         """
         try:
             template_path = self._get_template_path('quotation_template.xlsx')
@@ -679,18 +690,18 @@ class WordGenerator:
             valid_until = (quotation.created_at + timedelta(days=30)).strftime('%Y-%m-%d') if quotation.created_at else ''
             prepared_by = quotation.owner.real_name if quotation.owner else ''
 
-            # 替换单元格值
+            # 替换单元格值（根据新模板位置）
             ws['A7'] = customer_name  # 客户名称
             ws['B9'] = contact_name  # 联系人
-            ws['F6'] = quotation.quotation_number  # 报价编号
-            ws['F7'] = quotation_date  # 日期
-            ws['F8'] = valid_until  # 有效期
-            ws['F9'] = prepared_by  # 报价人
-            ws['F10'] = currency_display  # 货币
+            ws['G6'] = quotation.quotation_number  # 报价编号
+            ws['G7'] = quotation_date  # 日期
+            ws['G8'] = valid_until  # 有效期
+            ws['G9'] = prepared_by  # 报价人
+            ws['G10'] = currency_display  # 货币
 
             # 明细起始行
             detail_start_row = 14
-            template_row = 14  # 模板中的示例行
+            template_detail_count = 5  # 模板中有5行示例数据（14-18行）
 
             # 收集所有明细（包括子产品）
             all_details = []
@@ -703,9 +714,8 @@ class WordGenerator:
                         all_details.append(child)
 
             # 如果明细数量超过模板示例行数，需要插入新行
-            template_detail_count = 5  # 模板中有5行示例数据
             if len(all_details) > template_detail_count:
-                # 插入额外的行
+                # 在最后一个模板行之后插入额外的行
                 extra_rows = len(all_details) - template_detail_count
                 ws.insert_rows(detail_start_row + template_detail_count, extra_rows)
 
@@ -723,22 +733,28 @@ class WordGenerator:
                 ws[f'E{row}'] = detail.quantity or 0  # 数量
                 ws[f'F{row}'] = detail.unit_price or 0  # 单价
                 ws[f'G{row}'] = f'=E{row}*F{row}'  # 金额公式
+                # 产品编码MN（新增H列）- 优先使用配置后的MN，否则使用产品MN
+                mn_code = detail.configured_mn or detail.product_mn or ''
+                ws[f'H{row}'] = mn_code  # 产品编码
 
             # 清除多余的模板行
             if len(all_details) < template_detail_count:
                 for idx in range(len(all_details), template_detail_count):
                     row = detail_start_row + idx
-                    for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G']:
+                    for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']:
                         ws[f'{col}{row}'] = ''
 
-            # 更新汇总行位置
-            summary_row = detail_start_row + max(len(all_details), template_detail_count) + 1
-            # 小计
-            ws[f'G{summary_row}'] = f'=SUM(G{detail_start_row}:G{summary_row - 1})'
-            # 税费
-            ws[f'G{summary_row + 1}'] = 0
-            # 总计
-            ws[f'G{summary_row + 2}'] = f'=G{summary_row}+G{summary_row + 1}'
+            # 计算汇总行位置（明细结束后空一行）
+            detail_end_row = detail_start_row + max(len(all_details), template_detail_count) - 1
+            summary_row = detail_end_row + 2  # 空一行后的汇总行
+
+            # 设置汇总行（新模板格式：G列是标签，H列是数值）
+            ws[f'G{summary_row}'] = '小计 Subtotal'
+            ws[f'H{summary_row}'] = f'=SUM(G{detail_start_row}:G{detail_end_row})'
+            ws[f'G{summary_row + 1}'] = '税费 VAT (0%)'
+            ws[f'H{summary_row + 1}'] = 0
+            ws[f'G{summary_row + 2}'] = '总计 TOTAL'
+            ws[f'H{summary_row + 2}'] = f'=H{summary_row}+H{summary_row + 1}'
 
             # 保存到内存
             output = BytesIO()

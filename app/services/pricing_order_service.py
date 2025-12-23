@@ -891,15 +891,17 @@ class PricingOrderService:
             # 使用第一个可用模板（应该只有一个）
             template = templates[0]
             
-            # 启动审批流程
+            # 启动审批流程（使用 auto_commit=False 确保与状态更新在同一事务中）
             approval_instance = start_approval_process(
                 object_type='pricing_order',
                 object_id=pricing_order.id,
                 template_id=template.id,
-                user_id=current_user.id
+                user_id=current_user.id,
+                auto_commit=False
             )
-            
+
             if not approval_instance:
+                db.session.rollback()
                 return False, "创建审批流程失败"
             
             # 清理旧的审批记录（V1系统的记录）

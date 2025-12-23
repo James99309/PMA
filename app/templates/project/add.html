@@ -291,12 +291,13 @@
         <!-- 阶段说明卡片 -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="card-title mb-0">{{ _('阶段说明') }}</h5>
+                <h5 class="card-title mb-0">{{ _('项目描述') }}</h5>
             </div>
             <div class="card-body">
                 <div class="mb-4">
-                    <label for="stage_description" class="form-label mb-2">{{ _('当前阶段情况说明') }}</label>
-                    <textarea class="form-control" id="stage_description" name="stage_description" rows="3"></textarea>
+                    <label for="stage_description" class="form-label mb-2">{{ _('项目描述') }} <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="stage_description" name="stage_description" rows="3" required
+                        placeholder="{{ _('请详细描述项目的背景和情况,以供报备时区分') }}"></textarea>
                 </div>
 
                 <div class="d-grid gap-2 d-md-flex justify-content-md-end">
