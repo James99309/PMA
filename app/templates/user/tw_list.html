@@ -5,6 +5,7 @@
 {% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles,
 render_tw_data_table_script, render_empty_row with context %}
 {% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_user_status_badge, render_tw_user_role_badge with context %}
+{% from 'components/user/tw_user_form_modal.html' import render_user_form_modal, render_user_form_modal_script with context %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 
@@ -72,11 +73,11 @@ render_tw_data_table_script, render_empty_row with context %}
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('账户管理') }}</h1>
         <div class="flex flex-wrap items-center gap-2">
             {% if has_permission('user_management', 'create') %}
-            <a href="{{ url_for('user.create_user') }}"
+            <button type="button" onclick="UserFormModal.open()"
                 class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
                 <span class="material-symbols-outlined" style="font-size: 20px;">person_add</span>
                 <span>{{ _('新增账户') }}</span>
-            </a>
+            </button>
             {% endif %}
         </div>
     {% elif page_slot == 'content' %}
@@ -258,6 +259,10 @@ render_tw_data_table_script, render_empty_row with context %}
             });
         })();
     </script>
+
+    <!-- 用户创建模态框 -->
+    {{ render_user_form_modal(mode='create') }}
+    {{ render_user_form_modal_script(mode='create', csrf_token=csrf_token()) }}
 </body>
 
 </html>

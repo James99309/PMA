@@ -451,7 +451,7 @@
                                 {% if has_permission('permission_management', 'view') %}
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('user.manage_role_permissions') }}">{{ _('权限管理') }}</a></li>
                                 {% endif %}
-                                {% if has_permission('system_management', 'edit') or has_permission('performance_management', 'edit') %}
+                                {% if has_permission('config_management', 'view') %}
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('config_management.index') }}">{{ _('配置管理') }}</a></li>
                                 {% endif %}
                                 {% if has_permission('dictionary_management', 'view') %}
@@ -487,7 +487,7 @@
                                 </a>
                             </li>
                             {% endif %}
-                            {% if has_permission('system_management', 'edit') or has_permission('performance_management', 'edit') %}
+                            {% if has_permission('config_management', 'view') %}
                             <li>
                                 <a class="dropdown-item"
                                    href="{{ url_for('config_management.index') }}">
@@ -519,7 +519,7 @@
                         </ul>
                     </li>
                     {% endif %}
-                    {% if has_permission('system_management', 'admin') %}
+                    {% if has_permission('system_settings', 'edit') %}
                     <li class="nav-item d-lg-none">
                         <details>
                             <summary class="nav-link text-sm py-2 mb-0" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">

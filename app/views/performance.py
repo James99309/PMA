@@ -21,7 +21,7 @@ performance_bp = Blueprint('performance', __name__, url_prefix='/performance')
 
 @performance_bp.route('/')
 @login_required
-@permission_required('performance_management', 'view')
+@permission_required('config_management', 'view')
 def index():
     """绩效管理首页"""
     # 首先检测语言环境，用于后续所有国际化处理（包括异常处理）
@@ -36,7 +36,7 @@ def index():
         current_tab = request.args.get('tab', 'overview')
         
         # 获取可访问的用户列表（基于权限）
-        accessible_users = get_accessible_users(current_user, 'performance_management')
+        accessible_users = get_accessible_users(current_user, 'config_management')
 
         # 获取有绩效目标设置的用户列表
         users_with_targets = db.session.query(User).join(
@@ -495,7 +495,7 @@ def index():
         # 尝试回退到基本视图
         try:
             # 获取基本用户信息
-            accessible_users = get_accessible_users(current_user, 'performance_management')
+            accessible_users = get_accessible_users(current_user, 'config_management')
             selected_user_id = request.args.get('user_id', current_user.id, type=int)
             selected_user = User.query.get(selected_user_id) or current_user
             
@@ -526,12 +526,12 @@ def index():
 
 @performance_bp.route('/target_settings')
 @login_required
-@permission_required('performance_management', 'edit')
+@permission_required('config_management', 'edit')
 def target_settings():
     """绩效目标设置页面"""
     try:
         # 获取可管理的用户列表 - 基于数据访问权限
-        accessible_users = get_accessible_users(current_user, 'performance_management')
+        accessible_users = get_accessible_users(current_user, 'config_management')
         accessible_user_ids = [u.id for u in accessible_users]
 
         # 设置可选年份范围（2025-2030）
@@ -644,7 +644,7 @@ def target_settings():
 
 @performance_bp.route('/save_targets_batch', methods=['POST'])
 @login_required
-@permission_required('performance_management', 'edit')
+@permission_required('config_management', 'edit')
 def save_targets_batch():
     """批量保存绩效目标"""
     try:
@@ -659,7 +659,7 @@ def save_targets_batch():
             return jsonify({'success': False, 'message': '没有提供目标数据'})
 
         # 权限检查
-        accessible_users = get_accessible_users(current_user, 'performance_management')
+        accessible_users = get_accessible_users(current_user, 'config_management')
         accessible_user_ids = [u.id for u in accessible_users]
 
         # 检查所有用户权限
@@ -738,7 +738,7 @@ def save_target():
         month = data.get('month')
         
         # 权限检查：只有管理员或具备用户管理编辑权限的用户可以设置目标
-        accessible_users = get_accessible_users(current_user, 'performance_management')
+        accessible_users = get_accessible_users(current_user, 'config_management')
         accessible_user_ids = [u.id for u in accessible_users]
         
         can_edit = (
@@ -792,7 +792,7 @@ def refresh_statistics():
         year = request.args.get('year', datetime.now().year, type=int)
         
         # 权限检查
-        accessible_users = get_accessible_users(current_user, 'performance_management')
+        accessible_users = get_accessible_users(current_user, 'config_management')
         if user_id not in [u.id for u in accessible_users]:
             return jsonify({'success': False, 'message': '没有权限访问该用户数据'})
         
@@ -810,7 +810,7 @@ def refresh_statistics():
 
 @performance_bp.route('/list_ajax')
 @login_required
-@permission_required('performance_management', 'view')
+@permission_required('config_management', 'view')
 def list_ajax():
     """绩效管理列表AJAX端点"""
     try:
@@ -828,7 +828,7 @@ def list_ajax():
         year = int(year_param) if year_param else None
         
         # 权限检查
-        accessible_users = get_accessible_users(current_user, 'performance_management')
+        accessible_users = get_accessible_users(current_user, 'config_management')
         accessible_user_ids = [u.id for u in accessible_users]
         
         # 处理"全部账户"和"全部年份"的情况
@@ -1321,7 +1321,7 @@ def api_monthly_data():
         month = request.args.get('month', datetime.now().month, type=int)
         
         # 权限检查
-        accessible_users = get_accessible_users(current_user, 'performance_management')
+        accessible_users = get_accessible_users(current_user, 'config_management')
         if user_id not in [u.id for u in accessible_users]:
             return jsonify({'success': False, 'message': '没有权限访问该用户数据'})
         

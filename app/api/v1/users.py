@@ -85,7 +85,7 @@ def get_user(user_id):
     )
 
 @api_v1_bp.route('/users', methods=['POST'])
-@jwt_required_with_permission('user', 'create')
+@flexible_auth_with_permission('user_management', 'create')
 def create_user():
     """
     创建新用户
@@ -108,11 +108,10 @@ def create_user():
     department = data.get('department')
     is_department_manager = data.get('is_department_manager', False)
     role = data.get('role', 'user')
-    password = data.get('password')
-    is_active = data.get('is_active', True)
-    
-    # 验证必填字段
-    if not all([username, real_name, company_name, role, password]):
+    is_active = data.get('is_active', False)  # 新建用户默认未激活，需要通过邀请邮件激活
+
+    # 验证必填字段（密码不需要，通过激活邀请设置）
+    if not all([username, real_name, company_name, role]):
         return api_response(
             success=False,
             code=400,
@@ -147,21 +146,23 @@ def create_user():
         role=role,
         is_active=is_active
     )
-    user.set_password(password)
+    # 生成临时密码（用户通过激活邮件设置自己的密码）
+    import secrets
+    temp_password = secrets.token_urlsafe(12)
+    user.set_password(temp_password)
     
     try:
         db.session.add(user)
         db.session.commit()
         
-        # 准备用户数据以发送邀请邮件
+        # 准备用户数据以发送邀请邮件（不包含密码，用户通过邮件链接设置）
         user_data = {
             "username": username,
             "real_name": real_name,
             "company_name": company_name,
             "email": email,
             "phone": phone,
-            "role": role,
-            "password": password
+            "role": role
         }
         
         # 发送邀请邮件给新用户

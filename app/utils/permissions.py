@@ -23,7 +23,7 @@ def assign_user_default_permissions(user):
         logger.info(f"为用户 {user.username} (ID: {user.id}) 分配默认权限")
         
         # 定义模块列表
-        modules = ['customer', 'project', 'quotation', 'product', 'product_code', 'user', 'permission', 'inventory', 'settlement', 'order', 'performance_management']
+        modules = ['customer', 'project', 'quotation', 'product', 'product_code', 'user', 'permission', 'inventory', 'settlement', 'order']
         
         # 删除该用户现有的所有权限（如果有）
         Permission.query.filter_by(user_id=user.id).delete()
@@ -115,33 +115,6 @@ def assign_user_default_permissions(user):
                     can_delete = False
                 else:
                     # 其他角色默认无库存管理权限
-                    can_view = False
-                    can_create = False
-                    can_edit = False
-                    can_delete = False
-            
-            # 绩效管理模块权限设置
-            if module == 'performance_management':
-                if user.role == 'admin':
-                    # 管理员拥有所有绩效管理权限
-                    can_view = True
-                    can_create = True
-                    can_edit = True
-                    can_delete = True
-                elif user.role in ['human_resources', 'hr', 'hrdp_manager', 'ceo', 'sales_director', 'service_manager']:
-                    # 人事、人力资源发展经理、CEO、销售总监、服务经理可以查看和编辑绩效
-                    can_view = True
-                    can_create = True
-                    can_edit = True
-                    can_delete = False
-                elif user.role in ['business_admin', 'solution', 'service', 'sales']:
-                    # 商务助理、解决方案、服务、销售可以查看自己的绩效
-                    can_view = True
-                    can_create = False
-                    can_edit = False
-                    can_delete = False
-                else:
-                    # 其他角色默认无绩效管理权限
                     can_view = False
                     can_create = False
                     can_edit = False
@@ -419,7 +392,7 @@ def get_accessible_users(current_user, context_module=None):
 
     参数:
         current_user: 当前登录用户
-        context_module: 上下文模块名称，如 'user_management', 'performance_management' 等
+        context_module: 上下文模块名称，如 'user_management', 'config_management' 等
 
     返回:
         list: 可访问的用户列表
@@ -442,7 +415,7 @@ def get_accessible_users(current_user, context_module=None):
             permission_modules_to_check.append(context_module)
         else:
             # 如果没有指定上下文模块，检查常见的用户访问相关权限
-            permission_modules_to_check = ['user_management', 'performance_management', 'user']
+            permission_modules_to_check = ['user_management', 'config_management', 'user']
         
         highest_permission_level = 'personal'
         

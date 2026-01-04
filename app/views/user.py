@@ -1898,20 +1898,14 @@ def user_detail(user_id):
 
     role_dict = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
 
-    # 计算绩效管理权限
-    from app.utils.permissions import get_accessible_users
-    accessible_users = get_accessible_users(current_user, 'performance_management')
+    # 绩效权限：所有人都能看自己或有权访问用户的绩效
+    # 已经通过 get_viewable_data 验证了用户访问权限，所以可以查看绩效
+    can_view_performance = True
 
-    # 绩效查看权限：有performance_management的view权限且用户在可访问范围内
-    can_view_performance = (
-        current_user.role == 'admin' or
-        (current_user.has_permission('performance_management', 'view') and user.id in [u.id for u in accessible_users])
-    )
-
-    # 绩效编辑权限：有performance_management的edit权限且用户在可访问范围内
+    # 绩效编辑权限：管理员或有配置管理权限
     can_edit_performance = (
         current_user.role == 'admin' or
-        (current_user.has_permission('performance_management', 'edit') and user.id in [u.id for u in accessible_users])
+        current_user.has_permission('config_management', 'edit')
     )
 
     # 计算用户管理编辑权限
@@ -1929,8 +1923,8 @@ def user_detail(user_id):
         current_user.has_permission('user_management', 'edit')
     )
 
-    # 支持TW模板
-    template = 'user/tw_detail.html' if request.args.get('tw') == '1' else 'user/detail.html'
+    # 默认使用TW模板（Tailwind版本）
+    template = 'user/tw_detail.html'
 
     # 当前年份（用于绩效看板）
     current_year = datetime.now().year

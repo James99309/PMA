@@ -6,7 +6,7 @@
 - 财务配置：批量设置用户年度报销预算
 """
 
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, abort
 from flask_login import login_required, current_user
 from datetime import datetime
 from sqlalchemy import func
@@ -201,9 +201,12 @@ config_management_bp = Blueprint('config_management', __name__, url_prefix='/con
 
 @config_management_bp.route('/')
 @login_required
-@permission_required('system_management', 'edit')
 def index():
     """配置管理主页面"""
+    # 需要配置管理权限
+    if not current_user.has_permission('config_management', 'view'):
+        abort(403)
+
     try:
         # 获取角色字典
         role_dict = {d.key: d.value for d in Dictionary.query.filter_by(type='role', is_active=True).all()}
@@ -238,7 +241,7 @@ def index():
 
 @config_management_bp.route('/api/roles')
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_get_roles():
     """获取可配置角色列表"""
     try:
@@ -257,7 +260,7 @@ def api_get_roles():
 
 @config_management_bp.route('/api/role-permissions/<role>')
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_get_role_permissions(role):
     """获取角色默认权限"""
     from flask import session
@@ -344,7 +347,7 @@ def api_get_role_permissions(role):
 
 @config_management_bp.route('/api/role-permissions/<role>', methods=['POST'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_save_role_permissions(role):
     """保存角色默认权限（包括子功能权限）"""
     import time
@@ -432,7 +435,7 @@ def api_save_role_permissions(role):
 
 @config_management_bp.route('/api/role/<role>/users')
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_get_role_users(role):
     """获取角色下的用户列表（含权限覆盖状态）"""
     try:
@@ -483,7 +486,7 @@ def api_get_role_users(role):
 
 @config_management_bp.route('/api/users/permissions/batch', methods=['POST'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_batch_get_user_permissions():
     """批量获取用户权限（多选用户时获取共同权限）"""
     try:
@@ -608,11 +611,12 @@ def api_batch_get_user_permissions():
 
 @config_management_bp.route('/api/users/permissions/batch-save', methods=['POST'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_batch_save_user_permissions():
     """批量保存用户权限覆盖"""
     try:
         from app.models.user import User, Permission
+        from app.utils.module_metadata import get_all_modules
 
         data = request.get_json()
         if not data:
@@ -632,12 +636,16 @@ def api_batch_save_user_permissions():
         if len(users) != len(user_ids):
             return jsonify({'success': False, 'message': '部分用户不存在'}), 400
 
+        # 获取所有权限模块列表
+        all_modules = get_all_modules()
+        all_module_ids = list(all_modules.keys())
+
         # 批量更新每个用户的权限
         for user_id in user_ids:
             # 删除该用户的所有现有权限
             Permission.query.filter_by(user_id=user_id).delete()
 
-            # 添加新权限
+            # 添加选中模块的权限
             for module, perm_data in permissions_data.items():
                 # 跳过混合状态的权限（不覆盖）
                 if perm_data.get('skip_mixed'):
@@ -658,6 +666,20 @@ def api_batch_save_user_permissions():
                 )
                 db.session.add(permission)
 
+            # 为未选中的模块添加"无权限"记录，阻止回退到角色权限
+            for module_id in all_module_ids:
+                if module_id not in permissions_data:
+                    no_permission = Permission(
+                        user_id=user_id,
+                        module=module_id,
+                        can_view=False,
+                        can_create=False,
+                        can_edit=False,
+                        can_delete=False,
+                        permission_level='none'
+                    )
+                    db.session.add(no_permission)
+
         db.session.commit()
         logger.info(f"批量更新 {len(user_ids)} 个用户的权限成功")
 
@@ -676,7 +698,7 @@ def api_batch_save_user_permissions():
 
 @config_management_bp.route('/api/users/<int:user_id>/permissions/reset', methods=['POST'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_reset_user_permissions(user_id):
     """重置用户权限为角色默认（删除个人覆盖）"""
     try:
@@ -712,7 +734,7 @@ def api_reset_user_permissions(user_id):
 
 @config_management_bp.route('/api/expense-budgets')
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_get_expense_budgets():
     """获取用户预算列表"""
     try:
@@ -787,7 +809,7 @@ def api_get_expense_budgets():
 
 @config_management_bp.route('/api/expense-budgets/batch', methods=['POST'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_batch_set_expense_budgets():
     """批量设置用户预算"""
     try:
@@ -867,7 +889,7 @@ def api_batch_set_expense_budgets():
 
 @config_management_bp.route('/api/role/<role_code>/budget', methods=['GET', 'POST'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_role_budget(role_code):
     """获取或保存角色默认费用预算"""
     try:
@@ -957,7 +979,7 @@ def api_role_budget(role_code):
 
 @config_management_bp.route('/api/users/budget/batch', methods=['POST'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_batch_user_budget():
     """批量获取或保存用户费用预算"""
     try:
@@ -1118,7 +1140,7 @@ def api_batch_user_budget():
 
 @config_management_bp.route('/api/users/budget/clear', methods=['POST'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_clear_user_budget():
     """清除用户个人费用预算配置（恢复使用角色默认值）"""
     try:
@@ -1372,7 +1394,7 @@ def get_available_roles():
 
 @config_management_bp.route('/api/vendor-users')
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_get_vendor_users():
     """获取厂商公司的所有用户（扁平列表，用于薪资分配或绩效配置）"""
     try:
@@ -1533,7 +1555,7 @@ def api_get_vendor_users():
 
 @config_management_bp.route('/api/salary/grades')
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_get_salary_grades():
     """获取职级配置列表"""
     try:
@@ -1556,7 +1578,7 @@ def api_get_salary_grades():
 
 @config_management_bp.route('/api/salary/grades', methods=['POST'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_save_salary_grade():
     """保存职级配置"""
     try:
@@ -1633,7 +1655,7 @@ def api_save_salary_grade():
 
 @config_management_bp.route('/api/salary/grades/<int:grade_id>', methods=['DELETE'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_delete_salary_grade(grade_id):
     """删除职级配置"""
     try:
@@ -1658,7 +1680,7 @@ def api_delete_salary_grade(grade_id):
 
 @config_management_bp.route('/api/salary/base-params')
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_get_salary_base_params():
     """获取基础参数配置"""
     try:
@@ -1674,7 +1696,7 @@ def api_get_salary_base_params():
 
 @config_management_bp.route('/api/salary/base-params', methods=['POST'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_save_salary_base_param():
     """保存基础参数"""
     try:
@@ -1723,7 +1745,7 @@ def api_save_salary_base_param():
 
 @config_management_bp.route('/api/salary/step-rules')
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_get_salary_step_rules():
     """获取阶梯规则列表"""
     try:
@@ -1747,7 +1769,7 @@ def api_get_salary_step_rules():
 
 @config_management_bp.route('/api/salary/step-rules', methods=['POST'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_save_salary_step_rule():
     """保存阶梯规则"""
     try:
@@ -1793,7 +1815,7 @@ def api_save_salary_step_rule():
 
 @config_management_bp.route('/api/salary/step-rules/<int:rule_id>', methods=['DELETE'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_delete_salary_step_rule(rule_id):
     """删除阶梯规则"""
     try:
@@ -1813,7 +1835,7 @@ def api_delete_salary_step_rule(rule_id):
 
 @config_management_bp.route('/api/salary/formulas')
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_get_salary_formulas():
     """获取公式配置列表"""
     try:
@@ -1831,7 +1853,7 @@ def api_get_salary_formulas():
 
 @config_management_bp.route('/api/salary/formula-variables')
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_get_formula_variables():
     """获取公式可用变量列表（分组）- 包含动态KPI指标"""
     try:
@@ -1852,7 +1874,7 @@ def api_get_formula_variables():
 
 @config_management_bp.route('/api/salary/formulas', methods=['POST'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_save_salary_formula():
     """保存公式配置"""
     try:
@@ -1912,7 +1934,7 @@ def api_save_salary_formula():
 
 @config_management_bp.route('/api/salary/teams')
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_get_salary_teams():
     """获取团队配置列表"""
     try:
@@ -1929,7 +1951,7 @@ def api_get_salary_teams():
 
 @config_management_bp.route('/api/salary/teams', methods=['POST'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_save_salary_team():
     """保存团队配置"""
     try:
@@ -1973,7 +1995,7 @@ def api_save_salary_team():
 
 @config_management_bp.route('/api/salary/teams/<int:team_id>', methods=['DELETE'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def api_delete_salary_team(team_id):
     """删除团队配置"""
     try:
@@ -2168,7 +2190,7 @@ def clear_user_salary_config():
 
 @config_management_bp.route('/api/user/<int:user_id>/basic-info', methods=['GET'])
 @login_required
-@permission_required('system_management', 'view')
+@permission_required('config_management', 'view')
 def get_user_basic_info(user_id):
     """获取用户基本信息"""
     try:
@@ -2210,7 +2232,7 @@ def get_user_basic_info(user_id):
 
 @config_management_bp.route('/api/user/<int:user_id>/ai-config', methods=['GET'])
 @login_required
-@permission_required('system_management', 'view')
+@permission_required('config_management', 'view')
 def get_user_ai_config(user_id):
     """获取用户AI分析配置"""
     try:
@@ -2233,7 +2255,7 @@ def get_user_ai_config(user_id):
 
 @config_management_bp.route('/api/user/<int:user_id>/ai-config', methods=['POST'])
 @login_required
-@permission_required('system_management', 'edit')
+@permission_required('config_management', 'edit')
 def save_user_ai_config(user_id):
     """保存用户AI分析配置"""
     try:

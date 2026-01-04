@@ -43,12 +43,16 @@ def check_user_access(auth_user, target_user_id):
     if not auth_user:
         return False
 
+    # 用户可以访问自己的绩效数据
+    if auth_user.id == target_user_id:
+        return True
+
     # 管理员可以访问所有用户
     if auth_user.role == 'admin':
         return True
 
-    # 检查是否在可访问用户列表中
-    accessible_users = get_accessible_users(auth_user, 'performance_management')
+    # 检查是否在可访问用户列表中（基于用户管理权限）
+    accessible_users = get_accessible_users(auth_user, 'user_management')
     accessible_user_ids = [u.id for u in accessible_users]
 
     return target_user_id in accessible_user_ids
@@ -169,8 +173,8 @@ def set_expense_budget(user_id):
     if not auth_user:
         return api_response(success=False, code=401, message="未认证")
 
-    # 权限检查：只有管理员或有绩效编辑权限的用户可以设置预算
-    if auth_user.role != 'admin' and not auth_user.has_permission('performance_management', 'edit'):
+    # 权限检查：只有管理员或有配置管理编辑权限的用户可以设置预算
+    if auth_user.role != 'admin' and not auth_user.has_permission('config_management', 'edit'):
         return api_response(success=False, code=403, message="无权限设置预算")
 
     # 检查目标用户是否在可访问范围内
