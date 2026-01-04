@@ -17,7 +17,7 @@
     {% endif %}
     <div class="{% if compact %}p-4 space-y-3{% else %}p-5 space-y-4{% endif %}">
         {% if expense_budget.has_budget %}
-        <!-- 全年费用进度 -->
+        <!-- 有预算配置：显示完整进度 -->
         <div class="space-y-2">
             <div class="flex items-center justify-between text-sm">
                 <span class="text-slate-600 dark:text-slate-400">{{ _('年度费用') }}</span>
@@ -81,10 +81,50 @@
         </div>
         {% endif %}
         {% endif %}
+        {% elif expense_budget.expense_total and expense_budget.expense_total > 0 %}
+        <!-- 无预算但有报销：只显示累计金额 -->
+        <div class="space-y-3">
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('年度累计报销') }}</span>
+                <span class="text-lg font-semibold text-slate-800 dark:text-white">
+                    {{ currency_symbol }}{{ '{:,.0f}'.format(expense_budget.expense_total) }}
+                </span>
+            </div>
+            <!-- 分类明细（如果有数据） -->
+            {% if expense_budget.category_comparison %}
+            {% set has_category_expense = expense_budget.category_comparison.values()|selectattr('expense')|list|length > 0 %}
+            {% if has_category_expense %}
+            <div class="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">{{ _('分类明细') }}</p>
+                {% set category_labels = {
+                    'entertainment': _('招待费'),
+                    'travel': _('差旅费'),
+                    'transport': _('交通费'),
+                    'office': _('办公费'),
+                    'communication': _('通讯费'),
+                    'other': _('其他')
+                } %}
+                {% for cat_key, cat_data in expense_budget.category_comparison.items() %}
+                {% if cat_data.expense and cat_data.expense > 0 %}
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-600 dark:text-slate-400">{{ category_labels.get(cat_key, cat_key) }}</span>
+                    <span class="font-medium text-slate-700 dark:text-slate-300">
+                        {{ currency_symbol }}{{ '{:,.0f}'.format(cat_data.expense) }}
+                    </span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endif %}
+            <div class="text-xs text-slate-400 dark:text-slate-500">
+                {{ _('暂无费用预算配置') }}
+            </div>
+        </div>
         {% else %}
-        <!-- 无预算配置提示 -->
+        <!-- 无预算且无报销：显示空状态 -->
         <div class="text-center py-2 text-xs text-slate-400 dark:text-slate-500">
-            {{ _('暂无费用预算配置') }}
+            {{ _('暂无费用数据') }}
         </div>
         {% endif %}
     </div>
