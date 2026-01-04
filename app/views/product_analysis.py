@@ -104,12 +104,10 @@ def apply_permission_based_filters(query, current_user, quotation_alias=Quotatio
     if not current_user:
         return query.filter(False)
     
-    # 检查是否是管理员或CEO（使用传入的用户对象）
-    if (hasattr(current_user, 'role') and 
-        current_user.role in ['admin', 'CEO'] and 
-        hasattr(current_user, 'has_permission')):
-        if current_user.has_permission('product', 'admin'):
-            return query
+    # 检查是否是管理员或CEO
+    from app.permissions import is_admin_or_ceo
+    if is_admin_or_ceo():
+        return query
     
     # 检查用户是否有报价单查看权限
     if not (hasattr(current_user, 'has_permission') and current_user.has_permission('quotation', 'view')):
@@ -149,44 +147,16 @@ def apply_permission_based_filters(query, current_user, quotation_alias=Quotatio
         # 3. 销售负责人相关项目
         permission_filters.append(project_alias.vendor_sales_manager_id == current_user.id)
         
-        # 4. 其他角色特殊权限
-        user_role = current_user.role.strip() if current_user.role else ''
-        if user_role == 'channel_manager':
-            # 渠道经理：额外可以查看渠道跟进项目
-            permission_filters.append(project_alias.project_type == 'channel_follow')
-        elif user_role == 'sales_director':
-            # 营销总监：额外可以查看销售重点和渠道跟进项目
-            permission_filters.append(project_alias.project_type.in_(['sales_focus', 'sales_key', 'channel_follow']))
-        elif user_role in ['service', 'service_manager']:
-            # 服务经理：额外可以查看客户服务项目
-            permission_filters.append(project_alias.project_type == 'business_opportunity')
-        elif user_role == 'business_admin':
-            # 商务助理：可以查看同部门用户和归属关系授权用户的项目
-            viewable_user_ids = [current_user.id]  # 自己的项目
-            
-            # 1. 添加同部门用户
-            if current_user.department and current_user.company_name:
-                dept_users = User.query.filter(
-                    User.department == current_user.department,
-                    User.company_name == current_user.company_name
-                ).all()
-                viewable_user_ids.extend([u.id for u in dept_users])
-            
-            # 2. 添加归属关系授权的用户
-            affiliations = Affiliation.query.filter_by(viewer_id=current_user.id).all()
-            for affiliation in affiliations:
-                viewable_user_ids.append(affiliation.owner_id)
-            
-            # 去重
-            viewable_user_ids = list(set(viewable_user_ids))
-            
-            # 添加权限过滤条件
-            permission_filters.append(
-                db.or_(
-                    project_alias.owner_id.in_(viewable_user_ids),
-                    project_alias.vendor_sales_manager_id.in_(viewable_user_ids)
-                )
-            )
+        # 4. 基于权限配置的项目类型过滤
+        # 注：各角色可见的项目类型通过权限配置系统的 content_filters 控制
+        # 例如：渠道经理配置 content_filters = {"project_type": ["channel_follow"]}
+        permission = current_user.get_permission_config('quotation')
+        if permission and hasattr(permission, 'content_filters') and permission.content_filters:
+            content_filters = permission.content_filters
+            if isinstance(content_filters, dict) and 'project_type' in content_filters:
+                allowed_types = content_filters.get('project_type', [])
+                if allowed_types:
+                    permission_filters.append(project_alias.project_type.in_(allowed_types))
         
         # 应用权限过滤条件
         if permission_filters:

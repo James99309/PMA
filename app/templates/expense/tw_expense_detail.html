@@ -13,6 +13,7 @@ render_tw_data_table_script, render_empty_row with context %}
 render_expense_category_badge, render_tw_expense_category_badge, render_tw_currency_badge with context %}
 {% from 'components/tw_approval_flow.html' import render_tw_approval_flow_card, render_tw_approval_flow_script, render_tw_approval_modals %}
 {% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
+{% from 'components/tw_expense_budget_card.html' import render_tw_expense_budget_card with context %}
 
 {# 货币符号 - 使用报销单货币或全局默认 #}
 {% set currency_symbol = currency_config.symbol if not expense.currency or expense.currency == currency_config.default_currency else ('$' if expense.currency == 'USD' else currency_config.symbol) %}
@@ -310,8 +311,12 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
                                     <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('关联客户') }}</p>
                                     <p class="font-medium text-slate-800 dark:text-white">
                                         {% if expense.customer %}
-                                        <a href="{{ url_for('customer.view_company', company_id=expense.customer.id) }}"
-                                            class="text-primary hover:underline">{{ expense.customer.company_name }}</a>
+                                            {% if can_view_company(current_user, expense.customer) %}
+                                            <a href="{{ url_for('customer.view_company', company_id=expense.customer.id) }}"
+                                                class="text-primary hover:underline">{{ expense.customer.company_name }}</a>
+                                            {% else %}
+                                            <span class="text-slate-600 dark:text-slate-400">{{ expense.customer.company_name }}</span>
+                                            {% endif %}
                                         {% else %}
                                         <span class="text-slate-400">{{ _('无') }}</span>
                                         {% endif %}
@@ -321,8 +326,12 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
                                     <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('关联项目') }}</p>
                                     <p class="font-medium text-slate-800 dark:text-white">
                                         {% if expense.project %}
-                                        <a href="{{ url_for('project.view_project', project_id=expense.project.id, tw=1) }}"
-                                            class="text-primary hover:underline">{{ expense.project.project_name }}</a>
+                                            {% if can_view_project(current_user, expense.project) %}
+                                            <a href="{{ url_for('project.view_project', project_id=expense.project.id, tw=1) }}"
+                                                class="text-primary hover:underline">{{ expense.project.project_name }}</a>
+                                            {% else %}
+                                            <span class="text-slate-600 dark:text-slate-400">{{ expense.project.project_name }}</span>
+                                            {% endif %}
                                         {% else %}
                                         <span class="text-slate-400">{{ _('无') }}</span>
                                         {% endif %}
@@ -380,40 +389,8 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
                     </div>
 
         {% elif detail_slot == 'sidebar' %}
-                    <!-- 关联项目卡片 -->
-                    {% if expense.project %}
-                    {% call tw_item_list_card(title=_('关联项目')) %}
-                    {{ tw_item_list_item(
-                    avatar_text=(expense.project.owner.real_name or expense.project.owner.username)[:1] if
-                    expense.project.owner else '?',
-                    avatar_color_index=expense.project.owner.id % 6 if expense.project.owner else 0,
-                    title=expense.project.project_name,
-                    subtitle=expense.project.owner.real_name if expense.project.owner else '',
-                    link_url=url_for('project.view_project', project_id=expense.project.id, tw=1),
-                    max_title_length=20
-                    ) }}
-                    {% endcall %}
-                    {% endif %}
-
-                    <!-- 关联客户卡片 -->
-                    {% if expense.customer %}
-                    {% call tw_item_list_card(title=_('关联客户')) %}
-                    {{ tw_item_list_item(
-                    avatar_text=expense.customer.company_name[:1] if expense.customer.company_name else '?',
-                    avatar_color_index=expense.customer.id % 6 if expense.customer else 0,
-                    title=expense.customer.company_name,
-                    link_url=url_for('customer.view_company', company_id=expense.customer.id),
-                    max_title_length=20
-                    ) }}
-                    {% endcall %}
-                    {% endif %}
-
-                    <!-- 如果既没有关联项目也没有关联客户 -->
-                    {% if not expense.project and not expense.customer %}
-                    {% call tw_item_list_card(title=_('关联信息')) %}
-                    {{ tw_item_list_empty(_('暂无关联信息')) }}
-                    {% endcall %}
-                    {% endif %}
+                    <!-- 费用统计卡片 -->
+                    {{ render_tw_expense_budget_card(expense_budget, currency_symbol) }}
 
                     <!-- 元数据卡片 -->
                     {{ tw_metadata_card_simple(

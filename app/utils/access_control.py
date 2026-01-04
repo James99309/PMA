@@ -464,12 +464,9 @@ def get_viewable_data(model_class, user, special_filters=None):
         
         # 统一处理角色字符串，去除空格
         user_role = user.role.strip() if user.role else ''
-        
-        # 财务总监可以查看所有报价单（只读权限）
-        if user_role in ['finance_director', 'finace_director']:
-            return model_class.query.filter(*special_filters if special_filters else [])
-        
+
         # 基于四级权限系统的数据访问控制
+        # 注：财务总监等角色通过权限配置系统授予 system 级权限，无需硬编码
         permission_level = user.get_permission_level('quotation')
         
         if permission_level == 'system':
@@ -516,32 +513,11 @@ def get_viewable_data(model_class, user, special_filters=None):
             sales_manager_quotations = model_class.query.filter(model_class.project_id.in_(sales_manager_project_ids)).with_entities(model_class.id).all()
             accessible_quotation_ids.update([q.id for q in sales_manager_quotations])
         
-        # 4. 角色特殊处理
-        # 渠道经理特殊处理：可以查看所有渠道跟进项目的报价单
-        if user_role == 'channel_manager':
-            channel_follow_projects = Project.query.filter_by(project_type='channel_follow').with_entities(Project.id).all()
-            if channel_follow_projects:
-                channel_follow_project_ids = [p.id for p in channel_follow_projects]
-                channel_quotations = model_class.query.filter(model_class.project_id.in_(channel_follow_project_ids)).with_entities(model_class.id).all()
-                accessible_quotation_ids.update([q.id for q in channel_quotations])
-        
-        # 营销总监特殊处理：可以查看销售重点和渠道跟进项目的报价单
-        elif user_role == 'sales_director':
-            marketing_projects = Project.query.filter(
-                Project.project_type.in_(['sales_focus', 'sales_key', 'channel_follow'])
-            ).with_entities(Project.id).all()
-            if marketing_projects:
-                marketing_project_ids = [p.id for p in marketing_projects]
-                marketing_quotations = model_class.query.filter(model_class.project_id.in_(marketing_project_ids)).with_entities(model_class.id).all()
-                accessible_quotation_ids.update([q.id for q in marketing_quotations])
-        
-        # 服务经理特殊处理
-        elif user_role in ['service', 'service_manager']:
-            business_opportunity_projects = Project.query.filter_by(project_type='business_opportunity').with_entities(Project.id).all()
-            if business_opportunity_projects:
-                business_opportunity_project_ids = [p.id for p in business_opportunity_projects]
-                business_quotations = model_class.query.filter(model_class.project_id.in_(business_opportunity_project_ids)).with_entities(model_class.id).all()
-                accessible_quotation_ids.update([q.id for q in business_quotations])
+        # 4. 项目类型过滤已移除硬编码
+        # 注：渠道经理、营销总监、服务经理等角色应通过权限配置系统设置：
+        # - 配置 quotation 模块的 company 或 system 级权限
+        # - 使用 content_filters 字段限制可见的 project_type
+        # 例如：content_filters = {"project_type": ["channel_follow"]}
 
         # 返回基于ID列表的查询
         if accessible_quotation_ids:
@@ -624,11 +600,11 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 统一处理角色字符串，去除空格
         user_role = user.role.strip() if user.role else ''
 
-        # 1. 财务、管理员、CEO：可以查看所有报销单（审批和财务管理需要）
-        if user_role in ['finance_director', 'finace_director', 'finance', 'admin', 'ceo']:
+        # 1. 管理员可以查看所有报销单
+        if user_role == 'admin':
             return model_class.query.filter(*(base_filters + (special_filters if special_filters else [])))
 
-        # 2. 基于权限级别的访问控制（不包含数据归属关系）
+        # 2. 其他角色基于权限配置的访问控制（不包含数据归属关系）
         permission_level = user.get_permission_level('expense')
 
         if permission_level == 'system':
@@ -873,18 +849,10 @@ def can_edit_data(model_obj, user):
     
     # 特殊角色权限控制
     model_name = model_obj.__class__.__name__
-    
-    # 财务总监：只能查看，不能编辑任何项目和报价单
-    if user_role in ['finance_director', 'finace_director']:
-        if model_name in ['Project', 'Quotation']:
-            return False
-        # 报销单需要特殊处理，不在这里直接返回
-        if model_name == 'Expense':
-            pass  # 继续执行后面的报销单特殊处理逻辑
-        else:
-            # 其他数据按默认规则
-            return model_obj.owner_id == user.id
-    
+
+    # 注：财务总监等角色的编辑权限通过权限配置系统控制
+    # 如需限制某角色不能编辑特定模块，在权限配置中设置 can_edit=False
+
     # 产品经理：基于权限系统进行编辑权限控制
     if user_role in ['product_manager', 'product']:
         if model_name == 'Project':
@@ -1034,11 +1002,8 @@ def can_edit_data(model_obj, user):
         if not user.has_permission('expense', 'edit'):
             return False
 
-        # 财务总监特殊权限：可以编辑所有报销单
-        if user_role in ['finance_director', 'finace_director']:
-            return True
-
         # 基于四级权限系统的编辑权限控制（决定可以编辑哪些他人的数据）
+        # 注：财务总监等角色通过配置 system 级 expense 编辑权限即可编辑所有报销单
         permission_level = user.get_permission_level('expense')
 
         if permission_level == 'system':
@@ -1277,29 +1242,11 @@ def can_view_quotation(user, quotation):
             logger.debug(f"[权限检查] 报价单共享权限 - 允许访问")
             return True
 
-    # 财务总监可以查看所有报价单（只读权限）
-    user_role = user.role.strip() if user.role else ''
-    if user_role in ['finance_director', 'finace_director']:
-        logger.debug(f"[权限检查] 财务总监权限 - 允许访问")
-        return True
-
-    # 渠道经理特殊权限：可以查看所有渠道跟进项目的报价单
-    if user_role == 'channel_manager' and quotation.project:
-        if quotation.project.project_type == 'channel_follow':
-            logger.debug(f"[权限检查] 渠道经理特殊权限 - 渠道跟进项目 - 允许访问")
-            return True
-
-    # 营销总监特殊权限：可以查看销售重点和渠道跟进项目的报价单
-    if user_role == 'sales_director' and quotation.project:
-        if quotation.project.project_type in ['sales_focus', 'sales_key', 'channel_follow']:
-            logger.debug(f"[权限检查] 营销总监特殊权限 - 营销项目 - 允许访问")
-            return True
-
-    # 服务经理特殊权限：可以查看商机项目的报价单
-    if user_role in ['service', 'service_manager'] and quotation.project:
-        if quotation.project.project_type == 'business_opportunity':
-            logger.debug(f"[权限检查] 服务经理特殊权限 - 商机项目 - 允许访问")
-            return True
+    # 注：财务总监、渠道经理、营销总监、服务经理等角色的报价单查看权限
+    # 通过权限配置系统控制：
+    # - 配置 quotation 模块的 system/company 级权限
+    # - 使用 content_filters 字段限制可见的 project_type
+    # 例如：channel_manager 配置 content_filters = {"project_type": ["channel_follow"]}
 
     # 厂商销售负责人权限：可以查看自己负责的项目的报价单
     if quotation.project and hasattr(quotation.project, 'vendor_sales_manager_id'):
@@ -1503,11 +1450,10 @@ def can_view_project(user, project):
     1. 归属人
     2. 厂商负责人
     3. 归属链
-    4. 财务总监、解决方案经理、产品经理可以查看所有项目
-    5. 销售经理特殊权限：归属关系中的非客户服务项目
-    6. 共享（如有 shared_with_users 字段，暂未支持）
-    7. 客户拥有者权限：如果用户拥有与项目关联的任一客户，则可以查看该项目
-    8. 审批人权限：如果用户是当前审批步骤的审批人，则可以查看该项目
+    4. 权限配置系统（system/company/department 级权限 + content_filters）
+    5. 共享
+    6. 客户拥有者权限：如果用户拥有与项目关联的任一客户
+    7. 审批人权限：如果用户是当前审批步骤的审批人
     """
     if user.role == 'admin':
         return True
@@ -1549,28 +1495,16 @@ def can_view_project(user, project):
     except Exception as e:
         logger.debug(f"检查项目关联客户拥有权限时出错: {e}")
     
-    # 统一处理角色字符串，去除空格
-    user_role = user.role.strip() if user.role else ''
-    
-    # 财务总监、解决方案经理、产品经理可以查看所有项目
-    if user_role in ['finance_director', 'finace_director', 'solution_manager', 'solution', 'product_manager', 'product']:
-        return True
-    
-    # 商务助理：可以查看销售重点、渠道跟进类型的项目
-    if user_role == 'business_admin':
-        # 检查是否为允许的项目类型
-        allowed_project_types = ['sales_key', 'sales_focus', 'channel_follow']
-        if project.project_type in allowed_project_types:
-            return True
-    
+    # 注：财务总监、解决方案经理、产品经理、商务助理等角色的项目查看权限
+    # 通过权限配置系统控制：
+    # - 配置 project 模块的 system/company 级权限
+    # - 使用 content_filters 字段限制可见的 project_type
+    # 例如：business_admin 配置 content_filters = {"project_type": ["sales_key", "sales_focus", "channel_follow"]}
+
     affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
-    
+
     # 归属关系权限检查
     if project.owner_id in affiliation_owner_ids:
-        # 销售经理角色：只能查看归属关系中的非客户服务项目
-        if user_role in ['sales', 'sales_manager']:
-            return project.project_type != 'business_opportunity'
-        # 其他角色可以查看所有归属关系项目
         return True
     
     # 检查通过项目直接共享获得的访问权限
@@ -1663,13 +1597,9 @@ def can_delete_project(user, project):
     if user.role == 'admin':
         return True
     
-    # 统一处理角色字符串，去除空格
-    user_role = user.role.strip() if user.role else ''
-    
-    # 财务总监、产品经理、解决方案经理：不能删除任何项目
-    if user_role in ['finance_director', 'finace_director', 'product_manager', 'product', 'solution_manager', 'solution']:
-        return False
-    
+    # 注：财务总监、产品经理等角色的删除权限通过权限配置系统控制
+    # 如需禁止某角色删除项目，在权限配置中设置 can_delete=False
+
     # 项目拥有者可以删除
     if project.owner_id == user.id:
         return True

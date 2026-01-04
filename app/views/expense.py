@@ -31,6 +31,7 @@ from app.utils.query_filters import (
     extract_filter_params, apply_filters_to_query, extract_sort_params,
     extract_pagination_params
 )
+from app.services.performance_dashboard_service import PerformanceDashboardService
 
 logger = logging.getLogger(__name__)
 
@@ -1335,6 +1336,12 @@ def expense_detail(id):
     # 编辑权限判断
     can_edit_this_expense = can_edit_data(expense_obj, current_user) and not expense_obj.is_locked
 
+    # 获取费用预算统计数据
+    expense_budget_data = PerformanceDashboardService.get_expense_budget_data(
+        expense_obj.owner_id,
+        datetime.now().year
+    )
+
     # 使用 Tailwind 版本模板
     return render_template('expense/tw_expense_detail.html',
                          expense=expense_obj,
@@ -1344,7 +1351,8 @@ def expense_detail(id):
                          can_edit_this_expense=can_edit_this_expense,
                          currency_options=get_currency_type_options(),
                          expense_categories=EXPENSE_CATEGORIES,
-                         default_currency=expense_obj.currency or Config.DEFAULT_CURRENCY)
+                         default_currency=expense_obj.currency or Config.DEFAULT_CURRENCY,
+                         expense_budget=expense_budget_data)
 
 @expense.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required

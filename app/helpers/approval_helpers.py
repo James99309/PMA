@@ -262,7 +262,9 @@ class OrderApprovalWrapper:
         return None
 
 
-# 项目类型到角色的映射
+# 项目类型到角色的映射 - 用于授权审批工作流
+# 注：此映射用于确定授权审批的默认审批人，是工作流配置而非权限检查
+# 未来可迁移到数据库配置表，以便动态调整工作流
 PROJECT_TYPE_ROLE_MAPPING = {
     'channel_follow': 'channel_manager',      # 渠道跟进 -> 渠道经理
     'sales_focus': 'sales_director',          # 销售重点 -> 营销总监
@@ -5497,41 +5499,23 @@ def get_user_pricing_order_approvals(user_id, status=None, page=1, per_page=20):
     from app.models.user import User
     target_user = User.query.get(user_id)
     if target_user and target_user.role != 'admin':
-        user_role = target_user.role.strip() if target_user.role else ''
-        
+        # 根据权限配置过滤项目类型
+        # 注：各角色可见的项目类型通过权限配置系统控制
+        # - pricing_order 模块的 content_filters 字段配置可见的 project_type
+        # 例如：渠道经理配置 content_filters = {"project_type": ["channel_follow"]}
+
         # 添加项目关联
         query = query.join(Project, PricingOrder.project_id == Project.id)
-        
-        # 根据角色过滤项目类型
-        if user_role == 'business_admin':
-            # 商务助理：只能看到销售重点、渠道跟进的批价单
-            query = query.filter(
-                Project.project_type.in_(['sales_key', 'sales_focus', 'channel_follow', 'business_opportunity'])
-            )
-        elif user_role == 'sales_director':
-            # 营销总监：销售重点、渠道跟进
-            query = query.filter(
-                Project.project_type.in_(['sales_key', 'sales_focus', 'channel_follow'])
-            )
-        elif user_role == 'channel_manager':
-            # 渠道经理：渠道跟进、销售机会（需要有经销商）、销售重点（需要有经销商）
-            query = query.filter(
-                or_(
-                    Project.project_type == 'channel_follow',
-                    and_(
-                        Project.project_type.in_(['sales_key', 'sales_focus']),
-                        PricingOrder.dealer_id.isnot(None)
-                    )
-                )
-            )
-        elif user_role in ['service', 'service_manager']:
-            # 服务经理：客户服务
-            query = query.filter(
-                Project.project_type == 'business_opportunity'
-            )
-        elif user_role == 'finance_director':
-            # 财务总监：所有类型
-            pass  # 不添加额外过滤
+
+        # 获取用户权限配置中的 content_filters
+        permission = target_user.get_permission_config('pricing_order')
+        if permission and hasattr(permission, 'content_filters') and permission.content_filters:
+            content_filters = permission.content_filters
+            if isinstance(content_filters, dict) and 'project_type' in content_filters:
+                allowed_types = content_filters.get('project_type', [])
+                if allowed_types:
+                    query = query.filter(Project.project_type.in_(allowed_types))
+        # 无 content_filters 限制时，不添加额外过滤（按权限级别控制）
     
     # 状态筛选
     if status:

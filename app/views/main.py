@@ -235,16 +235,21 @@ def get_recent_work_records():
         # 使用权限系统获取可查看的Action记录（不限时间）
         base_query = get_viewable_data(Action, current_user)
 
-        # 账户筛选逻辑（在权限系统基础上额外过滤）
+        # 账户筛选逻辑 - 使用权限配置系统
+        # 注：查看他人记录的权限通过权限级别控制
+        # - system级权限可以查看所有账户
+        # - department级权限可以查看本部门账户
+        # - personal级权限只能查看自己
         if account_id:
             # 检查是否有权查看指定账户的记录
-            if is_admin_or_ceo():
-                # 管理员和CEO可以查看任何账户的记录
+            permission_level = current_user.get_permission_level('customer')
+            if is_admin_or_ceo() or permission_level == 'system':
+                # 系统级权限可以查看任何账户的记录
                 base_query = base_query.filter(Action.owner_id == account_id)
-            elif current_user.role in ['sales_director', 'service_manager', 'sales_manager']:
-                # 总监级别只能查看下属的记录
+            elif permission_level in ['company', 'department'] or current_user.is_department_manager:
+                # 部门级权限只能查看下属的记录
                 target_user = User.query.get(account_id)
-                if target_user and (target_user.department == current_user.department and current_user.is_department_manager):
+                if target_user and (target_user.department == current_user.department):
                     base_query = base_query.filter(Action.owner_id == account_id)
                 else:
                     # 没有权限查看该账户，返回空结果
@@ -255,7 +260,7 @@ def get_recent_work_records():
                         'message': '无权限查看该账户的记录'
                     })
             else:
-                # 其他角色只能查看自己的记录
+                # 个人级权限只能查看自己的记录
                 if account_id != current_user.id:
                     return jsonify({
                         'success': True,
@@ -533,9 +538,12 @@ def get_available_accounts():
                     'name': user.real_name or user.username,
                     'role': user.role
                 })
-        elif current_user.role in ['sales_director', 'service_manager', 'sales_manager']:
-            # 总监级别可以查看同部门活跃下属（如果是部门负责人）
-            if current_user.is_department_manager:
+        else:
+            # 使用权限配置系统判断可见账户
+            # 注：可见账户范围通过权限级别控制
+            permission_level = current_user.get_permission_level('customer')
+            if permission_level in ['company', 'department'] or current_user.is_department_manager:
+                # 部门级权限可以查看同部门活跃下属
                 subordinates = User.query.filter(
                     User.department == current_user.department,
                     User.id != current_user.id,

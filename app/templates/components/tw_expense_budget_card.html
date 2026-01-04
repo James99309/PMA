@@ -1,0 +1,92 @@
+{# 费用预算统计卡片组件
+   参数:
+   - expense_budget: 费用预算数据字典 (来自 PerformanceDashboardService.get_expense_budget_data())
+   - currency_symbol: 货币符号 (默认 '¥')
+   - show_title: 是否显示标题 (默认 true)
+   - compact: 紧凑模式 (默认 false)
+#}
+{% macro render_tw_expense_budget_card(expense_budget, currency_symbol='¥', show_title=true, compact=false) %}
+<div class="bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800">
+    {% if show_title %}
+    <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+        <h3 class="text-sm font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+            <span class="material-symbols-outlined text-lg text-primary">analytics</span>
+            {{ _('费用统计') }}
+        </h3>
+    </div>
+    {% endif %}
+    <div class="{% if compact %}p-4 space-y-3{% else %}p-5 space-y-4{% endif %}">
+        {% if expense_budget.has_budget %}
+        <!-- 全年费用进度 -->
+        <div class="space-y-2">
+            <div class="flex items-center justify-between text-sm">
+                <span class="text-slate-600 dark:text-slate-400">{{ _('年度费用') }}</span>
+                <span class="font-medium
+                    {% if expense_budget.usage_rate > 100 %}text-red-600 dark:text-red-400
+                    {% elif expense_budget.usage_rate > 80 %}text-yellow-600 dark:text-yellow-400
+                    {% else %}text-green-600 dark:text-green-400{% endif %}">
+                    {{ '{:.1f}'.format(expense_budget.usage_rate or 0) }}%
+                </span>
+            </div>
+            <div class="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                <div class="h-full rounded-full transition-all duration-500
+                    {% if expense_budget.usage_rate > 100 %}bg-red-500
+                    {% elif expense_budget.usage_rate > 80 %}bg-yellow-500
+                    {% elif expense_budget.usage_rate > 60 %}bg-orange-500
+                    {% else %}bg-green-500{% endif %}"
+                    style="width: {{ [expense_budget.usage_rate or 0, 100]|min }}%"></div>
+            </div>
+            <div class="text-xs text-slate-500 dark:text-slate-400">
+                {{ _('已用') }} {{ currency_symbol }}{{ '{:,.0f}'.format(expense_budget.expense_total or 0) }}
+                / {{ currency_symbol }}{{ '{:,.0f}'.format(expense_budget.budget_total or 0) }}
+            </div>
+        </div>
+
+        <!-- 分类费用进度 -->
+        {% if expense_budget.category_comparison %}
+        {% set has_category_budget = expense_budget.category_comparison.values()|selectattr('budget')|list|length > 0 %}
+        {% if has_category_budget %}
+        <div class="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">{{ _('分类明细') }}</p>
+            {% set category_labels = {
+                'entertainment': _('招待费'),
+                'travel': _('差旅费'),
+                'transport': _('交通费'),
+                'office': _('办公费'),
+                'communication': _('通讯费'),
+                'other': _('其他')
+            } %}
+            {% for cat_key, cat_data in expense_budget.category_comparison.items() %}
+            {% if cat_data.budget > 0 %}
+            <div class="space-y-1">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-600 dark:text-slate-400">{{ category_labels.get(cat_key, cat_key) }}</span>
+                    <span class="font-medium
+                        {% if cat_data.usage_rate > 100 %}text-red-600 dark:text-red-400
+                        {% elif cat_data.usage_rate > 80 %}text-yellow-600 dark:text-yellow-400
+                        {% else %}text-slate-700 dark:text-slate-300{% endif %}">
+                        {{ '{:.0f}'.format(cat_data.usage_rate) }}%
+                    </span>
+                </div>
+                <div class="h-1.5 w-full rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                    <div class="h-full rounded-full transition-all duration-500
+                        {% if cat_data.usage_rate > 100 %}bg-red-400
+                        {% elif cat_data.usage_rate > 80 %}bg-yellow-400
+                        {% else %}bg-blue-400{% endif %}"
+                        style="width: {{ [cat_data.usage_rate, 100]|min }}%"></div>
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endif %}
+        {% else %}
+        <!-- 无预算配置提示 -->
+        <div class="text-center py-2 text-xs text-slate-400 dark:text-slate-500">
+            {{ _('暂无费用预算配置') }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}

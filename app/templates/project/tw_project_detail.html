@@ -457,7 +457,11 @@ render_tw_expense_status_badge with context %}
                                         {% for assoc in customer_associations_data %}
                                         <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                                             <td class="p-3 font-medium">
+                                                {% if can_view_company(current_user, assoc.company) %}
                                                 <a href="{{ url_for('customer.view_company', company_id=assoc.company.id) }}" class="text-primary hover:underline">{{ assoc.company.company_name }}</a>
+                                                {% else %}
+                                                <span class="text-slate-600 dark:text-slate-400">{{ assoc.company.company_name }}</span>
+                                                {% endif %}
                                             </td>
                                             <td class="p-3">{{ render_tw_owner_badge(assoc.created_by) }}</td>
                                             <td class="p-3">

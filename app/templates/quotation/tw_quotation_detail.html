@@ -149,7 +149,7 @@
                         show_icon=false,
                         empty_text=_('无'),
                         items=[
-                            {'label': _('关联项目'), 'value': quotation.project.project_name if quotation.project else none, 'link': url_for('project.view_project', project_id=quotation.project.id, tw=1) if quotation.project else none},
+                            {'label': _('关联项目'), 'value': quotation.project.project_name if quotation.project else none, 'link': url_for('project.view_project', project_id=quotation.project.id, tw=1) if quotation.project and can_view_project(current_user, quotation.project) else none},
                             {'label': _('关联客户'), 'value': quotation.customer.company_name if quotation.customer else none},
                             {'label': _('联系人'), 'value': quotation.contact.name if quotation.contact else none},
                             {'label': _('报价阶段'), 'badge': render_tw_project_stage_badge_key(quotation.project_stage) if quotation.project_stage else none},

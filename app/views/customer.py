@@ -1144,19 +1144,26 @@ def view_company(company_id):
     from app.utils.i18n import get_current_language
     country_code_to_name = get_country_names(get_current_language())
     
-    # 查询可选新拥有人
+    # 查询可选新拥有人 - 使用权限配置系统
+    # 注：可选拥有人范围通过权限级别控制
+    # - system级权限可以看到所有用户
+    # - department级权限可以看到本部门用户
+    # - personal级权限只能看到自己和当前拥有者
     if can_change_company_owner(current_user, company):
-        if current_user.role == 'admin':
-            # 管理员可以看到所有用户
+        from app.permissions import is_admin_or_ceo
+        permission_level = current_user.get_permission_level('customer')
+
+        if is_admin_or_ceo() or permission_level == 'system':
+            # 系统级权限：可以看到所有用户
             all_users = User.query.all()
-        elif getattr(current_user, 'is_department_manager', False) or current_user.role == 'sales_director':
-            # 部门负责人只能选择本部门的活跃用户和管理员
+        elif permission_level in ['company', 'department'] or getattr(current_user, 'is_department_manager', False):
+            # 企业/部门级权限：只能选择本部门的活跃用户和管理员
             all_users = User.query.filter(
                 or_(User.role == 'admin', User._is_active == True),
                 User.department == current_user.department
             ).all()
         else:
-            # 其他情况，至少包含当前用户和当前拥有者
+            # 个人级权限：至少包含当前用户和当前拥有者
             all_users = User.query.filter(User.id.in_([current_user.id, company.owner_id])).all()
         # 保险：如果all_users为空，至少包含当前用户和当前拥有者
         if not all_users:
@@ -3525,11 +3532,15 @@ def view_contact(contact_id):
         for action in actions:
             if action.owner_id and action.owner_id in owners:
                 action.owner = owners[action.owner_id]
-    # 传递可选新拥有人
+    # 传递可选新拥有人 - 使用权限配置系统
+    # 注：可选拥有人范围和修改权限通过权限级别控制
+    from app.permissions import is_admin_or_ceo
+    permission_level = current_user.get_permission_level('customer')
     all_users = []
-    if current_user.role == 'admin':
+
+    if is_admin_or_ceo() or permission_level == 'system':
         all_users = User.query.all()
-    elif getattr(current_user, 'is_department_manager', False) or current_user.role == 'sales_director':
+    elif permission_level in ['company', 'department'] or getattr(current_user, 'is_department_manager', False):
         all_users = User.query.filter(
             or_(User.role == 'admin', User._is_active == True),
             User.department == current_user.department
@@ -3538,11 +3549,12 @@ def view_contact(contact_id):
         all_users = User.query.filter(User.id.in_([current_user.id, contact.owner_id])).all()
     if not all_users:
         all_users = User.query.filter(User.id.in_([current_user.id, contact.owner_id])).all()
+
     # 计算是否有权限显示修改按钮
     has_change_owner_permission = False
-    if current_user.role == 'admin':
+    if is_admin_or_ceo() or permission_level == 'system':
         has_change_owner_permission = True
-    elif (getattr(current_user, 'is_department_manager', False) or current_user.role == 'sales_director') and contact.owner and hasattr(contact.owner, 'department') and contact.owner.department == current_user.department:
+    elif (permission_level in ['company', 'department'] or getattr(current_user, 'is_department_manager', False)) and contact.owner and hasattr(contact.owner, 'department') and contact.owner.department == current_user.department:
         has_change_owner_permission = True
     
     # 生成用户树状数据
@@ -3678,8 +3690,20 @@ def change_company_owner(company_id):
 def change_contact_owner(contact_id):
     contact = Contact.query.get_or_404(contact_id)
     company = contact.company
-    # 权限判断：管理员或本部门负责人可操作
-    if not (current_user.role == 'admin' or (getattr(current_user, 'is_department_manager', False) or current_user.role == 'sales_director') and contact.owner and hasattr(contact.owner, 'department') and contact.owner.department == current_user.department):
+    # 权限判断 - 使用权限配置系统
+    # 注：修改拥有人权限通过权限级别控制
+    # - system级权限可以修改所有联系人
+    # - department级权限可以修改本部门联系人
+    from app.permissions import is_admin_or_ceo
+    permission_level = current_user.get_permission_level('customer')
+    can_change = False
+
+    if is_admin_or_ceo() or permission_level == 'system':
+        can_change = True
+    elif (permission_level in ['company', 'department'] or getattr(current_user, 'is_department_manager', False)) and contact.owner and hasattr(contact.owner, 'department') and contact.owner.department == current_user.department:
+        can_change = True
+
+    if not can_change:
         flash('您没有权限修改该联系人的拥有人', 'danger')
         return redirect(url_for('customer.view_contact', contact_id=contact_id))
     new_owner_id = request.form.get('new_owner_id', type=int)

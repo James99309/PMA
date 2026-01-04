@@ -92,13 +92,20 @@ def list_quotations():
         query = get_viewable_data(Quotation, current_user)
 
         # ============================================================
-        # 3. 角色默认筛选（特殊业务逻辑，需保留）
+        # 3. 默认筛选（从权限配置的 content_filters 读取）
         # ============================================================
         project_type_filter = request.args.get('project_type_filter', '')
-        if current_user.role and current_user.role.strip() == 'channel_manager' and not project_type_filter:
-            project_type_filter = 'channel_follow'
-        if current_user.role and current_user.role.strip() == 'sales_director' and not project_type_filter:
-            project_type_filter = 'marketing_focus'
+        if not project_type_filter:
+            # 从权限配置中读取 content_filters 作为默认筛选
+            # 注：用户的 quotation 权限配置中可设置 content_filters = {"project_type": ["channel_follow"]}
+            # 这样用户首次访问时会自动应用该筛选条件
+            permission = current_user.get_permission_config('quotation')
+            if permission and hasattr(permission, 'content_filters') and permission.content_filters:
+                content_filters = permission.content_filters
+                if isinstance(content_filters, dict) and 'project_type' in content_filters:
+                    default_types = content_filters.get('project_type', [])
+                    if default_types and len(default_types) == 1:
+                        project_type_filter = default_types[0]
 
         # ============================================================
         # 4. 应用筛选（使用通用工具 + 手动处理特殊情况）
@@ -3139,24 +3146,14 @@ def view_quotation(id):
             logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id}")
             flash(_('您没有权限查看此报价单'), 'danger')
             return redirect(url_for('quotation.list_quotations'))
-        # 项目权限校验 - 使用动态权限检查而不是硬编码角色
+        # 项目权限校验 - 使用权限配置系统
+        # 注：各角色的报价单查看权限通过权限配置系统控制：
+        # - 配置 quotation 模块的 system/company/department 级权限
+        # - 使用 content_filters 字段限制可见的 project_type
+        # 例如：财务总监配置 system 级权限可查看所有报价单
+        #       渠道经理配置 content_filters = {"project_type": ["channel_follow"]}
         if quotation.project:
-            # 统一处理角色字符串，去除空格
-            user_role = current_user.role.strip() if current_user.role else ''
-            
-            # 特殊角色：财务总监、解决方案经理、产品经理可以查看所有项目的报价单
-            is_special_role = user_role in ['finance_director', 'finace_director', 'solution_manager', 'solution', 'product_manager', 'product']
-            
-            # 渠道经理可以查看渠道跟进项目
-            is_channel_manager = user_role == 'channel_manager'
-            is_channel_project = quotation.project.project_type == 'channel_follow'
-            
-            # 营销总监可以查看销售重点和渠道跟进项目
-            is_sales_director = user_role == 'sales_director'
-            is_marketing_project = quotation.project.project_type in ['sales_focus', 'sales_key', 'channel_follow']
-            
-            # 检查权限：特殊角色 OR (渠道经理 AND 渠道项目) OR (营销总监 AND 营销项目) OR 常规项目权限
-            if not (is_special_role or (is_channel_manager and is_channel_project) or (is_sales_director and is_marketing_project) or can_view_project(current_user, quotation.project)):
+            if not can_view_project(current_user, quotation.project):
                 logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id} 关联项目 {quotation.project_id}")
                 flash(_('您没有权限查看该报价单关联的项目'), 'danger')
                 return redirect(url_for('quotation.list_quotations'))
@@ -3762,14 +3759,13 @@ def can_view_quotation(user, quotation):
         quotation.project.vendor_sales_manager_id == user.id):
         return True
     
-    # 统一处理角色字符串，去除空格
-    user_role = user.role.strip() if user.role else ''
-    
-    # 财务总监可以查看所有报价单
-    if user_role in ['finance_director', 'finace_director']:
-        return True
-    
-    # 🔧 修复：使用四级权限系统进行权限判断，但不阻断后续检查
+    # 使用四级权限系统进行权限判断
+    # 注：各角色的报价单查看权限通过权限配置系统控制：
+    # - 配置 quotation 模块的 system/company/department 级权限
+    # - 使用 content_filters 字段限制可见的 project_type
+    # 例如：财务总监配置 system 级权限可查看所有报价单
+    #       营销总监配置 content_filters = {"project_type": ["sales_focus", "channel_follow"]}
+    #       渠道经理配置 content_filters = {"project_type": ["channel_follow"]}
     if user.has_permission('quotation', 'view'):
         permission_level = user.get_permission_level('quotation')
 
@@ -3792,40 +3788,28 @@ def can_view_quotation(user, quotation):
                     project_owner.company_name == user.company_name and
                     project_owner.department == user.department):
                     return True
-        # 四级权限系统检查失败时，继续检查归属链和特殊权限
+        # 四级权限系统检查失败时，继续检查归属链
 
-    # 归属链检查 - 数据归属优先于四级权限系统
+    # 归属链检查 - 数据归属
     from app.models.user import Affiliation
     affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
     if quotation.owner_id in affiliation_owner_ids:
         return True
-        
-    # 营销总监特殊处理：可以查看销售重点和渠道跟进项目的报价单
-    if user_role == 'sales_director':
-        # 获取关联项目
-        from app.models.project import Project
-        project = Project.query.get(quotation.project_id)
-        if project and project.project_type in ['sales_focus', 'sales_key', 'channel_follow']:
-            return True
-        
-    # 渠道经理特殊处理：可以查看渠道跟进项目的报价单
-    if user_role == 'channel_manager':
-        from app.models.project import Project
-        project = Project.query.get(quotation.project_id)
-        if project and project.project_type == 'channel_follow':
-            return True
-    
+
     return False
 @quotation.route('/detail/<int:detail_id>/toggle_confirmation', methods=['POST'])
 @login_required
 def toggle_detail_confirmation(detail_id):
-    """切换产品明细的确认状态 - 只有解决方案经理和admin可以操作"""
+    """切换产品明细的确认状态 - 需要报价单编辑权限"""
     try:
-        # 检查权限
-        if current_user.role not in ['solution_manager', 'admin']:
+        # 检查权限 - 使用权限配置系统
+        # 注：确认状态操作权限通过 quotation 模块的编辑权限控制
+        # 需要在权限配置中为相关角色启用 quotation.edit 权限
+        from app.permissions import is_admin_or_ceo
+        if not is_admin_or_ceo() and not current_user.has_permission('quotation', 'edit'):
             return jsonify({
                 'success': False,
-                'message': '权限不足，只有解决方案经理和管理员可以操作确认状态'
+                'message': '权限不足，您没有报价单编辑权限'
             }), 403
         
         # 查找产品明细

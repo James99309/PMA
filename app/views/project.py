@@ -1747,29 +1747,32 @@ def approve_authorization(project_id):
         current_db_user = User.query.get(current_user.id)
         
         # 检查用户权限
+        # 项目授权批准权限检查 - 使用权限配置系统
+        # 注：授权批准权限通过 project 模块的 edit 权限控制
+        # - 系统级(system)权限可以批准所有项目
+        # - 使用 content_filters 限制可批准的项目类型
+        # 例如：渠道经理配置 content_filters = {"project_type": ["channel_follow"]}
         can_approve = False
-        
-        # 统一处理角色字符串，去除空格
-        user_role = current_db_user.role.strip() if current_db_user.role else ''
 
         # 管理员可以批准所有项目授权申请
-        if user_role == 'admin':
+        from app.permissions import is_admin_or_ceo
+        if is_admin_or_ceo():
             can_approve = True
-        # 财务总监、解决方案经理、产品经理可以批准所有项目授权申请
-        elif user_role in ['finance_director', 'finace_director', 'solution_manager', 'solution', 'product_manager', 'product']:
-            can_approve = True
-        # 渠道经理可以批准渠道跟进项目
-        elif user_role == 'channel_manager' and project.project_type == 'channel_follow':
-            can_approve = True
-        # 销售总监可以批准销售重点项目
-        elif user_role == 'sales_director' and project.project_type == 'sales_focus':
-            can_approve = True
-        # 销售经理不能批准客户服务项目
-        elif user_role == 'sales' and project.project_type != 'business_opportunity':
-            can_approve = True
-        # 服务经理可以批准客户服务项目
-        elif user_role in ['service', 'service_manager'] and project.project_type == 'business_opportunity':
-            can_approve = True
+        elif current_db_user.has_permission('project', 'edit'):
+            permission_level = current_db_user.get_permission_level('project')
+            if permission_level == 'system':
+                # 系统级权限：可以批准所有项目
+                can_approve = True
+            else:
+                # 检查 content_filters 是否允许该项目类型
+                permission = current_db_user.get_permission_config('project')
+                if permission and hasattr(permission, 'content_filters') and permission.content_filters:
+                    allowed_types = permission.content_filters.get('project_type', [])
+                    if project.project_type in allowed_types:
+                        can_approve = True
+                else:
+                    # 无 content_filters 限制时，有编辑权限即可批准
+                    can_approve = True
 
         if not can_approve:
             logger.warning(f"用户 {current_user.username} (ID: {current_user.id}, 角色: {current_db_user.role}) 尝试批准无权限的项目: {project_id} (类型: {project.project_type})")
@@ -1842,29 +1845,31 @@ def reject_authorization(project_id):
         current_db_user = User.query.get(current_user.id)
         
         # 检查用户权限
+        # 项目授权拒绝权限检查 - 使用权限配置系统
+        # 注：授权拒绝权限通过 project 模块的 edit 权限控制
+        # - 系统级(system)权限可以拒绝所有项目
+        # - 使用 content_filters 限制可拒绝的项目类型
         can_reject = False
-        
-        # 统一处理角色字符串，去除空格
-        user_role = current_db_user.role.strip() if current_db_user.role else ''
 
         # 管理员可以拒绝所有项目授权申请
-        if user_role == 'admin':
+        from app.permissions import is_admin_or_ceo
+        if is_admin_or_ceo():
             can_reject = True
-        # 财务总监、解决方案经理、产品经理可以拒绝所有项目授权申请
-        elif user_role in ['finance_director', 'finace_director', 'solution_manager', 'solution', 'product_manager', 'product']:
-            can_reject = True
-        # 渠道经理可以拒绝渠道跟进项目
-        elif user_role == 'channel_manager' and project.project_type == 'channel_follow':
-            can_reject = True
-        # 销售总监可以拒绝销售重点项目
-        elif user_role == 'sales_director' and project.project_type == 'sales_focus':
-            can_reject = True
-        # 销售经理不能拒绝客户服务项目
-        elif user_role == 'sales' and project.project_type != 'business_opportunity':
-            can_reject = True
-        # 服务经理可以拒绝客户服务项目
-        elif user_role in ['service', 'service_manager'] and project.project_type == 'business_opportunity':
-            can_reject = True
+        elif current_db_user.has_permission('project', 'edit'):
+            permission_level = current_db_user.get_permission_level('project')
+            if permission_level == 'system':
+                # 系统级权限：可以拒绝所有项目
+                can_reject = True
+            else:
+                # 检查 content_filters 是否允许该项目类型
+                permission = current_db_user.get_permission_config('project')
+                if permission and hasattr(permission, 'content_filters') and permission.content_filters:
+                    allowed_types = permission.content_filters.get('project_type', [])
+                    if project.project_type in allowed_types:
+                        can_reject = True
+                else:
+                    # 无 content_filters 限制时，有编辑权限即可拒绝
+                    can_reject = True
 
         if not can_reject:
             logger.warning(f"用户 {current_user.username} (ID: {current_user.id}, 角色: {current_db_user.role}) 尝试拒绝无权限的项目: {project_id} (类型: {project.project_type})")

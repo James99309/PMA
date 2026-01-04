@@ -1378,14 +1378,10 @@ class PricingOrderService:
                 return True
             
             # 使用权限管理系统检查结算单权限
+            # 注：渠道经理、营销总监等角色通过权限配置系统授予 settlement_edit 权限
             if check_permission('settlement_edit'):
                 return True
-                
-            # 特殊角色权限：渠道经理、营销总监、服务经理可以编辑结算单
-            user_role = current_user.role.strip() if current_user.role else ''
-            if user_role in ['channel_manager', 'sales_director', 'service_manager', 'business_admin', 'finance_director']:
-                return True
-            
+
             return False
         
         elif pricing_order.status == 'pending':
@@ -1421,15 +1417,10 @@ class PricingOrderService:
                 if is_admin or is_approval_context:
                     return True
                     
-                # 检查角色权限
+                # 检查角色权限（通过权限配置系统）
                 if check_permission('settlement_edit'):
                     return True
-                    
-                # 特殊角色权限
-                user_role = current_user.role.strip() if current_user.role else ''
-                if user_role in ['channel_manager', 'sales_director', 'service_manager', 'business_admin', 'finance_director']:
-                    return True
-            
+
             return False
         
         return False
@@ -1570,15 +1561,11 @@ class PricingOrderService:
             return True
             
         # 检查基础结算单查看权限（使用正确的权限标识符）
+        # 注：渠道经理、营销总监等角色通过权限配置系统授予 settlement_view 权限
         from app.permissions import check_permission
         if check_permission('settlement_view'):
             return True
-            
-        # 特殊角色权限：渠道经理、营销总监、服务经理可以查看结算单
-        user_role = current_user.role.strip() if current_user.role else ''
-        if user_role in ['channel_manager', 'sales_director', 'service_manager', 'business_admin', 'finance_director']:
-            return True
-            
+
         return False
     
     @staticmethod
@@ -1622,66 +1609,41 @@ class PricingOrderService:
             if current_approval_record:
                 return True
         
-        # 根据角色和项目类型检查权限
-        if not pricing_order.project:
-            return False
-            
-        project_type = pricing_order.project.project_type
-        user_role = current_user.role.strip() if current_user.role else ''
-        
-        # 营销总监：可以看到所有的销售重点和渠道跟进的业务
-        if user_role == 'sales_director':
-            return project_type in ['sales_key', 'sales_focus', 'channel_follow']
-        
-        # 渠道经理：可以看到其权限范围内的批价单
-        if user_role == 'channel_manager':
-            return True  # 权限控制交由access_control.py统一管理
-        
-        # 服务经理：可以看到其权限范围内的所有批价单
-        if user_role == 'service_manager':
-            return True  # 权限控制交由access_control.py统一管理
-        
-        # 商务助理：可以看到其权限范围内的批价单
-        if user_role == 'business_admin':
-            return True  # 权限控制交由access_control.py统一管理
-        
-        # 财务总监：可以看到其权限范围内的所有批价单
-        if user_role == 'finance_director':
-            return True  # 权限控制交由access_control.py统一管理
-        
+        # 注：各角色的批价单查看权限通过权限配置系统控制
+        # - 配置 pricing_order 模块的 system/company/department 级权限
+        # - 使用 content_filters 字段限制可见的 project_type
+        # 例如：content_filters = {"project_type": ["sales_focus", "channel_follow"]}
+
+        # 如果前面的条件都不满足，则无权查看
         return False
 
     @staticmethod
     def can_export_pdf(pricing_order, current_user, pdf_type='pricing'):
         """
         检查是否可以导出PDF
-        根据新的权限规则：
-        - 只有商务助理和财务总监可以打印所有的批价单和结算单
-        - 其他角色根据查看权限决定是否可以导出批价单PDF
-        - 结算单PDF需要更高权限
+        基于权限配置系统：
+        - 批价单PDF: 有查看权限即可导出
+        - 结算单PDF: 需要 settlement_view 权限
         """
         # 管理员和CEO拥有所有权限
         from app.permissions import is_admin_or_ceo
         if is_admin_or_ceo():
             return True
-            
-        user_role = current_user.role.strip() if current_user.role else ''
-        
-        # 商务助理和财务总监可以打印所有的批价单和结算单
-        if user_role in ['business_admin', 'finance_director']:
-            # 需要先检查是否有查看权限
-            if PricingOrderService.can_view_pricing_order(pricing_order, current_user):
-                return True
-        
-        # 其他角色只能导出批价单PDF，且需要有查看权限
+
+        # 首先检查是否有批价单查看权限
+        if not PricingOrderService.can_view_pricing_order(pricing_order, current_user):
+            return False
+
+        # 批价单PDF: 有查看权限即可导出
         if pdf_type == 'pricing':
-            return PricingOrderService.can_view_pricing_order(pricing_order, current_user)
-        
-        # 结算单PDF需要特殊权限（商务助理、财务总监、管理员）
+            return True
+
+        # 结算单PDF: 需要 settlement_view 权限
+        # 注：具体角色的结算单权限通过权限配置系统设置
+        # 在 pricing_order 模块配置中启用 settlement_view 权限
         if pdf_type == 'settlement':
-            if user_role in ['business_admin', 'finance_director', 'admin']:
-                return PricingOrderService.can_view_pricing_order(pricing_order, current_user)
-        
+            return current_user.has_permission('pricing_order', 'view', 'settlement_view')
+
         return False
     
 
@@ -1892,25 +1854,7 @@ class PricingOrderService:
             return False, "审批过程中和审批通过后不可修改厂商直签状态"
         
         return True, None
-        
-        # 商务助理和财务总监可以打印所有的批价单和结算单
-        if user_role in ['business_admin', 'finance_director']:
-            # 需要先检查是否有查看权限
-            if PricingOrderService.can_view_pricing_order(pricing_order, current_user):
-                return True
-        
-        # 其他角色只能导出批价单PDF，且需要有查看权限
-        if pdf_type == 'pricing':
-            return PricingOrderService.can_view_pricing_order(pricing_order, current_user)
-        
-        # 结算单PDF需要特殊权限（商务助理、财务总监、管理员）
-        if pdf_type == 'settlement':
-            if user_role in ['business_admin', 'finance_director', 'admin']:
-                return PricingOrderService.can_view_pricing_order(pricing_order, current_user)
-        
-        return False
-    
-    
+
     @staticmethod
     def save_pricing_order_core_data(pricing_order_id, request_data, current_user):
         """

@@ -7092,3 +7092,16 @@ msgstr "Select variable for step rule"
 
 msgid "暂无可选择的用户"
 msgstr "No users available"
+
+# =====================================
+# 费用预算卡片组件翻译
+# =====================================
+
+msgid "年度费用"
+msgstr "Annual Expenses"
+
+msgid "分类明细"
+msgstr "Category Details"
+
+msgid "暂无费用预算配置"
+msgstr "No expense budget configured"
