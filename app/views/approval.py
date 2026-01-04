@@ -524,6 +524,17 @@ def convert_approval_item(item, tab):
                         result['project_name'] = quotation.project.project_name
                 else:
                     result['approval_number'] = f'APV-{item.id}'
+            elif result['object_type'] == 'expense' and hasattr(item, 'object_id'):
+                from app.models.expense import Expense
+                expense = Expense.query.get(item.object_id)
+                if expense:
+                    # 使用报销单编号作为审批编号
+                    result['approval_number'] = expense.expense_number or f'EXP-{item.object_id}'
+                    # 获取关联项目名称
+                    if expense.project:
+                        result['project_name'] = expense.project.project_name
+                else:
+                    result['approval_number'] = f'APV-{item.id}'
             else:
                 result['approval_number'] = f'APV-{item.id}'
 
