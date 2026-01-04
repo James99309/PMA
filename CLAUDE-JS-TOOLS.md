@@ -20,6 +20,8 @@
 
 | 工具文件 | 功能描述 | 使用场景 | 已用页面数 | 状态 |
 |---------|---------|---------|-----------|------|
+| trigger-dropdown.js | 触发式下拉搜索组件 | @提及用户、#引用项目等触发式搜索 | 1 | ✅ 已文档化 🆕 |
+| drag-sort.js | 轻量级拖拽排序工具 | 简单列表拖拽排序（无需依赖） | 1 | ✅ 已文档化 🆕 |
 | sortable-list.js | 通用拖拽排序组件 | 任何需要列表拖拽排序的页面 | 2 | ✅ 已文档化 |
 | vendor-sales-manager-selector.js | 厂商销售负责人选择器 | 项目创建/编辑需要选择厂商销售负责人 | 2 | ✅ 已文档化 |
 | customer-form.js | 客户表单公共逻辑 | 客户新建/编辑表单（国家地区、行业、类型等） | 2 | ✅ 已文档化 |
@@ -41,6 +43,9 @@
 | quotation-modal.js | 报价单模态框表单模块 | 报价单创建/编辑模态框 | 2 | ✅ 已文档化 |
 | spec-editor.js | 规格编辑管理器 | 产品/研发产品的规格编辑功能 | 2 | ✅ 已文档化 |
 | spec-dictionary-manager.js | 规格字典管理器 | 规格字典和指标的完整CRUD管理 | 1 | ✅ 已文档化 🆕 |
+| user-sort-utils.js | 用户排序工具 | 按部门分组排序用户列表（负责人优先） | 1 | ✅ 已文档化 🆕 |
+| common/tw-badge.js | 用户徽章生成器 | JS动态渲染用户徽章（与Jinja2宏一致） | 1 | ✅ 已文档化 🆕 |
+| common/tw-notification.js | 通知提示组件 | 显示成功/错误/警告通知 | 5+ | 📋 待补充文档 |
 
 > **说明**:
 > - ✅ 已文档化 - 有完整的API文档和使用示例
@@ -52,6 +57,140 @@
 ## 📚 工具详细文档
 
 ### 🔄 通用功能类
+
+#### trigger-dropdown.js
+
+**基本信息**
+- **文件路径**: `app/static/js/trigger-dropdown.js`
+- **功能描述**: 触发式下拉搜索组件，用于在 contenteditable 编辑器中实现 @ 提及用户、# 引用项目等功能
+- **依赖库**: 无外部依赖
+- **创建日期**: 2026-01-04
+
+**已使用页面**
+1. `app/templates/components/tw_mention_editor.html` - Mention 编辑器组件
+
+**核心特性**
+- 支持多个触发字符（如 `@`, `#`, `/` 等）
+- 两种数据模式：本地过滤（local）和 API 搜索（api）
+- 键盘导航：↑↓ 选择，Enter/Tab 确认，Escape 关闭
+- 自定义列表项渲染和标签模板
+- 下拉框跟随光标定位，自动避免超出视口
+
+**API文档**
+
+```javascript
+/**
+ * 创建 TriggerDropdown 实例
+ * @param {HTMLElement} editor - contenteditable 编辑器元素
+ * @param {Object} options - 配置选项
+ */
+const dropdown = new TriggerDropdown(editor, {
+    triggers: [
+        {
+            char: '@',              // 触发字符
+            type: 'user',           // 类型标识
+            mode: 'local',          // 数据模式: 'local' 或 'api'
+            data: usersArray,       // local模式: 数据数组
+            filterFields: ['name'], // local模式: 过滤字段
+            searchUrl: '',          // api模式: 搜索接口URL
+            debounce: 200,          // api模式: 防抖延迟(ms)
+            minChars: 0,            // api模式: 最少输入字符数
+            emptyText: '未找到',    // 空结果提示
+            loadingText: '搜索中...', // 加载提示
+            renderItem: (item, isHighlighted) => `<div>...</div>`,
+            tagTemplate: (item) => ({
+                text: '@' + item.name,
+                class: 'trigger-tag-user',
+                data: { type: 'user', id: item.id, name: item.name }
+            })
+        }
+    ],
+    onSelect: (trigger, item, tagConfig) => {},  // 选择回调
+    onShow: (trigger) => {},                     // 显示回调
+    onHide: () => {},                            // 隐藏回调
+    maxWidth: 320,                               // 最大宽度
+    maxHeight: 256,                              // 最大高度
+    zIndex: 60                                   // z-index
+});
+
+// 实例方法
+dropdown.getValue(formatConfig)  // 获取存储格式文本
+dropdown.setValue(text)          // 设置值并渲染标签
+dropdown.getMentions()           // 获取所有引用 { user: [1,2], project: [3] }
+dropdown.hideDropdown()          // 隐藏下拉框
+dropdown.destroy()               // 销毁实例
+```
+
+**使用示例**
+
+```javascript
+// 1. 本地数据过滤（用户列表）
+const dropdown = new TriggerDropdown(editor, {
+    triggers: [{
+        char: '@',
+        type: 'user',
+        mode: 'local',
+        data: [
+            { id: 1, name: '张三', department: '销售部' },
+            { id: 2, name: '李四', department: '技术部' }
+        ],
+        filterFields: ['name', 'department'],
+        renderItem: (user) => `<div>${user.name} - ${user.department}</div>`,
+        tagTemplate: (user) => ({
+            text: '@' + user.name,
+            class: 'mention-tag-user',
+            data: { type: 'user', id: user.id, name: user.name }
+        })
+    }]
+});
+
+// 2. API 搜索（项目列表）
+const dropdown = new TriggerDropdown(editor, {
+    triggers: [{
+        char: '#',
+        type: 'project',
+        mode: 'api',
+        searchUrl: '/api/v1/search/projects',
+        debounce: 200,
+        minChars: 0,  // 空查询获取最近项目
+        renderItem: (project) => `<div>${project.project_name}</div>`,
+        tagTemplate: (project) => ({
+            text: '#' + project.project_name,
+            class: 'mention-tag-project',
+            data: { type: 'project', id: project.id, name: project.project_name }
+        })
+    }]
+});
+
+// 3. 获取存储格式和引用ID
+const text = dropdown.getValue({
+    user: '@[{name}|user:{id}]',
+    project: '#[{name}|project:{id}]'
+});
+// 输出: "今天和 @[张三|user:1] 讨论了 #[新项目|project:5] 的进度"
+
+const mentions = dropdown.getMentions();
+// 输出: { user: [1], project: [5] }
+```
+
+**样式说明**
+
+组件自动创建的下拉框使用 `.trigger-dropdown` 类，可通过CSS自定义样式：
+
+```css
+.trigger-dropdown {
+    background-color: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+    border: 1px solid rgb(226 232 240);
+}
+.dark .trigger-dropdown {
+    background-color: rgb(30 41 59);
+    border-color: rgb(51 65 85);
+}
+```
+
+---
 
 #### sortable-list.js
 
@@ -240,6 +379,142 @@ def update_order():
 - 产品规格字段排序
 - 菜单项排序
 - 任何需要列表排序的场景
+
+---
+
+#### drag-sort.js
+
+**基本信息**
+- **文件路径**: `app/static/js/drag-sort.js`
+- **功能描述**: 轻量级原生 JS 拖拽排序工具，无需外部依赖
+- **依赖库**: 无（纯原生 JavaScript）
+- **创建日期**: 2025-12-25
+
+**与 sortable-list.js 的区别**
+
+| 特性 | drag-sort.js | sortable-list.js |
+|------|-------------|------------------|
+| 依赖 | 无 | SortableJS |
+| 文件大小 | ~120行 | ~200行 |
+| 适用场景 | 简单列表/卡片 | 复杂表格 |
+| 动画效果 | CSS类切换 | SortableJS动画 |
+| 返回值 | refresh/destroy方法 | Sortable实例 |
+
+**已使用页面**
+1. `/spec-definition/` - 规格字典管理（分类拖拽排序）
+
+**API文档**
+
+```javascript
+/**
+ * 初始化拖拽排序功能
+ *
+ * @param {Object} options - 配置参数
+ * @param {string} options.containerId - 容器元素ID
+ * @param {string} options.itemSelector - 可拖拽项的CSS选择器
+ * @param {string} [options.dataIdAttr='id'] - data属性名（用于获取ID）
+ * @param {Function} options.onOrderChange - 顺序变化回调函数
+ * @param {string} [options.draggingClass='dragging'] - 拖拽中的CSS类
+ * @param {string} [options.dragOverClass='drag-over'] - 拖拽悬停的CSS类
+ * @returns {Object|null} 包含refresh和destroy方法的对象，或null
+ */
+function initDragSort(options)
+```
+
+**参数说明**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| containerId | string | ✅ | - | 容器元素的ID |
+| itemSelector | string | ✅ | - | 可拖拽项的CSS选择器 |
+| dataIdAttr | string | ❌ | 'id' | data属性名，用于提取ID |
+| onOrderChange | function | ✅ | - | 顺序变化回调，参数: [{id, order}, ...] |
+| draggingClass | string | ❌ | 'dragging' | 拖拽中添加的CSS类 |
+| dragOverClass | string | ❌ | 'drag-over' | 悬停目标的CSS类 |
+
+**返回值**
+
+```javascript
+{
+    refresh: function() { /* 重新绑定事件（用于动态添加元素后） */ },
+    destroy: function() { /* 移除拖拽功能 */ }
+}
+```
+
+**使用示例**
+
+```html
+<!-- 1. 引入工具 -->
+<script src="{{ url_for('static', filename='js/drag-sort.js') }}"></script>
+
+<!-- 2. HTML结构 -->
+<div id="categoryList">
+    <div class="category-item" draggable="true" data-category-id="1">
+        <span class="drag-handle">⋮⋮</span>
+        分类A
+    </div>
+    <div class="category-item" draggable="true" data-category-id="2">
+        <span class="drag-handle">⋮⋮</span>
+        分类B
+    </div>
+</div>
+
+<!-- 3. CSS样式 -->
+<style>
+    .category-item.dragging { opacity: 0.5; background: rgba(19, 127, 236, 0.1); }
+    .category-item.drag-over { border-top: 2px solid #137fec; }
+    .drag-handle { cursor: move; }
+</style>
+
+<!-- 4. 初始化 -->
+<script>
+initDragSort({
+    containerId: 'categoryList',
+    itemSelector: '.category-item',
+    dataIdAttr: 'categoryId',
+    onOrderChange: async (items) => {
+        // items: [{id: 1, order: 0}, {id: 2, order: 1}, ...]
+        const response = await fetch('/api/categories/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items })
+        });
+        const result = await response.json();
+        if (result.success) {
+            showToast('排序已更新');
+        }
+    }
+});
+</script>
+```
+
+**后端API模式**
+
+配合此工具使用的后端排序API模板：
+
+```python
+@blueprint.route('/api/categories/reorder', methods=['POST'])
+@login_required
+@permission_required('module', 'edit')
+def api_reorder_categories():
+    """API: 分类排序"""
+    data = request.get_json()
+    items = data.get('items', [])  # [{id: 1, order: 0}, ...]
+
+    for item in items:
+        category = Category.query.get(item['id'])
+        if category:
+            category.display_order = item['order']
+
+    db.session.commit()
+    return jsonify({'success': True, 'message': _('排序更新成功')})
+```
+
+**适用场景**
+- 侧边栏分类排序
+- 卡片列表排序
+- 简单项目列表排序
+- 不需要SortableJS复杂功能的场景
 
 ---
 
@@ -937,6 +1212,73 @@ QuotationModal.init({
 管理费用明细列表（增删改查）。
 
 **后续任务**: 补充完整的API文档和使用示例
+
+---
+
+### 🎨 common/ 通用工具
+
+#### common/tw-badge.js
+
+**基本信息**
+
+- **文件路径**: `app/static/js/common/tw-badge.js`
+- **功能描述**: 用户徽章生成器，与 Jinja2 宏 `render_tw_owner_badge` 保持一致的 JavaScript 实现
+- **使用场景**: 需要在 JavaScript 中动态渲染用户徽章（如 Alpine.js x-for 循环）
+- **创建日期**: 2026-01-03
+
+**已使用页面**
+
+1. `app/templates/worklog/tw_calendar.html` - 工作日历的共享用户头像
+
+**API文档**
+
+```javascript
+const TwBadge = {
+    // 浅色模式颜色（与 render_tw_owner_badge 宏的 light_colors 保持一致）
+    lightColors: [...],  // 6种颜色循环
+
+    // 实心颜色（与 render_tw_owner_badge 宏的 solid_colors 保持一致）
+    solidColors: [...],  // 6种颜色循环
+
+    /**
+     * 获取用户徽章颜色类
+     * @param {number} userId - 用户ID
+     * @param {string} variant - 颜色变体: 'light'(默认) 或 'solid'
+     * @returns {string} Tailwind CSS 类名
+     */
+    getColorClass(userId, variant = 'light'),
+
+    /**
+     * 获取用户名首字母
+     * @param {string} name - 用户名
+     * @param {number} chars - 字符数，默认2
+     * @returns {string} 首字母
+     */
+    getInitials(name, chars = 2)
+};
+```
+
+**使用示例**
+
+```html
+<!-- 引入脚本 -->
+<script src="{{ url_for('static', filename='js/common/tw-badge.js') }}"></script>
+
+<!-- 在 Alpine.js 中使用 -->
+<template x-for="user in users" :key="user.id">
+    <span class="w-6 h-6 rounded-full text-xs font-medium flex items-center justify-center"
+          :class="TwBadge.getColorClass(user.id)"
+          x-text="user.initials || TwBadge.getInitials(user.name)"></span>
+</template>
+```
+
+**与 Jinja2 宏的对应关系**
+
+| JavaScript | Jinja2 宏 |
+|------------|----------|
+| `TwBadge.getColorClass(userId, 'light')` | `render_tw_owner_badge(user, variant='light')` |
+| `TwBadge.getColorClass(userId, 'solid')` | `render_tw_owner_badge(user, variant='solid')` |
+| `TwBadge.lightColors` | `ui_helpers.html` 第8881-8919行的 `light_colors` |
 
 ---
 
@@ -2430,6 +2772,79 @@ SpecDictionaryManager.previewCode(value);
 
 ---
 
-**版本**: 2.6.0
-**最后更新**: 2025-12-14
+#### user-sort-utils.js
+
+**基本信息**
+- **文件路径**: `app/static/js/user-sort-utils.js`
+- **功能描述**: 用户列表排序工具，按部门和团队分组排序
+- **依赖库**: 无
+- **创建日期**: 2026-01-02
+
+**使用场景**
+
+- 配置管理中的账户选择器
+- 任何需要按部门和团队分组显示用户列表的场景
+
+**已使用页面**
+
+1. `app/templates/config_management/tw_index.html` - 配置管理（全部标签页）
+
+**API 文档**
+
+```javascript
+/**
+ * 按部门和团队分组排序用户列表
+ * 排序规则：
+ * 1. 按部门名称分组
+ * 2. 同部门内：
+ *    - 部门负责人最优先
+ *    - 然后按团队分组（团队负责人优先）
+ *    - 无团队的成员最后
+ * 3. 每组内按姓名排序
+ *
+ * @param {Array} users - 用户列表
+ * @returns {Array} - 排序后的用户列表（新数组）
+ */
+function sortUsersByDepartment(users)
+```
+
+**参数说明**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| users | Array | ✅ | 用户对象数组 |
+
+**用户对象字段**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| department | string | 部门名称 |
+| is_department_manager | boolean | 是否为部门负责人 |
+| team_name | string | 团队名称（可选） |
+| is_team_leader | boolean | 是否为团队负责人 |
+| real_name | string | 真实姓名 |
+
+**排序效果示例**
+
+```
+销售部:
+  王五 (部门负责人)     ← 1. 部门负责人最优先
+  李四 (A团队负责人)    ← 2. 团队负责人
+  张三 (A团队成员)      ← 3. 团队成员
+  赵六 (B团队负责人)    ← 4. 另一团队负责人
+  钱七 (B团队成员)      ← 5. 另一团队成员
+  孙八 (无团队)         ← 6. 无团队成员最后
+```
+
+**重构记录**
+
+| 日期 | 版本 | 变更说明 |
+|------|------|---------|
+| 2026-01-02 | 1.0.0 | 创建用户排序工具 |
+| 2026-01-02 | 1.1.0 | 增加团队分组排序支持 |
+
+---
+
+**版本**: 2.7.0
+**最后更新**: 2026-01-02
 **维护者**: Claude AI

@@ -1,0 +1,1026 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_buttons.html' import tw_btn_primary, tw_btn_secondary, tw_btn_outline with context %}
+{% from 'components/tw_nav_buttons.html' import render_tw_nav_buttons with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
+{% from 'components/tw_tabs.html' import render_tw_tabs, render_tw_tabs_script with context %}
+{% from 'components/tw_info_card.html' import tw_info_card with context %}
+{% from 'components/tw_card_shell.html' import tw_card_shell with context %}
+{% from 'components/tw_table_card.html' import render_tw_table_card, render_empty_state with context %}
+{% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles, render_tw_data_table_script, render_empty_row with context %}
+{% from 'components/tw_permission_panel.html' import render_tw_permission_panel, render_tw_permission_panel_styles, render_tw_permission_panel_script, render_tw_permission_readonly_table with context %}
+{% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_user_status_badge, render_tw_user_role_badge, render_tw_permission_level_badge with context %}
+{% from 'components/tw_user_selector_modal.html' import tw_user_selector_modal with context %}
+{% from 'components/tw_performance_dashboard.html' import render_performance_dashboard, render_performance_dashboard_script with context %}
+
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ user.real_name or user.username }} - {{ _('用户详情') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        // 共享年份选择器状态（绩效目标和薪资明细同步）
+        document.addEventListener('alpine:init', () => {
+            Alpine.store('detailYear', {
+                year: new Date().getFullYear(),
+                setYear(newYear) {
+                    this.year = newYear;
+                    // 触发年份变更事件，让其他组件同步
+                    window.dispatchEvent(new CustomEvent('detail-year-changed', { detail: { year: newYear } }));
+                }
+            });
+        });
+    </script>
+    <!-- ECharts for performance dashboard -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <script>
+    // 立即处理 URL hash，避免标签页跳跃（内容和按钮都要处理）
+    (function() {
+        var hash = window.location.hash.replace('#', '');
+        var validTabs = ['base', 'perm', 'aff', 'performance', 'salary'];
+        var activeTab = (hash && validTabs.indexOf(hash) !== -1) ? hash : 'base';
+
+        // 添加 CSS 规则
+        var style = document.createElement('style');
+        style.id = 'tab-preload-style';
+        style.textContent =
+            // 显示目标标签页内容
+            '#tab-' + activeTab + ' { display: block !important; }' +
+            // 重置所有标签按钮为非激活样式
+            '.tw-tab-item { color: rgb(100 116 139) !important; border-color: transparent !important; background: transparent !important; }' +
+            // 设置目标标签按钮为激活样式（支持深色模式）
+            '.tw-tab-item[data-tab="' + activeTab + '"] { color: #137fec !important; border-color: #137fec !important; }' +
+            ':not(.dark) .tw-tab-item[data-tab="' + activeTab + '"] { background: white !important; }' +
+            '.dark .tw-tab-item[data-tab="' + activeTab + '"] { background: black !important; }';
+        document.head.appendChild(style);
+    })();
+    </script>
+    <style>
+        /* 标签页显示/隐藏由 Tailwind hidden 类控制 */
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        [x-cloak] {
+            display: none !important;
+        }
+
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+    <!-- 数据表格样式 -->
+    {{ render_tw_data_table_styles() }}
+    <!-- 权限面板样式 -->
+    {{ render_tw_permission_panel_styles() }}
+</head>
+
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-200">
+    {% call(slot) render_tw_layout(active_page='user_list', show_search=false) %}
+    {% if slot == 'content' %}
+    <!-- 主内容 -->
+    {% call(page_slot) render_tw_fixed_page() %}
+    {% if page_slot == 'header' %}
+        <!-- 面包屑和标题 -->
+        <div class="flex-1">
+            <!-- 面包屑 -->
+            <nav class="flex items-center text-sm text-slate-500 dark:text-slate-400 mb-2">
+                <a href="{{ url_for('user.list_users') }}?tw=1" class="hover:text-primary transition-colors">{{ _('账户管理') }}</a>
+                <span class="material-symbols-outlined text-base mx-1">chevron_right</span>
+                <span class="text-slate-700 dark:text-slate-300">{{ user.username }}</span>
+            </nav>
+            <!-- 标题和状态 -->
+            <div class="flex items-center gap-3">
+                <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ user.real_name or user.username }}</h1>
+                {{ render_tw_user_status_badge(user.is_active) }}
+                {{ render_tw_user_role_badge(user.role, role_dict) }}
+                {% if is_vendor %}
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
+                    <span class="material-symbols-outlined text-sm">factory</span>
+                    {{ _('厂商') }}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        <!-- 操作按钮 -->
+        <div class="flex flex-wrap items-center gap-2" id="actionButtons">
+            <!-- 导航按钮：上一个/下一个 + 返回 -->
+            {{ render_tw_nav_buttons(
+                prev_url=url_for('user.user_detail', user_id=prev_user_id) ~ '?tw=1' if prev_user_id else none,
+                next_url=url_for('user.user_detail', user_id=next_user_id) ~ '?tw=1' if next_user_id else none,
+                prev_title=_('上一个账户'),
+                next_title=_('下一个账户'),
+                back_url=url_for('user.list_users') ~ '?tw=1',
+                back_label=_('返回'),
+                prev_id='prevUserLink',
+                next_id='nextUserLink'
+            ) }}
+
+        </div>
+    {% elif page_slot == 'content' %}
+        <!-- 标签页导航 -->
+        {% set tabs = [
+            {'key': 'base', 'label': _('基本信息'), 'icon': 'person'},
+            {'key': 'perm', 'label': _('权限'), 'icon': 'shield'},
+            {'key': 'aff', 'label': _('归属关系'), 'icon': 'device_hub', 'count': affiliations.affiliation_count if affiliations and affiliations.affiliation_count else 0}
+        ] %}
+        {% if can_view_performance %}
+        {% set tabs = tabs + [{'key': 'performance', 'label': _('绩效目标'), 'icon': 'insights'}] %}
+        {% endif %}
+        {% if can_view_salary %}
+        {% set tabs = tabs + [{'key': 'salary', 'label': _('薪资明细'), 'icon': 'payments'}] %}
+        {% endif %}
+        {{ render_tw_tabs(tabs, 'base') }}
+
+        <!-- 标签页内容容器 -->
+        <div id="tabContent" class="space-y-6">
+            <!-- 基本信息标签页 -->
+            <div id="tab-base" class="tab-panel hidden">
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('用户名') }}</label>
+                                <p class="text-slate-900 dark:text-white font-medium">{{ user.username }}</p>
+                            </div>
+                            <div>
+                                <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('真实姓名') }}</label>
+                                <p class="text-slate-900 dark:text-white font-medium">{{ user.real_name or '-' }}</p>
+                            </div>
+                            <div>
+                                <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('邮箱') }}</label>
+                                <p class="text-slate-900 dark:text-white font-mono">{{ user.email or '-' }}</p>
+                            </div>
+                            <div>
+                                <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('手机号') }}</label>
+                                <p class="text-slate-900 dark:text-white font-mono">{{ user.phone or '-' }}</p>
+                            </div>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('公司') }}</label>
+                                <div class="flex items-center gap-2">
+                                    <p class="text-slate-900 dark:text-white font-medium">{{ user.company_name or '-' }}</p>
+                                    {% if is_vendor %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
+                                        <span class="material-symbols-outlined text-xs">factory</span>
+                                        {{ _('厂商') }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('部门') }}</label>
+                                <p class="text-slate-900 dark:text-white font-medium">{{ user.department or '-' }}</p>
+                            </div>
+                            <div>
+                                <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('角色') }}</label>
+                                <p class="text-slate-900 dark:text-white font-medium">{{ role_dict.get(user.role, user.role or '-') }}</p>
+                            </div>
+                            <div>
+                                <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('是否部门负责人') }}</label>
+                                <p class="text-slate-900 dark:text-white font-medium">{{ _('是') if user.is_department_manager else _('否') }}</p>
+                            </div>
+                            <div>
+                                <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('状态') }}</label>
+                                <div class="mt-1">
+                                    {{ render_tw_user_status_badge(user.is_active) }}
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('AI功能') }}</label>
+                                <div class="mt-1">
+                                    {% if ai_enabled %}
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                        <span class="material-symbols-outlined text-sm">smart_toy</span>
+                                        {{ _('已启用') }}
+                                    </span>
+                                    {% else %}
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400">
+                                        <span class="material-symbols-outlined text-sm">smart_toy</span>
+                                        {{ _('未启用') }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if not user.is_active and can_edit_user %}
+                    <!-- 发送邀请邮件按钮 -->
+                    <div class="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                        <div class="flex items-center gap-4">
+                            <button type="button" id="sendInvitationBtn" onclick="sendInvitationEmail()"
+                                    class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                <span class="material-symbols-outlined text-lg" id="invitationIcon">mail</span>
+                                <span id="invitationBtnText">{{ _('发送邀请邮件') }}</span>
+                            </button>
+                            <span id="invitationHint" class="text-sm text-slate-500 dark:text-slate-400">{{ _('向用户发送账户激活邮件') }}</span>
+                            <!-- 内联通知区域 -->
+                            <div id="invitationNotification" class="hidden flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300">
+                                <span class="material-symbols-outlined text-lg" id="notificationIcon"></span>
+                                <span id="notificationText"></span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 权限标签页（只读模式 - 权限编辑已移至配置管理） -->
+            <div id="tab-perm" class="tab-panel hidden">
+                {# permissions 已经是列表格式，传给 macro 后由 macro 内部通过 module 查找对应权限 #}
+                {% set permission_map = {} %}
+                {% for perm in permissions %}
+                    {% if permission_map.update({perm.module: perm}) %}{% endif %}
+                {% endfor %}
+
+                {{ render_tw_permission_readonly_table(modules, permission_map, filter_configs) }}
+            </div>
+
+            <!-- 归属关系标签页 -->
+            <div id="tab-aff" class="tab-panel hidden">
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('部门') }}</label>
+                            <p class="text-slate-900 dark:text-white font-medium">{{ affiliations.department or '-' }}</p>
+                        </div>
+                        <div>
+                            <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('角色') }}</label>
+                            <p class="text-slate-900 dark:text-white font-medium">{{ role_dict.get(user.role, user.role or '-') }}</p>
+                        </div>
+                    </div>
+
+                    {% if affiliations.affiliation_users and affiliations.affiliation_users|length > 0 %}
+                    <h6 class="text-base font-medium text-slate-700 dark:text-slate-300 mb-4">{{ _('当前可见用户列表') }}：</h6>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-50 dark:bg-slate-700/50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left font-medium text-slate-700 dark:text-slate-300">{{ _('用户名') }}</th>
+                                    <th class="px-4 py-3 text-left font-medium text-slate-700 dark:text-slate-300">{{ _('真实姓名') }}</th>
+                                    <th class="px-4 py-3 text-left font-medium text-slate-700 dark:text-slate-300">{{ _('部门') }}</th>
+                                    <th class="px-4 py-3 text-left font-medium text-slate-700 dark:text-slate-300">{{ _('公司') }}</th>
+                                    <th class="px-4 py-3 text-left font-medium text-slate-700 dark:text-slate-300">{{ _('角色') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                {% for u in affiliations.affiliation_users %}
+                                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                                    <td class="px-4 py-3 text-slate-700 dark:text-slate-300">{{ u.username }}</td>
+                                    <td class="px-4 py-3 text-slate-700 dark:text-slate-300">{{ u.real_name or '-' }}</td>
+                                    <td class="px-4 py-3 text-slate-600 dark:text-slate-400">{{ u.department or '-' }}</td>
+                                    <td class="px-4 py-3 text-slate-600 dark:text-slate-400">{{ u.company_name or '-' }}</td>
+                                    <td class="px-4 py-3">{{ render_tw_user_role_badge(u.role, role_dict) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-12 text-slate-500 dark:text-slate-400">
+                        <span class="material-symbols-outlined text-4xl mb-3 block">group_off</span>
+                        <p>{{ _('暂无数据归属关系') }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 绩效目标标签页 -->
+            {% if can_view_performance %}
+            <div id="tab-performance" class="tab-panel hidden space-y-6">
+                <!-- 绩效仪表板 -->
+                {{ render_performance_dashboard(
+                    user.id,
+                    current_year|default(2025),
+                    url_for('api_v1.get_performance_dashboard', user_id=user.id)
+                ) }}
+            </div>
+            {% endif %}
+
+            <!-- 薪资明细标签页 -->
+            {% if can_view_salary %}
+            <div id="tab-salary" class="tab-panel hidden"
+                 x-data="salaryDashboard()"
+                 x-init="init()">
+                <!-- 头部信息栏 -->
+                <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-2">
+                            <label class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('年份') }}:</label>
+                            <select x-model.number="selectedYear" @change="onYearChange()"
+                                    class="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm">
+                                <template x-for="year in availableYears" :key="year">
+                                    <option :value="year" :selected="year === selectedYear" x-text="year + '{{ _('年') }}'"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                            <span>{{ _('团队') }}:</span>
+                            <span class="font-medium text-slate-900 dark:text-white" x-text="salaryConfig.team_name || '-'"></span>
+                        </div>
+                        <div class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                            <span>{{ _('职级') }}:</span>
+                            <span class="font-medium text-slate-900 dark:text-white" x-text="salaryConfig.grade_code ? (salaryConfig.grade_code + ' ' + salaryConfig.grade_name) : '-'"></span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('配置模式') }}:</span>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                              :class="salaryConfig.use_custom_config ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'"
+                              x-text="salaryConfig.use_custom_config ? '{{ _("个人配置") }}' : '{{ _("全局配置") }}'">
+                        </span>
+                    </div>
+                </div>
+
+                <!-- 加载状态 -->
+                <div x-show="loading" class="flex items-center justify-center py-20">
+                    <div class="flex items-center gap-3 text-slate-500 dark:text-slate-400">
+                        <span class="material-symbols-outlined text-2xl animate-spin">progress_activity</span>
+                        <span>{{ _('加载中...') }}</span>
+                    </div>
+                </div>
+
+                <!-- 无数据状态 -->
+                <div x-show="!loading && !hasData" class="text-center py-20">
+                    <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 mb-4 block">payments</span>
+                    <p class="text-slate-500 dark:text-slate-400">{{ _('暂无薪资配置数据') }}</p>
+                    <p class="text-sm text-slate-400 dark:text-slate-500 mt-1">{{ _('请先在配置管理中设置职级和薪资参数') }}</p>
+                </div>
+
+                <!-- 数据内容 -->
+                <div x-show="!loading && hasData" class="space-y-6" x-cloak>
+                    <!-- 年度概览卡片 -->
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+                        <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">insights</span>
+                            {{ _('年度概览') }}
+                        </h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 text-center">
+                                <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('年度目标') }}</p>
+                                <p class="text-2xl font-bold text-slate-900 dark:text-white">
+                                    <span x-text="formatNumber(overview.annual_target)"></span>
+                                    <span class="text-base font-normal text-slate-500 dark:text-slate-400">{{ _('万') }}</span>
+                                </p>
+                            </div>
+                            <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 text-center">
+                                <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('年度业绩') }}</p>
+                                <p class="text-2xl font-bold text-slate-900 dark:text-white">
+                                    <span x-text="formatNumber(overview.annual_achievement)"></span>
+                                    <span class="text-base font-normal text-slate-500 dark:text-slate-400">{{ _('万') }}</span>
+                                </p>
+                            </div>
+                            <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 text-center">
+                                <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('个人完成率') }}</p>
+                                <p class="text-2xl font-bold" :class="getCompletionRateColor(overview.personal_completion_rate)">
+                                    <span x-text="formatPercent(overview.personal_completion_rate)"></span>%
+                                </p>
+                            </div>
+                            <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 text-center">
+                                <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('综合完成率') }}</p>
+                                <p class="text-2xl font-bold" :class="getCompletionRateColor(overview.comprehensive_completion_rate)">
+                                    <span x-text="formatPercent(overview.comprehensive_completion_rate)"></span>%
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 薪资构成卡片 -->
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary">account_balance_wallet</span>
+                                {{ _('薪资构成') }}
+                                <span class="text-sm font-normal text-slate-500 dark:text-slate-400">({{ currency_config.amount_unit }})</span>
+                            </h3>
+                            <!-- 数据来源图例 -->
+                            <div class="flex items-center gap-4 text-xs">
+                                <span class="flex items-center gap-1">
+                                    <span class="w-2 h-2 rounded-full bg-slate-900 dark:bg-white"></span>
+                                    <span class="text-slate-600 dark:text-slate-400">{{ _('已结算') }}</span>
+                                </span>
+                                <span class="flex items-center gap-1">
+                                    <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                                    <span class="text-slate-600 dark:text-slate-400">{{ _('实时计算') }}</span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm min-w-max">
+                                <thead class="bg-slate-50 dark:bg-slate-700/50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left font-medium text-slate-700 dark:text-slate-300 sticky left-0 bg-slate-50 dark:bg-slate-700/50 z-10">{{ _('项目') }}</th>
+                                        <th class="px-4 py-3 text-right font-medium text-slate-700 dark:text-slate-300">{{ _('金额') }}</th>
+                                        <th class="px-4 py-3 text-left font-medium text-slate-700 dark:text-slate-300">{{ _('计算依据') }}</th>
+                                        <!-- 动态月度列：仅显示已开始的月份 -->
+                                        <template x-for="month in currentMonths" :key="'th_' + month">
+                                            <th class="px-2 py-3 text-right font-medium text-slate-700 dark:text-slate-300 text-xs whitespace-nowrap"
+                                                x-text="month + '{{ _('月') }}'"></th>
+                                        </template>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                    <!-- 年基础工资行 -->
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                                        <td class="px-4 py-3 text-slate-700 dark:text-slate-300 sticky left-0 bg-white dark:bg-slate-800 z-10">{{ _('年基础工资') }}</td>
+                                        <td class="px-4 py-3 text-right font-mono text-slate-900 dark:text-white" x-text="formatNumber(breakdown.annual_base_salary)"></td>
+                                        <td class="px-4 py-3 text-slate-500 dark:text-slate-400" x-text="breakdown.base_salary_formula || '-'"></td>
+                                        <template x-for="month in currentMonths" :key="'base_' + month">
+                                            <td class="px-2 py-3 text-right font-mono text-xs"
+                                                :class="getMonthClass(month)"
+                                                :title="getMonthTooltip(month)"
+                                                x-text="formatNumber(getMonthlyValue(month, 'base_salary'))"></td>
+                                        </template>
+                                    </tr>
+                                    <!-- 管理津贴行 -->
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30" x-show="breakdown.management_allowance > 0">
+                                        <td class="px-4 py-3 text-slate-700 dark:text-slate-300 sticky left-0 bg-white dark:bg-slate-800 z-10">{{ _('管理津贴') }}</td>
+                                        <td class="px-4 py-3 text-right font-mono text-slate-900 dark:text-white" x-text="formatNumber(breakdown.management_allowance)"></td>
+                                        <td class="px-4 py-3 text-slate-500 dark:text-slate-400" x-text="breakdown.management_formula || '-'"></td>
+                                        <template x-for="month in currentMonths" :key="'mgmt_' + month">
+                                            <td class="px-2 py-3 text-right font-mono text-xs text-slate-600 dark:text-slate-400">-</td>
+                                        </template>
+                                    </tr>
+                                    <!-- 绩效工资行 -->
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                                        <td class="px-4 py-3 text-slate-700 dark:text-slate-300 sticky left-0 bg-white dark:bg-slate-800 z-10">{{ _('绩效工资') }}</td>
+                                        <td class="px-4 py-3 text-right font-mono text-slate-900 dark:text-white" x-text="formatNumber(breakdown.performance_salary)"></td>
+                                        <td class="px-4 py-3 text-slate-500 dark:text-slate-400" x-text="breakdown.performance_formula || '-'"></td>
+                                        <template x-for="month in currentMonths" :key="'perf_' + month">
+                                            <td class="px-2 py-3 text-right font-mono text-xs"
+                                                :class="getMonthClass(month)"
+                                                :title="getMonthTooltip(month)"
+                                                x-text="formatNumber(getMonthlyValue(month, 'performance_salary'))"></td>
+                                        </template>
+                                    </tr>
+                                    <!-- 个人提成行 -->
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                                        <td class="px-4 py-3 text-slate-700 dark:text-slate-300 sticky left-0 bg-white dark:bg-slate-800 z-10">{{ _('个人提成') }}</td>
+                                        <td class="px-4 py-3 text-right font-mono text-slate-900 dark:text-white" x-text="formatNumber(breakdown.personal_commission)"></td>
+                                        <td class="px-4 py-3 text-slate-500 dark:text-slate-400" x-text="breakdown.commission_formula || '-'"></td>
+                                        <template x-for="month in currentMonths" :key="'comm_' + month">
+                                            <td class="px-2 py-3 text-right font-mono text-xs"
+                                                :class="getMonthClass(month)"
+                                                :title="getMonthTooltip(month)"
+                                                x-text="formatNumber(getMonthlyValue(month, 'personal_commission'))"></td>
+                                        </template>
+                                    </tr>
+                                    <!-- 团队分成行 -->
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30" x-show="breakdown.team_commission_share > 0">
+                                        <td class="px-4 py-3 text-slate-700 dark:text-slate-300 sticky left-0 bg-white dark:bg-slate-800 z-10">{{ _('团队分成') }}</td>
+                                        <td class="px-4 py-3 text-right font-mono text-slate-900 dark:text-white" x-text="formatNumber(breakdown.team_commission_share)"></td>
+                                        <td class="px-4 py-3 text-slate-500 dark:text-slate-400" x-text="breakdown.team_share_formula || 'Σ下属提成'"></td>
+                                        <template x-for="month in currentMonths" :key="'team_' + month">
+                                            <td class="px-2 py-3 text-right font-mono text-xs"
+                                                :class="getMonthlyValue(month, 'team_share_commission') > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'"
+                                                x-text="getMonthlyValue(month, 'team_share_commission') > 0 ? formatNumber(getMonthlyValue(month, 'team_share_commission')) : '-'"></td>
+                                        </template>
+                                    </tr>
+                                    <!-- 年终奖行 -->
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                                        <td class="px-4 py-3 text-slate-700 dark:text-slate-300 sticky left-0 bg-white dark:bg-slate-800 z-10">{{ _('年终奖') }}</td>
+                                        <td class="px-4 py-3 text-right font-mono text-slate-900 dark:text-white" x-text="formatNumber(breakdown.annual_bonus)"></td>
+                                        <td class="px-4 py-3 text-slate-500 dark:text-slate-400" x-text="breakdown.bonus_formula || '-'"></td>
+                                        <template x-for="month in currentMonths" :key="'bonus_' + month">
+                                            <td class="px-2 py-3 text-right font-mono text-xs"
+                                                :class="getMonthlyValue(month, 'bonus_accrual') > 0 ? 'text-green-600 dark:text-green-400' : 'text-slate-400'"
+                                                x-text="getMonthlyValue(month, 'bonus_accrual') > 0 ? formatNumber(getMonthlyValue(month, 'bonus_accrual')) : '-'"></td>
+                                        </template>
+                                    </tr>
+                                    <!-- 年总收入行 -->
+                                    <tr class="bg-primary/5 dark:bg-primary/10 font-semibold">
+                                        <td class="px-4 py-3 text-slate-900 dark:text-white sticky left-0 bg-primary/5 dark:bg-primary/10 z-10">{{ _('年总收入') }}</td>
+                                        <td class="px-4 py-3 text-right font-mono text-primary" x-text="formatNumber(breakdown.annual_total_income)"></td>
+                                        <td class="px-4 py-3 text-slate-500 dark:text-slate-400"></td>
+                                        <template x-for="month in currentMonths" :key="'total_' + month">
+                                            <td class="px-2 py-3 text-right font-mono text-xs text-primary"
+                                                x-text="formatNumber(getMonthlyValue(month, 'monthly_total'))"></td>
+                                        </template>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 季度业绩表格 -->
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+                        <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">calendar_month</span>
+                            {{ _('季度业绩') }}
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead class="bg-slate-50 dark:bg-slate-700/50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left font-medium text-slate-700 dark:text-slate-300">{{ _('季度') }}</th>
+                                        <th class="px-4 py-3 text-right font-medium text-slate-700 dark:text-slate-300" x-text="overview.is_manager ? '{{ _('个人业绩/团队业绩') }}' : '{{ _('业绩(万)') }}'"></th>
+                                        <th class="px-4 py-3 text-right font-medium text-slate-700 dark:text-slate-300">{{ _('综合完成率') }}</th>
+                                        <th class="px-4 py-3 text-right font-medium text-slate-700 dark:text-slate-300">{{ _('个人高批价率') }}</th>
+                                        <th class="px-4 py-3 text-right font-medium text-slate-700 dark:text-slate-300">{{ _('个人批价率') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                    <template x-for="q in quarterlyData" :key="q.quarter">
+                                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                                            <td class="px-4 py-3 text-slate-700 dark:text-slate-300" x-text="'Q' + q.quarter"></td>
+                                            <td class="px-4 py-3 text-right font-mono text-slate-900 dark:text-white" x-text="q.is_manager ? formatNumber(q.personal_achievement) + '/' + formatNumber(q.team_achievement) : formatNumber(q.personal_achievement)"></td>
+                                            <td class="px-4 py-3 text-right font-mono" :class="getCompletionRateColor(q.completion_rate)" x-text="formatPercent(q.completion_rate) + '%'"></td>
+                                            <td class="px-4 py-3 text-right font-mono text-slate-700 dark:text-slate-300" x-text="formatPercent(q.high_price_ratio) + '%'"></td>
+                                            <td class="px-4 py-3 text-right font-mono text-slate-700 dark:text-slate-300" x-text="formatPercent(q.high_price_rate) + '%'"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div x-show="quarterlyData.length === 0" class="text-center py-8 text-slate-500 dark:text-slate-400">
+                            {{ _('暂无季度业绩数据') }}
+                        </div>
+                    </div>
+
+                    <!-- 团队分成明细（仅管理层显示） -->
+                    <div x-show="teamShareDetails.length > 0" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+                        <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">groups</span>
+                            {{ _('团队分成明细') }}
+                            <span class="text-sm font-normal text-slate-500 dark:text-slate-400">({{ _('作为团队负责人获得的分成') }})</span>
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead class="bg-slate-50 dark:bg-slate-700/50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left font-medium text-slate-700 dark:text-slate-300">{{ _('下属姓名') }}</th>
+                                        <th class="px-4 py-3 text-right font-medium text-slate-700 dark:text-slate-300">{{ _('提成基数') }}</th>
+                                        <th class="px-4 py-3 text-right font-medium text-slate-700 dark:text-slate-300">{{ _('分成比例') }}</th>
+                                        <th class="px-4 py-3 text-right font-medium text-slate-700 dark:text-slate-300">{{ _('分成金额') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                    <template x-for="share in teamShareDetails" :key="share.member_id">
+                                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                                            <td class="px-4 py-3 text-slate-700 dark:text-slate-300" x-text="share.member_name"></td>
+                                            <td class="px-4 py-3 text-right font-mono text-slate-900 dark:text-white" x-text="formatNumber(share.commission_base)"></td>
+                                            <td class="px-4 py-3 text-right font-mono text-slate-700 dark:text-slate-300" x-text="formatPercent(share.share_rate) + '%'"></td>
+                                            <td class="px-4 py-3 text-right font-mono text-primary" x-text="formatNumber(share.share_amount)"></td>
+                                        </tr>
+                                    </template>
+                                    <tr class="bg-primary/5 dark:bg-primary/10 font-semibold">
+                                        <td class="px-4 py-3 text-slate-900 dark:text-white">{{ _('合计') }}</td>
+                                        <td class="px-4 py-3 text-right font-mono text-slate-900 dark:text-white"></td>
+                                        <td class="px-4 py-3 text-right font-mono text-slate-700 dark:text-slate-300"></td>
+                                        <td class="px-4 py-3 text-right font-mono text-primary" x-text="formatNumber(totalTeamShare)"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    {% endif %}
+    {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 脚本部分 -->
+    {{ render_tw_layout_script() }}
+    {{ tw_confirm_modal_script() }}
+
+    <!-- 标签页切换脚本 -->
+    <script>
+    (function() {
+        // 当前标签页
+        let currentTab = 'base';
+
+        // 按钮元素
+        const editSalaryBtn = document.getElementById('editSalaryBtn');
+
+        // 显示/隐藏按钮
+        function updateButtons(tabKey) {
+            // 隐藏所有动态按钮
+            if (editSalaryBtn) editSalaryBtn.classList.add('hidden');
+
+            // 显示对应标签页的按钮
+            switch(tabKey) {
+                case 'salary':
+                    if (editSalaryBtn) editSalaryBtn.classList.remove('hidden');
+                    break;
+            }
+        }
+
+        // 显示/隐藏标签页内容（使用 Tailwind hidden class）
+        function showTabContent(tabKey) {
+            document.querySelectorAll('.tab-panel').forEach(panel => {
+                panel.classList.add('hidden');
+                panel.style.display = '';  // 清除内联样式
+            });
+            const targetPanel = document.getElementById('tab-' + tabKey);
+            if (targetPanel) {
+                targetPanel.classList.remove('hidden');
+                targetPanel.style.display = '';  // 清除内联样式
+            }
+        }
+
+        // 标签页切换回调
+        window.onTabChange = function(tabKey) {
+            switchToTab(tabKey);
+        };
+
+        function switchToTab(tabKey) {
+            currentTab = tabKey;
+            showTabContent(tabKey);
+            updateButtons(tabKey);
+
+            // 更新 URL hash（用于切换用户时保持标签页）
+            history.replaceState(null, '', '#' + tabKey);
+
+            // 更新导航链接，附加当前标签页 hash
+            updateNavLinksHash(tabKey);
+
+            // 绩效标签页由 Alpine.js 组件自动处理数据加载
+        }
+
+        // 更新导航链接的 hash（切换用户时保持当前标签页）
+        function updateNavLinksHash(tabKey) {
+            const prevLink = document.getElementById('prevUserLink');
+            const nextLink = document.getElementById('nextUserLink');
+
+            [prevLink, nextLink].forEach(link => {
+                if (link) {
+                    const url = new URL(link.href);
+                    url.hash = tabKey;
+                    link.href = url.toString();
+                }
+            });
+        }
+
+        // 初始化标签页（使用 URL hash，默认 'base'）
+        document.addEventListener('DOMContentLoaded', function() {
+            // 移除预加载样式，避免 !important 冲突
+            const preloadStyle = document.getElementById('tab-preload-style');
+            if (preloadStyle) {
+                preloadStyle.remove();
+            }
+
+            // 只从 URL hash 读取标签页状态，默认显示 'base'
+            const hash = window.location.hash.replace('#', '');
+            const validTabs = ['base', 'perm', 'aff', 'performance', 'salary'];
+            let activeTab = (hash && validTabs.includes(hash)) ? hash : 'base';
+
+            // 初始化显示
+            showTabContent(activeTab);
+            updateButtons(activeTab);
+
+            // 更新标签页激活状态
+            document.querySelectorAll('.tw-tab-item').forEach(tab => {
+                const tabKey = tab.dataset.tab;
+                if (tabKey === activeTab) {
+                    tab.classList.add('text-primary', 'border-primary', 'bg-white', 'dark:bg-black');
+                    tab.classList.remove('text-slate-500', 'dark:text-slate-400', 'border-transparent');
+                    tab.setAttribute('aria-selected', 'true');
+                } else {
+                    tab.classList.remove('text-primary', 'border-primary', 'bg-white', 'dark:bg-black');
+                    tab.classList.add('text-slate-500', 'dark:text-slate-400', 'border-transparent');
+                    tab.setAttribute('aria-selected', 'false');
+                }
+            });
+
+            currentTab = activeTab;
+
+            // 初始化时也更新导航链接的 hash，确保连续切换用户时保持标签页
+            updateNavLinksHash(activeTab);
+        });
+    })();
+    </script>
+
+    {{ render_tw_tabs_script(on_change_callback='onTabChange') }}
+
+    <!-- 发送邀请邮件 AJAX 处理 -->
+    {% if not user.is_active and can_edit_user %}
+    <script>
+    function sendInvitationEmail() {
+        const btn = document.getElementById('sendInvitationBtn');
+        const icon = document.getElementById('invitationIcon');
+        const btnText = document.getElementById('invitationBtnText');
+        const hint = document.getElementById('invitationHint');
+        const notification = document.getElementById('invitationNotification');
+        const notificationIcon = document.getElementById('notificationIcon');
+        const notificationText = document.getElementById('notificationText');
+
+        // 禁用按钮并显示加载状态
+        btn.disabled = true;
+        icon.textContent = 'hourglass_empty';
+        icon.classList.add('animate-spin');
+        btnText.textContent = '{{ _("发送中...") }}';
+
+        // 隐藏提示和通知
+        hint.classList.add('hidden');
+        notification.classList.add('hidden');
+
+        // 发送 AJAX 请求
+        fetch('{{ url_for("user.send_invitation", user_id=user.id) }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: 'csrf_token={{ csrf_token() }}'
+        })
+        .then(response => {
+            if (response.redirected || response.ok) {
+                return { success: true };
+            }
+            return response.json().catch(() => ({ success: false }));
+        })
+        .then(data => {
+            // 恢复按钮状态
+            btn.disabled = false;
+            icon.classList.remove('animate-spin');
+            icon.textContent = 'mail';
+            btnText.textContent = '{{ _("发送邀请邮件") }}';
+
+            // 显示成功通知
+            notification.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'dark:bg-red-900/30', 'dark:text-red-300');
+            notification.classList.add('bg-green-100', 'text-green-700', 'dark:bg-green-900/30', 'dark:text-green-300');
+            notificationIcon.textContent = 'check_circle';
+            notificationText.textContent = '{{ _("邀请邮件已发送至用户邮箱") }}';
+
+            // 5秒后隐藏通知，恢复提示
+            setTimeout(() => {
+                notification.classList.add('hidden');
+                hint.classList.remove('hidden');
+            }, 5000);
+        })
+        .catch(error => {
+            console.error('发送邀请邮件失败:', error);
+
+            // 恢复按钮状态
+            btn.disabled = false;
+            icon.classList.remove('animate-spin');
+            icon.textContent = 'mail';
+            btnText.textContent = '{{ _("发送邀请邮件") }}';
+
+            // 显示错误通知
+            notification.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'dark:bg-green-900/30', 'dark:text-green-300');
+            notification.classList.add('bg-red-100', 'text-red-700', 'dark:bg-red-900/30', 'dark:text-red-300');
+            notificationIcon.textContent = 'error';
+            notificationText.textContent = '{{ _("发送失败，请稍后重试") }}';
+
+            // 5秒后隐藏通知，恢复提示
+            setTimeout(() => {
+                notification.classList.add('hidden');
+                hint.classList.remove('hidden');
+            }, 5000);
+        });
+    }
+    </script>
+    {% endif %}
+
+    <!-- 绩效看板脚本 -->
+    {% if can_view_performance %}
+    {{ render_performance_dashboard_script() }}
+    {% endif %}
+
+    <!-- 薪资看板脚本 -->
+    {% if can_view_salary %}
+    <script>
+    function salaryDashboard() {
+        return {
+            loading: false,
+            hasData: false,
+            selectedYear: new Date().getFullYear(),
+            availableYears: (() => {
+                // 动态生成年份列表：前1年 + 当前年 + 后1年
+                const currentYear = new Date().getFullYear();
+                return [currentYear - 1, currentYear, currentYear + 1];
+            })(),
+            salaryConfig: {},
+            overview: {
+                annual_target: 0,
+                annual_achievement: 0,
+                personal_completion_rate: 0,
+                comprehensive_completion_rate: 0
+            },
+            breakdown: {
+                annual_base_salary: 0,
+                management_allowance: 0,
+                performance_salary: 0,
+                personal_commission: 0,
+                team_commission_share: 0,
+                annual_bonus: 0,
+                annual_total_income: 0,
+                base_salary_formula: '',
+                management_formula: '',
+                performance_formula: '',
+                commission_formula: '',
+                bonus_formula: ''
+            },
+            quarterlyData: [],
+            teamShareDetails: [],
+            totalTeamShare: 0,
+            monthlyData: [],
+            currentMonths: [],
+
+            init() {
+                // 从共享 store 同步年份
+                this.selectedYear = Alpine.store('detailYear').year;
+                // 监听年份变更事件
+                window.addEventListener('detail-year-changed', (e) => {
+                    if (this.selectedYear !== e.detail.year) {
+                        this.selectedYear = e.detail.year;
+                        this.updateCurrentMonths();
+                        if (this.hasData) {
+                            this.loadData();
+                        }
+                    }
+                });
+                // 计算当前月份
+                this.updateCurrentMonths();
+                // 初始加载由标签页切换触发
+            },
+
+            // 年份变更 - 同步到共享 store
+            onYearChange() {
+                // 更新共享 store（会触发绩效目标组件同步）
+                Alpine.store('detailYear').setYear(this.selectedYear);
+                this.loadData();
+            },
+
+            // 更新当前显示的月份列
+            updateCurrentMonths() {
+                const now = new Date();
+                const currentYear = now.getFullYear();
+                const currentMonth = now.getMonth() + 1;
+
+                if (this.selectedYear < currentYear) {
+                    // 历史年份显示全年12个月
+                    this.currentMonths = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+                } else if (this.selectedYear === currentYear) {
+                    // 当前年份只显示到当前月
+                    this.currentMonths = Array.from({length: currentMonth}, (_, i) => i + 1);
+                } else {
+                    // 未来年份不显示月度
+                    this.currentMonths = [];
+                }
+            },
+
+            // 获取指定月份的指定字段值
+            getMonthlyValue(month, field) {
+                const monthData = this.monthlyData.find(m => m.month === month);
+                return monthData ? (monthData[field] || 0) : 0;
+            },
+
+            // 获取月份数据样式类（已结算=黑色，未结算=灰色）
+            getMonthClass(month) {
+                const monthData = this.monthlyData.find(m => m.month === month);
+                if (monthData && monthData.is_snapshot && monthData.is_settled) {
+                    // 已结算 + 快照数据：黑色
+                    return 'text-slate-900 dark:text-white';
+                }
+                // 未结算或实时计算：灰色
+                return 'text-slate-500 dark:text-slate-400';
+            },
+
+            // 获取月份数据来源提示
+            getMonthTooltip(month) {
+                const monthData = this.monthlyData.find(m => m.month === month);
+                if (!monthData) return '';
+                if (monthData.is_snapshot) {
+                    const statusText = {
+                        'confirmed': '已确认',
+                        'published': '已发布',
+                        'draft': '草稿'
+                    };
+                    return `快照数据 (${statusText[monthData.snapshot_status] || '未知'})`;
+                }
+                return '实时计算';
+            },
+
+            async loadData() {
+                this.loading = true;
+                this.updateCurrentMonths();  // 更新月份列
+                try {
+                    const response = await fetch(`/api/v1/user/{{ user.id }}/salary?year=${this.selectedYear}`, {
+                        headers: {
+                            'X-CSRFToken': '{{ csrf_token() }}'
+                        }
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        // 正确访问嵌套的data对象
+                        const result = data.data || {};
+                        this.hasData = result.has_config;
+                        this.salaryConfig = result.config || {};
+                        this.overview = result.overview || this.overview;
+                        this.breakdown = result.breakdown || this.breakdown;
+                        this.quarterlyData = result.quarterly_data || [];
+                        this.teamShareDetails = result.team_share_details || [];
+                        this.totalTeamShare = this.teamShareDetails.reduce((sum, s) => sum + (s.share_amount || 0), 0);
+                        this.monthlyData = result.monthly_data || [];
+                    } else {
+                        this.hasData = false;
+                    }
+                } catch (error) {
+                    console.error('加载薪资数据失败:', error);
+                    this.hasData = false;
+                }
+                this.loading = false;
+            },
+
+            formatNumber(value) {
+                if (value === null || value === undefined) return '0.00';
+                return parseFloat(value).toFixed(2);
+            },
+
+            formatPercent(value) {
+                if (value === null || value === undefined) return '0.00';
+                return (parseFloat(value) * 100).toFixed(2);
+            },
+
+            getCompletionRateColor(rate) {
+                const pct = parseFloat(rate) * 100;
+                if (pct >= 100) return 'text-green-600 dark:text-green-400';
+                if (pct >= 90) return 'text-blue-600 dark:text-blue-400';
+                if (pct >= 80) return 'text-yellow-600 dark:text-yellow-400';
+                return 'text-red-600 dark:text-red-400';
+            }
+        };
+    }
+
+    // 监听标签页切换，懒加载薪资数据
+    document.addEventListener('DOMContentLoaded', function() {
+        const salaryPanel = document.getElementById('tab-salary');
+        if (salaryPanel) {
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                        if (!salaryPanel.classList.contains('hidden')) {
+                            // 标签页显示时加载数据
+                            const alpineData = Alpine.$data(salaryPanel);
+                            if (alpineData && !alpineData.hasData && !alpineData.loading) {
+                                alpineData.loadData();
+                            }
+                        }
+                    }
+                });
+            });
+            observer.observe(salaryPanel, { attributes: true });
+
+            // 初始检查：如果标签页已经可见，立即加载数据
+            if (!salaryPanel.classList.contains('hidden')) {
+                // 延迟执行，确保 Alpine.js 已初始化
+                setTimeout(function() {
+                    const alpineData = Alpine.$data(salaryPanel);
+                    if (alpineData && !alpineData.hasData && !alpineData.loading) {
+                        alpineData.loadData();
+                    }
+                }, 100);
+            }
+        }
+    });
+    </script>
+    {% endif %}
+</body>
+
+</html>

@@ -34,9 +34,9 @@
     {'key': 'product_mn', 'label': _('产品编码'), 'type': 'text', 'readonly': true, 'width': '100px'}
 ] %}
 
-{# 货币符号 #}
-{% set currency_symbol = '¥' if (quotation.currency or 'CNY') == 'CNY' else '$' %}
-{% set default_currency = quotation.currency or 'CNY' %}
+{# 货币符号 - 使用报价单货币或全局默认 #}
+{% set currency_symbol = currency_config.symbol if not quotation.currency or quotation.currency == currency_config.default_currency else ('$' if quotation.currency == 'USD' else currency_config.symbol) %}
+{% set default_currency = quotation.currency or currency_config.default_currency %}
 
 {# 锁定状态徽章 #}
 {% macro render_tw_lock_badge(is_locked) %}
@@ -66,6 +66,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
         tailwind.config = {

@@ -1,0 +1,325 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_detail_layout.html' import tw_detail_layout with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles with context %}
+{% from 'components/tw_info_card.html' import tw_info_card %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ template.model }} - {{ _('规格模板详情') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark">
+    {% call(slot) render_tw_layout(active_page='spec_template', show_search=false) %}
+    {% if slot == 'content' %}
+        <!-- 主内容 -->
+        {% call(page_slot) tw_detail_layout(
+            breadcrumb_items=[
+                {'label': _('规格模板管理'), 'url': url_for('spec_template.list_templates')},
+                {'label': template.model}
+            ],
+            title=template.model,
+            subtitle=template.name if template.name and template.name != 'None' else '',
+            back_url=url_for('spec_template.list_templates'),
+            status_badges='<span class="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">' ~ template.version ~ '</span>',
+            show_status_label=false,
+            edit_btn={
+                'show': has_permission('rd_product', 'edit'),
+                'label': _('编辑模板'),
+                'onclick': "window.location.href='" ~ url_for('spec_template.edit_template_page', template_id=template.id) ~ "'"
+            },
+            extra_actions=[
+                {
+                    'show': true,
+                    'label': _('规格配置矩阵'),
+                    'onclick': "window.location.href='" ~ url_for('spec_template.spec_config_matrix_page', template_id=template.id) ~ "'",
+                    'icon': 'grid_view',
+                    'color': 'primary'
+                },
+                {
+                    'show': true,
+                    'label': _('配置版本'),
+                    'onclick': "window.location.href='" ~ url_for('spec_template.configurations_page', template_id=template.id) ~ "'",
+                    'icon': 'inventory_2',
+                    'color': 'slate'
+                }
+            ],
+            has_sidebar=false
+        ) %}
+            {% if page_slot == 'content' %}
+            <div x-data="{ activeCategory: {{ categories[0].id if categories else 'null' }} }">
+                <!-- 基本信息卡片 -->
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 mb-6">
+                    <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">{{ _('基本信息') }}</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{{ _('产品名称') }}</label>
+                            <p class="text-slate-900 dark:text-white font-medium">{{ template.subcategory.name if template.subcategory else '-' }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{{ _('产品型号') }}</label>
+                            <p class="text-slate-900 dark:text-white">{{ template.model }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{{ _('版本号') }}</label>
+                            <span class="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                {{ template.version }}
+                            </span>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{{ _('创建时间') }}</label>
+                            <p class="text-slate-900 dark:text-white">{{ template.created_at.strftime('%Y-%m-%d %H:%M') if template.created_at else '-' }}</p>
+                        </div>
+                    </div>
+                    {% if template.description and template.description != 'None' %}
+                    <div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                        <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{{ _('描述') }}</label>
+                        <p class="text-slate-700 dark:text-slate-300">{{ template.description }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- 统计信息 -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+                        <div class="flex items-center gap-4">
+                            <div class="flex-shrink-0 w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-blue-600 dark:text-blue-400" style="font-size: 24px;">tune</span>
+                            </div>
+                            <div>
+                                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ template.items|length }}</p>
+                                <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('规格项总数') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+                        <div class="flex items-center gap-4">
+                            <div class="flex-shrink-0 w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-green-600 dark:text-green-400" style="font-size: 24px;">inventory_2</span>
+                            </div>
+                            <div>
+                                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ template.configurations|length }}</p>
+                                <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('配置版本数') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+                        <div class="flex items-center gap-4">
+                            <div class="flex-shrink-0 w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-purple-600 dark:text-purple-400" style="font-size: 24px;">check_circle</span>
+                            </div>
+                            <div>
+                                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ template.items|selectattr('is_required')|list|length }}</p>
+                                <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('必填项数') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 规格项列表 -->
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <!-- 分类标签页 -->
+                    <div class="border-b border-slate-200 dark:border-slate-700">
+                        <nav class="flex overflow-x-auto px-4 -mb-px" aria-label="Tabs">
+                            {% for category in categories %}
+                            {% set cat_items = items_by_category.get(category.id, []) %}
+                            <button type="button"
+                                    @click="activeCategory = {{ category.id }}"
+                                    :class="activeCategory === {{ category.id }} ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-300'"
+                                    class="whitespace-nowrap py-4 px-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2">
+                                <span>{{ category.name }}</span>
+                                {% if cat_items %}
+                                <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-medium rounded-full"
+                                      :class="activeCategory === {{ category.id }} ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400'">
+                                    {{ cat_items|length }}
+                                </span>
+                                {% endif %}
+                            </button>
+                            {% endfor %}
+                        </nav>
+                    </div>
+
+                    <!-- 规格项内容 -->
+                    <div class="p-6">
+                        {% for category in categories %}
+                        {% set cat_items = items_by_category.get(category.id, []) %}
+                        <div x-show="activeCategory === {{ category.id }}" x-cloak>
+                            {% if cat_items %}
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                                    <thead>
+                                        <tr class="bg-slate-50 dark:bg-slate-800/50">
+                                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                                {{ _('规格名称') }}
+                                            </th>
+                                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                                {{ _('单位') }}
+                                            </th>
+                                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                                {{ _('通用值') }}
+                                            </th>
+                                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                                {{ _('测试条件') }}
+                                            </th>
+                                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                                {{ _('测试方法') }}
+                                            </th>
+                                            <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                                {{ _('必填') }}
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
+                                        {% for item in cat_items %}
+                                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                            <td class="px-4 py-4">
+                                                <div>
+                                                    <p class="text-sm font-medium text-slate-900 dark:text-white">{{ item.definition.name }}</p>
+                                                    {% if item.definition.name_en %}
+                                                    <p class="text-xs text-slate-500 dark:text-slate-400">{{ item.definition.name_en }}</p>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                            <td class="px-4 py-4 text-sm text-slate-600 dark:text-slate-300">
+                                                {{ item.definition.unit or '-' }}
+                                            </td>
+                                            <td class="px-4 py-4 text-sm text-slate-900 dark:text-white">
+                                                {{ item.general_value or '-' }}
+                                            </td>
+                                            <td class="px-4 py-4 text-sm text-slate-600 dark:text-slate-300">
+                                                {% if item.test_condition %}
+                                                    {{ item.test_condition.name }}
+                                                {% elif item.test_condition_text %}
+                                                    {{ item.test_condition_text }}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                            <td class="px-4 py-4 text-sm text-slate-600 dark:text-slate-300">
+                                                {% if item.test_method %}
+                                                    {{ item.test_method.name }}
+                                                {% elif item.test_method_text %}
+                                                    {{ item.test_method_text }}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                            <td class="px-4 py-4 text-center">
+                                                {% if item.is_required %}
+                                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30">
+                                                    <span class="material-symbols-outlined text-green-600 dark:text-green-400" style="font-size: 16px;">check</span>
+                                                </span>
+                                                {% else %}
+                                                <span class="text-slate-300 dark:text-slate-600">—</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="text-center py-12 text-slate-400">
+                                <span class="material-symbols-outlined mb-2" style="font-size: 48px;">inventory_2</span>
+                                <p>{{ _('该分类下暂无规格项') }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- 配置版本列表 -->
+                {% if template.configurations %}
+                <div class="mt-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                        <h2 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('配置版本') }}</h2>
+                    </div>
+                    <div class="p-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {% for config in template.configurations %}
+                            <div class="border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-md transition-shadow">
+                                <div class="flex items-start justify-between mb-3">
+                                    <div>
+                                        <p class="font-medium text-slate-900 dark:text-white">{{ config.config_code }}</p>
+                                        {% if config.region %}
+                                        <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 mt-1">
+                                            {{ config.region }}{% if config.region_name %} - {{ config.region_name }}{% endif %}
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                    {% set is_chinese = session.get('language', 'zh') == 'zh' %}
+                                    {% set status_badges = {
+                                        'development': {'bg': 'bg-slate-100 dark:bg-slate-700', 'text': 'text-slate-700 dark:text-slate-300', 'label': '研发中' if is_chinese else 'Development'},
+                                        'prototype': {'bg': 'bg-yellow-100 dark:bg-yellow-900/30', 'text': 'text-yellow-700 dark:text-yellow-400', 'label': '研发样机' if is_chinese else 'Prototype'},
+                                        'pilot': {'bg': 'bg-blue-100 dark:bg-blue-900/30', 'text': 'text-blue-700 dark:text-blue-400', 'label': '小批量' if is_chinese else 'Pilot'},
+                                        'production': {'bg': 'bg-green-100 dark:bg-green-900/30', 'text': 'text-green-700 dark:text-green-400', 'label': '可生产' if is_chinese else 'Production'},
+                                        'discontinued': {'bg': 'bg-red-100 dark:bg-red-900/30', 'text': 'text-red-700 dark:text-red-400', 'label': '停产' if is_chinese else 'Discontinued'}
+                                    } %}
+                                    {% set badge = status_badges.get(config.status, status_badges.development) %}
+                                    <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full {{ badge.bg }} {{ badge.text }}">
+                                        {{ badge.label }}
+                                    </span>
+                                </div>
+                                {% if config.mn_code %}
+                                <p class="text-sm text-slate-600 dark:text-slate-400">MN: {{ config.mn_code }}</p>
+                                {% endif %}
+                                {% if config.power_spec %}
+                                <p class="text-sm text-slate-500 dark:text-slate-500">{{ _('供电') }}: {{ config.power_spec }}</p>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 布局脚本 -->
+    {{ render_tw_layout_script() }}
+</body>
+</html>

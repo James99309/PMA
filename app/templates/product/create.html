@@ -126,18 +126,10 @@
                 <div class="btn-toolbar justify-content-end" role="toolbar">
                     {% if product %}
                         {# 编辑模式：返回产品详情页 #}
-                        {% if product_type == 'research' %}
-                            {{ render_button('返回', href=url_for('rd_product.product_detail', id=product.id, tw=1), color='secondary', icon='fas fa-arrow-left') }}
-                        {% else %}
-                            {{ render_button('返回', href=url_for('product.view_product_detail', id=product.id, tw=1), color='secondary', icon='fas fa-arrow-left') }}
-                        {% endif %}
+                        {{ render_button('返回', href=url_for('product.view_product_detail', id=product.id, tw=1), color='secondary', icon='fas fa-arrow-left') }}
                     {% else %}
                         {# 创建模式：返回列表页 #}
-                        {% if product_type == 'research' %}
-                            {{ render_button('返回列表', href=url_for('rd_product.index'), color='secondary', icon='fas fa-arrow-left') }}
-                        {% else %}
-                            {{ render_button('返回列表', href=url_for('product.product_list'), color='secondary', icon='fas fa-arrow-left') }}
-                        {% endif %}
+                        {{ render_button('返回列表', href=url_for('product.product_list'), color='secondary', icon='fas fa-arrow-left') }}
                     {% endif %}
                     {{ render_button('保存产品', onclick='submitProductForm();', color='primary', icon='fas fa-save', attrs='id="submit-btn"') }}
                 </div>
@@ -151,7 +143,7 @@
             产品信息
         </div>
         <div class="card-body">
-            <form id="productForm" method="POST" action="{% if product %}{% if product_type == 'research' %}{{ url_for('rd_product.update_product', id=product.id) }}{% else %}{{ url_for('product.update_product', id=product.id) }}{% endif %}{% else %}{{ url_for('rd_product.save' if product_type == 'research' else 'product.create_product') }}{% endif %}">
+            <form id="productForm" method="POST" action="{% if product %}{{ url_for('product.update_product', id=product.id) }}{% else %}{{ url_for('product.create_product') }}{% endif %}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <!-- 产品类型：research=研发产品, standard=标准产品 -->
                 <input type="hidden" name="product_type" value="{{ product_type if product_type else 'standard' }}">
@@ -557,7 +549,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (categoryId) {
             // 发送AJAX请求获取子分类数据
-            fetch(`/product-management/api/category/${categoryId}/subcategories`)
+            fetch(`/product/api/category/${categoryId}/subcategories`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
@@ -686,7 +678,7 @@ document.addEventListener('DOMContentLoaded', function() {
         modelDropdown.style.display = 'block';
 
         // 调用API获取型号列表
-        fetch(`/product-management/api/subcategory/${subcategoryId}/models`)
+        fetch(`/product/api/subcategory/${subcategoryId}/models`)
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -803,19 +795,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 页面加载时初始化单位和品牌下拉
-    loadDatalist('unitList', '/product-management/api/units', 'units');
+    loadDatalist('unitList', '/product/api/units', 'units');
     loadDatalist('brandList', '/api/products/brands', 'brands');
 
     // 加载产品名称选项（子分类变化时调用）
     function loadProductNames(subcategoryId) {
-        loadDatalist('productNameList', `/product-management/api/subcategory/${subcategoryId}/product-names`, 'names');
+        loadDatalist('productNameList', `/product/api/subcategory/${subcategoryId}/product-names`, 'names');
     }
 
     // 加载规格字段
     function loadSpecFields(subcategoryId) {
         Promise.all([
-            fetch(`/product-management/api/subcategory/${subcategoryId}/spec-fields`),
-            fetch(`/product-management/api/subcategory/${subcategoryId}/spec-structure`)
+            fetch(`/product/api/subcategory/${subcategoryId}/spec-fields`),
+            fetch(`/product/api/subcategory/${subcategoryId}/spec-structure`)
         ])
         .then(responses => Promise.all(responses.map(r => r.json())))
         .then(([currentData, structureData]) => {
@@ -1492,7 +1484,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             // 检查编码是否已存在
-            fetch('/product-management/api/check-mn-code', {
+            fetch('/product/api/check-mn-code', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1604,7 +1596,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // function loadRegionOptions() {
     //     const regionSelect = document.getElementById('region_id');
     //
-    //     fetch('/product-management/api/region-options')
+    //     fetch('/product/api/region-options')
     //         .then(response => response.json())
     //         .then(data => {
     //             if (data.regions && data.regions.length > 0) {
@@ -1862,10 +1854,10 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         console.log('[MN检查调试] 是否有规格编码:', hasSpecCodes);
 
-        console.log('[MN检查调试] 准备发送API请求到 /product-management/api/check-mn-code');
+        console.log('[MN检查调试] 准备发送API请求到 /product/api/check-mn-code');
 
         // 调用API检查重复
-        fetch('/product-management/api/check-mn-code', {
+        fetch('/product/api/check-mn-code', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

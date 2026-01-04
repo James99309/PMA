@@ -1,5 +1,6 @@
 from flask import current_app
 from flask_login import current_user
+from config import Config
 from app import db
 from app.models.approval import (
     ApprovalProcessTemplate, 
@@ -3704,7 +3705,7 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
                 custom_context = {
                     'business_number': expense.expense_number,
                     'object_title': expense.title,
-                    'total_amount': f'¥{expense.total_amount:.2f}'
+                    'total_amount': f'{Config.CURRENCY_SYMBOL}{expense.total_amount:.2f}'
                 }
 
             # 通知提交人流程已完成
@@ -4204,7 +4205,7 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
                 custom_context = {
                     'business_number': expense.expense_number,
                     'object_title': expense.title,
-                    'total_amount': f'¥{expense.total_amount:.2f}'
+                    'total_amount': f'{Config.CURRENCY_SYMBOL}{expense.total_amount:.2f}'
                 }
 
             # 通知提交人流程已完成

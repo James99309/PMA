@@ -14,8 +14,8 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
 {% from 'components/tw_approval_flow.html' import render_tw_approval_flow_card, render_tw_approval_flow_script, render_tw_approval_modals %}
 {% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
 
-{# 货币符号 #}
-{% set currency_symbol = '¥' if (expense.currency or 'CNY') == 'CNY' else '$' %}
+{# 货币符号 - 使用报销单货币或全局默认 #}
+{% set currency_symbol = currency_config.symbol if not expense.currency or expense.currency == currency_config.default_currency else ('$' if expense.currency == 'USD' else currency_config.symbol) %}
 
 {# 锁定状态徽章 #}
 {% macro render_tw_lock_badge(is_locked) %}
@@ -48,6 +48,7 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
         rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
         tailwind.config = {
@@ -461,7 +462,7 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
                     detail.document_count or 0 }}</td>
                 <td class="p-3 whitespace-nowrap text-sm text-right text-slate-700 dark:text-slate-300">
                     {%- set detail_symbol = {'CNY': '¥', 'USD': '$', 'HKD': 'HK$', 'TWD': 'NT$', 'SGD': 'S$', 'MYR':
-                    'RM', 'IDR': 'Rp', 'THB': '฿', 'VND': '₫'}.get(detail.currency, '¥') -%}
+                    'RM', 'IDR': 'Rp', 'THB': '฿', 'VND': '₫'}.get(detail.currency, currency_config.symbol) -%}
                     {{ detail_symbol }}{{ "{:,.2f}".format(detail.invoice_amount) if detail.invoice_amount else '0.00'
                     }}
                 </td>

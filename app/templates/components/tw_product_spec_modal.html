@@ -1880,7 +1880,7 @@ const ProductSpecModal = (function() {
         console.log(`🔧 加载产品配置: product_id=${productId}`);
 
         try {
-            const response = await fetch(`/product-management/api/product/${productId}/relations`);
+            const response = await fetch(`/api/product/${productId}/relations`);
             const result = await response.json();
 
             if (result.success) {

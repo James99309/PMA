@@ -1,0 +1,154 @@
+{#
+  公共厂商用户选择器组件
+
+  支持单选和多选两种模式，可选择显示年份选择器。
+
+  参数：
+    - multi_select: bool (默认 false) - 是否支持多选
+    - show_year_selector: bool (默认 false) - 是否显示年份选择器
+    - title: string (默认 '厂商用户列表') - 标题文本
+    - container_id: string (默认 'vendorUserSelector') - 容器ID
+
+  Alpine.js 数据要求：
+
+  公共数据：
+    - vendorUsers: [] 用户列表
+    - loadingUsers: bool 加载状态
+    - searchQuery: '' 搜索词
+    - filteredUsers (getter) 过滤后的用户列表
+    - highlightMatch(text) 高亮匹配文本
+    - onSearchInput() 搜索输入处理
+    - clearSearch() 清除搜索
+    - isSearching: bool 搜索中状态
+
+  单选模式 (multi_select=false):
+    - selectedUserId: number|null
+    - selectUser(userId)
+    - isUserMatched(user) 可选
+
+  多选模式 (multi_select=true):
+    - selectedUserIds: number[]
+    - toggleUserSelection(userId)
+    - isUserSelected(userId)
+
+  年份选择器 (show_year_selector=true):
+    - selectedYear: number
+    - availableYears: number[]
+    - onYearChange()
+#}
+
+{% macro render_tw_vendor_user_selector(
+    multi_select=false,
+    show_year_selector=false,
+    title='厂商用户列表',
+    container_id='vendorUserSelector'
+) %}
+<div id="{{ container_id }}" class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+    <!-- 搜索框 + 年份选择器 -->
+    <div class="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+        <div class="flex items-center gap-2">
+            <!-- 搜索框 -->
+            <div class="relative flex-1">
+                <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-base">search</span>
+                <input type="text"
+                       x-model="searchQuery"
+                       @input="onSearchInput()"
+                       placeholder="{{ _('搜索用户...') }}"
+                       class="w-full pl-8 pr-8 py-1.5 text-sm bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-md text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary">
+                <button type="button"
+                        x-show="searchQuery"
+                        @click="clearSearch()"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                    <span class="material-symbols-outlined text-base">close</span>
+                </button>
+            </div>
+            {% if show_year_selector %}
+            <!-- 年份选择器 -->
+            <select x-model.number="selectedYear"
+                    @change="onYearChange()"
+                    class="text-xs px-2 py-1.5 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-md text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-primary flex-shrink-0">
+                <template x-for="year in availableYears" :key="year">
+                    <option :value="year" :selected="year === selectedYear" x-text="year + '{{ _('年') }}'"></option>
+                </template>
+            </select>
+            {% endif %}
+        </div>
+        {% if multi_select %}
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">
+            {{ _('已选择') }} <strong x-text="selectedUserIds.length" class="text-primary"></strong> {{ _('位用户') }}
+        </p>
+        {% endif %}
+        <div x-show="searchQuery && !isSearching && vendorUsers.length > 0" class="mt-1.5 text-xs text-slate-500">
+            {{ _('找到') }} <strong x-text="filteredUsers.length" class="text-primary"></strong> {{ _('个匹配用户') }}
+        </div>
+    </div>
+
+    <!-- 加载中状态 -->
+    <div x-show="loadingUsers" class="px-4 py-8 text-center text-slate-500 text-sm">
+        <span class="material-symbols-outlined animate-spin text-2xl block mb-2">progress_activity</span>
+        {{ _('加载中...') }}
+    </div>
+
+    <!-- 用户列表 -->
+    <div x-show="!loadingUsers" class="divide-y divide-slate-100 dark:divide-slate-700 max-h-[600px] overflow-y-auto">
+        <template x-for="user in filteredUsers" :key="user.id">
+            {% if multi_select %}
+            <!-- 多选模式：复选框 -->
+            <div class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors"
+                 :class="{'bg-primary/10': isUserSelected(user.id)}"
+                 @click="toggleUserSelection(user.id)">
+                <input type="checkbox"
+                       :checked="isUserSelected(user.id)"
+                       @click.stop
+                       @change="toggleUserSelection(user.id)"
+                       class="w-4 h-4 text-primary bg-slate-50 dark:bg-slate-700 border-slate-300 dark:border-slate-600 rounded focus:ring-primary focus:ring-offset-0">
+                <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <span class="material-symbols-outlined text-primary text-sm">person</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300 truncate"
+                       x-html="highlightMatch(user.real_name || user.username)"></p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 truncate" x-text="user.department || user.role || ''"></p>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span x-show="user.has_config" class="w-2 h-2 rounded-full bg-green-500" title="{{ _('已配置') }}"></span>
+                </div>
+            </div>
+            {% else %}
+            <!-- 单选模式 -->
+            <div class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors"
+                 :class="{'bg-primary/10 border-l-2 border-primary': selectedUserId === user.id, 'bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-500': typeof isUserMatched === 'function' && isUserMatched(user) && selectedUserId !== user.id}"
+                 @click="selectUser(user.id)">
+                <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <span class="material-symbols-outlined text-primary text-sm">person</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300 truncate"
+                       x-html="highlightMatch(user.real_name || user.username)"></p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 truncate" x-text="user.department || user.role || ''"></p>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span x-show="user.has_config" class="w-2 h-2 rounded-full bg-green-500" title="{{ _('已配置') }}"></span>
+                    <template x-if="typeof isUserMatched === 'function'">
+                        <span x-show="isUserMatched(user)" class="text-xs text-blue-600 dark:text-blue-400">
+                            <span class="material-symbols-outlined text-sm">arrow_forward</span>
+                        </span>
+                    </template>
+                </div>
+            </div>
+            {% endif %}
+        </template>
+
+        <!-- 无用户 -->
+        <div x-show="!loadingUsers && filteredUsers.length === 0" class="px-4 py-8 text-center text-slate-400 text-sm">
+            <span class="material-symbols-outlined text-3xl block mb-2">person_off</span>
+            <span x-text="searchQuery ? '{{ _('未找到匹配的用户') }}' : '{{ _('暂无厂商用户') }}'"></span>
+        </div>
+    </div>
+
+    <!-- 用户统计 -->
+    <div x-show="!loadingUsers && vendorUsers.length > 0" class="px-4 py-2 bg-slate-50 dark:bg-slate-700/50 border-t border-slate-200 dark:border-slate-700">
+        <span class="text-xs text-slate-500">{{ _('共') }} <strong x-text="vendorUsers.length" class="text-primary"></strong> {{ _('位用户') }}</span>
+    </div>
+</div>
+{% endmacro %}

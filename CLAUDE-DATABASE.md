@@ -402,6 +402,34 @@ OVS升级备份文件格式：
 - **软删除**：使用 `is_deleted` 布尔字段，默认 `False`
 - **创建/更新时间**：`created_at`, `updated_at` 使用 `datetime.utcnow()`
 
+### **数据库类型与单位显示规范**
+
+根据数据库类型决定金额和数量的显示单位，**优先于用户语言设置**：
+
+| 数据库类型 | 检测方式 | 金额单位 | 数量单位 | 语言 |
+|-----------|---------|---------|---------|------|
+| **SP8D** | `Config.IS_SP8D` | 万元 | 个 | 固定中文 |
+| **OVS** | `Config.IS_OVS` | M | pcs | 固定英文 |
+| **本地** | 其他情况 | 万元/M | 个/pcs | 根据用户语言 |
+
+**实现位置**：`app/views/performance_config.py` - `get_performance_unit_config()`
+
+```python
+from config import Config
+
+if Config.IS_SP8D:
+    lang = 'zh'        # SP8D 固定中文，忽略用户语言设置
+elif Config.IS_OVS:
+    lang = 'en'        # OVS 固定英文，忽略用户语言设置
+else:
+    lang = get_current_language()  # 本地环境根据用户语言
+```
+
+**设计原因**：
+- SP8D 是中国团队使用，统一中文单位避免混淆
+- OVS 是海外团队使用，统一英文单位
+- 本地开发环境可以切换语言测试
+
 ### **查询规范**
 ```python
 # 正确 ✅ - 排除已删除记录

@@ -1,0 +1,263 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_stat_card.html' import tw_stat_card, tw_stat_cards_grid with context %}
+{% from 'components/tw_filter_bar.html' import render_tw_filter_bar, render_tw_filter_bar_script with context %}
+{% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles,
+render_tw_data_table_script, render_empty_row with context %}
+{% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_user_status_badge, render_tw_user_role_badge with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('账户管理') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        [x-cloak] {
+            display: none !important;
+        }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+    <!-- 数据表格样式 -->
+    {{ render_tw_data_table_styles() }}
+</head>
+
+<body class="bg-background-light dark:bg-background-dark">
+    {% call(slot) render_tw_layout(active_page='user_list', show_search=true,
+    search_value=list_config.filter.search_field.value if list_config.filter.search_field else '') %}
+    {% if slot == 'content' %}
+    <!-- 主内容 - 使用固定标题页面组件 -->
+    {% call(page_slot) render_tw_fixed_page() %}
+    {% if page_slot == 'header' %}
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('账户管理') }}</h1>
+        <div class="flex flex-wrap items-center gap-2">
+            {% if has_permission('user_management', 'create') %}
+            <a href="{{ url_for('user.create_user') }}"
+                class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
+                <span class="material-symbols-outlined" style="font-size: 20px;">person_add</span>
+                <span>{{ _('新增账户') }}</span>
+            </a>
+            {% endif %}
+        </div>
+    {% elif page_slot == 'content' %}
+        <!-- 统计卡片 -->
+        {% set stats = list_config.stats.cards %}
+        {% call tw_stat_cards_grid(cols=4) %}
+        {% for card in stats %}
+        {% set variant_map = {'primary': 'default', 'success': 'success', 'info': 'info', 'warning': 'warning'} %}
+        {% set icon_map = {
+            'fas fa-users': 'group',
+            'fas fa-user-check': 'how_to_reg',
+            'fas fa-user-times': 'person_off',
+            'fas fa-user-shield': 'admin_panel_settings'
+        } %}
+        {{ tw_stat_card(
+            title=card.title,
+            value=card.value,
+            unit=card.unit,
+            icon=icon_map.get(card.icon, 'analytics'),
+            variant=variant_map.get(card.color, 'default')
+        ) }}
+        {% endfor %}
+        {% endcall %}
+
+        <!-- 筛选区域 -->
+        {{ render_tw_filter_bar(
+            form_id='filterForm',
+            action_url=url_for('user.list_users'),
+            filter_fields=list_config.filter.filter_fields,
+            search_value=list_config.filter.search_field.value if list_config.filter.search_field else '',
+            cols=4
+        ) }}
+        <!-- 在筛选表单中添加隐藏的 tw 参数，确保筛选后保持在 Tailwind 模板 -->
+        <script>
+            (function() {
+                var form = document.getElementById('filterForm');
+                if (form && !form.querySelector('input[name="tw"]')) {
+                    var input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'tw';
+                    input.value = '1';
+                    form.appendChild(input);
+                }
+            })();
+        </script>
+
+        <!-- 表格标题栏 (sticky) -->
+        <div class="sticky top-0 z-20 -mx-6 lg:-mx-8 px-6 lg:px-8">
+            <div class="flex items-center gap-4 bg-white dark:bg-slate-800 rounded-t-xl border border-b-0 border-slate-200 dark:border-slate-700 p-4">
+                <h3 class="text-slate-900 dark:text-white text-base font-medium">{{ _('用户列表') }}</h3>
+                <span class="text-slate-500 dark:text-slate-400 text-sm ml-auto">
+                    <span id="userTableCount">{{ total_count }}</span> {{ _('条记录') }}
+                </span>
+            </div>
+        </div>
+
+        <!-- 数据表格 -->
+        {% call render_tw_data_table(
+            table_id='userTable',
+            title='',
+            total_count=total_count,
+            columns=list_config.table.columns,
+            sort_field=request.args.get('sort', 'updated_at'),
+            sort_order=request.args.get('order', 'desc'),
+            max_height='calc(100vh - 280px)',
+            min_height='400px',
+            show_loading=true,
+            min_width='1000px',
+            no_top_radius=true
+        ) %}
+        {% for user in items %}
+        <tr class="table-row-hover transition-colors">
+            <!-- ID -->
+            <td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                {{ user.id }}
+            </td>
+            <!-- 真实姓名（带链接） -->
+            <td class="p-3 whitespace-nowrap">
+                <a href="{{ url_for('user.user_detail', user_id=user.id) }}{% if request.args.get('tw') %}?tw=1{% endif %}"
+                    class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+                    title="{{ user.real_name or user.username }}">
+                    {{ user.real_name or '-' }}
+                </a>
+            </td>
+            <!-- 用户名 -->
+            <td class="p-3 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
+                {{ user.username }}
+            </td>
+            <!-- 状态 -->
+            <td class="p-3 whitespace-nowrap" style="min-width: 90px;">
+                {{ render_tw_user_status_badge(user.is_active) }}
+            </td>
+            <!-- 邮箱 -->
+            <td class="p-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400 font-mono">
+                {{ user.email or '-' }}
+            </td>
+            <!-- 企业 -->
+            <td class="p-3 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300 truncate max-w-[150px]" title="{{ user.company_name or '' }}">
+                {{ user.company_name or '-' }}
+            </td>
+            <!-- 部门 -->
+            <td class="p-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
+                {{ user.department or '-' }}
+            </td>
+            <!-- 角色 -->
+            <td class="p-3 whitespace-nowrap">
+                {{ render_tw_user_role_badge(user.role, role_dict) }}
+            </td>
+            <!-- 更新时间 -->
+            <td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                {% if user.updated_at %}
+                <span data-timestamp="{{ user.updated_at }}" class="local-time">{{ user.updated_at|datetimeformat }}</span>
+                {% else %}-{% endif %}
+            </td>
+            <!-- 创建时间 -->
+            <td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                {% if user.created_at %}
+                <span data-timestamp="{{ user.created_at }}" class="local-time">{{ user.created_at|datetimeformat }}</span>
+                {% else %}-{% endif %}
+            </td>
+        </tr>
+        {% else %}
+        {{ render_empty_row(list_config.table.columns|length, _('暂无数据'), 'group_off') }}
+        {% endfor %}
+        {% endcall %}
+    {% endif %}
+    {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 布局脚本（搜索、语言、主题切换） -->
+    {{ render_tw_layout_script() }}
+
+    <!-- 筛选栏脚本 -->
+    {{ render_tw_filter_bar_script(form_id='filterForm') }}
+
+    <!-- 数据表格脚本 -->
+    {{ render_tw_data_table_script(table_id='userTable', sort_callback='sortTable') }}
+
+    <!-- 通用列表管理器 -->
+    <script src="{{ url_for('static', filename='js/tw-list-manager.js') }}"></script>
+    <script>
+        (function () {
+            // 使用通用列表管理器
+            const listManager = new TwListManager({
+                tableId: 'userTable',
+                formId: 'filterForm',
+                ajaxEndpoint: '{{ url_for("user.list_users_ajax") }}',
+                pageSize: {{ list_config.table.infinite_scroll.page_size if list_config.table.infinite_scroll else 30 }},
+                initialCount: {{ items|length }},
+                sortField: '{{ request.args.get("sort", "updated_at") }}',
+                sortOrder: '{{ request.args.get("order", "desc") }}',
+                infiniteScroll: {{ 'true' if (list_config.table.infinite_scroll and list_config.table.infinite_scroll.enabled) else 'false' }},
+                extraParams: { tw: '1' },
+                messages: {
+                    loadingMore: '{{ _("加载中...") }}',
+                    noMoreData: '{{ _("没有更多数据") }}',
+                    loadError: '{{ _("加载数据失败") }}'
+                }
+            });
+            listManager.init();
+
+            // 暴露排序函数供表格组件调用
+            window.sortTable = function (field) {
+                listManager.sortBy(field);
+            };
+
+            // 转换时间戳为本地时间
+            document.querySelectorAll('.local-time[data-timestamp]').forEach(function(el) {
+                const ts = parseFloat(el.dataset.timestamp);
+                if (!isNaN(ts)) {
+                    const date = new Date(ts * 1000);
+                    el.textContent = date.toLocaleDateString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    });
+                }
+            });
+        })();
+    </script>
+</body>
+
+</html>

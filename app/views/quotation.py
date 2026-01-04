@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_babel import gettext as _, ngettext
+from config import Config
 from app.models.quotation import Quotation, QuotationDetail
 from app.models.product_code import ProductCodeField, ProductCodeFieldOption, ProductSubcategory
 from app.models.project import Project
@@ -267,8 +268,8 @@ def list_quotations():
             amount_unit = 'M'
             amount_divisor = 1000000
         else:
-            amount_unit = '万元'
-            amount_divisor = 10000
+            amount_unit = Config.AMOUNT_UNIT
+            amount_divisor = Config.AMOUNT_DIVISOR
         default_currency = get_default_currency()
         currency_symbol = get_currency_symbol(default_currency)
 
@@ -574,8 +575,8 @@ def list_quotations():
         # 获取错误处理器需要的默认配置变量
         from app.utils.i18n import get_current_language, get_default_currency, get_currency_symbol
         current_lang = get_current_language()
-        # 中文：万元，英文：M（million）
-        amount_unit = 'M' if current_lang == 'en' else '万元'
+        # 使用系统货币配置的金额单位
+        amount_unit = Config.AMOUNT_UNIT
         default_currency = get_default_currency()
         currency_symbol = get_currency_symbol(default_currency)
 
@@ -852,7 +853,7 @@ def quotations_list_ajax():
             # 获取当前语言环境的目标货币
             from app.utils.i18n import get_current_language
             current_lang = get_current_language()
-            target_currency = 'USD' if current_lang == 'en' else 'CNY'
+            target_currency = Config.DEFAULT_CURRENCY
 
             # 货币转换函数
             def calculate_converted_amount_ajax(quotations_query):
@@ -860,7 +861,7 @@ def quotations_list_ajax():
                 total_converted = 0
                 for quotation in quotations:
                     original_amount = quotation.amount or 0
-                    original_currency = quotation.currency or 'CNY'
+                    original_currency = quotation.currency or Config.DEFAULT_CURRENCY
                     if original_amount > 0:
                         converted_amount = exchange_rate_service.convert_amount(
                             original_amount, original_currency, target_currency
@@ -953,7 +954,7 @@ def quotations_list_ajax():
 # ============================================================
 # 公共函数：处理报价单产品明细（创建和编辑共用）
 # ============================================================
-def process_quotation_details(quotation_id, details, currency='CNY'):
+def process_quotation_details(quotation_id, details, currency=Config.DEFAULT_CURRENCY):
     """
     处理报价单产品明细，包括父子关系建立
 
@@ -1186,7 +1187,7 @@ def create_quotation():
                     amount=total_amount,
                     project_stage=project_stage,  # 从项目表获取最新阶段
                     project_type=project_type,    # 从项目表获取最新类型
-                    currency=data.get('currency', 'CNY'),
+                    currency=data.get('currency', Config.DEFAULT_CURRENCY),
                     owner_id=current_user.id
                 )
                 db.session.add(quotation)
@@ -1316,7 +1317,7 @@ def create_quotation():
                             unit_price=unit_price,
                             total_price=total_price,
                             product_mn=product_mn_value,
-                            currency=data.get('currency', 'CNY')  # 添加明细货币字段
+                            currency=data.get('currency', Config.DEFAULT_CURRENCY)  # 添加明细货币字段
                         )
 
                         # 处理动态规格配置字段（用于创建研发产品）
@@ -1742,7 +1743,7 @@ def edit_quotation(id):
                     quotation.contact_id = int(contact_id) if contact_id else None
 
                 # 更新报价单货币
-                currency = request.form.get('currency', 'CNY')
+                currency = request.form.get('currency', Config.DEFAULT_CURRENCY)
                 quotation.currency = currency
                 
                 # 安全地移除事件监听器，避免重复触发
@@ -1820,7 +1821,7 @@ def edit_quotation(id):
                             })
                     
                     # 获取报价单货币，用于明细记录
-                    detail_currency = request.form.get('currency', 'CNY')
+                    detail_currency = request.form.get('currency', Config.DEFAULT_CURRENCY)
 
                     # 两阶段保存：先创建所有明细，再建立父子关系
                     detail_id_map = {}  # {row_id: detail对象}
@@ -2502,7 +2503,7 @@ def get_products():
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
                     'status': p.status,  # 添加产品状态
-                    'currency': p.currency or 'CNY'  # 添加货币信息
+                    'currency': p.currency or Config.DEFAULT_CURRENCY  # 添加货币信息
                 }
                 result.append(product_dict)
                 logger.debug(f'成功处理产品: {p.name}')
@@ -2598,7 +2599,7 @@ def get_products_by_category():
                     'product_mn': p.product_mn,
                     'spec_mn': p.spec_mn,  # 完整规格MN（用于可配置字段计算）
                     'status': p.status,  # 添加产品状态
-                    'currency': p.currency or 'CNY'  # 添加货币字段
+                    'currency': p.currency or Config.DEFAULT_CURRENCY  # 添加货币字段
                 }
                 result.append(product_dict)
                 logger.debug(f'成功处理产品: {p.name}, MN: {p.product_mn}, 货币: {p.currency}')
@@ -2654,7 +2655,7 @@ def get_product_models():
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
                     'product_mn': p.product_mn,
                     'spec_mn': p.spec_mn,  # 完整规格MN（用于可配置字段计算）
-                    'currency': p.currency or 'CNY',  # 添加货币字段
+                    'currency': p.currency or Config.DEFAULT_CURRENCY,  # 添加货币字段
                     'status': p.status  # 添加产品状态字段
                 }
                 result.append(product_dict)
@@ -2773,7 +2774,7 @@ def get_product_specs():
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
                     'product_mn': p.product_mn,
                     'spec_mn': p.spec_mn,  # 完整规格MN（用于可配置字段计算）
-                    'currency': p.currency or 'CNY',  # 添加货币字段
+                    'currency': p.currency or Config.DEFAULT_CURRENCY,  # 添加货币字段
                     'image_path': product_image,  # 添加图片路径
                     'code_specs': code_specs,  # 编码规格（默认显示）
                     'non_code_specs': non_code_specs  # 非编码规格（默认折叠）
@@ -2843,7 +2844,7 @@ def get_temp_products():
                 'reference_price': product.reference_price or 0,  # 显示参考价格
                 'product_mn': product.product_mn,  # 实际MN号
                 'mn': product.product_mn,  # 兼容性字段
-                'currency': 'CNY',
+                'currency': Config.DEFAULT_CURRENCY,
                 'status': 'temp',
                 'is_temp': True,
                 'usage_count': product.usage_count,
@@ -2918,7 +2919,7 @@ def get_temp_products_by_category_product():
                     'market_price': product.reference_price or 0,
                     'retail_price': product.reference_price or 0,
                     'reference_price': product.reference_price or 0,
-                    'currency': 'CNY',
+                    'currency': Config.DEFAULT_CURRENCY,
                     'status': 'temp',
                     'is_temp': True,
                     'usage_count': product.usage_count,
@@ -3302,7 +3303,7 @@ def view_quotation(id):
                              related_quotations=related_quotations,
                              quotation_details_json=quotation_details_json,
                              currency_options=get_currency_type_options(),
-                             default_currency=quotation.currency or 'CNY',
+                             default_currency=quotation.currency or Config.DEFAULT_CURRENCY,
                              active_pricing_order=active_pricing_order)
     except Exception as e:
         import traceback
@@ -3501,7 +3502,7 @@ def save_quotation(id):
         
         # 更新报价单基本信息 - 直接使用前端传来的总金额
         quotation.amount = total_amount
-        quotation.currency = data.get('currency', 'CNY')  # 添加货币字段更新
+        quotation.currency = data.get('currency', Config.DEFAULT_CURRENCY)  # 添加货币字段更新
         # 手动更新时间戳，确保updated_at字段正确
         quotation.updated_at = datetime.utcnow()
         current_app.logger.info(f'直接保存前端总金额到报价单: {total_amount}, 货币: {quotation.currency}')
@@ -3555,7 +3556,7 @@ def save_quotation(id):
             created_details, detail_errors = process_quotation_details(
                 quotation_id=id,
                 details=details,
-                currency=data.get('currency', 'CNY')
+                currency=data.get('currency', Config.DEFAULT_CURRENCY)
             )
 
             # 添加到报价单
@@ -4974,7 +4975,7 @@ def create_products_from_configured_specs(quotation):
                 subcategory_id=original_product.subcategory_id,
                 region_id=original_product.region_id,
                 unit=original_product.unit,
-                currency=original_product.currency or 'CNY',
+                currency=original_product.currency or Config.DEFAULT_CURRENCY,
                 mn_code=configured_mn,
                 status='立项中',
                 retail_price=new_price,

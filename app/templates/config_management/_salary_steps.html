@@ -1,0 +1,86 @@
+{# 阶梯规则子页签内容 - 用于薪资配置Tab #}
+<div class="space-y-6">
+    <!-- 阶梯规则类型选择 -->
+    <div class="flex flex-wrap gap-2 mb-4">
+        <button type="button" @click="stepRuleType = 'performance_coefficient'"
+                :class="stepRuleType === 'performance_coefficient' ? 'bg-primary/10 text-primary border-primary' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors">
+            {{ _('绩效系数') }}
+        </button>
+        <button type="button" @click="stepRuleType = 'commission_rate'"
+                :class="stepRuleType === 'commission_rate' ? 'bg-primary/10 text-primary border-primary' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors">
+            {{ _('提成比例') }}
+        </button>
+        <button type="button" @click="stepRuleType = 'commission_release'"
+                :class="stepRuleType === 'commission_release' ? 'bg-primary/10 text-primary border-primary' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors">
+            {{ _('提成发放') }}
+        </button>
+        <button type="button" @click="stepRuleType = 'annual_bonus'"
+                :class="stepRuleType === 'annual_bonus' ? 'bg-primary/10 text-primary border-primary' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors">
+            {{ _('年终奖') }}
+        </button>
+    </div>
+
+    <!-- 阶梯规则表格 -->
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-medium text-slate-700 dark:text-slate-300" x-text="stepRuleTypeLabels[stepRuleType]"></h3>
+        <button type="button" @click="addStepRule()" x-show="isEditing"
+                class="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors">
+            <span class="material-symbols-outlined text-base">add</span>
+            {{ _('添加档位') }}
+        </button>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-slate-50 dark:bg-slate-700/50">
+                    <th class="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">{{ _('最低阈值') }}</th>
+                    <th class="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">{{ _('系数/比例') }}</th>
+                    <th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">{{ _('说明') }}</th>
+                    <th x-show="isEditing" class="px-4 py-3 text-center font-medium text-slate-600 dark:text-slate-300">{{ _('操作') }}</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                <template x-for="rule in filteredStepRules" :key="rule.id || rule._tempId">
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                        <td class="px-4 py-3 text-right">
+                            <input type="number" x-model.number="rule.min_threshold" step="0.01"
+                                   @input="markStepRuleChanged(rule)"
+                                   :disabled="!isEditing"
+                                   class="w-24 px-2 py-1 text-sm text-right border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                            <span class="ml-1 text-slate-400">%</span>
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            <input type="number" x-model.number="rule.coefficient" step="0.01"
+                                   @input="markStepRuleChanged(rule)"
+                                   :disabled="!isEditing"
+                                   class="w-24 px-2 py-1 text-sm text-right border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                        </td>
+                        <td class="px-4 py-3">
+                            <input type="text" x-model="rule.description"
+                                   @input="markStepRuleChanged(rule)"
+                                   :disabled="!isEditing"
+                                   class="w-full px-2 py-1 text-sm border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                        </td>
+                        <td x-show="isEditing" class="px-4 py-3 text-center">
+                            <button type="button" @click="deleteStepRule(rule)"
+                                    class="text-red-500 hover:text-red-700 p-1">
+                                <span class="material-symbols-outlined text-base">delete</span>
+                            </button>
+                        </td>
+                    </tr>
+                </template>
+                <template x-if="filteredStepRules.length === 0">
+                    <tr>
+                        <td colspan="4" class="px-4 py-8 text-center text-slate-400">
+                            {{ _('暂无此类型的阶梯规则，点击上方按钮添加') }}
+                        </td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+    </div>
+</div>

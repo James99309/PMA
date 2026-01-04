@@ -30,6 +30,27 @@ body {
     font-family: var(--font-family-primary);
 }
 
+/* ========== Material Symbols 图标字体优化 ========== */
+/* 优化图标字体渲染，不设置固定尺寸以保持灵活性 */
+.material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    /* font-size 由具体使用场景决定 */
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    vertical-align: middle;  /* 垂直居中对齐 */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'liga';
+}
+
 /* 统一页面标题样式 */
 .page-title-container {
     margin-top: 1.5rem !important;
@@ -6648,4 +6669,18 @@ tr[data-has-configurations="true"] {
 }
 .dark .checkbox-round:focus {
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
+}
+
+
+/* ========== 规格行禁用样式（引入产品编辑限制） ========== */
+/* 禁用的规格行样式（灰显）- 仅用于视觉效果，交互限制由JS控制 */
+.spec-row.spec-disabled {
+    opacity: 0.6;
+}
+
+/* 禁用的规格行中的禁用按钮样式 */
+.spec-row.spec-disabled .spec-edit-disabled,
+.spec-row.spec-disabled .spec-delete-disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }

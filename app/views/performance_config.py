@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, session
 from flask_login import login_required, current_user
 from flask_babel import get_locale
 from datetime import datetime
@@ -6,8 +6,9 @@ from app import db
 from app.models.user import User
 from app.models.role_permissions import RolePermission
 from app.models.performance_config import (
-    PerformanceMetricsDefinition, RolePerformanceConfig, RolePerformanceItem, 
-    PerformanceFormulaTemplate, RolePerformanceAccess, ConfigurablePerformanceService
+    PerformanceMetricsDefinition, RolePerformanceConfig, RolePerformanceItem,
+    PerformanceFormulaTemplate, RolePerformanceAccess, ConfigurablePerformanceService,
+    RolePerformanceTarget, UserPerformanceTarget, get_user_effective_target
 )
 from app.models.data_source_config import DataTableConfig, DataFieldConfig, FormulaTemplate
 from app.permissions import permission_required
@@ -300,16 +301,16 @@ def api_save_role_config(role_code):
             'message': f'保存失败: {str(e)}'
         })
 
-@performance_config_bp.route('/api/metrics')
+@performance_config_bp.route('/api/metrics/active')
 @login_required
 @permission_required('performance_management', 'edit')
-def api_get_metrics():
-    """获取可用的绩效指标列表API"""
+def api_get_active_metrics():
+    """获取已启用的绩效指标列表API（用于下拉选择等场景）"""
     try:
         from app.models.performance_config import PerformanceMetricsDefinition
-        
+
         metrics = PerformanceMetricsDefinition.query.filter_by(is_active=True).all()
-        
+
         metrics_data = []
         for metric in metrics:
             metrics_data.append({
@@ -322,12 +323,12 @@ def api_get_metrics():
                 'description': metric.description,
                 'is_system_metric': metric.is_system_metric
             })
-        
+
         return jsonify({
             'success': True,
             'data': metrics_data
         })
-        
+
     except Exception as e:
         logger.error(f"获取绩效指标失败: {e}")
         return jsonify({
@@ -583,46 +584,25 @@ def api_get_formula_templates_extended():
 @login_required
 @permission_required('performance_management', 'edit')
 def api_get_preset_items():
-    """获取预置绩效项目列表API"""
+    """获取预置绩效项目列表API - 从数据库读取"""
     try:
         logger.info("=== API: 获取预置绩效项目列表 ===")
-        
-        # 查询所有启用的系统预置模板
-        templates = FormulaTemplate.query.filter_by(
-            is_active=True,
-            is_system_template=True
-        ).order_by(
-            FormulaTemplate.template_category,
-            FormulaTemplate.template_name
-        ).all()
-        
-        logger.info(f"找到 {len(templates)} 个预置绩效项目")
-        
-        items_data = []
-        for template in templates:
-            item = {
-                'id': template.id,
-                'name': template.template_name,
-                'category': template.template_category,
-                'description': template.description,
-                'formula': template.formula_expression,
-                'result_type': template.result_type,
-                'result_unit': template.result_unit,
-                'icon': get_category_icon(template.template_category)
-            }
-            items_data.append(item)
-        
+
+        # 使用新的函数从数据库获取绩效指标
+        items_data = get_preset_performance_items()
+
+        logger.info(f"找到 {len(items_data)} 个预置绩效项目")
+
         # 按类别分组
         grouped_items = {}
         for item in items_data:
-            category = item['category'] or 'other'
-            category_name = get_category_display_name(category)
-            if category_name not in grouped_items:
-                grouped_items[category_name] = []
-            grouped_items[category_name].append(item)
-        
+            category = item.get('category') or '其他'
+            if category not in grouped_items:
+                grouped_items[category] = []
+            grouped_items[category].append(item)
+
         logger.info("=== 预置绩效项目列表获取成功 ===")
-        
+
         return jsonify({
             'success': True,
             'data': {
@@ -631,15 +611,244 @@ def api_get_preset_items():
                 'total_count': len(items_data)
             }
         })
-        
+
     except Exception as e:
         logger.error(f"=== 获取预置绩效项目失败 ===")
         logger.error(f"错误: {e}", exc_info=True)
-        
+
         return jsonify({
             'success': False,
             'message': f'获取预置绩效项目失败: {str(e)}'
         }), 500
+
+
+# ============ 绩效指标管理 API ============
+
+@performance_config_bp.route('/api/metrics')
+@login_required
+@permission_required('performance_management', 'edit')
+def api_get_metrics():
+    """获取所有绩效指标（含已禁用的）"""
+    try:
+        from app.models.performance_config import PerformanceMetricsDefinition
+
+        metrics = PerformanceMetricsDefinition.query.order_by(
+            PerformanceMetricsDefinition.metric_category,
+            PerformanceMetricsDefinition.metric_code
+        ).all()
+
+        return jsonify({
+            'success': True,
+            'data': [m.to_dict() for m in metrics]
+        })
+
+    except Exception as e:
+        logger.error(f"获取绩效指标列表失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@performance_config_bp.route('/api/metrics', methods=['POST'])
+@login_required
+@permission_required('performance_management', 'edit')
+def api_create_metric():
+    """创建新的绩效指标"""
+    try:
+        from app.models.performance_config import PerformanceMetricsDefinition
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '无效的请求数据'}), 400
+
+        # 验证必填字段
+        metric_code = data.get('metric_code', '').strip()
+        metric_name = data.get('metric_name', '').strip()
+        data_type = data.get('data_type', 'amount')
+
+        if not metric_code or not metric_name:
+            return jsonify({'success': False, 'message': '指标代码和名称不能为空'}), 400
+
+        # 检查代码是否已存在
+        existing = PerformanceMetricsDefinition.query.filter_by(metric_code=metric_code).first()
+        if existing:
+            return jsonify({'success': False, 'message': f'指标代码 {metric_code} 已存在'}), 400
+
+        # 创建新指标
+        metric = PerformanceMetricsDefinition(
+            metric_code=metric_code,
+            metric_name=metric_name,
+            metric_category=data.get('metric_category', '其他'),
+            data_type=data_type,
+            default_unit=data.get('default_unit'),
+            description=data.get('description'),
+            available_sources=data.get('available_sources'),
+            is_system_metric=False,  # 用户创建的都不是系统指标
+            is_active=True
+        )
+
+        db.session.add(metric)
+        db.session.commit()
+
+        logger.info(f"创建绩效指标: {metric_code}")
+
+        return jsonify({
+            'success': True,
+            'message': '绩效指标创建成功',
+            'data': metric.to_dict()
+        })
+
+    except IntegrityError as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': '指标代码已存在'}), 400
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"创建绩效指标失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@performance_config_bp.route('/api/metrics/<int:metric_id>', methods=['PUT'])
+@login_required
+@permission_required('performance_management', 'edit')
+def api_update_metric(metric_id):
+    """更新绩效指标"""
+    try:
+        from app.models.performance_config import PerformanceMetricsDefinition
+
+        metric = PerformanceMetricsDefinition.query.get(metric_id)
+        if not metric:
+            return jsonify({'success': False, 'message': '指标不存在'}), 404
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '无效的请求数据'}), 400
+
+        # 系统指标只能修改部分字段
+        if metric.is_system_metric:
+            # 系统指标只能修改：名称、描述、分类、是否启用
+            if 'metric_name' in data:
+                metric.metric_name = data['metric_name']
+            if 'description' in data:
+                metric.description = data['description']
+            if 'metric_category' in data:
+                metric.metric_category = data['metric_category']
+            if 'is_active' in data:
+                metric.is_active = data['is_active']
+        else:
+            # 用户创建的指标可以修改所有字段
+            for field in ['metric_name', 'metric_category', 'data_type', 'default_unit',
+                          'description', 'available_sources', 'is_active']:
+                if field in data:
+                    setattr(metric, field, data[field])
+
+        db.session.commit()
+
+        logger.info(f"更新绩效指标: {metric.metric_code}")
+
+        return jsonify({
+            'success': True,
+            'message': '绩效指标更新成功',
+            'data': metric.to_dict()
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"更新绩效指标失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@performance_config_bp.route('/api/metrics/<int:metric_id>', methods=['DELETE'])
+@login_required
+@permission_required('performance_management', 'edit')
+def api_delete_metric(metric_id):
+    """删除绩效指标（仅限用户创建的）"""
+    try:
+        from app.models.performance_config import PerformanceMetricsDefinition
+
+        metric = PerformanceMetricsDefinition.query.get(metric_id)
+        if not metric:
+            return jsonify({'success': False, 'message': '指标不存在'}), 404
+
+        if metric.is_system_metric:
+            return jsonify({'success': False, 'message': '系统指标不能删除，只能禁用'}), 400
+
+        metric_code = metric.metric_code
+        db.session.delete(metric)
+        db.session.commit()
+
+        logger.info(f"删除绩效指标: {metric_code}")
+
+        return jsonify({
+            'success': True,
+            'message': '绩效指标已删除'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"删除绩效指标失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@performance_config_bp.route('/api/metrics/data-source-presets')
+@login_required
+@permission_required('performance_management', 'edit')
+def api_get_data_source_presets():
+    """获取可用的数据源预设配置"""
+    presets = {
+        'PricingOrder': {
+            'label': '批价单',
+            'default_field': 'pricing_total_amount',
+            'default_filter': {'status': 'approved'},
+            'default_date_field': 'approved_at',
+            'default_aggregate': 'sum',
+            'available_fields': [
+                {'field': 'pricing_total_amount', 'label': '批价总金额', 'type': 'amount'},
+                {'field': 'pricing_total_discount_rate', 'label': '折扣率', 'type': 'percentage'},
+            ]
+        },
+        'Quotation': {
+            'label': '报价单',
+            'default_field': 'implant_amount',
+            'default_filter': {},
+            'default_date_field': 'created_at',
+            'default_aggregate': 'sum',
+            'available_fields': [
+                {'field': 'implant_amount', 'label': '植入金额', 'type': 'amount'},
+                {'field': 'total_amount', 'label': '报价总金额', 'type': 'amount'},
+            ]
+        },
+        'Project': {
+            'label': '项目',
+            'default_field': 'id',
+            'default_filter': {},
+            'default_date_field': 'created_at',
+            'default_aggregate': 'count',
+            'available_fields': [
+                {'field': 'id', 'label': '项目数量', 'type': 'count'},
+            ]
+        },
+        'Company': {
+            'label': '客户',
+            'default_field': 'id',
+            'default_filter': {'company_type': 'customer'},
+            'default_date_field': 'created_at',
+            'default_aggregate': 'count',
+            'available_fields': [
+                {'field': 'id', 'label': '客户数量', 'type': 'count'},
+            ]
+        },
+        'manual': {
+            'label': '手动录入',
+            'description': '不自动采集，需要手动输入实际值',
+            'default_aggregate': 'manual'
+        }
+    }
+
+    return jsonify({
+        'success': True,
+        'data': presets
+    })
 
 @performance_config_bp.route('/api/shareable-users-tree')
 @login_required
@@ -794,6 +1003,566 @@ def api_get_field_values(table_name, field_name):
             'success': False,
             'message': f'获取字段值失败: {str(e)}'
         }), 500
+
+# ===== 绩效目标配置 API =====
+
+@performance_config_bp.route('/api/role/<role_code>/targets/<int:year>')
+@login_required
+@permission_required('performance_management', 'edit')
+def api_get_role_targets(role_code, year):
+    """获取角色的年度绩效目标配置"""
+    try:
+        logger.info(f"=== API: 获取角色目标配置 {role_code}/{year} ===")
+
+        # 获取该角色的所有目标配置
+        targets = RolePerformanceTarget.query.filter_by(
+            role_code=role_code,
+            year=year
+        ).all()
+
+        # 获取预置绩效项目（用于返回完整的项目列表）
+        preset_items = get_preset_performance_items()
+
+        # 构建响应数据
+        items_data = []
+        for item in preset_items:
+            # 查找该项目的目标配置
+            target = next((t for t in targets if t.item_code == item['code']), None)
+
+            item_data = {
+                'item_code': item['code'],
+                'item_name': item['name'],
+                'unit': item['unit'],
+                'data_type': item['data_type'],
+                'enabled': target is not None,
+                'annual_target': float(target.annual_target) if target and target.annual_target else None,
+                'enable_quarterly': target.enable_quarterly if target else False,
+                'q1_target': float(target.q1_target) if target and target.q1_target else None,
+                'q2_target': float(target.q2_target) if target and target.q2_target else None,
+                'q3_target': float(target.q3_target) if target and target.q3_target else None,
+                'q4_target': float(target.q4_target) if target and target.q4_target else None,
+                'enable_monthly': target.enable_monthly if target else False,
+                'monthly_targets': target.monthly_targets if target else None
+            }
+            items_data.append(item_data)
+
+        logger.info(f"返回 {len(items_data)} 个绩效项目配置")
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'role_code': role_code,
+                'year': year,
+                'items': items_data
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"获取角色目标配置失败: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'获取配置失败: {str(e)}'
+        }), 500
+
+
+@performance_config_bp.route('/api/role/<role_code>/targets/<int:year>', methods=['POST'])
+@login_required
+@permission_required('performance_management', 'edit')
+def api_save_role_targets(role_code, year):
+    """保存角色的年度绩效目标配置"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '请求数据为空'})
+
+        logger.info(f"=== API: 保存角色目标配置 {role_code}/{year} ===")
+
+        items = data.get('items', [])
+        if not items:
+            return jsonify({'success': False, 'message': '未提供任何配置项'})
+
+        # 验证并保存每个项目的目标配置
+        saved_count = 0
+        validation_errors = []
+
+        for item_data in items:
+            if not item_data.get('enabled'):
+                # 如果项目未启用，删除可能存在的配置
+                RolePerformanceTarget.query.filter_by(
+                    role_code=role_code,
+                    year=year,
+                    item_code=item_data['item_code']
+                ).delete()
+                continue
+
+            # 验证目标层级
+            is_valid, error_msg = validate_target_hierarchy(item_data)
+            if not is_valid:
+                validation_errors.append(f"{item_data.get('item_name', item_data['item_code'])}: {error_msg}")
+                continue
+
+            # 查找或创建目标配置
+            target = RolePerformanceTarget.query.filter_by(
+                role_code=role_code,
+                year=year,
+                item_code=item_data['item_code']
+            ).first()
+
+            if not target:
+                target = RolePerformanceTarget(
+                    role_code=role_code,
+                    year=year,
+                    item_code=item_data['item_code'],
+                    created_by=current_user.id
+                )
+                db.session.add(target)
+
+            # 更新目标值
+            target.annual_target = item_data.get('annual_target')
+            target.enable_quarterly = item_data.get('enable_quarterly', False)
+            target.q1_target = item_data.get('q1_target')
+            target.q2_target = item_data.get('q2_target')
+            target.q3_target = item_data.get('q3_target')
+            target.q4_target = item_data.get('q4_target')
+            target.enable_monthly = item_data.get('enable_monthly', False)
+            target.monthly_targets = item_data.get('monthly_targets')
+            target.target_unit = item_data.get('unit', '万元')
+            target.updated_by = current_user.id
+            target.updated_at = datetime.utcnow()
+
+            saved_count += 1
+
+        db.session.commit()
+
+        if validation_errors:
+            return jsonify({
+                'success': True,
+                'message': f'保存完成，{saved_count}项成功，{len(validation_errors)}项有验证错误',
+                'warnings': validation_errors
+            })
+
+        logger.info(f"保存成功: {saved_count} 项")
+        return jsonify({
+            'success': True,
+            'message': f'保存成功，共{saved_count}个配置项'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"保存角色目标配置失败: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'保存失败: {str(e)}'
+        }), 500
+
+
+@performance_config_bp.route('/api/preset-items-with-units')
+@login_required
+@permission_required('performance_management', 'edit')
+def api_get_preset_items_with_units():
+    """获取预置绩效项目及其单位类型"""
+    try:
+        items = get_preset_performance_items()
+        return jsonify({
+            'success': True,
+            'data': items
+        })
+    except Exception as e:
+        logger.error(f"获取预置项目失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'获取失败: {str(e)}'
+        }), 500
+
+
+def get_performance_unit_config():
+    """
+    获取绩效单位配置（基于数据库类型，与语言设置解耦）
+
+    货币和单位由数据库类型决定，不随用户语言切换而改变：
+    - SP8D/本地 数据库 → CNY (¥), 万元, 除以10000
+    - OVS 数据库 → USD ($), M (million), 除以1000000
+    """
+    from config import Config
+
+    return {
+        'currency': Config.DEFAULT_CURRENCY,     # CNY / USD
+        'symbol': Config.CURRENCY_SYMBOL,        # ¥ / $
+        'amount_unit': Config.AMOUNT_UNIT,       # 万元 / M
+        'count_unit': Config.COUNT_UNIT,         # 个 / pcs
+        'divisor': Config.AMOUNT_DIVISOR,        # 10000 / 1000000
+        'is_ovs': Config.IS_OVS,
+        'is_sp8d': Config.IS_SP8D,
+        'lang': session.get('language', 'zh')    # 语言设置
+    }
+
+
+def get_default_metrics_definitions():
+    """获取默认的绩效指标定义（用于初始化数据库）"""
+    return [
+        {
+            'metric_code': 'sales_target',
+            'metric_name': '销售目标',
+            'metric_name_en': 'Sales Target',
+            'metric_category': '销售业绩',
+            'data_type': 'amount',
+            'description': '批价单审批通过金额',
+            'description_en': 'Approved pricing order amount',
+            'is_system_metric': True,
+            'available_sources': {
+                'model': 'PricingOrder',
+                'field': 'pricing_total_amount',
+                'aggregate': 'sum',
+                'filter': {'status': 'approved', 'created_by': '{user_id}'},
+                'date_field': 'approved_at'
+            }
+        },
+        {
+            'metric_code': 'implant_amount',
+            'metric_name': '植入额',
+            'metric_name_en': 'Implant',
+            'metric_category': '销售业绩',
+            'data_type': 'amount',
+            'description': '报价单植入金额',
+            'description_en': 'Quotation implant amount',
+            'is_system_metric': True,
+            'available_sources': {
+                'model': 'Quotation',
+                'field': 'implant_amount',
+                'aggregate': 'sum',
+                'filter': {'owner_id': '{user_id}'},
+                'date_field': 'created_at'
+            }
+        },
+        {
+            'metric_code': 'new_customers',
+            'metric_name': '新增客户',
+            'metric_name_en': 'New Customers',
+            'metric_category': '客户管理',
+            'data_type': 'count',
+            'description': '新建客户数量',
+            'description_en': 'New customers count',
+            'is_system_metric': True,
+            'available_sources': {
+                'model': 'Company',
+                'field': 'id',
+                'aggregate': 'count',
+                'filter': {'company_type': 'customer', 'owner_id': '{user_id}'},
+                'date_field': 'created_at'
+            }
+        },
+        {
+            'metric_code': 'new_projects',
+            'metric_name': '新增项目',
+            'metric_name_en': 'New Projects',
+            'metric_category': '项目管理',
+            'data_type': 'count',
+            'description': '新建项目数量',
+            'description_en': 'New projects count',
+            'is_system_metric': True,
+            'available_sources': {
+                'model': 'Project',
+                'field': 'id',
+                'aggregate': 'count',
+                'filter': {'owner_id': '{user_id}'},
+                'date_field': 'created_at'
+            }
+        },
+        {
+            'metric_code': 'high_price_amount',
+            'metric_name': '高批价金额',
+            'metric_name_en': 'High Price Amount',
+            'metric_category': '销售业绩',
+            'data_type': 'amount',
+            'description': '折扣率≥85%的批价单金额',
+            'description_en': 'High discount (≥85%) pricing amount',
+            'is_system_metric': True,
+            'available_sources': {
+                'model': 'PricingOrder',
+                'field': 'pricing_total_amount',
+                'aggregate': 'sum',
+                'filter': {'status': 'approved', 'created_by': '{user_id}', 'pricing_total_discount_rate__gte': 0.85},
+                'date_field': 'approved_at'
+            }
+        },
+        {
+            'metric_code': 'quotation_count',
+            'metric_name': '报价单数量',
+            'metric_name_en': 'Quotation Count',
+            'metric_category': '销售业绩',
+            'data_type': 'count',
+            'description': '提交的报价单数量',
+            'description_en': 'Submitted quotations count',
+            'is_system_metric': True,
+            'available_sources': {
+                'model': 'Quotation',
+                'field': 'id',
+                'aggregate': 'count',
+                'filter': {'owner_id': '{user_id}'},
+                'date_field': 'created_at'
+            }
+        }
+    ]
+
+
+def initialize_default_metrics():
+    """初始化默认的绩效指标到数据库"""
+    from app.models.performance_config import PerformanceMetricsDefinition
+
+    defaults = get_default_metrics_definitions()
+    created_count = 0
+
+    for item in defaults:
+        existing = PerformanceMetricsDefinition.query.filter_by(
+            metric_code=item['metric_code']
+        ).first()
+
+        if not existing:
+            metric = PerformanceMetricsDefinition(
+                metric_code=item['metric_code'],
+                metric_name=item['metric_name'],
+                metric_category=item['metric_category'],
+                data_type=item['data_type'],
+                description=item['description'],
+                available_sources=item['available_sources'],
+                is_system_metric=item['is_system_metric'],
+                is_active=True
+            )
+            db.session.add(metric)
+            created_count += 1
+
+    if created_count > 0:
+        db.session.commit()
+        logger.info(f"初始化了 {created_count} 个默认绩效指标")
+
+    return PerformanceMetricsDefinition.query.filter_by(is_active=True).all()
+
+
+def get_preset_performance_items():
+    """获取绩效项目列表（从数据库读取，支持动态配置）"""
+    from app.models.performance_config import PerformanceMetricsDefinition
+
+    unit_config = get_performance_unit_config()
+    amount_unit = unit_config['amount_unit']
+    count_unit = unit_config['count_unit']
+    lang = unit_config['lang']
+
+    # 从数据库获取所有激活的绩效指标
+    metrics = PerformanceMetricsDefinition.query.filter_by(is_active=True).all()
+
+    # 如果数据库为空，初始化默认数据
+    if not metrics:
+        try:
+            metrics = initialize_default_metrics()
+        except Exception as e:
+            logger.warning(f"初始化默认指标失败: {e}，使用硬编码备用")
+            # 回退到硬编码（兼容性保障）
+            return _get_hardcoded_preset_items(unit_config, lang)
+
+    # 图标映射
+    icon_map = {
+        'sales_target': 'trending_up',
+        'implant_amount': 'download',
+        'new_customers': 'person_add',
+        'new_projects': 'folder_open',
+        'high_price_amount': 'price_check',
+        'quotation_count': 'description'
+    }
+
+    # 分类图标映射
+    category_icon_map = {
+        '销售业绩': 'trending_up',
+        '客户管理': 'people',
+        '项目管理': 'folder_open',
+        '质量管理': 'verified',
+        'default': 'assessment'
+    }
+
+    result = []
+    for m in metrics:
+        # 根据数据类型选择单位
+        if m.data_type == 'amount':
+            unit = amount_unit
+        elif m.data_type == 'count':
+            unit = count_unit
+        elif m.data_type == 'percentage':
+            unit = '%'
+        else:
+            unit = m.default_unit or ''
+
+        # 获取图标
+        icon = icon_map.get(m.metric_code, category_icon_map.get(m.metric_category, 'assessment'))
+
+        result.append({
+            'id': m.id,
+            'code': m.metric_code,
+            'name': m.metric_name,
+            'unit': unit,
+            'data_type': m.data_type,
+            'description': m.description or '',
+            'icon': icon,
+            'category': m.metric_category or '其他',
+            'is_system_metric': m.is_system_metric,
+            'data_source_config': m.available_sources,
+            'result_unit': unit
+        })
+
+    return result
+
+
+def _get_hardcoded_preset_items(unit_config, lang):
+    """硬编码的备用绩效项目（用于数据库不可用时）"""
+    amount_unit = unit_config['amount_unit']
+    count_unit = unit_config['count_unit']
+
+    names = {
+        'zh': {
+            'sales_target': '销售目标',
+            'implant_amount': '植入额',
+            'new_customers': '新增客户',
+            'new_projects': '新增项目',
+            'high_price_amount': '高批价金额',
+            'quotation_count': '报价单数量'
+        },
+        'en': {
+            'sales_target': 'Sales Target',
+            'implant_amount': 'Implant',
+            'new_customers': 'New Customers',
+            'new_projects': 'New Projects',
+            'high_price_amount': 'High Price Amount',
+            'quotation_count': 'Quotation Count'
+        }
+    }
+
+    descriptions = {
+        'zh': {
+            'sales_target': '批价单审批通过金额',
+            'implant_amount': '报价单植入金额',
+            'new_customers': '新建客户数量',
+            'new_projects': '新建项目数量',
+            'high_price_amount': '折扣率≥85%的批价单金额',
+            'quotation_count': '提交的报价单数量'
+        },
+        'en': {
+            'sales_target': 'Approved pricing order amount',
+            'implant_amount': 'Quotation implant amount',
+            'new_customers': 'New customers count',
+            'new_projects': 'New projects count',
+            'high_price_amount': 'High discount (≥85%) pricing amount',
+            'quotation_count': 'Submitted quotations count'
+        }
+    }
+
+    name_dict = names.get(lang, names['zh'])
+    desc_dict = descriptions.get(lang, descriptions['zh'])
+
+    return [
+        {'id': 1, 'code': 'sales_target', 'name': name_dict['sales_target'], 'unit': amount_unit,
+         'data_type': 'amount', 'description': desc_dict['sales_target'], 'icon': 'trending_up',
+         'category': '销售业绩', 'is_system_metric': True, 'result_unit': amount_unit},
+        {'id': 2, 'code': 'implant_amount', 'name': name_dict['implant_amount'], 'unit': amount_unit,
+         'data_type': 'amount', 'description': desc_dict['implant_amount'], 'icon': 'download',
+         'category': '销售业绩', 'is_system_metric': True, 'result_unit': amount_unit},
+        {'id': 3, 'code': 'new_customers', 'name': name_dict['new_customers'], 'unit': count_unit,
+         'data_type': 'count', 'description': desc_dict['new_customers'], 'icon': 'person_add',
+         'category': '客户管理', 'is_system_metric': True, 'result_unit': count_unit},
+        {'id': 4, 'code': 'new_projects', 'name': name_dict['new_projects'], 'unit': count_unit,
+         'data_type': 'count', 'description': desc_dict['new_projects'], 'icon': 'folder_open',
+         'category': '项目管理', 'is_system_metric': True, 'result_unit': count_unit},
+        {'id': 5, 'code': 'high_price_amount', 'name': name_dict['high_price_amount'], 'unit': amount_unit,
+         'data_type': 'amount', 'description': desc_dict['high_price_amount'], 'icon': 'price_check',
+         'category': '销售业绩', 'is_system_metric': True, 'result_unit': amount_unit},
+        {'id': 6, 'code': 'quotation_count', 'name': name_dict['quotation_count'], 'unit': count_unit,
+         'data_type': 'count', 'description': desc_dict['quotation_count'], 'icon': 'description',
+         'category': '销售业绩', 'is_system_metric': True, 'result_unit': count_unit}
+    ]
+
+
+@performance_config_bp.route('/api/role/<role_code>/available-years')
+@login_required
+def api_get_role_available_years(role_code):
+    """获取角色有绩效目标数据的年份列表"""
+    try:
+        logger.info(f"=== API: 获取角色可用年份 role_code={role_code} ===")
+
+        from datetime import datetime
+        current_year = datetime.now().year
+
+        # 查询该角色已有数据的年份
+        existing_years = db.session.query(RolePerformanceTarget.year).filter_by(
+            role_code=role_code
+        ).distinct().all()
+        existing_years = sorted([y[0] for y in existing_years if y[0]])
+
+        # 构建可用年份列表：当前年 + 次年 + 有数据的历史年份
+        available_years = set()
+        available_years.add(current_year)      # 当前年始终可选
+        available_years.add(current_year + 1)  # 次年始终可选
+
+        # 添加有数据的历史年份
+        for year in existing_years:
+            available_years.add(year)
+
+        # 排序（降序，最新年份在前）
+        years_list = sorted(list(available_years), reverse=True)
+
+        logger.info(f"角色 {role_code} 可用年份: {years_list}")
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'role_code': role_code,
+                'years': years_list,
+                'current_year': current_year
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"获取角色可用年份失败: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'获取可用年份失败: {str(e)}'
+        }), 500
+
+
+def validate_target_hierarchy(item_data):
+    """
+    验证目标层级：
+    - 季度合计 ≤ 年度
+    - 月度合计 ≤ 季度
+    """
+    annual = float(item_data.get('annual_target') or 0)
+
+    if item_data.get('enable_quarterly'):
+        q_total = sum([
+            float(item_data.get('q1_target') or 0),
+            float(item_data.get('q2_target') or 0),
+            float(item_data.get('q3_target') or 0),
+            float(item_data.get('q4_target') or 0)
+        ])
+        if annual > 0 and q_total > annual:
+            return False, f'季度合计({q_total})不能超过年度目标({annual})'
+
+    if item_data.get('enable_monthly') and item_data.get('monthly_targets'):
+        monthly = item_data.get('monthly_targets', {})
+        for q in range(1, 5):
+            q_target = float(item_data.get(f'q{q}_target') or 0)
+            if q_target == 0:
+                continue
+
+            # 获取该季度对应的月份
+            months = {
+                1: ['1', '2', '3'],
+                2: ['4', '5', '6'],
+                3: ['7', '8', '9'],
+                4: ['10', '11', '12']
+            }
+            m_total = sum([float(monthly.get(m, 0) or 0) for m in months[q]])
+            if m_total > q_target:
+                return False, f'Q{q}月度合计({m_total})不能超过季度目标({q_target})'
+
+    return True, None
+
 
 # ===== 辅助函数 =====
 
@@ -1130,6 +1899,535 @@ def create_performance_item_from_template_v2(role_config, template, scope_users,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
     )
+
+# ===== 用户绩效目标覆盖 API =====
+
+@performance_config_bp.route('/api/user/<int:user_id>/targets/<int:year>')
+@login_required
+def api_get_user_targets(user_id, year):
+    """获取用户的年度绩效目标配置（包含角色默认值和个人覆盖）"""
+    try:
+        logger.info(f"=== API: 获取用户目标配置 user_id={user_id}, year={year} ===")
+
+        # 获取用户信息
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+        # 权限检查：只能查看自己的或有权限的用户
+        if current_user.id != user_id and current_user.role not in ['admin', 'ceo', 'hr_manager', 'hrdp_manager']:
+            # 检查是否是直属上级
+            from app.models.affiliation import Affiliation
+            is_supervisor = Affiliation.query.filter_by(
+                subordinate_id=user_id,
+                supervisor_id=current_user.id,
+                is_active=True
+            ).first() is not None
+            if not is_supervisor:
+                return jsonify({'success': False, 'message': '无权限查看该用户的绩效目标'}), 403
+
+        # 获取角色默认目标
+        role_targets = RolePerformanceTarget.query.filter_by(
+            role_code=user.role,
+            year=year
+        ).all()
+        role_targets_dict = {t.item_code: t for t in role_targets}
+
+        # 获取用户个人覆盖
+        user_targets = UserPerformanceTarget.query.filter_by(
+            user_id=user_id,
+            year=year
+        ).all()
+        user_targets_dict = {t.item_code: t for t in user_targets}
+
+        # 获取预置绩效项目
+        preset_items = get_preset_performance_items()
+
+        # 构建响应数据
+        items_data = []
+        for item in preset_items:
+            item_code = item['code']
+            role_target = role_targets_dict.get(item_code)
+            user_target = user_targets_dict.get(item_code)
+
+            # 确定有效值（个人覆盖 > 角色默认）
+            def get_effective_value(field_name, override_field_name=None):
+                override_field = override_field_name or f'{field_name}_override'
+                if user_target:
+                    override_val = getattr(user_target, override_field, None)
+                    if override_val is not None:
+                        return float(override_val) if isinstance(override_val, (int, float)) or (hasattr(override_val, '__float__')) else override_val
+                if role_target:
+                    role_val = getattr(role_target, field_name, None)
+                    if role_val is not None:
+                        return float(role_val) if isinstance(role_val, (int, float)) or (hasattr(role_val, '__float__')) else role_val
+                return None
+
+            item_data = {
+                'item_code': item_code,
+                'item_name': item['name'],
+                'unit': item['unit'],
+                'data_type': item['data_type'],
+                'has_role_default': role_target is not None,
+                # 角色默认值
+                'role_annual_target': float(role_target.annual_target) if role_target and role_target.annual_target else None,
+                'role_enable_quarterly': role_target.enable_quarterly if role_target else False,
+                'role_q1_target': float(role_target.q1_target) if role_target and role_target.q1_target else None,
+                'role_q2_target': float(role_target.q2_target) if role_target and role_target.q2_target else None,
+                'role_q3_target': float(role_target.q3_target) if role_target and role_target.q3_target else None,
+                'role_q4_target': float(role_target.q4_target) if role_target and role_target.q4_target else None,
+                'role_enable_monthly': role_target.enable_monthly if role_target else False,
+                'role_monthly_targets': role_target.monthly_targets if role_target else None,
+                # 个人覆盖值
+                'has_override': user_target is not None,
+                'annual_target_override': float(user_target.annual_target_override) if user_target and user_target.annual_target_override else None,
+                'enable_quarterly_override': user_target.enable_quarterly_override if user_target else None,
+                'q1_target_override': float(user_target.q1_target_override) if user_target and user_target.q1_target_override else None,
+                'q2_target_override': float(user_target.q2_target_override) if user_target and user_target.q2_target_override else None,
+                'q3_target_override': float(user_target.q3_target_override) if user_target and user_target.q3_target_override else None,
+                'q4_target_override': float(user_target.q4_target_override) if user_target and user_target.q4_target_override else None,
+                'enable_monthly_override': user_target.enable_monthly_override if user_target else None,
+                'monthly_targets_override': user_target.monthly_targets_override if user_target else None,
+                # 有效值（合并后）
+                'effective_annual_target': get_effective_value('annual_target'),
+                'effective_enable_quarterly': user_target.enable_quarterly_override if user_target and user_target.enable_quarterly_override is not None else (role_target.enable_quarterly if role_target else False),
+                'effective_q1_target': get_effective_value('q1_target'),
+                'effective_q2_target': get_effective_value('q2_target'),
+                'effective_q3_target': get_effective_value('q3_target'),
+                'effective_q4_target': get_effective_value('q4_target'),
+            }
+            items_data.append(item_data)
+
+        logger.info(f"返回 {len(items_data)} 个绩效项目配置")
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'user_id': user_id,
+                'user_name': user.real_name or user.username,
+                'role_code': user.role,
+                'year': year,
+                'items': items_data
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"获取用户目标配置失败: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'获取配置失败: {str(e)}'
+        }), 500
+
+
+@performance_config_bp.route('/api/user/<int:user_id>/targets/<int:year>', methods=['POST'])
+@login_required
+def api_save_user_targets(user_id, year):
+    """保存用户的年度绩效目标覆盖配置"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '请求数据为空'})
+
+        logger.info(f"=== API: 保存用户目标配置 user_id={user_id}, year={year} ===")
+
+        # 获取用户信息
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+        # 权限检查：只能编辑自己的或有权限的用户
+        if current_user.id != user_id and current_user.role not in ['admin', 'ceo', 'hr_manager', 'hrdp_manager']:
+            from app.models.affiliation import Affiliation
+            is_supervisor = Affiliation.query.filter_by(
+                subordinate_id=user_id,
+                supervisor_id=current_user.id,
+                is_active=True
+            ).first() is not None
+            if not is_supervisor:
+                return jsonify({'success': False, 'message': '无权限修改该用户的绩效目标'}), 403
+
+        items = data.get('items', [])
+        saved_count = 0
+
+        for item_data in items:
+            item_code = item_data.get('item_code')
+            if not item_code:
+                continue
+
+            # 检查是否有任何覆盖值
+            has_any_override = any([
+                item_data.get('annual_target_override') is not None,
+                item_data.get('enable_quarterly_override') is not None,
+                item_data.get('q1_target_override') is not None,
+                item_data.get('q2_target_override') is not None,
+                item_data.get('q3_target_override') is not None,
+                item_data.get('q4_target_override') is not None,
+                item_data.get('enable_monthly_override') is not None,
+                item_data.get('monthly_targets_override') is not None
+            ])
+
+            if not has_any_override:
+                # 没有覆盖值，删除现有记录
+                UserPerformanceTarget.query.filter_by(
+                    user_id=user_id,
+                    year=year,
+                    item_code=item_code
+                ).delete()
+                continue
+
+            # 查找或创建目标配置
+            target = UserPerformanceTarget.query.filter_by(
+                user_id=user_id,
+                year=year,
+                item_code=item_code
+            ).first()
+
+            if not target:
+                target = UserPerformanceTarget(
+                    user_id=user_id,
+                    year=year,
+                    item_code=item_code,
+                    created_by=current_user.id
+                )
+                db.session.add(target)
+
+            # 更新覆盖值
+            target.annual_target_override = item_data.get('annual_target_override')
+            target.enable_quarterly_override = item_data.get('enable_quarterly_override')
+            target.q1_target_override = item_data.get('q1_target_override')
+            target.q2_target_override = item_data.get('q2_target_override')
+            target.q3_target_override = item_data.get('q3_target_override')
+            target.q4_target_override = item_data.get('q4_target_override')
+            target.enable_monthly_override = item_data.get('enable_monthly_override')
+            target.monthly_targets_override = item_data.get('monthly_targets_override')
+            target.updated_by = current_user.id
+            target.updated_at = datetime.utcnow()
+
+            saved_count += 1
+
+        db.session.commit()
+
+        logger.info(f"保存成功: {saved_count} 项")
+        return jsonify({
+            'success': True,
+            'message': f'保存成功，共{saved_count}个覆盖配置'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"保存用户目标配置失败: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'保存失败: {str(e)}'
+        }), 500
+
+
+@performance_config_bp.route('/api/user/<int:user_id>/targets/<int:year>/clear', methods=['POST'])
+@login_required
+def api_clear_user_targets(user_id, year):
+    """清除用户的所有个人覆盖配置，恢复使用角色默认值"""
+    try:
+        logger.info(f"=== API: 清除用户目标覆盖 user_id={user_id}, year={year} ===")
+
+        # 获取用户信息
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+        # 权限检查
+        if current_user.id != user_id and current_user.role not in ['admin', 'ceo', 'hr_manager', 'hrdp_manager']:
+            from app.models.affiliation import Affiliation
+            is_supervisor = Affiliation.query.filter_by(
+                subordinate_id=user_id,
+                supervisor_id=current_user.id,
+                is_active=True
+            ).first() is not None
+            if not is_supervisor:
+                return jsonify({'success': False, 'message': '无权限修改该用户的绩效目标'}), 403
+
+        # 删除所有个人覆盖
+        deleted_count = UserPerformanceTarget.query.filter_by(
+            user_id=user_id,
+            year=year
+        ).delete()
+
+        db.session.commit()
+
+        logger.info(f"清除成功: 删除 {deleted_count} 条覆盖记录")
+        return jsonify({
+            'success': True,
+            'message': f'已清除所有个人覆盖配置，将使用角色默认值'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"清除用户目标覆盖失败: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'清除失败: {str(e)}'
+        }), 500
+
+
+@performance_config_bp.route('/api/users/targets/batch', methods=['POST'])
+@login_required
+@permission_required('performance_management', 'edit')
+def api_batch_user_targets():
+    """批量获取或保存多个用户的绩效目标配置"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '请求数据为空'})
+
+        user_ids = data.get('user_ids', [])
+        year = data.get('year', datetime.now().year)
+        items = data.get('items')  # 如果有 items，则是保存操作
+
+        if not user_ids:
+            return jsonify({'success': False, 'message': '未提供用户ID列表'})
+
+        logger.info(f"=== API: 批量用户目标配置 user_ids={user_ids}, year={year}, is_save={items is not None} ===")
+
+        if items is not None:
+            # ===== 保存操作 =====
+            return _batch_save_user_targets(user_ids, year, items)
+        else:
+            # ===== 获取操作 =====
+            return _batch_get_user_targets(user_ids, year)
+
+    except Exception as e:
+        logger.error(f"批量用户目标配置操作失败: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'操作失败: {str(e)}'
+        }), 500
+
+
+def _batch_get_user_targets(user_ids, year):
+    """批量获取用户绩效目标（内部函数）"""
+    # 获取这些用户的信息
+    users = User.query.filter(User.id.in_(user_ids)).all()
+    user_dict = {u.id: u for u in users}
+
+    if not users:
+        return jsonify({'success': False, 'message': '未找到指定的用户'})
+
+    # 收集所有角色
+    roles = list(set(u.role for u in users if u.role))
+
+    # 获取所有相关角色的默认目标
+    role_targets_all = RolePerformanceTarget.query.filter(
+        RolePerformanceTarget.role_code.in_(roles),
+        RolePerformanceTarget.year == year
+    ).all()
+    role_targets_by_role = {}
+    for t in role_targets_all:
+        if t.role_code not in role_targets_by_role:
+            role_targets_by_role[t.role_code] = {}
+        role_targets_by_role[t.role_code][t.item_code] = t
+
+    # 获取所有用户的覆盖
+    user_targets_all = UserPerformanceTarget.query.filter(
+        UserPerformanceTarget.user_id.in_(user_ids),
+        UserPerformanceTarget.year == year
+    ).all()
+    user_targets_by_user = {}
+    for t in user_targets_all:
+        if t.user_id not in user_targets_by_user:
+            user_targets_by_user[t.user_id] = {}
+        user_targets_by_user[t.user_id][t.item_code] = t
+
+    # 获取预置绩效项目
+    preset_items = get_preset_performance_items()
+
+    # 确定共同的有效配置（如果多用户有不同值，显示为 None）
+    items_data = []
+    for item in preset_items:
+        item_code = item['code']
+
+        # 收集所有用户对该项目的有效值
+        annual_targets = []
+        enabled_states = []
+        quarterly_enabled_states = []
+        q1_targets, q2_targets, q3_targets, q4_targets = [], [], [], []
+
+        for user_id in user_ids:
+            user = user_dict.get(user_id)
+            if not user:
+                continue
+
+            role_targets = role_targets_by_role.get(user.role, {})
+            role_target = role_targets.get(item_code)
+            user_target = user_targets_by_user.get(user_id, {}).get(item_code)
+
+            # 计算有效值
+            effective_annual = None
+            effective_enabled = False
+            effective_quarterly = False
+            effective_q1, effective_q2, effective_q3, effective_q4 = None, None, None, None
+
+            if user_target and user_target.annual_target_override is not None:
+                effective_annual = float(user_target.annual_target_override)
+            elif role_target and role_target.annual_target is not None:
+                effective_annual = float(role_target.annual_target)
+
+            if role_target:
+                effective_enabled = True
+            if user_target:
+                effective_enabled = True
+
+            if user_target and user_target.enable_quarterly_override is not None:
+                effective_quarterly = user_target.enable_quarterly_override
+            elif role_target:
+                effective_quarterly = role_target.enable_quarterly
+
+            # 季度目标
+            for q, q_list in [(1, q1_targets), (2, q2_targets), (3, q3_targets), (4, q4_targets)]:
+                override_val = getattr(user_target, f'q{q}_target_override', None) if user_target else None
+                role_val = getattr(role_target, f'q{q}_target', None) if role_target else None
+                if override_val is not None:
+                    q_list.append(float(override_val))
+                elif role_val is not None:
+                    q_list.append(float(role_val))
+
+            annual_targets.append(effective_annual)
+            enabled_states.append(effective_enabled)
+            quarterly_enabled_states.append(effective_quarterly)
+
+        # 判断值是否一致
+        def get_common_value(values):
+            unique = set(v for v in values if v is not None)
+            if len(unique) == 1:
+                return list(unique)[0]
+            return None  # 不一致或全为空
+
+        item_data = {
+            'item_code': item_code,
+            'item_name': item['name'],
+            'unit': item['unit'],
+            'data_type': item['data_type'],
+            'enabled': any(enabled_states),
+            'annual_target': get_common_value(annual_targets),
+            'enable_quarterly': any(quarterly_enabled_states),
+            'q1_target': get_common_value(q1_targets),
+            'q2_target': get_common_value(q2_targets),
+            'q3_target': get_common_value(q3_targets),
+            'q4_target': get_common_value(q4_targets),
+            'enable_monthly': False,
+            'monthly_targets': None,
+            # 标记值是否一致
+            'values_consistent': len(set(v for v in annual_targets if v is not None)) <= 1
+        }
+        items_data.append(item_data)
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'user_count': len(user_ids),
+            'year': year,
+            'items': items_data
+        }
+    })
+
+
+def _batch_save_user_targets(user_ids, year, items):
+    """批量保存用户绩效目标（内部函数）"""
+    saved_count = 0
+
+    for user_id in user_ids:
+        user = User.query.get(user_id)
+        if not user:
+            continue
+
+        for item_data in items:
+            if not item_data.get('enabled'):
+                # 如果项目未启用，删除可能存在的覆盖
+                UserPerformanceTarget.query.filter_by(
+                    user_id=user_id,
+                    year=year,
+                    item_code=item_data['item_code']
+                ).delete()
+                continue
+
+            # 查找或创建用户目标覆盖
+            target = UserPerformanceTarget.query.filter_by(
+                user_id=user_id,
+                year=year,
+                item_code=item_data['item_code']
+            ).first()
+
+            if not target:
+                target = UserPerformanceTarget(
+                    user_id=user_id,
+                    year=year,
+                    item_code=item_data['item_code'],
+                    created_by=current_user.id
+                )
+                db.session.add(target)
+
+            # 更新覆盖值
+            target.annual_target_override = item_data.get('annual_target')
+            target.enable_quarterly_override = item_data.get('enable_quarterly', False)
+            target.q1_target_override = item_data.get('q1_target')
+            target.q2_target_override = item_data.get('q2_target')
+            target.q3_target_override = item_data.get('q3_target')
+            target.q4_target_override = item_data.get('q4_target')
+            target.enable_monthly_override = item_data.get('enable_monthly', False)
+            target.monthly_targets_override = item_data.get('monthly_targets')
+            target.updated_by = current_user.id
+            target.updated_at = datetime.utcnow()
+
+            saved_count += 1
+
+    db.session.commit()
+
+    logger.info(f"批量保存成功: {len(user_ids)} 个用户, {saved_count} 条配置")
+    return jsonify({
+        'success': True,
+        'message': f'保存成功，为 {len(user_ids)} 个用户保存了配置'
+    })
+
+
+@performance_config_bp.route('/api/users/targets/clear', methods=['POST'])
+@login_required
+@permission_required('performance_management', 'edit')
+def api_batch_clear_user_targets():
+    """批量清除用户个人绩效目标配置（恢复使用角色默认值）"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '请求数据为空'})
+
+        user_ids = data.get('user_ids', [])
+        year = data.get('year', datetime.now().year)
+
+        if not user_ids:
+            return jsonify({'success': False, 'message': '未提供用户ID列表'})
+
+        logger.info(f"=== API: 批量清除用户目标配置 user_ids={user_ids}, year={year} ===")
+
+        # 删除用户的个人目标配置
+        deleted_count = UserPerformanceTarget.query.filter(
+            UserPerformanceTarget.user_id.in_(user_ids),
+            UserPerformanceTarget.year == year
+        ).delete(synchronize_session=False)
+
+        db.session.commit()
+
+        logger.info(f"批量清除成功: 删除 {deleted_count} 条个人配置")
+        return jsonify({
+            'success': True,
+            'message': f'已清除 {deleted_count} 条个人配置',
+            'data': {'deleted': deleted_count}
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"批量清除用户目标配置失败: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'操作失败: {str(e)}'
+        }), 500
+
 
 def get_simple_users_tree():
     """获取简化版的用户组织架构"""

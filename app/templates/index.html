@@ -1,7 +1,9 @@
 {% from 'components/tw_work_records.html' import render_tw_work_records, render_tw_work_records_script, render_tw_work_records_styles %}
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
 {% from 'components/tw_item_list_card.html' import tw_item_list_card, tw_item_list_item, tw_item_list_empty %}
+{% from 'components/tw_line_chart.html' import render_tw_line_chart, render_tw_line_chart_script, render_tw_line_chart_style %}
 {% from 'macros/ui_helpers.html' import render_tw_project_stage_badge_key with context %}
+{% from 'components/tw_card_shell.html' import tw_card_shell %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 <head>
@@ -14,6 +16,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
         tailwind.config = {
@@ -87,6 +90,26 @@
                             </p>
                         </div>
                         <div class="flex items-center gap-4">
+                            {% if ai_enabled %}
+                            <!-- AI分析报告图标 - 仅当用户启用AI时显示 -->
+                            <div id="aiReportIconContainer" x-data="aiReportIcon()" class="relative">
+                                <button @click="openReport()"
+                                        class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative"
+                                        :title="hasReport ? (isRead ? '{{ _('查看AI分析报告') }}' : '{{ _('有新的AI分析报告') }}') : '{{ _('AI分析报告') }}'">
+                                    <!-- 图标：根据状态显示不同颜色 -->
+                                    <span class="material-symbols-outlined text-2xl transition-colors"
+                                          :class="{
+                                              'text-primary': hasReport && !isRead,
+                                              'text-slate-400': hasReport && isRead,
+                                              'text-slate-300 dark:text-slate-600': !hasReport && !generating,
+                                              'text-primary animate-pulse': generating
+                                          }">insights</span>
+                                    <!-- 未读标记：闪烁红点 -->
+                                    <span x-show="hasReport && !isRead"
+                                          class="absolute top-0.5 right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
+                                </button>
+                            </div>
+                            {% endif %}
                             {% if show_manual_download %}
                             <!-- 说明书下载按钮 - SP8D数据库或开发模式可见 -->
                             <a href="{{ url_for('static', filename='docs/PMA系统产品使用说明书_V6.1.pdf') }}"
@@ -104,13 +127,78 @@
                         </div>
                     </div>
 
-                    <!-- 工作记录组件 -->
-                    {{ render_tw_work_records(
-                        container_id='workRecords',
-                        show_account_filter=true,
-                        max_height='400px',
-                        title=_('工作记录')
-                    ) }}
+                    <!-- 工作记录 + 数据状态 并排布局 -->
+                    <div class="flex gap-6">
+                        <!-- 工作记录 3/4 -->
+                        <div class="w-3/4">
+                            {{ render_tw_work_records(
+                                container_id='workRecords',
+                                show_account_filter=true,
+                                max_height='400px',
+                                title=_('工作记录')
+                            ) }}
+                        </div>
+                        <!-- 数据状态 1/4 -->
+                        <div class="w-1/4">
+                            {% call tw_card_shell(title=_('数据状态')) %}
+                            <div x-data="statusCardData()" x-init="loadData()" class="space-y-5">
+                                <!-- 加载状态 -->
+                                <div x-show="loading" class="flex justify-center py-8">
+                                    <span class="material-symbols-outlined text-2xl text-slate-400 animate-spin">progress_activity</span>
+                                </div>
+
+                                <!-- 数据内容 -->
+                                <div x-show="!loading" x-cloak class="space-y-4">
+                                    <!-- 动态绩效指标 -->
+                                    <template x-for="item in configuredItems" :key="item">
+                                        <div class="space-y-1.5" x-show="summary[item]?.target > 0">
+                                            <div class="flex items-center justify-between">
+                                                <div class="flex items-center gap-1.5">
+                                                    <span class="material-symbols-outlined text-sm" :class="getMetricIconColor(item)" x-text="getMetricIcon(item)"></span>
+                                                    <span class="text-xs font-medium text-slate-700 dark:text-slate-300" x-text="getMetricLabel(item)"></span>
+                                                </div>
+                                                <span class="text-xs font-semibold" :class="getPerformanceColorText(summary[item]?.rate || 0)" x-text="(summary[item]?.rate || 0) + '%'"></span>
+                                            </div>
+                                            <div class="h-1.5 w-full rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                                                <div class="h-full rounded-full transition-all duration-500"
+                                                     :class="getPerformanceColor(summary[item]?.rate || 0)"
+                                                     :style="'width: ' + Math.min(summary[item]?.rate || 0, 100) + '%'"></div>
+                                            </div>
+                                            <div class="text-xs text-slate-500 dark:text-slate-400">
+                                                <span x-text="formatMetricValue(item, summary[item]?.actual)"></span> /
+                                                <span x-text="formatMetricValue(item, summary[item]?.target)"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <!-- 年度费用预算 -->
+                                    <div class="space-y-2">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('年度费用预算') }}</span>
+                                            <span class="text-sm font-semibold" :class="getExpenseColorText(yearRate)" x-text="yearRate + '%'"></span>
+                                        </div>
+                                        <div class="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                                            <div class="h-full rounded-full transition-all duration-500"
+                                                 :class="getExpenseColor(yearRate)"
+                                                 :style="'width: ' + Math.min(yearRate, 100) + '%'"></div>
+                                        </div>
+                                        <div class="text-xs text-slate-500 dark:text-slate-400">
+                                            {{ _('已用') }} <span x-text="formatAmount(yearExpense)"></span> / <span x-text="formatAmount(yearBudget)"></span>
+                                        </div>
+                                    </div>
+
+                                    <!-- 当月费用 -->
+                                    <div class="pt-2 border-t border-slate-200 dark:border-slate-700">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('当月支出') }}</span>
+                                            <span class="text-sm font-semibold text-slate-900 dark:text-white" x-text="formatAmount(monthExpense)"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endcall %}
+                        </div>
+                    </div>
 
                     <!-- 三列卡片布局 -->
                     {# 项目阶段进度映射 #}
@@ -289,42 +377,8 @@
                                     <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('今年累计') }}</p>
                                     <p class="text-4xl font-bold text-primary tracking-tight">¥{{ "{:,.2f}".format(expense_year_total) }}</p>
                                 </div>
-                                <!-- 月度折线图 SVG -->
-                                <div class="relative w-full" style="aspect-ratio: 2.5/1;" id="expenseChartContainer">
-                                    <svg class="w-full h-full overflow-visible" viewBox="0 0 800 300" preserveAspectRatio="xMidYMid meet" id="expenseMonthlyChart">
-                                        <!-- 渐变定义 -->
-                                        <defs>
-                                            <linearGradient id="expenseAreaGradient" x1="0" x2="0" y1="0" y2="1">
-                                                <stop offset="0%" stop-color="#2979ff" stop-opacity="0.3"></stop>
-                                                <stop offset="100%" stop-color="#2979ff" stop-opacity="0"></stop>
-                                            </linearGradient>
-                                            <filter id="expenseGlow">
-                                                <feGaussianBlur stdDeviation="2.5" result="coloredBlur"></feGaussianBlur>
-                                                <feMerge>
-                                                    <feMergeNode in="coloredBlur"></feMergeNode>
-                                                    <feMergeNode in="SourceGraphic"></feMergeNode>
-                                                </feMerge>
-                                            </filter>
-                                        </defs>
-                                        <!-- 网格线 -->
-                                        <g class="stroke-slate-200 dark:stroke-slate-700" stroke-width="0.5" id="expenseGridLines"></g>
-                                        <!-- Y轴标签 -->
-                                        <g class="fill-slate-400 dark:fill-slate-500" style="font-size: 18px;" text-anchor="end" id="expenseYLabels"></g>
-                                        <!-- X轴标签 -->
-                                        <g class="fill-slate-500 dark:fill-slate-400" style="font-size: 18px;" text-anchor="middle" id="expenseXLabels"></g>
-                                        <!-- 面积填充 -->
-                                        <path id="expenseAreaPath" fill="url(#expenseAreaGradient)" opacity="0.6"></path>
-                                        <!-- 折线 -->
-                                        <path id="expenseLinePath" fill="none" stroke="#2979ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
-                                        <!-- 数据点 -->
-                                        <g id="expenseDataPoints"></g>
-                                        <!-- 悬停提示（固定右上角） -->
-                                        <g id="expenseTooltip" visibility="hidden" transform="translate(620, 20)">
-                                            <rect rx="6" height="36" width="160" fill="#1e232d" stroke="#2d333b" stroke-width="1"></rect>
-                                            <text fill="#e2e8f0" style="font-size: 16px;" text-anchor="middle" x="80" y="24"></text>
-                                        </g>
-                                    </svg>
-                                </div>
+                                <!-- 月度折线图 SVG (使用公共组件) -->
+                                {{ render_tw_line_chart(chart_id='expenseMonthlyChart', color='#2979ff') }}
                             </div>
                         </div>
                     </div>
@@ -380,6 +434,10 @@
         yearsAgo: '{{ _("年前") }}'
     };
 
+    // 货币配置（从全局配置注入）
+    const CURRENCY_SYMBOL = '{{ currency_config.symbol }}';
+    const AMOUNT_UNIT = '{{ currency_config.amount_unit }}';
+
     // 当前用户ID（用于判断回复显示位置）
     window.currentUserId = {{ current_user.id }};
 
@@ -389,6 +447,190 @@
         if (!name) return '?';
         return name.substring(0, 2).toUpperCase();
     })();
+
+    // AI报告图标组件
+    function aiReportIcon() {
+        return {
+            hasReport: false,
+            isRead: false,
+            generating: false,
+
+            async init() {
+                // 获取报告状态
+                await this.fetchStatus();
+
+                // 监听报告已读事件
+                window.addEventListener('daily-report-read', () => {
+                    this.isRead = true;
+                });
+            },
+
+            async fetchStatus() {
+                try {
+                    const response = await fetch('/api/v1/daily-report/status', {
+                        headers: {
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                        }
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.hasReport = data.has_report;
+                        this.isRead = data.is_read;
+                        this.generating = data.generating;
+                    }
+                } catch (e) {
+                    console.error('获取报告状态失败:', e);
+                }
+            },
+
+            openReport() {
+                // 调用弹窗组件打开报告
+                if (window.dailyReportModalInstance) {
+                    window.dailyReportModalInstance.openFromIcon();
+                    // 立即更新本地状态为已读
+                    if (this.hasReport) {
+                        this.isRead = true;
+                    }
+                }
+            }
+        };
+    }
+
+    // 数据状态卡片组件
+    function statusCardData() {
+        return {
+            loading: true,
+            // 动态绩效指标
+            configuredItems: [],
+            summary: {},
+            // 年度费用
+            yearBudget: 0,
+            yearExpense: 0,
+            yearRate: 0,
+            // 当月费用
+            monthExpense: 0,
+
+            async loadData() {
+                try {
+                    const year = new Date().getFullYear();
+                    const url = `/api/v1/performance/dashboard/{{ current_user.id }}?year=${year}`;
+                    const res = await fetch(url, {
+                        headers: {
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                        }
+                    });
+                    const result = await res.json();
+
+                    if (result.success && result.data) {
+                        // 动态配置的绩效项目
+                        this.configuredItems = result.data.configured_items || [];
+                        this.summary = result.data.summary || {};
+
+                        // 解析费用数据
+                        const expenseBudget = result.data.expense_budget || {};
+                        this.yearBudget = (expenseBudget.budget_total || 0) / 100;  // 分转元
+                        this.yearExpense = (expenseBudget.expense_total || 0) / 100;
+                        this.yearRate = Math.round(expenseBudget.usage_rate || 0);
+
+                        // 当月费用
+                        const monthlyTrend = expenseBudget.monthly_trend || [];
+                        const currentMonth = new Date().getMonth() + 1;
+                        const currentMonthData = monthlyTrend.find(m => m.month === currentMonth);
+                        this.monthExpense = currentMonthData ? (currentMonthData.amount || 0) / 100 : 0;
+                    }
+                } catch (e) {
+                    console.error('加载数据状态失败:', e);
+                }
+                this.loading = false;
+            },
+
+            // 指标标签（复用自 tw_performance_dashboard）
+            getMetricLabel(key) {
+                const labels = {
+                    implant_amount: '{{ _("植入额") }}',
+                    sales_amount: '{{ _("销售额") }}',
+                    new_customers: '{{ _("新增客户") }}',
+                    new_projects: '{{ _("新增项目") }}'
+                };
+                return labels[key] || key;
+            },
+
+            // 指标图标
+            getMetricIcon(key) {
+                const icons = {
+                    implant_amount: 'payments',
+                    sales_amount: 'point_of_sale',
+                    new_projects: 'folder_open',
+                    new_customers: 'person_add'
+                };
+                return icons[key] || 'analytics';
+            },
+
+            // 指标图标颜色
+            getMetricIconColor(key) {
+                const colors = {
+                    implant_amount: 'text-blue-500',
+                    sales_amount: 'text-green-500',
+                    new_projects: 'text-purple-500',
+                    new_customers: 'text-amber-500'
+                };
+                return colors[key] || 'text-slate-500';
+            },
+
+            // 格式化指标值（金额用万元，数量用个）
+            formatMetricValue(key, value) {
+                if (!value) return '0';
+                if (key === 'implant_amount' || key === 'sales_amount') {
+                    // 金额：元 → 万元
+                    return CURRENCY_SYMBOL + (value / 10000).toFixed(1) + AMOUNT_UNIT;
+                }
+                // 数量
+                return value + '{{ _("个") }}';
+            },
+
+            // 绩效进度条颜色
+            getPerformanceColor(rate) {
+                if (rate >= 100) return 'bg-green-500';
+                if (rate >= 80) return 'bg-blue-500';
+                if (rate >= 60) return 'bg-yellow-500';
+                return 'bg-red-500';
+            },
+
+            // 绩效文字颜色
+            getPerformanceColorText(rate) {
+                if (rate >= 100) return 'text-green-600 dark:text-green-400';
+                if (rate >= 80) return 'text-blue-600 dark:text-blue-400';
+                if (rate >= 60) return 'text-yellow-600 dark:text-yellow-400';
+                return 'text-red-600 dark:text-red-400';
+            },
+
+            // 费用进度条颜色（费用越低越好）
+            getExpenseColor(rate) {
+                if (rate <= 60) return 'bg-green-500';
+                if (rate <= 80) return 'bg-yellow-500';
+                if (rate <= 100) return 'bg-orange-500';
+                return 'bg-red-500';
+            },
+
+            // 费用文字颜色
+            getExpenseColorText(rate) {
+                if (rate <= 60) return 'text-green-600 dark:text-green-400';
+                if (rate <= 80) return 'text-yellow-600 dark:text-yellow-400';
+                if (rate <= 100) return 'text-orange-600 dark:text-orange-400';
+                return 'text-red-600 dark:text-red-400';
+            },
+
+            // 格式化金额（万元）- 费用使用
+            formatAmount(value) {
+                if (!value || value === 0) return CURRENCY_SYMBOL + '0';
+                if (value >= 10000) {
+                    return CURRENCY_SYMBOL + (value / 10000).toFixed(2) + AMOUNT_UNIT;
+                }
+                return CURRENCY_SYMBOL + value.toFixed(2);
+            }
+        };
+    }
 
     </script>
 
@@ -404,150 +646,23 @@
     ) }}
 
     {% if has_permission('expense', 'view') %}
-    <!-- SVG 报销月度统计图表 -->
-    <style>
-        .expense-point { cursor: pointer; transition: all 0.15s ease; }
-        .expense-point:hover circle:first-child { filter: drop-shadow(0 0 4px rgba(41, 121, 255, 0.6)); }
-        .glow-point { filter: drop-shadow(0 0 4px rgba(41, 121, 255, 0.6)); }
-    </style>
+    <!-- SVG 报销月度统计图表 (使用公共组件) -->
+    {{ render_tw_line_chart_style() }}
     <script>
-    (function() {
-        const monthlyData = {{ expense_monthly_stats | tojson }};
-        const svg = document.getElementById('expenseMonthlyChart');
-        if (!svg) return;
-
-        // 图表区域配置 (viewBox: 800x300)
-        const chartLeft = 40, chartRight = 800, chartTop = 50, chartBottom = 250;
-        const chartWidth = chartRight - chartLeft;
-        const chartHeight = chartBottom - chartTop;
-
-        // 计算最大值，向上取整到合适的刻度
-        const maxVal = Math.max(...monthlyData, 100);
-        let niceMax;
-        if (maxVal <= 500) niceMax = 500;
-        else if (maxVal <= 1000) niceMax = 1000;
-        else if (maxVal <= 2500) niceMax = 2500;
-        else if (maxVal <= 5000) niceMax = 5000;
-        else if (maxVal <= 10000) niceMax = 10000;
-        else niceMax = Math.ceil(maxVal / 5000) * 5000;
-
-        // 格式化Y轴标签
-        function formatYLabel(val) {
-            if (val >= 10000) return (val / 10000).toFixed(1) + '万';
-            if (val >= 1000) return (val / 1000).toFixed(1) + 'k';
-            return val.toString();
-        }
-
-        // 计算坐标
-        function getY(val) { return chartBottom - (val / niceMax) * chartHeight; }
-        function getX(i) { return chartLeft + 26 + (i * (chartWidth - 52) / 11); }
-
-        // 生成网格线和Y轴标签
-        const gridLines = document.getElementById('expenseGridLines');
-        const yLabels = document.getElementById('expenseYLabels');
-        const ySteps = [0, 0.2, 0.4, 0.6, 0.8, 1];
-        ySteps.forEach(step => {
-            const val = niceMax * step;
-            const y = getY(val);
-            // 网格线
-            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            line.setAttribute('x1', chartLeft); line.setAttribute('x2', chartRight);
-            line.setAttribute('y1', y); line.setAttribute('y2', y);
-            gridLines.appendChild(line);
-            // Y轴标签
-            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            text.setAttribute('x', '35'); text.setAttribute('y', String(y + 6));
-            text.textContent = formatYLabel(val);
-            yLabels.appendChild(text);
-        });
-
-        // 生成X轴标签
-        const xLabels = document.getElementById('expenseXLabels');
-        for (let i = 0; i < 12; i++) {
-            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            text.setAttribute('x', getX(i)); text.setAttribute('y', '285');
-            text.textContent = String(i + 1);
-            xLabels.appendChild(text);
-        }
-
-        // 生成路径点
-        const points = monthlyData.map((val, i) => ({ x: getX(i), y: getY(val), val: val, month: i + 1 }));
-
-        // 生成平滑曲线路径（使用二次贝塞尔曲线）
-        function getSmoothPath(pts) {
-            if (pts.length < 2) return '';
-            let d = `M${pts[0].x},${pts[0].y}`;
-            for (let i = 0; i < pts.length - 1; i++) {
-                const p0 = pts[i], p1 = pts[i + 1];
-                const midX = (p0.x + p1.x) / 2;
-                // 使用控制点创建平滑曲线
-                d += ` C${midX},${p0.y} ${midX},${p1.y} ${p1.x},${p1.y}`;
-            }
-            return d;
-        }
-
-        const linePath = getSmoothPath(points);
-        document.getElementById('expenseLinePath').setAttribute('d', linePath);
-
-        // 生成面积填充路径
-        const areaPath = linePath + ` L${points[11].x},${chartBottom} L${points[0].x},${chartBottom} Z`;
-        document.getElementById('expenseAreaPath').setAttribute('d', areaPath);
-
-        // 生成数据点和交互
-        const pointsGroup = document.getElementById('expenseDataPoints');
-        const tooltip = document.getElementById('expenseTooltip');
-        const tooltipText = tooltip.querySelector('text');
-        const isDark = document.documentElement.classList.contains('dark');
-        const pointFill = isDark ? '#151a23' : '#ffffff';
-
-        points.forEach((p, i) => {
-            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-            g.setAttribute('class', 'expense-point');
-
-            // 外圈
-            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y);
-            circle.setAttribute('r', '5');
-            circle.setAttribute('fill', pointFill);
-            circle.setAttribute('stroke', '#60a5fa');
-            circle.setAttribute('stroke-width', '2.5');
-            g.appendChild(circle);
-
-            // 悬停事件 - tooltip固定在右上角
-            g.addEventListener('mouseenter', function() {
-                tooltipText.textContent = `${p.month}{{ _("月") }}: ¥${p.val.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                tooltip.setAttribute('visibility', 'visible');
-                circle.setAttribute('r', '7');
-            });
-
-            g.addEventListener('mouseleave', function() {
-                tooltip.setAttribute('visibility', 'hidden');
-                circle.setAttribute('r', '5');
-            });
-
-            pointsGroup.appendChild(g);
-        });
-
-        // 最大值点添加高亮效果
-        const maxIndex = monthlyData.indexOf(Math.max(...monthlyData));
-        if (monthlyData[maxIndex] > 0) {
-            const maxPointGroup = pointsGroup.children[maxIndex];
-            if (maxPointGroup) {
-                const maxCircle = maxPointGroup.querySelector('circle');
-                maxCircle.setAttribute('class', 'glow-point');
-                maxCircle.setAttribute('r', '7');
-                maxCircle.setAttribute('stroke', '#2979ff');
-                // 添加内部白点
-                const innerDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                innerDot.setAttribute('cx', points[maxIndex].x);
-                innerDot.setAttribute('cy', points[maxIndex].y);
-                innerDot.setAttribute('r', '3');
-                innerDot.setAttribute('fill', 'white');
-                maxPointGroup.appendChild(innerDot);
-            }
-        }
-    })();
+        const monthlyExpenseData = {{ expense_monthly_stats | tojson }};
     </script>
+    {{ render_tw_line_chart_script(
+        chart_id='expenseMonthlyChart',
+        data_var='monthlyExpenseData',
+        unit='元',
+        color='#2979ff',
+        month_label=_('月')
+    ) }}
     {% endif %}
+
+    {# 每日智能分析报告弹窗 #}
+    {% from 'components/tw_daily_report_modal.html' import render_daily_report_modal, render_daily_report_script %}
+    {{ render_daily_report_modal() }}
+    {{ render_daily_report_script() }}
 </body>
 </html>

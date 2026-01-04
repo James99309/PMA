@@ -25,8 +25,8 @@
     {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'width': '100px', 'align': 'right'}
 ] %}
 
-{# 货币符号 #}
-{% set currency_symbol = '¥' if default_currency == 'CNY' else '$' %}
+{# 货币符号 - 使用全局配置 #}
+{% set currency_symbol = currency_config.symbol %}
 
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
@@ -40,6 +40,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
         tailwind.config = {

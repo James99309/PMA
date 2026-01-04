@@ -1,0 +1,470 @@
+{#
+Tailwind 风格角色/用户选择器组件
+用于配置管理中的权限配置和绩效配置标签页
+
+使用方法:
+{% from 'components/tw_role_user_selector.html' import render_tw_role_user_selector with context %}
+{{ render_tw_role_user_selector(available_roles, selector_id='permSelector') }}
+#}
+
+{#
+渲染角色/用户选择器
+@param available_roles - 可用的角色列表 [{role_code, display_name, icon, user_count, has_permissions}]
+@param selector_id - 选择器的唯一ID，用于区分多个实例
+@param show_year_selector - 是否显示年份选择器（绩效配置专用）
+@param default_year - 默认年份
+@param enable_user_selection - 是否启用用户级别选择
+@param title - 面板标题
+@param show_config_indicator - 是否显示配置状态指示器（绿色标记）
+#}
+{% macro render_tw_role_user_selector(available_roles, selector_id='roleSelector', show_year_selector=false, default_year=none, enable_user_selection=true, title=none, show_config_indicator=true) %}
+<div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+    <div class="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+        <h6 class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ title or _('角色/用户列表') }}</h6>
+        {% if show_year_selector %}
+        <div class="flex items-center gap-2">
+            <label class="text-xs text-slate-500">{{ _('年份') }}</label>
+            <select x-model="selectedYear" @change="onYearChange()"
+                    class="px-2 py-1 text-xs bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-slate-700 dark:text-slate-300">
+                <template x-for="y in availableYears" :key="y">
+                    <option :value="y" :selected="y === selectedYear" x-text="y"></option>
+                </template>
+            </select>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if enable_user_selection %}
+    <!-- 搜索框 -->
+    <div class="px-4 py-2 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+        <div class="relative">
+            <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-base">search</span>
+            <input type="text"
+                   x-model="searchQuery"
+                   @input="onSearchInput()"
+                   :placeholder="'{{ _('搜索用户...') }}'"
+                   class="w-full pl-8 pr-8 py-1.5 text-sm bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-md text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary">
+            <!-- 清空搜索按钮 -->
+            <button type="button"
+                    x-show="searchQuery"
+                    @click="clearSearch()"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                <span class="material-symbols-outlined text-base">close</span>
+            </button>
+        </div>
+        <!-- 搜索提示 -->
+        <div x-show="searchQuery && isSearching" class="mt-1.5 text-xs text-slate-500">
+            <span class="material-symbols-outlined animate-spin text-xs align-middle">progress_activity</span>
+            {{ _('搜索中...') }}
+        </div>
+        <div x-show="searchQuery && !isSearching && searchResultCount !== null" class="mt-1.5 text-xs text-slate-500">
+            {{ _('找到') }} <strong x-text="searchResultCount" class="text-primary"></strong> {{ _('个匹配用户') }}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="divide-y divide-slate-100 dark:divide-slate-700 max-h-[600px] overflow-y-auto">
+        {% for role in available_roles %}
+        <div class="role-group">
+            <!-- 角色项（可展开） -->
+            <div class="flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors cursor-pointer"
+                 :class="selectedRole === '{{ role.role_code }}' && selectedUsers.length === 0 ? 'bg-primary/5 border-l-2 border-primary' : ''"
+                 @click="selectRole('{{ role.role_code }}')">
+                <div class="flex items-center gap-2">
+                    {% if enable_user_selection %}
+                    <!-- 展开/折叠按钮 -->
+                    <button type="button" @click.stop="toggleExpand('{{ role.role_code }}')"
+                            class="w-6 h-6 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 rounded transition-colors">
+                        <span class="material-symbols-outlined text-base text-slate-400 transition-transform"
+                              :class="expandedRoles.includes('{{ role.role_code }}') ? 'rotate-90' : ''">chevron_right</span>
+                    </button>
+                    {% endif %}
+                    <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-primary text-sm">{{ role.icon or 'person' }}</span>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ role.display_name }}</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">{{ role.user_count }} {{ _('用户') }}</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    {% if show_config_indicator and role.has_permissions %}
+                    <span class="w-2 h-2 rounded-full bg-green-500" title="{{ _('已配置') }}"></span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if enable_user_selection %}
+            <!-- 用户列表（展开时显示） -->
+            <div x-show="expandedRoles.includes('{{ role.role_code }}')" x-collapse>
+                <div class="bg-slate-50/50 dark:bg-slate-700/20">
+                    <!-- 加载中状态 -->
+                    <template x-if="loadingRoleUsers === '{{ role.role_code }}'">
+                        <div class="px-8 py-4 text-center text-slate-500 text-sm">
+                            <span class="material-symbols-outlined animate-spin text-base align-middle">progress_activity</span>
+                            {{ _('加载中...') }}
+                        </div>
+                    </template>
+
+                    <!-- 用户列表 -->
+                    <template x-if="loadingRoleUsers !== '{{ role.role_code }}' && roleUsers['{{ role.role_code }}']">
+                        <div>
+                            <template x-for="user in getFilteredUsers('{{ role.role_code }}')" :key="user.id">
+                                <div class="flex items-center gap-3 pl-8 pr-4 py-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/30 transition-colors"
+                                     :class="{'bg-primary/10 border-l-2 border-primary': selectedUsers.includes(user.id), 'bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-500': isUserMatched(user) && !selectedUsers.includes(user.id)}"
+                                     @click="selectSingleUser(user.id, '{{ role.role_code }}')">
+                                    <!-- 复选框 -->
+                                    <input type="checkbox"
+                                           :value="user.id"
+                                           :checked="selectedUsers.includes(user.id)"
+                                           @click.stop
+                                           @change="toggleUserSelection(user.id, '{{ role.role_code }}')"
+                                           class="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary">
+                                    <span class="text-sm text-slate-700 dark:text-slate-300 flex-1"
+                                          x-html="highlightMatch(user.real_name)"></span>
+                                    <span x-show="user.has_override" class="text-xs text-amber-500 flex items-center gap-0.5" title="{{ _('有个人配置覆盖') }}">
+                                        <span class="material-symbols-outlined text-xs">person_edit</span>
+                                    </span>
+                                    <!-- 搜索匹配标记 - 蓝色 -->
+                                    <span x-show="isUserMatched(user)" class="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                                        <span class="material-symbols-outlined text-sm">arrow_forward</span>
+                                        <span>{{ _('跳转') }}</span>
+                                    </span>
+                                </div>
+                            </template>
+
+                            <!-- 角色下的操作 -->
+                            <div class="pl-8 pr-4 py-2 border-t border-slate-100 dark:border-slate-700 flex gap-4 text-xs">
+                                <a href="#" @click.prevent="selectAllInRole('{{ role.role_code }}')"
+                                   class="text-primary hover:underline">{{ _('全选') }}</a>
+                                <a href="#" @click.prevent="unselectAllInRole('{{ role.role_code }}')"
+                                   class="text-slate-500 hover:underline">{{ _('取消选择') }}</a>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- 无用户 -->
+                    <template x-if="loadingRoleUsers !== '{{ role.role_code }}' && (!roleUsers['{{ role.role_code }}'] || roleUsers['{{ role.role_code }}'].length === 0)">
+                        <div class="px-8 py-4 text-center text-slate-400 text-sm">
+                            {{ _('该角色暂无用户') }}
+                        </div>
+                    </template>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if enable_user_selection %}
+    <!-- 已选用户统计 -->
+    <div x-show="selectedUsers.length > 0" x-transition class="px-4 py-3 bg-primary/5 border-t border-slate-200 dark:border-slate-700">
+        <div class="flex items-center justify-between">
+            <span class="text-sm text-slate-600 dark:text-slate-400">
+                {{ _('已选择') }} <strong x-text="selectedUsers.length" class="text-primary"></strong> {{ _('人') }}
+            </span>
+            <button type="button" @click="clearSelection()"
+                    class="text-xs text-slate-500 hover:text-red-500 transition-colors">
+                {{ _('清空') }}
+            </button>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{#
+渲染角色/用户选择器的 Alpine.js 组件脚本
+@param selector_id - 选择器ID
+@param initial_role - 初始选中的角色
+@param show_year_selector - 是否显示年份选择
+@param default_year - 默认年份
+@param enable_user_selection - 是否启用用户选择
+@param users_api_url - 获取角色下用户的 API URL 模板（包含 {roleCode} 占位符）
+@param on_role_select - 角色选择回调函数名
+@param on_users_select - 用户选择回调函数名（仅当 enable_user_selection=true）
+@param on_year_change - 年份变更回调函数名（仅当 show_year_selector=true）
+@param available_roles - 可用的角色列表（用于搜索功能）
+#}
+{% macro render_tw_role_user_selector_script(
+    selector_id='roleSelector',
+    initial_role='',
+    show_year_selector=false,
+    default_year=none,
+    enable_user_selection=true,
+    users_api_url='/config-management/api/role/{roleCode}/users',
+    on_role_select='',
+    on_users_select='',
+    on_year_change='',
+    available_roles=[]
+) %}
+function {{ selector_id }}Config() {
+    return {
+        // 状态
+        selectedRole: '{{ initial_role }}',
+        selectedUsers: [],
+        expandedRoles: [],
+        roleUsers: {},
+        loadingRoleUsers: null,
+        configMode: 'role',  // 'role' 或 'users'
+        {% if show_year_selector %}
+        selectedYear: {{ default_year or 'new Date().getFullYear()' }},
+        availableYears: [new Date().getFullYear(), new Date().getFullYear() + 1],
+        {% endif %}
+
+        {% if enable_user_selection %}
+        // 搜索相关状态
+        searchQuery: '',
+        searchDebounceTimer: null,
+        isSearching: false,
+        searchResultCount: null,
+        allRoleCodes: {{ available_roles|map(attribute='role_code')|list|tojson }},
+        {% endif %}
+
+        init() {
+            // 初始加载第一个角色
+            if (this.selectedRole) {
+                this.onRoleSelected();
+            }
+        },
+
+        // 选择角色（配置角色全局配置）
+        selectRole(roleCode) {
+            this.selectedRole = roleCode;
+            this.selectedUsers = [];  // 清空用户选择
+            this.configMode = 'role';
+            this.onRoleSelected();
+        },
+
+        // 角色选择后的回调
+        onRoleSelected() {
+            {% if on_role_select %}
+            {{ on_role_select }}(this.selectedRole{% if show_year_selector %}, this.selectedYear{% endif %});
+            {% endif %}
+        },
+
+        {% if enable_user_selection %}
+        // 展开/折叠角色用户列表
+        async toggleExpand(roleCode) {
+            const idx = this.expandedRoles.indexOf(roleCode);
+            if (idx === -1) {
+                this.expandedRoles.push(roleCode);
+                // 加载该角色下的用户
+                if (!this.roleUsers[roleCode]) {
+                    await this.loadRoleUsers(roleCode);
+                }
+            } else {
+                this.expandedRoles.splice(idx, 1);
+            }
+        },
+
+        // 加载角色下的用户列表
+        async loadRoleUsers(roleCode) {
+            this.loadingRoleUsers = roleCode;
+            try {
+                const url = '{{ users_api_url }}'.replace('{roleCode}', roleCode);
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.success) {
+                    this.roleUsers[roleCode] = data.data.users;
+                } else {
+                    console.error('加载用户列表失败:', data.message);
+                }
+            } catch (error) {
+                console.error('加载用户列表失败:', error);
+            } finally {
+                this.loadingRoleUsers = null;
+            }
+        },
+
+        // 切换用户选择
+        toggleUserSelection(userId, roleCode) {
+            const idx = this.selectedUsers.indexOf(userId);
+            if (idx === -1) {
+                this.selectedUsers.push(userId);
+            } else {
+                this.selectedUsers.splice(idx, 1);
+            }
+            // 如果有选中用户，切换到用户配置模式
+            if (this.selectedUsers.length > 0) {
+                this.configMode = 'users';
+                this.onUsersSelected();
+            } else {
+                // 恢复角色配置模式
+                this.configMode = 'role';
+                this.onRoleSelected();
+            }
+        },
+
+        // 选择角色下的所有用户
+        selectAllInRole(roleCode) {
+            const users = this.roleUsers[roleCode] || [];
+            users.forEach(user => {
+                if (!this.selectedUsers.includes(user.id)) {
+                    this.selectedUsers.push(user.id);
+                }
+            });
+            if (this.selectedUsers.length > 0) {
+                this.configMode = 'users';
+                this.onUsersSelected();
+            }
+        },
+
+        // 取消选择角色下的所有用户
+        unselectAllInRole(roleCode) {
+            const users = this.roleUsers[roleCode] || [];
+            const userIds = users.map(u => u.id);
+            this.selectedUsers = this.selectedUsers.filter(id => !userIds.includes(id));
+            if (this.selectedUsers.length === 0) {
+                this.configMode = 'role';
+                this.onRoleSelected();
+            } else {
+                this.onUsersSelected();
+            }
+        },
+
+        // 清空所有用户选择
+        clearSelection() {
+            this.selectedUsers = [];
+            this.configMode = 'role';
+            this.onRoleSelected();
+        },
+
+        // 用户选择后的回调
+        onUsersSelected() {
+            {% if on_users_select %}
+            {{ on_users_select }}(this.selectedUsers, this.selectedRole{% if show_year_selector %}, this.selectedYear{% endif %});
+            {% endif %}
+        },
+
+        // ========== 搜索功能 ==========
+
+        // 搜索输入处理（防抖）
+        onSearchInput() {
+            clearTimeout(this.searchDebounceTimer);
+            this.searchDebounceTimer = setTimeout(() => {
+                this.performSearch();
+            }, 300);
+        },
+
+        // 执行搜索
+        async performSearch() {
+            const query = this.searchQuery.trim().toLowerCase();
+            if (!query) {
+                this.searchResultCount = null;
+                return;
+            }
+
+            this.isSearching = true;
+
+            // 先加载所有角色的用户数据
+            const loadPromises = this.allRoleCodes.map(async (roleCode) => {
+                if (!this.roleUsers[roleCode]) {
+                    await this.loadRoleUsers(roleCode);
+                }
+            });
+            await Promise.all(loadPromises);
+
+            // 统计匹配结果并自动展开
+            let matchCount = 0;
+            const matchedRoles = [];
+
+            this.allRoleCodes.forEach(roleCode => {
+                const users = this.roleUsers[roleCode] || [];
+                const hasMatch = users.some(user => this.matchesSearch(user, query));
+                if (hasMatch) {
+                    matchedRoles.push(roleCode);
+                    matchCount += users.filter(user => this.matchesSearch(user, query)).length;
+                }
+            });
+
+            // 自动展开匹配的角色
+            matchedRoles.forEach(roleCode => {
+                if (!this.expandedRoles.includes(roleCode)) {
+                    this.expandedRoles.push(roleCode);
+                }
+            });
+
+            this.searchResultCount = matchCount;
+            this.isSearching = false;
+        },
+
+        // 清空搜索
+        clearSearch() {
+            this.searchQuery = '';
+            this.searchResultCount = null;
+            this.isSearching = false;
+        },
+
+        // 检查用户是否匹配搜索条件
+        matchesSearch(user, query) {
+            if (!query) return false;
+            const realName = (user.real_name || '').toLowerCase();
+            const username = (user.username || '').toLowerCase();
+            return realName.includes(query) || username.includes(query);
+        },
+
+        // 获取过滤后的用户列表
+        getFilteredUsers(roleCode) {
+            const users = this.roleUsers[roleCode] || [];
+            const query = this.searchQuery.trim().toLowerCase();
+            if (!query) {
+                return users;
+            }
+            // 搜索时：匹配的用户置顶
+            const matched = users.filter(u => this.matchesSearch(u, query));
+            const notMatched = users.filter(u => !this.matchesSearch(u, query));
+            return [...matched, ...notMatched];
+        },
+
+        // 检查用户是否匹配当前搜索（用于高亮）
+        isUserMatched(user) {
+            const query = this.searchQuery.trim().toLowerCase();
+            if (!query) return false;
+            return this.matchesSearch(user, query);
+        },
+
+        // 高亮匹配文本（蓝色）
+        highlightMatch(text) {
+            const query = this.searchQuery.trim();
+            if (!query || !text) return text;
+            const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            return text.replace(regex, '<span class="bg-blue-200 dark:bg-blue-700 text-blue-800 dark:text-blue-100 px-0.5 rounded font-medium">$1</span>');
+        },
+
+        // 选中单个用户并跳转（点击整行时触发）
+        selectSingleUser(userId, roleCode) {
+            // 清空之前的选择，只选中当前用户
+            this.selectedUsers = [userId];
+            this.configMode = 'users';
+            this.onUsersSelected();
+        },
+        {% endif %}
+
+        {% if show_year_selector %}
+        // 年份变更
+        onYearChange() {
+            {% if on_year_change %}
+            {{ on_year_change }}(this.selectedYear, this.selectedRole, this.selectedUsers);
+            {% else %}
+            // 默认行为：根据当前模式重新加载
+            if (this.configMode === 'users' && this.selectedUsers.length > 0) {
+                this.onUsersSelected();
+            } else if (this.selectedRole) {
+                this.onRoleSelected();
+            }
+            {% endif %}
+        },
+
+        // 设置可用年份（从外部调用）
+        setAvailableYears(years) {
+            this.availableYears = years;
+            if (!years.includes(this.selectedYear)) {
+                this.selectedYear = new Date().getFullYear();
+            }
+        },
+        {% endif %}
+    };
+}
+{% endmacro %}

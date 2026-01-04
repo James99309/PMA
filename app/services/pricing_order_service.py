@@ -14,6 +14,7 @@ from app.models.customer import Company
 from app.models.user import User
 from app.permissions import check_permission
 from flask_babel import gettext as _
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -1018,7 +1019,7 @@ class PricingOrderService:
                         
                         # 使用前端最新金额进行校验
                         if settlement_total < pricing_total:
-                            return False, f"审批失败：结算单总金额 ¥{settlement_total:,.2f} 小于批价单总金额 ¥{pricing_total:,.2f}，不能通过审批"
+                            return False, f"审批失败：结算单总金额 {Config.CURRENCY_SYMBOL}{settlement_total:,.2f} 小于批价单总金额 {Config.CURRENCY_SYMBOL}{pricing_total:,.2f}，不能通过审批"
                     else:
                         # 回退到数据库金额校验（兼容性）
                         from app.models.pricing_order import SettlementOrder
@@ -1030,7 +1031,7 @@ class PricingOrderService:
                             
                             # 检查结算单总金额不能小于批价单总金额
                             if settlement_order.total_amount < pricing_order.pricing_total_amount:
-                                return False, f"审批失败：结算单总金额 ¥{settlement_order.total_amount:,.2f} 小于批价单总金额 ¥{pricing_order.pricing_total_amount:,.2f}，不能通过审批"
+                                return False, f"审批失败：结算单总金额 {Config.CURRENCY_SYMBOL}{settlement_order.total_amount:,.2f} 小于批价单总金额 {Config.CURRENCY_SYMBOL}{pricing_order.pricing_total_amount:,.2f}，不能通过审批"
                     
                     # 金额校验通过，继续完成审批
                     # 注意：不再重新计算总金额和总折扣率，保持前端传递的数据

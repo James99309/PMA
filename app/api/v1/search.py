@@ -28,30 +28,17 @@ def search_projects():
     """
     try:
         query_term = request.args.get('q', '').strip()
-        limit = min(int(request.args.get('limit', 10)), 50)
-        
-        if not query_term:
-            return jsonify({
-                'success': True,
-                'data': [],
-                'message': '搜索关键词不能为空'
-            })
-        
-        if len(query_term) < 1:
-            return jsonify({
-                'success': True,
-                'data': [],
-                'message': '搜索关键词太短'
-            })
-        
+        limit = min(int(request.args.get('limit', 20)), 50)
+
+        # 支持空查询，返回用户可见的最近项目
         results = search_projects_by_name(query_term, current_user, limit)
-        
+
         return jsonify({
             'success': True,
             'data': results,
             'count': len(results)
         })
-        
+
     except Exception as e:
         logger.error(f"搜索项目时出错: {str(e)}")
         return jsonify({
@@ -106,15 +93,9 @@ def search_companies():
     """
     try:
         query_term = request.args.get('q', '').strip()
-        limit = min(int(request.args.get('limit', 10)), 50)
-        
-        if not query_term:
-            return jsonify({
-                'success': True,
-                'data': [],
-                'message': '搜索关键词不能为空'
-            })
-        
+        limit = min(int(request.args.get('limit', 20)), 50)
+
+        # 支持空查询，返回用户可见的最近客户
         results = search_companies_by_name(query_term, current_user, limit)
         
         return jsonify({
@@ -199,24 +180,11 @@ def search_products():
 def search_quotations():
     """
     搜索报价单
+    支持空查询：返回用户可见的最近报价单
     """
     try:
         query_term = request.args.get('q', '').strip()
         limit = min(int(request.args.get('limit', 10)), 50)
-        
-        if not query_term:
-            return jsonify({
-                'success': True,
-                'data': [],
-                'message': '搜索关键词不能为空'
-            })
-        
-        if len(query_term) < 1:
-            return jsonify({
-                'success': True,
-                'data': [],
-                'message': '搜索关键词太短'
-            })
         
         # 导入必要的模块
         from app.models.quotation import Quotation
@@ -229,14 +197,15 @@ def search_quotations():
         
         # 添加项目表的JOIN以便搜索项目名称
         quotations_query = quotations_query.join(Project)
-        
-        # 添加搜索条件
-        search_condition = or_(
-            Project.project_name.ilike(f'%{query_term}%'),
-            Project.authorization_code.ilike(f'%{query_term}%'),
-            Quotation.quotation_number.ilike(f'%{query_term}%')
-        )
-        quotations_query = quotations_query.filter(search_condition)
+
+        # 添加搜索条件（仅当有搜索词时）
+        if query_term:
+            search_condition = or_(
+                Project.project_name.ilike(f'%{query_term}%'),
+                Project.authorization_code.ilike(f'%{query_term}%'),
+                Quotation.quotation_number.ilike(f'%{query_term}%')
+            )
+            quotations_query = quotations_query.filter(search_condition)
         
         # 限制结果数量并排序
         quotations = quotations_query.order_by(Quotation.created_at.desc()).limit(limit).all()

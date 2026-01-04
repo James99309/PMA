@@ -18,6 +18,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
         tailwind.config = {
@@ -63,7 +64,7 @@
             <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('产品库管理') }}</h1>
             <div class="flex flex-wrap items-center gap-2">
                 {% if current_user.role in ['admin', 'product_manager'] %}
-                <button type="button" onclick="ProductModal.openCreate()"
+                <button type="button" @click="$dispatch('open-create-type-modal')"
                    class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
                     <span class="material-symbols-outlined" style="font-size: 20px;">add</span>
                     <span>{{ _('新增产品') }}</span>
@@ -166,7 +167,7 @@
                     <!-- 价格 -->
                     <td class="p-3 whitespace-nowrap text-sm text-right font-medium text-slate-700 dark:text-slate-300">
                         {% if product.retail_price %}
-                        ¥{{ "%.2f"|format(product.retail_price) }}
+                        {{ currency_config.symbol }}{{ "%.2f"|format(product.retail_price) }}
                         {% else %}
                         <span class="text-slate-400 dark:text-slate-500">-</span>
                         {% endif %}
@@ -237,6 +238,73 @@
     {% if current_user.role in ['admin', 'product_manager'] %}
     {{ render_product_modal(product_type='standard') }}
     {{ render_product_modal_script(modal_categories, modal_regions, csrf_token(), modal_currencies, product_type='standard') }}
+
+    <!-- 创建方式选择模态框 -->
+    <div x-data="{ open: false }"
+         x-show="open"
+         x-cloak
+         @open-create-type-modal.window="open = true"
+         class="fixed inset-0 z-50 overflow-y-auto">
+        <!-- 背景遮罩 -->
+        <div class="fixed inset-0 bg-black/30 dark:bg-black/50 transition-opacity" @click="open = false"></div>
+
+        <!-- 模态框内容 -->
+        <div class="flex min-h-full items-center justify-center p-4">
+            <div class="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md transform transition-all"
+                 x-show="open"
+                 x-transition:enter="ease-out duration-200"
+                 x-transition:enter-start="opacity-0 scale-95"
+                 x-transition:enter-end="opacity-100 scale-100"
+                 x-transition:leave="ease-in duration-150"
+                 x-transition:leave-start="opacity-100 scale-100"
+                 x-transition:leave-end="opacity-0 scale-95">
+                <!-- 头部 -->
+                <div class="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('请选择创建方式') }}</h3>
+                    <button @click="open = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+
+                <!-- 选项 -->
+                <div class="p-6">
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- 手动新建 -->
+                        <button @click="open = false; ProductModal.openCreate()"
+                            class="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-primary dark:hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10 transition-all group">
+                            <span class="material-symbols-outlined text-4xl text-slate-500 dark:text-slate-400 group-hover:text-primary transition-colors">edit_note</span>
+                            <span class="font-medium text-slate-700 dark:text-slate-300 group-hover:text-primary transition-colors">{{ _('手动新建') }}</span>
+                            <span class="text-xs text-slate-500 dark:text-slate-400 text-center">{{ _('从空白开始创建') }}</span>
+                        </button>
+
+                        <!-- 从配置引入 -->
+                        <button @click="open = false; $dispatch('open-config-selector-modal')"
+                            class="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-primary dark:hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10 transition-all group">
+                            <span class="material-symbols-outlined text-4xl text-primary">input</span>
+                            <span class="font-medium text-slate-700 dark:text-slate-300 group-hover:text-primary transition-colors">{{ _('从配置引入') }}</span>
+                            <span class="text-xs text-slate-500 dark:text-slate-400 text-center">{{ _('从规格库配置导入') }}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 配置选择器模态框 -->
+    {% from 'components/product/tw_config_selector_modal.html' import tw_config_selector_modal, tw_config_selector_script %}
+    {{ tw_config_selector_modal(
+        modal_id='configSelectorModal',
+        title=_('选择配置产品'),
+        event_name='open-config-selector-modal'
+    ) }}
+    {{ tw_config_selector_script('configSelectorModal') }}
+
+    <!-- 监听配置选中事件 -->
+    <script>
+        window.addEventListener('config-selected', function(e) {
+            ProductModal.openFromImport(e.detail);
+        });
+    </script>
     {% endif %}
 </body>
 </html>

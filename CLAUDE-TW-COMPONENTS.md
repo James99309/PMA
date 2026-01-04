@@ -20,8 +20,61 @@
 10. [信息卡片组件](#-tailwind-信息卡片组件)
 11. [卡片外壳组件](#-tailwind-卡片外壳组件)
 12. [表格卡片组件](#-tailwind-表格卡片组件)
-12. [项目列表卡片组件](#-tailwind-项目列表卡片组件)
-13. [审批流程组件](#-tailwind-审批流程组件)
+13. [项目列表卡片组件](#-tailwind-项目列表卡片组件)
+14. [审批流程组件](#-tailwind-审批流程组件)
+15. [标签页组件](#-tailwind-标签页组件)
+16. [Mention 编辑器组件](#-tailwind-mention-编辑器组件)
+
+---
+
+## 🎨 模态框设计规范
+
+### **设计原则**
+所有 Tailwind 模态框遵循统一的简洁设计：
+
+```
+┌─────────────────────────────────┐
+│  标题                          │  ← 无X按钮，无分割线
+│                                 │
+│  内容区域                       │
+│                                 │
+│              [取消]  [确认]     │  ← 无分割线
+└─────────────────────────────────┘
+```
+
+### **关闭方式**
+- **底部按钮**：取消/关闭按钮（主要关闭方式）
+- **点击遮罩**：点击模态框外部区域关闭
+- **ESC 键**：按 ESC 键关闭
+
+### **默认参数**
+| 组件 | 参数 | 默认值 |
+|-----|------|--------|
+| `tw_modal` | `show_close` | `false` |
+| `tw_modal` | `header_border` | `false` |
+| `tw_modal_header` | `show_close` | `false` |
+| `tw_modal_header` | `border` | `false` |
+| `tw_modal_footer` | `border` | `false` |
+
+### **使用示例**
+```jinja2
+{% call tw_modal('myModal', title='标题', close_action='closeModal()') %}
+    <div class="p-6">
+        <!-- 内容区域 -->
+    </div>
+    <footer class="flex items-center justify-end px-6 py-4">
+        <button type="button" onclick="closeModal()">{{ _('取消') }}</button>
+        <button type="button" onclick="handleSubmit()">{{ _('确认') }}</button>
+    </footer>
+{% endcall %}
+```
+
+### **特殊情况**
+如需显示 X 按钮或分割线，可通过参数启用：
+```jinja2
+{{ tw_modal('modal', title='标题', show_close=true, header_border=true) }}
+{{ tw_modal_footer(cancel_text='取消', border=true) }}
+```
 
 ---
 
@@ -1959,8 +2012,332 @@ Tailwind 风格的审批流程展示组件，用于显示审批进度和执行�
 
 ---
 
+## 🗂️ Tailwind 标签页组件
+
+### **文件位置**
+`app/templates/components/tw_tabs.html`
+
+### **功能概述**
+可复用的 Tailwind CSS 标签页导航组件，支持：
+- Material Symbols 图标
+- 计数徽章
+- 深色模式
+- 传统 JavaScript 回调模式
+- Alpine.js 响应式模式（新增）
+
+### **宏列表**
+
+| 宏名称 | 说明 |
+|-------|------|
+| `render_tw_tabs()` | 传统标签页（需要 JavaScript 回调） |
+| `render_tw_tabs_script()` | 标签页切换脚本 |
+| `render_tw_alpine_tabs()` | Alpine.js 标签页（在 x-data 上下文中使用） |
+| `render_tw_tabs_update_script()` | 更新标签页计数脚本 |
+
+### **render_tw_tabs() - 传统模式**
+
+用于需要 JavaScript 回调控制的场景。
+
+#### 参数
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|-----|------|-----|--------|------|
+| tabs | list | ✓ | - | 标签页配置列表 |
+| current_tab | string | ✓ | - | 当前激活的标签键 |
+
+#### tabs 配置项
+| 属性 | 类型 | 说明 |
+|-----|------|------|
+| key | string | 标签唯一键 |
+| label | string | 显示文本 |
+| icon | string | Material Symbols 图标名称 |
+| icon_class | string | 图标额外样式类（如 'text-amber-500'） |
+| count | number | 计数徽章（可选） |
+
+#### 使用示例
+```jinja2
+{% from 'components/tw_tabs.html' import render_tw_tabs, render_tw_tabs_script %}
+
+<!-- 渲染标签页 -->
+{{ render_tw_tabs(
+    tabs=[
+        {'key': 'created', 'label': '我发起的', 'icon': 'upload_file', 'count': 5},
+        {'key': 'pending', 'label': '待我审批', 'icon': 'hourglass_top', 'icon_class': 'text-amber-500', 'count': 3}
+    ],
+    current_tab='created'
+) }}
+
+<!-- 标签页内容 -->
+<div id="tab-created" class="tab-panel">创建内容</div>
+<div id="tab-pending" class="tab-panel hidden">待审批内容</div>
+
+<!-- 脚本 -->
+<script>
+window.onTabChange = function(tabKey) {
+    // 隐藏所有面板
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+    // 显示当前面板
+    document.getElementById('tab-' + tabKey).classList.remove('hidden');
+};
+</script>
+{{ render_tw_tabs_script(on_change_callback='onTabChange') }}
+```
+
+### **render_tw_alpine_tabs() - Alpine.js 模式**
+
+用于 Alpine.js x-data 上下文中的响应式标签页。
+
+#### 参数
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|-----|------|-----|--------|------|
+| tabs | list | ✓ | - | 标签页配置列表（同上） |
+| model | string | | 'activeTab' | Alpine.js 数据模型名称 |
+| container_class | string | | '' | 容器额外样式类 |
+
+#### 使用示例
+```jinja2
+{% from 'components/tw_tabs.html' import render_tw_alpine_tabs %}
+
+<div x-data="{ activeTab: 'goals' }">
+    <!-- 渲染标签页 -->
+    {{ render_tw_alpine_tabs(
+        tabs=[
+            {'key': 'goals', 'label': _('目标达成'), 'icon': 'target'},
+            {'key': 'expense', 'label': _('报销预算'), 'icon': 'receipt_long'},
+            {'key': 'activity', 'label': _('活跃度'), 'icon': 'trending_up'}
+        ],
+        model='activeTab'
+    ) }}
+
+    <!-- 标签页内容 -->
+    <div x-show="activeTab === 'goals'" x-cloak>目标内容</div>
+    <div x-show="activeTab === 'expense'" x-cloak>报销内容</div>
+    <div x-show="activeTab === 'activity'" x-cloak>活跃度内容</div>
+</div>
+```
+
+### **已使用页面**
+- `templates/user/tw_detail.html` - 用户详情页（基本信息、权限、归属、绩效标签页）
+- `templates/components/tw_performance_dashboard.html` - 绩效看板（目标、报销、活跃度、行业分布）
+- `templates/approval/tw_center.html` - 审批中心
+
+### **样式说明**
+- 激活状态：`text-primary border-b-2 border-primary bg-white dark:bg-slate-800`
+- 非激活状态：`text-slate-500 hover:text-primary border-transparent`
+- 徽章激活：`bg-primary/10 text-primary`
+- 徽章非激活：`bg-slate-100 dark:bg-slate-700`
+
+---
+
+## 📈 SVG 折线图组件
+
+`app/templates/components/tw_line_chart.html`
+
+纯 SVG 实现的月度趋势折线图，无需 ECharts 等第三方库。
+
+### **特点**
+- 12个月数据点，贝塞尔曲线平滑连接
+- 渐变面积填充
+- 悬停提示显示具体数值
+- 最大值点特殊高亮
+- 支持暗色模式
+
+### **可用宏**
+
+| 宏名称 | 说明 |
+|--------|------|
+| `render_tw_line_chart(chart_id, color)` | 渲染 SVG 容器 |
+| `render_tw_line_chart_style()` | 渲染必需的 CSS 样式（每页一次） |
+| `render_tw_line_chart_script(chart_id, data_var, unit, color, month_label)` | 渲染静态初始化脚本 |
+| `render_tw_line_chart_init_fn(month_label)` | 渲染动态初始化函数（用于 Alpine.js） |
+
+### **静态使用示例（如首页仪表盘）**
+
+```jinja2
+{% from 'components/tw_line_chart.html' import render_tw_line_chart, render_tw_line_chart_script, render_tw_line_chart_style %}
+
+{# 1. 渲染 SVG 容器 #}
+{{ render_tw_line_chart(chart_id='expenseMonthlyChart', color='#2979ff') }}
+
+{# 2. 引入样式（每页只需一次） #}
+{{ render_tw_line_chart_style() }}
+
+{# 3. 准备数据并渲染脚本 #}
+<script>
+    const monthlyExpenseData = {{ expense_monthly_stats | tojson }};
+</script>
+{{ render_tw_line_chart_script(
+    chart_id='expenseMonthlyChart',
+    data_var='monthlyExpenseData',
+    unit='元',
+    color='#2979ff',
+    month_label=_('月')
+) }}
+```
+
+### **动态使用示例（如 Alpine.js 组件）**
+
+```jinja2
+{% from 'components/tw_line_chart.html' import render_tw_line_chart, render_tw_line_chart_style, render_tw_line_chart_init_fn %}
+
+{# 1. 渲染 SVG 容器 #}
+{{ render_tw_line_chart(chart_id='goalTrendChart', color='#22c55e') }}
+
+{# 2. 引入样式和初始化函数 #}
+{{ render_tw_line_chart_style() }}
+{{ render_tw_line_chart_init_fn(_('月')) }}
+
+{# 3. 在 Alpine.js 中动态调用 #}
+<script>
+function myComponent() {
+    return {
+        data: [],
+        initChart() {
+            if (typeof window.initSvgLineChart === 'function') {
+                window.initSvgLineChart('goalTrendChart', this.data, {
+                    unit: '万元',
+                    color: '#22c55e',
+                    monthLabel: '月'
+                });
+            }
+        }
+    };
+}
+</script>
+```
+
+### **参数说明**
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `chart_id` | string | 必填 | 图表唯一ID |
+| `color` | string | `#2979ff` | 主题色（十六进制） |
+| `data_var` | string | 必填 | JavaScript 数据变量名 |
+| `unit` | string | `''` | 值单位（如 '元'、'万元'） |
+| `month_label` | string | `'月'` | 月份标签文本 |
+
+### **已使用页面**
+- `app/templates/index.html` - 首页仪表盘报销月度趋势
+- `app/templates/components/tw_performance_dashboard.html` - 绩效看板植入额趋势
+
+---
+
+## 📝 Tailwind Mention 编辑器组件
+
+### **组件概述**
+支持 `@` 用户和 `#` 项目引用的富文本编辑器组件。
+
+**文件位置**: `app/templates/components/tw_mention_editor.html`
+
+**功能特性**:
+- 输入 `@` 触发用户选择下拉框（客户端过滤）
+- 输入 `#` 触发项目搜索下拉框（API 搜索）
+- 选择后插入为标签样式
+- 编辑时标签不可点击，预览/提交后可点击跳转
+- 键盘导航支持（↑↓选择，Enter/Tab确认，Esc取消）
+- 完整的暗色模式支持
+- 提供 `renderMentionPreview()` 函数用于预览模式渲染可点击链接
+
+### **基本用法**
+
+```jinja2
+{% from 'components/tw_mention_editor.html' import tw_mention_editor, tw_mention_editor_script %}
+
+{{ tw_mention_editor(
+    editor_id='logEditor',
+    users_data=shareable_users_tree,
+    placeholder=_('描述您的工作日志、进度和成果...'),
+    initial_value=log_data.additional_notes,
+    max_length=5000,
+    min_height='280px'
+) }}
+
+{# 在页面底部添加脚本 #}
+{{ tw_mention_editor_script() }}
+```
+
+### **参数说明**
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `editor_id` | string | 必填 | 编辑器唯一ID |
+| `users_data` | list | 必填 | 用户树数据（格式与 shareable_users_tree 一致） |
+| `placeholder` | string | `''` | 占位文本 |
+| `initial_value` | string | `''` | 初始值（存储格式的文本） |
+| `max_length` | int | `5000` | 最大字符数 |
+| `min_height` | string | `'280px'` | 最小高度 |
+| `project_search_url` | string | `'/api/v1/search/projects'` | 项目搜索 API 地址 |
+
+### **存储格式**
+
+文本中的用户和项目引用使用特殊标记格式存储：
+
+```
+今天和 @[张三|user:123] 讨论了 #[项目Alpha|project:456] 的需求
+```
+
+- 用户：`@[显示名|user:ID]`
+- 项目：`#[显示名|project:ID]`
+
+### **JavaScript API**
+
+通过 Alpine.js 数据栈访问编辑器实例：
+
+```javascript
+const editorContainer = document.getElementById('logEditor-container');
+if (editorContainer && editorContainer._x_dataStack) {
+    const editorData = editorContainer._x_dataStack[0];
+
+    // 获取存储格式的值
+    const value = editorData.getValue();
+
+    // 获取提及的用户和项目ID列表
+    const mentionData = editorData.getMentionData();
+    // { users: [123, 456], projects: [789] }
+
+    // 设置内容
+    editorData.setValue('新内容 @[张三|user:123]');
+}
+```
+
+### **预览模式渲染**
+
+使用 `renderMentionPreview()` 函数将存储格式转换为可点击链接：
+
+```html
+<div x-html="renderMentionPreview(content, '/user/detail/', '/project/')"></div>
+```
+
+参数：
+- `text`: 存储格式的文本
+- `userUrlPattern`: 用户链接模式，默认 `/user/{id}`
+- `projectUrlPattern`: 项目链接模式，默认 `/project/{id}`
+
+### **后端保存示例**
+
+```python
+# 接收数据
+data = request.get_json()
+additional_notes = data.get('additional_notes', '').strip() or None
+mentioned_users = data.get('mentioned_users', [])  # [123, 456]
+mentioned_projects = data.get('mentioned_projects', [])  # [789]
+
+# 保存到数据库
+worklog.additional_notes = additional_notes
+worklog.mentioned_users = mentioned_users if mentioned_users else None
+worklog.mentioned_projects = mentioned_projects if mentioned_projects else None
+```
+
+### **已使用页面**
+- `app/templates/worklog/tw_calendar.html` - 日历日志编辑
+
+---
+
 ## 📝 更新日志
 
+- **2026-01-03**: 新增 Mention 编辑器组件（`tw_mention_editor.html`），支持 @ 用户和 # 项目引用
+- **2025-12-27**: 新增 SVG 折线图组件（`tw_line_chart.html`），从首页仪表盘提取，支持静态和 Alpine.js 动态初始化
+- **2025-12-27**: 新增 Tailwind 标签页组件文档（`tw_tabs.html`）
+- **2025-12-27**: 扩展标签页组件，新增 `render_tw_alpine_tabs()` 宏支持 Alpine.js 响应式模式
 - **2025-12-12**: 从 CLAUDE-COMPONENTS.md 拆分创建本文档
 - **2025-12-12**: 新增 `tw_action_list_card` 组件完整功能（表格布局、回复、快速添加、分页）
 - **2025-12-12**: 新增 Tailwind 审批流程组件文档

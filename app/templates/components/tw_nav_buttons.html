@@ -1,0 +1,92 @@
+{#
+=============================================================================
+详情页导航按钮组件
+=============================================================================
+提供统一的前后导航和返回按钮样式。
+
+提供三个宏：
+1. render_tw_prev_next_buttons - 仅前后导航按钮
+2. render_tw_back_button - 仅返回按钮
+3. render_tw_nav_buttons - 前后导航 + 返回（组合使用）
+
+使用方式1 - 组合宏（导航和返回按钮一起）：
+{% from 'components/tw_nav_buttons.html' import render_tw_nav_buttons with context %}
+{{ render_tw_nav_buttons(
+    prev_url=url_for('...', id=prev_id) if prev_id else none,
+    next_url=url_for('...', id=next_id) if next_id else none,
+    prev_title=_('上一个产品'),
+    next_title=_('下一个产品'),
+    back_url=url_for('...list'),
+    back_label=_('返回')
+) }}
+
+使用方式2 - 分离宏（中间需要插入其他元素时）：
+{% from 'components/tw_nav_buttons.html' import render_tw_prev_next_buttons, render_tw_back_button with context %}
+{{ render_tw_prev_next_buttons(prev_url, next_url, prev_title, next_title) }}
+<!-- 其他元素，如状态徽章 -->
+{{ render_tw_back_button(back_url, back_label) }}
+=============================================================================
+#}
+
+{% from 'components/tw_buttons.html' import tw_btn_outline with context %}
+
+{# 前后导航按钮（只显示有效方向，无边框） #}
+{% macro render_tw_prev_next_buttons(
+    prev_url=none,
+    next_url=none,
+    prev_title=none,
+    next_title=none,
+    prev_id=none,
+    next_id=none
+) %}
+{% set _prev_title = prev_title or _('上一个') %}
+{% set _next_title = next_title or _('下一个') %}
+{% if prev_url or next_url %}
+<div class="flex items-center">
+    {% if prev_url %}
+    <a href="{{ prev_url }}"
+       {% if prev_id %}id="{{ prev_id }}"{% endif %}
+       class="p-1.5 text-slate-400 dark:text-slate-400 hover:text-primary dark:hover:text-white transition-colors"
+       title="{{ _prev_title }}">
+        <span class="material-symbols-outlined text-xl">chevron_left</span>
+    </a>
+    {% endif %}
+    {% if next_url %}
+    <a href="{{ next_url }}"
+       {% if next_id %}id="{{ next_id }}"{% endif %}
+       class="p-1.5 text-slate-400 dark:text-slate-400 hover:text-primary dark:hover:text-white transition-colors"
+       title="{{ _next_title }}">
+        <span class="material-symbols-outlined text-xl">chevron_right</span>
+    </a>
+    {% endif %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{# 返回按钮 #}
+{% macro render_tw_back_button(
+    back_url=none,
+    back_label=none
+) %}
+{% set _back_label = back_label or _('返回') %}
+{% if back_url %}
+{{ tw_btn_outline(_back_label, href=back_url, icon='arrow_back', size='sm', color='slate') }}
+{% endif %}
+{% endmacro %}
+
+{# 组合宏：前后导航 + 返回按钮 #}
+{% macro render_tw_nav_buttons(
+    prev_url=none,
+    next_url=none,
+    prev_title=none,
+    next_title=none,
+    back_url=none,
+    back_label=none,
+    prev_id=none,
+    next_id=none
+) %}
+<div class="flex items-center gap-3">
+    {{ render_tw_prev_next_buttons(prev_url, next_url, prev_title, next_title, prev_id, next_id) }}
+    {{ render_tw_back_button(back_url, back_label) }}
+</div>
+{% endmacro %}

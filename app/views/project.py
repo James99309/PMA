@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_babel import gettext as _
 from datetime import datetime, date, timedelta
 from flask_login import login_required, current_user
+from config import Config
 from app import db, csrf
 from app.models.project import Project
 from app.models.customer import Company, Contact
@@ -251,8 +252,8 @@ def list_projects():
     default_currency = get_default_currency()
     currency_symbol = get_currency_symbol(default_currency)
 
-    # 统计卡片配置（使用实际统计数据）
-    amount_unit = '万美元' if current_lang == 'en' else '万元'
+    # 统计卡片配置（使用实际统计数据，金额单位由系统货币配置决定）
+    amount_unit = Config.AMOUNT_UNIT
 
     stats_config = {
         'cards': [
@@ -3057,19 +3058,17 @@ def _create_stage_card(stage_key, title, icon, stage_stats, currency_symbol, col
     """创建阶段统计卡片配置（使用传递的currency_symbol）"""
     stage_data = stage_stats.get(stage_key, {'count': 0, 'amount': 0})
 
-    # 根据当前语言环境确定单位显示
-    from app.utils.i18n import get_current_language
-    current_lang = get_current_language()
-    amount_unit = '万美元' if current_lang == 'en' else '万元'
+    # 使用系统货币配置的金额单位（与语言设置解耦）
+    amount_unit = Config.AMOUNT_UNIT
 
     return {
         'id': stage_key,
         'title': _(title),
         'icon': icon,
         'value': stage_data['count'],
-        'amount': round(stage_data['amount'] / 10000, 2),  # 转换为万元并保留2位小数
+        'amount': round(stage_data['amount'] / Config.AMOUNT_DIVISOR, 2),  # 使用系统配置的除数转换
         'unit': _('个'),
-        'amount_unit': amount_unit,  # 使用语言感知的单位
+        'amount_unit': amount_unit,  # 使用系统货币配置的单位
         'currency_symbol': currency_symbol,  # 添加货币符号
         'color': color,
         'clickable': True,  # 启用点击筛选功能
@@ -3165,12 +3164,15 @@ def _apply_filters_to_query(query, current_user, search=None, owner_id=None, ven
     return query
 
 
-def get_full_project_stats(base_query, target_currency='CNY'):
+def get_full_project_stats(base_query, target_currency=None):
     """使用数据库聚合查询获取完整项目统计数据"""
     from sqlalchemy import func, case
     from app import db
     from app.services.exchange_rate_service import exchange_rate_service
 
+    # 默认使用系统货币
+    if target_currency is None:
+        target_currency = Config.DEFAULT_CURRENCY
 
     try:
         # 1. 基础统计查询 - 使用数据库聚合函数

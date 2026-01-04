@@ -1,0 +1,81 @@
+{# 团队配置子页签内容 - 用于薪资配置Tab #}
+<div class="space-y-4">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-medium text-slate-700 dark:text-slate-300">{{ _('销售团队列表') }}</h3>
+        <button type="button" @click="addTeam()" x-show="isEditing"
+                class="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors">
+            <span class="material-symbols-outlined text-base">add</span>
+            {{ _('添加团队') }}
+        </button>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-slate-50 dark:bg-slate-700/50">
+                    <th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">{{ _('团队名称') }}</th>
+                    <th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">{{ _('负责人') }}</th>
+                    <th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">{{ _('负责人职级') }}</th>
+                    <th class="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">{{ _('年度目标(万)') }}</th>
+                    <th class="px-4 py-3 text-center font-medium text-slate-600 dark:text-slate-300">{{ _('状态') }}</th>
+                    <th x-show="isEditing" class="px-4 py-3 text-center font-medium text-slate-600 dark:text-slate-300">{{ _('操作') }}</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                <template x-for="team in teams" :key="team.id || team._tempId">
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                        <td class="px-4 py-3">
+                            <input type="text" x-model="team.team_name" @input="markTeamChanged(team)"
+                                   :disabled="!isEditing"
+                                   class="w-full px-2 py-1 text-sm border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                        </td>
+                        <td class="px-4 py-3">
+                            <select x-model="team.team_leader_id" @change="markTeamChanged(team)"
+                                    :disabled="!isEditing"
+                                    class="w-full px-2 py-1 text-sm border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                                <option value="">{{ _('选择负责人...') }}</option>
+                                <template x-for="user in availableUsers" :key="user.id">
+                                    <option :value="user.id" x-text="user.real_name || user.username"></option>
+                                </template>
+                            </select>
+                        </td>
+                        <td class="px-4 py-3">
+                            <select x-model="team.leader_grade" @change="markTeamChanged(team)"
+                                    :disabled="!isEditing"
+                                    class="w-full px-2 py-1 text-sm border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                                <option value="">{{ _('选择职级...') }}</option>
+                                <template x-for="grade in allGrades" :key="grade.grade_code">
+                                    <option :value="grade.grade_code" x-text="grade.grade_code + ' - ' + grade.grade_name"></option>
+                                </template>
+                            </select>
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            <input type="number" x-model.number="team.annual_target" @input="markTeamChanged(team)"
+                                   :disabled="!isEditing"
+                                   class="w-24 px-2 py-1 text-sm text-right border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            <label class="flex items-center justify-center gap-2 cursor-pointer">
+                                <input type="checkbox" x-model="team.is_active" @change="markTeamChanged(team)"
+                                       :disabled="!isEditing"
+                                       class="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-60">
+                            </label>
+                        </td>
+                        <td x-show="isEditing" class="px-4 py-3 text-center">
+                            <button type="button" @click="deleteTeam(team)"
+                                    class="text-red-500 hover:text-red-700 p-1">
+                                <span class="material-symbols-outlined text-base">delete</span>
+                            </button>
+                        </td>
+                    </tr>
+                </template>
+                <template x-if="teams.length === 0">
+                    <tr>
+                        <td colspan="6" class="px-4 py-8 text-center text-slate-400">
+                            {{ _('暂无团队配置，点击上方按钮添加') }}
+                        </td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+    </div>
+</div>

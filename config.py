@@ -63,7 +63,24 @@ class Config:
     SUPABASE_DB_TYPE = os.environ.get('SUPABASE_DB_TYPE', 'local')
     IS_SP8D = 'iqcyimnjtnmomvfuwjzw' in DATABASE_URL
     IS_OVS = 'pqzviljbpfoqvyfulakl' in DATABASE_URL
-    
+
+    # ========== 系统货币配置（基于数据库类型，与语言设置解耦） ==========
+    # 货币和单位由数据库类型决定，不随用户语言切换而改变
+    if IS_OVS:
+        # OVS 数据库 → 美元
+        DEFAULT_CURRENCY = 'USD'
+        CURRENCY_SYMBOL = '$'
+        AMOUNT_UNIT = 'M'              # million
+        AMOUNT_DIVISOR = 1000000       # 除以100万
+        COUNT_UNIT = 'pcs'
+    else:
+        # SP8D 或本地数据库 → 人民币
+        DEFAULT_CURRENCY = 'CNY'
+        CURRENCY_SYMBOL = '¥'
+        AMOUNT_UNIT = '万元'
+        AMOUNT_DIVISOR = 10000         # 除以1万
+        COUNT_UNIT = '个'
+
     # 根据环境调整配置
     if IS_CLOUD_ENV:
         DEBUG = False

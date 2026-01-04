@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, flash, redirect,
 from flask_login import login_required, current_user
 from flask_babel import get_locale
 from datetime import datetime, date
+from config import Config
 from app import db
 from app.models.performance import PerformanceTarget, PerformanceStatistics, FiveStarProjectBaseline
 from app.models.user import User
@@ -11,6 +12,9 @@ from app.utils.permissions import get_accessible_users
 from app.permissions import permission_required
 
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 performance_bp = Blueprint('performance', __name__, url_prefix='/performance')
 
@@ -26,29 +30,20 @@ def index():
     from app.utils.dictionary_helpers import prepare_stats_card_amount, prepare_stats_card_amount_from_wan
     current_language = get_current_language()
     is_english = current_language == 'en'
-    
-    # 调试信息 - 可在生产环境中移除
-    print(f"🌐 语言环境检测: current_language={current_language}, is_english={is_english}")
-    print(f"🌐 语言类型: type={type(current_language)}, repr={repr(current_language)}")
-    print(f"🌐 是否以en开头: {current_language.startswith('en') if current_language else False}")
-    
+
     try:
         current_year = datetime.now().year
         current_tab = request.args.get('tab', 'overview')
         
         # 获取可访问的用户列表（基于权限）
-        print(f"🔍 开始获取可访问用户列表，当前用户: {current_user.username}")
         accessible_users = get_accessible_users(current_user, 'performance_management')
-        print(f"✅ 获取到 {len(accessible_users)} 个可访问用户")
-        
+
         # 获取有绩效目标设置的用户列表
-        print(f"🔍 开始获取有绩效目标的用户...")
         users_with_targets = db.session.query(User).join(
             PerformanceTarget, User.id == PerformanceTarget.user_id
         ).filter(
             User.id.in_([u.id for u in accessible_users])
         ).distinct().all()
-        print(f"✅ 获取到 {len(users_with_targets)} 个有绩效目标的用户")
         
         # 获取有绩效数据的年份列表
         available_years = db.session.query(PerformanceTarget.year).filter(
@@ -94,7 +89,7 @@ def index():
             yearly_targets[month] = target
         
         # 获取用户显示货币设置（从最近的目标记录中获取）
-        display_currency = 'CNY'
+        display_currency = Config.DEFAULT_CURRENCY
         recent_target = PerformanceTarget.query.filter_by(
             user_id=selected_user_id
         ).order_by(PerformanceTarget.updated_at.desc()).first()
@@ -133,15 +128,7 @@ def index():
                 # 保存原始人民币值（用于标准转换组件）
                 implant_actual_cny = float(stats.implant_amount_actual or 0)
                 sales_actual_cny = float(stats.sales_amount_actual or 0)
-                
-                # 添加月度调试信息
-                print(f"📅 月度数据 {month}月:")
-                print(f"  数据库原始值 implant_actual = {implant_actual_cny}")
-                print(f"  数据库原始值 sales_actual = {sales_actual_cny}")
-                print(f"  数据库原始值类型: implant类型={type(stats.implant_amount_actual)}, sales类型={type(stats.sales_amount_actual)}")
-                print(f"  原始对象字符串: implant={repr(stats.implant_amount_actual)}, sales={repr(stats.sales_amount_actual)}")
-                print(f"  当前语言环境 = {current_language}")
-                
+
                 # 复制用于图表显示的值
                 implant_actual = implant_actual_cny
                 sales_actual = sales_actual_cny
@@ -160,13 +147,10 @@ def index():
                 
                 chart_data['implant_actual'].append(round(implant_actual, 2))
                 chart_data['sales_actual'].append(round(sales_actual, 2))
-                
+
                 # 数据库存储的是人民币元值，使用元转换组件
-                print(f"  数据库存储元值：implant={implant_actual_cny}元, sales={sales_actual_cny}元")
-                
                 implant_converted = prepare_stats_card_amount(implant_actual_cny, current_language)
                 sales_converted = prepare_stats_card_amount(sales_actual_cny, current_language)
-                print(f"  元转换结果: implant={implant_converted}, sales={sales_converted}")
                 monthly_converted_amounts['implant_actual'].append(implant_converted)
                 monthly_converted_amounts['sales_actual'].append(sales_converted)
                 
@@ -270,26 +254,10 @@ def index():
         monthly_industry_stats = PerformanceService.get_monthly_industry_statistics(selected_user_id, current_year)
         
         # 语言环境已在函数开始处检测，这里直接使用is_english变量
-        
-        # 使用标准化金额转换组件
-        
-        # 实际值转换（用于卡片主要数值显示）
-        print(f"🔍 调试信息 - 累计金额:")
-        print(f"  total_actual['implant'] = {total_actual['implant']} (元值)")
-        print(f"  total_actual['sales'] = {total_actual['sales']} (元值)")
-        print(f"  current_language = {current_language}")
-        print(f"  预期中文: {total_actual['implant']/10000:.2f}万元")
-        print(f"  预期英文: {total_actual['implant']/1000000:.2f}M")
-        
-        # 使用元转换函数（输入为元）
-        print(f"  调用 prepare_stats_card_amount({total_actual['implant']}, '{current_language}')")
+
+        # 使用标准化金额转换组件（实际值转换，用于卡片主要数值显示）
         implant_actual_data = prepare_stats_card_amount(total_actual['implant'], current_language)
         sales_actual_data = prepare_stats_card_amount(total_actual['sales'], current_language)
-        
-        print(f"  转换后 implant_actual_data = {implant_actual_data}")
-        print(f"  转换后 sales_actual_data = {sales_actual_data}")
-        print(f"  最终卡片显示: 植入额 {implant_actual_data['value']}{implant_actual_data['unit']}")
-        print(f"  最终卡片显示: 销售额 {sales_actual_data['value']}{sales_actual_data['unit']}")
         
         # 目标值转换（用于卡片金额显示）  
         implant_target_data = prepare_stats_card_amount(total_target['implant'], current_language)
@@ -304,17 +272,8 @@ def index():
             implant_title = '植入额'
             sales_title = '销售额'
             target_text = '目标'
-        
+
         # 构建通用组件配置
-        print(f"🔧 开始构建 list_config...")
-        print(f"  implant_actual_data: {implant_actual_data}")
-        print(f"  implant_target_data: {implant_target_data}")
-        print(f"  sales_actual_data: {sales_actual_data}")
-        print(f"  sales_target_data: {sales_target_data}")
-        print(f"  implant_title: {implant_title}")
-        print(f"  sales_title: {sales_title}")
-        print(f"  is_english: {is_english}")
-        
         try:
             list_config = {
             'module_name': 'performance',
@@ -494,30 +453,13 @@ def index():
                 ]
             }
             }
-        
-            print(f"✅ list_config 构建成功")
-        
+
         except Exception as list_config_error:
-            print(f"❌ list_config 构建失败: {list_config_error}")
+            logger.error(f"list_config 构建失败: {list_config_error}")
             import traceback
-            print(f"list_config错误堆栈: {traceback.format_exc()}")
+            logger.error(f"list_config错误堆栈: {traceback.format_exc()}")
             list_config = None
-        
-        # 模板渲染前的变量验证
-        print(f"🔧 准备渲染模板，开始验证关键变量:")
-        print(f"  selected_user: {selected_user.username if selected_user else 'None'}")
-        print(f"  accessible_users: {len(accessible_users) if accessible_users else 'None'}")
-        print(f"  list_config: {type(list_config) if list_config else 'None'}")
-        print(f"  current_tab: {current_tab}")
-        print(f"  current_year: {current_year}")
-        
-        if list_config:
-            print(f"  list_config.stats: {type(list_config.get('stats')) if list_config.get('stats') else 'None'}")
-            print(f"  list_config.filter: {type(list_config.get('filter')) if list_config.get('filter') else 'None'}")
-            print(f"  list_config.table: {type(list_config.get('table')) if list_config.get('table') else 'None'}")
-        
-        print(f"🎯 开始渲染绩效看板模板...")
-        
+
         return render_template('performance/index.html',
                              selected_user=selected_user,
                              accessible_users=accessible_users,
@@ -542,21 +484,12 @@ def index():
     except Exception as e:
         # 回滚任何未完成的事务
         db.session.rollback()
-        
+
         # 记录详细错误信息
         import traceback
-        import sys
-        print(f"🚨 绩效数据加载错误详情:")
-        print(f"  错误类型: {type(e).__name__}")
-        print(f"  错误消息: {str(e)}")
-        print(f"  错误发生位置: {sys.exc_info()}")
-        print(f"  当前用户: {current_user.username if current_user else 'None'}")
-        print(f"  请求参数: {dict(request.args)}")
-        print(f"  请求方法: {request.method}")
-        print(f"  请求URL: {request.url}")
-        print(f"📋 完整错误堆栈:")
-        print(traceback.format_exc())
-        
+        logger.error(f"绩效数据加载错误: {type(e).__name__}: {str(e)}")
+        logger.error(traceback.format_exc())
+
         flash(f'加载绩效数据失败: {str(e)}', 'error')
         
         # 尝试回退到基本视图
@@ -582,12 +515,12 @@ def index():
                                  monthly_rates={},
                                  industry_summary={},
                                  monthly_industry_stats={},
-                                 display_currency='CNY',
+                                 display_currency=Config.DEFAULT_CURRENCY,
                                  yearly_stats=[],
                                  yearly_targets={},
                                  list_config=None)
         except Exception as fallback_error:
-            print(f"回退视图也失败: {fallback_error}")
+            logger.error(f"回退视图也失败: {fallback_error}")
             return redirect(url_for('main.index'))
 
 
@@ -600,42 +533,27 @@ def target_settings():
         # 获取可管理的用户列表 - 基于数据访问权限
         accessible_users = get_accessible_users(current_user, 'performance_management')
         accessible_user_ids = [u.id for u in accessible_users]
-        
-        # 调试信息
-        print(f"当前用户: {current_user.username} (ID: {current_user.id})")
-        print(f"可访问用户ID列表: {accessible_user_ids}")
-        print(f"可访问用户: {[f'{u.real_name or u.username}({u.id})' for u in accessible_users]}")
-        
+
         # 设置可选年份范围（2025-2030）
         available_years = list(range(2025, 2031))  # 2025到2030年
         current_year = datetime.now().year
-        
+
         selected_user_id = request.args.get('user_id', current_user.id, type=int)
         selected_year = request.args.get('year', current_year, type=int)
-        
-        print(f"请求的用户ID: {selected_user_id}")
-        print(f"请求的年份: {selected_year}")
-        
+
         # 检查权限：只能查看有权限访问的用户
         if selected_user_id not in accessible_user_ids:
-            print(f"用户ID {selected_user_id} 不在可访问列表中")
-            
             # 如果是管理员，允许访问所有活跃用户
             if current_user.role == 'admin':
                 selected_user = User.query.filter(User.id == selected_user_id, User._is_active == True).first()
                 if selected_user:
-                    print(f"管理员权限：允许访问用户 {selected_user.username} (ID: {selected_user_id})")
                     # 将该用户添加到可访问列表中
                     accessible_users.append(selected_user)
                     accessible_user_ids.append(selected_user_id)
                 else:
-                    print(f"用户ID {selected_user_id} 不存在或已禁用，重置为当前用户ID {current_user.id}")
                     selected_user_id = current_user.id
             else:
-                print(f"非管理员用户，重置为当前用户ID {current_user.id}")
                 selected_user_id = current_user.id
-        else:
-            print(f"用户ID {selected_user_id} 访问权限验证通过")
         
         # 检查是否有编辑权限
         can_edit_targets = (
@@ -646,34 +564,24 @@ def target_settings():
         selected_user = User.query.get(selected_user_id)
         
         if not selected_user:
-            print(f"错误：找不到用户ID {selected_user_id}")
             flash(f'找不到指定用户 (ID: {selected_user_id})', 'error')
             return redirect(url_for('performance.target_settings', user_id=current_user.id))
-        
-        print(f"成功获取用户: {selected_user.real_name or selected_user.username} (ID: {selected_user.id})")
-        
+
         # 获取当前年度的目标设置
         targets = {}
-        targets_found = 0
         for month in range(1, 13):
             target = PerformanceTarget.query.filter_by(
                 user_id=selected_user_id, year=selected_year, month=month
             ).first()
             targets[month] = target
-            if target:
-                targets_found += 1
-        
-        print(f"用户 {selected_user.username} 在 {selected_year} 年已设置 {targets_found}/12 个月的目标")
-        
+
         # 获取合格值数据（从任一现有记录中获取，因为所有月份的合格值应该一致）
         rate_values = None
         for target in targets.values():
             if target and (target.implant_rate or target.sales_rate or target.customers_rate or target.projects_rate):
                 rate_values = target
                 break
-        
-        print(f"合格值数据: {rate_values.implant_rate if rate_values else '无'}, {rate_values.sales_rate if rate_values else '无'}, {rate_values.customers_rate if rate_values else '无'}, {rate_values.projects_rate if rate_values else '无'}")
-        
+
         # 为管理员获取所有用户选项
         if current_user.role == 'admin':
             all_active_users = User.query.filter(User._is_active == True).order_by(User.real_name, User.username).all()
@@ -681,13 +589,11 @@ def target_settings():
                 {'value': str(user.id), 'label': user.real_name or user.username, 'translate': False}
                 for user in all_active_users
             ]
-            print(f"管理员权限：筛选器包含 {len(all_active_users)} 个用户选项")
         else:
             user_options = [
                 {'value': str(user.id), 'label': user.real_name or user.username, 'translate': False}
                 for user in accessible_users
             ]
-            print(f"普通用户权限：筛选器包含 {len(accessible_users)} 个用户选项")
         
         # 构建筛选配置
         filter_config = {
@@ -742,44 +648,30 @@ def target_settings():
 def save_targets_batch():
     """批量保存绩效目标"""
     try:
-        print(f"💾 保存目标请求 - 用户: {current_user.username} (ID: {current_user.id})")
-        print(f"💾 请求方法: {request.method}")
-        print(f"💾 Content-Type: {request.content_type}")
-        
         data = request.get_json()
-        print(f"💾 接收到的数据: {data}")
-        
+
         if not data:
-            print("❌ 无法解析JSON数据")
             return jsonify({'success': False, 'message': '无法解析请求数据'})
-        
+
         targets_data = data.get('targets', [])
-        print(f"💾 目标数据数量: {len(targets_data)}")
-        
+
         if not targets_data:
-            print("❌ 没有提供目标数据")
             return jsonify({'success': False, 'message': '没有提供目标数据'})
-        
+
         # 权限检查
         accessible_users = get_accessible_users(current_user, 'performance_management')
         accessible_user_ids = [u.id for u in accessible_users]
-        print(f"💾 可访问用户ID列表: {accessible_user_ids}")
-        print(f"💾 当前用户角色: {current_user.role}")
-        
+
         # 检查所有用户权限
         for target_data in targets_data:
             user_id = target_data.get('user_id')
-            print(f"💾 检查用户ID {user_id} 的权限")
-            
+
             can_edit = (
-                current_user.role == 'admin' or 
+                current_user.role == 'admin' or
                 (current_user.has_permission('user_management', 'edit') and user_id in accessible_user_ids)
             )
-            
-            print(f"💾 用户ID {user_id} 权限检查结果: {can_edit}")
-            
+
             if not can_edit:
-                print(f"❌ 没有权限设置用户ID {user_id} 的绩效目标")
                 return jsonify({'success': False, 'message': f'没有权限设置用户ID {user_id} 的绩效目标'})
         
         # 批量保存
@@ -819,10 +711,8 @@ def save_targets_batch():
             target.customers_rate = target_data.get('customers_rate', 0)
             target.projects_rate = target_data.get('projects_rate', 0)
             
-            target.display_currency = 'CNY'  # 默认人民币
-            
-            print(f"💾 保存月份 {month} 的数据 - 植入目标: {target.implant_amount_target}")
-            
+            target.display_currency = Config.DEFAULT_CURRENCY  # 默认系统货币
+
             saved_count += 1
         
         db.session.commit()
@@ -882,7 +772,7 @@ def save_target():
         target.new_customers_target = data.get('new_customers_target', 0)
         target.new_projects_target = data.get('new_projects_target', 0)
         target.five_star_projects_target = data.get('five_star_projects_target', 0)
-        target.display_currency = data.get('display_currency', 'CNY')
+        target.display_currency = data.get('display_currency', Config.DEFAULT_CURRENCY)
         
         db.session.commit()
         
@@ -961,13 +851,7 @@ def list_ajax():
         from app.utils.i18n import get_current_language
         current_language = get_current_language()
         is_english = current_language == 'en'
-        
-        # 调试信息 - 验证AJAX语言检测
-        print(f"🔧 AJAX语言检测修复:")
-        print(f"  current_language = {current_language}")
-        print(f"  is_english = {is_english}")
-        print(f"  期望: 如果用户在英文环境，应该显示en而不是zh")
-        
+
         if not targets:
             no_data_text = 'No performance targets set' if is_english else '暂无绩效目标设置'
             return jsonify({
@@ -1090,41 +974,41 @@ def list_ajax():
                     # 目标值即使未开始也需要显示
                     if quarter_target['implant'] > 0:
                         implant_target_data = prepare_stats_card_amount(quarter_target['implant'], current_language)
-                        implant_target_display = f"¥{implant_target_data['value']:.2f}{implant_target_data['unit']}"
+                        implant_target_display = f"{Config.CURRENCY_SYMBOL}{implant_target_data['value']:.2f}{implant_target_data['unit']}"
                     else:
                         implant_target_display = "-"
                         
                     if quarter_target['sales'] > 0:
                         sales_target_data = prepare_stats_card_amount(quarter_target['sales'], current_language)
-                        sales_target_display = f"¥{sales_target_data['value']:.2f}{sales_target_data['unit']}"
+                        sales_target_display = f"{Config.CURRENCY_SYMBOL}{sales_target_data['value']:.2f}{sales_target_data['unit']}"
                     else:
                         sales_target_display = "-"
                 else:
                     # 实际值转换
                     if quarter_actual['implant'] > 0:
                         implant_actual_data = prepare_stats_card_amount(quarter_actual['implant'], current_language)
-                        implant_actual_display = f"¥{implant_actual_data['value']:.2f}{implant_actual_data['unit']}"
+                        implant_actual_display = f"{Config.CURRENCY_SYMBOL}{implant_actual_data['value']:.2f}{implant_actual_data['unit']}"
                     else:
                         zero_data = prepare_stats_card_amount(0, current_language)
-                        implant_actual_display = f"¥{zero_data['value']:.2f}{zero_data['unit']}"
+                        implant_actual_display = f"{Config.CURRENCY_SYMBOL}{zero_data['value']:.2f}{zero_data['unit']}"
                     
                     if quarter_actual['sales'] > 0:
                         sales_actual_data = prepare_stats_card_amount(quarter_actual['sales'], current_language)
-                        sales_actual_display = f"¥{sales_actual_data['value']:.2f}{sales_actual_data['unit']}"
+                        sales_actual_display = f"{Config.CURRENCY_SYMBOL}{sales_actual_data['value']:.2f}{sales_actual_data['unit']}"
                     else:
                         zero_data = prepare_stats_card_amount(0, current_language)
-                        sales_actual_display = f"¥{zero_data['value']:.2f}{zero_data['unit']}"
+                        sales_actual_display = f"{Config.CURRENCY_SYMBOL}{zero_data['value']:.2f}{zero_data['unit']}"
                     
                     # 目标值转换
                     if quarter_target['implant'] > 0:
                         implant_target_data = prepare_stats_card_amount(quarter_target['implant'], current_language)
-                        implant_target_display = f"¥{implant_target_data['value']:.2f}{implant_target_data['unit']}"
+                        implant_target_display = f"{Config.CURRENCY_SYMBOL}{implant_target_data['value']:.2f}{implant_target_data['unit']}"
                     else:
                         implant_target_display = "-"
                         
                     if quarter_target['sales'] > 0:
                         sales_target_data = prepare_stats_card_amount(quarter_target['sales'], current_language)
-                        sales_target_display = f"¥{sales_target_data['value']:.2f}{sales_target_data['unit']}"
+                        sales_target_display = f"{Config.CURRENCY_SYMBOL}{sales_target_data['value']:.2f}{sales_target_data['unit']}"
                     else:
                         sales_target_display = "-"
                 
@@ -1235,13 +1119,13 @@ def list_ajax():
                     # 目标值即使未开始也需要显示
                     if implant_target > 0:
                         implant_target_data = prepare_stats_card_amount(implant_target, current_language)
-                        implant_target_display = f"¥{implant_target_data['value']:.2f}{implant_target_data['unit']}"
+                        implant_target_display = f"{Config.CURRENCY_SYMBOL}{implant_target_data['value']:.2f}{implant_target_data['unit']}"
                     else:
                         implant_target_display = "-"
                         
                     if sales_target > 0:
                         sales_target_data = prepare_stats_card_amount(sales_target, current_language)
-                        sales_target_display = f"¥{sales_target_data['value']:.2f}{sales_target_data['unit']}"
+                        sales_target_display = f"{Config.CURRENCY_SYMBOL}{sales_target_data['value']:.2f}{sales_target_data['unit']}"
                     else:
                         sales_target_display = "-"
                 else:
@@ -1249,28 +1133,28 @@ def list_ajax():
                     # 实际值转换
                     if implant_actual > 0:
                         implant_actual_data = prepare_stats_card_amount(implant_actual, current_language)
-                        implant_actual_display = f"¥{implant_actual_data['value']:.2f}{implant_actual_data['unit']}"
+                        implant_actual_display = f"{Config.CURRENCY_SYMBOL}{implant_actual_data['value']:.2f}{implant_actual_data['unit']}"
                     else:
                         zero_data = prepare_stats_card_amount(0, current_language)
-                        implant_actual_display = f"¥{zero_data['value']:.2f}{zero_data['unit']}"
+                        implant_actual_display = f"{Config.CURRENCY_SYMBOL}{zero_data['value']:.2f}{zero_data['unit']}"
                     
                     if sales_actual > 0:
                         sales_actual_data = prepare_stats_card_amount(sales_actual, current_language)
-                        sales_actual_display = f"¥{sales_actual_data['value']:.2f}{sales_actual_data['unit']}"
+                        sales_actual_display = f"{Config.CURRENCY_SYMBOL}{sales_actual_data['value']:.2f}{sales_actual_data['unit']}"
                     else:
                         zero_data = prepare_stats_card_amount(0, current_language)
-                        sales_actual_display = f"¥{zero_data['value']:.2f}{zero_data['unit']}"
+                        sales_actual_display = f"{Config.CURRENCY_SYMBOL}{zero_data['value']:.2f}{zero_data['unit']}"
                     
                     # 目标值转换
                     if implant_target > 0:
                         implant_target_data = prepare_stats_card_amount(implant_target, current_language)
-                        implant_target_display = f"¥{implant_target_data['value']:.2f}{implant_target_data['unit']}"
+                        implant_target_display = f"{Config.CURRENCY_SYMBOL}{implant_target_data['value']:.2f}{implant_target_data['unit']}"
                     else:
                         implant_target_display = "-"
                         
                     if sales_target > 0:
                         sales_target_data = prepare_stats_card_amount(sales_target, current_language)
-                        sales_target_display = f"¥{sales_target_data['value']:.2f}{sales_target_data['unit']}"
+                        sales_target_display = f"{Config.CURRENCY_SYMBOL}{sales_target_data['value']:.2f}{sales_target_data['unit']}"
                     else:
                         sales_target_display = "-"
                 
@@ -1300,19 +1184,10 @@ def list_ajax():
                 html_rows.append(html_row)
         
         # 计算统计数据用于更新卡片（使用标准化金额转换）
-        
-        # 实际值和目标值转换
-        print(f"🔍 AJAX调试 - 累计金额:")
-        print(f"  total_actual['implant'] = {total_actual['implant']} (元值)")
-        print(f"  current_language = {current_language}")
-        
         implant_actual_ajax = prepare_stats_card_amount(total_actual['implant'], current_language)
         implant_target_ajax = prepare_stats_card_amount(total_target['implant'], current_language)
         sales_actual_ajax = prepare_stats_card_amount(total_actual['sales'], current_language)
         sales_target_ajax = prepare_stats_card_amount(total_target['sales'], current_language)
-        
-        print(f"  转换后 implant = {implant_actual_ajax}")
-        print(f"  转换后 sales = {sales_actual_ajax}")
         
         # 使用data-list.js期望的格式，为金额卡片提供完整的单位信息
         statistics = {
@@ -1350,7 +1225,7 @@ def list_ajax():
             # 计算月度统计数据
             if current_stats or current_target:
                 # 获取用户显示货币设置
-                display_currency = 'CNY'
+                display_currency = Config.DEFAULT_CURRENCY
                 recent_target = PerformanceTarget.query.filter_by(
                     user_id=user_id
                 ).order_by(PerformanceTarget.updated_at.desc()).first()

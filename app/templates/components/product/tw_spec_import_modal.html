@@ -1,0 +1,258 @@
+{#
+=============================================================================
+产品规格引入模态框组件 (Tailwind 版)
+=============================================================================
+用于从配置版本引入规格到产品。
+编码规格强制选中，其他规格可选。
+
+使用方式：
+{% from 'components/product/tw_spec_import_modal.html' import tw_spec_import_modal, tw_spec_import_script %}
+
+{{ tw_spec_import_modal() }}
+{{ tw_spec_import_script(product.id) }}
+=============================================================================
+#}
+
+{% macro tw_spec_import_modal() %}
+<div id="specImportModal"
+     x-data="specImportModalData()"
+     x-show="open"
+     x-cloak
+     @open-spec-import-modal.window="openModal($event.detail)"
+     class="fixed inset-0 z-50 overflow-y-auto">
+    <!-- 背景遮罩 -->
+    <div class="fixed inset-0 bg-black/30 dark:bg-black/50 transition-opacity"
+         @click="open = false"></div>
+
+    <!-- 模态框内容 -->
+    <div class="flex min-h-full items-center justify-center p-4">
+        <div class="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl"
+             @click.stop>
+            <!-- 头部 -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 class="text-xl font-semibold text-slate-800 dark:text-white">{{ _('从配置引入规格') }}</h3>
+                <button @click="open = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <!-- 加载状态 -->
+            <div x-show="loading" class="p-8 text-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p class="mt-2 text-slate-500 dark:text-slate-400">{{ _('加载中...') }}</p>
+            </div>
+
+            <!-- 内容 -->
+            <div x-show="!loading && !error" class="p-6">
+                <!-- 源配置信息 -->
+                <div class="mb-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                    <div class="flex items-center gap-2 text-sm">
+                        <span class="material-symbols-outlined text-primary" style="font-size: 20px;">inventory_2</span>
+                        <span class="font-medium text-slate-700 dark:text-slate-200" x-text="configuration.template_model"></span>
+                        <span class="font-mono text-slate-500 dark:text-slate-400" x-text="'[' + configuration.mn_code + ']'"></span>
+                        <span class="text-slate-400">-</span>
+                        <span class="text-slate-600 dark:text-slate-300" x-text="configuration.region_name"></span>
+                    </div>
+                </div>
+
+                <!-- 编码规格（必选） -->
+                <div class="mb-4">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="material-symbols-outlined text-amber-500" style="font-size: 18px;">lock</span>
+                        <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('编码规格') }} ({{ _('必选') }})</span>
+                    </div>
+                    <div class="border border-amber-200 dark:border-amber-800 rounded-lg bg-amber-50/50 dark:bg-amber-900/20 divide-y divide-amber-100 dark:divide-amber-800">
+                        <template x-for="spec in codeSpecs" :key="spec.template_item_id">
+                            <div class="flex items-center justify-between p-3">
+                                <div class="flex items-center gap-3">
+                                    <input type="checkbox" checked disabled
+                                           class="w-4 h-4 rounded border-slate-300 text-primary cursor-not-allowed">
+                                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300" x-text="spec.name"></span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm text-slate-600 dark:text-slate-400" x-text="spec.value"></span>
+                                    <span class="text-xs text-slate-400" x-text="spec.unit" x-show="spec.unit"></span>
+                                    <span class="text-xs font-mono px-1.5 py-0.5 bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-300 rounded"
+                                          x-text="spec.code_char"
+                                          x-show="spec.code_char"></span>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="codeSpecs.length === 0">
+                            <div class="p-3 text-sm text-slate-400 text-center">{{ _('无编码规格') }}</div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- 其他规格（可选） -->
+                <div class="mb-4" x-show="optionalSpecs.length > 0">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('其他规格') }} ({{ _('可选') }})</span>
+                        <button @click="toggleAllOptional()" class="text-xs text-primary hover:underline">
+                            <span x-text="allOptionalSelected ? '{{ _('取消全选') }}' : '{{ _('全选') }}'"></span>
+                        </button>
+                    </div>
+                    <div class="border border-slate-200 dark:border-slate-700 rounded-lg max-h-60 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                        <template x-for="spec in optionalSpecs" :key="spec.template_item_id">
+                            <label class="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                <div class="flex items-center gap-3">
+                                    <input type="checkbox"
+                                           :checked="selectedOptionalIds.includes(spec.template_item_id)"
+                                           @change="toggleSpec(spec.template_item_id)"
+                                           class="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary">
+                                    <span class="text-sm text-slate-700 dark:text-slate-300" x-text="spec.name"></span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm text-slate-600 dark:text-slate-400" x-text="spec.value"></span>
+                                    <span class="text-xs text-slate-400" x-text="spec.unit" x-show="spec.unit"></span>
+                                </div>
+                            </label>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- 警告提示 -->
+                <div class="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm">
+                    <span class="material-symbols-outlined text-amber-500 flex-shrink-0" style="font-size: 18px;">warning</span>
+                    <span class="text-amber-700 dark:text-amber-300">{{ _('引入后将替换产品现有的所有规格') }}</span>
+                </div>
+            </div>
+
+            <!-- 错误状态 -->
+            <div x-show="error" class="p-6 text-center">
+                <span class="material-symbols-outlined text-red-500 text-4xl">error</span>
+                <p class="mt-2 text-red-600 dark:text-red-400" x-text="errorMessage"></p>
+            </div>
+
+            <!-- 底部 -->
+            <div class="flex justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
+                <button @click="open = false"
+                        class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700">
+                    {{ _('取消') }}
+                </button>
+                <button @click="confirmImport()"
+                        :disabled="loading || submitting || error"
+                        class="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                    <span class="animate-spin rounded-full h-4 w-4 border-b-2 border-white" x-show="submitting"></span>
+                    <span>{{ _('确认引入') }}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro tw_spec_import_script(product_id) %}
+<script>
+function specImportModalData() {
+    return {
+        open: false,
+        loading: false,
+        submitting: false,
+        error: false,
+        errorMessage: '',
+        productId: {{ product_id }},
+        configuration: {},
+        specs: [],
+        selectedOptionalIds: [],
+
+        get codeSpecs() {
+            return this.specs.filter(s => s.use_in_code);
+        },
+
+        get optionalSpecs() {
+            return this.specs.filter(s => !s.use_in_code);
+        },
+
+        get allOptionalSelected() {
+            return this.optionalSpecs.length > 0 &&
+                   this.optionalSpecs.every(s => this.selectedOptionalIds.includes(s.template_item_id));
+        },
+
+        async openModal(detail) {
+            this.open = true;
+            this.loading = true;
+            this.error = false;
+            this.errorMessage = '';
+            this.selectedOptionalIds = [];
+
+            try {
+                const response = await fetch(`/api/products/${this.productId}/configuration-specs`);
+                const data = await response.json();
+                if (data.success) {
+                    this.configuration = data.data.configuration;
+                    this.specs = data.data.specs;
+                    // 默认选中所有可选规格
+                    this.selectedOptionalIds = this.optionalSpecs.map(s => s.template_item_id);
+                } else {
+                    this.error = true;
+                    this.errorMessage = data.message || '{{ _("加载失败") }}';
+                }
+            } catch (err) {
+                console.error('加载配置规格失败:', err);
+                this.error = true;
+                this.errorMessage = '{{ _("加载失败") }}';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        toggleSpec(id) {
+            const index = this.selectedOptionalIds.indexOf(id);
+            if (index > -1) {
+                this.selectedOptionalIds.splice(index, 1);
+            } else {
+                this.selectedOptionalIds.push(id);
+            }
+        },
+
+        toggleAllOptional() {
+            if (this.allOptionalSelected) {
+                this.selectedOptionalIds = [];
+            } else {
+                this.selectedOptionalIds = this.optionalSpecs.map(s => s.template_item_id);
+            }
+        },
+
+        async confirmImport() {
+            this.submitting = true;
+
+            // 编码规格 + 选中的可选规格
+            const specIds = [
+                ...this.codeSpecs.map(s => s.template_item_id),
+                ...this.selectedOptionalIds
+            ];
+
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const response = await fetch(`/api/products/${this.productId}/import-specs`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({ spec_ids: specIds })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    // 刷新页面
+                    if (data.redirect) {
+                        window.location.href = data.redirect;
+                    } else {
+                        window.location.reload();
+                    }
+                } else {
+                    alert(data.message || '{{ _("导入失败") }}');
+                }
+            } catch (err) {
+                console.error('导入规格失败:', err);
+                alert('{{ _("导入失败") }}');
+            } finally {
+                this.submitting = false;
+            }
+        }
+    };
+}
+</script>
+{% endmacro %}

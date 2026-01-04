@@ -512,7 +512,7 @@
                         container_id='productRelationsList',
                         title='',
                         icon='',
-                        api_url=url_for('rd_product.get_product_relations', product_id=product.id),
+                        api_url=url_for('product.get_product_relations', product_id=product.id),
                         columns=[
                             {'key': 'product_name', 'label': _('产品名称'), 'width': '25%'},
                             {'key': 'product_model', 'label': _('型号'), 'width': '20%'},
@@ -1118,7 +1118,7 @@ document.addEventListener('DOMContentLoaded', function() {
             {% from 'macros/product_tree_selector.html' import render_product_tree_selector %}
             {{ render_product_tree_selector(
                 container_id='relationProductSelector',
-                api_url=url_for('rd_product.get_product_tree'),
+                api_url=url_for('product.get_product_tree'),
                 selected_product_ids=[],
                 show_badges=True,
                 show_icons=False,
@@ -1241,7 +1241,7 @@ function openAddRelationModal() {
     resetRelationTypeOptions();
 
     // 获取已有的关联产品ID列表，更新产品树排除列表
-    fetch('{{ url_for("rd_product.get_product_relations", product_id=product.id) }}')
+    fetch('{{ url_for("product.get_product_relations", product_id=product.id) }}')
         .then(response => response.json())
         .then(result => {
             if (result.success) {
@@ -1504,7 +1504,7 @@ function saveMutualExclusionGroup(data) {
     saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{{ _("保存中...") }}';
 
     // 发送请求到互斥组API
-    fetch('{{ url_for("rd_product.batch_add_mutual_exclusion_group", product_id=product.id) }}', {
+    fetch('{{ url_for("product.batch_add_mutual_exclusion_group", product_id=product.id) }}', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -1544,7 +1544,7 @@ function saveNormalRelations(data) {
     saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{{ _("保存中...") }}';
 
     // 发送请求到普通关联API
-    fetch('{{ url_for("rd_product.batch_add_product_relations", product_id=product.id) }}', {
+    fetch('{{ url_for("product.batch_add_product_relations", product_id=product.id) }}', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -1770,7 +1770,7 @@ window.deleteRelation = function(relationId) {
             cancelText: '{{ _("取消") }}',
             dialogId: 'deleteRelationDialog',
             onConfirm: () => {
-                fetch(`{{ url_for('rd_product.delete_product_relation', product_id=product.id, relation_id=0) }}`.replace('/0', `/${relationId}`), {
+                fetch(`{{ url_for('product.delete_product_relation', product_id=product.id, relation_id=0) }}`.replace('/0', `/${relationId}`), {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1808,7 +1808,7 @@ window.deleteMutualGroup = function(groupId) {
             cancelText: '{{ _("取消") }}',
             dialogId: 'deleteMutualGroupDialog',
             onConfirm: () => {
-                fetch(`{{ url_for('rd_product.delete_mutual_exclusion_group', product_id=product.id) }}`, {
+                fetch(`{{ url_for('product.delete_mutual_exclusion_group', product_id=product.id) }}`, {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json',

@@ -53,7 +53,7 @@ Tailwind 价格信息卡片组件
 {% set _title = title or _('价格信息') %}
 {% set _price_label = price_label or _('市场价格') %}
 {% set _no_price_text = no_price_text or _('暂无') %}
-{% set _currency_symbol = currency_symbol or {'CNY': '¥', 'USD': '$', 'EUR': '€', 'GBP': '£'}.get(currency, '¥') %}
+{% set _currency_symbol = currency_symbol or {'CNY': '¥', 'USD': '$', 'EUR': '€', 'GBP': '£'}.get(currency, currency_config.symbol) %}
 
 <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
     <div class="px-6 py-5">
@@ -152,7 +152,7 @@ Tailwind 价格信息卡片组件
 {% set _title = title or _('价格信息') %}
 {% set _price_label = price_label or _('市场价格（预估）') %}
 {% set _reference_label = reference_label or _('产品库引用') %}
-{% set _currency_symbol = currency_symbol or {'CNY': '¥', 'USD': '$', 'EUR': '€', 'GBP': '£'}.get(currency, '¥') %}
+{% set _currency_symbol = currency_symbol or {'CNY': '¥', 'USD': '$', 'EUR': '€', 'GBP': '£'}.get(currency, currency_config.symbol) %}
 
 <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
     <div class="px-6 py-5">

@@ -685,10 +685,10 @@ async function saveInheritedFieldConfig() {
 // 返回到新产品页面的函数
 function returnToNewProduct() {
     // 尝试从sessionStorage或history中获取返回路径
-    const returnUrl = sessionStorage.getItem('newProductReturnUrl') || '/product-management/new';
+    const returnUrl = sessionStorage.getItem('newProductReturnUrl') || '/product/new';
 
     // 使用history.back()如果用户是从新产品页面来的，否则跳转到新产品页面
-    if (document.referrer && document.referrer.includes('/product-management/new')) {
+    if (document.referrer && document.referrer.includes('/product/new')) {
         window.history.back();
     } else {
         window.location.href = returnUrl;
@@ -737,7 +737,7 @@ function toggleOptionStatus(optionId, optionValue, isActive) {
 {% if request.args.get('from') == 'new_product' %}
 document.addEventListener('DOMContentLoaded', function() {
     // 如果referrer包含new，存储该URL
-    if (document.referrer && document.referrer.includes('/product-management/new')) {
+    if (document.referrer && document.referrer.includes('/product/new')) {
         sessionStorage.setItem('newProductReturnUrl', document.referrer);
     }
 });

@@ -1,0 +1,2113 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_modal_base.html' import tw_modal, tw_close_btn with context %}
+{% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
+{% from 'components/tw_user_selector_modal.html' import tw_user_selector_modal with context %}
+{% from 'components/tw_mention_editor.html' import tw_mention_editor, tw_mention_editor_script, tw_mention_preview_script with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('工作日历') }} - PMA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- FullCalendar 6.x 的全局包已包含CSS，无需单独引入 -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    {{ tw_mention_preview_script() }}
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* ========================================
+           日历事件颜色系统 - 9个大类颜色
+           ======================================== */
+        :root {
+            /* 通用 - 灰色 */
+            --cal-general: #475569;
+            --cal-general-bg: #f1f5f9;
+            /* 行销 - 绿色 */
+            --cal-marketing-sales: #16a34a;
+            --cal-marketing-sales-bg: #dcfce7;
+            /* 市场 - 橙色 */
+            --cal-marketing: #d97706;
+            --cal-marketing-bg: #fef3c7;
+            /* 服务 - 蓝色 */
+            --cal-service: #2563eb;
+            --cal-service-bg: #dbeafe;
+            /* 行政 - 紫色 */
+            --cal-administration: #7c3aed;
+            --cal-administration-bg: #ede9fe;
+            /* 人事 - 粉色 */
+            --cal-hr: #db2777;
+            --cal-hr-bg: #fce7f3;
+            /* 财务 - 青色 */
+            --cal-finance: #0d9488;
+            --cal-finance-bg: #ccfbf1;
+            /* 产品 - 橘色 */
+            --cal-product: #ea580c;
+            --cal-product-bg: #ffedd5;
+            /* 供应链 - 天蓝 */
+            --cal-supply-chain: #0891b2;
+            --cal-supply-chain-bg: #cffafe;
+        }
+        .dark {
+            /* 深色模式 - 9个大类颜色 */
+            /* 通用 - 灰色 */
+            --cal-general: #94a3b8;
+            --cal-general-bg: rgba(71, 85, 105, 0.2);
+            /* 行销 - 绿色 */
+            --cal-marketing-sales: #4ade80;
+            --cal-marketing-sales-bg: rgba(34, 197, 94, 0.2);
+            /* 市场 - 橙色 */
+            --cal-marketing: #fbbf24;
+            --cal-marketing-bg: rgba(217, 119, 6, 0.2);
+            /* 服务 - 蓝色 */
+            --cal-service: #60a5fa;
+            --cal-service-bg: rgba(59, 130, 246, 0.2);
+            /* 行政 - 紫色 */
+            --cal-administration: #a78bfa;
+            --cal-administration-bg: rgba(124, 58, 237, 0.2);
+            /* 人事 - 粉色 */
+            --cal-hr: #f472b6;
+            --cal-hr-bg: rgba(219, 39, 119, 0.2);
+            /* 财务 - 青色 */
+            --cal-finance: #2dd4bf;
+            --cal-finance-bg: rgba(13, 148, 136, 0.2);
+            /* 产品 - 橘色 */
+            --cal-product: #fb923c;
+            --cal-product-bg: rgba(234, 88, 12, 0.2);
+            /* 供应链 - 天蓝 */
+            --cal-supply-chain: #22d3ee;
+            --cal-supply-chain-bg: rgba(8, 145, 178, 0.2);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
+
+        /* FullCalendar 主题适配 */
+        .fc {
+            --fc-border-color: rgb(226 232 240);
+            --fc-button-bg-color: rgb(241 245 249);
+            --fc-button-border-color: rgb(226 232 240);
+            --fc-button-text-color: rgb(51 65 85);
+            --fc-button-hover-bg-color: rgb(226 232 240);
+            --fc-button-hover-border-color: rgb(203 213 225);
+            --fc-button-active-bg-color: rgb(14 165 233);
+            --fc-button-active-border-color: rgb(14 165 233);
+            --fc-today-bg-color: rgba(14, 165, 233, 0.08);
+        }
+        .dark .fc {
+            --fc-border-color: rgb(51 65 85);
+            --fc-page-bg-color: rgb(15 23 42);
+            --fc-neutral-bg-color: rgb(30 41 59);
+            --fc-button-bg-color: rgb(51 65 85);
+            --fc-button-border-color: rgb(71 85 105);
+            --fc-button-text-color: rgb(226 232 240);
+            --fc-button-hover-bg-color: rgb(71 85 105);
+            --fc-button-hover-border-color: rgb(100 116 139);
+            --fc-today-bg-color: rgba(14, 165, 233, 0.15);
+        }
+        /* 深色模式文字颜色 */
+        .dark .fc .fc-toolbar-title {
+            color: rgb(241 245 249);  /* slate-100 */
+        }
+        /* 星期标题栏 */
+        .fc .fc-col-header {
+            background: rgb(249 250 251);  /* gray-50 */
+        }
+        .dark .fc .fc-col-header {
+            background: rgba(31, 41, 55, 0.5);  /* gray-800/50 */
+        }
+        .fc .fc-col-header-cell-cushion {
+            padding: 0.75rem 0;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: rgb(107 114 128);  /* gray-500 */
+        }
+        .dark .fc .fc-col-header-cell-cushion {
+            color: rgb(156 163 175);  /* gray-400 */
+        }
+
+        /* 日期格子 */
+        .fc .fc-daygrid-day {
+            min-height: 160px;  /* 足够显示5个事件 */
+            background: rgba(249, 250, 251, 0.3);  /* gray-50/30 */
+            transition: background-color 0.15s;
+        }
+        .fc .fc-daygrid-day:hover {
+            background: rgb(249 250 251);  /* gray-50 */
+        }
+        .dark .fc .fc-daygrid-day {
+            background: rgba(31, 41, 55, 0.2);  /* gray-800/20 */
+        }
+        .dark .fc .fc-daygrid-day:hover {
+            background: rgba(31, 41, 55, 0.5);  /* gray-800/50 */
+        }
+        .fc .fc-daygrid-day-frame {
+            padding: 0.5rem;
+        }
+
+        .dark .fc .fc-daygrid-day-number {
+            color: rgb(203 213 225);  /* slate-300 */
+        }
+        /* 周视图/日视图 深色模式文字 */
+        .dark .fc .fc-timegrid-slot-label {
+            color: rgb(148 163 184);  /* slate-400 */
+        }
+        .dark .fc .fc-timegrid-axis-cushion {
+            color: rgb(148 163 184);  /* slate-400 */
+        }
+        .dark .fc .fc-timegrid-slot-label-cushion {
+            color: rgb(148 163 184);  /* slate-400 */
+        }
+        .dark .fc .fc-list-day-cushion {
+            color: rgb(203 213 225);  /* slate-300 */
+        }
+        .dark .fc .fc-list-event-title {
+            color: rgb(226 232 240);  /* slate-200 */
+        }
+        .dark .fc .fc-timegrid-now-indicator-line {
+            border-color: #ef4444;  /* red-500 */
+        }
+        .fc .fc-toolbar-title { font-size: 1.25rem; font-weight: 600; }
+        .fc .fc-button { padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.375rem; }
+
+        /* 工具栏布局 - 确保按钮水平排列 */
+        .fc .fc-toolbar {
+            flex-wrap: nowrap;
+        }
+        .fc .fc-toolbar-chunk {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 视图切换按钮组 */
+        .fc .fc-button-group {
+            display: flex;
+            background: rgb(243 244 246);  /* gray-100 */
+            padding: 4px;
+            border-radius: 0.5rem;
+            gap: 0;
+        }
+        .dark .fc .fc-button-group {
+            background: rgb(31 41 55);  /* gray-800 */
+        }
+        .fc .fc-button-group .fc-button {
+            background: transparent;
+            border: none;
+            color: rgb(107 114 128);  /* gray-500 */
+            padding: 0.375rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border-radius: 0.375rem;
+            transition: all 0.15s;
+        }
+        .fc .fc-button-group .fc-button:hover {
+            color: rgb(17 24 39);  /* gray-900 */
+            background: transparent;
+        }
+        .fc .fc-button-group .fc-button-active,
+        .fc .fc-button-group .fc-button-active:hover {
+            background: white !important;
+            color: #137fec !important;  /* primary */
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        .dark .fc .fc-button-group .fc-button {
+            color: rgb(156 163 175);  /* gray-400 */
+        }
+        .dark .fc .fc-button-group .fc-button:hover {
+            color: white;
+        }
+        .dark .fc .fc-button-group .fc-button-active,
+        .dark .fc .fc-button-group .fc-button-active:hover {
+            background: rgb(55 65 81) !important;  /* gray-700 */
+            color: #38bdf8 !important;  /* sky-400 */
+        }
+
+        .fc .fc-daygrid-day-number {
+            padding: 4px 8px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.15s;
+            border-radius: 4px;
+        }
+        .fc .fc-daygrid-day-number:hover {
+            background: rgba(14, 165, 233, 0.1);
+        }
+        .fc-event { cursor: pointer; border-radius: 0.25rem; font-size: 0.75rem; padding: 2px 6px; }
+        /* "另外X个" 链接样式 - 与事件文字一致 */
+        .fc .fc-daygrid-more-link { font-size: 0.75rem; color: #64748b; padding: 2px 6px; }
+        .dark .fc .fc-daygrid-more-link { color: #94a3b8; }
+        .fc-event-completed { opacity: 0.7; text-decoration: line-through; }
+        .fc-event-cancelled { opacity: 0.5; text-decoration: line-through; }
+        /* 共享给我的事件 - 细虚线边框 */
+        .fc-event-shared {
+            outline: 1px dashed currentColor;
+            outline-offset: -1px;
+        }
+        .fc-daygrid-day-frame { position: relative; }
+
+        /* 周视图/日视图 + 全天事件 - 淡色背景样式 */
+        .fc-timegrid-event, .fc-daygrid-block-event {
+            border: none !important;
+            border-radius: 0.375rem !important;
+        }
+        /* 工作类型颜色 - 使用9个大类 CSS 变量 */
+        /* ===== 通用-其他 (灰色) ===== */
+        .fc-timegrid-event.fc-event-other, .fc-daygrid-block-event.fc-event-other { background: var(--cal-general-bg) !important; }
+        .fc-event-other, .fc-event-other .fc-event-title, .fc-event-other .fc-event-time { color: var(--cal-general) !important; }
+        .fc-event-other .fc-daygrid-event-dot { border-color: var(--cal-general) !important; }
+
+        /* ===== 行销类 (绿色) - 含通用的会议、出差 ===== */
+        .fc-timegrid-event.fc-event-meeting, .fc-daygrid-block-event.fc-event-meeting,
+        .fc-timegrid-event.fc-event-business_trip, .fc-daygrid-block-event.fc-event-business_trip,
+        .fc-timegrid-event.fc-event-customer_visit, .fc-daygrid-block-event.fc-event-customer_visit,
+        .fc-timegrid-event.fc-event-presales_support, .fc-daygrid-block-event.fc-event-presales_support,
+        .fc-timegrid-event.fc-event-business_negotiation, .fc-daygrid-block-event.fc-event-business_negotiation,
+        .fc-timegrid-event.fc-event-customer_maintenance, .fc-daygrid-block-event.fc-event-customer_maintenance { background: var(--cal-marketing-sales-bg) !important; }
+        .fc-event-meeting, .fc-event-meeting .fc-event-title, .fc-event-meeting .fc-event-time,
+        .fc-event-business_trip, .fc-event-business_trip .fc-event-title, .fc-event-business_trip .fc-event-time,
+        .fc-event-customer_visit, .fc-event-customer_visit .fc-event-title, .fc-event-customer_visit .fc-event-time,
+        .fc-event-presales_support, .fc-event-presales_support .fc-event-title, .fc-event-presales_support .fc-event-time,
+        .fc-event-business_negotiation, .fc-event-business_negotiation .fc-event-title, .fc-event-business_negotiation .fc-event-time,
+        .fc-event-customer_maintenance, .fc-event-customer_maintenance .fc-event-title, .fc-event-customer_maintenance .fc-event-time { color: var(--cal-marketing-sales) !important; }
+        .fc-event-meeting .fc-daygrid-event-dot, .fc-event-business_trip .fc-daygrid-event-dot,
+        .fc-event-customer_visit .fc-daygrid-event-dot, .fc-event-presales_support .fc-daygrid-event-dot,
+        .fc-event-business_negotiation .fc-daygrid-event-dot, .fc-event-customer_maintenance .fc-daygrid-event-dot { border-color: var(--cal-marketing-sales) !important; }
+
+        /* ===== 市场类 (橙色) ===== */
+        .fc-timegrid-event.fc-event-market_planning, .fc-daygrid-block-event.fc-event-market_planning,
+        .fc-timegrid-event.fc-event-brand_promotion, .fc-daygrid-block-event.fc-event-brand_promotion,
+        .fc-timegrid-event.fc-event-event_execution, .fc-daygrid-block-event.fc-event-event_execution { background: var(--cal-marketing-bg) !important; }
+        .fc-event-market_planning, .fc-event-market_planning .fc-event-title, .fc-event-market_planning .fc-event-time,
+        .fc-event-brand_promotion, .fc-event-brand_promotion .fc-event-title, .fc-event-brand_promotion .fc-event-time,
+        .fc-event-event_execution, .fc-event-event_execution .fc-event-title, .fc-event-event_execution .fc-event-time { color: var(--cal-marketing) !important; }
+        .fc-event-market_planning .fc-daygrid-event-dot, .fc-event-brand_promotion .fc-daygrid-event-dot,
+        .fc-event-event_execution .fc-daygrid-event-dot { border-color: var(--cal-marketing) !important; }
+
+        /* ===== 服务类 (蓝色) ===== */
+        .fc-timegrid-event.fc-event-onsite_maintenance, .fc-daygrid-block-event.fc-event-onsite_maintenance,
+        .fc-timegrid-event.fc-event-service_response, .fc-daygrid-block-event.fc-event-service_response,
+        .fc-timegrid-event.fc-event-technical_support, .fc-daygrid-block-event.fc-event-technical_support,
+        .fc-timegrid-event.fc-event-troubleshooting, .fc-daygrid-block-event.fc-event-troubleshooting { background: var(--cal-service-bg) !important; }
+        .fc-event-onsite_maintenance, .fc-event-onsite_maintenance .fc-event-title, .fc-event-onsite_maintenance .fc-event-time,
+        .fc-event-service_response, .fc-event-service_response .fc-event-title, .fc-event-service_response .fc-event-time,
+        .fc-event-technical_support, .fc-event-technical_support .fc-event-title, .fc-event-technical_support .fc-event-time,
+        .fc-event-troubleshooting, .fc-event-troubleshooting .fc-event-title, .fc-event-troubleshooting .fc-event-time { color: var(--cal-service) !important; }
+        .fc-event-onsite_maintenance .fc-daygrid-event-dot, .fc-event-service_response .fc-daygrid-event-dot,
+        .fc-event-technical_support .fc-daygrid-event-dot, .fc-event-troubleshooting .fc-daygrid-event-dot { border-color: var(--cal-service) !important; }
+
+        /* ===== 行政类 (紫色) - 含通用的内部培训 ===== */
+        .fc-timegrid-event.fc-event-internal_training, .fc-daygrid-block-event.fc-event-internal_training,
+        .fc-timegrid-event.fc-event-admin_affairs, .fc-daygrid-block-event.fc-event-admin_affairs,
+        .fc-timegrid-event.fc-event-office_management, .fc-daygrid-block-event.fc-event-office_management,
+        .fc-timegrid-event.fc-event-asset_management, .fc-daygrid-block-event.fc-event-asset_management { background: var(--cal-administration-bg) !important; }
+        .fc-event-internal_training, .fc-event-internal_training .fc-event-title, .fc-event-internal_training .fc-event-time,
+        .fc-event-admin_affairs, .fc-event-admin_affairs .fc-event-title, .fc-event-admin_affairs .fc-event-time,
+        .fc-event-office_management, .fc-event-office_management .fc-event-title, .fc-event-office_management .fc-event-time,
+        .fc-event-asset_management, .fc-event-asset_management .fc-event-title, .fc-event-asset_management .fc-event-time { color: var(--cal-administration) !important; }
+        .fc-event-internal_training .fc-daygrid-event-dot, .fc-event-admin_affairs .fc-daygrid-event-dot, .fc-event-office_management .fc-daygrid-event-dot,
+        .fc-event-asset_management .fc-daygrid-event-dot { border-color: var(--cal-administration) !important; }
+
+        /* ===== 人事类 (粉色) ===== */
+        .fc-timegrid-event.fc-event-hr_affairs, .fc-daygrid-block-event.fc-event-hr_affairs,
+        .fc-timegrid-event.fc-event-recruitment, .fc-daygrid-block-event.fc-event-recruitment,
+        .fc-timegrid-event.fc-event-employee_relations, .fc-daygrid-block-event.fc-event-employee_relations,
+        .fc-timegrid-event.fc-event-performance_management, .fc-daygrid-block-event.fc-event-performance_management { background: var(--cal-hr-bg) !important; }
+        .fc-event-hr_affairs, .fc-event-hr_affairs .fc-event-title, .fc-event-hr_affairs .fc-event-time,
+        .fc-event-recruitment, .fc-event-recruitment .fc-event-title, .fc-event-recruitment .fc-event-time,
+        .fc-event-employee_relations, .fc-event-employee_relations .fc-event-title, .fc-event-employee_relations .fc-event-time,
+        .fc-event-performance_management, .fc-event-performance_management .fc-event-title, .fc-event-performance_management .fc-event-time { color: var(--cal-hr) !important; }
+        .fc-event-hr_affairs .fc-daygrid-event-dot, .fc-event-recruitment .fc-daygrid-event-dot,
+        .fc-event-employee_relations .fc-daygrid-event-dot, .fc-event-performance_management .fc-daygrid-event-dot { border-color: var(--cal-hr) !important; }
+
+        /* ===== 财务类 (青色) ===== */
+        .fc-timegrid-event.fc-event-finance_work, .fc-daygrid-block-event.fc-event-finance_work,
+        .fc-timegrid-event.fc-event-expense_review, .fc-daygrid-block-event.fc-event-expense_review,
+        .fc-timegrid-event.fc-event-accounting, .fc-daygrid-block-event.fc-event-accounting { background: var(--cal-finance-bg) !important; }
+        .fc-event-finance_work, .fc-event-finance_work .fc-event-title, .fc-event-finance_work .fc-event-time,
+        .fc-event-expense_review, .fc-event-expense_review .fc-event-title, .fc-event-expense_review .fc-event-time,
+        .fc-event-accounting, .fc-event-accounting .fc-event-title, .fc-event-accounting .fc-event-time { color: var(--cal-finance) !important; }
+        .fc-event-finance_work .fc-daygrid-event-dot, .fc-event-expense_review .fc-daygrid-event-dot,
+        .fc-event-accounting .fc-daygrid-event-dot { border-color: var(--cal-finance) !important; }
+
+        /* ===== 产品类 (橘色) ===== */
+        .fc-timegrid-event.fc-event-product_research, .fc-daygrid-block-event.fc-event-product_research,
+        .fc-timegrid-event.fc-event-requirement_analysis, .fc-daygrid-block-event.fc-event-requirement_analysis,
+        .fc-timegrid-event.fc-event-product_planning, .fc-daygrid-block-event.fc-event-product_planning { background: var(--cal-product-bg) !important; }
+        .fc-event-product_research, .fc-event-product_research .fc-event-title, .fc-event-product_research .fc-event-time,
+        .fc-event-requirement_analysis, .fc-event-requirement_analysis .fc-event-title, .fc-event-requirement_analysis .fc-event-time,
+        .fc-event-product_planning, .fc-event-product_planning .fc-event-title, .fc-event-product_planning .fc-event-time { color: var(--cal-product) !important; }
+        .fc-event-product_research .fc-daygrid-event-dot, .fc-event-requirement_analysis .fc-daygrid-event-dot,
+        .fc-event-product_planning .fc-daygrid-event-dot { border-color: var(--cal-product) !important; }
+
+        /* ===== 供应链类 (天蓝) ===== */
+        .fc-timegrid-event.fc-event-procurement, .fc-daygrid-block-event.fc-event-procurement,
+        .fc-timegrid-event.fc-event-inventory_management, .fc-daygrid-block-event.fc-event-inventory_management,
+        .fc-timegrid-event.fc-event-logistics, .fc-daygrid-block-event.fc-event-logistics,
+        .fc-timegrid-event.fc-event-quality_tracking, .fc-daygrid-block-event.fc-event-quality_tracking { background: var(--cal-supply-chain-bg) !important; }
+        .fc-event-procurement, .fc-event-procurement .fc-event-title, .fc-event-procurement .fc-event-time,
+        .fc-event-inventory_management, .fc-event-inventory_management .fc-event-title, .fc-event-inventory_management .fc-event-time,
+        .fc-event-logistics, .fc-event-logistics .fc-event-title, .fc-event-logistics .fc-event-time,
+        .fc-event-quality_tracking, .fc-event-quality_tracking .fc-event-title, .fc-event-quality_tracking .fc-event-time { color: var(--cal-supply-chain) !important; }
+        .fc-event-procurement .fc-daygrid-event-dot, .fc-event-inventory_management .fc-daygrid-event-dot,
+        .fc-event-logistics .fc-daygrid-event-dot, .fc-event-quality_tracking .fc-daygrid-event-dot { border-color: var(--cal-supply-chain) !important; }
+        /* 月视图点事件（非全天）- 透明背景，只要圆点+文字 */
+        .fc-daygrid-dot-event { background: transparent !important; }
+        /* 月视图全天事件样式 */
+        .fc-daygrid-block-event .fc-event-title { font-weight: 500; }
+
+        /* 有工作项的日期 - 高亮 */
+        .fc-day-has-items .fc-daygrid-day-number {
+            font-weight: 700;
+            color: #0ea5e9 !important;
+        }
+        .dark .fc-day-has-items .fc-daygrid-day-number {
+            color: #38bdf8 !important;
+        }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark min-h-screen">
+{% call(slot) render_tw_layout(active_page='worklog', show_search=false) %}
+    {% if slot == 'content' %}
+    <div class="p-4 lg:p-6" x-data="workCalendar()">
+        <!-- 页面头部 -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('工作日历') }}</h1>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ _('管理您的工作计划和日志') }}</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <!-- 账户选择器（管理员/CEO/部门负责人显示） -->
+                {% if current_user.role in ['admin', 'ceo'] or current_user.is_department_manager %}
+                <select x-model="selectedAccountId" @change="onAccountChange()"
+                        x-show="availableAccounts.length > 0" x-cloak
+                        class="h-10 px-3 pr-8 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                    <option value="">{{ _('我的日历') }}</option>
+                    <template x-for="account in availableAccounts" :key="account.id">
+                        <option :value="account.id" x-text="account.name"></option>
+                    </template>
+                </select>
+                {% endif %}
+                <button type="button" @click="openCreateModal()"
+                        :disabled="selectedAccountId !== ''"
+                        :class="selectedAccountId !== '' ? 'bg-slate-300 dark:bg-slate-600 cursor-not-allowed' : 'bg-primary hover:bg-primary/90'"
+                        class="flex items-center gap-2 h-10 px-4 rounded-lg text-white text-sm font-medium transition-colors shadow-sm">
+                    <span class="material-symbols-outlined text-lg">add</span>
+                    {{ _('添加工作') }}
+                </button>
+            </div>
+        </div>
+
+        <!-- 日历容器 -->
+        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 lg:p-6">
+            <div id="calendar"></div>
+        </div>
+
+        <!-- ==================== 工作项创建/编辑模态框 ==================== -->
+        <div id="workItemModal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+            <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" @click="closeWorkItemModal()"></div>
+            <div class="fixed inset-0 flex items-center justify-center p-4">
+                <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh]">
+                    <header class="flex-shrink-0 flex items-center justify-between p-5">
+                        <h3 class="text-xl font-semibold text-slate-900 dark:text-white" x-text="editingItem ? '{{ _('编辑工作项') }}' : '{{ _('创建工作项') }}'"></h3>
+                    </header>
+                    <div class="flex-1 overflow-y-auto p-6">
+                        <div class="space-y-5">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('标题') }} <span class="text-red-500">*</span></label>
+                                <input type="text" x-model="formData.title" required
+                                       class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                                       placeholder="{{ _('请输入工作标题') }}">
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('开始日期') }} <span class="text-red-500">*</span></label>
+                                    <input type="date" x-model="formData.planned_date" required
+                                           class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('结束日期') }} <span class="text-slate-400 text-xs">{{ _('可选，跨天任务用') }}</span></label>
+                                    <input type="date" x-model="formData.end_date" :min="formData.planned_date"
+                                           @change="calculateDuration()"
+                                           class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('工作类型') }}</label>
+                                <select x-model="formData.work_type" @change="onWorkTypeChange()"
+                                        class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                                    <optgroup label="{{ _('通用') }}">
+                                        <option value="meeting">{{ _('会议') }}</option>
+                                        <option value="business_trip">{{ _('出差') }}</option>
+                                        <option value="internal_training">{{ _('内部培训') }}</option>
+                                        <option value="other">{{ _('其他') }}</option>
+                                    </optgroup>
+                                    <optgroup label="{{ _('行销') }}">
+                                        <option value="customer_visit">{{ _('拜访客户') }}</option>
+                                        <option value="presales_support">{{ _('售前支持') }}</option>
+                                        <option value="business_negotiation">{{ _('商务洽谈') }}</option>
+                                        <option value="customer_maintenance">{{ _('客户维护') }}</option>
+                                    </optgroup>
+                                    <optgroup label="{{ _('市场') }}">
+                                        <option value="market_planning">{{ _('市场策划') }}</option>
+                                        <option value="brand_promotion">{{ _('品牌推广') }}</option>
+                                        <option value="event_execution">{{ _('活动执行') }}</option>
+                                    </optgroup>
+                                    <optgroup label="{{ _('服务') }}">
+                                        <option value="onsite_maintenance">{{ _('现场运维') }}</option>
+                                        <option value="service_response">{{ _('服务响应') }}</option>
+                                        <option value="technical_support">{{ _('技术支持') }}</option>
+                                        <option value="troubleshooting">{{ _('故障处理') }}</option>
+                                    </optgroup>
+                                    <optgroup label="{{ _('行政') }}">
+                                        <option value="admin_affairs">{{ _('行政事务') }}</option>
+                                        <option value="office_management">{{ _('办公管理') }}</option>
+                                        <option value="asset_management">{{ _('资产管理') }}</option>
+                                    </optgroup>
+                                    <optgroup label="{{ _('人事') }}">
+                                        <option value="hr_affairs">{{ _('人事事务') }}</option>
+                                        <option value="recruitment">{{ _('招聘面试') }}</option>
+                                        <option value="employee_relations">{{ _('员工关系') }}</option>
+                                        <option value="performance_management">{{ _('绩效管理') }}</option>
+                                    </optgroup>
+                                    <optgroup label="{{ _('财务') }}">
+                                        <option value="finance_work">{{ _('财务工作') }}</option>
+                                        <option value="expense_review">{{ _('报销审核') }}</option>
+                                        <option value="accounting">{{ _('账务处理') }}</option>
+                                    </optgroup>
+                                    <optgroup label="{{ _('产品') }}">
+                                        <option value="product_research">{{ _('产品调研') }}</option>
+                                        <option value="requirement_analysis">{{ _('需求分析') }}</option>
+                                        <option value="product_planning">{{ _('产品规划') }}</option>
+                                    </optgroup>
+                                    <optgroup label="{{ _('供应链') }}">
+                                        <option value="procurement">{{ _('采购管理') }}</option>
+                                        <option value="inventory_management">{{ _('库存管理') }}</option>
+                                        <option value="logistics">{{ _('物流协调') }}</option>
+                                        <option value="quality_tracking">{{ _('品质跟踪') }}</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="flex items-center gap-2 mb-2">
+                                    <input type="checkbox" x-model="formData.is_all_day" class="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/50">
+                                    <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('全天事件') }}</span>
+                                </label>
+                                <div class="grid grid-cols-2 gap-4" x-show="!formData.is_all_day" x-transition>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('开始时间') }}</label>
+                                        <div class="flex items-center gap-1">
+                                            <select x-model="startHour" @change="formData.start_time = startHour + ':' + startMinute; calculateDuration()"
+                                                    class="flex-1 h-10 px-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                                                {% for h in range(24) %}<option value="{{ '%02d'|format(h) }}">{{ '%02d'|format(h) }}</option>{% endfor %}
+                                            </select>
+                                            <span class="text-slate-500 dark:text-slate-400 font-medium">:</span>
+                                            <select x-model="startMinute" @change="formData.start_time = startHour + ':' + startMinute; calculateDuration()"
+                                                    class="flex-1 h-10 px-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                                                <option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('结束时间') }}</label>
+                                        <div class="flex items-center gap-1">
+                                            <select x-model="endHour" @change="formData.end_time = endHour + ':' + endMinute; calculateDuration()"
+                                                    class="flex-1 h-10 px-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                                                {% for h in range(24) %}<option value="{{ '%02d'|format(h) }}">{{ '%02d'|format(h) }}</option>{% endfor %}
+                                            </select>
+                                            <span class="text-slate-500 dark:text-slate-400 font-medium">:</span>
+                                            <select x-model="endMinute" @change="formData.end_time = endHour + ':' + endMinute; calculateDuration()"
+                                                    class="flex-1 h-10 px-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                                                <option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('预计时长') }} ({{ _('小时') }})</label>
+                                <input type="number" x-model="formData.estimated_hours" step="0.5" min="0"
+                                       @input="updateEndTime()"
+                                       class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                                       placeholder="">
+                            </div>
+                            <!-- 项目搜索选择器 -->
+                            <div class="relative" @click.outside="showProjectDropdown = false">
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('关联项目') }}</label>
+                                <div class="relative">
+                                    <input type="text" x-model="projectSearchInput"
+                                           @input="debounceSearchProjects()"
+                                           @focus="searchProjects()"
+                                           placeholder="{{ _('输入项目名称搜索...') }}"
+                                           class="w-full h-10 px-3 pr-8 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                                    <button type="button" x-show="formData.project_id" @click="clearProject()"
+                                            class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                </div>
+                                <!-- 搜索结果下拉 -->
+                                <div x-show="showProjectDropdown && projectResults.length > 0" x-transition
+                                     class="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 max-h-48 overflow-y-auto">
+                                    <template x-for="p in projectResults" :key="p.id">
+                                        <div @click="selectProject(p)"
+                                             class="px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer text-sm text-slate-900 dark:text-white">
+                                            <span x-text="p.project_name"></span>
+                                            <span x-show="p.customer_name" class="text-xs text-slate-500 dark:text-slate-400 ml-1" x-text="'(' + p.customer_name + ')'"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            <!-- 客户搜索选择器 -->
+                            <div class="relative" @click.outside="showCustomerDropdown = false">
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('关联客户') }}</label>
+                                <div class="relative">
+                                    <input type="text" x-model="customerSearchInput"
+                                           @input="debounceSearchCustomers()"
+                                           @focus="searchCustomers()"
+                                           placeholder="{{ _('输入公司名称搜索...') }}"
+                                           class="w-full h-10 px-3 pr-8 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                                    <button type="button" x-show="formData.customer_id" @click="clearCustomer()"
+                                            class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                </div>
+                                <!-- 搜索结果下拉 -->
+                                <div x-show="showCustomerDropdown && customerResults.length > 0" x-transition
+                                     class="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 max-h-48 overflow-y-auto">
+                                    <template x-for="c in customerResults" :key="c.id">
+                                        <div @click="selectCustomer(c)"
+                                             class="px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer text-sm text-slate-900 dark:text-white">
+                                            <span x-text="c.company_name"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            <!-- 联系人选择器：仅当选择了客户时显示 -->
+                            <div x-show="formData.customer_id" x-transition>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('联系人') }}</label>
+                                <select x-model="formData.contact_id"
+                                        class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                                    <option value="">{{ _('无') }}</option>
+                                    <template x-for="contact in contacts" :key="contact.id">
+                                        <option :value="String(contact.id)" x-text="contact.name + (contact.position ? ' - ' + contact.position : '')"></option>
+                                    </template>
+                                </select>
+                                <p x-show="contacts.length === 0" class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ _('该客户暂无联系人') }}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('行动记录') }}</label>
+                                <textarea x-model="formData.description" rows="3"
+                                          class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none"
+                                          placeholder="{{ _('记录工作内容、沟通情况...') }}"></textarea>
+                            </div>
+
+                            <!-- 共享用户 -->
+                            <div class="pt-4 border-t border-slate-200 dark:border-slate-700" x-show="isOwner">
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('共享给') }}</label>
+                                <div class="flex flex-wrap gap-2 items-center">
+                                    <!-- 已选用户头像 -->
+                                    <template x-for="user in sharedUsers" :key="user.id">
+                                        <div class="relative group" :title="user.name">
+                                            <span class="w-10 h-10 rounded-full text-sm font-bold flex items-center justify-center"
+                                                  :class="TwBadge.getColorClass(user.id)" x-text="user.initials.toUpperCase()"></span>
+                                            <button type="button" @click="removeSharedUser(user.id)"
+                                                    class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-slate-500 dark:bg-slate-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </template>
+                                    <!-- 添加按钮 -->
+                                    <button type="button" @click="openUserSelectorModal()"
+                                            class="w-10 h-10 rounded-full border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center text-slate-400 hover:border-blue-400 hover:text-blue-500 dark:hover:border-blue-400 dark:hover:text-blue-400 transition-colors">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p x-show="sharedUsers.length === 0" class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ _('添加用户后，他们可以在日历中看到此行程') }}</p>
+                            </div>
+                            <!-- 共享行程提示（非所有者时显示） -->
+                            <div x-show="!isOwner && editingItem" class="pt-4 border-t border-slate-200 dark:border-slate-700">
+                                <p class="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    <span x-text="'{{ _('此行程由') }}' + ownerName + '{{ _('创建并共享给您，仅可查看') }}'"></span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <footer class="flex-shrink-0 flex items-center justify-between px-6 py-5 bg-slate-50/50 dark:bg-slate-800/30">
+                        <!-- 左侧：标记完成 + 删除按钮（仅所有者编辑时显示） -->
+                        <div x-show="editingItem && isOwner" class="flex items-center gap-2">
+                            <!-- 标记完成按钮：仅在结束时间到达后显示 -->
+                            <button type="button" @click="quickCompleteItem()" :disabled="saving"
+                                    x-show="canComplete()"
+                                    class="h-10 px-4 rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 transition-colors">
+                                {{ _('标记完成') }}
+                            </button>
+                            <button type="button" @click="confirmDeleteItem()" :disabled="saving"
+                                    class="h-10 px-4 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 transition-colors">
+                                {{ _('删除') }}
+                            </button>
+                        </div>
+                        <!-- 右侧：取消和保存按钮 -->
+                        <div class="flex items-center gap-3">
+                            <button type="button" @click="closeWorkItemModal()"
+                                    class="h-10 px-5 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                                {{ _('取消') }}
+                            </button>
+                            <button type="button" @click="saveWorkItem()" :disabled="saving"
+                                    class="h-10 px-5 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary/90 shadow-sm transition-colors disabled:opacity-50">
+                                <span x-show="!saving" x-text="editingItem ? '{{ _('保存') }}' : '{{ _('创建') }}'"></span>
+                                <span x-show="saving">{{ _('保存中...') }}</span>
+                            </button>
+                        </div>
+                    </footer>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 工作项完成模态框 ==================== -->
+        <div id="completeItemModal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+            <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" @click="closeCompleteModal()"></div>
+            <div class="fixed inset-0 flex items-center justify-center p-4">
+                <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh]">
+                    <header class="flex-shrink-0 flex items-center justify-between p-5">
+                        <h3 class="text-xl font-semibold text-slate-900 dark:text-white">{{ _('完成工作项') }}</h3>
+                    </header>
+                    <div class="flex-1 overflow-y-auto p-6">
+                        <div class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 mb-5">
+                            <h4 class="font-medium text-slate-900 dark:text-white" x-text="selectedItem?.title"></h4>
+                            <div class="text-sm text-slate-500 dark:text-slate-400 mt-2 space-y-1">
+                                <p>{{ _('计划日期') }}: <span x-text="selectedItem?.planned_date"></span></p>
+                                <p x-show="selectedItem?.project_name">{{ _('关联项目') }}: <span x-text="selectedItem?.project_name"></span></p>
+                                <p x-show="selectedItem?.customer_name">{{ _('关联客户') }}: <span x-text="selectedItem?.customer_name"></span></p>
+                            </div>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('实际时长') }} ({{ _('小时') }}) <span class="text-red-500">*</span></label>
+                                <input type="number" x-model="completeData.actual_hours" step="0.5" min="0" required
+                                       class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                                       placeholder="2.0">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('执行备注') }}</label>
+                                <textarea x-model="completeData.execution_notes" rows="4"
+                                          class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none"
+                                          placeholder="{{ _('记录执行情况、遇到的问题等...') }}"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <footer class="flex-shrink-0 flex items-center justify-between px-6 py-5 bg-slate-50/50 dark:bg-slate-800/30">
+                        <button type="button" @click="cancelItem()" :disabled="saving"
+                                class="h-10 px-4 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                            {{ _('标记取消') }}
+                        </button>
+                        <div class="flex gap-3">
+                            <button type="button" @click="closeCompleteModal()"
+                                    class="h-10 px-5 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                                {{ _('关闭') }}
+                            </button>
+                            <button type="button" @click="completeItem()" :disabled="saving"
+                                    class="h-10 px-5 rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 shadow-sm transition-colors disabled:opacity-50">
+                                <span x-show="!saving">{{ _('标记完成') }}</span>
+                                <span x-show="saving">{{ _('处理中...') }}</span>
+                            </button>
+                        </div>
+                    </footer>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 工作项查看模态框（只读） ==================== -->
+        <div id="viewItemModal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+            <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" @click="closeViewModal()"></div>
+            <div class="fixed inset-0 flex items-center justify-center p-4">
+                <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh]">
+                    <header class="flex-shrink-0 flex items-center justify-between p-5">
+                        <div class="flex items-center gap-3">
+                            <h3 class="text-xl font-semibold text-slate-900 dark:text-white">
+                                <span x-show="!viewIsShared">{{ _('工作项详情') }}</span>
+                                <span x-show="viewIsShared" x-text="viewOwnerName + '{{ _(' 的行程') }}'"></span>
+                            </h3>
+                            <span x-show="viewIsShared" class="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                                {{ _('共享') }}
+                            </span>
+                            <span x-show="viewData.status === 'completed' || viewData.status === 'cancelled'"
+                                  class="px-2 py-0.5 rounded text-xs font-medium"
+                                  :class="viewData.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'"
+                                  x-text="viewData.status === 'completed' ? '{{ _('已完成') }}' : '{{ _('已取消') }}'"></span>
+                        </div>
+                    </header>
+                    <div class="flex-1 overflow-y-auto p-6">
+                        <div class="space-y-4">
+                            <div>
+                                <h4 class="text-lg font-medium text-slate-900 dark:text-white" x-text="viewData.title"></h4>
+                                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1" x-text="workTypeLabels[viewData.work_type] || viewData.work_type"></p>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div class="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+                                    <div class="text-slate-500 dark:text-slate-400">{{ _('计划日期') }}</div>
+                                    <div class="font-medium text-slate-900 dark:text-white mt-1" x-text="viewData.planned_date + (viewData.end_date && viewData.end_date !== viewData.planned_date ? ' ~ ' + viewData.end_date : '')"></div>
+                                </div>
+                                <div class="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+                                    <div class="text-slate-500 dark:text-slate-400">{{ _('时间') }}</div>
+                                    <div class="font-medium text-slate-900 dark:text-white mt-1"
+                                         x-text="viewData.is_all_day ? '{{ _('全天') }}' : ((viewData.start_time || '-') + ' ~ ' + (viewData.end_time || '-'))"></div>
+                                </div>
+                            </div>
+                            <div x-show="viewData.project_name" class="text-sm">
+                                <span class="text-slate-500 dark:text-slate-400">{{ _('关联项目') }}:</span>
+                                <span class="text-slate-900 dark:text-white ml-2" x-text="viewData.project_name"></span>
+                            </div>
+                            <div x-show="viewData.customer_name" class="text-sm">
+                                <span class="text-slate-500 dark:text-slate-400">{{ _('关联客户') }}:</span>
+                                <span class="text-slate-900 dark:text-white ml-2" x-text="viewData.customer_name"></span>
+                            </div>
+                            <div x-show="viewData.description">
+                                <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('描述') }}</div>
+                                <p class="text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 rounded-lg p-3" x-text="viewData.description"></p>
+                            </div>
+                            <div x-show="viewData.execution_notes">
+                                <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('执行备注') }}</div>
+                                <p class="text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 rounded-lg p-3" x-text="viewData.execution_notes"></p>
+                            </div>
+                        </div>
+                    </div>
+                    <footer class="flex-shrink-0 flex items-center justify-end px-6 py-4 bg-slate-50/50 dark:bg-slate-800/30">
+                        <button type="button" @click="closeViewModal()"
+                                class="h-10 px-5 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                            {{ _('关闭') }}
+                        </button>
+                    </footer>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 日志模态框 ==================== -->
+        <div id="dailyLogModal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+            <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" @click="closeLogModal()"></div>
+            <div class="fixed inset-0 flex items-center justify-center p-4">
+                <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full" :class="(logData.status === 'submitted' || logPreviewMode) ? 'max-w-3xl' : 'max-w-2xl'">
+                    <!-- 标题栏 -->
+                    <header class="flex items-center justify-between px-5 py-4">
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+                                <span x-text="logData.owner_name"></span> <span x-text="formatLogDate(logData.log_date)"></span> {{ _('的日志') }}
+                            </h3>
+                            <span x-show="logPreviewMode && logData.status !== 'submitted'" class="inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                                {{ _('预览') }}
+                            </span>
+                            <span x-show="logData.status === 'submitted'" class="inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                                {{ _('已提交') }}
+                            </span>
+                        </div>
+                    </header>
+
+                    <!-- ===== 编辑模式：输入界面 ===== -->
+                    <template x-if="logData.status !== 'submitted' && !logPreviewMode">
+                        <div>
+                            <div class="p-5">
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('日志内容') }}</label>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">{{ _('输入 @ 可以提及用户，输入 # 可以引用项目') }}</p>
+                                {{ tw_mention_editor(
+                                    editor_id='logMentionEditor',
+                                    users_data=shareable_users_tree,
+                                    placeholder=_('描述您的工作日志、进度和成果...'),
+                                    initial_value='',
+                                    max_length=5000,
+                                    min_height='280px'
+                                ) }}
+                            </div>
+                            <footer class="flex items-center justify-center gap-3 px-5 py-4">
+                                <button type="button" @click="enterPreviewMode()"
+                                        class="h-10 px-8 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary/90 shadow-sm transition-colors">
+                                    {{ _('预览') }}
+                                </button>
+                                <button type="button" @click="closeLogModal()"
+                                        class="h-10 px-8 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                                    {{ _('取消') }}
+                                </button>
+                            </footer>
+                        </div>
+                    </template>
+
+                    <!-- ===== 预览/已提交模式：汇总报告 ===== -->
+                    <template x-if="logData.status === 'submitted' || logPreviewMode">
+                        <div>
+                            <div class="p-6 max-h-[70vh] overflow-y-auto">
+                                <!-- 统计卡片 -->
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                    <div class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 text-center">
+                                        <div class="text-2xl font-bold text-primary" x-text="logData.statistics?.total_items || 0"></div>
+                                        <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ _('计划工作项') }}</div>
+                                    </div>
+                                    <div class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 text-center">
+                                        <div class="text-2xl font-bold text-green-600" x-text="logData.statistics?.completed_items || 0"></div>
+                                        <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ _('已完成') }}</div>
+                                    </div>
+                                    <div class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 text-center">
+                                        <div class="text-2xl font-bold text-blue-600" x-text="(logData.statistics?.total_hours || 0) + 'h'"></div>
+                                        <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ _('总工时') }}</div>
+                                    </div>
+                                    <div class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 text-center">
+                                        <div class="text-2xl font-bold text-amber-600" x-text="logData.statistics?.pending_items || 0"></div>
+                                        <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ _('未完成') }}</div>
+                                    </div>
+                                </div>
+
+                                <!-- 日志内容 -->
+                                <div class="mb-6" x-show="logData.additional_notes">
+                                    <h4 class="font-medium text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                                        <span class="material-symbols-outlined text-blue-600 text-lg">description</span>
+                                        {{ _('日志内容') }}
+                                    </h4>
+                                    <div class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 text-sm text-slate-700 dark:text-slate-300"
+                                         x-html="renderMentionPreview(logData.additional_notes, '/user/detail/{id}', '/project/{id}', '/quotation/{id}')"></div>
+                                </div>
+
+                                <!-- 已完成工作 -->
+                                <div class="mb-6" x-show="logData.completed_items?.length > 0">
+                                    <h4 class="font-medium text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                                        <span class="material-symbols-outlined text-green-600 text-lg">check_circle</span>
+                                        {{ _('已完成工作') }}
+                                    </h4>
+                                    <div class="space-y-2">
+                                        <template x-for="item in logData.completed_items" :key="item.id">
+                                            <div class="border-l-2 border-green-500 pl-3 py-2 bg-green-50/50 dark:bg-green-900/10 rounded-r-lg">
+                                                <div class="flex items-center gap-2 flex-wrap">
+                                                    <span class="text-xs px-2 py-0.5 rounded font-medium"
+                                                          :style="'background-color:' + item.color + '20; color:' + item.color"
+                                                          x-text="workTypeLabels[item.work_type] || item.work_type"></span>
+                                                    <span class="font-medium text-slate-900 dark:text-white" x-text="item.title"></span>
+                                                    <span class="text-sm text-slate-500" x-text="item.actual_hours + 'h'"></span>
+                                                </div>
+                                                <p class="text-sm text-slate-600 dark:text-slate-400 mt-1" x-text="item.execution_notes" x-show="item.execution_notes"></p>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <!-- 未完成工作 -->
+                                <div class="mb-6" x-show="logData.pending_items?.length > 0">
+                                    <h4 class="font-medium text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                                        <span class="material-symbols-outlined text-amber-600 text-lg">pending</span>
+                                        {{ _('未完成工作') }}
+                                    </h4>
+                                    <div class="space-y-2">
+                                        <template x-for="item in logData.pending_items" :key="item.id">
+                                            <div class="border-l-2 border-amber-500 pl-3 py-2 bg-amber-50/50 dark:bg-amber-900/10 rounded-r-lg">
+                                                <div class="flex items-center gap-2 flex-wrap">
+                                                    <span class="text-xs px-2 py-0.5 rounded font-medium"
+                                                          :style="'background-color:' + item.color + '20; color:' + item.color"
+                                                          x-text="workTypeLabels[item.work_type] || item.work_type"></span>
+                                                    <span class="font-medium text-slate-900 dark:text-white" x-text="item.title"></span>
+                                                    <span class="text-sm text-slate-500" x-show="item.estimated_hours" x-text="'{{ _("预计") }} ' + item.estimated_hours + 'h'"></span>
+                                                </div>
+                                                <p class="text-sm text-slate-600 dark:text-slate-400 mt-1" x-text="item.description" x-show="item.description"></p>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <!-- 行动记录 - 按模块分组布局 -->
+                                <div class="mb-6" x-show="(logData.activities?.summary?.total_created || 0) + (logData.activities?.summary?.total_updated || 0) > 0">
+                                    <h4 class="font-medium text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                                        <span class="material-symbols-outlined text-purple-600 text-lg">history</span>
+                                        {{ _('行动记录') }}
+                                    </h4>
+                                    <div class="space-y-2">
+                                        <!-- 客户模块 -->
+                                        <div class="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg" x-show="(logData.activities?.customers?.created?.length || 0) + (logData.activities?.customers?.updated?.length || 0) > 0">
+                                            <div class="flex items-center gap-2 w-20 flex-shrink-0">
+                                                <span class="material-symbols-outlined text-blue-600 text-lg">business</span>
+                                                <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('客户') }}</span>
+                                            </div>
+                                            <div class="flex flex-wrap gap-2 flex-1">
+                                                <template x-for="item in logData.activities?.customers?.created || []" :key="'c-'+item.id">
+                                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs">
+                                                        <span x-text="item.name"></span>
+                                                    </span>
+                                                </template>
+                                                <template x-for="item in logData.activities?.customers?.updated || []" :key="'cu-'+item.id">
+                                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded text-xs">
+                                                        <span x-text="item.name"></span>
+                                                    </span>
+                                                </template>
+                                            </div>
+                                        </div>
+                                        <!-- 联系人模块 -->
+                                        <div class="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg" x-show="(logData.activities?.contacts?.created?.length || 0) + (logData.activities?.contacts?.updated?.length || 0) > 0">
+                                            <div class="flex items-center gap-2 w-20 flex-shrink-0">
+                                                <span class="material-symbols-outlined text-cyan-600 text-lg">person</span>
+                                                <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('联系人') }}</span>
+                                            </div>
+                                            <div class="flex flex-wrap gap-2 flex-1">
+                                                <template x-for="item in logData.activities?.contacts?.created || []" :key="'ct-'+item.id">
+                                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 rounded text-xs">
+                                                        <span x-text="item.name"></span>
+                                                    </span>
+                                                </template>
+                                                <template x-for="item in logData.activities?.contacts?.updated || []" :key="'ctu-'+item.id">
+                                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded text-xs">
+                                                        <span x-text="item.name"></span>
+                                                    </span>
+                                                </template>
+                                            </div>
+                                        </div>
+                                        <!-- 项目模块 -->
+                                        <div class="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg" x-show="(logData.activities?.projects?.created?.length || 0) + (logData.activities?.projects?.updated?.length || 0) > 0">
+                                            <div class="flex items-center gap-2 w-20 flex-shrink-0">
+                                                <span class="material-symbols-outlined text-purple-600 text-lg">folder</span>
+                                                <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('项目') }}</span>
+                                            </div>
+                                            <div class="flex flex-wrap gap-2 flex-1">
+                                                <template x-for="item in logData.activities?.projects?.created || []" :key="'p-'+item.id">
+                                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded text-xs">
+                                                        <span x-text="item.name"></span>
+                                                    </span>
+                                                </template>
+                                                <template x-for="item in logData.activities?.projects?.updated || []" :key="'pu-'+item.id">
+                                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded text-xs">
+                                                        <span x-text="item.name"></span>
+                                                    </span>
+                                                </template>
+                                            </div>
+                                        </div>
+                                        <!-- 报价单模块 -->
+                                        <div class="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg" x-show="(logData.activities?.quotations?.created?.length || 0) + (logData.activities?.quotations?.updated?.length || 0) > 0">
+                                            <div class="flex items-center gap-2 w-20 flex-shrink-0">
+                                                <span class="material-symbols-outlined text-amber-600 text-lg">request_quote</span>
+                                                <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('报价单') }}</span>
+                                            </div>
+                                            <div class="flex flex-wrap gap-2 flex-1">
+                                                <template x-for="item in logData.activities?.quotations?.created || []" :key="'q-'+item.id">
+                                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded text-xs">
+                                                        <span x-text="item.name"></span>
+                                                    </span>
+                                                </template>
+                                                <template x-for="item in logData.activities?.quotations?.updated || []" :key="'qu-'+item.id">
+                                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded text-xs">
+                                                        <span x-text="item.name"></span>
+                                                    </span>
+                                                </template>
+                                            </div>
+                                        </div>
+                                        <!-- 批价单模块 -->
+                                        <div class="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg" x-show="(logData.activities?.orders?.created?.length || 0) + (logData.activities?.orders?.updated?.length || 0) > 0">
+                                            <div class="flex items-center gap-2 w-20 flex-shrink-0">
+                                                <span class="material-symbols-outlined text-green-600 text-lg">shopping_cart</span>
+                                                <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('批价单') }}</span>
+                                            </div>
+                                            <div class="flex flex-wrap gap-2 flex-1">
+                                                <template x-for="item in logData.activities?.orders?.created || []" :key="'o-'+item.id">
+                                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-xs">
+                                                        <span x-text="item.name"></span>
+                                                    </span>
+                                                </template>
+                                                <template x-for="item in logData.activities?.orders?.updated || []" :key="'ou-'+item.id">
+                                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded text-xs">
+                                                        <span x-text="item.name"></span>
+                                                    </span>
+                                                </template>
+                                            </div>
+                                        </div>
+                                        <!-- 行动模块 -->
+                                        <div class="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg" x-show="(logData.activities?.actions?.created?.length || 0) > 0">
+                                            <div class="flex items-center gap-2 w-20 flex-shrink-0">
+                                                <span class="material-symbols-outlined text-rose-600 text-lg">campaign</span>
+                                                <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('行动') }}</span>
+                                            </div>
+                                            <div class="flex flex-wrap gap-2 flex-1">
+                                                <template x-for="item in logData.activities?.actions?.created || []" :key="'a-'+item.id">
+                                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 rounded text-xs" :title="(item.project_name || item.customer_name || '')">
+                                                        <span x-text="item.name"></span>
+                                                    </span>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <footer class="flex items-center justify-center gap-3 px-6 py-4">
+                                <!-- 预览模式按钮 -->
+                                <template x-if="logPreviewMode && logData.status !== 'submitted'">
+                                    <div class="flex items-center gap-3">
+                                        <button type="button" @click="exitPreviewMode()"
+                                                class="h-10 px-6 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                                            {{ _('返回编辑') }}
+                                        </button>
+                                        <button type="button" @click="submitLog()" :disabled="saving"
+                                                class="h-10 px-8 rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 shadow-sm transition-colors disabled:opacity-50">
+                                            <span x-show="!saving">{{ _('提交') }}</span>
+                                            <span x-show="saving">{{ _('提交中...') }}</span>
+                                        </button>
+                                    </div>
+                                </template>
+                                <!-- 已提交模式按钮 -->
+                                <template x-if="logData.status === 'submitted'">
+                                    <button type="button" @click="closeLogModal()"
+                                            class="h-10 px-6 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                                        {{ _('关闭') }}
+                                    </button>
+                                </template>
+                            </footer>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+        <!-- ==================== 提交日志确认模态框 ==================== -->
+        {{ tw_confirm_modal(
+            modal_id='submitLogConfirmModal',
+            title=_('确认提交'),
+            message=_('提交后将无法修改，确定要提交吗？'),
+            confirm_text=_('确认提交'),
+            cancel_text=_('取消'),
+            variant='warning'
+        ) }}
+
+        <!-- ==================== 取消工作项确认模态框 ==================== -->
+        {{ tw_confirm_modal(
+            modal_id='cancelItemConfirmModal',
+            title=_('确认取消'),
+            message=_('确定要取消这个工作项吗？'),
+            confirm_text=_('确认取消'),
+            cancel_text=_('返回'),
+            variant='danger'
+        ) }}
+
+        <!-- ==================== 删除工作项确认模态框 ==================== -->
+        {{ tw_confirm_modal(
+            modal_id='deleteItemConfirmModal',
+            title=_('确认删除'),
+            message=_('确定要删除这个工作项吗？此操作无法撤销。'),
+            confirm_text=_('删除'),
+            cancel_text=_('取消'),
+            variant='danger'
+        ) }}
+
+        <!-- ==================== 标记完成确认模态框 ==================== -->
+        {{ tw_confirm_modal(
+            modal_id='completeItemConfirmModal',
+            title=_('标记完成'),
+            message=_('确定将此工作项标记为已完成吗？'),
+            confirm_text=_('确认'),
+            cancel_text=_('取消'),
+            variant='success'
+        ) }}
+
+        <!-- ==================== 共享用户选择器模态框 ==================== -->
+        {{ tw_user_selector_modal(
+            modal_id='workItemUserSelector',
+            title=_('选择共享用户'),
+            event_name='open-workitem-user-selector',
+            users_tree=shareable_users_tree,
+            mode='multi',
+            selected_users=[],
+            save_callback='onWorkItemUsersSelected',
+            searchable=true,
+            empty_text=_('暂无可共享的用户')
+        ) }}
+    </div>
+    {% endif %}
+{% endcall %}
+
+{{ render_tw_layout_script() }}
+{{ tw_form_modal_script() }}
+{{ tw_confirm_modal_script() }}
+
+<!-- FullCalendar JS -->
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+<script src='https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.10/locales/zh-cn.global.min.js'></script>
+<script src="{{ url_for('static', filename='js/common/tw-notification.js') }}"></script>
+<script src="{{ url_for('static', filename='js/common/tw-badge.js') }}"></script>
+
+<script>
+// 用户选择器保存回调 - 分发事件给 Alpine 组件
+function onWorkItemUsersSelected(selectedUsers, shareEnabled) {
+    window.dispatchEvent(new CustomEvent('workitem-users-selected', {
+        detail: { users: selectedUsers }
+    }));
+}
+
+function workCalendar() {
+    return {
+        calendar: null,
+        editingItem: null,
+        selectedItem: null,
+        viewData: {},
+        viewIsShared: false,   // 查看的是否是共享行程
+        viewOwnerName: '',     // 共享行程的发起者姓名
+        logData: {},
+        logPreviewMode: false,
+        saving: false,
+        skipNextDateClick: false,  // 防止日期点击重复触发
+        startHour: '09', startMinute: '00',
+        endHour: '10', endMinute: '00',
+        datesWithItems: new Set(),  // 有工作项的日期集合
+        contacts: [],  // 当前客户的联系人列表
+        // 搜索相关状态
+        projectSearchInput: '',
+        customerSearchInput: '',
+        projectResults: [],
+        customerResults: [],
+        showProjectDropdown: false,
+        showCustomerDropdown: false,
+        searchTimer: null,
+        formData: {
+            title: '', planned_date: '', end_date: '', work_type: 'other', is_all_day: false,
+            start_time: '', end_time: '', estimated_hours: '', project_id: '', customer_id: '', contact_id: '', description: ''
+        },
+        completeData: { actual_hours: '', execution_notes: '' },
+        // 共享相关状态
+        sharedUsers: [],   // 已选共享用户 [{id, name, initials}]
+        isOwner: true,     // 是否是当前行程的所有者
+        ownerName: '',     // 行程所有者姓名
+        // 账户筛选相关状态
+        selectedAccountId: '',    // 选中的账户ID
+        availableAccounts: [],    // 可见账户列表
+        // 工作类型标签映射（使用后端传递的已翻译数据）
+        workTypeLabels: {{ work_type_labels_json | tojson | safe }},
+
+        init() {
+            this.initCalendar();
+            this.loadAvailableAccounts();
+            // 监听用户选择器保存事件
+            window.addEventListener('workitem-users-selected', (e) => {
+                this.sharedUsers = e.detail.users || [];
+            });
+        },
+
+        // 加载可见账户列表
+        async loadAvailableAccounts() {
+            try {
+                const response = await fetch('/api/available_accounts');
+                const data = await response.json();
+                if (data.success) {
+                    this.availableAccounts = data.data || [];
+                }
+            } catch (e) {
+                console.error('加载账户列表失败:', e);
+            }
+        },
+
+        // 账户切换时刷新日历
+        onAccountChange() {
+            // 移除现有事件源
+            const sources = this.calendar.getEventSources();
+            sources.forEach(source => source.remove());
+
+            // 构建新的 URL
+            let url = '{{ url_for("worklog.get_items") }}';
+            if (this.selectedAccountId) {
+                url += '?owner_id=' + this.selectedAccountId;
+            }
+
+            const self = this;
+            // 添加新的事件源
+            this.calendar.addEventSource({
+                url: url,
+                success: function(response) {
+                    self.datesWithItems = new Set(response.datesWithItems || []);
+                    self.applyDateHighlights();
+                    return response.events || [];
+                }
+            });
+        },
+
+        initCalendar() {
+            const calendarEl = document.getElementById('calendar');
+            const self = this;
+            const currentLocale = '{{ session.get("language", "zh") }}' === 'zh' ? 'zh-cn' : 'en';
+
+            this.calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                locale: currentLocale,
+                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
+                buttonText: { today: '{{ _("今天") }}', month: '{{ _("月") }}', week: '{{ _("周") }}', day: '{{ _("日") }}' },
+                eventSources: [{
+                    url: '{{ url_for("worklog.get_items") }}',
+                    success: function(response) {
+                        // 更新有工作项的日期集合
+                        self.datesWithItems = new Set(response.datesWithItems || []);
+                        // 重新应用高亮样式
+                        self.applyDateHighlights();
+                        // 返回事件数据
+                        return response.events || [];
+                    }
+                }],
+                editable: true,
+                selectable: true,
+                selectMirror: true,
+                dayMaxEvents: 5,  // 每天最多显示5个事件
+                dateClick: function(info) {
+                    if (self.skipNextDateClick) {
+                        self.skipNextDateClick = false;
+                        return;
+                    }
+                    self.openCreateModal(info.dateStr);
+                },
+                eventClick: function(info) {
+                    const props = info.event.extendedProps;
+                    if (props.status === 'completed' || props.status === 'cancelled' || !props.is_owner) {
+                        // 已完成/已取消/共享行程 → 只读查看
+                        self.openViewModal(info.event.id, props);
+                    } else {
+                        // 计划中且是所有者 → 可编辑
+                        self.openEditModal(info.event.id, props);
+                    }
+                },
+                eventDrop: function(info) {
+                    console.log('[拖动事件] 原始:', info.oldEvent?.startStr, '→ 新:', info.event.startStr);
+                    self.updateItemDate(info.event.id, info.event.startStr, info.event.endStr);
+                },
+                eventDidMount: function(info) {
+                    const props = info.event.extendedProps;
+                    // 添加工作类型样式类
+                    const workType = props.work_type || 'other';
+                    info.el.classList.add('fc-event-' + workType);
+                    // 添加状态样式类
+                    if (props.status === 'completed') { info.el.classList.add('fc-event-completed'); }
+                    else if (props.status === 'cancelled') { info.el.classList.add('fc-event-cancelled'); }
+                },
+                dayCellDidMount: function(info) {
+                    // 使用本地时间格式化日期，避免时区问题
+                    const d = info.date;
+                    const dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+
+                    // 应用高亮样式
+                    if (self.datesWithItems.has(dateStr)) {
+                        info.el.classList.add('fc-day-has-items');
+                    }
+
+                    // 为日期数字添加点击事件（打开日志）
+                    const dayNumber = info.el.querySelector('.fc-daygrid-day-number');
+                    if (dayNumber) {
+                        dayNumber.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            self.skipNextDateClick = true;  // 防止 dateClick 触发
+                            self.openLogModal(dateStr);
+                        });
+                    }
+                }
+            });
+            this.calendar.render();
+        },
+
+        // 应用日期高亮样式
+        applyDateHighlights() {
+            document.querySelectorAll('.fc-daygrid-day').forEach(dayEl => {
+                const dateStr = dayEl.getAttribute('data-date');
+                if (dateStr && this.datesWithItems.has(dateStr)) {
+                    dayEl.classList.add('fc-day-has-items');
+                } else {
+                    dayEl.classList.remove('fc-day-has-items');
+                }
+            });
+        },
+
+        resetFormData() {
+            this.startHour = '09'; this.startMinute = '00';
+            this.endHour = '10'; this.endMinute = '00';
+            this.contacts = [];
+            // 清空搜索状态
+            this.projectSearchInput = '';
+            this.customerSearchInput = '';
+            this.projectResults = [];
+            this.customerResults = [];
+            this.showProjectDropdown = false;
+            this.showCustomerDropdown = false;
+            // 重置共享状态
+            this.sharedUsers = [];
+            this.isOwner = true;
+            this.ownerName = '';
+            this.formData = { title: '', planned_date: '', end_date: '', work_type: 'other', is_all_day: false,
+                start_time: '09:00', end_time: '10:00', estimated_hours: '', project_id: '', customer_id: '', contact_id: '', description: '' };
+        },
+
+        // 工作类型变化时更新标题前缀
+        onWorkTypeChange() {
+            const label = this.workTypeLabels[this.formData.work_type] || '';
+            const currentTitle = this.formData.title || '';
+
+            // 动态生成匹配所有工作类型前缀的正则表达式
+            const allLabels = Object.values(this.workTypeLabels).map(l => l.replace(/[\/]/g, '\\/')).join('|');
+            const prefixPattern = new RegExp('^(' + allLabels + ')-');
+
+            if (prefixPattern.test(currentTitle)) {
+                // 替换现有前缀
+                this.formData.title = currentTitle.replace(prefixPattern, label + '-');
+            } else if (currentTitle) {
+                // 添加前缀到已有内容
+                this.formData.title = label + '-' + currentTitle;
+            } else {
+                // 空标题，只设置前缀
+                this.formData.title = label + '-';
+            }
+        },
+
+        // 加载客户的联系人列表
+        async loadContacts() {
+            // 如果没有选择客户，清空联系人
+            if (!this.formData.customer_id) {
+                this.contacts = [];
+                this.formData.contact_id = '';
+                return;
+            }
+            try {
+                const response = await fetch(`/worklog/api/customers/${this.formData.customer_id}/contacts`);
+                const data = await response.json();
+                if (data.success) {
+                    this.contacts = data.data || [];
+                    // 如果当前选中的联系人不在新列表中，清空选择
+                    const found = this.contacts.find(c => String(c.id) === String(this.formData.contact_id));
+                    if (this.formData.contact_id && !found) {
+                        this.formData.contact_id = '';
+                    }
+                } else {
+                    this.contacts = [];
+                }
+            } catch (e) {
+                console.error('加载联系人失败:', e);
+                this.contacts = [];
+            }
+        },
+
+        // ===== 项目/客户搜索相关方法 =====
+        debounceSearchProjects() {
+            clearTimeout(this.searchTimer);
+            this.searchTimer = setTimeout(() => this.searchProjects(), 300);
+        },
+
+        async searchProjects() {
+            const query = this.projectSearchInput.trim();
+            try {
+                const url = `/api/v1/search/projects?q=${encodeURIComponent(query)}&limit=20`;
+                const res = await fetch(url);
+                const data = await res.json();
+                this.projectResults = data.data || [];
+                this.showProjectDropdown = true;
+            } catch (e) {
+                console.error('搜索项目失败:', e);
+                this.projectResults = [];
+            }
+        },
+
+        selectProject(project) {
+            this.formData.project_id = project.id;
+            this.projectSearchInput = project.project_name;
+            this.projectResults = [];
+            this.showProjectDropdown = false;
+        },
+
+        clearProject() {
+            this.formData.project_id = '';
+            this.projectSearchInput = '';
+            this.projectResults = [];
+            this.showProjectDropdown = false;
+        },
+
+        debounceSearchCustomers() {
+            clearTimeout(this.searchTimer);
+            this.searchTimer = setTimeout(() => this.searchCustomers(), 300);
+        },
+
+        async searchCustomers() {
+            const query = this.customerSearchInput.trim();
+            try {
+                const url = `/api/v1/search/companies?q=${encodeURIComponent(query)}&limit=20`;
+                const res = await fetch(url);
+                const data = await res.json();
+                this.customerResults = data.data || [];
+                this.showCustomerDropdown = true;
+            } catch (e) {
+                console.error('搜索客户失败:', e);
+                this.customerResults = [];
+            }
+        },
+
+        selectCustomer(customer) {
+            this.formData.customer_id = customer.id;
+            this.customerSearchInput = customer.company_name;
+            this.customerResults = [];
+            this.showCustomerDropdown = false;
+            // 选择客户后加载联系人
+            this.loadContacts();
+        },
+
+        clearCustomer() {
+            this.formData.customer_id = '';
+            this.formData.contact_id = '';
+            this.customerSearchInput = '';
+            this.customerResults = [];
+            this.showCustomerDropdown = false;
+            this.contacts = [];
+        },
+
+        // ========== 共享用户相关方法 ==========
+
+        // 打开用户选择器模态框
+        openUserSelectorModal() {
+            window.dispatchEvent(new CustomEvent('open-workitem-user-selector', {
+                detail: { selectedUsers: this.sharedUsers }
+            }));
+        },
+
+        // 移除共享用户
+        removeSharedUser(userId) {
+            this.sharedUsers = this.sharedUsers.filter(u => u.id !== userId);
+        },
+
+        // 加载共享用户信息（根据ID列表获取用户详情）
+        async loadSharedUsersInfo(userIds) {
+            if (!userIds || userIds.length === 0) {
+                this.sharedUsers = [];
+                return;
+            }
+            try {
+                const response = await fetch('/api/v1/users/batch-info', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    },
+                    body: JSON.stringify({ user_ids: userIds })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.sharedUsers = data.data.map(u => ({
+                        id: u.id,
+                        name: u.real_name || u.username,
+                        initials: (u.real_name || u.username || '?').substring(0, 2).toUpperCase()
+                    }));
+                } else {
+                    this.sharedUsers = [];
+                }
+            } catch (e) {
+                console.error('加载共享用户信息失败:', e);
+                this.sharedUsers = [];
+            }
+        },
+
+        // 根据日期范围或起始/结束时间计算预计时长
+        // 工作时间：9:00-17:30（8.5小时/天）
+        calculateDuration() {
+            const WORK_START = 9 * 60;      // 9:00 = 540分钟
+            const WORK_END = 17 * 60 + 30;  // 17:30 = 1050分钟
+            const DAILY_HOURS = 8.5;        // 每天有效工时
+
+            // 确保使用10进制解析（避免 parseInt('09') 问题）
+            const startMin = parseInt(this.startHour, 10) * 60 + parseInt(this.startMinute, 10);
+            const endMin = parseInt(this.endHour, 10) * 60 + parseInt(this.endMinute, 10);
+
+            // 跨天任务
+            if (this.formData.end_date && this.formData.planned_date && this.formData.end_date !== this.formData.planned_date) {
+                const startDate = new Date(this.formData.planned_date);
+                const endDate = new Date(this.formData.end_date);
+                const diffTime = endDate - startDate;
+                const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+                if (totalDays >= 2) {
+                    // 第一天：开始时间到下班（17:30）
+                    const firstDayHours = Math.max(0, (WORK_END - startMin) / 60);
+                    // 中间天：每天8.5小时
+                    const middleDays = Math.max(0, totalDays - 2);
+                    const middleHours = middleDays * DAILY_HOURS;
+                    // 最后天：上班（9:00）到结束时间
+                    const lastDayHours = Math.max(0, (endMin - WORK_START) / 60);
+
+                    const totalHours = firstDayHours + middleHours + lastDayHours;
+                    this.formData.estimated_hours = totalHours.toFixed(1);
+                }
+            } else if (!this.formData.is_all_day) {
+                // 单日非全天事件，按开始/结束时间计算
+                if (endMin > startMin) {
+                    this.formData.estimated_hours = ((endMin - startMin) / 60).toFixed(1);
+                }
+            }
+            // 全天单日事件不自动计算，由用户手动填写
+        },
+
+        // 根据起始时间和预计时长计算结束时间
+        updateEndTime() {
+            const hours = parseFloat(this.formData.estimated_hours);
+            if (!isNaN(hours) && hours > 0) {
+                const start = parseInt(this.startHour, 10) * 60 + parseInt(this.startMinute, 10);
+                let end = start + hours * 60;
+                if (end > 1440) end = 1440;  // 不超过24:00
+                this.endHour = String(Math.floor(end / 60)).padStart(2, '0');
+                this.endMinute = String(Math.round(end % 60)).padStart(2, '0');
+                this.formData.end_time = this.endHour + ':' + this.endMinute;
+            }
+        },
+
+        openCreateModal(dateStr = null) {
+            this.editingItem = null;
+            this.resetFormData();
+            // 使用本地时间，避免时区问题
+            const now = new Date();
+            if (!dateStr) {
+                dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+            }
+            this.formData.planned_date = dateStr;
+
+            // 设置当前整点为起始时间，结束时间+1小时
+            const currentHour = now.getHours();
+            this.startHour = String(currentHour).padStart(2, '0');
+            this.startMinute = '00';
+            this.endHour = String(Math.min(currentHour + 1, 23)).padStart(2, '0');
+            this.endMinute = '00';
+            this.formData.start_time = this.startHour + ':' + this.startMinute;
+            this.formData.end_time = this.endHour + ':' + this.endMinute;
+
+            // 确保初始时长为空（由用户触发计算或手动输入）
+            this.formData.estimated_hours = '';
+            // 设置默认标题前缀（工作类型-）
+            const defaultLabel = this.workTypeLabels[this.formData.work_type] || '';
+            this.formData.title = defaultLabel + '-';
+            document.getElementById('workItemModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        },
+
+        async openEditModal(itemId, props) {
+            const response = await fetch(`/worklog/api/items/${itemId}`);
+            const data = await response.json();
+            if (data.success) {
+                this.editingItem = itemId;
+                const item = data.data;
+
+                // 设置共享状态（从 props 获取，因为 to_calendar_event 已计算 is_owner）
+                this.isOwner = props.is_owner !== false;
+                this.ownerName = props.owner_name || '';
+
+                // 加载共享用户信息
+                const sharedUserIds = item.shared_with_users || [];
+                if (sharedUserIds.length > 0) {
+                    await this.loadSharedUsersInfo(sharedUserIds);
+                } else {
+                    this.sharedUsers = [];
+                }
+
+                // 解析时间字符串到小时/分钟
+                if (item.start_time) {
+                    const [sh, sm] = item.start_time.split(':');
+                    this.startHour = sh || '09'; this.startMinute = sm || '00';
+                } else { this.startHour = '09'; this.startMinute = '00'; }
+                if (item.end_time) {
+                    const [eh, em] = item.end_time.split(':');
+                    this.endHour = eh || '10'; this.endMinute = em || '00';
+                } else { this.endHour = '10'; this.endMinute = '00'; }
+                this.formData = {
+                    title: item.title || '', planned_date: item.planned_date || '', end_date: item.end_date || '',
+                    work_type: item.work_type || 'other', is_all_day: item.is_all_day !== false,
+                    start_time: item.start_time || '09:00', end_time: item.end_time || '10:00',
+                    estimated_hours: item.estimated_hours || '', project_id: item.project_id || '',
+                    customer_id: item.customer_id || '',
+                    contact_id: item.contact_id ? String(item.contact_id) : '',  // 转为字符串，匹配 <select> value 类型
+                    description: item.description || ''
+                };
+
+                // 设置搜索输入框显示文本
+                this.projectSearchInput = item.project_name || '';
+                this.customerSearchInput = item.customer_name || '';
+
+                // 保存 contact_id，稍后在 DOM 更新后再设置
+                const savedContactId = item.contact_id ? String(item.contact_id) : '';
+
+                // 如果有客户，先加载联系人列表
+                if (item.customer_id) {
+                    await this.loadContacts();
+                    // 使用 setTimeout 确保 DOM 完全渲染后再设置 contact_id
+                    const self = this;
+                    setTimeout(() => {
+                        self.formData.contact_id = savedContactId;
+                        const selectEl = document.querySelector('select[x-model="formData.contact_id"]');
+                        if (selectEl) {
+                            selectEl.value = savedContactId;
+                            selectEl.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    }, 100);
+                }
+
+                document.getElementById('workItemModal').classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            }
+        },
+
+        closeWorkItemModal() {
+            document.getElementById('workItemModal').classList.add('hidden');
+            document.body.style.overflow = '';
+            this.editingItem = null;
+            this.resetFormData();
+        },
+
+        openViewModal(itemId, props) {
+            // 保存是否是共享行程和发起者信息
+            this.viewIsShared = !props.is_owner;
+            this.viewOwnerName = props.owner_name || '';
+
+            fetch(`/worklog/api/items/${itemId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        this.viewData = data.data;
+                        document.getElementById('viewItemModal').classList.remove('hidden');
+                        document.body.style.overflow = 'hidden';
+                    }
+                });
+        },
+
+        closeViewModal() {
+            document.getElementById('viewItemModal').classList.add('hidden');
+            document.body.style.overflow = '';
+            this.viewData = {};
+            this.viewIsShared = false;
+            this.viewOwnerName = '';
+        },
+
+        // 检查当前时间是否已到达结束时间（可以标记完成）
+        canComplete() {
+            if (!this.editingItem) return false;
+
+            const now = new Date();
+            // 获取结束日期（优先使用 end_date，否则用 planned_date）
+            const endDateStr = this.formData.end_date || this.formData.planned_date;
+            if (!endDateStr) return false;
+
+            if (this.formData.is_all_day) {
+                // 全天事件：结束日期当天即可完成
+                const endDate = new Date(endDateStr + 'T23:59:59');
+                return now >= new Date(endDateStr + 'T00:00:00');
+            } else {
+                // 非全天事件：需要结束时间到达
+                const endTime = this.endHour + ':' + this.endMinute + ':00';
+                const endDateTime = new Date(endDateStr + 'T' + endTime);
+                return now >= endDateTime;
+            }
+        },
+
+        quickCompleteItem() {
+            if (!this.editingItem) return;
+            const self = this;
+
+            // 检查：如果关联了客户或项目，行动记录必填
+            const hasRelation = this.formData.customer_id || this.formData.project_id;
+            const description = (this.formData.description || '').trim();
+            if (hasRelation && !description) {
+                window.TwNotification?.show('{{ _("关联了客户或项目时，请填写行动记录") }}', 'warning');
+                return;
+            }
+
+            // 计算实际时长：优先使用预计时长，否则计算
+            let hours = this.formData.estimated_hours;
+            if (!hours) {
+                // 尝试根据时间计算
+                const startMin = parseInt(this.startHour, 10) * 60 + parseInt(this.startMinute, 10);
+                const endMin = parseInt(this.endHour, 10) * 60 + parseInt(this.endMinute, 10);
+                if (endMin > startMin) {
+                    hours = ((endMin - startMin) / 60).toFixed(1);
+                } else {
+                    hours = 1;  // 无法计算时默认1小时
+                }
+            }
+
+            // 构建确认消息
+            let confirmMsg = `{{ _("确定将此工作项标记为已完成吗？") }}<br><span class="text-slate-500">{{ _("实际时长") }}: ${hours} {{ _("小时") }}</span>`;
+            if (hasRelation && description) {
+                confirmMsg += `<br><span class="text-amber-600">{{ _("行动记录将同步到客户/项目") }}</span>`;
+            }
+
+            openConfirmModal('completeItemConfirmModal', {
+                message: confirmMsg,
+                onConfirm: async function() {
+                    self.saving = true;
+                    try {
+                        const response = await fetch(`/worklog/api/items/${self.editingItem}/complete`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+                            body: JSON.stringify({
+                                actual_hours: hours,
+                                execution_notes: '',
+                                description: description,  // 传递行动记录内容
+                                sync_action: hasRelation   // 是否同步到客户/项目
+                            })
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            window.TwNotification?.show(data.message || '{{ _("已标记完成") }}', 'success');
+                            self.calendar.refetchEvents();
+                            self.closeWorkItemModal();
+                        } else { window.TwNotification?.show(data.message || '{{ _("操作失败") }}', 'error'); }
+                    } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
+                    finally { self.saving = false; }
+                }
+            });
+        },
+
+        confirmDeleteItem() {
+            const self = this;
+            openConfirmModal('deleteItemConfirmModal', {
+                onConfirm: function() {
+                    self.deleteItem();
+                }
+            });
+        },
+
+        async deleteItem() {
+            if (!this.editingItem) return;
+            this.saving = true;
+            try {
+                const response = await fetch(`/worklog/api/items/${this.editingItem}`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    window.TwNotification?.show(data.message || '{{ _("删除成功") }}', 'success');
+                    this.calendar.refetchEvents();
+                    this.closeWorkItemModal();
+                } else { window.TwNotification?.show(data.message || '{{ _("删除失败") }}', 'error'); }
+            } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
+            finally { this.saving = false; }
+        },
+
+        async saveWorkItem() {
+            if (!this.formData.title || !this.formData.planned_date) {
+                window.TwNotification?.show('{{ _("请填写标题和计划日期") }}', 'warning');
+                return;
+            }
+            this.saving = true;
+            const url = this.editingItem ? `/worklog/api/items/${this.editingItem}` : '/worklog/api/items';
+            const method = this.editingItem ? 'PUT' : 'POST';
+            try {
+                // 构建请求数据，包含共享用户ID列表
+                const requestData = {
+                    ...this.formData,
+                    shared_with_users: this.sharedUsers.map(u => u.id)
+                };
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+                    body: JSON.stringify(requestData)
+                });
+                const data = await response.json();
+                if (data.success) {
+                    window.TwNotification?.show(data.message || '{{ _("保存成功") }}', 'success');
+                    this.calendar.refetchEvents();
+                    this.closeWorkItemModal();
+                } else { window.TwNotification?.show(data.message || '{{ _("保存失败") }}', 'error'); }
+            } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
+            finally { this.saving = false; }
+        },
+
+        openCompleteModal(itemId, props) {
+            this.selectedItem = { id: itemId, title: '', planned_date: '', project_name: '', customer_name: '', estimated_hours: '' };
+            fetch(`/worklog/api/items/${itemId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        this.selectedItem = data.data;
+                        this.completeData.actual_hours = data.data.estimated_hours || '';
+                    }
+                });
+            this.completeData = { actual_hours: props.estimated_hours || '', execution_notes: '' };
+            document.getElementById('completeItemModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        },
+
+        closeCompleteModal() {
+            document.getElementById('completeItemModal').classList.add('hidden');
+            document.body.style.overflow = '';
+            this.selectedItem = null;
+            this.completeData = { actual_hours: '', execution_notes: '' };
+        },
+
+        async completeItem() {
+            if (!this.completeData.actual_hours) {
+                window.TwNotification?.show('{{ _("请填写实际时长") }}', 'warning');
+                return;
+            }
+            this.saving = true;
+            try {
+                const response = await fetch(`/worklog/api/items/${this.selectedItem.id}/complete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+                    body: JSON.stringify(this.completeData)
+                });
+                const data = await response.json();
+                if (data.success) {
+                    window.TwNotification?.show(data.message || '{{ _("已标记完成") }}', 'success');
+                    this.calendar.refetchEvents();
+                    this.closeCompleteModal();
+                } else { window.TwNotification?.show(data.message || '{{ _("操作失败") }}', 'error'); }
+            } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
+            finally { this.saving = false; }
+        },
+
+        cancelItem() {
+            const self = this;
+            const itemId = this.selectedItem.id;
+            openConfirmModal('cancelItemConfirmModal', {
+                onConfirm: async function() {
+                    self.saving = true;
+                    try {
+                        const response = await fetch(`/worklog/api/items/${itemId}/cancel`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+                            body: JSON.stringify({})
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            window.TwNotification?.show(data.message || '{{ _("已取消") }}', 'success');
+                            self.calendar.refetchEvents();
+                            self.closeCompleteModal();
+                        } else { window.TwNotification?.show(data.message || '{{ _("操作失败") }}', 'error'); }
+                    } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
+                    finally { self.saving = false; }
+                }
+            });
+        },
+
+        async updateItemDate(itemId, newDate, endDate) {
+            // 直接从 ISO 字符串解析，避免时区转换问题
+            // newDate 格式: "2026-01-02T02:00:00+08:00"
+            const data = {
+                planned_date: newDate.split('T')[0],  // "2026-01-02"
+                start_time: newDate.split('T')[1].slice(0, 5),  // "02:00"
+                is_all_day: false
+            };
+            if (endDate) {
+                data.end_time = endDate.split('T')[1].slice(0, 5);
+            }
+            console.log('[拖动] 保存:', data);
+            try {
+                const response = await fetch(`/worklog/api/items/${itemId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                console.log('[拖动] 响应:', result);
+                if (result.success) {
+                    window.TwNotification?.show('{{ _("已更新") }}', 'success');
+                } else {
+                    window.TwNotification?.show(result.message || '{{ _("更新失败") }}', 'error');
+                    this.calendar.refetchEvents();
+                }
+            } catch (e) {
+                console.error('[拖动] 错误:', e);
+                window.TwNotification?.show('{{ _("网络错误") }}', 'error');
+                this.calendar.refetchEvents();
+            }
+        },
+
+        async openLogModal(dateStr) {
+            // 检查是否为未来日期，未来日期不允许添加日志
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const targetDate = new Date(dateStr + 'T00:00:00');
+            if (targetDate > today) {
+                window.TwNotification?.show('{{ _("不能为未来日期添加日志") }}', 'warning');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/worklog/api/daily/${dateStr}`);
+                const data = await response.json();
+                if (data.success) {
+                    const logInfo = data.data.log || {};
+                    this.logData = {
+                        ...logInfo, log_date: logInfo.log_date || dateStr, status: logInfo.status || 'draft',
+                        additional_notes: logInfo.additional_notes || '', completed_items: data.data.completed_items || [],
+                        pending_items: data.data.pending_items || [], cancelled_items: data.data.cancelled_items || [],
+                        statistics: data.data.statistics || {},
+                        activities: data.data.activities || {}
+                    };
+                    document.getElementById('dailyLogModal').classList.remove('hidden');
+                    document.body.style.overflow = 'hidden';
+
+                    // 初始化 mention 编辑器内容
+                    this.$nextTick(() => {
+                        const editorContainer = document.getElementById('logMentionEditor-container');
+                        if (editorContainer && editorContainer._x_dataStack) {
+                            const editorData = editorContainer._x_dataStack[0];
+                            if (editorData && editorData.setValue) {
+                                editorData.setValue(this.logData.additional_notes || '');
+                            }
+                        }
+                    });
+                } else { window.TwNotification?.show(data.message || '{{ _("加载失败") }}', 'error'); }
+            } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
+        },
+
+        closeLogModal() {
+            document.getElementById('dailyLogModal').classList.add('hidden');
+            document.body.style.overflow = '';
+            this.logData = {};
+            this.logPreviewMode = false;
+        },
+
+        // 进入预览模式前，先同步编辑器内容
+        enterPreviewMode() {
+            const editorContainer = document.getElementById('logMentionEditor-container');
+            if (editorContainer && editorContainer._x_dataStack) {
+                const editorData = editorContainer._x_dataStack[0];
+                if (editorData && editorData.getValue) {
+                    this.logData.additional_notes = editorData.getValue();
+                }
+            }
+            this.logPreviewMode = true;
+        },
+
+        // 退出预览模式，恢复编辑器内容
+        exitPreviewMode() {
+            this.logPreviewMode = false;
+            this.$nextTick(() => {
+                const editorContainer = document.getElementById('logMentionEditor-container');
+                if (editorContainer && editorContainer._x_dataStack) {
+                    const editorData = editorContainer._x_dataStack[0];
+                    if (editorData && editorData.setValue) {
+                        editorData.setValue(this.logData.additional_notes || '');
+                    }
+                }
+            });
+        },
+
+        formatLogDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('{{ session.get("language", "zh") }}' === 'zh' ? 'zh-CN' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+        },
+
+        async saveLogNotes() {
+            this.saving = true;
+            try {
+                // 从 mention 编辑器获取内容和引用数据
+                console.log('[Calendar] saveLogNotes started');
+                const editorContainer = document.getElementById('logMentionEditor-container');
+                let additionalNotes = this.logData.additional_notes || '';
+                let mentionedUsers = [];
+                let mentionedProjects = [];
+
+                console.log('[Calendar] editorContainer for save:', !!editorContainer);
+                if (editorContainer && editorContainer._x_dataStack) {
+                    const editorData = editorContainer._x_dataStack[0];
+                    console.log('[Calendar] editorData for save:', !!editorData, 'getValue exists:', !!editorData?.getValue);
+                    if (editorData) {
+                        additionalNotes = editorData.getValue ? editorData.getValue() : '';
+                        console.log('[Calendar] Got additionalNotes from editor:', additionalNotes?.substring(0, 100));
+                        const mentionData = editorData.getMentionData ? editorData.getMentionData() : {};
+                        mentionedUsers = mentionData.users || [];
+                        mentionedProjects = mentionData.projects || [];
+                    }
+                }
+
+                // 同步到 logData
+                console.log('[Calendar] Final additionalNotes to save:', additionalNotes?.substring(0, 100));
+                this.logData.additional_notes = additionalNotes;
+
+                const requestBody = {
+                    additional_notes: additionalNotes,
+                    mentioned_users: mentionedUsers,
+                    mentioned_projects: mentionedProjects
+                };
+                console.log('[Calendar] Saving with body:', JSON.stringify(requestBody));
+                const response = await fetch(`/worklog/api/daily/${this.logData.log_date}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+                    body: JSON.stringify(requestBody)
+                });
+                const data = await response.json();
+                console.log('[Calendar] Save response:', data);
+                if (data.success) { window.TwNotification?.show('{{ _("备注已保存") }}', 'success'); }
+                else { window.TwNotification?.show(data.message || '{{ _("保存失败") }}', 'error'); }
+            } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
+            finally { this.saving = false; }
+        },
+
+        submitLog() {
+            const self = this;
+            openConfirmModal('submitLogConfirmModal', {
+                onConfirm: async function() {
+                    self.saving = true;
+                    try {
+                        // 从 mention 编辑器获取内容和引用数据
+                        const editorContainer = document.getElementById('logMentionEditor-container');
+                        let additionalNotes = self.logData.additional_notes || '';
+                        let mentionedUsers = [];
+                        let mentionedProjects = [];
+
+                        if (editorContainer && editorContainer._x_dataStack) {
+                            const editorData = editorContainer._x_dataStack[0];
+                            if (editorData) {
+                                additionalNotes = editorData.getValue ? editorData.getValue() : '';
+                                const mentionData = editorData.getMentionData ? editorData.getMentionData() : {};
+                                mentionedUsers = mentionData.users || [];
+                                mentionedProjects = mentionData.projects || [];
+                            }
+                        }
+
+                        // 同步到 logData
+                        self.logData.additional_notes = additionalNotes;
+
+                        const response = await fetch(`/worklog/api/daily/${self.logData.log_date}/submit`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+                            body: JSON.stringify({
+                                additional_notes: additionalNotes,
+                                mentioned_users: mentionedUsers,
+                                mentioned_projects: mentionedProjects
+                            })
+                        });
+                        const data = await response.json();
+                        if (data.success) { window.TwNotification?.show(data.message || '{{ _("日志已提交") }}', 'success'); self.logData.status = 'submitted'; }
+                        else { window.TwNotification?.show(data.message || '{{ _("提交失败") }}', 'error'); }
+                    } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
+                    finally { self.saving = false; }
+                }
+            });
+        }
+    };
+}
+</script>
+
+{{ tw_mention_editor_script() }}
+</body>
+</html>

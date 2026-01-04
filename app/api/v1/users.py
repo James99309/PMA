@@ -1,7 +1,7 @@
 from flask import request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.api.v1 import api_v1_bp
-from app.api.v1.utils import api_response, jwt_required_with_permission, get_pagination_params
+from app.api.v1.utils import api_response, jwt_required_with_permission, flexible_auth_with_permission, get_pagination_params
 from app.models.user import User
 from app.models.customer import Company
 from app import db
@@ -192,7 +192,7 @@ def create_user():
         )
 
 @api_v1_bp.route('/users/<int:user_id>', methods=['PUT'])
-@jwt_required_with_permission('user', 'edit')
+@flexible_auth_with_permission('user', 'edit')
 def update_user(user_id):
     """
     更新用户信息
@@ -551,6 +551,54 @@ def change_user_password():
             code=500,
             message="修改失败，请稍后重试"
         )
+
+@api_v1_bp.route('/users/batch-info', methods=['POST'])
+def get_users_batch_info():
+    """
+    批量获取用户基本信息（用于显示共享用户等场景）
+    支持 Flask-Login 和 JWT 两种认证方式
+    """
+    from flask_login import current_user
+
+    # 检查认证
+    if not current_user.is_authenticated:
+        return api_response(
+            success=False,
+            code=401,
+            message="请先登录"
+        )
+
+    data = request.get_json()
+    if not data:
+        return api_response(
+            success=False,
+            code=400,
+            message="请求数据无效"
+        )
+
+    user_ids = data.get('user_ids', [])
+    if not user_ids:
+        return api_response(
+            success=True,
+            message="获取成功",
+            data=[]
+        )
+
+    # 查询用户基本信息
+    users = User.query.filter(User.id.in_(user_ids)).all()
+
+    users_data = [{
+        'id': user.id,
+        'username': user.username,
+        'real_name': user.real_name
+    } for user in users]
+
+    return api_response(
+        success=True,
+        message="获取成功",
+        data=users_data
+    )
+
 
 @api_v1_bp.route('/users/<int:user_id>/check-dependencies', methods=['GET'])
 @jwt_required()

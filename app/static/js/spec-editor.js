@@ -95,6 +95,17 @@ class SpecEditor {
         this.pendingChanges = { modified: [], added: [], deleted: [], descriptionChanged: [] };
         this.originalData = [];
         this.specOptionsCache = {};
+
+        // 引入产品标记（引入产品的编码规格不可编辑）
+        this.isImportedProduct = false;
+    }
+
+    /**
+     * 设置是否是引入产品
+     * 引入产品的编码规格在编辑模式下会灰显不可编辑
+     */
+    setImportedProduct(isImported) {
+        this.isImportedProduct = isImported;
     }
 
     /**
@@ -298,13 +309,18 @@ class SpecEditor {
         // 显示操作按钮
         document.querySelectorAll('.spec-actions').forEach(el => el.classList.remove('hidden'));
 
-        // 加载缺失的编码规格
-        if (this.subcategoryId) {
+        // 加载缺失的编码规格（引入产品不加载，因为不能添加新规格）
+        if (this.subcategoryId && !this.isImportedProduct) {
             this._loadMissingCodedSpecs();
         }
 
         // 更新应用按钮状态
         this.updateApplyButtonState();
+
+        // 如果是引入产品，应用编辑限制
+        if (this.isImportedProduct) {
+            this._applyImportedProductRestrictions();
+        }
     }
 
     /**
@@ -537,6 +553,11 @@ class SpecEditor {
      */
     cancelEditMode() {
         this.isEditMode = false;
+
+        // 清理引入产品限制状态
+        if (this.isImportedProduct) {
+            this._clearImportedProductRestrictions();
+        }
 
         // 恢复原始数据
         this._restoreOriginalState();
@@ -1433,11 +1454,12 @@ class SpecEditor {
         // 收集规格数据
         const specs = this._collectSpecsData();
 
-        // 如果启用了编码预览功能
-        if (this.features.codePreview && this.previewEndpoint) {
-            await this._previewAndSave(specs);
-        } else {
+        // 引入产品跳过编码预览（编码已锁定，不会改变）
+        // 或者如果未启用编码预览功能，直接保存
+        if (this.isImportedProduct || !this.features.codePreview || !this.previewEndpoint) {
             await this._saveChanges(specs);
+        } else {
+            await this._previewAndSave(specs);
         }
     }
 
@@ -1667,6 +1689,158 @@ class SpecEditor {
             `;
 
             specsList.appendChild(row);
+        });
+    }
+
+    /**
+     * 重建规格列表（分组版本，按分类显示）
+     * @param {Array} specCategories - 分类数据数组，每个分类包含 id, name, name_en, specs
+     * @param {Object} options - 可选配置
+     */
+    rebuildSpecsListGrouped(specCategories, options = {}) {
+        const specsList = document.getElementById(this.listId);
+        if (!specsList) return;
+
+        // 清空现有内容
+        specsList.innerHTML = '';
+
+        // 检查是否有数据
+        const totalSpecs = specCategories.reduce((sum, cat) => sum + (cat.specs?.length || 0), 0);
+        if (totalSpecs === 0) {
+            // 显示空消息
+            const emptyMsg = document.getElementById('emptySpecsMessage');
+            if (emptyMsg) {
+                emptyMsg.style.display = 'block';
+            }
+            return;
+        }
+
+        // 隐藏空消息
+        const emptyMsg = document.getElementById('emptySpecsMessage');
+        if (emptyMsg) {
+            emptyMsg.style.display = 'none';
+        }
+
+        // 遍历每个分类
+        specCategories.forEach(category => {
+            if (!category.specs || category.specs.length === 0) return;
+
+            // 创建分类标题
+            const categoryHeader = document.createElement('div');
+            categoryHeader.className = 'spec-category-header px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 first:border-t-0';
+            categoryHeader.dataset.categoryId = category.id;
+            categoryHeader.innerHTML = `
+                <span class="text-sm font-semibold text-slate-700 dark:text-slate-300">${category.name}</span>
+                ${category.name_en ? `<span class="text-xs text-slate-400 dark:text-slate-500 ml-2">${category.name_en}</span>` : ''}
+            `;
+            specsList.appendChild(categoryHeader);
+
+            // 创建该分类下的规格行
+            category.specs.forEach(spec => {
+                const row = document.createElement('div');
+                row.className = 'spec-row px-6 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-t border-slate-100 dark:border-slate-800';
+                row.dataset.specId = spec.id;
+                row.dataset.fieldName = spec.field_name;
+                row.dataset.fieldId = spec.field_id || '';
+                row.dataset.fieldValue = spec.field_value;
+                row.dataset.fieldCode = spec.field_code || '';
+                row.dataset.unit = spec.unit || '';
+                row.dataset.includeInDesc = spec.include_in_description ? 'true' : 'false';
+                row.dataset.categoryId = category.id;
+
+                const hasCode = !!spec.field_code;
+                const visibilityIcon = spec.include_in_description ? 'visibility' : 'visibility_off';
+                const visibilityTitle = spec.include_in_description ? this.i18n.excludeFromDesc : this.i18n.includeInDesc;
+
+                row.innerHTML = `
+                    <div class="flex-1 grid grid-cols-3 gap-4">
+                        <dt class="text-sm font-medium text-slate-500 dark:text-slate-400 spec-name">${spec.field_name}</dt>
+                        <dd class="spec-value text-sm text-slate-900 dark:text-slate-200 col-span-2 mt-0 flex items-center gap-2">
+                            <span class="value-display">${spec.field_value}</span>
+                            <span class="unit-display text-slate-400">${spec.unit || ''}</span>
+                            <select class="value-select hidden w-32 px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200">
+                                <option value="${spec.field_value}">${spec.field_value}</option>
+                            </select>
+                            <span class="unit-edit hidden text-slate-400">${spec.unit || ''}</span>
+                        </dd>
+                    </div>
+                    <div class="spec-actions hidden flex items-center gap-1 ml-4">
+                        <button type="button" onclick="toggleSpecEdit(this)" class="p-1.5 text-slate-400 hover:text-primary rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${this.i18n.edit}">
+                            <span class="material-symbols-outlined text-lg">edit</span>
+                        </button>
+                        ${!hasCode ? `<button type="button" onclick="deleteSpec(this)" class="p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${this.i18n.delete}">
+                            <span class="material-symbols-outlined text-lg">delete</span>
+                        </button>` : ''}
+                        <button type="button" onclick="toggleSpecInDescription(this)" class="p-1.5 text-slate-400 hover:text-amber-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${visibilityTitle}">
+                            <span class="material-symbols-outlined text-lg">${visibilityIcon}</span>
+                        </button>
+                    </div>
+                `;
+
+                specsList.appendChild(row);
+            });
+        });
+    }
+
+    /**
+     * 应用引入产品的编辑限制
+     * 引入产品的所有规格都不可编辑，不能添加新规格
+     * 只保留"是否作为描述"勾选功能
+     */
+    _applyImportedProductRestrictions() {
+        // 1. 隐藏"添加"按钮（不能添加新规格）
+        const addBtn = document.getElementById(this.buttons.add);
+        if (addBtn) {
+            addBtn.style.display = 'none';
+        }
+
+        // 2. 所有规格灰显，不可编辑
+        const container = document.getElementById(this.containerId);
+        if (!container) return;
+
+        const rows = container.querySelectorAll('.spec-row');
+        rows.forEach(row => {
+            // 所有规格都灰显
+            row.classList.add('spec-disabled');
+
+            // 禁用值编辑
+            const valueSelect = row.querySelector('.value-select');
+            const valueInput = row.querySelector('.spec-value-input');
+            if (valueSelect) valueSelect.disabled = true;
+            if (valueInput) valueInput.disabled = true;
+
+            // 隐藏编辑和删除按钮
+            const editBtn = row.querySelector('button[onclick*="toggleSpecEdit"]');
+            const deleteBtn = row.querySelector('button[onclick*="deleteSpec"]');
+            if (editBtn) editBtn.style.display = 'none';
+            if (deleteBtn) deleteBtn.style.display = 'none';
+
+            // "是否作为描述"勾选功能保持不变
+        });
+    }
+
+    /**
+     * 清理引入产品编辑限制状态
+     */
+    _clearImportedProductRestrictions() {
+        const container = document.getElementById(this.containerId);
+        if (!container) return;
+
+        const rows = container.querySelectorAll('.spec-row');
+        rows.forEach(row => {
+            row.classList.remove('spec-disabled');
+
+            // 恢复编辑和删除按钮显示
+            const editBtn = row.querySelector('button[onclick*="toggleSpecEdit"]');
+            const deleteBtn = row.querySelector('button[onclick*="deleteSpec"]');
+            if (editBtn) editBtn.style.display = '';
+            if (deleteBtn) deleteBtn.style.display = '';
+
+            // 恢复值编辑
+            const valueSelect = row.querySelector('.value-select');
+            const valueInput = row.querySelector('.spec-value-input');
+            if (valueSelect) valueSelect.disabled = false;
+            if (valueInput) valueInput.disabled = false;
         });
     }
 }

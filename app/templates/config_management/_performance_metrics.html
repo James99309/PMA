@@ -1,0 +1,553 @@
+{# 绩效项目管理子页签内容 - 用于绩效配置Tab #}
+<div class="space-y-6" x-data="performanceMetricsManager()">
+    <!-- 操作栏 -->
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('绩效项目管理') }}</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ _('配置可用的绩效考核项目，这些项目可在目标配置和薪资公式中使用') }}</p>
+        </div>
+        <button type="button" @click="openAddModal()"
+                class="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-medium rounded-lg transition-colors">
+            <span class="material-symbols-outlined text-base">add</span>
+            {{ _('新增项目') }}
+        </button>
+    </div>
+
+    <!-- 加载状态 -->
+    <template x-if="loading">
+        <div class="text-center py-12">
+            <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 mb-4 block animate-spin">progress_activity</span>
+            <p class="text-slate-500 dark:text-slate-400">{{ _('加载中...') }}</p>
+        </div>
+    </template>
+
+    <!-- 项目列表 -->
+    <template x-if="!loading">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-slate-50 dark:bg-slate-700/50">
+                        <th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">{{ _('项目代码') }}</th>
+                        <th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">{{ _('项目名称') }}</th>
+                        <th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">{{ _('数据类型') }}</th>
+                        <th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">{{ _('数据来源') }}</th>
+                        <th class="px-4 py-3 text-center font-medium text-slate-600 dark:text-slate-300">{{ _('系统项') }}</th>
+                        <th class="px-4 py-3 text-center font-medium text-slate-600 dark:text-slate-300">{{ _('状态') }}</th>
+                        <th class="px-4 py-3 text-center font-medium text-slate-600 dark:text-slate-300">{{ _('操作') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                    <template x-for="metric in metrics" :key="metric.id">
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                            <td class="px-4 py-3">
+                                <span class="font-mono text-xs bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded" x-text="metric.metric_code"></span>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="font-medium text-slate-900 dark:text-white" x-text="metric.metric_name"></span>
+                                <template x-if="metric.description">
+                                    <p class="text-xs text-slate-500 mt-0.5" x-text="metric.description"></p>
+                                </template>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs"
+                                      :class="metric.data_type === 'amount' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                              metric.data_type === 'count' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                              'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'">
+                                    <span class="material-symbols-outlined text-sm"
+                                          x-text="metric.data_type === 'amount' ? 'payments' : metric.data_type === 'count' ? 'tag' : 'percent'"></span>
+                                    <span x-text="getDataTypeLabel(metric.data_type)"></span>
+                                </span>
+                            </td>
+                            <td class="px-4 py-3">
+                                <template x-if="metric.available_sources && metric.available_sources.model">
+                                    <span class="text-sm text-slate-600 dark:text-slate-400" x-text="getDataSourceLabel(metric.available_sources.model)"></span>
+                                </template>
+                                <template x-if="!metric.available_sources || !metric.available_sources.model">
+                                    <span class="text-sm text-slate-400">{{ _('手动录入') }}</span>
+                                </template>
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <template x-if="metric.is_system_metric">
+                                    <span class="material-symbols-outlined text-amber-500 text-lg" title="{{ _('系统内置项目') }}">verified</span>
+                                </template>
+                                <template x-if="!metric.is_system_metric">
+                                    <span class="text-slate-300 dark:text-slate-600">-</span>
+                                </template>
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <template x-if="metric.is_active">
+                                    <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                        {{ _('启用') }}
+                                    </span>
+                                </template>
+                                <template x-if="!metric.is_active">
+                                    <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                        {{ _('禁用') }}
+                                    </span>
+                                </template>
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <div class="flex items-center justify-center gap-1">
+                                    <button type="button" @click="openEditModal(metric)"
+                                            class="p-1.5 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                                            title="{{ _('编辑') }}">
+                                        <span class="material-symbols-outlined text-base">edit</span>
+                                    </button>
+                                    <template x-if="!metric.is_system_metric">
+                                        <button type="button" @click="confirmDelete(metric)"
+                                                class="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                title="{{ _('删除') }}">
+                                            <span class="material-symbols-outlined text-base">delete</span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-if="metrics.length === 0">
+                        <tr>
+                            <td colspan="7" class="px-4 py-12 text-center text-slate-400">
+                                <span class="material-symbols-outlined text-4xl block mb-2">assessment</span>
+                                {{ _('暂无绩效项目，点击"新增项目"添加') }}
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </template>
+
+    <!-- 新增/编辑模态框 -->
+    <div x-show="showModal" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0">
+
+        <!-- 遮罩层 -->
+        <div class="absolute inset-0 bg-black/50" @click="closeModal()"></div>
+
+        <!-- 模态框内容 -->
+        <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg mx-4"
+             @click.stop>
+
+            <!-- 头部 -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white"
+                    x-text="editingMetric ? '{{ _('编辑绩效项目') }}' : '{{ _('新增绩效项目') }}'"></h3>
+                <button type="button" @click="closeModal()"
+                        class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <!-- 表单 -->
+            <div class="p-6 space-y-4">
+                <!-- 项目代码 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        {{ _('项目代码') }} <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" x-model="formData.metric_code"
+                           :disabled="editingMetric && editingMetric.is_system_metric"
+                           class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800"
+                           placeholder="sales_amount">
+                    <p class="text-xs text-slate-500 mt-1">{{ _('英文代码，用于公式引用') }}</p>
+                </div>
+
+                <!-- 项目名称 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        {{ _('项目名称') }} <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" x-model="formData.metric_name"
+                           class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700"
+                           placeholder="{{ _('销售额') }}">
+                </div>
+
+                <!-- 数据类型 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        {{ _('数据类型') }} <span class="text-red-500">*</span>
+                    </label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" x-model="formData.data_type" value="amount"
+                                   class="text-primary focus:ring-primary">
+                            <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('金额类') }}</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" x-model="formData.data_type" value="count"
+                                   class="text-primary focus:ring-primary">
+                            <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('数量类') }}</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" x-model="formData.data_type" value="percentage"
+                                   class="text-primary focus:ring-primary">
+                            <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('百分比') }}</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 数据来源 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        {{ _('数据来源') }}
+                    </label>
+                    <select x-model="formData.source_model" @change="onSourceModelChange()"
+                            class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700">
+                        <option value="">{{ _('手动录入') }}</option>
+                        <template x-for="preset in dataSourcePresets" :key="preset.model">
+                            <option :value="preset.model" x-text="preset.label"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <!-- 数据来源详细配置（选择模型后显示） -->
+                <template x-if="formData.source_model && selectedPreset">
+                    <div class="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg space-y-3">
+                        <!-- 汇总字段 -->
+                        <template x-if="selectedPreset.available_fields && selectedPreset.available_fields.length > 0">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('汇总字段') }}</label>
+                                <select x-model="formData.source_field"
+                                        class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700">
+                                    <template x-for="field in selectedPreset.available_fields" :key="field.field">
+                                        <option :value="field.field" x-text="field.label"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </template>
+
+                        <!-- 汇总方式 -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('汇总方式') }}</label>
+                            <div class="flex gap-4">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" x-model="formData.source_aggregate" value="sum"
+                                           class="text-primary focus:ring-primary">
+                                    <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('合计') }}</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" x-model="formData.source_aggregate" value="count"
+                                           class="text-primary focus:ring-primary">
+                                    <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('计数') }}</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" x-model="formData.source_aggregate" value="avg"
+                                           class="text-primary focus:ring-primary">
+                                    <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('平均值') }}</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 过滤条件预览 -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('默认过滤条件') }}</label>
+                            <div class="text-xs text-slate-500 bg-white dark:bg-slate-800 px-3 py-2 rounded border border-slate-200 dark:border-slate-600">
+                                <template x-if="selectedPreset.default_filter">
+                                    <span x-text="JSON.stringify(selectedPreset.default_filter)"></span>
+                                </template>
+                                <template x-if="!selectedPreset.default_filter">
+                                    <span>{{ _('无') }}</span>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- 描述 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('描述') }}</label>
+                    <textarea x-model="formData.description" rows="2"
+                              class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700"
+                              placeholder="{{ _('项目说明...') }}"></textarea>
+                </div>
+
+                <!-- 状态 -->
+                <div>
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" x-model="formData.is_active"
+                               class="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary">
+                        <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('启用此项目') }}</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 底部按钮 -->
+            <div class="flex justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
+                <button type="button" @click="closeModal()"
+                        class="px-4 py-2 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors text-sm font-medium">
+                    {{ _('取消') }}
+                </button>
+                <button type="button" @click="saveMetric()" :disabled="saving"
+                        class="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors text-sm font-medium disabled:opacity-50 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-base" :class="saving ? 'animate-spin' : ''" x-text="saving ? 'progress_activity' : 'save'"></span>
+                    <span x-text="saving ? '{{ _('保存中...') }}' : '{{ _('保存') }}'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 删除确认模态框 -->
+    <div x-show="showDeleteConfirm" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0">
+
+        <div class="absolute inset-0 bg-black/50" @click="showDeleteConfirm = false"></div>
+
+        <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-sm mx-4 p-6"
+             @click.stop>
+            <div class="text-center">
+                <span class="material-symbols-outlined text-5xl text-red-500 mb-4 block">warning</span>
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">{{ _('确认删除') }}</h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                    {{ _('确定要删除绩效项目') }} "<span class="font-medium" x-text="deletingMetric?.metric_name"></span>"？{{ _('此操作不可恢复。') }}
+                </p>
+                <div class="flex justify-center gap-3">
+                    <button type="button" @click="showDeleteConfirm = false"
+                            class="px-4 py-2 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors text-sm font-medium">
+                        {{ _('取消') }}
+                    </button>
+                    <button type="button" @click="deleteMetric()" :disabled="deleting"
+                            class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm font-medium disabled:opacity-50 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-base" :class="deleting ? 'animate-spin' : ''" x-text="deleting ? 'progress_activity' : 'delete'"></span>
+                        <span x-text="deleting ? '{{ _('删除中...') }}' : '{{ _('确认删除') }}'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function performanceMetricsManager() {
+    return {
+        loading: true,
+        metrics: [],
+        dataSourcePresets: [],
+        showModal: false,
+        showDeleteConfirm: false,
+        editingMetric: null,
+        deletingMetric: null,
+        saving: false,
+        deleting: false,
+        formData: {
+            metric_code: '',
+            metric_name: '',
+            data_type: 'amount',
+            description: '',
+            is_active: true,
+            source_model: '',
+            source_field: '',
+            source_aggregate: 'sum'
+        },
+
+        get selectedPreset() {
+            if (!this.formData.source_model || !Array.isArray(this.dataSourcePresets)) return null;
+            return this.dataSourcePresets.find(p => p.model === this.formData.source_model);
+        },
+
+        async init() {
+            await Promise.all([
+                this.loadMetrics(),
+                this.loadDataSourcePresets()
+            ]);
+        },
+
+        async loadMetrics() {
+            this.loading = true;
+            try {
+                const response = await fetch('/performance/config/api/metrics');
+                const data = await response.json();
+                if (data.success) {
+                    this.metrics = data.data || [];
+                }
+            } catch (error) {
+                console.error('加载绩效项目失败:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async loadDataSourcePresets() {
+            try {
+                const response = await fetch('/performance/config/api/metrics/data-source-presets');
+                const data = await response.json();
+                if (data.success) {
+                    this.dataSourcePresets = data.data || [];
+                }
+            } catch (error) {
+                console.error('加载数据源预设失败:', error);
+            }
+        },
+
+        getDataTypeLabel(dataType) {
+            const labels = {
+                'amount': '{{ _('金额类') }}',
+                'count': '{{ _('数量类') }}',
+                'percentage': '{{ _('百分比') }}'
+            };
+            return labels[dataType] || dataType;
+        },
+
+        getDataSourceLabel(model) {
+            if (!Array.isArray(this.dataSourcePresets)) return model;
+            const preset = this.dataSourcePresets.find(p => p.model === model);
+            return preset ? preset.label : model;
+        },
+
+        openAddModal() {
+            this.editingMetric = null;
+            this.formData = {
+                metric_code: '',
+                metric_name: '',
+                data_type: 'amount',
+                description: '',
+                is_active: true,
+                source_model: '',
+                source_field: '',
+                source_aggregate: 'sum'
+            };
+            this.showModal = true;
+        },
+
+        openEditModal(metric) {
+            this.editingMetric = metric;
+            const sources = metric.available_sources || {};
+            this.formData = {
+                metric_code: metric.metric_code,
+                metric_name: metric.metric_name,
+                data_type: metric.data_type || 'amount',
+                description: metric.description || '',
+                is_active: metric.is_active !== false,
+                source_model: sources.model || '',
+                source_field: sources.field || '',
+                source_aggregate: sources.aggregate || 'sum'
+            };
+            this.showModal = true;
+        },
+
+        closeModal() {
+            this.showModal = false;
+            this.editingMetric = null;
+        },
+
+        onSourceModelChange() {
+            const preset = this.selectedPreset;
+            if (preset) {
+                this.formData.source_field = preset.default_field || '';
+                this.formData.source_aggregate = preset.default_aggregate || 'sum';
+            } else {
+                this.formData.source_field = '';
+                this.formData.source_aggregate = 'sum';
+            }
+        },
+
+        async saveMetric() {
+            if (!this.formData.metric_code || !this.formData.metric_name) {
+                alert('{{ _('请填写项目代码和名称') }}');
+                return;
+            }
+
+            this.saving = true;
+            try {
+                // 构建数据源配置
+                let availableSources = null;
+                if (this.formData.source_model) {
+                    const preset = this.selectedPreset;
+                    availableSources = {
+                        model: this.formData.source_model,
+                        field: this.formData.source_field || preset?.default_field,
+                        aggregate: this.formData.source_aggregate,
+                        filter: preset?.default_filter || {},
+                        date_field: preset?.default_date_field || 'created_at'
+                    };
+                }
+
+                const payload = {
+                    metric_code: this.formData.metric_code,
+                    metric_name: this.formData.metric_name,
+                    data_type: this.formData.data_type,
+                    description: this.formData.description,
+                    is_active: this.formData.is_active,
+                    available_sources: availableSources
+                };
+
+                let url = '/performance/config/api/metrics';
+                let method = 'POST';
+
+                if (this.editingMetric) {
+                    url = `/performance/config/api/metrics/${this.editingMetric.id}`;
+                    method = 'PUT';
+                }
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    this.closeModal();
+                    await this.loadMetrics();
+                } else {
+                    alert(data.message || '{{ _('保存失败') }}');
+                }
+            } catch (error) {
+                console.error('保存失败:', error);
+                alert('{{ _('保存失败') }}');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        confirmDelete(metric) {
+            this.deletingMetric = metric;
+            this.showDeleteConfirm = true;
+        },
+
+        async deleteMetric() {
+            if (!this.deletingMetric) return;
+
+            this.deleting = true;
+            try {
+                const response = await fetch(`/performance/config/api/metrics/${this.deletingMetric.id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    }
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    this.showDeleteConfirm = false;
+                    this.deletingMetric = null;
+                    await this.loadMetrics();
+                } else {
+                    alert(data.message || '{{ _('删除失败') }}');
+                }
+            } catch (error) {
+                console.error('删除失败:', error);
+                alert('{{ _('删除失败') }}');
+            } finally {
+                this.deleting = false;
+            }
+        }
+    };
+}
+</script>

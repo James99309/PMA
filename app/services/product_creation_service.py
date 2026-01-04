@@ -5,6 +5,7 @@
 from flask import request, flash, redirect, url_for, current_app, jsonify
 from flask_login import current_user
 from decimal import Decimal, InvalidOperation
+from config import Config
 from app.extensions import db
 from app.models.dev_product import DevProduct
 from app.models.product import Product
@@ -51,7 +52,7 @@ class ProductCreationService:
             product_name = request.form.get('name') or None  # 独立的产品名称字段（研发产品）
             unit = request.form.get('unit') or ""
             retail_price = request.form.get('retail_price')
-            currency = request.form.get('currency', 'CNY')
+            currency = request.form.get('currency', Config.DEFAULT_CURRENCY)
             description = request.form.get('description') or ""
             development_purpose = request.form.get('development_purpose') or ""
             mn_code = request.form.get('mn_code_preview', '').strip()
@@ -85,8 +86,8 @@ class ProductCreationService:
             has_spec_codes = any(code and code.strip() and code.strip() != '0' for code in spec_codes)
 
             if mn_code and has_spec_codes:
-                from app.routes.product_management import check_mn_code_duplicate_internal
-                duplicate_check = check_mn_code_duplicate_internal(mn_code, exclude_dev_product_id=None)
+                from app.routes.product import check_mn_code_duplicate
+                duplicate_check = check_mn_code_duplicate(mn_code, exclude_dev_product_id=None)
                 if duplicate_check['is_duplicate']:
                     duplicate_info = ProductCreationService._format_duplicate_info(duplicate_check)
                     error_msg = f'MN编号 {mn_code} 已存在重复产品！\n\n重复产品详细信息:\n{duplicate_info}'
@@ -119,10 +120,18 @@ class ProductCreationService:
                 brand = request.form.get('brand') or None
                 is_vendor_product = request.form.get('is_vendor_product') == 'on'
 
+                # 配置来源信息（从配置引入产品时设置）
+                source_configuration_id = request.form.get('source_configuration_id')
+                if source_configuration_id:
+                    try:
+                        source_configuration_id = int(source_configuration_id)
+                    except (ValueError, TypeError):
+                        source_configuration_id = None
+
                 new_product = ProductCreationService._create_standard_product(
                     product_type_field, product_status, category_id, subcategory_id,
-                    region_id, model, brand, unit, retail_price_decimal, currency,
-                    description, mn_code, is_vendor_product
+                    region_id, model, product_name, brand, unit, retail_price_decimal, currency,
+                    description, mn_code, is_vendor_product, source_configuration_id
                 )
                 redirect_url = 'product.list'
                 success_message = '产品创建成功'
@@ -162,12 +171,9 @@ class ProductCreationService:
 
             current_app.logger.info(f'产品创建成功: ID={new_product.id}, MN={mn_code}, 型号={model}, 类型={product_type}')
 
-            # 根据请求类型返回不同响应
-            # 研发产品和标准产品都跳转到详情页以便补充规格
-            if product_type == 'research':
-                final_redirect_url = url_for('rd_product.product_detail', id=new_product.id, tw=1)
-            else:
-                final_redirect_url = url_for('product.view_product_detail', id=new_product.id, tw=1)
+            # 跳转到产品详情页以便补充规格
+            # 注：研发库已废弃(2025-12-26)，统一使用产品详情页
+            final_redirect_url = url_for('product.view_product_detail', id=new_product.id, tw=1)
 
             if is_ajax:
                 return ProductCreationService._json_response(True, success_message, final_redirect_url)
@@ -207,9 +213,15 @@ class ProductCreationService:
 
     @staticmethod
     def _create_standard_product(product_type, product_status, category_id, subcategory_id,
-                                 region_id, model, brand, unit, retail_price, currency,
-                                 description, mn_code, is_vendor_product):
+                                 region_id, model, product_name, brand, unit, retail_price, currency,
+                                 description, mn_code, is_vendor_product, source_configuration_id=None):
         """创建标准产品实例"""
+        # 确定 source_type
+        if source_configuration_id:
+            source_type = 'from_config'
+        else:
+            source_type = 'manual'
+
         return Product(
             type=product_type,
             status=product_status,
@@ -217,6 +229,7 @@ class ProductCreationService:
             subcategory_id=int(subcategory_id),
             region_id=int(region_id) if region_id else None,
             model=model,
+            product_name=product_name,  # 产品名称
             product_mn=mn_code,
             brand=brand,
             unit=unit,
@@ -224,7 +237,8 @@ class ProductCreationService:
             currency=currency,
             specification=description,  # 使用旧字段存储描述
             is_vendor_product=is_vendor_product,
-            source_type='manual',  # 手动创建
+            source_type=source_type,
+            source_configuration_id=source_configuration_id,
             owner_id=current_user.id
         )
 
@@ -291,8 +305,7 @@ class ProductCreationService:
 
     @staticmethod
     def _redirect_to_create_page(product_type):
-        """根据产品类型重定向到创建页面"""
-        if product_type == 'research':
-            return redirect(url_for('rd_product.new_product'))
-        else:
-            return redirect(url_for('product.create_product_page'))
+        """根据产品类型重定向到创建页面
+        注：研发库已废弃(2025-12-26)，统一使用产品创建页
+        """
+        return redirect(url_for('product.create_product_page'))

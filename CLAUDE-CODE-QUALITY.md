@@ -85,6 +85,175 @@ Claude AI助手在以下情况下应主动检查文件大小：
 2. **重构代码时**：主动评估是否需要拆分
 3. **读取大文件时**：提醒文件已超过合理范围，建议拆分
 
+### **Alpine.js 组件函数**
+
+| 级别 | 行数范围 | 处理策略 |
+|------|---------|---------|
+| ✅ **理想** | ≤ 150行 | 无需处理，继续开发 |
+| ⚠️ **警告** | 150-250行 | 开始考虑拆分，评估是否可提取 mixin |
+| ⚠️ **严重警告** | 250-400行 | 必须计划拆分，不应继续添加新功能 |
+| 🚫 **强制拆分** | ≥ 400行 | 立即拆分，不允许继续扩展 |
+
+**拆分建议**：
+- **Mixin 提取**：将重复的状态和方法提取为公共 mixin（如 `vendorUserSelectorMixin`）
+- **外置 JS 文件**：将组件函数移到独立 JS 文件（如 `config-basic.js`）
+- **辅助函数**：将复杂逻辑提取为独立辅助函数
+
+**典型案例**：
+- ❌ `salaryConfig()`: 815行 → 必须拆分
+- ❌ `salaryAssignConfig()`: 657行 → 必须拆分
+- ✅ `affiliationConfig()`: 116行 → 理想范围
+
+---
+
+## 🔧 前端组件预防规范
+
+### **新增配置 Tab 前的检查清单**
+
+在配置管理页面或类似多 Tab 页面新增功能前，必须完成以下检查：
+
+#### **1. 复用检查**
+- [ ] 是否可以复用 `vendorUserSelectorMixin`？（用户选择器逻辑）
+- [ ] 是否可以复用 `commonStateMixin`？（loading/saving 状态）
+- [ ] 是否可以复用 `render_loading_card()` 宏？
+- [ ] 是否可以复用 `render_empty_state_card()` 宏？
+- [ ] 是否可以复用 `getRoleDisplayName()` 函数？
+
+#### **2. 结构检查**
+- [ ] HTML 模板是否应该拆分为 `_config_xxx.html` 子模板？
+- [ ] JavaScript 是否应该拆分为 `config-xxx.js` 独立文件？
+- [ ] 新增代码是否超过 200 行？如果是，必须拆分
+
+#### **3. 代码审查**
+- [ ] 检查主文件行数，超过 5000 行需要立即重构
+- [ ] 检查是否有复制粘贴的代码块
+- [ ] 检查是否有重复的 CSS 类组合
+
+### **Tab 模板规范**
+
+#### ✅ 正确做法：创建独立子模板
+
+```jinja2
+{# 新增 Tab 应该创建独立文件 _config_new_feature.html #}
+{% block tab_new_feature %}
+<div x-data="newFeatureConfig()" ...>
+  {{ render_tw_vendor_user_selector(...) }}
+  {{ render_loading_card() }}
+  {{ render_empty_state_card() }}
+  ...
+</div>
+{% endblock %}
+```
+
+#### ❌ 错误做法：直接在主文件追加代码
+
+```jinja2
+{# 不要直接在主文件追加 500 行代码 #}
+<div id="tab-new-feature">
+  <!-- 复制粘贴加载状态 HTML -->
+  <!-- 复制粘贴空状态 HTML -->
+  <!-- 复制粘贴整个逻辑 -->
+</div>
+```
+
+### **Alpine.js 组件规范**
+
+#### ✅ 正确做法：使用 Mixin 组合
+
+```javascript
+function newFeatureConfig() {
+    return {
+        // 复用公共 mixin
+        ...vendorUserSelectorMixin({ configType: 'new' }),
+        ...commonStateMixin(),
+
+        // 必须在组件中定义 getter（spread 不保留 getter）
+        get filteredUsers() {
+            return this.getFilteredUsers();
+        },
+
+        // 只添加该组件特有的属性
+        customProperty: null,
+
+        // 只添加该组件特有的方法
+        init() {
+            this.loadVendorUsers();
+        }
+    };
+}
+```
+
+#### ❌ 错误做法：复制粘贴整个函数
+
+```javascript
+// 不要复制粘贴整个函数
+function newFeatureConfig() {
+    return {
+        vendorUsers: [],           // ❌ 重复
+        loadingUsers: true,        // ❌ 重复
+        loading: false,            // ❌ 重复
+        saving: false,             // ❌ 重复
+        searchQuery: '',           // ❌ 重复
+
+        get filteredUsers() {...}, // ❌ 重复
+        async loadVendorUsers() {...}, // ❌ 重复
+        onSearchInput() {...},     // ❌ 重复
+        clearSearch() {...},       // ❌ 重复
+        highlightMatch() {...},    // ❌ 重复
+        getRoleDisplayName() {...} // ❌ 重复
+    };
+}
+```
+
+### **JavaScript Spread 与 Getter 的注意事项**
+
+**重要**：JavaScript 的 spread 操作符（`...`）**不会保留 getter**，会立即调用并转为静态值。
+
+```javascript
+// mixin 中定义方法而非 getter
+function myMixin() {
+    return {
+        data: [],
+        // ❌ getter 会被 spread 调用并转为静态值
+        // get computedData() { return this.data.filter(...); }
+
+        // ✅ 使用方法
+        getComputedData() {
+            return this.data.filter(...);
+        }
+    };
+}
+
+// 组件中定义 getter 调用 mixin 方法
+function myComponent() {
+    return {
+        ...myMixin(),
+
+        // ✅ 在组件中定义 getter
+        get computedData() {
+            return this.getComputedData();
+        }
+    };
+}
+```
+
+### **已有 Mixin 索引**
+
+| Mixin 名称 | 文件位置 | 功能说明 |
+|-----------|---------|---------|
+| `vendorUserSelectorMixin` | `tw_index.html` 内 | 厂商用户选择器公共逻辑 |
+
+**Mixin 提供的功能**：
+- 状态：`vendorUsers`, `loadingUsers`, `selectedUserId`, `searchQuery`, `isSearching`
+- 方法：`loadVendorUsers()`, `onSearchInput()`, `clearSearch()`, `highlightMatch()`, `getFilteredUsers()`
+
+**使用 Mixin 的组件**：
+- `affiliationConfig()` - configType: 'affiliation'
+- `basicConfig()` - 无额外参数
+- `performanceUserConfig()` - configType: 'performance', useYear: true
+- `expenseUserConfig()` - configType: 'expense', useYear: true
+- `salaryAssignConfig()` - useYear: true
+
 ---
 
 ## 🔍 重复代码识别标准
@@ -518,6 +687,15 @@ def process_approval(...):
 ---
 
 ## 📝 更新日志
+
+- **2026-01-01**: 添加 Alpine.js 和前端组件预防规范
+  - 新增 Alpine.js 组件函数大小控制标准（150行警告、400行强制拆分）
+  - 添加新增配置 Tab 前的检查清单（复用检查、结构检查、代码审查）
+  - 添加 Tab 模板规范（正确/错误做法示例）
+  - 添加 Alpine.js 组件规范（Mixin 使用示例）
+  - 记录 JavaScript Spread 与 Getter 的技术注意事项
+  - 建立已有 Mixin 索引（vendorUserSelectorMixin）
+  - 基于 config_management/tw_index.html 重构经验总结
 
 - **2025-10-12**: 创建文档，基于审批流程重构案例总结代码质量规范
   - 定义DRY原则和逻辑先行原则

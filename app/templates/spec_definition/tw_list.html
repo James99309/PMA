@@ -1,0 +1,887 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_buttons.html' import tw_btn with context %}
+{% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
+{% from 'components/tw_form_fields.html' import tw_form_field, tw_form_select, tw_form_textarea, tw_form_row with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('规格字典管理') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script src="{{ url_for('static', filename='js/drag-sort.js') }}"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
+        {{ render_tw_fixed_header_styles() }}
+
+        /* 分类标签样式 */
+        .category-tab {
+            transition: all 0.15s ease;
+        }
+        .category-tab:hover {
+            background-color: rgba(19, 127, 236, 0.08);
+        }
+        .category-tab.active {
+            background-color: rgba(19, 127, 236, 0.12);
+            color: #137fec;
+            border-left: 3px solid #137fec;
+        }
+        .dark .category-tab:hover {
+            background-color: rgba(19, 127, 236, 0.15);
+        }
+        .dark .category-tab.active {
+            background-color: rgba(19, 127, 236, 0.2);
+        }
+
+        /* 拖拽排序样式 */
+        .dragging {
+            opacity: 0.5;
+        }
+        .drag-over {
+            border-top: 2px solid #137fec;
+        }
+
+        /* 分类拖拽样式 */
+        .category-item.dragging {
+            opacity: 0.5;
+            background-color: rgba(19, 127, 236, 0.1);
+            border-radius: 0.5rem;
+        }
+        .category-item.drag-over {
+            border-top: 2px solid #137fec;
+        }
+        .category-item .drag-handle {
+            cursor: move;
+        }
+
+        /* 表格行拖拽样式 */
+        #definitionTableBody tr.dragging {
+            opacity: 0.5;
+            background-color: rgba(19, 127, 236, 0.1);
+        }
+        /* 蓝色定位线 - 应用到 td 而非 tr（浏览器限制） */
+        #definitionTableBody tr.drag-over td {
+            box-shadow: inset 0 3px 0 #137fec;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark">
+    {% call(slot) render_tw_layout(active_page='spec_definition', show_search=true) %}
+    {% if slot == 'content' %}
+        <!-- 主内容 -->
+        {% call(page_slot) render_tw_fixed_page() %}
+        {% if page_slot == 'header' %}
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('规格字典管理') }}</h1>
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="{{ url_for('spec_definition.list_test_methods') }}"
+                   class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">science</span>
+                    <span>{{ _('测试方法') }}</span>
+                </a>
+                <a href="{{ url_for('spec_definition.list_test_conditions') }}"
+                   class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">thermostat</span>
+                    <span>{{ _('测试条件') }}</span>
+                </a>
+            </div>
+        {% elif page_slot == 'content' %}
+            <!-- 两栏布局：左侧分类 + 右侧规格项 (Alpine.js 动态加载) -->
+            <div class="flex gap-6" x-data="specDefinitionManager()" x-init="init()">
+                <!-- 左侧分类导航 -->
+                <div class="w-64 flex-shrink-0">
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                            <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('规格分类') }}</h3>
+                            {% if has_permission('rd_product', 'create') %}
+                            <button type="button" @click="openAddCategoryModal()"
+                                class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                title="{{ _('添加分类') }}">
+                                <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+                            </button>
+                            {% endif %}
+                        </div>
+                        <nav class="py-2" id="categoryList">
+                            {% for category in categories %}
+                            <div class="group relative category-item"
+                                 draggable="true"
+                                 data-category-id="{{ category.id }}">
+                                <!-- 拖拽手柄 -->
+                                <span class="drag-handle absolute left-1 top-1/2 -translate-y-1/2 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">drag_indicator</span>
+                                </span>
+                                <button type="button" @click="loadCategory({{ category.id }}, '{{ category.name }}', '{{ category.name_en }}', '{{ category.code }}')"
+                                   class="category-tab w-full flex items-center pl-6 pr-4 py-3 text-sm text-slate-700 dark:text-slate-300 cursor-pointer text-left"
+                                   :class="{ 'active': currentCategoryId === {{ category.id }} }">
+                                    {# 图标映射：兼容旧code和新图标名 #}
+                                    {% set icon_map = {
+                                        'RF_PERFORMANCE': 'radio',
+                                        'ELECTRICAL': 'bolt',
+                                        'OPTICAL_PERFORMANCE': 'visibility',
+                                        'FEATURE_CONFIG': 'settings',
+                                        'ENV_RELIABILITY': 'thermostat',
+                                        'REGULATORY': 'verified',
+                                        'MECHANICAL': 'construction',
+                                        'PACKAGING': 'package_2',
+                                        'SPARE_PARTS': 'build'
+                                    } %}
+                                    <span class="material-symbols-outlined mr-3" style="font-size: 20px;">{{ icon_map.get(category.code, category.code) or 'category' }}</span>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="font-medium truncate">{{ category.name }}</div>
+                                        <div class="text-xs text-slate-500 dark:text-slate-400 truncate">{{ category.name_en }}</div>
+                                    </div>
+                                </button>
+                                <!-- 编辑/删除按钮 - 悬停显示 -->
+                                <div class="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-0.5 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-600">
+                                    {% if has_permission('rd_product', 'edit') %}
+                                    <button type="button" @click.stop="openEditCategoryModal({{ category.id }}, '{{ category.code }}', '{{ category.name }}', '{{ category.name_en }}', '{{ category.description|default('', true) }}')"
+                                        class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                        title="{{ _('编辑') }}">
+                                        <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
+                                    </button>
+                                    {% endif %}
+                                    {% if has_permission('rd_product', 'delete') %}
+                                    <button type="button" @click.stop="confirmDeleteCategory({{ category.id }}, '{{ category.name }}')"
+                                        class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                        title="{{ _('删除') }}">
+                                        <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </nav>
+                    </div>
+                </div>
+
+                <!-- 右侧规格项列表 -->
+                <div class="flex-1 min-w-0">
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <!-- 列表头部 -->
+                        <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+                            <div>
+                                <h3 class="text-base font-semibold text-slate-900 dark:text-white" x-text="currentCategoryName || '{{ _("请选择分类") }}'"></h3>
+                                <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5" x-show="currentCategoryNameEn" x-text="currentCategoryNameEn"></p>
+                            </div>
+                            {% if has_permission('rd_product', 'create') %}
+                            <button type="button" @click="openAddModal()" x-show="currentCategoryId"
+                                class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
+                                <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+                                <span>{{ _('添加规格项') }}</span>
+                            </button>
+                            {% endif %}
+                        </div>
+
+                        <!-- 加载状态 -->
+                        <div x-show="loading" class="flex items-center justify-center py-12">
+                            <svg class="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </div>
+
+                        <!-- 规格项表格 -->
+                        <div class="overflow-x-auto" x-show="!loading">
+                            <table class="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                                <thead class="bg-slate-50 dark:bg-slate-800/50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider w-8">#</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{{ _('规格名称') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{{ _('英文名称') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider w-20">{{ _('单位') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider w-24">{{ _('值类型') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{{ _('默认测试条件') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{{ _('默认测试方法') }}</th>
+                                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider w-24">{{ _('操作') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="definitionTableBody" class="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
+                                    <template x-for="def in definitions" :key="def.id">
+                                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                                            draggable="true"
+                                            :data-id="def.id"
+                                            :data-order="def.display_order">
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 cursor-move">
+                                                <span class="material-symbols-outlined text-slate-400" style="font-size: 16px;">drag_indicator</span>
+                                            </td>
+                                            <td class="px-4 py-3 whitespace-nowrap">
+                                                <span class="text-sm font-medium text-slate-900 dark:text-white" x-text="def.name"></span>
+                                            </td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400" x-text="def.name_en || '-'"></td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400" x-text="def.unit || '-'"></td>
+                                            <td class="px-4 py-3 whitespace-nowrap">
+                                                <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full"
+                                                      :class="getTypeClass(def.value_type)"
+                                                      x-text="getTypeLabel(def.value_type)"></span>
+                                            </td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400" x-text="def.default_test_condition || '-'"></td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400" x-text="def.default_test_method || '-'"></td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-right">
+                                                <div class="flex items-center justify-end gap-1">
+                                                    {% if has_permission('rd_product', 'edit') %}
+                                                    <button type="button" @click="openEditModal(def.id)"
+                                                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                                        title="{{ _('编辑') }}">
+                                                        <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
+                                                    </button>
+                                                    {% endif %}
+                                                    {% if has_permission('rd_product', 'delete') %}
+                                                    <button type="button" @click="confirmDelete(def.id, def.name)"
+                                                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                        title="{{ _('删除') }}">
+                                                        <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                    <tr x-show="definitions.length === 0 && !loading">
+                                        <td colspan="9" class="px-4 py-12 text-center">
+                                            <div class="flex flex-col items-center text-slate-400">
+                                                <span class="material-symbols-outlined mb-2" style="font-size: 48px;">inbox</span>
+                                                <span class="text-sm" x-text="currentCategoryId ? '{{ _("暂无规格项") }}' : '{{ _("请先选择一个分类") }}'"></span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+        {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 规格项表单模态框 -->
+    {% call tw_form_modal(
+        modal_id='definitionFormModal',
+        title=_('添加规格项'),
+        submit_text=_('保存'),
+        cancel_text=_('取消'),
+        size='lg'
+    ) %}
+    <input type="hidden" id="definitionId" name="id" value="">
+    <input type="hidden" id="categoryId" name="category_id" value="{{ current_category.id if current_category else '' }}">
+
+    {% call tw_form_row(cols=2) %}
+        {{ tw_form_field('name', _('规格名称'), required=true, placeholder=_('如：下行频率范围')) }}
+        {{ tw_form_field('name_en', _('英文名称'), placeholder=_('如：DL Freq Range')) }}
+    {% endcall %}
+
+    {% call tw_form_row(cols=2) %}
+        {{ tw_form_field('unit', _('单位'), placeholder=_('如：MHz、dBm、°C')) }}
+        {{ tw_form_select('value_type', _('值类型'), options=[
+            {'value': 'text', 'label': _('文本')},
+            {'value': 'number', 'label': _('数字')},
+            {'value': 'select', 'label': _('选择')},
+            {'value': 'boolean', 'label': _('是/否')}
+        ], value='text') }}
+    {% endcall %}
+
+    {% set condition_options = [{'value': '', 'label': _('请选择')}] %}
+    {% for c in test_conditions %}
+        {% set _ = condition_options.append({'value': c.id|string, 'label': c.name}) %}
+    {% endfor %}
+    {% set method_options = [{'value': '', 'label': _('请选择')}] %}
+    {% for m in test_methods %}
+        {% set _ = method_options.append({'value': m.id|string, 'label': m.name}) %}
+    {% endfor %}
+    {% call tw_form_row(cols=2) %}
+        {{ tw_form_select('default_test_condition_id', _('默认测试条件'), options=condition_options, placeholder=_('请选择')) }}
+        {{ tw_form_select('default_test_method_id', _('默认测试方法'), options=method_options, placeholder=_('请选择')) }}
+    {% endcall %}
+
+    {{ tw_form_textarea('description', _('规格说明'), placeholder=_('规格项的详细说明'), rows=2) }}
+    {% endcall %}
+
+    <!-- 删除确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='deleteConfirmModal',
+        title=_('确认删除'),
+        message=_('您确定要删除这个规格项吗？此操作无法撤销。'),
+        confirm_text=_('删除'),
+        cancel_text=_('取消'),
+        variant='danger',
+        show_error=true
+    ) }}
+
+    <!-- 分类表单模态框 -->
+    {% call tw_form_modal(
+        modal_id='categoryFormModal',
+        title=_('添加分类'),
+        submit_text=_('保存'),
+        cancel_text=_('取消'),
+        size='lg'
+    ) %}
+    <input type="hidden" id="editCategoryId" name="id" value="">
+    <input type="hidden" id="category_code" name="category_code" value="">
+
+    <!-- 图标选择器 -->
+    <div class="mb-4" x-data="iconSelector()" x-init="init()">
+        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+            {{ _('选择图标') }} <span class="text-red-500">*</span>
+        </label>
+        <div class="grid grid-cols-5 sm:grid-cols-10 gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+            <template x-for="icon in availableIcons" :key="icon">
+                <button type="button"
+                    :class="[
+                        'flex items-center justify-center w-10 h-10 rounded-lg border-2 transition-all',
+                        selectedIcon === icon ? 'border-primary bg-primary/10 text-primary' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400',
+                        usedIcons.includes(icon) && selectedIcon !== icon ? 'opacity-30 cursor-not-allowed' : 'hover:border-primary/50 hover:text-primary'
+                    ]"
+                    :disabled="usedIcons.includes(icon) && selectedIcon !== icon"
+                    :title="icon"
+                    @click="selectIcon(icon)">
+                    <span class="material-symbols-outlined" style="font-size: 22px;" x-text="icon"></span>
+                </button>
+            </template>
+        </div>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ _('灰色图标已被其他分类使用') }}</p>
+    </div>
+
+    {% call tw_form_row(cols=2) %}
+        {{ tw_form_field('category_name', _('中文名称'), required=true, placeholder=_('如：自定义分类')) }}
+        {{ tw_form_field('category_name_en', _('英文名称'), placeholder=_('如：Custom Category')) }}
+    {% endcall %}
+
+    {{ tw_form_textarea('category_description', _('分类描述'), placeholder=_('可选的分类说明'), rows=2) }}
+    {% endcall %}
+
+    <!-- 分类删除确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='deleteCategoryConfirmModal',
+        title=_('确认删除分类'),
+        message=_('您确定要删除这个分类吗？'),
+        confirm_text=_('删除'),
+        cancel_text=_('取消'),
+        variant='danger',
+        show_error=true
+    ) }}
+
+    <!-- 表单模态框脚本 -->
+    {{ tw_form_modal_script() }}
+
+    <!-- 确认模态框脚本 -->
+    {{ tw_confirm_modal_script() }}
+
+    <!-- 布局脚本 -->
+    {{ render_tw_layout_script() }}
+
+    <!-- 页面逻辑 -->
+    <script>
+    // Alpine.js 组件：规格字典管理
+    function specDefinitionManager() {
+        return {
+            API_BASE: '{{ url_for("spec_definition.list_definitions") }}api',
+            loading: false,
+            definitions: [],
+            currentCategoryId: {{ current_category.id if current_category else 'null' }},
+            currentCategoryName: {{ ("'" + current_category.name + "'")|safe if current_category else 'null' }},
+            currentCategoryNameEn: {{ ("'" + current_category.name_en + "'")|safe if current_category else 'null' }},
+            currentCategoryCode: {{ ("'" + current_category.code + "'")|safe if current_category else 'null' }},
+
+            // 值类型映射
+            typeLabels: { 'text': '{{ _("文本") }}', 'number': '{{ _("数字") }}', 'select': '{{ _("选择") }}', 'boolean': '{{ _("是/否") }}' },
+            typeClasses: {
+                'text': 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
+                'number': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                'select': 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+                'boolean': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+            },
+
+            // 初始化
+            init() {
+                const self = this;
+
+                // 初始化分类拖拽排序
+                initDragSort({
+                    containerId: 'categoryList',
+                    itemSelector: '.category-item',
+                    dataIdAttr: 'categoryId',
+                    onOrderChange: async (items) => {
+                        console.log('[DEBUG] Category reorder items:', items);
+                        try {
+                            const response = await fetch('{{ url_for("spec_definition.api_reorder_categories") }}', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ items })
+                            });
+                            const result = await response.json();
+                            console.log('[DEBUG] Category reorder response:', result);
+                            if (result.success) {
+                                self.showToast('{{ _("排序已更新") }}');
+                            } else {
+                                self.showToast(result.message || '{{ _("排序更新失败") }}', 'error');
+                            }
+                        } catch (error) {
+                            console.error('Error:', error);
+                            self.showToast('{{ _("排序更新失败") }}', 'error');
+                        }
+                    }
+                });
+
+                // 如果有初始分类，加载数据
+                if (this.currentCategoryId) {
+                    this.fetchDefinitions(this.currentCategoryId);
+                }
+            },
+
+            // 加载分类
+            async loadCategory(categoryId, name, nameEn, code) {
+                if (this.currentCategoryId === categoryId && this.definitions.length > 0) {
+                    return; // 避免重复加载
+                }
+
+                this.currentCategoryId = categoryId;
+                this.currentCategoryName = name;
+                this.currentCategoryNameEn = nameEn;
+                this.currentCategoryCode = code;
+
+                // 更新 URL（不刷新页面）
+                const url = new URL(window.location);
+                url.searchParams.set('category_id', categoryId);
+                window.history.replaceState({}, '', url);
+
+                await this.fetchDefinitions(categoryId);
+            },
+
+            // 获取规格项列表
+            async fetchDefinitions(categoryId) {
+                this.loading = true;
+                try {
+                    const response = await fetch(`${this.API_BASE}/list?category_id=${categoryId}`);
+                    const result = await response.json();
+
+                    if (result.success) {
+                        this.definitions = result.data;
+                        // 重新初始化拖拽排序
+                        const self = this;
+                        this.$nextTick(() => {
+                            this.initDefinitionDragSort();
+                        });
+                    } else {
+                        this.showToast(result.message || '{{ _("获取数据失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    this.showToast('{{ _("获取数据失败") }}', 'error');
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            // 获取类型标签
+            getTypeLabel(type) {
+                return this.typeLabels[type] || type;
+            },
+
+            // 获取类型样式类
+            getTypeClass(type) {
+                return this.typeClasses[type] || this.typeClasses['text'];
+            },
+
+            // Toast 通知 - 使用全局函数
+            showToast(message, type = 'success') {
+                window.showToast(message, type);
+            },
+
+            // 打开添加模态框
+            openAddModal() {
+                document.getElementById('definitionId').value = '';
+                document.getElementById('definitionFormModal-form').reset();
+                document.getElementById('categoryId').value = this.currentCategoryId;
+
+                const self = this;
+                openFormModal('definitionFormModal', {
+                    title: '{{ _("添加规格项") }}',
+                    submitText: '{{ _("创建") }}',
+                    onSubmit: (data, form) => self.handleSubmit(data, form)
+                });
+            },
+
+            // 打开编辑模态框
+            async openEditModal(id) {
+                try {
+                    const response = await fetch(`${this.API_BASE}/${id}`);
+                    const result = await response.json();
+
+                    if (result.success) {
+                        const data = result.data;
+                        document.getElementById('definitionId').value = data.id;
+                        document.getElementById('categoryId').value = data.category_id;
+
+                        const self = this;
+                        openFormModal('definitionFormModal', {
+                            title: '{{ _("编辑规格项") }}',
+                            submitText: '{{ _("保存") }}',
+                            data: {
+                                name: data.name,
+                                name_en: data.name_en || '',
+                                unit: data.unit || '',
+                                value_type: data.value_type || 'text',
+                                default_test_condition_id: data.default_test_condition_id || '',
+                                default_test_method_id: data.default_test_method_id || '',
+                                description: data.description || ''
+                            },
+                            onSubmit: (data, form) => self.handleSubmit(data, form)
+                        });
+                    } else {
+                        this.showToast(result.message || '{{ _("获取数据失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    this.showToast('{{ _("获取数据失败") }}', 'error');
+                }
+            },
+
+            // 提交表单
+            async handleSubmit(data, form) {
+                const id = document.getElementById('definitionId').value;
+                const isEdit = !!id;
+                const url = isEdit ? `${this.API_BASE}/${id}` : `${this.API_BASE}/create`;
+                const method = isEdit ? 'PUT' : 'POST';
+
+                const requestData = {
+                    category_id: parseInt(document.getElementById('categoryId').value),
+                    name: data.name,
+                    name_en: data.name_en || null,
+                    unit: data.unit || null,
+                    value_type: data.value_type || 'text',
+                    default_test_condition_id: data.default_test_condition_id ? parseInt(data.default_test_condition_id) : null,
+                    default_test_method_id: data.default_test_method_id ? parseInt(data.default_test_method_id) : null,
+                    description: data.description || null
+                };
+
+                try {
+                    const response = await fetch(url, {
+                        method: method,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestData)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        this.showToast(result.message || '{{ _("保存成功") }}');
+                        closeFormModal('definitionFormModal');
+                        // 重新加载当前分类数据（无需刷新页面）
+                        await this.fetchDefinitions(this.currentCategoryId);
+                    } else {
+                        this.showToast(result.message || '{{ _("保存失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    this.showToast('{{ _("保存失败") }}', 'error');
+                }
+            },
+
+            // 确认删除
+            confirmDelete(id, name) {
+                const self = this;
+                openConfirmModal('deleteConfirmModal', {
+                    message: `{{ _("确定要删除规格项") }} "${name}" {{ _("吗？") }}`,
+                    data: { id: id },
+                    onConfirm: async function(data) {
+                        try {
+                            const response = await fetch(`${self.API_BASE}/${data.id}`, {
+                                method: 'DELETE'
+                            });
+
+                            const result = await response.json();
+
+                            if (result.success) {
+                                self.showToast(result.message || '{{ _("删除成功") }}');
+                                // 重新加载数据（无需刷新页面）
+                                await self.fetchDefinitions(self.currentCategoryId);
+                            } else {
+                                throw new Error(result.message || '{{ _("删除失败") }}');
+                            }
+                        } catch (error) {
+                            throw error;
+                        }
+                    }
+                });
+            },
+
+            // 初始化规格项拖拽排序
+            initDefinitionDragSort() {
+                const tbody = document.getElementById('definitionTableBody');
+                if (!tbody) {
+                    console.warn('[definition-drag] Table body not found');
+                    return;
+                }
+
+                // 移除旧的初始化标记，允许重新初始化
+                delete tbody.dataset.dragSortInitialized;
+
+                const self = this;
+                console.log('[definition-drag] Initializing drag sort for definitions');
+
+                initDragSort({
+                    containerId: 'definitionTableBody',
+                    itemSelector: 'tr[draggable="true"]',
+                    dataIdAttr: 'id',
+                    skipDomMove: true,  // Alpine 渲染，不直接移动 DOM
+                    onOrderChange: async (items) => {
+                        console.log('[definition-drag] onOrderChange called with:', items);
+                        console.log('[definition-drag] Current definitions before update:',
+                            self.definitions.map(d => ({id: d.id, name: d.name})));
+
+                        // 1. 先根据新顺序重排 Alpine 数据（解决 Alpine/DOM 冲突）
+                        const newDefinitions = items.map(item => {
+                            const found = self.definitions.find(d => d.id === item.id);
+                            console.log('[definition-drag] Looking for id:', item.id, 'type:', typeof item.id,
+                                'found:', found ? {id: found.id, name: found.name} : 'NOT FOUND');
+                            return found;
+                        }).filter(d => d);
+
+                        console.log('[definition-drag] newDefinitions count:', newDefinitions.length,
+                            'items count:', items.length);
+
+                        if (newDefinitions.length === items.length) {
+                            console.log('[definition-drag] Updating Alpine definitions array to:',
+                                newDefinitions.map(d => ({id: d.id, name: d.name})));
+                            self.definitions = newDefinitions;
+                            console.log('[definition-drag] After update, self.definitions:',
+                                self.definitions.map(d => ({id: d.id, name: d.name})));
+                        } else {
+                            console.error('[definition-drag] Mismatch! Not updating Alpine data');
+                        }
+
+                        // 2. 保存到服务器
+                        await self.saveDefinitionOrder(items);
+                    }
+                });
+            },
+
+            // 保存规格排序（由通用拖拽组件调用）
+            async saveDefinitionOrder(items) {
+                console.log('[DEBUG] Definition reorder items:', items);
+
+                try {
+                    const response = await fetch(`${this.API_BASE}/reorder`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ items })
+                    });
+
+                    const result = await response.json();
+                    console.log('[DEBUG] Definition reorder response:', result);
+
+                    if (result.success) {
+                        this.showToast('{{ _("排序已更新") }}');
+                    } else {
+                        this.showToast(result.message || '{{ _("排序更新失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    this.showToast('{{ _("排序更新失败") }}', 'error');
+                }
+            },
+
+            // ==================== 分类管理 ====================
+
+            // 打开添加分类模态框
+            openAddCategoryModal() {
+                document.getElementById('editCategoryId').value = '';
+                document.getElementById('category_code').value = '';
+                document.getElementById('categoryFormModal-form').reset();
+                // 重置图标选择器
+                window.resetIconSelector && window.resetIconSelector(null);
+
+                const self = this;
+                openFormModal('categoryFormModal', {
+                    title: '{{ _("添加分类") }}',
+                    submitText: '{{ _("创建") }}',
+                    onSubmit: (data, form) => self.handleCategorySubmit(data, form)
+                });
+            },
+
+            // 打开编辑分类模态框
+            openEditCategoryModal(id, code, name, nameEn, description) {
+                document.getElementById('editCategoryId').value = id;
+                document.getElementById('category_code').value = code;
+                // 设置图标选择器的选中状态
+                window.resetIconSelector && window.resetIconSelector(code);
+
+                const self = this;
+                openFormModal('categoryFormModal', {
+                    title: '{{ _("编辑分类") }}',
+                    submitText: '{{ _("保存") }}',
+                    data: {
+                        category_name: name,
+                        category_name_en: nameEn || '',
+                        category_description: description || ''
+                    },
+                    onSubmit: (data, form) => self.handleCategorySubmit(data, form)
+                });
+            },
+
+            // 提交分类表单
+            async handleCategorySubmit(data, form) {
+                const id = document.getElementById('editCategoryId').value;
+                const code = document.getElementById('category_code').value;
+                const isEdit = !!id;
+
+                // 验证图标选择
+                if (!code) {
+                    this.showToast('{{ _("请选择一个图标") }}', 'error');
+                    return;
+                }
+
+                const url = isEdit ? `${this.API_BASE}/categories/${id}` : `${this.API_BASE}/categories`;
+                const method = isEdit ? 'PUT' : 'POST';
+
+                const requestData = {
+                    code: code,
+                    name: data.category_name,
+                    name_en: data.category_name_en || null,
+                    description: data.category_description || null
+                };
+
+                try {
+                    const response = await fetch(url, {
+                        method: method,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestData)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        this.showToast(result.message || '{{ _("保存成功") }}');
+                        closeFormModal('categoryFormModal');
+                        // 刷新页面以显示新分类
+                        window.location.reload();
+                    } else {
+                        this.showToast(result.message || '{{ _("保存失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    this.showToast('{{ _("保存失败") }}', 'error');
+                }
+            },
+
+            // 确认删除分类
+            confirmDeleteCategory(id, name) {
+                const self = this;
+                openConfirmModal('deleteCategoryConfirmModal', {
+                    message: `{{ _("确定要删除分类") }} "${name}" {{ _("吗？") }}`,
+                    data: { id: id },
+                    onConfirm: async function(data) {
+                        try {
+                            const response = await fetch(`${self.API_BASE}/categories/${data.id}`, {
+                                method: 'DELETE'
+                            });
+
+                            const result = await response.json();
+
+                            if (result.success) {
+                                self.showToast(result.message || '{{ _("删除成功") }}');
+                                // 刷新页面
+                                window.location.reload();
+                            } else {
+                                throw new Error(result.message || '{{ _("删除失败") }}');
+                            }
+                        } catch (error) {
+                            throw error;
+                        }
+                    }
+                });
+            }
+        };
+    }
+
+    // Alpine.js 组件：图标选择器
+    function iconSelector() {
+        return {
+            // 可选图标列表
+            availableIcons: [
+                'radio', 'settings', 'thermostat', 'verified', 'construction',
+                'package_2', 'build', 'category', 'tune', 'memory',
+                'bolt', 'visibility', 'security', 'speed', 'router',
+                'cable', 'battery_full', 'mic', 'videocam', 'sensors',
+                'precision_manufacturing', 'hub', 'storage', 'developer_board', 'cast'
+            ],
+            // 旧code到图标的映射
+            legacyCodeMap: {
+                'RF_PERFORMANCE': 'radio',
+                'ELECTRICAL': 'bolt',
+                'OPTICAL_PERFORMANCE': 'visibility',
+                'FEATURE_CONFIG': 'settings',
+                'ENV_RELIABILITY': 'thermostat',
+                'REGULATORY': 'verified',
+                'MECHANICAL': 'construction',
+                'PACKAGING': 'package_2',
+                'SPARE_PARTS': 'build'
+            },
+            // 已使用的图标（从现有分类获取，转换为图标名）
+            usedIcons: [],
+            // 当前选中的图标
+            selectedIcon: null,
+
+            init() {
+                // 转换旧code为图标名
+                const rawCodes = [{% for cat in categories %}'{{ cat.code }}'{% if not loop.last %}, {% endif %}{% endfor %}];
+                this.usedIcons = rawCodes.map(code => this.legacyCodeMap[code] || code);
+
+                // 暴露重置方法到全局
+                window.resetIconSelector = (code) => {
+                    // 转换旧code为图标名
+                    this.selectedIcon = code ? (this.legacyCodeMap[code] || code) : null;
+                };
+            },
+
+            selectIcon(icon) {
+                // 如果是已使用的图标（且不是当前编辑的），不允许选择
+                if (this.usedIcons.includes(icon) && this.selectedIcon !== icon) {
+                    return;
+                }
+                this.selectedIcon = icon;
+                // 更新隐藏字段（直接存储图标名）
+                document.getElementById('category_code').value = icon;
+            }
+        };
+    }
+    </script>
+</body>
+</html>

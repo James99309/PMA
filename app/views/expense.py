@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, render_template_string, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import current_user, login_required
 from flask_babel import gettext as _
+from config import Config
 from app.extensions import csrf
 from app.utils.chinese_mapping_manager import mapping_manager
 from app.models.expense import Expense, ExpenseDetail, EXPENSE_CATEGORIES, EXPENSE_STATUS
@@ -352,7 +353,7 @@ def expense_list():
                         'value': stats_total_count,
                         'amount': round(stats_total_amount / 10000, 2),
                         'unit': _('单'),
-                        'amount_unit': _('万元'),
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'primary',
                         'clickable': True,
                         'click_params': {},
@@ -365,7 +366,7 @@ def expense_list():
                         'value': pending_count,
                         'amount': round(pending_amount / 10000, 2),
                         'unit': _('单'),
-                        'amount_unit': _('万元'),
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'warning',
                         'clickable': True,
                         'click_params': {'status': 'pending'},
@@ -378,7 +379,7 @@ def expense_list():
                         'value': awaiting_count,
                         'amount': round(awaiting_amount / 10000, 2),
                         'unit': _('单'),
-                        'amount_unit': _('万元'),
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'info',
                         'clickable': True,
                         'click_params': {'status': 'awaiting_payment'},
@@ -391,7 +392,7 @@ def expense_list():
                         'value': paid_count,
                         'amount': round(paid_amount / 10000, 2),
                         'unit': _('单'),
-                        'amount_unit': _('万元'),
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'success',
                         'clickable': True,
                         'click_params': {'status': 'paid'},
@@ -502,7 +503,7 @@ def expense_list():
                               list_config=list_config,
                               currency_options=get_currency_type_options(),
                               expense_categories=EXPENSE_CATEGORIES,
-                              default_currency='CNY')
+                              default_currency=Config.DEFAULT_CURRENCY)
 
     except Exception as e:
         logger.error(f"加载报销单列表时出错: {str(e)}", exc_info=True)
@@ -542,7 +543,7 @@ def expense_list():
                         'value': 0,
                         'amount': 0,
                         'unit': _('单'),
-                        'amount_unit': _('万元'),
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'primary',
                         'clickable': False,
                         'data_key': 'total'
@@ -585,7 +586,7 @@ def expense_list():
                               list_config=error_list_config,
                               currency_options=get_currency_type_options(),
                               expense_categories=EXPENSE_CATEGORIES,
-                              default_currency='CNY')
+                              default_currency=Config.DEFAULT_CURRENCY)
 
 @expense.route('/ajax/test')
 def test_ajax():
@@ -812,7 +813,7 @@ def create_expense():
             customer_id = request.form.get('customer_id', type=int) if not no_customer_mode else None
             contact_id = request.form.get('contact_id', type=int) if not no_customer_mode else None
             project_id = request.form.get('project_id', type=int) if not no_customer_mode else None
-            expense_currency = request.form.get('currency', 'CNY').strip()  # 报销单主货币
+            expense_currency = request.form.get('currency', Config.DEFAULT_CURRENCY).strip()  # 报销单主货币
             logger.info(f"用户选择的报销单主货币: {expense_currency}, 不关联客户模式: {no_customer_mode}")
             
             # 数据验证
@@ -1213,7 +1214,7 @@ def create_expense():
                 # AJAX请求，返回JSON响应
                 return jsonify({
                     'success': True,
-                    'message': f'报销单创建成功，共添加 {len(detail_items)} 条明细，总金额 ¥{total_amount:.2f}',
+                    'message': f'报销单创建成功，共添加 {len(detail_items)} 条明细，总金额 {Config.CURRENCY_SYMBOL}{total_amount:.2f}',
                     'redirect_url': url_for('expense.expense_detail', id=expense_obj.id),
                     'expense_id': expense_obj.id,
                     'expense_number': expense_obj.expense_number,
@@ -1221,7 +1222,7 @@ def create_expense():
                 })
             else:
                 # 传统表单提交
-                flash(f'报销单创建成功，共添加 {len(detail_items)} 条明细，总金额 ¥{total_amount:.2f}', 'success')
+                flash(f'报销单创建成功，共添加 {len(detail_items)} 条明细，总金额 {Config.CURRENCY_SYMBOL}{total_amount:.2f}', 'success')
                 return redirect(url_for('expense.expense_detail', id=expense_obj.id))
             
         except Exception as e:
@@ -1258,7 +1259,7 @@ def create_expense():
     
     # GET请求，显示创建表单
     # 获取用户最近一次报销的货币作为默认值
-    last_expense_currency = 'CNY'  # 默认人民币
+    last_expense_currency = Config.DEFAULT_CURRENCY  # 默认货币
     try:
         last_expense = Expense.query.filter_by(owner_id=current_user.id)\
                                    .order_by(Expense.created_at.desc())\
@@ -1343,7 +1344,7 @@ def expense_detail(id):
                          can_edit_this_expense=can_edit_this_expense,
                          currency_options=get_currency_type_options(),
                          expense_categories=EXPENSE_CATEGORIES,
-                         default_currency=expense_obj.currency or 'CNY')
+                         default_currency=expense_obj.currency or Config.DEFAULT_CURRENCY)
 
 @expense.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -1500,7 +1501,7 @@ def edit_expense(id):
                     expense_obj.project_id = request.form.get('project_id', type=int) or None
                     
                 if 'currency' in editable_fields:
-                    user_selected_currency = request.form.get('currency', 'CNY')
+                    user_selected_currency = request.form.get('currency', Config.DEFAULT_CURRENCY)
                     expense_obj.currency = user_selected_currency
                     logger.info(f"审核编辑：更新货币为 {user_selected_currency}")
             else:
@@ -1536,7 +1537,7 @@ def edit_expense(id):
                 expense_obj.description = request.form.get('description', '').strip()
                 
                 # 保存用户明确选择的货币，确保不被后续逻辑覆盖
-                user_selected_currency = request.form.get('currency', 'CNY')
+                user_selected_currency = request.form.get('currency', Config.DEFAULT_CURRENCY)
                 expense_obj.currency = user_selected_currency
                 logger.info(f"常规编辑：用户选择的报销单货币 {user_selected_currency}")
             
@@ -1952,7 +1953,7 @@ def edit_expense(id):
                 'expense_date': detail.expense_date.strftime('%Y-%m-%d') if detail.expense_date else '',
                 'description': detail.description or '',
                 'document_count': detail.document_count or 1,
-                'currency': detail.currency or 'CNY',
+                'currency': detail.currency or Config.DEFAULT_CURRENCY,
                 'invoice_amount': detail.invoice_amount or 0,
                 'current_amount': detail.current_amount or detail.amount or 0,
                 'amount': detail.current_amount or detail.amount or 0,  # 向后兼容

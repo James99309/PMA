@@ -67,12 +67,13 @@ Tailwind 模态框基础组件
 - max_height: 最大高度类 (可选，如 'max-h-[90vh]')
 - close_action: 关闭操作的JS代码
 - backdrop_blur: 是否启用背景毛玻璃效果，默认 false
-- header_border: 是否显示头部底部边框，默认 true
+- header_border: 是否显示头部底部边框，默认 false
+- show_close: 是否显示关闭按钮，默认 false
 
 使用 {% call %} 语法传入内容区域
 #}
 {% macro tw_modal(modal_id, title='', subtitle='', z_index='z-50', max_width='max-w-lg',
-                  max_height='', close_action='', backdrop_blur=false, header_border=true) %}
+                  max_height='', close_action='', backdrop_blur=false, header_border=false, show_close=false) %}
 <div id="{{ modal_id }}" class="fixed inset-0 {{ z_index }} hidden" role="dialog" aria-modal="true">
     {# 遮罩层 #}
     <div class="fixed inset-0 bg-black/50 {% if backdrop_blur %}backdrop-blur-sm{% endif %} transition-opacity"
@@ -89,7 +90,7 @@ Tailwind 模态框基础组件
                     <h2 id="{{ modal_id }}-title" class="text-lg font-semibold text-slate-900 dark:text-white">{{ title }}</h2>
                     <p id="{{ modal_id }}-subtitle" class="text-sm text-slate-500 dark:text-slate-400 mt-0.5 {% if not subtitle %}hidden{% endif %}">{{ subtitle }}</p>
                 </div>
-                {{ tw_close_btn(close_action) }}
+                {% if show_close %}{{ tw_close_btn(close_action) }}{% endif %}
             </header>
             {# 内容插槽 #}
             {{ caller() }}
@@ -146,13 +147,13 @@ Tailwind 模态框基础组件
 - title: 标题文本
 - subtitle: 副标题文本 (可选)
 - close_action: 关闭操作的JS代码 (可选)
-- show_close: 是否显示关闭按钮，默认 true
-- border: 是否显示底部边框，默认 true
+- show_close: 是否显示关闭按钮，默认 false
+- border: 是否显示底部边框，默认 false
 
 使用示例:
 {{ tw_modal_header('myModal', title='标题', close_action='closeModal()') }}
 #}
-{% macro tw_modal_header(modal_id, title='', subtitle='', close_action='', show_close=true, border=true) %}
+{% macro tw_modal_header(modal_id, title='', subtitle='', close_action='', show_close=false, border=false) %}
 <header class="flex items-center justify-between px-6 py-4 flex-shrink-0
                {% if border %}border-b border-slate-200 dark:border-slate-700{% endif %}">
     <div>
@@ -191,13 +192,13 @@ Tailwind 模态框基础组件
 - submit_onclick: 提交按钮点击事件
 - submit_id: 提交按钮ID (可选)
 - submit_type: 提交按钮类型，默认 'button'
-- border: 是否显示顶部边框，默认 true
+- border: 是否显示顶部边框，默认 false
 
 使用示例:
 {{ tw_modal_footer(cancel_text='取消', submit_text='确定', cancel_onclick='closeModal()', submit_onclick='handleSubmit()') }}
 #}
 {% macro tw_modal_footer(cancel_text='', submit_text='', cancel_onclick='', submit_onclick='',
-                         submit_id='', submit_type='button', border=true) %}
+                         submit_id='', submit_type='button', border=false) %}
 <footer class="flex-shrink-0 flex items-center justify-end gap-3 px-6 py-5 bg-slate-50/50 dark:bg-slate-800/30
                {% if border %}border-t border-slate-200 dark:border-slate-800{% endif %}">
     {% if cancel_text %}

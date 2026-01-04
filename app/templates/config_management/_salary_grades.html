@@ -1,0 +1,158 @@
+{# 职级配置子页签内容 - 用于薪资配置Tab #}
+<div class="space-y-6">
+    <!-- 专业序列 L级 -->
+    <div>
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <span class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <span class="text-blue-600 dark:text-blue-400 font-bold text-sm">L</span>
+                </span>
+                {{ _('专业序列') }}
+            </h3>
+            <button type="button" @click="addGrade('L')" x-show="isEditing"
+                    class="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors">
+                <span class="material-symbols-outlined text-base">add</span>
+                {{ _('添加职级') }}
+            </button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-slate-50 dark:bg-slate-700/50">
+                        <th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">{{ _('代码') }}</th>
+                        <th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">{{ _('名称') }}</th>
+                        <th class="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">{{ _('年目标(万)') }}</th>
+                        <th class="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">{{ _('月基础工资') }}</th>
+                        <th class="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">{{ _('月绩效基数') }}</th>
+                        <th x-show="isEditing" class="px-4 py-3 text-center font-medium text-slate-600 dark:text-slate-300">{{ _('操作') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                    <template x-for="grade in lGrades" :key="grade.id || grade._tempId">
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                            <td class="px-4 py-3">
+                                <input type="text" x-model="grade.grade_code" @input="markGradeChanged(grade)"
+                                       :disabled="!isEditing"
+                                       class="w-16 px-2 py-1 text-sm border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                            </td>
+                            <td class="px-4 py-3">
+                                <input type="text" x-model="grade.grade_name" @input="markGradeChanged(grade)"
+                                       :disabled="!isEditing"
+                                       class="w-full px-2 py-1 text-sm border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <input type="number" x-model.number="grade.annual_target" @input="markGradeChanged(grade)"
+                                       :disabled="!isEditing"
+                                       class="w-24 px-2 py-1 text-sm text-right border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <input type="number" x-model.number="grade.monthly_base_salary" @input="markGradeChanged(grade)"
+                                       :disabled="!isEditing"
+                                       class="w-24 px-2 py-1 text-sm text-right border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <input type="number" x-model.number="grade.monthly_performance_base" @input="markGradeChanged(grade)"
+                                       :disabled="!isEditing"
+                                       class="w-24 px-2 py-1 text-sm text-right border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                            </td>
+                            <td x-show="isEditing" class="px-4 py-3 text-center">
+                                <button type="button" @click="deleteGrade(grade)"
+                                        class="text-red-500 hover:text-red-700 p-1">
+                                    <span class="material-symbols-outlined text-base">delete</span>
+                                </button>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-if="lGrades.length === 0">
+                        <tr>
+                            <td colspan="6" class="px-4 py-8 text-center text-slate-400">
+                                {{ _('暂无专业序列职级，点击上方按钮添加') }}
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 管理序列 M级 -->
+    <div>
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <span class="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                    <span class="text-purple-600 dark:text-purple-400 font-bold text-sm">M</span>
+                </span>
+                {{ _('管理序列') }}
+            </h3>
+            <button type="button" @click="addGrade('M')" x-show="isEditing"
+                    class="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors">
+                <span class="material-symbols-outlined text-base">add</span>
+                {{ _('添加职级') }}
+            </button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-slate-50 dark:bg-slate-700/50">
+                        <th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">{{ _('代码') }}</th>
+                        <th class="px-4 py-3 text-left font-medium text-slate-600 dark:text-slate-300">{{ _('名称') }}</th>
+                        <th class="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">{{ _('个人目标(万)') }}</th>
+                        <th class="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">{{ _('月基础工资') }}</th>
+                        <th class="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">{{ _('月绩效基数') }}</th>
+                        <th class="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">{{ _('个人权重') }}</th>
+                        <th x-show="isEditing" class="px-4 py-3 text-center font-medium text-slate-600 dark:text-slate-300">{{ _('操作') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                    <template x-for="grade in mGrades" :key="grade.id || grade._tempId">
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                            <td class="px-4 py-3">
+                                <input type="text" x-model="grade.grade_code" @input="markGradeChanged(grade)"
+                                       :disabled="!isEditing"
+                                       class="w-16 px-2 py-1 text-sm border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                            </td>
+                            <td class="px-4 py-3">
+                                <input type="text" x-model="grade.grade_name" @input="markGradeChanged(grade)"
+                                       :disabled="!isEditing"
+                                       class="w-full px-2 py-1 text-sm border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <input type="number" x-model.number="grade.annual_target" @input="markGradeChanged(grade)"
+                                       :disabled="!isEditing"
+                                       class="w-24 px-2 py-1 text-sm text-right border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <input type="number" x-model.number="grade.monthly_base_salary" @input="markGradeChanged(grade)"
+                                       :disabled="!isEditing"
+                                       class="w-24 px-2 py-1 text-sm text-right border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <input type="number" x-model.number="grade.monthly_performance_base" @input="markGradeChanged(grade)"
+                                       :disabled="!isEditing"
+                                       class="w-24 px-2 py-1 text-sm text-right border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <input type="number" x-model.number="grade.personal_weight" step="0.1" min="0" max="1" @input="markGradeChanged(grade)"
+                                       :disabled="!isEditing"
+                                       class="w-20 px-2 py-1 text-sm text-right border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800">
+                            </td>
+                            <td x-show="isEditing" class="px-4 py-3 text-center">
+                                <button type="button" @click="deleteGrade(grade)"
+                                        class="text-red-500 hover:text-red-700 p-1">
+                                    <span class="material-symbols-outlined text-base">delete</span>
+                                </button>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-if="mGrades.length === 0">
+                        <tr>
+                            <td colspan="7" class="px-4 py-8 text-center text-slate-400">
+                                {{ _('暂无管理序列职级，点击上方按钮添加') }}
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

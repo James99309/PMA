@@ -16,6 +16,7 @@ from sqlalchemy.sql import func
 import io
 import pandas as pd
 from app.helpers.approval_helpers import get_object_approval_instance, get_available_templates
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -1351,7 +1352,7 @@ def settlement_list():
                         'value': total_count,
                         'amount': total_amount,
                         'unit': '条',
-                        'amount_unit': '万元',
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'primary',
                         'data_key': 'total'
                     },
@@ -1362,7 +1363,7 @@ def settlement_list():
                         'value': settled_count,
                         'amount': settled_amount,
                         'unit': '条',
-                        'amount_unit': '万元',
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'success',
                         'data_key': 'settled'
                     },
@@ -1373,7 +1374,7 @@ def settlement_list():
                         'value': pending_count,
                         'amount': pending_amount,
                         'unit': '条',
-                        'amount_unit': '万元',
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'warning',
                         'data_key': 'pending'
                     },
@@ -1384,7 +1385,7 @@ def settlement_list():
                         'value': thismonth_count,
                         'amount': thismonth_amount,
                         'unit': '条',
-                        'amount_unit': '万元',
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'info',
                         'data_key': 'thismonth'
                     }
@@ -1983,7 +1984,7 @@ def settlement_order_list():
                         'value': stats['total'],
                         'amount': f"{stats['total_amount']:.2f}",
                         'unit': '单',
-                        'amount_unit': '万元',
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'primary',
                         'data_key': 'total'
                     },
@@ -1994,7 +1995,7 @@ def settlement_order_list():
                         'value': stats['fully_settled'],
                         'amount': f"{stats['fully_settled_amount']:.2f}",
                         'unit': '单',
-                        'amount_unit': '万元',
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'success',
                         'data_key': 'fully_settled'
                     },
@@ -2005,7 +2006,7 @@ def settlement_order_list():
                         'value': stats['partially_settled'],
                         'amount': f"{stats['partially_settled_amount']:.2f}",
                         'unit': '单',
-                        'amount_unit': '万元',
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'warning',
                         'data_key': 'partially_settled'
                     },
@@ -2016,7 +2017,7 @@ def settlement_order_list():
                         'value': stats['pending'],
                         'amount': f"{stats['pending_amount']:.2f}",
                         'unit': '单',
-                        'amount_unit': '万元',
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'danger',
                         'data_key': 'pending'
                     }
@@ -2128,10 +2129,10 @@ def settlement_order_list():
             'ajax_mode': True,
             'stats': {
                 'cards': [
-                    {'id': 'total', 'title': '总结算', 'icon': 'fas fa-list', 'value': 0, 'amount': '0.00', 'unit': '单', 'amount_unit': '万元', 'color': 'primary', 'data_key': 'total'},
-                    {'id': 'fullySettled', 'title': '已结算', 'icon': 'fas fa-check-circle', 'value': 0, 'amount': '0.00', 'unit': '单', 'amount_unit': '万元', 'color': 'success', 'data_key': 'fully_settled'},
-                    {'id': 'partiallySettled', 'title': '部分结算', 'icon': 'fas fa-exclamation-triangle', 'value': 0, 'amount': '0.00', 'unit': '单', 'amount_unit': '万元', 'color': 'warning', 'data_key': 'partially_settled'},
-                    {'id': 'pending', 'title': '待结算', 'icon': 'fas fa-clock', 'value': 0, 'amount': '0.00', 'unit': '单', 'amount_unit': '万元', 'color': 'danger', 'data_key': 'pending'}
+                    {'id': 'total', 'title': '总结算', 'icon': 'fas fa-list', 'value': 0, 'amount': '0.00', 'unit': '单', 'amount_unit': Config.AMOUNT_UNIT, 'color': 'primary', 'data_key': 'total'},
+                    {'id': 'fullySettled', 'title': '已结算', 'icon': 'fas fa-check-circle', 'value': 0, 'amount': '0.00', 'unit': '单', 'amount_unit': Config.AMOUNT_UNIT, 'color': 'success', 'data_key': 'fully_settled'},
+                    {'id': 'partiallySettled', 'title': '部分结算', 'icon': 'fas fa-exclamation-triangle', 'value': 0, 'amount': '0.00', 'unit': '单', 'amount_unit': Config.AMOUNT_UNIT, 'color': 'warning', 'data_key': 'partially_settled'},
+                    {'id': 'pending', 'title': '待结算', 'icon': 'fas fa-clock', 'value': 0, 'amount': '0.00', 'unit': '单', 'amount_unit': Config.AMOUNT_UNIT, 'color': 'danger', 'data_key': 'pending'}
                 ]
             },
             'filter': {
@@ -2731,7 +2732,7 @@ def order_list():
                         'value': total_count,
                         'amount': total_amount,
                         'unit': '单',
-                        'amount_unit': '万元',
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'primary',
                         'data_key': 'total'
                     },
@@ -2742,7 +2743,7 @@ def order_list():
                         'value': pending_count,
                         'amount': pending_amount,
                         'unit': '单',
-                        'amount_unit': '万元',
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'warning',
                         'data_key': 'pending'
                     },
@@ -2753,7 +2754,7 @@ def order_list():
                         'value': partial_count,
                         'amount': partial_amount,
                         'unit': '单',
-                        'amount_unit': '万元',
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'info',
                         'data_key': 'partial'
                     },
@@ -2764,7 +2765,7 @@ def order_list():
                         'value': completed_count,
                         'amount': completed_amount,
                         'unit': '单',
-                        'amount_unit': '万元',
+                        'amount_unit': Config.AMOUNT_UNIT,
                         'color': 'success',
                         'data_key': 'completed'
                     }
@@ -3594,7 +3595,7 @@ def edit_order(id):
             order.payment_terms = request.form.get('payment_terms', '').strip()
             order.delivery_address = request.form.get('delivery_address', '').strip()
             order.description = request.form.get('description', '').strip()
-            order.currency = request.form.get('currency', 'CNY')
+            order.currency = request.form.get('currency', Config.DEFAULT_CURRENCY)
             
             # 删除原有的订单明细
             PurchaseOrderDetail.query.filter_by(order_id=order.id).delete()
@@ -4303,7 +4304,7 @@ def get_settlement_order_detail(settlement_order_id):
             <div class="col-md-6">
                 <h6>金额信息</h6>
                 <table class="table table-sm">
-                    <tr><td><strong>结算总金额：</strong></td><td class="text-success">¥{settlement_order.formatted_total_amount}</td></tr>
+                    <tr><td><strong>结算总金额：</strong></td><td class="text-success">{Config.CURRENCY_SYMBOL}{settlement_order.formatted_total_amount}</td></tr>
                     <tr><td><strong>产品项数：</strong></td><td>{len(settlement_order.details)}</td></tr>
                     <tr><td><strong>总折扣率：</strong></td><td>{settlement_order.discount_percentage}%</td></tr>
                 </table>
@@ -4348,8 +4349,8 @@ def get_settlement_order_detail(settlement_order_id):
                     <td>{detail.product_model or '-'}</td>
                     <td>{detail.brand or '-'}</td>
                     <td>{detail.quantity} {detail.unit or '件'}</td>
-                    <td>¥{detail.unit_price:.2f}</td>
-                    <td class="text-success">¥{detail.total_price:.2f}</td>
+                    <td>{Config.CURRENCY_SYMBOL}{detail.unit_price:.2f}</td>
+                    <td class="text-success">{Config.CURRENCY_SYMBOL}{detail.total_price:.2f}</td>
                     <td>{status_html}</td>
                 </tr>
             """
@@ -4400,7 +4401,7 @@ def settlement_detail_api(order_number):
                 <h6>统计信息</h6>
                 <table class="table table-sm">
                     <tr><td>产品数量:</td><td>{len(details)} 项</td></tr>
-                    <tr><td>总金额:</td><td>¥{sum(d.total_price or 0 for d in details):,.2f}</td></tr>
+                    <tr><td>总金额:</td><td>{Config.CURRENCY_SYMBOL}{sum(d.total_price or 0 for d in details):,.2f}</td></tr>
                 </table>
             </div>
         </div>
@@ -4428,8 +4429,8 @@ def settlement_detail_api(order_number):
                         <td>{detail.product_model or '-'}</td>
                         <td>{detail.brand or '-'}</td>
                         <td>{detail.quantity}</td>
-                        <td>¥{detail.unit_price or 0:,.2f}</td>
-                        <td>¥{detail.total_price or 0:,.2f}</td>
+                        <td>{Config.CURRENCY_SYMBOL}{detail.unit_price or 0:,.2f}</td>
+                        <td>{Config.CURRENCY_SYMBOL}{detail.total_price or 0:,.2f}</td>
                     </tr>
             """
         
@@ -4967,7 +4968,7 @@ def get_product_models_for_order():
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
                     'product_mn': p.product_mn,
-                    'currency': p.currency or 'CNY',
+                    'currency': p.currency or Config.DEFAULT_CURRENCY,
                     'status': p.status
                 }
                 result.append(product_dict)
@@ -5028,7 +5029,7 @@ def get_product_specs_for_order():
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
                     'product_mn': p.product_mn,
-                    'currency': p.currency or 'CNY'
+                    'currency': p.currency or Config.DEFAULT_CURRENCY
                 }
                 result.append(product_dict)
             except Exception as e:

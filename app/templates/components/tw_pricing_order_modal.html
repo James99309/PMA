@@ -2159,15 +2159,7 @@ window.PricingOrderModal = (function() {
         return div.innerHTML;
     }
 
-    function showToast(message, type = 'info') {
-        if (typeof showStandardAlert === 'function') {
-            showStandardAlert(type, message);
-        } else if (typeof showMessage === 'function') {
-            showMessage(message, type);
-        } else {
-            alert(message);
-        }
-    }
+    // showToast - 使用全局 tw-notification.js
 
     // =====================
     // 悬停自动折叠/展开审批区域

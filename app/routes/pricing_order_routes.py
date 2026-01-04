@@ -6,11 +6,16 @@ from app.models.project import Project
 from app.models.quotation import Quotation
 from app.models.customer import Company
 from app.services.pricing_order_service import PricingOrderService
-from app.services.pdf_generator import PDFGenerator
 from app.services.discount_permission_service import DiscountPermissionService
 from app.permissions import check_permission, permission_required
-import logging
 import os
+
+# 条件导入 PDF 生成器（本地开发时可跳过 weasyprint）
+if os.environ.get('SKIP_WEASYPRINT', '').lower() in ('1', 'true', 'yes'):
+    PDFGenerator = None
+else:
+    from app.services.pdf_generator import PDFGenerator
+import logging
 import json
 from datetime import datetime
 

@@ -522,4 +522,212 @@ def update_role_permissions():
             success=False,
             code=500,
             message="服务器处理请求时出错"
-        ) 
+        )
+
+
+# =============================================
+# 子功能权限 API
+# =============================================
+
+@api_v1_bp.route('/permissions/modules', methods=['GET'])
+@flexible_auth
+def get_permission_modules():
+    """
+    获取权限模块列表（从数据库读取）
+
+    返回所有有效的权限模块，包括子功能列表
+    """
+    from flask import session
+    from app.models.permission_module import PermissionModule, PermissionModuleFeature
+
+    lang = session.get('language', 'zh')
+
+    try:
+        modules = PermissionModule.query.filter_by(is_active=True)\
+            .order_by(PermissionModule.group_name, PermissionModule.sort_order).all()
+
+        result = []
+        for m in modules:
+            # 获取模块的子功能
+            features = PermissionModuleFeature.query.filter_by(
+                module_id=m.module_id,
+                is_active=True
+            ).order_by(PermissionModuleFeature.sort_order).all()
+
+            result.append({
+                'id': m.module_id,
+                'module_id': m.module_id,
+                'name': m.name_en if lang == 'en' and m.name_en else m.name,
+                'icon': m.icon,
+                'description': m.description_en if lang == 'en' and m.description_en else m.description,
+                'group': m.group_name_en if lang == 'en' and m.group_name_en else m.group_name,
+                'group_name': m.group_name,
+                'sort_order': m.sort_order,
+                'supports_discount': m.supports_discount,
+                'supports_owner_change': m.supports_owner_change,
+                'supports_affiliation': m.supports_affiliation,
+                'supports_content_filter': m.supports_content_filter,
+                'features': [f.to_dict(lang) for f in features]
+            })
+
+        return api_response(
+            success=True,
+            message="获取成功",
+            data=result
+        )
+    except Exception as e:
+        logger.error(f"获取权限模块列表失败: {str(e)}")
+        return api_response(
+            success=False,
+            code=500,
+            message=f"获取失败: {str(e)}"
+        )
+
+
+@api_v1_bp.route('/permissions/modules/<module_id>/features', methods=['GET'])
+@flexible_auth
+def get_module_features(module_id):
+    """
+    获取指定模块的子功能列表
+    """
+    from flask import session
+    from app.models.permission_module import PermissionModuleFeature
+
+    lang = session.get('language', 'zh')
+
+    try:
+        features = PermissionModuleFeature.query.filter_by(
+            module_id=module_id,
+            is_active=True
+        ).order_by(PermissionModuleFeature.sort_order).all()
+
+        return api_response(
+            success=True,
+            message="获取成功",
+            data=[f.to_dict(lang) for f in features]
+        )
+    except Exception as e:
+        logger.error(f"获取模块子功能失败: {str(e)}")
+        return api_response(
+            success=False,
+            code=500,
+            message=f"获取失败: {str(e)}"
+        )
+
+
+@api_v1_bp.route('/permissions/roles/<role>/features', methods=['GET'])
+@flexible_auth
+def get_role_feature_permissions(role):
+    """
+    获取角色的子功能权限配置
+    """
+    from app.models.permission_module import RoleFeaturePermission
+
+    try:
+        perms = RoleFeaturePermission.query.filter_by(role=role).all()
+
+        result = {}
+        for perm in perms:
+            if perm.module_id not in result:
+                result[perm.module_id] = {}
+            result[perm.module_id][perm.feature_id] = perm.is_enabled
+
+        return api_response(
+            success=True,
+            message="获取成功",
+            data={
+                'role': role,
+                'feature_permissions': result
+            }
+        )
+    except Exception as e:
+        logger.error(f"获取角色子功能权限失败: {str(e)}")
+        return api_response(
+            success=False,
+            code=500,
+            message=f"获取失败: {str(e)}"
+        )
+
+
+@api_v1_bp.route('/permissions/roles/<role>/features', methods=['PUT'])
+@flexible_auth
+def update_role_feature_permissions(role):
+    """
+    更新角色的子功能权限配置
+
+    请求体:
+    {
+        "feature_permissions": {
+            "module_id": {
+                "feature_id": true/false,
+                ...
+            },
+            ...
+        }
+    }
+    """
+    import time
+    from app.models.permission_module import RoleFeaturePermission
+
+    try:
+        data = request.get_json()
+        if not data:
+            return api_response(
+                success=False,
+                code=400,
+                message="请求数据为空"
+            )
+
+        feature_permissions = data.get('feature_permissions', {})
+
+        # 管理员角色限制
+        if role == 'admin':
+            return api_response(
+                success=False,
+                code=403,
+                message="管理员角色子功能权限不允许修改"
+            )
+
+        now = time.time()
+
+        # 更新或创建子功能权限
+        for module_id, features in feature_permissions.items():
+            for feature_id, is_enabled in features.items():
+                # 查找现有记录
+                perm = RoleFeaturePermission.query.filter_by(
+                    role=role,
+                    module_id=module_id,
+                    feature_id=feature_id
+                ).first()
+
+                if perm:
+                    # 更新现有记录
+                    perm.is_enabled = is_enabled
+                    perm.updated_at = now
+                else:
+                    # 创建新记录
+                    perm = RoleFeaturePermission(
+                        role=role,
+                        module_id=module_id,
+                        feature_id=feature_id,
+                        is_enabled=is_enabled,
+                        created_at=now,
+                        updated_at=now
+                    )
+                    db.session.add(perm)
+
+        db.session.commit()
+        logger.info(f"已更新角色 {role} 的子功能权限")
+
+        return api_response(
+            success=True,
+            message="子功能权限更新成功"
+        )
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"更新角色子功能权限失败: {str(e)}")
+        return api_response(
+            success=False,
+            code=500,
+            message=f"更新失败: {str(e)}"
+        )

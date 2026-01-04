@@ -1,0 +1,222 @@
+{#
+=============================================================================
+Tailwind 共享导航菜单组件
+=============================================================================
+提供统一的导航菜单项，供 tw_sidebar.html 和 tw_layout.html 共同使用。
+
+使用方式：
+{% from 'components/tw_nav_menu.html' import render_tw_nav_menu %}
+{{ render_tw_nav_menu(active_page) }}
+
+参数：
+- active_page: 当前激活的页面标识
+=============================================================================
+#}
+
+{% macro render_tw_nav_menu(active_page='dashboard') %}
+<!-- 仪表盘 -->
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'dashboard' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('main.index') }}">
+    <span class="material-symbols-outlined {% if active_page == 'dashboard' %}fill text-primary{% else %}text-slate-600 dark:text-slate-400{% endif %}">dashboard</span>
+    <span class="{% if active_page == 'dashboard' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm font-medium">{{ _('仪表盘') }}</span>
+</a>
+
+<!-- 业务管理组 -->
+{% if has_permission('customer', 'view') or has_permission('project', 'view') or has_permission('quotation', 'view') or has_permission('expense', 'view') %}
+<div x-data="{ open: {{ 'true' if active_page in ['customer', 'project', 'quotation', 'product_analysis', 'expense'] else 'false' }} }">
+    <button @click="open = !open" class="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+        <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-slate-600 dark:text-slate-400">work</span>
+            <span class="text-slate-600 dark:text-slate-300 text-sm font-medium">{{ _('业务管理') }}</span>
+        </div>
+        <span class="material-symbols-outlined text-slate-400 text-base transition-transform" :class="{ 'rotate-180': open }">expand_more</span>
+    </button>
+    <div x-show="open" x-collapse class="pl-4 mt-1 flex flex-col gap-1">
+        {% if has_permission('customer', 'view') %}
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'customer' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('customer.list_companies') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'customer' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">contacts</span>
+            <span class="{% if active_page == 'customer' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('客户管理') }}</span>
+        </a>
+        {% endif %}
+        {% if has_permission('project', 'view') %}
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'project' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('project.list_projects') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'project' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">cases</span>
+            <span class="{% if active_page == 'project' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('项目管理') }}</span>
+        </a>
+        {% endif %}
+        {% if has_permission('quotation', 'view') %}
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'quotation' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('quotation.list_quotations') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'quotation' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">request_quote</span>
+            <span class="{% if active_page == 'quotation' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('报价管理') }}</span>
+        </a>
+        {% endif %}
+        {% if has_permission('expense', 'view') %}
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'expense' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('expense.expense_list') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'expense' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">receipt_long</span>
+            <span class="{% if active_page == 'expense' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('报销管理') }}</span>
+        </a>
+        {% endif %}
+        {% if has_permission('quotation', 'view') %}
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'product_analysis' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('product_analysis.analysis') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'product_analysis' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">analytics</span>
+            <span class="{% if active_page == 'product_analysis' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('植入分析') }}</span>
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- 产品管理组 -->
+{% if has_permission('product', 'view') or has_permission('product_code', 'view') %}
+<div x-data="{ open: {{ 'true' if active_page in ['product', 'product_code', 'origin_fields', 'spec_definition', 'spec_template'] else 'false' }} }">
+    <button @click="open = !open" class="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+        <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-slate-600 dark:text-slate-400">inventory_2</span>
+            <span class="text-slate-600 dark:text-slate-300 text-sm font-medium">{{ _('产品管理') }}</span>
+        </div>
+        <span class="material-symbols-outlined text-slate-400 text-base transition-transform" :class="{ 'rotate-180': open }">expand_more</span>
+    </button>
+    <div x-show="open" x-collapse class="pl-4 mt-1 flex flex-col gap-1">
+        {% if has_permission('product', 'view') %}
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'product' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('product.product_list') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'product' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">deployed_code</span>
+            <span class="{% if active_page == 'product' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('产品库') }}</span>
+        </a>
+        {% endif %}
+        {% if current_user.role in ['admin', 'product_manager'] %}
+        <div class="my-1 mx-3 h-px bg-slate-200 dark:bg-slate-700"></div>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'product_code' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('product_code.tw_categories') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'product_code' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">category</span>
+            <span class="{% if active_page == 'product_code' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('产品分类') }}</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'origin_fields' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('product_code.origin_fields') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'origin_fields' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">public</span>
+            <span class="{% if active_page == 'origin_fields' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('销售地区') }}</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'spec_definition' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('spec_definition.list_definitions') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'spec_definition' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">tune</span>
+            <span class="{% if active_page == 'spec_definition' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('规格字典') }}</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'spec_template' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('spec_template.list_templates') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'spec_template' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">description</span>
+            <span class="{% if active_page == 'spec_template' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('规格模板') }}</span>
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- 订单结算组 -->
+{% if has_permission('order', 'view') or has_permission('settlement', 'view') or has_permission('inventory', 'view') %}
+<div x-data="{ open: {{ 'true' if active_page in ['order', 'settlement', 'inventory'] else 'false' }} }">
+    <button @click="open = !open" class="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+        <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-slate-600 dark:text-slate-400">shopping_cart</span>
+            <span class="text-slate-600 dark:text-slate-300 text-sm font-medium">{{ _('订单结算') }}</span>
+        </div>
+        <span class="material-symbols-outlined text-slate-400 text-base transition-transform" :class="{ 'rotate-180': open }">expand_more</span>
+    </button>
+    <div x-show="open" x-collapse class="pl-4 mt-1 flex flex-col gap-1">
+        {% if has_permission('order', 'view') %}
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'order' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('inventory.order_list') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'order' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">list_alt</span>
+            <span class="{% if active_page == 'order' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('订单管理') }}</span>
+        </a>
+        {% endif %}
+        {% if has_permission('settlement', 'view') %}
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'settlement' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('inventory.settlement_order_list') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'settlement' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">payments</span>
+            <span class="{% if active_page == 'settlement' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('结算管理') }}</span>
+        </a>
+        {% endif %}
+        {% if has_permission('inventory', 'view') %}
+        <div class="my-1 mx-3 h-px bg-slate-200 dark:bg-slate-700"></div>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'inventory' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('inventory.stock_list') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'inventory' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">warehouse</span>
+            <span class="{% if active_page == 'inventory' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('库存管理') }}</span>
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- 账户管理组 -->
+{% if has_permission('user_management', 'view') or has_permission('dictionary_management', 'view') or has_permission('system_management', 'edit') or has_permission('performance_management', 'edit') %}
+<div x-data="{ open: {{ 'true' if active_page in ['user_list', 'config_management', 'role_dict', 'company_dict', 'department_dict'] else 'false' }} }">
+    <button @click="open = !open" class="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+        <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-slate-600 dark:text-slate-400">manage_accounts</span>
+            <span class="text-slate-600 dark:text-slate-300 text-sm font-medium">{{ _('账户管理') }}</span>
+        </div>
+        <span class="material-symbols-outlined text-slate-400 text-base transition-transform" :class="{ 'rotate-180': open }">expand_more</span>
+    </button>
+    <div x-show="open" x-collapse class="pl-4 mt-1 flex flex-col gap-1">
+        {% if has_permission('user_management', 'view') %}
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'user_list' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('user.list_users', tw=1) }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'user_list' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">group</span>
+            <span class="{% if active_page == 'user_list' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('账户列表') }}</span>
+        </a>
+        {% endif %}
+        {% if has_permission('system_management', 'edit') or has_permission('performance_management', 'edit') %}
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'config_management' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('config_management.index') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'config_management' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">settings</span>
+            <span class="{% if active_page == 'config_management' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('配置管理') }}</span>
+        </a>
+        {% endif %}
+        {% if has_permission('dictionary_management', 'view') %}
+        <div class="my-1 mx-3 h-px bg-slate-200 dark:bg-slate-700"></div>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'role_dict' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('user.manage_roles') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'role_dict' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">badge</span>
+            <span class="{% if active_page == 'role_dict' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('角色字典') }}</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'company_dict' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('user.manage_companies') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'company_dict' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">business</span>
+            <span class="{% if active_page == 'company_dict' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('企业字典') }}</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'department_dict' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('user.manage_departments') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'department_dict' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">account_tree</span>
+            <span class="{% if active_page == 'department_dict' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('部门字典') }}</span>
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- 系统管理组 -->
+{% if has_permission('system_management', 'admin') %}
+<div x-data="{ open: {{ 'true' if active_page in ['admin', 'version', 'approval_config', 'notification', 'history', 'backup'] else 'false' }} }">
+    <button @click="open = !open" class="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+        <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-slate-600 dark:text-slate-400">settings</span>
+            <span class="text-slate-600 dark:text-slate-300 text-sm font-medium">{{ _('系统管理') }}</span>
+        </div>
+        <span class="material-symbols-outlined text-slate-400 text-base transition-transform" :class="{ 'rotate-180': open }">expand_more</span>
+    </button>
+    <div x-show="open" x-collapse class="pl-4 mt-1 flex flex-col gap-1">
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'admin' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('admin.system_settings') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'admin' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">settings_applications</span>
+            <span class="{% if active_page == 'admin' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('系统参数设置') }}</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'version' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('version_management.index') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'version' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">update</span>
+            <span class="{% if active_page == 'version' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('版本管理') }}</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'approval_config' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('approval_config.template_list') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'approval_config' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">rule</span>
+            <span class="{% if active_page == 'approval_config' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('审批流程配置') }}</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'notification' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('notification.center') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'notification' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">notifications</span>
+            <span class="{% if active_page == 'notification' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('通知中心') }}</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'history' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('change_history.index') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'history' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">history</span>
+            <span class="{% if active_page == 'history' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('历史记录') }}</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'backup' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('backup.index') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'backup' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">cloud_upload</span>
+            <span class="{% if active_page == 'backup' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('数据库备份') }}</span>
+        </a>
+    </div>
+</div>
+{% endif %}
+{% endmacro %}

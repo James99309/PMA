@@ -420,5 +420,203 @@ class ConfigurablePerformanceService:
         """计算达成率"""
         if not target_value or target_value == 0:
             return 0.0
-        
+
         return round((float(actual_value) / float(target_value)) * 100, 2)
+
+
+class RolePerformanceTarget(db.Model):
+    """角色绩效目标配置表 - 全局默认目标"""
+    __tablename__ = 'role_performance_targets'
+
+    id = Column(Integer, primary_key=True)
+    role_code = Column(String(50), nullable=False, index=True)  # 角色代码
+    year = Column(Integer, nullable=False)                       # 年份
+    item_code = Column(String(50), nullable=False)               # 绩效项目代码
+
+    # 目标值
+    annual_target = Column(Numeric(15, 2))                       # 年度目标
+
+    # 季度目标（可选，勾选后启用）
+    enable_quarterly = Column(Boolean, default=False)
+    q1_target = Column(Numeric(15, 2))                           # Q1目标
+    q2_target = Column(Numeric(15, 2))                           # Q2目标
+    q3_target = Column(Numeric(15, 2))                           # Q3目标
+    q4_target = Column(Numeric(15, 2))                           # Q4目标
+
+    # 月度目标（可选，勾选后启用）
+    enable_monthly = Column(Boolean, default=False)
+    monthly_targets = Column(JSON)                                # {"1": 10, "2": 12, ...}
+
+    # 单位配置
+    target_unit = Column(String(20), default='万元')              # 万元/个
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey('users.id'))
+    updated_by = Column(Integer, ForeignKey('users.id'))
+
+    # 关系
+    creator = relationship('User', foreign_keys=[created_by])
+    updater = relationship('User', foreign_keys=[updated_by])
+
+    __table_args__ = (
+        db.UniqueConstraint('role_code', 'year', 'item_code',
+                           name='uq_role_perf_target_role_year_item'),
+        db.Index('idx_role_perf_target_role_year', 'role_code', 'year'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'role_code': self.role_code,
+            'year': self.year,
+            'item_code': self.item_code,
+            'annual_target': float(self.annual_target) if self.annual_target else None,
+            'enable_quarterly': self.enable_quarterly,
+            'q1_target': float(self.q1_target) if self.q1_target else None,
+            'q2_target': float(self.q2_target) if self.q2_target else None,
+            'q3_target': float(self.q3_target) if self.q3_target else None,
+            'q4_target': float(self.q4_target) if self.q4_target else None,
+            'enable_monthly': self.enable_monthly,
+            'monthly_targets': self.monthly_targets,
+            'target_unit': self.target_unit,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+    def get_quarterly_total(self):
+        """获取季度目标合计"""
+        if not self.enable_quarterly:
+            return 0
+        return sum([
+            float(self.q1_target or 0),
+            float(self.q2_target or 0),
+            float(self.q3_target or 0),
+            float(self.q4_target or 0)
+        ])
+
+    def get_monthly_total_by_quarter(self, quarter):
+        """获取指定季度的月度目标合计"""
+        if not self.enable_monthly or not self.monthly_targets:
+            return 0
+        months = {
+            1: ['1', '2', '3'],
+            2: ['4', '5', '6'],
+            3: ['7', '8', '9'],
+            4: ['10', '11', '12']
+        }
+        return sum([float(self.monthly_targets.get(m, 0) or 0) for m in months.get(quarter, [])])
+
+
+class UserPerformanceTarget(db.Model):
+    """用户绩效目标表 - 个人覆盖"""
+    __tablename__ = 'user_performance_targets'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    year = Column(Integer, nullable=False)
+    item_code = Column(String(50), nullable=False)
+
+    # 覆盖值（NULL表示使用角色默认）
+    annual_target_override = Column(Numeric(15, 2))
+    enable_quarterly_override = Column(Boolean)
+    q1_target_override = Column(Numeric(15, 2))
+    q2_target_override = Column(Numeric(15, 2))
+    q3_target_override = Column(Numeric(15, 2))
+    q4_target_override = Column(Numeric(15, 2))
+    enable_monthly_override = Column(Boolean)
+    monthly_targets_override = Column(JSON)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey('users.id'))
+    updated_by = Column(Integer, ForeignKey('users.id'))
+
+    # 关系
+    user = relationship('User', foreign_keys=[user_id], backref='performance_target_overrides')
+    creator = relationship('User', foreign_keys=[created_by])
+    updater = relationship('User', foreign_keys=[updated_by])
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'year', 'item_code',
+                           name='uq_user_perf_target_user_year_item'),
+        db.Index('idx_user_perf_target_user_year', 'user_id', 'year'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'year': self.year,
+            'item_code': self.item_code,
+            'annual_target_override': float(self.annual_target_override) if self.annual_target_override else None,
+            'enable_quarterly_override': self.enable_quarterly_override,
+            'q1_target_override': float(self.q1_target_override) if self.q1_target_override else None,
+            'q2_target_override': float(self.q2_target_override) if self.q2_target_override else None,
+            'q3_target_override': float(self.q3_target_override) if self.q3_target_override else None,
+            'q4_target_override': float(self.q4_target_override) if self.q4_target_override else None,
+            'enable_monthly_override': self.enable_monthly_override,
+            'monthly_targets_override': self.monthly_targets_override,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+def get_user_effective_target(user_id, year, item_code, period_type='annual', period=None):
+    """
+    获取用户有效目标值，优先级：
+    1. 用户个人覆盖
+    2. 角色默认配置
+    3. 返回 None
+
+    Args:
+        user_id: 用户ID
+        year: 年份
+        item_code: 绩效项目代码
+        period_type: 'annual', 'quarterly', 'monthly'
+        period: 季度(1-4)或月份(1-12)
+
+    Returns:
+        目标值或 None
+    """
+    from app.models.user import User
+
+    # 1. 检查个人覆盖
+    user_target = UserPerformanceTarget.query.filter_by(
+        user_id=user_id, year=year, item_code=item_code
+    ).first()
+
+    if user_target:
+        if period_type == 'annual' and user_target.annual_target_override is not None:
+            return float(user_target.annual_target_override)
+        elif period_type == 'quarterly' and period:
+            override = getattr(user_target, f'q{period}_target_override', None)
+            if override is not None:
+                return float(override)
+        elif period_type == 'monthly' and period:
+            if user_target.monthly_targets_override:
+                value = user_target.monthly_targets_override.get(str(period))
+                if value is not None:
+                    return float(value)
+
+    # 2. 查询角色默认
+    user = User.query.get(user_id)
+    if not user:
+        return None
+
+    role_target = RolePerformanceTarget.query.filter_by(
+        role_code=user.role, year=year, item_code=item_code
+    ).first()
+
+    if role_target:
+        if period_type == 'annual':
+            return float(role_target.annual_target) if role_target.annual_target else None
+        elif period_type == 'quarterly' and period:
+            value = getattr(role_target, f'q{period}_target', None)
+            return float(value) if value else None
+        elif period_type == 'monthly' and period:
+            if role_target.monthly_targets:
+                value = role_target.monthly_targets.get(str(period))
+                return float(value) if value else None
+
+    return None

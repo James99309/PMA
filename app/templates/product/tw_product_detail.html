@@ -9,7 +9,8 @@
 {% from 'components/product/tw_product_modal.html' import render_product_modal, render_product_modal_script with context %}
 {% from 'components/product/tw_spec_options_modal.html' import tw_spec_options_modal, tw_spec_options_modal_script with context %}
 {% from 'components/product/tw_spec_modals.html' import tw_spec_preview_modal, tw_spec_conflict_modal with context %}
-{% from 'components/product/tw_spec_list.html' import render_tw_spec_list with context %}
+{% from 'components/product/tw_spec_list.html' import render_tw_spec_list, render_tw_spec_list_grouped with context %}
+{% from 'components/product/tw_spec_import_modal.html' import tw_spec_import_modal, tw_spec_import_script with context %}
 
 {# 产品状态徽章 #}
 {% macro render_tw_status_badge(status) %}
@@ -39,6 +40,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
         tailwind.config = {
@@ -202,7 +204,12 @@
                                                     </p>
                                                     <p class="mt-1 text-sm font-mono text-slate-900 dark:text-white">
                                                         <span id="productMnDisplay">{{ product.product_mn or '-' }}</span>
-                                                        <span class="text-slate-400 dark:text-slate-500 ml-1">[<span id="specMnMainDisplay">{{ product.spec_mn or '-' }}</span>]</span>
+                                                        {# 只有当 spec_mn 与 product_mn 不同时才显示规格编码 #}
+                                                        {% if product.spec_mn and product.spec_mn != product.product_mn %}
+                                                        <span id="specMnWrapper" class="text-slate-400 dark:text-slate-500 ml-1">[<span id="specMnMainDisplay">{{ product.spec_mn }}</span>]</span>
+                                                        {% else %}
+                                                        <span id="specMnWrapper" class="text-slate-400 dark:text-slate-500 ml-1 hidden">[<span id="specMnMainDisplay">{{ product.spec_mn or '-' }}</span>]</span>
+                                                        {% endif %}
                                                     </p>
                                                 </div>
                                                 <div>
@@ -226,6 +233,13 @@
                                             <span class="material-symbols-outlined text-base">add</span>
                                             {{ _('添加') }}
                                         </button>
+                                        <!-- 引入按钮（仅引入产品显示） -->
+                                        {% if product.source_configuration_id %}
+                                        <button id="importSpecsBtn" class="text-sm text-primary hover:text-primary-hover font-medium flex items-center gap-1">
+                                            <span class="material-symbols-outlined text-base">download</span>
+                                            {{ _('引入') }}
+                                        </button>
+                                        {% endif %}
                                         <!-- 编辑/应用按钮（事件由 spec-editor.js 绑定） -->
                                         <button id="editSpecsBtn" class="text-sm text-primary hover:text-primary-hover font-medium">
                                             {{ _('编辑') }}
@@ -239,7 +253,7 @@
                                     </div>
                                     {% endif %}
                                 </div>
-                                {{ render_tw_spec_list(product_specs, can_edit_button) }}
+                                {{ render_tw_spec_list_grouped(spec_categories, can_edit_button) }}
                             </div>
 
                             <!-- 关联产品配置卡片（使用通用选卡组件） -->
@@ -326,13 +340,13 @@
                                         <div class="flex items-baseline">
                                             <span class="text-3xl font-bold text-slate-900 dark:text-white">
                                                 {% if product.retail_price %}
-                                                {{ product.currency_symbol or '¥' }}{{ '{:,.2f}'.format(product.retail_price) }}
+                                                {{ product.currency_symbol or currency_config.symbol }}{{ '{:,.2f}'.format(product.retail_price) }}
                                                 {% else %}
                                                 <span class="text-slate-400">{{ _('暂无') }}</span>
                                                 {% endif %}
                                             </span>
                                             {% if product.retail_price %}
-                                            <span class="ml-2 text-sm text-slate-500 dark:text-slate-400">{{ product.currency or 'CNY' }}</span>
+                                            <span class="ml-2 text-sm text-slate-500 dark:text-slate-400">{{ product.currency or currency_config.default_currency }}</span>
                                             {% endif %}
                                         </div>
                                     </div>
@@ -819,7 +833,7 @@
             }
 
             try {
-                const response = await fetch('{{ url_for("rd_product.get_product_relations", product_id=product.id) }}');
+                const response = await fetch('{{ url_for("product.get_product_relations", product_id=product.id) }}');
                 const data = await response.json();
 
                 if (data.success) {
@@ -981,7 +995,7 @@
                 message: '{{ _("确认删除此关联产品？此操作无法撤销。") }}',
                 onConfirm: async function() {
                     try {
-                        const response = await fetch(`/product-management/api/product/${productId}/relations/${relationId}`, {
+                        const response = await fetch(`/api/product/${productId}/relations/${relationId}`, {
                             method: 'DELETE',
                             headers: { 'X-CSRFToken': csrfToken }
                         });
@@ -1006,7 +1020,7 @@
                 message: '{{ _("确认删除整个互斥组及其所有产品？此操作无法撤销。") }}',
                 onConfirm: async function() {
                     try {
-                        const response = await fetch(`/product-management/api/product/${productId}/mutual-exclusion-group`, {
+                        const response = await fetch(`/api/product/${productId}/mutual-exclusion-group`, {
                             method: 'DELETE',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -1046,7 +1060,7 @@
 
 <!-- 添加关联产品弹窗 -->
 {{ render_tw_product_relation_modal() }}
-{{ render_tw_product_relation_script(product.id, '/product-management/api', []) }}
+{{ render_tw_product_relation_script(product.id, '/api', []) }}
 
 <!-- TW确认对话框 -->
 {{ tw_confirm_modal(
@@ -1091,6 +1105,12 @@
 <!-- 编码冲突警告模态框 -->
 {{ tw_spec_conflict_modal() }}
 
+<!-- 规格引入模态框（从配置版本引入规格） -->
+{% if product.source_configuration_id %}
+{{ tw_spec_import_modal() }}
+{{ tw_spec_import_script(product.id) }}
+{% endif %}
+
 <!-- 规格编辑模式脚本 -->
 <script src="{{ url_for('static', filename='js/spec-editor.js') }}"></script>
 <script>
@@ -1098,6 +1118,17 @@
     const productId = {{ product.id }};
     const isMnLocked = {{ 'true' if is_mn_locked else 'false' }};
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const hasSourceConfiguration = {{ 'true' if product.source_configuration_id else 'false' }};
+
+    // 引入按钮打开规格引入模态框（仅引入产品有此按钮）
+    const importBtn = document.getElementById('importSpecsBtn');
+    if (importBtn) {
+        importBtn.addEventListener('click', function() {
+            window.dispatchEvent(new CustomEvent('open-spec-import-modal', {
+                detail: { productId: productId }
+            }));
+        });
+    }
 
     // 国际化文本
     const specI18n = {
@@ -1150,6 +1181,11 @@
         onPartialRefresh: handlePartialRefresh
     });
     specEditor.init();
+
+    // 如果是引入产品，设置标记以启用编辑限制
+    if (hasSourceConfiguration) {
+        specEditor.setImportedProduct(true);
+    }
 
     // 绑定全局函数以兼容规格行内的onclick
     window.toggleSpecEdit = function(btn) {
@@ -1205,10 +1241,19 @@
             productMnDisplay.textContent = result.product_mn || '-';
         }
 
-        // 2. 更新规格MN显示（产品概览区域）
+        // 2. 更新规格MN显示（产品概览区域）- 只有不同时才显示
         const specMnMainDisplay = document.getElementById('specMnMainDisplay');
+        const specMnWrapper = document.getElementById('specMnWrapper');
         if (specMnMainDisplay) {
             specMnMainDisplay.textContent = result.spec_mn || '-';
+        }
+        if (specMnWrapper) {
+            // 只有当 spec_mn 与 product_mn 不同时才显示
+            if (result.spec_mn && result.spec_mn !== result.product_mn) {
+                specMnWrapper.classList.remove('hidden');
+            } else {
+                specMnWrapper.classList.add('hidden');
+            }
         }
 
         // 3. 更新规格MN显示（侧边栏）
@@ -1229,10 +1274,16 @@
             }
         }
 
-        // 5. 重建规格列表（使用公共方法）
-        if (result.specs && result.specs.length > 0) {
-            specEditor.rebuildSpecsList(result.specs);
-        }
+        // 5. 重建规格列表（使用分组API获取最新数据）
+        const productId = {{ product.id }};
+        fetch(`/api/product/${productId}/specs?grouped=1`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.spec_categories && data.spec_categories.length > 0) {
+                    specEditor.rebuildSpecsListGrouped(data.spec_categories);
+                }
+            })
+            .catch(err => console.error('Failed to refresh specs:', err));
     }
 })();
 </script>

@@ -873,76 +873,22 @@ class ApprovalStep(db.Model):
     def _execute_product_warehousing(self, approval_record, dev_product):
         """执行研发产品入库动作
 
-        当审批通过时，将研发产品转移到产品库：
-        - 创建新的Product记录
-        - 复制dev_product_specs到product_specs
-        - 检测MN编号重复
-        - 更新研发产品状态为"已入库"
+        DEPRECATED (2025-12-26): 研发库功能已废弃，此方法不再执行实际操作。
+        保留此方法是为了兼容历史审批记录，避免审批流程执行时报错。
 
         Args:
             approval_record: 审批记录对象
             dev_product: 研发产品对象 (DevProduct)
 
         Returns:
-            bool: 是否成功执行动作
+            bool: 始终返回 True
         """
-        try:
-            from app.services.product_warehousing_service import ProductWarehousingService
-
-            if approval_record.action == 'approve':
-                # 调用入库服务
-                service = ProductWarehousingService()
-                success, message, product_id = service.transfer_dev_product_to_production(
-                    dev_product_id=dev_product.id,
-                    approver_id=approval_record.approver_id
-                )
-
-                if not success:
-                    current_app.logger.error(f"研发产品入库失败: {message}")
-                    return False
-
-                current_app.logger.info(f"研发产品入库成功: DevProduct#{dev_product.id} → Product#{product_id}, MN={dev_product.mn_code}")
-
-                # 自动完成"申请入库"和"已入库"阶段
-                from datetime import datetime
-
-                # 1. 完成"申请入库"阶段（设置结束日期）
-                if dev_product.stage_history:
-                    for record in reversed(dev_product.stage_history):
-                        if record.get('stage') == 'apply_storage' and not record.get('endDate'):
-                            record['endDate'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                            break
-
-                # 2. 切换到"已入库"阶段并立即完成
-                dev_product.update_stage(
-                    'stored',
-                    user_id=approval_record.approver_id,
-                    description='入库审批通过，自动完成入库'
-                )
-
-                # 3. 设置"已入库"阶段的结束日期（标记为完成）
-                if dev_product.stage_history:
-                    for record in reversed(dev_product.stage_history):
-                        if record.get('stage') == 'stored' and not record.get('endDate'):
-                            record['endDate'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                            break
-
-                # 触发SQLAlchemy更新检测
-                dev_product.stage_history = list(dev_product.stage_history)
-                db.session.add(dev_product)
-
-                return True
-            else:
-                # 拒绝入库，更新研发产品状态
-                dev_product.status = '入库被拒'
-                db.session.commit()
-                current_app.logger.info(f"研发产品入库被拒: DevProduct#{dev_product.id}")
-                return True
-
-        except Exception as e:
-            current_app.logger.error(f"执行产品入库动作失败: {str(e)}")
-            current_app.logger.error(traceback.format_exc())
-            return False
+        current_app.logger.warning(
+            f"[DEPRECATED] 研发产品入库功能已废弃，跳过执行。"
+            f"DevProduct#{dev_product.id if dev_product else 'N/A'}, "
+            f"ApprovalRecord#{approval_record.id if approval_record else 'N/A'}"
+        )
+        return True
 
 
 class ApprovalInstance(db.Model):

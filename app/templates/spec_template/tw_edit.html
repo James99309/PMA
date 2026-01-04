@@ -1,0 +1,827 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_form_fields.html' import tw_form_field, tw_form_textarea with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('编辑规格模板') if is_edit else _('新建规格模板') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
+        {{ render_tw_fixed_header_styles() }}
+
+        /* 选择框样式 */
+        .spec-item-checkbox {
+            transition: all 0.15s ease;
+        }
+        .spec-item-checkbox.selected {
+            background-color: rgba(19, 127, 236, 0.08);
+            border-color: #137fec;
+        }
+        .dark .spec-item-checkbox.selected {
+            background-color: rgba(19, 127, 236, 0.15);
+        }
+        /* 深色模式下规格项名称强制白色 */
+        .dark .spec-item-checkbox .spec-item-name {
+            color: #fff;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark">
+    {% call(slot) render_tw_layout(active_page='spec_template', show_search=false) %}
+    {% if slot == 'content' %}
+        <!-- 主内容 -->
+        <div class="flex-1 flex flex-col h-full overflow-hidden" x-data="specTemplateEditor()" x-init="init()">
+        {% call(page_slot) render_tw_fixed_page() %}
+        {% if page_slot == 'header' %}
+            <!-- 左侧：面包屑和标题 -->
+            <div class="min-w-0">
+                <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-1">
+                    <a class="hover:underline hover:text-primary" href="{{ url_for('spec_template.list_templates') }}">{{ _('规格模板管理') }}</a>
+                    <span>/</span>
+                    {% if is_edit %}
+                    <a class="hover:underline hover:text-primary" href="{{ url_for('spec_template.view_template', template_id=template.id) }}">{{ template.model }}</a>
+                    <span>/</span>
+                    <span class="text-slate-800 dark:text-slate-200">{{ _('编辑') }}</span>
+                    {% else %}
+                    <span class="text-slate-800 dark:text-slate-200">{{ _('新建模板') }}</span>
+                    {% endif %}
+                </div>
+                <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('编辑规格模板') if is_edit else _('新建规格模板') }}</h1>
+                {% if is_edit and template.model %}
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{{ template.model }}</p>
+                {% endif %}
+            </div>
+            <!-- 右侧：操作按钮 -->
+            <div class="flex items-center gap-3">
+                <a href="{{ url_for('spec_template.list_templates') }}"
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                    <span class="material-symbols-outlined text-lg">arrow_back</span>
+                    {{ _('返回') }}
+                </a>
+                <button type="button" onclick="saveTemplate()" id="saveBtn"
+                   class="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
+                    <span class="material-symbols-outlined text-lg">save</span>
+                    {{ _('保存') }}
+                </button>
+            </div>
+        {% elif page_slot == 'content' %}
+            <!-- 内容区域 -->
+            <div class="flex items-start gap-6">
+                <!-- 左侧：基本信息 + 分类导航 -->
+                <div class="w-72 flex-shrink-0 flex flex-col gap-4">
+                    <!-- 基本信息卡片 -->
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+                        <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-4">{{ _('基本信息') }}</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('产品分类') }}</label>
+                                <select x-model="templateData.category_id"
+                                        @change="onCategoryChange()"
+                                        class="form-select w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm">
+                                    <option value="">{{ _('选择分类') }}</option>
+                                    {% for cat in product_categories %}
+                                    <option value="{{ cat.id }}">{{ cat.name }} ({{ cat.code_letter }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('产品名称') }}</label>
+                                <select x-model="templateData.subcategory_id"
+                                        :disabled="!templateData.category_id"
+                                        class="form-select w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm disabled:opacity-50">
+                                    <option value="">{{ _('选择产品名称') }}</option>
+                                    <template x-for="subcat in getSubcategories()" :key="subcat.id">
+                                        <option :value="String(subcat.id)" x-text="subcat.name + ' (' + subcat.code_letter + ')'"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    {{ _('产品型号') }} <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" x-model="templateData.model"
+                                       class="form-input w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
+                                       placeholder="{{ _('如：DRFT-BDA410/M') }}">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('模板名称') }}</label>
+                                <input type="text" x-model="templateData.name"
+                                       class="form-input w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
+                                       placeholder="{{ _('可选：模板描述') }}">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('版本') }}</label>
+                                <div class="form-input w-full rounded-lg border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm cursor-not-allowed py-2 px-3"
+                                     x-text="templateData.version || 'V1.0'"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 分类导航 -->
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <div class="p-4 border-b border-slate-200 dark:border-slate-700">
+                            <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('规格分类') }}</h3>
+                        </div>
+                        <nav class="py-2">
+                            {% for category in categories %}
+                            <button type="button" @click="activeCategory = {{ category.id }}"
+                               class="w-full flex items-center justify-between px-4 py-3 text-sm transition-colors"
+                               :class="activeCategory === {{ category.id }} ? 'bg-primary/10 text-primary border-l-2 border-primary' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'">
+                                <span class="truncate">{{ category.name }}</span>
+                                <span class="text-xs px-1.5 py-0.5 rounded-full"
+                                      :class="getSelectedCount({{ category.id }}) > 0 ? 'bg-primary/20 text-primary' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'"
+                                      x-text="getSelectedCount({{ category.id }})"></span>
+                            </button>
+                            {% endfor %}
+                        </nav>
+                    </div>
+                </div>
+
+                <!-- 右侧：规格项列表（内部可滚动） -->
+                <div class="flex-1 min-w-0 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col max-h-[calc(100vh-200px)]">
+                    <!-- 头部 -->
+                    <div class="flex-shrink-0 flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+                        <div>
+                            <h3 class="text-base font-semibold text-slate-900 dark:text-white" x-text="getCategoryName(activeCategory)"></h3>
+                            <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{{ _('勾选需要的规格项，并设置通用值') }}</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" @click="selectAllInCategory()"
+                               class="text-sm text-primary hover:text-primary/80 transition-colors">
+                                {{ _('全选') }}
+                            </button>
+                            <span class="text-slate-300 dark:text-slate-600">|</span>
+                            <button type="button" @click="deselectAllInCategory()"
+                               class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
+                                {{ _('取消全选') }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 规格项列表（可滚动） -->
+                    <div class="flex-1 min-h-0 overflow-y-auto p-4">
+                        {% for category in categories %}
+                        <div x-show="activeCategory === {{ category.id }}" class="space-y-3">
+                            <!-- 无规格项时的提示 -->
+                            <template x-if="getSortedDefinitions({{ category.id }}).length === 0">
+                                <div class="flex flex-col items-center justify-center py-12 text-slate-400">
+                                    <span class="material-symbols-outlined mb-2" style="font-size: 48px;">tune</span>
+                                    <span class="text-sm">{{ _('该分类下暂无规格项') }}</span>
+                                </div>
+                            </template>
+
+                            <!-- 规格项动态列表 -->
+                            <template x-for="def in getSortedDefinitions({{ category.id }})" :key="def.id">
+                                <div class="spec-item-checkbox bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-4 cursor-pointer"
+                                     :class="{ 'selected': isSelected(def.id) }"
+                                     @click="toggleSelection(def.id)">
+                                    <div class="flex items-start gap-3">
+                                        <!-- 复选框 -->
+                                        <div class="flex-shrink-0 mt-0.5">
+                                            <div class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors"
+                                                 :class="isSelected(def.id) ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'">
+                                                <span x-show="isSelected(def.id)" class="material-symbols-outlined text-white" style="font-size: 14px;">check</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- 规格信息 -->
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex items-center gap-2 mb-1">
+                                                <!-- 选中时显示序号 -->
+                                                <span x-show="isSelected(def.id)"
+                                                      class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-primary rounded-full"
+                                                      x-text="selectedItems[def.id]?.display_order || ''"></span>
+                                                <span class="spec-item-name font-medium text-slate-900 dark:text-white" x-text="def.name"></span>
+                                                <span x-show="def.name_en" class="text-xs text-slate-500 dark:text-slate-400" x-text="'(' + (def.name_en || '') + ')'"></span>
+                                                <span x-show="def.unit" class="text-xs px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded" x-text="def.unit"></span>
+                                            </div>
+                                            <p x-show="def.description" class="text-xs text-slate-500 dark:text-slate-400 mb-2" x-text="def.description"></p>
+
+                                            <!-- 设置区域（仅选中时显示） -->
+                                            <div x-show="isSelected(def.id)" x-collapse @click.stop class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+                                                <div class="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                                                            {{ _('通用值 (General)') }}
+                                                            <span x-show="hasOptions(def.id)" class="text-slate-400 font-normal ml-1">({{ _('可选择或输入') }})</span>
+                                                        </label>
+                                                        <input type="text"
+                                                               :value="getItemValue(def.id, 'general_value')"
+                                                               @input="setItemValue(def.id, 'general_value', $event.target.value)"
+                                                               :list="hasOptions(def.id) ? 'options_' + def.id : null"
+                                                               class="form-input w-full text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
+                                                               placeholder="{{ _('输入通用规格值') }}">
+                                                        <!-- 预设选项 datalist（动态生成） -->
+                                                        <template x-if="hasOptions(def.id)">
+                                                            <datalist :id="'options_' + def.id">
+                                                                <template x-for="opt in getDefinitionOptions(def.id)" :key="opt">
+                                                                    <option :value="opt"></option>
+                                                                </template>
+                                                            </datalist>
+                                                        </template>
+                                                    </div>
+                                                    <div>
+                                                        <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{{ _('测试条件') }}</label>
+                                                        <select :value="getItemValue(def.id, 'test_condition_id')"
+                                                                @change="setItemValue(def.id, 'test_condition_id', $event.target.value)"
+                                                                class="form-select w-full text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700">
+                                                            <option value="">{{ _('选择测试条件') }}</option>
+                                                            {% for condition in test_conditions %}
+                                                            <option value="{{ condition.id }}">{{ condition.name }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{{ _('测试方法') }}</label>
+                                                        <select :value="getItemValue(def.id, 'test_method_id')"
+                                                                @change="setItemValue(def.id, 'test_method_id', $event.target.value)"
+                                                                class="form-select w-full text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700">
+                                                            <option value="">{{ _('选择测试方法') }}</option>
+                                                            {% for method in test_methods %}
+                                                            <option value="{{ method.id }}">{{ method.name }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{{ _('显示排序') }}</label>
+                                                        <input type="number"
+                                                               :value="getItemValue(def.id, 'display_order')"
+                                                               @input="setDisplayOrder(def.id, $event.target.value)"
+                                                               class="form-input w-full text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
+                                                               min="1"
+                                                               placeholder="1">
+                                                    </div>
+                                                </div>
+                                                <!-- 选项行：必填 + 编码设置 -->
+                                                <div class="flex items-center gap-6 mt-3">
+                                                    <label class="flex items-center gap-2 cursor-pointer">
+                                                        <input type="checkbox"
+                                                               :checked="getItemValue(def.id, 'is_required')"
+                                                               @change="setItemValue(def.id, 'is_required', $event.target.checked)"
+                                                               class="form-checkbox rounded text-primary">
+                                                        <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('必填') }}</span>
+                                                    </label>
+                                                    <label class="flex items-center gap-2 cursor-pointer">
+                                                        <input type="checkbox"
+                                                               :checked="getItemValue(def.id, 'use_in_code')"
+                                                               @change="setItemValue(def.id, 'use_in_code', $event.target.checked)"
+                                                               class="form-checkbox rounded text-primary">
+                                                        <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('参与编码') }}</span>
+                                                    </label>
+                                                    <div class="flex items-center gap-2" x-show="getItemValue(def.id, 'use_in_code')">
+                                                        <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('编码长度') }}:</span>
+                                                        <select :value="getItemValue(def.id, 'code_length') || 1"
+                                                                @change="setItemValue(def.id, 'code_length', parseInt($event.target.value))"
+                                                                class="form-select text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 py-1 px-3 w-16">
+                                                            <option value="1">1</option>
+                                                            <option value="2">2</option>
+                                                        </select>
+                                                    </div>
+                                                    <!-- 编码映射只读显示 -->
+                                                    <div x-show="getItemValue(def.id, 'use_in_code') && getCodeDisplay(def.id)"
+                                                         class="flex items-center gap-1 ml-4 px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-xs">
+                                                        <span class="text-slate-500 dark:text-slate-400">{{ _('映射') }}:</span>
+                                                        <span class="font-mono text-slate-700 dark:text-slate-300" x-text="getCodeDisplay(def.id)"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+        {% endcall %}
+        </div>
+    {% endif %}
+    {% endcall %}
+
+    <!-- 布局脚本 -->
+    {{ render_tw_layout_script() }}
+
+    <!-- 页面逻辑 -->
+    <script>
+    // 存储 Alpine 组件实例的引用
+    let specTemplateEditorInstance = null;
+
+    // 全局包装函数：调用 Alpine.js 组件的 saveTemplate 方法
+    function saveTemplate() {
+        if (specTemplateEditorInstance && typeof specTemplateEditorInstance.saveTemplate === 'function') {
+            specTemplateEditorInstance.saveTemplate();
+        } else {
+            console.error('specTemplateEditorInstance not initialized');
+        }
+    }
+
+    function specTemplateEditor() {
+        const instance = {
+            templateId: {{ template.id if template else 'null' }},
+            templateData: {
+                model: '{{ template.model if template else '' }}',
+                name: '{{ template.name if template else '' }}',
+                version: '{{ template.version if template else 'V1.0' }}',
+                description: '{{ template.description if template else '' }}',
+                category_id: '{{ template.category_id if template and template.category_id else '' }}',
+                subcategory_id: '{{ template.subcategory_id if template and template.subcategory_id else '' }}'
+            },
+            // 子分类数据（按分类ID组织）
+            subcategoriesData: {{ subcategories_by_category|default({})|tojson }},
+            activeCategory: {{ categories[0].id if categories else 'null' }},
+            selectedItems: {{ selected_items|default({})|tojson }},
+            // 规格定义完整数据（按分类ID组织，供前端动态排序使用）
+            definitionsData: {{ definitions_data|default({})|tojson }},
+
+            categories: {{ categories|map(attribute='id')|list|tojson }},
+            categoryNames: {
+                {% for category in categories %}
+                {{ category.id }}: '{{ category.name }}'{% if not loop.last %},{% endif %}
+                {% endfor %}
+            },
+            definitionsByCategory: {
+                {% for category in categories %}
+                {{ category.id }}: [{% for d in definitions_by_category.get(category.id, []) %}{{ d.id }}{% if not loop.last %},{% endif %}{% endfor %}]{% if not loop.last %},{% endif %}
+                {% endfor %}
+            },
+            // 规格项预设选项
+            definitionOptions: {
+                {% for category in categories %}
+                {% for d in definitions_by_category.get(category.id, []) %}
+                {% if d.default_options %}
+                {{ d.id }}: {{ d.default_options|tojson }},
+                {% endif %}
+                {% endfor %}
+                {% endfor %}
+            },
+            // 规格项值类型
+            definitionValueTypes: {
+                {% for category in categories %}
+                {% for d in definitions_by_category.get(category.id, []) %}
+                {{ d.id }}: '{{ d.value_type or "text" }}'{% if not loop.last %},{% endif %}
+                {% endfor %}{% if not loop.last %},{% endif %}
+                {% endfor %}
+            },
+
+            getCategoryName(categoryId) {
+                return this.categoryNames[categoryId] || '';
+            },
+
+            // 获取当前分类下的子分类列表
+            getSubcategories() {
+                if (!this.templateData.category_id) return [];
+                return this.subcategoriesData[this.templateData.category_id] || [];
+            },
+
+            // 分类变更时清空子分类
+            onCategoryChange() {
+                this.templateData.subcategory_id = null;
+            },
+
+            init() {
+                // 设置全局引用，让外部函数可以调用组件方法
+                specTemplateEditorInstance = this;
+
+                // 保存初始的子分类ID，等 x-for 渲染完成后再设置
+                const savedSubcategoryId = this.templateData.subcategory_id;
+                if (savedSubcategoryId) {
+                    this.$nextTick(() => {
+                        // 强制重新设置值，确保在 options 渲染后匹配
+                        this.templateData.subcategory_id = '';
+                        this.$nextTick(() => {
+                            this.templateData.subcategory_id = savedSubcategoryId;
+                        });
+                    });
+                }
+
+                // 初始化已选中项的排序（确保序号连续从1开始）
+                if (Object.keys(this.selectedItems).length > 0) {
+                    this.reorderSelectedItems();
+                }
+            },
+
+            isSelected(definitionId) {
+                return !!this.selectedItems[definitionId];
+            },
+
+            toggleSelection(definitionId) {
+                if (this.selectedItems[definitionId]) {
+                    delete this.selectedItems[definitionId];
+                    // 取消选中后重新排序（填补空缺的序号）
+                    this.reorderSelectedItems();
+                } else {
+                    // 获取当前最大序号 + 1
+                    const maxOrder = Math.max(0, ...Object.values(this.selectedItems).map(i => i.display_order || 0));
+                    this.selectedItems[definitionId] = {
+                        definition_id: definitionId,
+                        general_value: '',
+                        test_condition_id: null,
+                        test_method_id: null,
+                        is_required: false,
+                        use_in_code: false,
+                        code_length: 1,
+                        display_order: maxOrder + 1
+                    };
+                }
+            },
+
+            // 重新排序选中项（按当前 display_order 排序后重新分配 1, 2, 3...）
+            reorderSelectedItems() {
+                const sorted = Object.values(this.selectedItems)
+                    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+                sorted.forEach((item, index) => {
+                    this.selectedItems[item.definition_id].display_order = index + 1;
+                });
+            },
+
+            // 手动设置排序序号
+            setDisplayOrder(defId, newOrder) {
+                if (this.selectedItems[defId]) {
+                    this.selectedItems[defId].display_order = parseInt(newOrder) || 0;
+                    // 重新排序以确保连续性
+                    this.reorderSelectedItems();
+                }
+            },
+
+            getSelectedCount(categoryId) {
+                const definitions = this.definitionsByCategory[categoryId] || [];
+                return definitions.filter(id => this.isSelected(id)).length;
+            },
+
+            // 获取排序后的规格定义列表（选中的按 display_order 排到顶部）
+            getSortedDefinitions(categoryId) {
+                const allDefs = this.definitionsData[categoryId] || [];
+
+                // 分离选中和未选中
+                const selected = allDefs
+                    .filter(d => this.isSelected(d.id))
+                    .sort((a, b) => {
+                        const orderA = this.selectedItems[a.id]?.display_order || 0;
+                        const orderB = this.selectedItems[b.id]?.display_order || 0;
+                        return orderA - orderB;
+                    });
+
+                const unselected = allDefs.filter(d => !this.isSelected(d.id));
+
+                return [...selected, ...unselected];
+            },
+
+            getItemValue(definitionId, field) {
+                const item = this.selectedItems[definitionId];
+                return item ? (item[field] || '') : '';
+            },
+
+            setItemValue(definitionId, field, value) {
+                if (!this.selectedItems[definitionId]) {
+                    this.selectedItems[definitionId] = { definition_id: definitionId };
+                }
+                this.selectedItems[definitionId][field] = value;
+            },
+
+            // 获取规格项的预设选项（支持字符串和数组格式）
+            getDefinitionOptions(definitionId) {
+                let options = this.definitionOptions[definitionId];
+                if (!options) return [];
+
+                // 如果是字符串，按换行或逗号分割
+                if (typeof options === 'string') {
+                    options = options.split(/[\n,]/).map(s => s.trim()).filter(s => s);
+                }
+
+                return Array.isArray(options) ? options : [];
+            },
+
+            // 检查规格项是否有预设选项
+            hasOptions(definitionId) {
+                const options = this.getDefinitionOptions(definitionId);
+                return options && options.length > 0;
+            },
+
+            // 格式化编码选项为字符串显示 {"400-470": "A"} => "400-470:A"
+            formatCodeOptions(options, codeLength = 1) {
+                if (!options || typeof options !== 'object') return '';
+                return Object.entries(options).map(([value, code]) => {
+                    // 根据 code_length 填充编码
+                    let paddedCode = code || '';
+                    while (paddedCode.length < codeLength) {
+                        paddedCode += 'X';
+                    }
+                    return `${value}:${paddedCode}`;
+                }).join(', ');
+            },
+
+            // 获取带长度的编码显示
+            getCodeDisplay(definitionId) {
+                const options = this.getItemValue(definitionId, 'options');
+                const codeLength = this.getItemValue(definitionId, 'code_length') || 1;
+                return this.formatCodeOptions(options, codeLength);
+            },
+
+            // 解析编码选项字符串为对象 "400-470:A, 450-520:B" => {"400-470": "A", "450-520": "B"}
+            parseCodeOptions(str) {
+                if (!str || typeof str !== 'string') return {};
+                const result = {};
+                str.split(',').forEach(pair => {
+                    const [value, code] = pair.split(':').map(s => s.trim());
+                    if (value && code) {
+                        result[value] = code.toUpperCase();
+                    }
+                });
+                return result;
+            },
+
+            selectAllInCategory() {
+                const definitions = this.definitionsByCategory[this.activeCategory] || [];
+                // 获取当前最大序号
+                let maxOrder = Math.max(0, ...Object.values(this.selectedItems).map(i => i.display_order || 0));
+                definitions.forEach(id => {
+                    if (!this.selectedItems[id]) {
+                        maxOrder++;
+                        this.selectedItems[id] = {
+                            definition_id: id,
+                            general_value: '',
+                            test_condition_id: null,
+                            test_method_id: null,
+                            is_required: false,
+                            use_in_code: false,
+                            code_length: 1,
+                            display_order: maxOrder
+                        };
+                    }
+                });
+            },
+
+            deselectAllInCategory() {
+                const definitions = this.definitionsByCategory[this.activeCategory] || [];
+                definitions.forEach(id => {
+                    delete this.selectedItems[id];
+                });
+                // 取消后重新排序剩余项
+                this.reorderSelectedItems();
+            },
+
+            async saveTemplate() {
+                if (!this.templateData.model) {
+                    this.showToast('{{ _("请输入产品型号") }}', 'error');
+                    return;
+                }
+
+                // 使用 DOM 操作控制按钮状态
+                const btn = document.getElementById('saveBtn');
+                const originalHtml = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="material-symbols-outlined text-lg animate-spin">refresh</span> {{ _("保存中...") }}';
+
+                // ========== 调试：打印 selectedItems ==========
+                console.log('===== 保存模板调试信息 =====');
+                console.log('selectedItems 原始数据:', JSON.stringify(this.selectedItems, null, 2));
+                console.log('selectedItems 键数量:', Object.keys(this.selectedItems).length);
+
+                // 构建规格项数据
+                const items = Object.values(this.selectedItems).map(item => ({
+                    definition_id: item.definition_id,
+                    general_value: item.general_value || null,
+                    test_condition_id: item.test_condition_id ? parseInt(item.test_condition_id) : null,
+                    test_method_id: item.test_method_id ? parseInt(item.test_method_id) : null,
+                    is_required: !!item.is_required,
+                    use_in_code: !!item.use_in_code,
+                    code_length: item.code_length ? parseInt(item.code_length) : 1,
+                    options: item.options || null,
+                    display_order: item.display_order ? parseInt(item.display_order) : 0
+                }));
+
+                // ========== 调试：打印构建后的 items ==========
+                console.log('构建后的 items 数组:', JSON.stringify(items, null, 2));
+                console.log('items 数量:', items.length);
+
+                const requestData = {
+                    model: this.templateData.model,
+                    name: this.templateData.name || null,
+                    version: this.templateData.version || 'V1.0',
+                    description: this.templateData.description || null,
+                    category_id: this.templateData.category_id ? parseInt(this.templateData.category_id) : null,
+                    subcategory_id: this.templateData.subcategory_id ? parseInt(this.templateData.subcategory_id) : null,
+                    items: items
+                };
+
+                const isEdit = !!this.templateId;
+                const url = isEdit
+                    ? '{{ url_for("spec_template.list_templates") }}api/' + this.templateId
+                    : '{{ url_for("spec_template.list_templates") }}api/create';
+                const method = isEdit ? 'PUT' : 'POST';
+
+                // ========== 调试：打印完整请求数据 ==========
+                console.log('请求 URL:', url);
+                console.log('请求方法:', method);
+                console.log('完整请求数据:', JSON.stringify(requestData, null, 2));
+                console.log('===== 调试信息结束 =====');
+
+                try {
+                    const response = await fetch(url, {
+                        method: method,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestData)
+                    });
+
+                    const result = await response.json();
+
+                    // 处理版本升级确认请求
+                    if (result.require_version_upgrade) {
+                        const confirmed = await this.showVersionUpgradeModal(
+                            result.current_version,
+                            result.new_version,
+                            result.changes
+                        );
+
+                        if (confirmed) {
+                            // 用户确认，带确认标志重新提交
+                            requestData.confirm_version_upgrade = true;
+                            const retryResponse = await fetch(url, {
+                                method: method,
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(requestData)
+                            });
+                            const retryResult = await retryResponse.json();
+                            if (retryResult.success) {
+                                this.showToast(retryResult.message || '{{ _("保存成功") }}');
+                                // 更新页面显示的版本号
+                                this.templateData.version = result.new_version;
+                                // 更新 selectedItems
+                                if (retryResult.data && retryResult.data.items) {
+                                    for (const item of retryResult.data.items) {
+                                        if (this.selectedItems[item.definition_id]) {
+                                            this.selectedItems[item.definition_id].options = item.options;
+                                            this.selectedItems[item.definition_id].id = item.id;
+                                        }
+                                    }
+                                }
+                            } else {
+                                this.showToast(retryResult.message || '{{ _("保存失败") }}', 'error');
+                            }
+                        }
+                        // 用户取消，不做任何操作
+                    } else if (result.success) {
+                        this.showToast(result.message || '{{ _("保存成功") }}');
+                        // 更新本地数据，保持在编辑页面
+                        if (result.data && result.data.items) {
+                            // 更新 selectedItems 中的 options（编码映射）
+                            for (const item of result.data.items) {
+                                if (this.selectedItems[item.definition_id]) {
+                                    this.selectedItems[item.definition_id].options = item.options;
+                                    this.selectedItems[item.definition_id].id = item.id;
+                                }
+                            }
+                        }
+                        // 如果是新建，更新为编辑模式
+                        if (!this.templateId && result.data && result.data.id) {
+                            this.templateId = result.data.id;
+                            // 更新 URL 不刷新页面
+                            window.history.replaceState({}, '', `/dev-product/spec-templates/${result.data.id}/edit`);
+                        }
+                    } else {
+                        this.showToast(result.message || '{{ _("保存失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    this.showToast('{{ _("保存失败") }}', 'error');
+                } finally {
+                    // 恢复按钮状态
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                }
+            },
+
+            // 显示版本升级确认弹窗
+            showVersionUpgradeModal(currentVersion, newVersion, changes) {
+                return new Promise((resolve) => {
+                    // 变更类型标签映射
+                    const typeLabels = {
+                        'add_code_item': '{{ _("新增编码规格项") }}',
+                        'remove_code_item': '{{ _("删除编码规格项") }}',
+                        'use_in_code_changed': '{{ _("编码参与状态变更") }}',
+                        'code_length_changed': '{{ _("编码长度变更") }}',
+                        'order_changed': '{{ _("编码顺序变更") }}',
+                        'category_changed': '{{ _("产品分类变更") }}',
+                        'subcategory_changed': '{{ _("产品子分类变更") }}'
+                    };
+
+                    // 构建变更说明 HTML
+                    const changesHtml = changes.map(c =>
+                        `<li class="text-sm text-slate-600 dark:text-slate-400">• ${typeLabels[c.type] || c.type}: <strong>${c.name}</strong></li>`
+                    ).join('');
+
+                    // 创建模态框
+                    const modal = document.createElement('div');
+                    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50';
+                    modal.innerHTML = `
+                        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+                            <div class="p-6">
+                                <div class="flex items-center gap-3 mb-4">
+                                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
+                                        <span class="material-symbols-outlined text-amber-600 dark:text-amber-400">warning</span>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('检测到结构性变更') }}</h3>
+                                        <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('当前版本') }} <span class="font-mono font-medium">${currentVersion}</span> {{ _('已被用于生成MN编码') }}</p>
+                                    </div>
+                                </div>
+
+                                <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 mb-4">
+                                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('检测到的变更') }}:</p>
+                                    <ul class="space-y-1">${changesHtml}</ul>
+                                </div>
+
+                                <div class="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                                    <p class="text-sm text-slate-700 dark:text-slate-300">
+                                        {{ _('是否将版本升级到') }}
+                                        <span class="font-mono font-semibold text-primary">${newVersion}</span>
+                                        {{ _('并保存?') }}
+                                    </p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                        {{ _('版本升级不会影响已有的MN编码，但新编码将使用新的结构。') }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-end gap-3 px-6 py-4 bg-slate-50 dark:bg-slate-700/50 border-t border-slate-200 dark:border-slate-700">
+                                <button type="button" class="cancel-btn px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors">
+                                    {{ _('取消') }}
+                                </button>
+                                <button type="button" class="confirm-btn px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
+                                    {{ _('升级到') }} ${newVersion}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+
+                    document.body.appendChild(modal);
+
+                    // 绑定事件
+                    modal.querySelector('.cancel-btn').addEventListener('click', () => {
+                        modal.remove();
+                        resolve(false);
+                    });
+                    modal.querySelector('.confirm-btn').addEventListener('click', () => {
+                        modal.remove();
+                        resolve(true);
+                    });
+                    // 点击背景关闭
+                    modal.addEventListener('click', (e) => {
+                        if (e.target === modal) {
+                            modal.remove();
+                            resolve(false);
+                        }
+                    });
+                });
+            },
+
+            // Toast 通知 - 使用全局函数
+            showToast(message, type = 'success') {
+                window.showToast(message, type);
+            }
+        };
+        return instance;
+    }
+    </script>
+</body>
+</html>

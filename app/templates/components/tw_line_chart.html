@@ -1,0 +1,686 @@
+{#
+=============================================================================
+Tailwind SVG 月度折线图组件
+=============================================================================
+纯 SVG 实现的月度趋势折线图，特点：
+- 12个月数据点，贝塞尔曲线平滑连接
+- 渐变面积填充
+- 悬停提示显示具体数值
+- 最大值点特殊高亮
+- 支持暗色模式
+- 无需 ECharts 等第三方库
+
+使用方式：
+{% from 'components/tw_line_chart.html' import render_tw_line_chart, render_tw_line_chart_script %}
+
+<!-- 1. 渲染 SVG 容器 -->
+{{ render_tw_line_chart(
+    chart_id='expenseMonthlyChart',
+    color='#2979ff'
+) }}
+
+<!-- 2. 准备数据（12个月的数值数组） -->
+<script>
+    const monthlyExpenseData = {{ expense_monthly_stats | tojson }};
+</script>
+
+<!-- 3. 渲染图表脚本 -->
+{{ render_tw_line_chart_script(
+    chart_id='expenseMonthlyChart',
+    data_var='monthlyExpenseData',
+    unit='元',
+    color='#2979ff'
+) }}
+
+参数说明：
+- chart_id: 图表唯一ID
+- data_var: JavaScript 数据变量名（必须是12个数值的数组）
+- unit: 值单位（如 '元'、'万元'）
+- color: 主题色（十六进制，如 '#2979ff'）
+- month_label: 月份标签文本（默认 '月'）
+=============================================================================
+#}
+
+{# 渲染 SVG 折线图容器 #}
+{% macro render_tw_line_chart(chart_id, color='#2979ff') %}
+<div class="relative w-full" style="aspect-ratio: 3.5/1;" id="{{ chart_id }}Container">
+    <svg class="w-full h-full overflow-visible" viewBox="0 0 800 220" preserveAspectRatio="xMidYMid meet" id="{{ chart_id }}">
+        <!-- 渐变定义 -->
+        <defs>
+            <linearGradient id="{{ chart_id }}AreaGradient" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="{{ color }}" stop-opacity="0.3"></stop>
+                <stop offset="100%" stop-color="{{ color }}" stop-opacity="0"></stop>
+            </linearGradient>
+            <filter id="{{ chart_id }}Glow">
+                <feGaussianBlur stdDeviation="2.5" result="coloredBlur"></feGaussianBlur>
+                <feMerge>
+                    <feMergeNode in="coloredBlur"></feMergeNode>
+                    <feMergeNode in="SourceGraphic"></feMergeNode>
+                </feMerge>
+            </filter>
+        </defs>
+        <!-- 网格线 -->
+        <g class="stroke-slate-200 dark:stroke-slate-700" stroke-width="0.5" id="{{ chart_id }}GridLines"></g>
+        <!-- Y轴标签 -->
+        <g class="fill-slate-400 dark:fill-slate-500" style="font-size: 10px;" text-anchor="end" id="{{ chart_id }}YLabels"></g>
+        <!-- X轴标签 -->
+        <g class="fill-slate-500 dark:fill-slate-400" style="font-size: 10px;" text-anchor="middle" id="{{ chart_id }}XLabels"></g>
+        <!-- 面积填充 -->
+        <path id="{{ chart_id }}AreaPath" fill="url(#{{ chart_id }}AreaGradient)" opacity="0.6"></path>
+        <!-- 折线 -->
+        <path id="{{ chart_id }}LinePath" fill="none" stroke="{{ color }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+        <!-- 数据点 -->
+        <g id="{{ chart_id }}DataPoints"></g>
+        <!-- 悬停提示（固定右上角） -->
+        <g id="{{ chart_id }}Tooltip" visibility="hidden" transform="translate(620, 10)">
+            <rect rx="4" height="28" width="140" fill="#1e232d" stroke="#2d333b" stroke-width="1"></rect>
+            <text fill="#e2e8f0" style="font-size: 12px;" text-anchor="middle" x="70" y="18"></text>
+        </g>
+    </svg>
+</div>
+{% endmacro %}
+
+
+{# 渲染折线图样式（每页只需引入一次） #}
+{% macro render_tw_line_chart_style() %}
+<style>
+    .line-chart-point { cursor: pointer; transition: all 0.15s ease; }
+    .line-chart-point:hover circle:first-child { filter: drop-shadow(0 0 4px rgba(41, 121, 255, 0.6)); }
+    .line-chart-glow-point { filter: drop-shadow(0 0 4px rgba(41, 121, 255, 0.6)); }
+</style>
+{% endmacro %}
+
+
+{# 渲染折线图脚本 #}
+{% macro render_tw_line_chart_script(chart_id, data_var, unit='', color='#2979ff', month_label='月') %}
+<script>
+(function() {
+    const monthlyData = {{ data_var }};
+    const svg = document.getElementById('{{ chart_id }}');
+    if (!svg || !monthlyData || monthlyData.length < 12) return;
+
+    // 图表区域配置 (viewBox: 800x220)
+    const chartLeft = 30, chartRight = 790, chartTop = 20, chartBottom = 175;
+    const chartWidth = chartRight - chartLeft;
+    const chartHeight = chartBottom - chartTop;
+
+    // 根据数据最大值动态计算合适的Y轴刻度
+    const maxVal = Math.max(...monthlyData);
+
+    // 计算"好看"的Y轴最大值
+    function getNiceMax(val) {
+        if (val <= 0) return 10;  // 全0数据默认显示0-10
+        // 计算数量级
+        const magnitude = Math.pow(10, Math.floor(Math.log10(val)));
+        const normalized = val / magnitude;  // 1-10之间的值
+        // 向上取整到好看的数字 (1, 2, 2.5, 5, 10)
+        let niceNormalized;
+        if (normalized <= 1) niceNormalized = 1;
+        else if (normalized <= 2) niceNormalized = 2;
+        else if (normalized <= 2.5) niceNormalized = 2.5;
+        else if (normalized <= 5) niceNormalized = 5;
+        else niceNormalized = 10;
+        return niceNormalized * magnitude;
+    }
+
+    const niceMax = getNiceMax(maxVal);
+
+    // 格式化Y轴标签（支持小数值和大数值）
+    function formatYLabel(val) {
+        if (val >= 10000) return (val / 10000).toFixed(val % 10000 === 0 ? 0 : 1) + '万';
+        if (val >= 1000) return (val / 1000).toFixed(val % 1000 === 0 ? 0 : 1) + 'k';
+        // 小数值直接显示整数
+        return Number.isInteger(val) ? val.toString() : val.toFixed(1);
+    }
+
+    // 计算坐标
+    function getY(val) { return chartBottom - (val / niceMax) * chartHeight; }
+    function getX(i) { return chartLeft + 26 + (i * (chartWidth - 52) / 11); }
+
+    // 生成网格线和Y轴标签
+    const gridLines = document.getElementById('{{ chart_id }}GridLines');
+    const yLabels = document.getElementById('{{ chart_id }}YLabels');
+    const ySteps = [0, 0.2, 0.4, 0.6, 0.8, 1];
+    ySteps.forEach(step => {
+        const val = niceMax * step;
+        const y = getY(val);
+        // 网格线
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', chartLeft); line.setAttribute('x2', chartRight);
+        line.setAttribute('y1', y); line.setAttribute('y2', y);
+        gridLines.appendChild(line);
+        // Y轴标签
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', '28'); text.setAttribute('y', String(y + 4));
+        text.textContent = formatYLabel(val);
+        yLabels.appendChild(text);
+    });
+
+    // 生成X轴标签
+    const xLabels = document.getElementById('{{ chart_id }}XLabels');
+    for (let i = 0; i < 12; i++) {
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', getX(i)); text.setAttribute('y', '200');
+        text.textContent = String(i + 1);
+        xLabels.appendChild(text);
+    }
+
+    // 生成路径点
+    const points = monthlyData.map((val, i) => ({ x: getX(i), y: getY(val), val: val, month: i + 1 }));
+
+    // 生成平滑曲线路径（使用二次贝塞尔曲线）
+    function getSmoothPath(pts) {
+        if (pts.length < 2) return '';
+        let d = `M${pts[0].x},${pts[0].y}`;
+        for (let i = 0; i < pts.length - 1; i++) {
+            const p0 = pts[i], p1 = pts[i + 1];
+            const midX = (p0.x + p1.x) / 2;
+            // 使用控制点创建平滑曲线
+            d += ` C${midX},${p0.y} ${midX},${p1.y} ${p1.x},${p1.y}`;
+        }
+        return d;
+    }
+
+    const linePath = getSmoothPath(points);
+    document.getElementById('{{ chart_id }}LinePath').setAttribute('d', linePath);
+
+    // 生成面积填充路径
+    const areaPath = linePath + ` L${points[11].x},${chartBottom} L${points[0].x},${chartBottom} Z`;
+    document.getElementById('{{ chart_id }}AreaPath').setAttribute('d', areaPath);
+
+    // 生成数据点和交互
+    const pointsGroup = document.getElementById('{{ chart_id }}DataPoints');
+    const tooltip = document.getElementById('{{ chart_id }}Tooltip');
+    const tooltipText = tooltip.querySelector('text');
+    const isDark = document.documentElement.classList.contains('dark');
+    const pointFill = isDark ? '#151a23' : '#ffffff';
+    const mainColor = '{{ color }}';
+    const lightColor = mainColor.replace(/^#/, '');
+    // 计算浅色版本用于普通点
+    const pointStroke = '#60a5fa';
+
+    points.forEach((p, i) => {
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'line-chart-point');
+
+        // 外圈
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y);
+        circle.setAttribute('r', '4');
+        circle.setAttribute('fill', pointFill);
+        circle.setAttribute('stroke', pointStroke);
+        circle.setAttribute('stroke-width', '2');
+        g.appendChild(circle);
+
+        // 悬停事件 - tooltip固定在右上角
+        g.addEventListener('mouseenter', function() {
+            const unit = '{{ unit }}';
+            const formattedVal = p.val.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            tooltipText.textContent = p.month + '{{ month_label }}: ' + (unit.indexOf('¥') >= 0 || unit === '元' ? '¥' : '') + formattedVal + (unit === '元' ? '' : unit);
+            tooltip.setAttribute('visibility', 'visible');
+            circle.setAttribute('r', '5');
+        });
+
+        g.addEventListener('mouseleave', function() {
+            tooltip.setAttribute('visibility', 'hidden');
+            circle.setAttribute('r', '4');
+        });
+
+        pointsGroup.appendChild(g);
+    });
+
+    // 最大值点添加高亮效果
+    const maxIndex = monthlyData.indexOf(Math.max(...monthlyData));
+    if (monthlyData[maxIndex] > 0) {
+        const maxPointGroup = pointsGroup.children[maxIndex];
+        if (maxPointGroup) {
+            const maxCircle = maxPointGroup.querySelector('circle');
+            maxCircle.setAttribute('class', 'line-chart-glow-point');
+            maxCircle.setAttribute('r', '7');
+            maxCircle.setAttribute('stroke', mainColor);
+            // 添加内部白点
+            const innerDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            innerDot.setAttribute('cx', points[maxIndex].x);
+            innerDot.setAttribute('cy', points[maxIndex].y);
+            innerDot.setAttribute('r', '2');
+            innerDot.setAttribute('fill', 'white');
+            maxPointGroup.appendChild(innerDot);
+        }
+    }
+})();
+</script>
+{% endmacro %}
+
+
+{# ============================================================================= #}
+{# 渲染折线图初始化函数（用于 Alpine.js 等动态场景）                               #}
+{# ============================================================================= #}
+{# 使用方式:                                                                      #}
+{# {{ render_tw_line_chart_init_fn() }}                                          #}
+{# 然后在 Alpine.js 中调用: initSvgLineChart('chartId', dataArray, options)       #}
+{# ============================================================================= #}
+{% macro render_tw_line_chart_init_fn(month_label='月') %}
+<script>
+/**
+ * 初始化 SVG 折线图
+ * @param {string} chartId - 图表容器ID
+ * @param {number[]} monthlyData - 12个月的数据数组
+ * @param {Object} options - 配置选项
+ * @param {string} options.unit - 单位（默认 ''）
+ * @param {string} options.color - 主题色（默认 '#2979ff'）
+ * @param {string} options.monthLabel - 月份标签（默认 '月'）
+ */
+window.initSvgLineChart = function(chartId, monthlyData, options = {}) {
+    const unit = options.unit || '';
+    const color = options.color || '#2979ff';
+    const monthLabel = options.monthLabel || '{{ month_label }}';
+
+    const svg = document.getElementById(chartId);
+    if (!svg || !monthlyData || monthlyData.length < 12) return;
+
+    // 清空之前的内容
+    ['GridLines', 'YLabels', 'XLabels', 'DataPoints'].forEach(suffix => {
+        const el = document.getElementById(chartId + suffix);
+        if (el) el.innerHTML = '';
+    });
+    ['AreaPath', 'LinePath'].forEach(suffix => {
+        const el = document.getElementById(chartId + suffix);
+        if (el) el.setAttribute('d', '');
+    });
+
+    // 动态更新折线颜色
+    const linePathEl = document.getElementById(chartId + 'LinePath');
+    if (linePathEl) linePathEl.setAttribute('stroke', color);
+
+    // 动态更新渐变颜色
+    const gradientStops = svg.querySelectorAll('#' + chartId + 'AreaGradient stop');
+    gradientStops.forEach(stop => stop.setAttribute('stop-color', color));
+
+    // 图表区域配置 (viewBox: 800x220)
+    const chartLeft = 30, chartRight = 790, chartTop = 20, chartBottom = 175;
+    const chartWidth = chartRight - chartLeft;
+    const chartHeight = chartBottom - chartTop;
+
+    // 根据数据最大值动态计算合适的Y轴刻度
+    const maxVal = Math.max(...monthlyData);
+
+    // 计算"好看"的Y轴最大值
+    function getNiceMax(val) {
+        if (val <= 0) return 10;  // 全0数据默认显示0-10
+        // 计算数量级
+        const magnitude = Math.pow(10, Math.floor(Math.log10(val)));
+        const normalized = val / magnitude;  // 1-10之间的值
+        // 向上取整到好看的数字 (1, 2, 2.5, 5, 10)
+        let niceNormalized;
+        if (normalized <= 1) niceNormalized = 1;
+        else if (normalized <= 2) niceNormalized = 2;
+        else if (normalized <= 2.5) niceNormalized = 2.5;
+        else if (normalized <= 5) niceNormalized = 5;
+        else niceNormalized = 10;
+        return niceNormalized * magnitude;
+    }
+
+    const niceMax = getNiceMax(maxVal);
+
+    // 格式化Y轴标签（支持小数值和大数值）
+    function formatYLabel(val) {
+        if (val >= 10000) return (val / 10000).toFixed(val % 10000 === 0 ? 0 : 1) + '万';
+        if (val >= 1000) return (val / 1000).toFixed(val % 1000 === 0 ? 0 : 1) + 'k';
+        // 小数值直接显示整数
+        return Number.isInteger(val) ? val.toString() : val.toFixed(1);
+    }
+
+    // 计算坐标
+    function getY(val) { return chartBottom - (val / niceMax) * chartHeight; }
+    function getX(i) { return chartLeft + 26 + (i * (chartWidth - 52) / 11); }
+
+    // 生成网格线和Y轴标签
+    const gridLines = document.getElementById(chartId + 'GridLines');
+    const yLabels = document.getElementById(chartId + 'YLabels');
+    // 动态设置Y轴标签颜色
+    if (yLabels) yLabels.setAttribute('fill', color);
+    const ySteps = [0, 0.2, 0.4, 0.6, 0.8, 1];
+    ySteps.forEach(step => {
+        const val = niceMax * step;
+        const y = getY(val);
+        // 网格线
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', chartLeft); line.setAttribute('x2', chartRight);
+        line.setAttribute('y1', y); line.setAttribute('y2', y);
+        gridLines.appendChild(line);
+        // Y轴标签
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', '28'); text.setAttribute('y', String(y + 4));
+        text.textContent = formatYLabel(val);
+        yLabels.appendChild(text);
+    });
+
+    // 生成X轴标签
+    const xLabels = document.getElementById(chartId + 'XLabels');
+    // 动态设置X轴标签颜色
+    if (xLabels) xLabels.setAttribute('fill', color);
+    for (let i = 0; i < 12; i++) {
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', getX(i)); text.setAttribute('y', '200');
+        text.textContent = String(i + 1);
+        xLabels.appendChild(text);
+    }
+
+    // 生成路径点
+    const points = monthlyData.map((val, i) => ({ x: getX(i), y: getY(val), val: val, month: i + 1 }));
+
+    // 生成平滑曲线路径（使用二次贝塞尔曲线）
+    function getSmoothPath(pts) {
+        if (pts.length < 2) return '';
+        let d = `M${pts[0].x},${pts[0].y}`;
+        for (let i = 0; i < pts.length - 1; i++) {
+            const p0 = pts[i], p1 = pts[i + 1];
+            const midX = (p0.x + p1.x) / 2;
+            d += ` C${midX},${p0.y} ${midX},${p1.y} ${p1.x},${p1.y}`;
+        }
+        return d;
+    }
+
+    const linePath = getSmoothPath(points);
+    document.getElementById(chartId + 'LinePath').setAttribute('d', linePath);
+
+    // 生成面积填充路径
+    const areaPath = linePath + ` L${points[11].x},${chartBottom} L${points[0].x},${chartBottom} Z`;
+    document.getElementById(chartId + 'AreaPath').setAttribute('d', areaPath);
+
+    // 生成数据点和交互
+    const pointsGroup = document.getElementById(chartId + 'DataPoints');
+    const tooltip = document.getElementById(chartId + 'Tooltip');
+    const tooltipText = tooltip.querySelector('text');
+    const isDark = document.documentElement.classList.contains('dark');
+    const pointFill = isDark ? '#151a23' : '#ffffff';
+    const pointStroke = color;  // 使用传入的主题色
+
+    points.forEach((p, i) => {
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'line-chart-point');
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y);
+        circle.setAttribute('r', '4');
+        circle.setAttribute('fill', pointFill);
+        circle.setAttribute('stroke', pointStroke);
+        circle.setAttribute('stroke-width', '2');
+        g.appendChild(circle);
+
+        g.addEventListener('mouseenter', function() {
+            const formattedVal = p.val.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            tooltipText.textContent = p.month + monthLabel + ': ' + (unit.indexOf('¥') >= 0 || unit === '元' ? '¥' : '') + formattedVal + (unit === '元' ? '' : unit);
+            tooltip.setAttribute('visibility', 'visible');
+            circle.setAttribute('r', '5');
+        });
+
+        g.addEventListener('mouseleave', function() {
+            tooltip.setAttribute('visibility', 'hidden');
+            circle.setAttribute('r', '4');
+        });
+
+        pointsGroup.appendChild(g);
+    });
+
+    // 最大值点添加高亮效果
+    const maxIndex = monthlyData.indexOf(Math.max(...monthlyData));
+    if (monthlyData[maxIndex] > 0) {
+        const maxPointGroup = pointsGroup.children[maxIndex];
+        if (maxPointGroup) {
+            const maxCircle = maxPointGroup.querySelector('circle');
+            maxCircle.setAttribute('class', 'line-chart-glow-point');
+            maxCircle.setAttribute('r', '7');
+            maxCircle.setAttribute('stroke', color);
+            const innerDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            innerDot.setAttribute('cx', points[maxIndex].x);
+            innerDot.setAttribute('cy', points[maxIndex].y);
+            innerDot.setAttribute('r', '2');
+            innerDot.setAttribute('fill', 'white');
+            maxPointGroup.appendChild(innerDot);
+        }
+    }
+};
+
+/**
+ * 初始化双线 SVG 折线图（个人 + 团队）
+ * @param {string} chartId - 图表容器ID
+ * @param {number[]} personalData - 个人12个月的数据数组
+ * @param {number[]} teamData - 团队12个月的数据数组
+ * @param {Object} options - 配置选项
+ */
+window.initDualLineChart = function(chartId, personalData, teamData, options = {}) {
+    const unit = options.unit || '';
+    const personalColor = options.personalColor || '#93c5fd';  // 浅色
+    const teamColor = options.teamColor || '#2563eb';          // 深色
+    const personalLabel = options.personalLabel || '个人';
+    const teamLabel = options.teamLabel || '团队';
+    const monthLabel = options.monthLabel || '月';
+
+    const svg = document.getElementById(chartId);
+    if (!svg || !personalData || personalData.length < 12) return;
+
+    // 清空之前的内容
+    ['GridLines', 'YLabels', 'XLabels', 'DataPoints'].forEach(suffix => {
+        const el = document.getElementById(chartId + suffix);
+        if (el) el.innerHTML = '';
+    });
+    ['AreaPath', 'LinePath'].forEach(suffix => {
+        const el = document.getElementById(chartId + suffix);
+        if (el) el.setAttribute('d', '');
+    });
+
+    // 图表区域配置 (viewBox: 800x220)
+    const chartLeft = 30, chartRight = 790, chartTop = 20, chartBottom = 175;
+    const chartWidth = chartRight - chartLeft;
+    const chartHeight = chartBottom - chartTop;
+
+    // 计算两组数据的最大值
+    const allData = [...personalData, ...teamData];
+    const maxVal = Math.max(...allData);
+
+    function getNiceMax(val) {
+        if (val <= 0) return 10;
+        const magnitude = Math.pow(10, Math.floor(Math.log10(val)));
+        const normalized = val / magnitude;
+        let niceNormalized;
+        if (normalized <= 1) niceNormalized = 1;
+        else if (normalized <= 2) niceNormalized = 2;
+        else if (normalized <= 2.5) niceNormalized = 2.5;
+        else if (normalized <= 5) niceNormalized = 5;
+        else niceNormalized = 10;
+        return niceNormalized * magnitude;
+    }
+
+    const niceMax = getNiceMax(maxVal);
+
+    function formatYLabel(val) {
+        if (val >= 10000) return (val / 10000).toFixed(val % 10000 === 0 ? 0 : 1) + '万';
+        if (val >= 1000) return (val / 1000).toFixed(val % 1000 === 0 ? 0 : 1) + 'k';
+        return Number.isInteger(val) ? val.toString() : val.toFixed(1);
+    }
+
+    function getY(val) { return chartBottom - (val / niceMax) * chartHeight; }
+    function getX(i) { return chartLeft + 26 + (i * (chartWidth - 52) / 11); }
+
+    // 生成网格线和Y轴标签
+    const gridLines = document.getElementById(chartId + 'GridLines');
+    const yLabels = document.getElementById(chartId + 'YLabels');
+    const ySteps = [0, 0.2, 0.4, 0.6, 0.8, 1];
+    ySteps.forEach(step => {
+        const val = niceMax * step;
+        const y = getY(val);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', chartLeft); line.setAttribute('x2', chartRight);
+        line.setAttribute('y1', y); line.setAttribute('y2', y);
+        gridLines.appendChild(line);
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', '28'); text.setAttribute('y', String(y + 4));
+        text.textContent = formatYLabel(val);
+        yLabels.appendChild(text);
+    });
+
+    // 生成X轴标签
+    const xLabels = document.getElementById(chartId + 'XLabels');
+    for (let i = 0; i < 12; i++) {
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', getX(i)); text.setAttribute('y', '200');
+        text.textContent = String(i + 1);
+        xLabels.appendChild(text);
+    }
+
+    // 生成路径点
+    const personalPoints = personalData.map((val, i) => ({ x: getX(i), y: getY(val), val: val, month: i + 1 }));
+    const teamPoints = teamData.map((val, i) => ({ x: getX(i), y: getY(val), val: val, month: i + 1 }));
+
+    function getSmoothPath(pts) {
+        if (pts.length < 2) return '';
+        let d = `M${pts[0].x},${pts[0].y}`;
+        for (let i = 0; i < pts.length - 1; i++) {
+            const p0 = pts[i], p1 = pts[i + 1];
+            const midX = (p0.x + p1.x) / 2;
+            d += ` C${midX},${p0.y} ${midX},${p1.y} ${p1.x},${p1.y}`;
+        }
+        return d;
+    }
+
+    // 更新渐变颜色为团队色（深色）
+    const gradientStops = svg.querySelectorAll('#' + chartId + 'AreaGradient stop');
+    gradientStops.forEach(stop => stop.setAttribute('stop-color', teamColor));
+
+    // 团队线路径（深色，主线）
+    const teamLinePath = getSmoothPath(teamPoints);
+    const linePathEl = document.getElementById(chartId + 'LinePath');
+    linePathEl.setAttribute('d', teamLinePath);
+    linePathEl.setAttribute('stroke', teamColor);
+    linePathEl.setAttribute('stroke-width', '2.5');
+
+    // 团队面积填充
+    const teamAreaPath = teamLinePath + ` L${teamPoints[11].x},${chartBottom} L${teamPoints[0].x},${chartBottom} Z`;
+    document.getElementById(chartId + 'AreaPath').setAttribute('d', teamAreaPath);
+
+    // 添加个人线路径（浅色，细线）
+    const personalLinePath = getSmoothPath(personalPoints);
+    let personalLineEl = document.getElementById(chartId + 'PersonalLinePath');
+    if (!personalLineEl) {
+        personalLineEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        personalLineEl.id = chartId + 'PersonalLinePath';
+        personalLineEl.setAttribute('fill', 'none');
+        personalLineEl.setAttribute('stroke-linecap', 'round');
+        personalLineEl.setAttribute('stroke-linejoin', 'round');
+        // 插入到团队线之前
+        linePathEl.parentNode.insertBefore(personalLineEl, linePathEl);
+    }
+    personalLineEl.setAttribute('d', personalLinePath);
+    personalLineEl.setAttribute('stroke', personalColor);
+    personalLineEl.setAttribute('stroke-width', '1.5');  // 细实线
+
+    // 生成数据点和交互
+    const pointsGroup = document.getElementById(chartId + 'DataPoints');
+    const tooltip = document.getElementById(chartId + 'Tooltip');
+    const tooltipText = tooltip.querySelector('text');
+    const tooltipRect = tooltip.querySelector('rect');
+    const isDark = document.documentElement.classList.contains('dark');
+    const pointFill = isDark ? '#151a23' : '#ffffff';
+
+    // 扩大 tooltip 宽度以显示两行
+    tooltipRect.setAttribute('width', '160');
+    tooltipRect.setAttribute('height', '44');
+
+    // 添加第二行文本
+    let tooltipText2 = tooltip.querySelector('text:nth-child(3)');
+    if (!tooltipText2) {
+        tooltipText2 = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        tooltipText2.setAttribute('fill', '#e2e8f0');
+        tooltipText2.setAttribute('style', 'font-size: 11px;');
+        tooltipText2.setAttribute('text-anchor', 'middle');
+        tooltipText2.setAttribute('x', '80');
+        tooltipText2.setAttribute('y', '35');
+        tooltip.appendChild(tooltipText2);
+    }
+    tooltipText.setAttribute('x', '80');
+    tooltipText.setAttribute('y', '16');
+
+    // 团队数据点（深色，大点）
+    teamPoints.forEach((p, i) => {
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'line-chart-point');
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y);
+        circle.setAttribute('r', '4');
+        circle.setAttribute('fill', pointFill);
+        circle.setAttribute('stroke', teamColor);
+        circle.setAttribute('stroke-width', '2');
+        g.appendChild(circle);
+
+        // 个人数据点（浅色，小点）
+        const pPersonal = personalPoints[i];
+        const circlePersonal = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circlePersonal.setAttribute('cx', pPersonal.x); circlePersonal.setAttribute('cy', pPersonal.y);
+        circlePersonal.setAttribute('r', '3');
+        circlePersonal.setAttribute('fill', pointFill);
+        circlePersonal.setAttribute('stroke', personalColor);
+        circlePersonal.setAttribute('stroke-width', '1.5');
+        g.appendChild(circlePersonal);
+
+        g.addEventListener('mouseenter', function() {
+            const formatVal = (v) => v.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            tooltipText.textContent = teamLabel + ': ' + formatVal(p.val) + unit;
+            tooltipText2.textContent = personalLabel + ': ' + formatVal(pPersonal.val) + unit;
+            tooltip.setAttribute('visibility', 'visible');
+            circle.setAttribute('r', '5');
+            circlePersonal.setAttribute('r', '4');
+        });
+
+        g.addEventListener('mouseleave', function() {
+            tooltip.setAttribute('visibility', 'hidden');
+            circle.setAttribute('r', '4');
+            circlePersonal.setAttribute('r', '3');
+        });
+
+        pointsGroup.appendChild(g);
+    });
+
+    // 添加图例（右上角）
+    let legendGroup = document.getElementById(chartId + 'Legend');
+    if (!legendGroup) {
+        legendGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        legendGroup.id = chartId + 'Legend';
+        legendGroup.setAttribute('transform', 'translate(640, 5)');
+        svg.appendChild(legendGroup);
+    }
+    legendGroup.innerHTML = '';
+
+    // 个人图例（浅色细线）
+    const personalLegendLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    personalLegendLine.setAttribute('x1', '0'); personalLegendLine.setAttribute('y1', '8');
+    personalLegendLine.setAttribute('x2', '20'); personalLegendLine.setAttribute('y2', '8');
+    personalLegendLine.setAttribute('stroke', personalColor);
+    personalLegendLine.setAttribute('stroke-width', '1.5');
+    legendGroup.appendChild(personalLegendLine);
+
+    const personalLegendText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    personalLegendText.setAttribute('x', '25'); personalLegendText.setAttribute('y', '12');
+    personalLegendText.setAttribute('fill', isDark ? '#94a3b8' : '#64748b');
+    personalLegendText.setAttribute('style', 'font-size: 11px;');
+    personalLegendText.textContent = personalLabel;
+    legendGroup.appendChild(personalLegendText);
+
+    // 团队图例（深色实线）
+    const teamLegendLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    teamLegendLine.setAttribute('x1', '70'); teamLegendLine.setAttribute('y1', '8');
+    teamLegendLine.setAttribute('x2', '90'); teamLegendLine.setAttribute('y2', '8');
+    teamLegendLine.setAttribute('stroke', teamColor);
+    teamLegendLine.setAttribute('stroke-width', '2.5');
+    legendGroup.appendChild(teamLegendLine);
+
+    const teamLegendText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    teamLegendText.setAttribute('x', '95'); teamLegendText.setAttribute('y', '12');
+    teamLegendText.setAttribute('fill', isDark ? '#e2e8f0' : '#334155');
+    teamLegendText.setAttribute('style', 'font-size: 11px; font-weight: 500;');
+    teamLegendText.textContent = teamLabel;
+    legendGroup.appendChild(teamLegendText);
+};
+</script>
+{% endmacro %}

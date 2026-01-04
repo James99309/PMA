@@ -1,0 +1,368 @@
+{#
+=============================================================================
+用户编辑模态框组件 (Tailwind + Material Design 风格)
+=============================================================================
+用于在用户详情页直接编辑用户信息，复用现有后端API。
+
+后端API（已有）：
+- PUT /user/api/v1/users/<user_id> - 编辑用户
+- GET /api/v1/dictionary/company?active_only=true - 获取企业列表
+- GET /api/v1/dictionary/department?active_only=true - 获取部门列表
+- GET /api/v1/dictionary/role?active_only=true - 获取角色列表
+
+使用方式：
+{% from 'components/user/tw_user_edit_modal.html' import render_user_edit_modal, render_user_edit_modal_script %}
+
+{{ render_user_edit_modal() }}
+{{ render_user_edit_modal_script(user, csrf_token(), role_dict) }}
+
+JS调用：
+UserEditModal.open();
+=============================================================================
+#}
+
+{% from 'components/tw_modal_base.html' import tw_modal %}
+
+{# 用户编辑模态框 HTML #}
+{% macro render_user_edit_modal() %}
+{% call tw_modal(
+    'userEditModal',
+    title=_('编辑用户'),
+    max_width='max-w-xl',
+    max_height='max-h-[90vh]',
+    close_action='UserEditModal.close()',
+    backdrop_blur=true,
+    header_border=false
+) %}
+            <!-- 表单 -->
+            <form id="userEditForm" class="flex-1 flex flex-col overflow-hidden">
+                <input type="hidden" name="user_id" id="editUserId" value="">
+
+                <!-- 内容区域（可滚动） -->
+                <div class="flex-1 overflow-y-auto p-6">
+                    <div class="space-y-5">
+                        <!-- 用户名（只读） -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                {{ _('用户名') }}
+                            </label>
+                            <input type="text" id="editUsername" readonly disabled
+                                class="form-input block w-full rounded-lg border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-sm shadow-sm cursor-not-allowed">
+                        </div>
+
+                        <!-- 第一行：真实姓名 + 邮箱 -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- 真实姓名 -->
+                            <div>
+                                <label for="editRealName" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    {{ _('真实姓名') }}<span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="editRealName" name="real_name" required
+                                    class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm"
+                                    placeholder="{{ _('请输入真实姓名') }}">
+                            </div>
+
+                            <!-- 邮箱 -->
+                            <div>
+                                <label for="editEmail" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    {{ _('邮箱') }}<span class="text-red-500">*</span>
+                                </label>
+                                <input type="email" id="editEmail" name="email" required
+                                    class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm"
+                                    placeholder="{{ _('请输入邮箱地址') }}">
+                            </div>
+                        </div>
+
+                        <!-- 第二行：电话 -->
+                        <div>
+                            <label for="editPhone" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                {{ _('电话') }}
+                            </label>
+                            <input type="tel" id="editPhone" name="phone"
+                                class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm"
+                                placeholder="{{ _('请输入电话号码') }}">
+                        </div>
+
+                        <!-- 第三行：企业 + 部门 -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- 企业 -->
+                            <div>
+                                <label for="editCompany" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    {{ _('企业') }}<span class="text-red-500">*</span>
+                                </label>
+                                <select id="editCompany" name="company" required
+                                    class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
+                                    <option value="">{{ _('请选择企业') }}</option>
+                                </select>
+                            </div>
+
+                            <!-- 部门 -->
+                            <div>
+                                <label for="editDepartment" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    {{ _('部门') }}
+                                </label>
+                                <select id="editDepartment" name="department"
+                                    class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
+                                    <option value="">{{ _('请选择部门') }}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 第四行：角色 -->
+                        <div>
+                            <label for="editRole" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                {{ _('角色') }}<span class="text-red-500">*</span>
+                            </label>
+                            <select id="editRole" name="role" required
+                                class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
+                                <option value="">{{ _('请选择角色') }}</option>
+                            </select>
+                        </div>
+
+                        <!-- 第五行：状态开关 -->
+                        <div class="flex items-center gap-6 p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                            <!-- 账号状态 -->
+                            <label class="inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="editIsActive" name="is_active" class="sr-only peer">
+                                <div class="relative w-11 h-6 bg-slate-300 dark:bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                                <span class="ml-3 text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('账号激活') }}</span>
+                            </label>
+
+                            <!-- 部门负责人 -->
+                            <label class="inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="editIsDeptManager" name="is_department_manager" class="sr-only peer">
+                                <div class="relative w-11 h-6 bg-slate-300 dark:bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                                <span class="ml-3 text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('部门负责人') }}</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 底部按钮 -->
+                <footer class="flex-shrink-0 flex items-center justify-end gap-3 px-6 py-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                    <button type="button" onclick="UserEditModal.close()"
+                        class="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                        {{ _('取消') }}
+                    </button>
+                    <button type="submit" id="userEditSubmitBtn"
+                        class="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-5 bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span class="submit-text">{{ _('保存') }}</span>
+                        <span class="loading-text hidden">
+                            <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            {{ _('保存中...') }}
+                        </span>
+                    </button>
+                </footer>
+            </form>
+{% endcall %}
+{% endmacro %}
+
+
+{# 用户编辑模态框 JavaScript - 调用现有后端API #}
+{% macro render_user_edit_modal_script(user, csrf_token, role_dict) %}
+<script>
+/**
+ * 用户编辑模态框管理器
+ * 复用现有后端API：PUT /user/api/v1/users/<user_id>
+ */
+window.UserEditModal = (function() {
+    // 用户数据（从服务端预加载）
+    const userData = {
+        id: {{ user.id }},
+        username: '{{ user.username }}',
+        real_name: '{{ user.real_name or "" }}',
+        email: '{{ user.email or "" }}',
+        phone: '{{ user.phone or "" }}',
+        company_name: '{{ user.company_name or "" }}',
+        department: '{{ user.department or "" }}',
+        role: '{{ user.role or "" }}',
+        is_active: {{ 'true' if user.is_active else 'false' }},
+        is_department_manager: {{ 'true' if user.is_department_manager else 'false' }}
+    };
+
+    // 角色字典（用于显示中文名称）
+    const roleDict = {{ role_dict | tojson }};
+
+    // 配置
+    const config = {
+        csrfToken: '{{ csrf_token }}',
+        updateUrl: '/user/api/v1/users/' + userData.id  // 现有API
+    };
+
+    // DOM 元素缓存
+    let elements = {};
+
+    // 初始化
+    function init() {
+        elements = {
+            modal: document.getElementById('userEditModal'),
+            form: document.getElementById('userEditForm'),
+            userId: document.getElementById('editUserId'),
+            username: document.getElementById('editUsername'),
+            realName: document.getElementById('editRealName'),
+            email: document.getElementById('editEmail'),
+            phone: document.getElementById('editPhone'),
+            company: document.getElementById('editCompany'),
+            department: document.getElementById('editDepartment'),
+            role: document.getElementById('editRole'),
+            isActive: document.getElementById('editIsActive'),
+            isDeptManager: document.getElementById('editIsDeptManager'),
+            submitBtn: document.getElementById('userEditSubmitBtn')
+        };
+
+        // 加载下拉选项（使用现有字典API）
+        loadDropdownOptions();
+
+        // 绑定表单提交
+        if (elements.form) {
+            elements.form.addEventListener('submit', handleSubmit);
+        }
+    }
+
+    // 加载下拉选项（调用现有字典API）
+    async function loadDropdownOptions() {
+        try {
+            // 并行加载企业、部门、角色
+            const [companies, departments, roles] = await Promise.all([
+                fetch('/api/v1/dictionary/company?active_only=true').then(r => r.json()),
+                fetch('/api/v1/dictionary/department?active_only=true').then(r => r.json()),
+                fetch('/api/v1/dictionary/role?active_only=true').then(r => r.json())
+            ]);
+
+            // 填充企业下拉
+            if (companies.success && elements.company) {
+                elements.company.innerHTML = '<option value="">{{ _("请选择企业") }}</option>';
+                companies.data.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.value;
+                    option.textContent = item.value;
+                    elements.company.appendChild(option);
+                });
+            }
+
+            // 填充部门下拉
+            if (departments.success && elements.department) {
+                elements.department.innerHTML = '<option value="">{{ _("请选择部门") }}</option>';
+                departments.data.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.value;
+                    option.textContent = item.value;
+                    elements.department.appendChild(option);
+                });
+            }
+
+            // 填充角色下拉（使用key作为value，value作为显示文本）
+            if (roles.success && elements.role) {
+                elements.role.innerHTML = '<option value="">{{ _("请选择角色") }}</option>';
+                roles.data.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.key;  // 使用key作为值（后端存储的是角色key）
+                    option.textContent = item.value || roleDict[item.key] || item.key;  // 优先使用字典的value
+                    elements.role.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('加载下拉选项失败:', error);
+        }
+    }
+
+    // 打开模态框
+    function open() {
+        if (!elements.modal) {
+            init();
+        }
+
+        // 填充表单数据
+        elements.userId.value = userData.id;
+        elements.username.value = userData.username;
+        elements.realName.value = userData.real_name;
+        elements.email.value = userData.email;
+        elements.phone.value = userData.phone;
+        elements.company.value = userData.company_name;
+        elements.department.value = userData.department;
+        elements.role.value = userData.role;
+        elements.isActive.checked = userData.is_active;
+        elements.isDeptManager.checked = userData.is_department_manager;
+
+        // 显示模态框
+        elements.modal.classList.remove('hidden');
+        elements.modal.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+
+        // 聚焦到第一个可编辑字段
+        setTimeout(() => elements.realName.focus(), 100);
+    }
+
+    // 关闭模态框
+    function close() {
+        if (elements.modal) {
+            elements.modal.classList.add('hidden');
+            elements.modal.classList.remove('flex');
+            document.body.style.overflow = '';
+        }
+    }
+
+    // 处理表单提交（调用现有编辑API）
+    async function handleSubmit(e) {
+        e.preventDefault();
+
+        const submitBtn = elements.submitBtn;
+        const submitText = submitBtn.querySelector('.submit-text');
+        const loadingText = submitBtn.querySelector('.loading-text');
+
+        // 显示加载状态
+        submitBtn.disabled = true;
+        submitText.classList.add('hidden');
+        loadingText.classList.remove('hidden');
+
+        try {
+            const formData = {
+                real_name: elements.realName.value.trim(),
+                email: elements.email.value.trim(),
+                phone: elements.phone.value.trim(),
+                company: elements.company.value,
+                department: elements.department.value,
+                role: elements.role.value,
+                is_active: elements.isActive.checked,
+                is_department_manager: elements.isDeptManager.checked
+            };
+
+            // 调用现有编辑API
+            const response = await fetch(config.updateUrl, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': config.csrfToken
+                },
+                body: JSON.stringify(formData)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                close();
+                // 刷新页面显示更新后的数据
+                window.location.reload();
+            } else {
+                alert(result.message || '{{ _("更新失败") }}');
+            }
+        } catch (error) {
+            console.error('保存用户信息失败:', error);
+            alert('{{ _("保存失败，请重试") }}');
+        } finally {
+            submitBtn.disabled = false;
+            submitText.classList.remove('hidden');
+            loadingText.classList.add('hidden');
+        }
+    }
+
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', init);
+
+    return { open, close };
+})();
+</script>
+{% endmacro %}

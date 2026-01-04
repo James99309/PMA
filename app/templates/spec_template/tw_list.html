@@ -1,0 +1,446 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
+{% from 'components/tw_form_fields.html' import tw_form_field, tw_form_textarea with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('规格模板管理') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark">
+    {% call(slot) render_tw_layout(active_page='spec_template', show_search=true) %}
+    {% if slot == 'content' %}
+        <!-- 主内容 -->
+        {% call(page_slot) render_tw_fixed_page() %}
+        {% if page_slot == 'header' %}
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('规格模板管理') }}</h1>
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- 下载模板 -->
+                <a href="{{ url_for('spec_template.api_download_import_template') }}"
+                   class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">download</span>
+                    <span>{{ _('下载模板') }}</span>
+                </a>
+                {% if has_permission('rd_product', 'create') %}
+                <!-- 导入创建 -->
+                <button type="button" onclick="showImportModal()"
+                   class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">upload_file</span>
+                    <span>{{ _('导入创建') }}</span>
+                </button>
+                <!-- 新建模板 -->
+                <a href="{{ url_for('spec_template.create_template_page') }}"
+                   class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">add</span>
+                    <span>{{ _('新建模板') }}</span>
+                </a>
+                {% endif %}
+            </div>
+        {% elif page_slot == 'content' %}
+            <!-- 模板卡片列表 -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for template in templates %}
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-lg transition-shadow">
+                    <div class="p-5">
+                        <!-- 头部 -->
+                        <div class="flex items-start justify-between mb-4">
+                            <div>
+                                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ template.model }}</h3>
+                                {% if template.name %}
+                                <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{{ template.name }}</p>
+                                {% endif %}
+                            </div>
+                            <span class="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                {{ template.version }}
+                            </span>
+                        </div>
+
+                        <!-- 信息 -->
+                        <div class="space-y-2 mb-4">
+                            <div class="flex items-center text-sm text-slate-600 dark:text-slate-400">
+                                <span class="material-symbols-outlined mr-2" style="font-size: 18px;">tune</span>
+                                <span>{{ template.items|length }} {{ _('个规格项') }}</span>
+                            </div>
+                            <div class="flex items-center text-sm text-slate-600 dark:text-slate-400">
+                                <span class="material-symbols-outlined mr-2" style="font-size: 18px;">inventory_2</span>
+                                <span>{{ template.configurations|length }} {{ _('个配置版本') }}</span>
+                            </div>
+                            {% if template.description %}
+                            <p class="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{{ template.description }}</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- 底部信息 -->
+                        <div class="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 pt-3 border-t border-slate-100 dark:border-slate-700">
+                            <span>{{ _('创建') }}: {{ template.created_at.strftime('%Y-%m-%d') if template.created_at else '-' }}</span>
+                            {% if template.creator %}
+                            <span>{{ template.creator.real_name or template.creator.username }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- 操作栏 -->
+                    <div class="px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end gap-2">
+                        <a href="{{ url_for('spec_template.view_template', template_id=template.id) }}"
+                           class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                           title="{{ _('查看') }}">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                        </a>
+                        {% if has_permission('rd_product', 'edit') %}
+                        <a href="{{ url_for('spec_template.edit_template_page', template_id=template.id) }}"
+                           class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                           title="{{ _('编辑') }}">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
+                        </a>
+                        {% endif %}
+                        <a href="{{ url_for('spec_template.configurations_page', template_id=template.id) }}"
+                           class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+                           title="{{ _('配置版本') }}">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">settings_suggest</span>
+                        </a>
+                        {% if has_permission('rd_product', 'create') %}
+                        <button type="button" onclick="copyTemplate({{ template.id }}, '{{ template.model }}')"
+                           class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                           title="{{ _('复制') }}">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">content_copy</span>
+                        </button>
+                        {% endif %}
+                        {% if has_permission('rd_product', 'delete') %}
+                        <button type="button" onclick="confirmDeleteTemplate({{ template.id }}, '{{ template.model }}')"
+                           class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                           title="{{ _('删除') }}">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <!-- 空状态 -->
+                <div class="col-span-full flex flex-col items-center justify-center py-16 text-slate-400">
+                    <span class="material-symbols-outlined mb-3" style="font-size: 64px;">description</span>
+                    <p class="text-lg font-medium mb-2">{{ _('暂无规格模板') }}</p>
+                    <p class="text-sm mb-6">{{ _('创建一个规格模板来定义产品型号的规格结构') }}</p>
+                    {% if has_permission('rd_product', 'create') %}
+                    <a href="{{ url_for('spec_template.create_template_page') }}"
+                       class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
+                        <span class="material-symbols-outlined" style="font-size: 20px;">add</span>
+                        <span>{{ _('新建模板') }}</span>
+                    </a>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 复制模板模态框 -->
+    {% call tw_form_modal(
+        modal_id='copyTemplateModal',
+        title=_('复制规格模板'),
+        submit_text=_('复制'),
+        cancel_text=_('取消'),
+        size='md'
+    ) %}
+    <input type="hidden" id="copyTemplateId" name="template_id" value="">
+    {{ tw_form_field('model', _('新型号名称'), required=true, placeholder=_('请输入新的产品型号')) }}
+    {{ tw_form_field('name', _('模板名称'), placeholder=_('可选：模板描述名称')) }}
+    {% endcall %}
+
+    <!-- 删除确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='deleteConfirmModal',
+        title=_('确认删除'),
+        message=_('您确定要删除这个规格模板吗？'),
+        confirm_text=_('删除'),
+        cancel_text=_('取消'),
+        variant='danger',
+        show_error=true
+    ) }}
+
+    <!-- 导入模板模态框 -->
+    <div id="importModal" class="fixed inset-0 z-50 hidden">
+        <!-- 遮罩 -->
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" onclick="closeImportModal()"></div>
+        <!-- 模态框内容 -->
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md" onclick="event.stopPropagation()">
+                <!-- 标题 -->
+                <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('导入创建规格模板') }}</h3>
+                    <button type="button" onclick="closeImportModal()"
+                            class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                <!-- 内容 -->
+                <div class="p-5">
+                    <form id="importForm" enctype="multipart/form-data">
+                        <!-- 使用说明 -->
+                        <div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm text-blue-700 dark:text-blue-400">
+                            <p class="font-medium mb-1">{{ _('使用说明：') }}</p>
+                            <ol class="list-decimal list-inside space-y-1 text-blue-600 dark:text-blue-300">
+                                <li>{{ _('点击"下载模板"获取Excel模板') }}</li>
+                                <li>{{ _('在Sheet1填写模板基本信息') }}</li>
+                                <li>{{ _('在Sheet2选择规格项（填Y）并填写通用值') }}</li>
+                                <li>{{ _('上传填写好的Excel文件') }}</li>
+                            </ol>
+                        </div>
+                        <!-- 文件选择 -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                {{ _('选择Excel文件') }} <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <input type="file" id="importFile" name="file" accept=".xlsx,.xls"
+                                       class="block w-full text-sm text-slate-500 dark:text-slate-400
+                                              file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0
+                                              file:text-sm file:font-medium file:bg-primary file:text-white
+                                              hover:file:bg-primary/90 file:cursor-pointer cursor-pointer">
+                            </div>
+                            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ _('支持 .xlsx 和 .xls 格式') }}</p>
+                        </div>
+                        <!-- 错误信息 -->
+                        <div id="importError" class="hidden mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg text-sm text-red-600 dark:text-red-400">
+                        </div>
+                        <!-- 警告信息 -->
+                        <div id="importWarning" class="hidden mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg text-sm text-yellow-600 dark:text-yellow-400">
+                        </div>
+                    </form>
+                </div>
+                <!-- 底部按钮 -->
+                <div class="flex items-center justify-end gap-3 px-5 py-4 border-t border-slate-200 dark:border-slate-700">
+                    <button type="button" onclick="closeImportModal()"
+                            class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                        {{ _('取消') }}
+                    </button>
+                    <button type="button" id="importSubmitBtn" onclick="submitImport()"
+                            class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        {{ _('导入') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 表单模态框脚本 -->
+    {{ tw_form_modal_script() }}
+
+    <!-- 确认模态框脚本 -->
+    {{ tw_confirm_modal_script() }}
+
+    <!-- 布局脚本 -->
+    {{ render_tw_layout_script() }}
+
+    <!-- 页面逻辑 -->
+    <script>
+    (function() {
+        const API_BASE = '{{ url_for("spec_template.list_templates") }}api';
+        const IMPORT_API = '{{ url_for("spec_template.api_import_create_template") }}';
+
+        // 复制模板
+        window.copyTemplate = function(templateId, model) {
+            document.getElementById('copyTemplateId').value = templateId;
+            document.getElementById('copyTemplateModal-form').reset();
+            document.querySelector('#copyTemplateModal-form input[name="model"]').value = model + '_copy';
+
+            openFormModal('copyTemplateModal', {
+                title: '{{ _("复制规格模板") }}',
+                submitText: '{{ _("复制") }}',
+                onSubmit: async function(data, form) {
+                    const id = document.getElementById('copyTemplateId').value;
+
+                    try {
+                        const response = await fetch(`${API_BASE}/${id}/copy`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                model: data.model,
+                                name: data.name || null
+                            })
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            showToast(result.message || '{{ _("复制成功") }}');
+                            closeFormModal('copyTemplateModal');
+                            location.reload();
+                        } else {
+                            showToast(result.message || '{{ _("复制失败") }}', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        showToast('{{ _("复制失败") }}', 'error');
+                    }
+                }
+            });
+        };
+
+        // 删除模板
+        window.confirmDeleteTemplate = function(id, model) {
+            openConfirmModal('deleteConfirmModal', {
+                message: `{{ _("确定要删除规格模板") }} "${model}" {{ _("吗？") }}`,
+                data: { id: id },
+                onConfirm: async function(data) {
+                    try {
+                        const response = await fetch(`${API_BASE}/${data.id}`, {
+                            method: 'DELETE'
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            showToast(result.message || '{{ _("删除成功") }}');
+                            location.reload();
+                        } else {
+                            throw new Error(result.message || '{{ _("删除失败") }}');
+                        }
+                    } catch (error) {
+                        throw error;
+                    }
+                }
+            });
+        };
+
+        // 导入模态框
+        window.showImportModal = function() {
+            document.getElementById('importModal').classList.remove('hidden');
+            document.getElementById('importForm').reset();
+            document.getElementById('importError').classList.add('hidden');
+            document.getElementById('importWarning').classList.add('hidden');
+            document.getElementById('importSubmitBtn').disabled = false;
+        };
+
+        window.closeImportModal = function() {
+            document.getElementById('importModal').classList.add('hidden');
+        };
+
+        window.submitImport = async function() {
+            const fileInput = document.getElementById('importFile');
+            const errorDiv = document.getElementById('importError');
+            const warningDiv = document.getElementById('importWarning');
+            const submitBtn = document.getElementById('importSubmitBtn');
+
+            // 隐藏之前的消息
+            errorDiv.classList.add('hidden');
+            warningDiv.classList.add('hidden');
+
+            // 验证文件
+            if (!fileInput.files || fileInput.files.length === 0) {
+                errorDiv.textContent = '{{ _("请选择要上传的文件") }}';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            const file = fileInput.files[0];
+
+            // 验证文件类型
+            if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+                errorDiv.textContent = '{{ _("请上传Excel文件（.xlsx或.xls格式）") }}';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            // 禁用按钮
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>{{ _("导入中...") }}';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch(IMPORT_API, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // 显示警告信息（如果有）
+                    if (result.warnings && result.warnings.length > 0) {
+                        warningDiv.innerHTML = '<strong>{{ _("警告：") }}</strong><br>' + result.warnings.join('<br>');
+                        warningDiv.classList.remove('hidden');
+                    }
+
+                    showToast(result.message || '{{ _("导入成功") }}');
+
+                    // 延迟刷新页面
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    // 显示错误信息
+                    let errorMsg = result.message || '{{ _("导入失败") }}';
+                    if (result.errors && result.errors.length > 0) {
+                        errorMsg += '<br>' + result.errors.join('<br>');
+                    }
+                    errorDiv.innerHTML = errorMsg;
+                    errorDiv.classList.remove('hidden');
+
+                    // 显示警告信息（如果有）
+                    if (result.warnings && result.warnings.length > 0) {
+                        warningDiv.innerHTML = '<strong>{{ _("警告：") }}</strong><br>' + result.warnings.join('<br>');
+                        warningDiv.classList.remove('hidden');
+                    }
+
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '{{ _("导入") }}';
+                }
+            } catch (error) {
+                console.error('Import error:', error);
+                errorDiv.textContent = '{{ _("导入失败：") }}' + error.message;
+                errorDiv.classList.remove('hidden');
+                submitBtn.disabled = false;
+                submitBtn.textContent = '{{ _("导入") }}';
+            }
+        };
+    })();
+    </script>
+</body>
+</html>

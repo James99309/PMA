@@ -261,3 +261,26 @@ def inject_stage_configs():
         'project_stages_config': project_stages_config,  # 保持向后兼容
         'get_stage_i18n_texts': get_stage_i18n_texts
     }
+
+
+def inject_currency_config():
+    """
+    向模板上下文注入货币配置（基于数据库类型，与语言设置解耦）
+
+    货币和单位由数据库类型决定，不随用户语言切换而改变：
+    - SP8D/本地 数据库 → CNY (¥), 万元, 除以10000
+    - OVS 数据库 → USD ($), M (million), 除以1000000
+    """
+    from config import Config
+
+    return {
+        'currency_config': {
+            'currency': Config.DEFAULT_CURRENCY,     # CNY / USD
+            'symbol': Config.CURRENCY_SYMBOL,        # ¥ / $
+            'amount_unit': Config.AMOUNT_UNIT,       # 万元 / M
+            'count_unit': Config.COUNT_UNIT,         # 个 / pcs
+            'divisor': Config.AMOUNT_DIVISOR,        # 10000 / 1000000
+            'is_ovs': Config.IS_OVS,
+            'is_sp8d': Config.IS_SP8D
+        }
+    }

@@ -11,6 +11,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import logging
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +168,7 @@ def generate_order_pdf(order):
             ['创建时间:', order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else ''],
             ['订单状态:', get_status_text(order.status)],
             ['创建人:', order.created_by.real_name or order.created_by.username if order.created_by else ''],
-            ['订单总额:', f'¥{order.total_amount:.2f}' if order.total_amount else '¥0.00'],
+            ['订单总额:', f'{Config.CURRENCY_SYMBOL}{order.total_amount:.2f}' if order.total_amount else f'{Config.CURRENCY_SYMBOL}0.00'],
         ]
         
         # 如果有备注
@@ -216,8 +217,8 @@ def generate_order_pdf(order):
                     detail.brand or '',
                     str(detail.quantity or 0),
                     detail.unit or '件',
-                    f'¥{detail.unit_price:.2f}' if detail.unit_price else '¥0.00',
-                    f'¥{subtotal:.2f}'
+                    f'{Config.CURRENCY_SYMBOL}{detail.unit_price:.2f}' if detail.unit_price else f'{Config.CURRENCY_SYMBOL}0.00',
+                    f'{Config.CURRENCY_SYMBOL}{subtotal:.2f}'
                 ])
             
             # 创建明细表格

@@ -48,7 +48,19 @@ closeConfirmModal('deleteModal');
 {% from 'components/tw_modal_base.html' import tw_close_btn %}
 
 {# 确认模态框 HTML #}
-{% macro tw_confirm_modal(modal_id, title='', message='', confirm_text='', cancel_text='', variant='danger', icon='', z_index='z-50', show_error=false) %}
+{#
+参数说明：
+- modal_id: 模态框唯一ID（必填）
+- title: 标题文本
+- message: 提示消息
+- confirm_text: 确认按钮文本（主操作）
+- cancel_text: 取消按钮文本（次操作，如"不保存"）
+- stay_text: 留下按钮文本（可选，如"取消"留在当前页面）
+- variant: 样式变体
+- icon: 图标名称
+- show_error: 是否显示错误区域
+#}
+{% macro tw_confirm_modal(modal_id, title='', message='', confirm_text='', cancel_text='', stay_text='', variant='danger', icon='', z_index='z-50', show_error=false) %}
 {% set variant_config = {
     'danger': {'icon': 'warning', 'icon_color': 'text-red-500', 'btn_bg': 'bg-red-600 hover:bg-red-700 focus:ring-red-500'},
     'warning': {'icon': 'warning', 'icon_color': 'text-amber-500', 'btn_bg': 'bg-amber-600 hover:bg-amber-700 focus:ring-amber-500'},
@@ -89,10 +101,16 @@ closeConfirmModal('deleteModal');
                     {% endif %}
                     {{ confirm_text or _('确认') }}
                 </button>
-                <button type="button" onclick="closeConfirmModal('{{ modal_id }}')"
+                <button type="button" id="{{ modal_id }}-cancel-btn"
                     class="inline-flex justify-center items-center h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                     {{ cancel_text or _('取消') }}
                 </button>
+                {% if stay_text %}
+                <button type="button" id="{{ modal_id }}-stay-btn" onclick="closeConfirmModal('{{ modal_id }}')"
+                    class="inline-flex justify-center items-center h-10 px-4 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+                    {{ stay_text }}
+                </button>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -109,7 +127,10 @@ closeConfirmModal('deleteModal');
     window._confirmModalData = window._confirmModalData || {};
 
     // 打开确认模态框
-    // options: { title, message, data, onConfirm, autoClose }
+    // options: { title, message, data, onConfirm, onCancel, autoClose }
+    // - onConfirm: 确认按钮回调
+    // - onCancel: 取消按钮回调（如三按钮模式下的"不保存"）
+    // - stay按钮（如果存在）只是关闭模态框，不触发任何回调
     window.openConfirmModal = function(modalId, options) {
         options = options || {};
         const modal = document.getElementById(modalId);
@@ -132,6 +153,7 @@ closeConfirmModal('deleteModal');
         window._confirmModalData[modalId] = options.data || null;
         window._confirmModalCallbacks[modalId] = {
             onConfirm: options.onConfirm || null,
+            onCancel: options.onCancel || null,
             autoClose: options.autoClose !== false  // 默认自动关闭
         };
 
@@ -161,6 +183,27 @@ closeConfirmModal('deleteModal');
                 } else if (callbacks?.autoClose) {
                     closeConfirmModal(modalId);
                 }
+            });
+        }
+
+        // 绑定取消按钮事件（如果有 onCancel 回调）
+        const cancelBtn = document.getElementById(modalId + '-cancel-btn');
+        if (cancelBtn) {
+            // 移除旧的事件监听器
+            const newCancelBtn = cancelBtn.cloneNode(true);
+            cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+            newCancelBtn.addEventListener('click', async function() {
+                const callbacks = window._confirmModalCallbacks[modalId];
+                const data = window._confirmModalData[modalId];
+                if (typeof callbacks?.onCancel === 'function') {
+                    try {
+                        await callbacks.onCancel(data);
+                    } catch (error) {
+                        console.error('onCancel error:', error);
+                    }
+                }
+                closeConfirmModal(modalId);
             });
         }
 

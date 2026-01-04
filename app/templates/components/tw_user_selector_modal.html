@@ -56,8 +56,10 @@ Tailwind 用户选择器模态框组件
 - form_action: 单选模式的表单提交URL
 - field_name: 单选模式的字段名称，默认 'user_id'
 - save_url: 多选模式的保存URL
+- save_callback: 自定义保存回调函数名，提供后将调用 window[save_callback](selectedUsers) 而非 POST 表单
 - show_share_toggle: 是否显示启用共享开关（多选模式）
 - share_enabled: 是否已启用共享
+- locked_users: 锁定用户列表（不可移除），格式 [{id, name, initials}]，用于显示「部门默认」等
 - vendor_only: 是否只显示厂商公司，默认 false
 - searchable: 是否显示搜索框，默认 true
 - empty_text: 空状态文本
@@ -75,8 +77,10 @@ Tailwind 用户选择器模态框组件
     form_action='',
     field_name='user_id',
     save_url='',
+    save_callback='',
     show_share_toggle=false,
     share_enabled=false,
+    locked_users=none,
     vendor_only=false,
     searchable=true,
     empty_text=none
@@ -251,25 +255,42 @@ Tailwind 用户选择器模态框组件
                         </div>
                     </div>
 
-                    <!-- 右列：已选用户 -->
+                    <!-- 右列：已选用户（紧凑徽章样式） -->
                     <div>
                         <p class="text-sm text-slate-600 dark:text-slate-400 mb-2">{{ _('已选择') }}:</p>
                         <div class="min-h-[10rem] max-h-80 overflow-y-auto bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md p-3 flex flex-wrap gap-2 content-start">
+                            {% if locked_users %}
+                            <!-- 锁定用户（部门默认，带锁图标） -->
+                            <template x-for="user in lockedUsers" :key="'locked-' + user.id">
+                                <div class="relative" :title="user.name + ' ({{ _('部门默认') }})'">
+                                    <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400 ring-2 ring-slate-300 dark:ring-slate-500">
+                                        <span x-text="user.initials"></span>
+                                    </div>
+                                    <!-- 锁定图标 -->
+                                    <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-slate-400 dark:bg-slate-500 rounded-full flex items-center justify-center">
+                                        <span class="material-symbols-outlined text-white" style="font-size: 10px;">lock</span>
+                                    </span>
+                                </div>
+                            </template>
+                            {% endif %}
+
+                            <!-- 可移除的已选用户 -->
                             <template x-for="user in selectedUsers" :key="user.id">
                                 <div class="relative group" :title="user.name">
-                                    <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs"
+                                    <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs cursor-default"
                                          :class="getAvatarColor(user.id)">
                                         <span x-text="user.initials"></span>
                                     </div>
+                                    <!-- 移除按钮（悬停显示） -->
                                     <button @click.stop="removeUser(user.id)"
-                                            class="absolute -top-1 -right-1 w-5 h-5 bg-slate-500 hover:bg-slate-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <span class="material-symbols-outlined text-white" style="font-size: 14px;">close</span>
+                                            class="absolute -top-1 -right-1 w-4 h-4 bg-slate-500 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <span class="material-symbols-outlined text-white" style="font-size: 10px;">close</span>
                                     </button>
                                 </div>
                             </template>
 
                             <!-- 空状态 -->
-                            <template x-if="selectedUsers.length === 0">
+                            <template x-if="selectedUsers.length === 0 && lockedUsers.length === 0">
                                 <span class="text-slate-400 dark:text-slate-500 text-sm">{{ _('未选择用户') }}</span>
                             </template>
                         </div>
@@ -446,10 +467,16 @@ function {{ modal_id }}Data() {
         expandedNodes: defaultExpandedNodes,
         {% if mode == 'multi' %}
         shareEnabled: {{ 'true' if share_enabled else 'false' }},
+        lockedUsers: ({{ locked_users|tojson|safe if locked_users else '[]' }}).map(u => ({
+            ...u,
+            initials: u.initials || (u.name ? u.name.substring(0, 2).toUpperCase() : '?')
+        })),
+        lockedUserIds: ({{ locked_users|tojson|safe if locked_users else '[]' }}).map(u => u.id),
         selectedUsers: ({{ selected_users|tojson|safe if selected_users else '[]' }}).map(u => ({
             ...u,
             initials: u.initials || (u.name ? u.name.substring(0, 2).toUpperCase() : '?')
         })),
+        saveCallback: '{{ save_callback }}',
         {% else %}
         selectedUserId: {{ selected_user_id or 'null' }},
         {% endif %}
@@ -534,10 +561,17 @@ function {{ modal_id }}Data() {
         },
 
         isUserSelected(userId) {
-            return this.selectedUsers.some(u => u.id === userId);
+            return this.selectedUsers.some(u => u.id === userId) || this.lockedUserIds.includes(userId);
+        },
+
+        isUserLocked(userId) {
+            return this.lockedUserIds.includes(userId);
         },
 
         toggleUser(user) {
+            // 锁定用户不可切换
+            if (this.isUserLocked(user.user_id)) return;
+
             const index = this.selectedUsers.findIndex(u => u.id === user.user_id);
             if (index === -1) {
                 this.selectedUsers.push({
@@ -632,6 +666,14 @@ function {{ modal_id }}Data() {
         async saveSelection() {
             this.saving = true;
             try {
+                // 如果提供了自定义回调，使用回调
+                if (this.saveCallback && typeof window[this.saveCallback] === 'function') {
+                    await window[this.saveCallback](this.selectedUsers, this.shareEnabled);
+                    this.open = false;
+                    return;
+                }
+
+                // 默认的表单提交方式
                 const form = new FormData();
                 {% if show_share_toggle %}
                 if (this.shareEnabled) form.append('share_enabled', 'on');

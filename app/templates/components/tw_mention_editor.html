@@ -1,0 +1,578 @@
+{#
+=============================================================================
+Tailwind Mention Editor 组件
+=============================================================================
+支持 @ 用户、# 项目和 % 报价单引用的富文本编辑器组件。
+基于 trigger-dropdown.js 通用组件实现。
+
+使用方式：
+{% from 'components/tw_mention_editor.html' import tw_mention_editor, tw_mention_editor_script %}
+
+{{ tw_mention_editor(
+    editor_id='logEditor',
+    users_data=shareable_users_tree,
+    placeholder=_('描述您的工作日志、进度和成果...'),
+    initial_value=log_data.additional_notes,
+    max_length=5000,
+    min_height='280px'
+) }}
+
+{{ tw_mention_editor_script() }}
+
+功能：
+- 输入 @ 触发用户选择下拉框（本地数据）
+- 输入 # 触发项目搜索下拉框（API搜索）
+- 输入 % 触发报价单搜索下拉框（API搜索，显示：项目名称 + 报价单号）
+- 选择后插入为标签样式
+- 编辑时标签不可点击
+- 提供 renderMentionPreview() 函数用于预览模式渲染可点击链接
+
+参数：
+- editor_id: 编辑器唯一ID（必填）
+- users_data: 用户树数据（必填，格式与 shareable_users_tree 一致）
+- placeholder: 占位文本
+- initial_value: 初始值（存储格式的文本）
+- max_length: 最大字符数
+- min_height: 最小高度
+- project_search_url: 项目搜索 API 地址
+- quotation_search_url: 报价单搜索 API 地址
+
+依赖：
+- /static/js/trigger-dropdown.js
+=============================================================================
+#}
+
+{% macro tw_mention_editor(
+    editor_id,
+    users_data,
+    placeholder='',
+    initial_value='',
+    max_length=5000,
+    min_height='280px',
+    project_search_url='/api/v1/search/projects',
+    quotation_search_url='/api/v1/search/quotations'
+) %}
+{# 将配置数据存储到全局变量 #}
+<script>
+window.__mentionEditorData = window.__mentionEditorData || {};
+window.__mentionEditorData['{{ editor_id }}'] = {
+    users: {{ users_data | tojson | safe }},
+    projectSearchUrl: '{{ project_search_url }}',
+    quotationSearchUrl: '{{ quotation_search_url }}',
+    maxLength: {{ max_length }},
+    initialValue: {{ initial_value | tojson | safe }}
+};
+</script>
+
+<div id="{{ editor_id }}-container"
+     class="mention-editor-container relative"
+     x-data="mentionEditor('{{ editor_id }}')"
+     x-init="init()">
+
+    {# 编辑器主体 #}
+    <div x-ref="editor"
+         id="{{ editor_id }}"
+         contenteditable="true"
+         class="mention-editor w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600
+                bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm
+                focus:ring-2 focus:ring-primary/50 focus:border-primary
+                overflow-y-auto outline-none"
+         style="min-height: {{ min_height }};"
+         @paste="handlePaste($event)"
+         @blur="syncToHidden()"
+         :data-placeholder="'{{ placeholder }}'">
+    </div>
+
+    {# 隐藏的存储字段 #}
+    <input type="hidden" x-ref="hiddenValue" :value="storageValue">
+    <input type="hidden" x-ref="mentionedUsers" :value="JSON.stringify(mentionedUserIds)">
+    <input type="hidden" x-ref="mentionedProjects" :value="JSON.stringify(mentionedProjectIds)">
+
+    {# 字符计数 #}
+    <div class="text-right text-xs text-slate-400 dark:text-slate-500 mt-1">
+        <span x-text="charCount"></span> / {{ max_length }}
+    </div>
+</div>
+
+<style>
+/* Mention 编辑器样式 */
+.mention-editor:empty:before {
+    content: attr(data-placeholder);
+    color: #94a3b8;
+    pointer-events: none;
+}
+.dark .mention-editor:empty:before {
+    color: #64748b;
+}
+
+/* 触发下拉框样式 */
+.trigger-dropdown {
+    background-color: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    border: 1px solid rgb(226 232 240);
+    overflow: hidden;
+}
+.dark .trigger-dropdown {
+    background-color: rgb(30 41 59);
+    border-color: rgb(51 65 85);
+}
+
+/* 标签样式 - 编辑器内 */
+.trigger-tag,
+.mention-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    user-select: all;
+}
+.trigger-tag-user,
+.mention-tag-user {
+    background-color: rgb(219 234 254);
+    color: rgb(29 78 216);
+}
+.dark .trigger-tag-user,
+.dark .mention-tag-user {
+    background-color: rgb(30 58 138 / 0.3);
+    color: rgb(147 197 253);
+}
+.trigger-tag-project,
+.mention-tag-project {
+    background-color: rgb(220 252 231);
+    color: rgb(21 128 61);
+}
+.dark .trigger-tag-project,
+.dark .mention-tag-project {
+    background-color: rgb(20 83 45 / 0.3);
+    color: rgb(134 239 172);
+}
+.trigger-tag-quotation,
+.mention-tag-quotation {
+    background-color: rgb(254 243 199);
+    color: rgb(180 83 9);
+}
+.dark .trigger-tag-quotation,
+.dark .mention-tag-quotation {
+    background-color: rgb(120 53 15 / 0.3);
+    color: rgb(253 186 116);
+}
+
+/* 预览模式链接样式 */
+.mention-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: background-color 0.15s;
+}
+.mention-link-user {
+    background-color: rgb(219 234 254);
+    color: rgb(29 78 216);
+}
+.mention-link-user:hover {
+    background-color: rgb(191 219 254);
+}
+.dark .mention-link-user {
+    background-color: rgb(30 58 138 / 0.3);
+    color: rgb(147 197 253);
+}
+.dark .mention-link-user:hover {
+    background-color: rgb(30 58 138 / 0.5);
+}
+.mention-link-project {
+    background-color: rgb(220 252 231);
+    color: rgb(21 128 61);
+}
+.mention-link-project:hover {
+    background-color: rgb(187 247 208);
+}
+.dark .mention-link-project {
+    background-color: rgb(20 83 45 / 0.3);
+    color: rgb(134 239 172);
+}
+.dark .mention-link-project:hover {
+    background-color: rgb(20 83 45 / 0.5);
+}
+.mention-link-quotation {
+    background-color: rgb(254 243 199);
+    color: rgb(180 83 9);
+}
+.mention-link-quotation:hover {
+    background-color: rgb(253 230 138);
+}
+.dark .mention-link-quotation {
+    background-color: rgb(120 53 15 / 0.3);
+    color: rgb(253 186 116);
+}
+.dark .mention-link-quotation:hover {
+    background-color: rgb(120 53 15 / 0.5);
+}
+</style>
+{% endmacro %}
+
+
+{% macro tw_mention_editor_script() %}
+{# 引入 TriggerDropdown 组件 #}
+<script src="{{ url_for('static', filename='js/trigger-dropdown.js') }}"></script>
+
+<script>
+/**
+ * 扁平化用户树数据
+ * @param {Array} tree - 用户树数据
+ * @returns {Array} - 扁平化的用户数组
+ */
+function flattenUsersTree(tree) {
+    const users = [];
+    if (!tree || !Array.isArray(tree)) return users;
+
+    tree.forEach(company => {
+        (company.children || []).forEach(child => {
+            if (child.type === 'user') {
+                users.push({
+                    id: child.user_id,
+                    name: child.name,
+                    initials: child.initials || (child.name || '?').substring(0, 2).toUpperCase(),
+                    company: company.name
+                });
+            } else if (child.type === 'department') {
+                (child.children || []).forEach(user => {
+                    users.push({
+                        id: user.user_id,
+                        name: user.name,
+                        initials: user.initials || (user.name || '?').substring(0, 2).toUpperCase(),
+                        department: child.name,
+                        company: company.name
+                    });
+                });
+            }
+        });
+    });
+    return users;
+}
+
+/**
+ * 获取用户徽章颜色类
+ */
+function getUserBadgeClass(userId) {
+    if (typeof TwBadge !== 'undefined' && TwBadge.getColorClass) {
+        return TwBadge.getColorClass(userId);
+    }
+    const colors = [
+        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+        'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+        'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+        'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+        'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300'
+    ];
+    return colors[userId % colors.length];
+}
+
+/**
+ * Mention Editor Alpine.js 组件
+ * 使用 TriggerDropdown 实现核心功能
+ */
+function mentionEditor(editorId) {
+    const config = window.__mentionEditorData?.[editorId] || {};
+    const usersTree = config.users || [];
+    const projectSearchUrl = config.projectSearchUrl || '/api/v1/search/projects';
+    const quotationSearchUrl = config.quotationSearchUrl || '/api/v1/search/quotations';
+    const maxLength = config.maxLength || 5000;
+    const initialValue = config.initialValue || '';
+
+    // 扁平化用户数据
+    const flatUsers = flattenUsersTree(usersTree);
+
+    return {
+        // 状态
+        editorId: editorId,
+        maxLength: maxLength,
+        storageValue: '',
+        charCount: 0,
+        mentionedUserIds: [],
+        mentionedProjectIds: [],
+        mentionedQuotationIds: [],
+        triggerDropdown: null,
+
+        // 初始化
+        init() {
+            const editor = this.$refs.editor;
+
+            // 创建 TriggerDropdown 实例
+            this.triggerDropdown = new TriggerDropdown(editor, {
+                triggers: [
+                    {
+                        char: '@',
+                        type: 'user',
+                        mode: 'local',
+                        data: flatUsers,
+                        filterFields: ['name', 'department', 'company'],
+                        emptyText: '未找到匹配的用户',
+                        renderItem: (user, isHighlighted) => `
+                            <div class="flex items-center gap-2">
+                                <span class="w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${getUserBadgeClass(user.id)}">
+                                    ${user.initials}
+                                </span>
+                                <div class="flex-1 min-w-0">
+                                    <div class="font-medium truncate">${user.name}</div>
+                                    ${user.department || user.company ? `<div class="text-xs text-slate-500 dark:text-slate-400 truncate">${user.department ? user.department + ' - ' + user.company : user.company}</div>` : ''}
+                                </div>
+                            </div>
+                        `,
+                        tagTemplate: (user) => ({
+                            text: '@' + user.name,
+                            class: 'trigger-tag trigger-tag-user',
+                            data: { type: 'user', id: user.id, name: user.name }
+                        })
+                    },
+                    {
+                        char: '#',
+                        type: 'project',
+                        mode: 'api',
+                        searchUrl: projectSearchUrl,
+                        debounce: 200,
+                        minChars: 0,
+                        emptyText: '未找到匹配的项目',
+                        loadingText: '搜索中...',
+                        renderItem: (project, isHighlighted) => `
+                            <div>
+                                <div class="font-medium truncate">${project.project_name}</div>
+                                ${project.customer_name ? `<div class="text-xs text-slate-500 dark:text-slate-400 truncate">${project.customer_name}</div>` : ''}
+                            </div>
+                        `,
+                        tagTemplate: (project) => ({
+                            text: '#' + project.project_name,
+                            class: 'trigger-tag trigger-tag-project',
+                            data: { type: 'project', id: project.id, name: project.project_name }
+                        })
+                    },
+                    {
+                        char: '%',
+                        type: 'quotation',
+                        mode: 'api',
+                        searchUrl: quotationSearchUrl,
+                        debounce: 200,
+                        minChars: 0,
+                        emptyText: '未找到匹配的报价单',
+                        loadingText: '搜索中...',
+                        renderItem: (quotation, isHighlighted) => {
+                            // 格式化金额显示
+                            const amount = quotation.amount || 0;
+                            const amountText = amount >= 10000
+                                ? (amount / 10000).toFixed(2) + '万'
+                                : amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            return `
+                                <div>
+                                    <div class="font-medium truncate">${quotation.project_name}</div>
+                                    <div class="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                        <span class="truncate">${quotation.quotation_number || '未编号'}</span>
+                                        <span class="flex-shrink-0 font-medium text-amber-600 dark:text-amber-400">¥${amountText}</span>
+                                    </div>
+                                </div>
+                            `;
+                        },
+                        tagTemplate: (quotation) => ({
+                            text: '%' + quotation.project_name + '-' + (quotation.quotation_number || quotation.quotation_id),
+                            class: 'trigger-tag trigger-tag-quotation',
+                            data: { type: 'quotation', id: quotation.quotation_id, name: quotation.project_name, number: quotation.quotation_number, amount: quotation.amount }
+                        })
+                    }
+                ],
+                onSelect: (trigger, item, tagConfig) => {
+                    this.syncToHidden();
+                    this.updateCharCount();
+                },
+                maxWidth: 320,
+                maxHeight: 256,
+                zIndex: 60
+            });
+
+            // 监听编辑器输入以更新字符计数
+            editor.addEventListener('input', () => {
+                this.updateCharCount();
+            });
+
+            // 如果有初始值，设置它
+            if (initialValue) {
+                this.triggerDropdown.setValue(initialValue, {});
+                this.storageValue = initialValue;
+                this.updateCharCount();
+                this.extractMentionIds();
+            }
+        },
+
+        // 处理粘贴
+        handlePaste(event) {
+            event.preventDefault();
+            const text = event.clipboardData.getData('text/plain');
+            document.execCommand('insertText', false, text);
+            this.updateCharCount();
+        },
+
+        // 同步到隐藏字段
+        syncToHidden() {
+            if (this.triggerDropdown) {
+                this.storageValue = this.triggerDropdown.getValue({
+                    user: '@[{name}|user:{id}]',
+                    project: '#[{name}|project:{id}]',
+                    quotation: '%[{name}|quotation:{id}]'
+                });
+                this.extractMentionIds();
+            }
+        },
+
+        // 提取 mention IDs
+        extractMentionIds() {
+            if (this.triggerDropdown) {
+                const mentions = this.triggerDropdown.getMentions();
+                this.mentionedUserIds = mentions.user || [];
+                this.mentionedProjectIds = mentions.project || [];
+                this.mentionedQuotationIds = mentions.quotation || [];
+            }
+        },
+
+        // 更新字符计数
+        updateCharCount() {
+            const text = this.$refs.editor.textContent || '';
+            this.charCount = text.length;
+        },
+
+        // 获取存储值（供外部调用）
+        getValue() {
+            this.syncToHidden();
+            return this.storageValue;
+        },
+
+        // 获取 mention 数据（供外部调用）
+        getMentionData() {
+            return {
+                users: this.mentionedUserIds,
+                projects: this.mentionedProjectIds,
+                quotations: this.mentionedQuotationIds
+            };
+        },
+
+        // 设置值（供外部调用）
+        setValue(text) {
+            if (this.triggerDropdown) {
+                this.triggerDropdown.setValue(text, {});
+                this.storageValue = text;
+                this.updateCharCount();
+                this.extractMentionIds();
+            }
+        }
+    };
+}
+
+/**
+ * 渲染 mention 预览（将存储格式转为可点击链接）
+ * @param {string} text - 存储格式的文本
+ * @param {string} userUrlPattern - 用户链接模式，默认 '/user/{id}'
+ * @param {string} projectUrlPattern - 项目链接模式，默认 '/project/{id}'
+ * @param {string} quotationUrlPattern - 报价单链接模式，默认 '/quotation/{id}'
+ * @returns {string} - 包含可点击链接的 HTML
+ */
+function renderMentionPreview(text, userUrlPattern = '/user/{id}', projectUrlPattern = '/project/{id}', quotationUrlPattern = '/quotation/{id}') {
+    if (!text) return '';
+
+    // 转义 HTML
+    let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    // 替换用户标记为链接
+    html = html.replace(/@\[([^\]|]+)\|user:(\d+)\]/g, (match, name, id) => {
+        const url = userUrlPattern.replace('{id}', id);
+        return `<a href="${url}" target="_blank" class="mention-link mention-link-user">@${name}</a>`;
+    });
+
+    // 替换项目标记为链接
+    html = html.replace(/#\[([^\]|]+)\|project:(\d+)\]/g, (match, name, id) => {
+        const url = projectUrlPattern.replace('{id}', id);
+        return `<a href="${url}" target="_blank" class="mention-link mention-link-project">#${name}</a>`;
+    });
+
+    // 替换报价单标记为链接
+    html = html.replace(/%\[([^\]|]+)\|quotation:(\d+)\]/g, (match, name, id) => {
+        const url = quotationUrlPattern.replace('{id}', id);
+        return `<a href="${url}" target="_blank" class="mention-link mention-link-quotation">%${name}</a>`;
+    });
+
+    // 处理换行
+    html = html.replace(/\n/g, '<br>');
+
+    return html;
+}
+
+// 导出到全局
+window.renderMentionPreview = renderMentionPreview;
+window.flattenUsersTree = flattenUsersTree;
+</script>
+{% endmacro %}
+
+
+{# ============================================================================
+   独立的预览渲染脚本
+   ============================================================================
+   此宏仅包含 renderMentionPreview 函数，不依赖任何外部脚本。
+   用于只需要预览功能（不需要编辑器）的页面。
+
+   使用方式：
+   {% from 'components/tw_mention_editor.html' import tw_mention_preview_script %}
+   {{ tw_mention_preview_script() }}
+   ============================================================================
+#}
+{% macro tw_mention_preview_script() %}
+<script>
+/**
+ * 渲染 mention 预览（将存储格式转为可点击链接）
+ * @param {string} text - 存储格式的文本
+ * @param {string} userUrlPattern - 用户链接模式，默认 '/user/{id}'
+ * @param {string} projectUrlPattern - 项目链接模式，默认 '/project/{id}'
+ * @param {string} quotationUrlPattern - 报价单链接模式，默认 '/quotation/{id}'
+ * @returns {string} - 包含可点击链接的 HTML
+ */
+window.renderMentionPreview = function(text, userUrlPattern, projectUrlPattern, quotationUrlPattern) {
+    userUrlPattern = userUrlPattern || '/user/{id}';
+    projectUrlPattern = projectUrlPattern || '/project/{id}';
+    quotationUrlPattern = quotationUrlPattern || '/quotation/{id}';
+
+    if (!text) return '';
+
+    // 转义 HTML
+    var html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    // 替换用户标记为链接
+    html = html.replace(/@\[([^\]|]+)\|user:(\d+)\]/g, function(match, name, id) {
+        var url = userUrlPattern.replace('{id}', id);
+        return '<a href="' + url + '" target="_blank" class="mention-link mention-link-user">@' + name + '</a>';
+    });
+
+    // 替换项目标记为链接
+    html = html.replace(/#\[([^\]|]+)\|project:(\d+)\]/g, function(match, name, id) {
+        var url = projectUrlPattern.replace('{id}', id);
+        return '<a href="' + url + '" target="_blank" class="mention-link mention-link-project">#' + name + '</a>';
+    });
+
+    // 替换报价单标记为链接
+    html = html.replace(/%\[([^\]|]+)\|quotation:(\d+)\]/g, function(match, name, id) {
+        var url = quotationUrlPattern.replace('{id}', id);
+        return '<a href="' + url + '" target="_blank" class="mention-link mention-link-quotation">%' + name + '</a>';
+    });
+
+    // 处理换行
+    html = html.replace(/\n/g, '<br>');
+
+    return html;
+};
+</script>
+{% endmacro %}

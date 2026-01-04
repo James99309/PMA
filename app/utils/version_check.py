@@ -43,7 +43,7 @@ MODULE_FILES = {
     'product': [
         'app/routes/product.py',
         'app/models/product.py',
-        'app/routes/product_management.py',
+        # 'app/routes/product_management.py',  # DEPRECATED (2025-12-26): 研发库已废弃
     ],
 }
 

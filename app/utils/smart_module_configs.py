@@ -445,17 +445,17 @@ def register_all_smart_module_configs():
         'exclude_fields': []
     })
 
-    # 研发库模块
-    SmartModuleConfigRegistry.register('product_management', {
-        'source_template': 'product_management/tw_list_rows.html',
-        'desktop_template': 'product_management/tw_list_rows.html',
-        'items_var_name': 'products',
-        'title_field': 'model',
-        'link_url': '/product-management/{id}',
-        'priority_fields': ['mn_code', 'category', 'creator'],
-        'badge_fields': ['status'],
-        'exclude_fields': []
-    })
+    # 研发库模块 - DEPRECATED (2025-12-26): 研发库已废弃，功能已由规格模板系统替代
+    # SmartModuleConfigRegistry.register('product_management', {
+    #     'source_template': 'product_management/tw_list_rows.html',
+    #     'desktop_template': 'product_management/tw_list_rows.html',
+    #     'items_var_name': 'products',
+    #     'title_field': 'model',
+    #     'link_url': '/product-management/{id}',
+    #     'priority_fields': ['mn_code', 'category', 'creator'],
+    #     'badge_fields': ['status'],
+    #     'exclude_fields': []
+    # })
 
     # 报销管理模块
     SmartModuleConfigRegistry.register('expense', {

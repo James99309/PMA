@@ -1,0 +1,883 @@
+{#
+=============================================================================
+每日智能分析报告弹窗组件
+=============================================================================
+用于在用户打开首页时展示AI生成的个性化分析报告
+
+导入方式：
+{% from 'components/tw_daily_report_modal.html' import render_daily_report_modal, render_daily_report_script %}
+
+使用示例：
+{{ render_daily_report_modal() }}
+{{ render_daily_report_script() }}
+=============================================================================
+#}
+
+{% macro render_daily_report_modal() %}
+<div id="dailyReportModal"
+     x-data="dailyReportModal()"
+     x-show="isOpen"
+     x-cloak
+     class="fixed inset-0 z-[9999]"
+     role="dialog"
+     aria-modal="true">
+
+    {# 遮罩层 #}
+    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+         x-show="isOpen"
+         x-transition:enter="ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @click="dismiss()"></div>
+
+    {# 模态框主体 #}
+    <div class="fixed inset-0 flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden transform transition-all my-8"
+             x-show="isOpen"
+             x-transition:enter="ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="ease-in duration-200"
+             x-transition:leave-start="opacity-100 scale-100"
+             x-transition:leave-end="opacity-0 scale-95"
+             @click.stop>
+
+            {# 头部 - 渐变背景 #}
+            <div class="relative bg-gradient-to-r from-primary to-blue-600 px-6 py-5">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-white text-2xl">insights</span>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-bold text-white">{{ _('AI智能分析报告') }}</h2>
+                            <p class="text-sm text-white/80" x-text="reportDate || new Date().toLocaleDateString()"></p>
+                        </div>
+                    </div>
+                    {# X按钮已移除，用户通过底部按钮关闭 #}
+                </div>
+
+                {# 综合评分徽章 #}
+                <div x-show="!loading && report" class="absolute -bottom-5 right-6">
+                    <div class="w-14 h-14 rounded-full bg-white dark:bg-slate-800 shadow-lg flex items-center justify-center border-4 border-white dark:border-slate-800">
+                        <span class="text-xl font-bold"
+                              :class="{
+                                  'text-green-500': report?.score >= 80,
+                                  'text-blue-500': report?.score >= 60 && report?.score < 80,
+                                  'text-amber-500': report?.score >= 40 && report?.score < 60,
+                                  'text-red-500': report?.score < 40
+                              }"
+                              x-text="report?.score || '--'"></span>
+                    </div>
+                </div>
+            </div>
+
+            {# M级切换标签 #}
+            <div x-show="isManager && teamInfo" class="flex border-b border-slate-200 dark:border-slate-700">
+                <button @click="activeTab = 'personal'"
+                        :class="activeTab === 'personal' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                        class="px-6 py-3 text-sm font-medium border-b-2 -mb-px transition-colors">
+                    <span class="material-symbols-outlined text-base align-middle mr-1">person</span>
+                    {{ _('我的分析') }}
+                </button>
+                <button @click="activeTab = 'team'"
+                        :class="activeTab === 'team' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                        class="px-6 py-3 text-sm font-medium border-b-2 -mb-px transition-colors">
+                    <span class="material-symbols-outlined text-base align-middle mr-1">groups</span>
+                    {{ _('团队整体') }}
+                </button>
+                <button @click="activeTab = 'members'; onMembersTabActive()"
+                        :class="activeTab === 'members' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                        class="px-6 py-3 text-sm font-medium border-b-2 -mb-px transition-colors">
+                    <span class="material-symbols-outlined text-base align-middle mr-1">badge</span>
+                    {{ _('成员分析') }}
+                    <span x-show="teamInfo?.members?.length" class="ml-1 px-1.5 py-0.5 text-xs bg-slate-200 dark:bg-slate-700 rounded-full" x-text="teamInfo?.members?.length"></span>
+                </button>
+            </div>
+
+            {# 内容区域 #}
+            <div class="px-6 py-6 max-h-[65vh] overflow-y-auto">
+
+                {# 加载状态 #}
+                <div x-show="loading && activeTab === 'personal'" class="flex flex-col items-center justify-center py-12">
+                    <div class="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+                    <p class="mt-4 text-sm text-slate-500 dark:text-slate-400">{{ _('AI正在分析您的数据...') }}</p>
+                    <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">{{ _('首次分析可能需要10-20秒') }}</p>
+                </div>
+
+                {# 错误状态 #}
+                <div x-show="error && !loading && activeTab === 'personal'" class="text-center py-8">
+                    <span class="material-symbols-outlined text-red-500 text-4xl">error</span>
+                    <p class="mt-2 text-sm text-red-600 dark:text-red-400" x-text="error"></p>
+                </div>
+
+                {# ============ 我的分析 标签内容 ============ #}
+                <div x-show="(activeTab === 'personal' || !isManager) && report && !loading && !error" class="space-y-5">
+
+                    {# 整体评价 #}
+                    <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                        <p class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed" x-text="report?.overall"></p>
+                    </div>
+
+                    {# KPI亮点 #}
+                    <div x-show="report?.kpi_highlights?.length > 0">
+                        <h4 class="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white mb-3">
+                            <span class="material-symbols-outlined text-green-500 text-lg">thumb_up</span>
+                            {{ _('业绩亮点') }}
+                        </h4>
+                        <ul class="space-y-2">
+                            <template x-for="(item, index) in report?.kpi_highlights || []" :key="index">
+                                <li class="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
+                                    <span class="material-symbols-outlined text-green-500 text-base mt-0.5">check_circle</span>
+                                    <span x-text="item"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+
+                    {# 本月分析 #}
+                    <div x-show="report?.monthly_focus" class="p-4 rounded-xl bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800">
+                        <h4 class="flex items-center gap-2 text-sm font-semibold text-cyan-700 dark:text-cyan-300 mb-3">
+                            <span class="material-symbols-outlined text-lg">calendar_month</span>
+                            {{ _('本月分析') }}
+                        </h4>
+                        <div class="space-y-3 text-sm">
+                            <div x-show="report?.monthly_focus?.performance">
+                                <span class="font-medium text-cyan-800 dark:text-cyan-200">{{ _('表现评价') }}:</span>
+                                <p class="mt-1 text-slate-600 dark:text-slate-400" x-text="report?.monthly_focus?.performance"></p>
+                            </div>
+                            <div x-show="report?.monthly_focus?.mom_trend" class="flex items-start gap-2">
+                                <span class="material-symbols-outlined text-amber-500 mt-0.5">trending_up</span>
+                                <div>
+                                    <span class="font-medium text-cyan-800 dark:text-cyan-200">{{ _('环比趋势') }}:</span>
+                                    <span class="text-slate-600 dark:text-slate-400" x-text="report?.monthly_focus?.mom_trend"></span>
+                                </div>
+                            </div>
+                            <div x-show="report?.monthly_focus?.yoy_trend" class="flex items-start gap-2">
+                                <span class="material-symbols-outlined text-blue-500 mt-0.5">compare_arrows</span>
+                                <div>
+                                    <span class="font-medium text-cyan-800 dark:text-cyan-200">{{ _('同比趋势') }}:</span>
+                                    <span class="text-slate-600 dark:text-slate-400" x-text="report?.monthly_focus?.yoy_trend"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {# 项目分析 #}
+                    <div x-show="report?.project_analysis">
+                        <h4 class="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white mb-3">
+                            <span class="material-symbols-outlined text-blue-500 text-lg">folder_open</span>
+                            {{ _('项目分析') }}
+                        </h4>
+                        <div class="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                            <div class="flex items-start gap-2" x-show="report?.project_analysis?.funnel_health">
+                                <span class="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">{{ _('漏斗健康度') }}:</span>
+                                <span x-text="report?.project_analysis?.funnel_health"></span>
+                            </div>
+                            <div class="flex items-start gap-2" x-show="report?.project_analysis?.trend">
+                                <span class="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">{{ _('签约趋势') }}:</span>
+                                <span x-text="report?.project_analysis?.trend"></span>
+                            </div>
+                            <div x-show="report?.project_analysis?.risk_projects?.length > 0">
+                                <span class="font-medium text-slate-700 dark:text-slate-300">{{ _('风险提醒') }}:</span>
+                                <ul class="mt-1 ml-4 space-y-1">
+                                    <template x-for="(risk, idx) in report?.project_analysis?.risk_projects || []" :key="idx">
+                                        <li class="flex items-start gap-1">
+                                            <span class="material-symbols-outlined text-amber-500 text-sm mt-0.5">warning</span>
+                                            <span x-text="risk"></span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    {# 费用分析 #}
+                    <div x-show="report?.expense_analysis">
+                        <h4 class="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white mb-3">
+                            <span class="material-symbols-outlined text-purple-500 text-lg">account_balance_wallet</span>
+                            {{ _('费用分析') }}
+                        </h4>
+                        <div class="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                            <div class="flex items-start gap-2" x-show="report?.expense_analysis?.efficiency">
+                                <span class="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">{{ _('费用效率') }}:</span>
+                                <span x-text="report?.expense_analysis?.efficiency"></span>
+                            </div>
+                            <div class="flex items-start gap-2" x-show="report?.expense_analysis?.roi">
+                                <span class="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">{{ _('投入产出') }}:</span>
+                                <span x-text="report?.expense_analysis?.roi"></span>
+                            </div>
+                            <div x-show="report?.expense_analysis?.warnings?.length > 0">
+                                <ul class="space-y-1">
+                                    <template x-for="(warn, idx) in report?.expense_analysis?.warnings || []" :key="idx">
+                                        <li class="flex items-start gap-1 text-amber-600 dark:text-amber-400">
+                                            <span class="material-symbols-outlined text-sm mt-0.5">warning</span>
+                                            <span x-text="warn"></span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    {# 改进建议 #}
+                    <div class="p-4 rounded-xl bg-primary/5 dark:bg-primary/10 border border-primary/20">
+                        <h4 class="flex items-center gap-2 text-sm font-semibold text-primary mb-3">
+                            <span class="material-symbols-outlined text-lg">lightbulb</span>
+                            {{ _('改进建议') }}
+                        </h4>
+                        <ul class="space-y-2">
+                            <template x-for="(item, index) in report?.improvements || []" :key="index">
+                                <li class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                    <span class="font-bold text-primary" x-text="(index + 1) + '.'"></span>
+                                    <span x-text="item"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+
+                    {# 下月预测 #}
+                    <div x-show="report?.next_month_forecast" class="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                        <h4 class="flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-blue-300 mb-2">
+                            <span class="material-symbols-outlined text-lg">trending_up</span>
+                            {{ _('下月预测') }}
+                        </h4>
+                        <p class="text-sm text-blue-600 dark:text-blue-400" x-text="report?.next_month_forecast"></p>
+                    </div>
+
+                    {# 缓存提示 #}
+                    <div x-show="cached" class="text-xs text-center text-slate-400 dark:text-slate-500">
+                        <span class="material-symbols-outlined text-sm align-middle">schedule</span>
+                        <span x-text="'{{ _('数据来自') }} ' + cacheDate"></span>
+                        <button @click="generate(true)" class="ml-2 text-primary hover:underline">{{ _('刷新分析') }}</button>
+                    </div>
+                </div>
+
+                {# ============ 团队整体 标签内容 ============ #}
+                <div x-show="activeTab === 'team' && isManager" class="space-y-5">
+
+                    {# 正在生成中 #}
+                    <div x-show="teamAnalysisStatus === 'generating'" class="text-center py-12">
+                        <div class="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto"></div>
+                        <p class="mt-4 text-sm text-slate-500 dark:text-slate-400">{{ _('正在生成团队分析...') }}</p>
+                        <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">{{ _('这可能需要10-20秒') }}</p>
+                    </div>
+
+                    {# 生成失败 #}
+                    <div x-show="teamAnalysisStatus === 'failed'" class="text-center py-12">
+                        <span class="material-symbols-outlined text-4xl text-red-400">error</span>
+                        <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{{ _('团队分析生成失败') }}</p>
+                        <button @click="startTeamAnalysisGeneration()"
+                                class="mt-4 px-4 py-2 bg-primary text-white text-sm rounded-lg hover:bg-primary/90 transition-colors">
+                            {{ _('重试') }}
+                        </button>
+                    </div>
+
+                    {# 尚未开始 - 显示开始按钮 #}
+                    <div x-show="teamAnalysisStatus === 'pending' && !report?.team_analysis" class="text-center py-12">
+                        <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">groups</span>
+                        <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{{ _('团队分析尚未生成') }}</p>
+                        <button @click="startTeamAnalysisGeneration()"
+                                class="mt-4 px-4 py-2 bg-primary text-white text-sm rounded-lg hover:bg-primary/90 transition-colors">
+                            {{ _('生成团队分析') }}
+                        </button>
+                    </div>
+
+                    {# 团队分析内容 - 已完成 #}
+                    <template x-if="teamAnalysisStatus === 'completed' || report?.team_analysis">
+                        <div class="space-y-5">
+                            {# 团队整体表现 #}
+                            <div class="p-4 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                                <h4 class="flex items-center gap-2 text-sm font-semibold text-purple-700 dark:text-purple-300 mb-3">
+                                    <span class="material-symbols-outlined text-lg">groups</span>
+                                    {{ _('团队整体表现') }}
+                                </h4>
+                                <p class="text-sm text-slate-600 dark:text-slate-400" x-text="report?.team_analysis?.team_performance || teamAnalysis?.team_performance"></p>
+                            </div>
+
+                            {# 团队亮点 #}
+                            <div x-show="(report?.team_analysis?.top_performers || teamAnalysis?.top_performers)?.length > 0">
+                                <h4 class="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white mb-3">
+                                    <span class="material-symbols-outlined text-green-500 text-lg">star</span>
+                                    {{ _('团队亮点') }}
+                                </h4>
+                                <ul class="space-y-2">
+                                    <template x-for="(item, index) in (report?.team_analysis?.top_performers || teamAnalysis?.top_performers || [])" :key="index">
+                                        <li class="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
+                                            <span class="material-symbols-outlined text-green-500 text-base mt-0.5">check_circle</span>
+                                            <span x-text="item"></span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+
+                            {# 需要改进 #}
+                            <div x-show="(report?.team_analysis?.areas_to_improve || teamAnalysis?.areas_to_improve)?.length > 0">
+                                <h4 class="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white mb-3">
+                                    <span class="material-symbols-outlined text-amber-500 text-lg">priority_high</span>
+                                    {{ _('需要改进') }}
+                                </h4>
+                                <ul class="space-y-2">
+                                    <template x-for="(item, index) in (report?.team_analysis?.areas_to_improve || teamAnalysis?.areas_to_improve || [])" :key="index">
+                                        <li class="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
+                                            <span class="material-symbols-outlined text-amber-500 text-base mt-0.5">warning</span>
+                                            <span x-text="item"></span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+
+                            {# 管理建议 #}
+                            <div x-show="(report?.team_analysis?.management_suggestions || teamAnalysis?.management_suggestions)?.length > 0" class="p-4 rounded-xl bg-primary/5 dark:bg-primary/10 border border-primary/20">
+                                <h4 class="flex items-center gap-2 text-sm font-semibold text-primary mb-3">
+                                    <span class="material-symbols-outlined text-lg">lightbulb</span>
+                                    {{ _('管理建议') }}
+                                </h4>
+                                <ul class="space-y-2">
+                                    <template x-for="(item, index) in (report?.team_analysis?.management_suggestions || teamAnalysis?.management_suggestions || [])" :key="index">
+                                        <li class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                            <span class="font-bold text-primary" x-text="(index + 1) + '.'"></span>
+                                            <span x-text="item"></span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                {# ============ 成员分析 标签内容 - 左右切换模式 ============ #}
+                <div x-show="activeTab === 'members' && isManager" class="space-y-4">
+                    {# 无成员提示 #}
+                    <div x-show="!teamInfo?.members?.length" class="text-center py-8">
+                        <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">person_off</span>
+                        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">{{ _('暂无团队成员') }}</p>
+                    </div>
+
+                    {# 成员导航头部 - 左右切换 #}
+                    <div x-show="teamInfo?.members?.length > 0" class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-700">
+                        {# 左箭头 #}
+                        <button @click="prevMember()"
+                                :disabled="currentMemberIndex === 0"
+                                :class="currentMemberIndex === 0 ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed' : 'text-slate-600 dark:text-slate-400 hover:text-primary'"
+                                class="p-2 rounded-lg transition-colors">
+                            <span class="material-symbols-outlined text-2xl">chevron_left</span>
+                        </button>
+
+                        {# 成员信息 #}
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                <span class="text-sm font-medium text-primary" x-text="currentMember?.name?.substring(0, 2)"></span>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-medium text-slate-900 dark:text-white" x-text="currentMember?.name"></div>
+                                <div class="text-xs text-slate-500">
+                                    <span x-text="currentMember?.grade"></span>
+                                    <span class="mx-1">·</span>
+                                    <span x-text="(currentMemberIndex + 1) + '/' + (teamInfo?.members?.length || 0)"></span>
+                                </div>
+                            </div>
+                            {# 评分徽章 #}
+                            <div x-show="memberReport?.score" class="ml-2">
+                                <div class="w-10 h-10 rounded-full bg-white dark:bg-slate-800 shadow flex items-center justify-center border-2"
+                                     :class="{
+                                         'border-green-500': memberReport?.score >= 80,
+                                         'border-blue-500': memberReport?.score >= 60 && memberReport?.score < 80,
+                                         'border-amber-500': memberReport?.score >= 40 && memberReport?.score < 60,
+                                         'border-red-500': memberReport?.score < 40
+                                     }">
+                                    <span class="text-sm font-bold"
+                                          :class="{
+                                              'text-green-500': memberReport?.score >= 80,
+                                              'text-blue-500': memberReport?.score >= 60 && memberReport?.score < 80,
+                                              'text-amber-500': memberReport?.score >= 40 && memberReport?.score < 60,
+                                              'text-red-500': memberReport?.score < 40
+                                          }"
+                                          x-text="memberReport?.score"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {# 右箭头 #}
+                        <button @click="nextMember()"
+                                :disabled="currentMemberIndex >= (teamInfo?.members?.length || 0) - 1"
+                                :class="currentMemberIndex >= (teamInfo?.members?.length || 0) - 1 ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed' : 'text-slate-600 dark:text-slate-400 hover:text-primary'"
+                                class="p-2 rounded-lg transition-colors">
+                            <span class="material-symbols-outlined text-2xl">chevron_right</span>
+                        </button>
+                    </div>
+
+                    {# 成员报告内容区域 #}
+                    <div x-show="teamInfo?.members?.length > 0">
+                        {# 加载状态 #}
+                        <div x-show="memberLoading" class="text-center py-8">
+                            <div class="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto"></div>
+                            <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{{ _('正在加载分析报告...') }}</p>
+                        </div>
+
+                        {# 成员报告内容（完整版，与个人分析相同） #}
+                        <div x-show="!memberLoading && memberReport" class="space-y-5">
+                            {# 整体评价 #}
+                            <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                                <p class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed" x-text="memberReport?.overall"></p>
+                            </div>
+
+                            {# KPI亮点 #}
+                            <div x-show="memberReport?.kpi_highlights?.length > 0">
+                                <h4 class="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white mb-3">
+                                    <span class="material-symbols-outlined text-green-500 text-lg">thumb_up</span>
+                                    {{ _('业绩亮点') }}
+                                </h4>
+                                <ul class="space-y-2">
+                                    <template x-for="(item, index) in memberReport?.kpi_highlights || []" :key="index">
+                                        <li class="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
+                                            <span class="material-symbols-outlined text-green-500 text-base mt-0.5">check_circle</span>
+                                            <span x-text="item"></span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+
+                            {# 本月分析 #}
+                            <div x-show="memberReport?.monthly_focus" class="p-4 rounded-xl bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800">
+                                <h4 class="flex items-center gap-2 text-sm font-semibold text-cyan-700 dark:text-cyan-300 mb-3">
+                                    <span class="material-symbols-outlined text-lg">calendar_month</span>
+                                    {{ _('本月分析') }}
+                                </h4>
+                                <div class="space-y-3 text-sm">
+                                    <div x-show="memberReport?.monthly_focus?.performance">
+                                        <span class="font-medium text-cyan-800 dark:text-cyan-200">{{ _('表现评价') }}:</span>
+                                        <p class="mt-1 text-slate-600 dark:text-slate-400" x-text="memberReport?.monthly_focus?.performance"></p>
+                                    </div>
+                                    <div x-show="memberReport?.monthly_focus?.mom_trend" class="flex items-start gap-2">
+                                        <span class="material-symbols-outlined text-amber-500 mt-0.5">trending_up</span>
+                                        <div>
+                                            <span class="font-medium text-cyan-800 dark:text-cyan-200">{{ _('环比趋势') }}:</span>
+                                            <span class="text-slate-600 dark:text-slate-400" x-text="memberReport?.monthly_focus?.mom_trend"></span>
+                                        </div>
+                                    </div>
+                                    <div x-show="memberReport?.monthly_focus?.yoy_trend" class="flex items-start gap-2">
+                                        <span class="material-symbols-outlined text-blue-500 mt-0.5">compare_arrows</span>
+                                        <div>
+                                            <span class="font-medium text-cyan-800 dark:text-cyan-200">{{ _('同比趋势') }}:</span>
+                                            <span class="text-slate-600 dark:text-slate-400" x-text="memberReport?.monthly_focus?.yoy_trend"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {# 项目分析 #}
+                            <div x-show="memberReport?.project_analysis">
+                                <h4 class="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white mb-3">
+                                    <span class="material-symbols-outlined text-blue-500 text-lg">folder_open</span>
+                                    {{ _('项目分析') }}
+                                </h4>
+                                <div class="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                                    <div class="flex items-start gap-2" x-show="memberReport?.project_analysis?.funnel_health">
+                                        <span class="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">{{ _('漏斗健康度') }}:</span>
+                                        <span x-text="memberReport?.project_analysis?.funnel_health"></span>
+                                    </div>
+                                    <div class="flex items-start gap-2" x-show="memberReport?.project_analysis?.trend">
+                                        <span class="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">{{ _('签约趋势') }}:</span>
+                                        <span x-text="memberReport?.project_analysis?.trend"></span>
+                                    </div>
+                                    <div x-show="memberReport?.project_analysis?.risk_projects?.length > 0">
+                                        <span class="font-medium text-slate-700 dark:text-slate-300">{{ _('风险提醒') }}:</span>
+                                        <ul class="mt-1 ml-4 space-y-1">
+                                            <template x-for="(risk, idx) in memberReport?.project_analysis?.risk_projects || []" :key="idx">
+                                                <li class="flex items-start gap-1">
+                                                    <span class="material-symbols-outlined text-amber-500 text-sm mt-0.5">warning</span>
+                                                    <span x-text="risk"></span>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {# 费用分析 #}
+                            <div x-show="memberReport?.expense_analysis">
+                                <h4 class="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white mb-3">
+                                    <span class="material-symbols-outlined text-purple-500 text-lg">account_balance_wallet</span>
+                                    {{ _('费用分析') }}
+                                </h4>
+                                <div class="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                                    <div class="flex items-start gap-2" x-show="memberReport?.expense_analysis?.efficiency">
+                                        <span class="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">{{ _('费用效率') }}:</span>
+                                        <span x-text="memberReport?.expense_analysis?.efficiency"></span>
+                                    </div>
+                                    <div class="flex items-start gap-2" x-show="memberReport?.expense_analysis?.roi">
+                                        <span class="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">{{ _('投入产出') }}:</span>
+                                        <span x-text="memberReport?.expense_analysis?.roi"></span>
+                                    </div>
+                                    <div x-show="memberReport?.expense_analysis?.warnings?.length > 0">
+                                        <ul class="space-y-1">
+                                            <template x-for="(warn, idx) in memberReport?.expense_analysis?.warnings || []" :key="idx">
+                                                <li class="flex items-start gap-1 text-amber-600 dark:text-amber-400">
+                                                    <span class="material-symbols-outlined text-sm mt-0.5">warning</span>
+                                                    <span x-text="warn"></span>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {# 改进建议 #}
+                            <div class="p-4 rounded-xl bg-primary/5 dark:bg-primary/10 border border-primary/20">
+                                <h4 class="flex items-center gap-2 text-sm font-semibold text-primary mb-3">
+                                    <span class="material-symbols-outlined text-lg">lightbulb</span>
+                                    {{ _('改进建议') }}
+                                </h4>
+                                <ul class="space-y-2">
+                                    <template x-for="(item, index) in memberReport?.improvements || []" :key="index">
+                                        <li class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                            <span class="font-bold text-primary" x-text="(index + 1) + '.'"></span>
+                                            <span x-text="item"></span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+
+                            {# 下月预测 #}
+                            <div x-show="memberReport?.next_month_forecast" class="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                                <h4 class="flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-blue-300 mb-2">
+                                    <span class="material-symbols-outlined text-lg">trending_up</span>
+                                    {{ _('下月预测') }}
+                                </h4>
+                                <p class="text-sm text-blue-600 dark:text-blue-400" x-text="memberReport?.next_month_forecast"></p>
+                            </div>
+                        </div>
+
+                        {# 无报告状态 - 自动生成中 #}
+                        <div x-show="!memberLoading && !memberReport" class="text-center py-8">
+                            <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">hourglass_empty</span>
+                            <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{{ _('该成员暂无分析报告，正在生成...') }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {# 底部按钮 #}
+            <div class="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                <label x-show="!loading" class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 cursor-pointer">
+                    <input type="checkbox" x-model="dontShowToday" class="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary">
+                    {{ _('今日不再显示') }}
+                </label>
+                <span x-show="loading" class="text-sm text-slate-400">{{ _('正在生成分析报告...') }}</span>
+                <button @click="dismiss()"
+                        class="px-5 py-2 rounded-lg text-sm font-semibold transition-colors"
+                        :class="loading ? 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600' : 'bg-primary text-white hover:bg-primary/90'">
+                    <span x-show="loading">{{ _('稍后回来') }}</span>
+                    <span x-show="!loading">{{ _('开始工作') }}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{% macro render_daily_report_script() %}
+<script>
+function dailyReportModal() {
+    return {
+        isOpen: false,
+        loading: false,
+        error: null,
+        report: null,
+        cached: false,
+        cacheDate: null,
+        reportDate: null,
+        dontShowToday: false,
+
+        // M级团队相关状态
+        isManager: false,
+        teamInfo: null,
+        activeTab: 'personal',
+        currentMemberIndex: 0,  // 当前显示的成员索引
+        memberReport: null,
+        memberLoading: false,
+
+        // 团队分析状态（分阶段生成）
+        teamAnalysisStatus: 'pending',  // 'pending' | 'generating' | 'completed' | 'failed'
+        teamAnalysis: null,
+
+        // 获取当前成员（计算属性）
+        get currentMember() {
+            if (!this.teamInfo?.members?.length) return null;
+            return this.teamInfo.members[this.currentMemberIndex];
+        },
+
+        async init() {
+            // 将自身暴露到全局，供图标组件调用
+            window.dailyReportModalInstance = this;
+
+            // 检查是否应该显示报告
+            try {
+                const response = await fetch('/api/v1/daily-report/check', {
+                    headers: {
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    }
+                });
+                const data = await response.json();
+
+                if (data.success && data.should_show && data.api_available) {
+                    this.isOpen = true;
+                    this.generate();
+                }
+
+                // 获取团队信息（M级用户）
+                this.fetchTeamInfo();
+            } catch (e) {
+                console.error('检查报告状态失败:', e);
+            }
+        },
+
+        // 外部调用：打开弹窗显示报告
+        async openFromIcon() {
+            this.isOpen = true;
+            if (!this.report && !this.loading) {
+                this.generate();
+            }
+            // 标记报告已读
+            this.markAsRead();
+        },
+
+        // 标记报告为已读
+        async markAsRead() {
+            try {
+                await fetch('/api/v1/daily-report/mark-read', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    }
+                });
+                // 通知图标组件刷新状态
+                window.dispatchEvent(new CustomEvent('daily-report-read'));
+            } catch (e) {
+                console.error('标记已读失败:', e);
+            }
+        },
+
+        async generate(force = false) {
+            this.loading = true;
+            this.error = null;
+
+            try {
+                const response = await fetch('/api/v1/daily-report/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    },
+                    body: JSON.stringify({ force: force })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    this.report = result.data;
+                    this.cached = result.cached || false;
+                    this.cacheDate = result.cache_date || null;
+                    this.reportDate = this.cacheDate ? new Date(this.cacheDate).toLocaleDateString() : new Date().toLocaleDateString();
+
+                    // 如果是M级用户且有团队成员，在后台开始生成团队分析
+                    if (this.isManager && this.teamInfo?.members?.length > 0) {
+                        // 检查是否已有团队分析
+                        if (!this.report.team_analysis) {
+                            this.startTeamAnalysisGeneration();
+                        } else {
+                            this.teamAnalysisStatus = 'completed';
+                            this.teamAnalysis = this.report.team_analysis;
+                        }
+                    }
+                } else {
+                    this.error = result.error || '{{ _("生成报告失败") }}';
+                }
+            } catch (e) {
+                this.error = '{{ _("网络错误，请稍后重试") }}';
+                console.error('生成报告失败:', e);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async regenerate() {
+            this.loading = true;
+            this.error = null;
+
+            try {
+                const response = await fetch('/api/v1/daily-report/regenerate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    this.report = result.data;
+                    this.cached = false;
+                    this.cacheDate = null;
+                    this.reportDate = new Date().toLocaleDateString();
+                } else {
+                    this.error = result.error || '{{ _("重新生成报告失败") }}';
+                }
+            } catch (e) {
+                this.error = '{{ _("网络错误，请稍后重试") }}';
+                console.error('重新生成报告失败:', e);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async dismiss() {
+            // 如果勾选了"今日不再显示"，调用API标记
+            if (this.dontShowToday) {
+                try {
+                    await fetch('/api/v1/daily-report/dismiss', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                        }
+                    });
+                } catch (e) {
+                    console.error('关闭报告失败:', e);
+                }
+            }
+
+            this.isOpen = false;
+        },
+
+        // ============ M级团队功能 ============
+
+        // 获取团队信息
+        async fetchTeamInfo() {
+            try {
+                const response = await fetch('/api/v1/daily-report/team-info', {
+                    headers: {
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    }
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    this.isManager = data.is_manager;
+                    this.teamInfo = data.team ? data : null;
+                }
+            } catch (e) {
+                console.error('获取团队信息失败:', e);
+            }
+        },
+
+        // 开始生成团队分析（异步）
+        async startTeamAnalysisGeneration() {
+            this.teamAnalysisStatus = 'generating';
+
+            try {
+                const response = await fetch('/api/v1/daily-report/team-analysis/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    }
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    this.teamAnalysis = data.team_analysis;
+                    this.teamAnalysisStatus = 'completed';
+                    // 同步更新report对象
+                    if (this.report) {
+                        this.report.team_analysis = data.team_analysis;
+                    }
+                } else {
+                    console.error('生成团队分析失败:', data.error);
+                    this.teamAnalysisStatus = 'failed';
+                }
+            } catch (e) {
+                console.error('生成团队分析失败:', e);
+                this.teamAnalysisStatus = 'failed';
+            }
+        },
+
+        // 切换到上一个成员
+        prevMember() {
+            if (this.currentMemberIndex > 0) {
+                this.currentMemberIndex--;
+                this.loadCurrentMemberReport();
+            }
+        },
+
+        // 切换到下一个成员
+        nextMember() {
+            const maxIndex = (this.teamInfo?.members?.length || 0) - 1;
+            if (this.currentMemberIndex < maxIndex) {
+                this.currentMemberIndex++;
+                this.loadCurrentMemberReport();
+            }
+        },
+
+        // 加载当前成员的报告
+        async loadCurrentMemberReport() {
+            const member = this.currentMember;
+            if (!member) return;
+
+            this.memberLoading = true;
+            this.memberReport = null;
+
+            try {
+                // 1. 先检查是否有最新分析
+                const response = await fetch(`/api/v1/daily-report/member/${member.user_id}/report`, {
+                    headers: {
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    }
+                });
+                const data = await response.json();
+
+                if (data.success && data.has_report) {
+                    // 2. 有数据直接展示
+                    this.memberReport = data.data;
+                } else {
+                    // 3. 没有则生成（使用和成员自己生成一样的逻辑）
+                    const genResponse = await fetch(`/api/v1/daily-report/member/${member.user_id}/generate`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                        }
+                    });
+                    const genData = await genResponse.json();
+
+                    if (genData.success) {
+                        this.memberReport = genData.data;
+                    } else {
+                        console.error('生成成员报告失败:', genData.error);
+                    }
+                }
+            } catch (e) {
+                console.error('加载成员报告失败:', e);
+            } finally {
+                this.memberLoading = false;
+            }
+        },
+
+        // 进入成员标签时自动加载第一个成员
+        onMembersTabActive() {
+            if (this.teamInfo?.members?.length > 0 && !this.memberReport) {
+                this.currentMemberIndex = 0;
+                this.loadCurrentMemberReport();
+            }
+        }
+    };
+}
+</script>
+{% endmacro %}

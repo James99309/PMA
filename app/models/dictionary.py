@@ -12,7 +12,8 @@ class Dictionary(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     type = db.Column(db.String(50), nullable=False)  # 字典类型，如'role'、'region'等
     key = db.Column(db.String(50), nullable=False)   # 字典键，用于存储
-    value = db.Column(db.String(100), nullable=False) # 字典值，用于显示
+    value = db.Column(db.String(100), nullable=False) # 字典值，用于显示（中文）
+    value_en = db.Column(db.String(100), nullable=True) # 英文显示值
     is_active = db.Column(db.Boolean, default=True)   # 是否启用
     is_vendor = db.Column(db.Boolean, default=False)  # 是否为厂商（仅对企业字典有效）
     sort_order = db.Column(db.Integer, default=0)     # 排序顺序
@@ -142,6 +143,7 @@ class Dictionary(db.Model):
             'type': self.type,
             'key': self.key,
             'value': self.value,
+            'value_en': self.value_en,
             'is_active': self.is_active,
             'is_vendor': self.is_vendor,
             'sort_order': self.sort_order,

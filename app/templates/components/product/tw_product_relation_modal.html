@@ -243,7 +243,7 @@
 {% endmacro %}
 
 
-{% macro render_tw_product_relation_script(product_id, api_base_url='/product-management/api', exclude_ids=[]) %}
+{% macro render_tw_product_relation_script(product_id, api_base_url='/api', exclude_ids=[]) %}
 <script>
 (function() {
     'use strict';
@@ -404,7 +404,7 @@
         showLoading();
 
         try {
-            const response = await fetch('/product-management/api/product-tree');
+            const response = await fetch('/api/product-tree');
             const result = await response.json();
 
             if (result.success && result.data) {

@@ -152,16 +152,26 @@ class SpecService:
             product.updated_at = datetime.utcnow()
 
             # 5. 更新MN编码（如果适用）
+            # 引入产品（有source_configuration_id）跳过编码更新，保持从配置引入的编码
             spec_mn = None
             product_mn = None
+            is_imported_product = product_type == cls.TYPE_PRODUCT and getattr(product, 'source_configuration_id', None)
+
             if product_type == cls.TYPE_PRODUCT:
-                from app.utils.product_helpers import generate_spec_mn
-                spec_mn = generate_spec_mn(product)
-                if spec_mn:
-                    product.spec_mn = spec_mn
-                    if not getattr(product, 'is_mn_locked', False) or not product.product_mn:
-                        product.product_mn = spec_mn
+                if is_imported_product:
+                    # 引入产品：保持现有编码不变
+                    spec_mn = product.spec_mn
                     product_mn = product.product_mn
+                    logger.debug(f"引入产品 {product_id} 跳过编码更新，保持 spec_mn={spec_mn}, product_mn={product_mn}")
+                else:
+                    # 普通产品：重新计算编码
+                    from app.utils.product_helpers import generate_spec_mn
+                    spec_mn = generate_spec_mn(product)
+                    if spec_mn:
+                        product.spec_mn = spec_mn
+                        if not getattr(product, 'is_mn_locked', False) or not product.product_mn:
+                            product.product_mn = spec_mn
+                        product_mn = product.product_mn
             else:
                 # 研发产品的MN编码逻辑
                 from app.utils.product_helpers import generate_dev_product_mn
@@ -548,3 +558,75 @@ class SpecService:
                         })
 
         return specs
+
+    @classmethod
+    def group_specs_by_category(cls, specs):
+        """
+        将规格列表按分类分组
+
+        Args:
+            specs: 规格列表，每个规格需要有 field_name 字段
+
+        Returns:
+            list: 分类列表，每个分类包含:
+                - id: 分类ID (0 表示未分类)
+                - name: 分类名称
+                - name_en: 分类英文名称
+                - specs: 该分类下的规格列表
+        """
+        from app.models.spec_template import SpecDefinition, SpecCategory
+
+        # 获取所有分类（按 display_order 排序）
+        all_categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
+        category_map = {cat.id: cat for cat in all_categories}
+
+        # 通过 field_name 匹配 SpecDefinition 获取分类信息和英文名称
+        spec_names = [s.get('field_name') or s.get('name', '') for s in specs if s.get('field_name') or s.get('name')]
+        definitions = SpecDefinition.query.filter(SpecDefinition.name.in_(spec_names)).all()
+        name_to_category = {d.name: d.category_id for d in definitions}
+        name_to_name_en = {d.name: d.name_en for d in definitions}
+
+        # 按分类分组
+        specs_by_category = {}
+        uncategorized_specs = []
+
+        for spec in specs:
+            field_name = spec.get('field_name') or spec.get('name', '')
+            # 只包含有值的规格
+            field_value = spec.get('field_value') or spec.get('value', '')
+            if not field_value:
+                continue
+
+            # 添加英文名称到规格
+            spec_with_en = dict(spec)
+            spec_with_en['field_name_en'] = name_to_name_en.get(field_name, '')
+
+            cat_id = name_to_category.get(field_name)
+            if cat_id and cat_id in category_map:
+                if cat_id not in specs_by_category:
+                    specs_by_category[cat_id] = []
+                specs_by_category[cat_id].append(spec_with_en)
+            else:
+                uncategorized_specs.append(spec_with_en)
+
+        # 构建按 display_order 排序的分类列表
+        spec_categories = []
+        for cat in all_categories:
+            if cat.id in specs_by_category:
+                spec_categories.append({
+                    'id': cat.id,
+                    'name': cat.name,
+                    'name_en': cat.name_en,
+                    'specs': specs_by_category[cat.id]
+                })
+
+        # 未分类的规格放在最后
+        if uncategorized_specs:
+            spec_categories.append({
+                'id': 0,
+                'name': '其他规格',
+                'name_en': 'Other Specs',
+                'specs': uncategorized_specs
+            })
+
+        return spec_categories

@@ -33,6 +33,7 @@ from app.models.product_code import ProductSubcategory, ProductCategory
 from app.extensions import db
 from app.utils.product_helpers import get_products_by_name
 from app.utils.dictionary_helpers import get_currency_type_options
+from config import Config
 import logging
 from decimal import Decimal, InvalidOperation
 from flask_login import login_required, current_user
@@ -61,6 +62,98 @@ logger = logging.getLogger(__name__)
 # 创建蓝图 - 标准产品库
 # 蓝图名 'product' 用于 url_for('product.xxx')
 bp = Blueprint('product', __name__)
+
+
+# ============================================================================
+# MN编号重复检查函数 (从已废弃的product_management.py迁移 2025-12-26)
+# ============================================================================
+
+def check_mn_code_duplicate(mn_code, exclude_dev_product_id=None, exclude_product_id=None):
+    """
+    检查MN编号全局唯一性（跨研发产品库和标准产品库）
+
+    Args:
+        mn_code: 要检查的MN编号
+        exclude_dev_product_id: 排除的研发产品ID（研发库编辑时使用）
+        exclude_product_id: 排除的产品ID（产品库编辑时使用）
+
+    Returns:
+        dict: {
+            'is_duplicate': bool,
+            'dev_products': [{...}],  # 研发库重复产品列表
+            'standard_products': [{...}],  # 产品库重复产品列表
+            'total_duplicates': int
+        }
+    """
+    if not mn_code:
+        return {'is_duplicate': False, 'dev_products': [], 'standard_products': []}
+
+    try:
+        from app.models.dev_product import DevProduct
+
+        duplicate_dev_products = []
+        duplicate_standard_products = []
+
+        # 检查研发产品库（已废弃，但保留历史数据检查）
+        dev_query = DevProduct.query.filter(DevProduct.mn_code == mn_code)
+        if exclude_dev_product_id:
+            dev_query = dev_query.filter(DevProduct.id != exclude_dev_product_id)
+
+        dev_duplicates = dev_query.all()
+
+        for product in dev_duplicates:
+            duplicate_dev_products.append({
+                'id': product.id,
+                'model': product.model,
+                'name': product.name,
+                'status': product.status,
+                'category': product.category.name if product.category else '未知',
+                'subcategory': product.subcategory.name if product.subcategory else '未知',
+                'created_at': product.created_at.strftime('%Y-%m-%d %H:%M:%S') if product.created_at else '未知',
+                'creator': product.creator.username if product.creator else '未知',
+                'mn_code': product.mn_code,
+                'source': '研发产品库'
+            })
+
+        # 检查标准产品库
+        prod_query = Product.query.filter(Product.product_mn == mn_code)
+        if exclude_product_id:
+            prod_query = prod_query.filter(Product.id != exclude_product_id)
+
+        standard_duplicates = prod_query.all()
+
+        for product in standard_duplicates:
+            category_name = product.category_obj.name if product.category_obj else (product.category or '未知')
+
+            duplicate_standard_products.append({
+                'id': product.id,
+                'model': product.model,
+                'name': product.name,
+                'status': product.status,
+                'category': category_name,
+                'type': product.type,
+                'created_at': product.created_at.strftime('%Y-%m-%d %H:%M:%S') if product.created_at else '未知',
+                'owner': product.owner.username if product.owner else '未知',
+                'mn_code': product.product_mn,
+                'source': '标准产品库'
+            })
+
+        is_duplicate = len(duplicate_dev_products) > 0 or len(duplicate_standard_products) > 0
+
+        if is_duplicate:
+            logger.warning(f"检测到MN编号 {mn_code} 重复，研发产品: {len(duplicate_dev_products)}个, 标准产品: {len(duplicate_standard_products)}个")
+
+        return {
+            'is_duplicate': is_duplicate,
+            'dev_products': duplicate_dev_products,
+            'standard_products': duplicate_standard_products,
+            'total_duplicates': len(duplicate_dev_products) + len(duplicate_standard_products)
+        }
+
+    except Exception as e:
+        logger.error(f"检查MN编号重复时出错: {str(e)}")
+        return {'is_duplicate': False, 'dev_products': [], 'standard_products': [], 'error': str(e)}
+
 
 # ============================================================
 # 产品库筛选配置（与报价单/客户/项目管理保持一致的通用模式）
@@ -447,7 +540,7 @@ def create():
         brand = request.form.get('brand') or None
         unit = request.form.get('unit')
         retail_price = request.form.get('retail_price')
-        currency = request.form.get('currency', 'CNY')
+        currency = request.form.get('currency', Config.DEFAULT_CURRENCY)
         description = request.form.get('description')
         is_vendor_product = request.form.get('is_vendor_product') == 'on'
 
@@ -456,7 +549,6 @@ def create():
             return jsonify({'success': False, 'message': '请填写所有必填字段（包括销售区域）'}), 400
 
         # 验证MN号全局唯一性（跨研发库和产品库）
-        from app.routes.product_management import check_mn_code_duplicate
         duplicate_info = check_mn_code_duplicate(product_mn)
         if duplicate_info['is_duplicate']:
             # 构建详细错误信息
@@ -891,7 +983,7 @@ def get_products():
                     'brand': p.brand,
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
-                    'currency': p.currency if hasattr(p, 'currency') else 'CNY',  # 添加货币字段
+                    'currency': p.currency if hasattr(p, 'currency') else Config.DEFAULT_CURRENCY,  # 添加货币字段
                     'status': p.status,
                     'is_vendor_product': p.is_vendor_product if hasattr(p, 'is_vendor_product') else False,  # 添加厂商产品标记
                     'created_at': p.created_at.strftime('%Y-%m-%d %H:%M:%S') if p.created_at else None,
@@ -976,7 +1068,7 @@ def get_products_by_category():
                     'brand': p.brand,
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
-                    'currency': p.currency if hasattr(p, 'currency') else 'CNY',  # 添加货币字段
+                    'currency': p.currency if hasattr(p, 'currency') else Config.DEFAULT_CURRENCY,  # 添加货币字段
                     'product_mn': p.product_mn
                 }
                 result.append(product_dict)
@@ -1025,7 +1117,7 @@ def get_products_by_name():
                     'brand': p.brand,
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
-                    'currency': p.currency if hasattr(p, 'currency') else 'CNY'  # 添加货币字段
+                    'currency': p.currency if hasattr(p, 'currency') else Config.DEFAULT_CURRENCY  # 添加货币字段
                 }
                 result.append(product_dict)
             except Exception as e:
@@ -1086,7 +1178,7 @@ def get_product_models():
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
                     'market_price': decimal_to_float(p.retail_price) if p.retail_price else 0,  # 兼容性字段
-                    'currency': p.currency if hasattr(p, 'currency') else 'CNY',
+                    'currency': p.currency if hasattr(p, 'currency') else Config.DEFAULT_CURRENCY,
                     'status': p.status,
                     'product_status': p.status  # 兼容性字段
                 }
@@ -1413,8 +1505,10 @@ def get_product_specs(product_id):
 
     Args:
         product_id: 产品ID
+        grouped: 可选参数，设为1时返回按分类分组的数据
 
     Returns:
+        grouped=0 (默认):
         JSON: {
             'specs': [
                 {
@@ -1426,14 +1520,30 @@ def get_product_specs(product_id):
                 }
             ]
         }
+
+        grouped=1:
+        JSON: {
+            'spec_categories': [
+                {
+                    'id': int,
+                    'name': str,
+                    'name_en': str,
+                    'specs': [...]
+                }
+            ]
+        }
     """
     try:
         from app.models.product_spec import ProductSpec
         from app.models.product_code import ProductCodeField
         from app.models.product import Product
+        from app.services.spec_service import SpecService
 
         # 验证产品存在性
         product = Product.query.get_or_404(product_id)
+
+        # 检查是否需要分组返回
+        grouped = request.args.get('grouped', '0') == '1'
 
         # 获取产品规格（按 display_order 排序，确保与子分类规格顺序一致）
         specs = ProductSpec.query.filter_by(product_id=product_id).order_by(ProductSpec.display_order).all()
@@ -1459,7 +1569,13 @@ def get_product_specs(product_id):
             spec_list.append(spec_dict)
 
         logger.debug(f"为产品 {product_id} 找到 {len(spec_list)} 个规格")
-        return jsonify({'specs': spec_list})
+
+        # 根据参数决定返回格式
+        if grouped:
+            spec_categories = SpecService.group_specs_by_category(spec_list)
+            return jsonify({'spec_categories': spec_categories})
+        else:
+            return jsonify({'specs': spec_list})
 
     except Exception as e:
         logger.error(f"获取产品规格失败: {str(e)}")
@@ -1589,7 +1705,7 @@ def create_product():
             'unit': request.form.get('unit'),
             'status': request.form.get('status', 'active'),  # 默认为生产中
             'retail_price': request.form.get('retail_price'),
-            'currency': request.form.get('currency', 'CNY')  # 默认为人民币
+            'currency': request.form.get('currency', Config.DEFAULT_CURRENCY)  # 默认货币
         }
         
         # 验证必填字段
@@ -1621,17 +1737,44 @@ def create_product():
         else:
             product_data['retail_price'] = Decimal('0.00')
         
-        # 只有管理员可以将新产品设置为生产中状态
-        if current_user.role == 'admin' and request.form.get('is_active') == 'true':
-            product_data['status'] = 'active'
-            logger.debug(f'管理员创建产品并设置为生产中状态: {product_data["product_name"]}')
-        else:
-            product_data['status'] = 'discontinued'
-            logger.debug(f'创建产品，默认设置为已停产状态: {product_data["product_name"]}')
+        # 使用前端传递的状态值，默认为在售
+        product_data['status'] = request.form.get('status', 'active')
+        logger.debug(f'创建产品，状态: {product_data["status"]}, 名称: {product_data["product_name"]}')
         
         # 获取厂商产品标记
         is_vendor_product = request.form.get('is_vendor_product') == 'on'
-        
+
+        # 获取配置来源信息（从配置引入产品时设置）
+        source_configuration_id = request.form.get('source_configuration_id')
+        logger.info(f"[DEBUG] 收到 source_configuration_id: '{source_configuration_id}' (type: {type(source_configuration_id)})")
+        logger.info(f"[DEBUG] 所有表单数据: {dict(request.form)}")
+        if source_configuration_id:
+            try:
+                source_configuration_id = int(source_configuration_id)
+                logger.info(f"[DEBUG] 转换后 source_configuration_id: {source_configuration_id}")
+            except (ValueError, TypeError):
+                logger.warning(f"[DEBUG] source_configuration_id 转换失败")
+                source_configuration_id = None
+
+        # 获取分类体系字段
+        category_id = request.form.get('category_id')
+        subcategory_id = request.form.get('subcategory_id')
+        region_id = request.form.get('region_id')
+
+        # 转换为整数
+        try:
+            category_id = int(category_id) if category_id else None
+        except (ValueError, TypeError):
+            category_id = None
+        try:
+            subcategory_id = int(subcategory_id) if subcategory_id else None
+        except (ValueError, TypeError):
+            subcategory_id = None
+        try:
+            region_id = int(region_id) if region_id else None
+        except (ValueError, TypeError):
+            region_id = None
+
         # 创建新产品
         new_product = Product(
             type=product_data['type'],
@@ -1646,7 +1789,16 @@ def create_product():
             currency=product_data['currency'],
             status=product_data['status'],
             is_vendor_product=is_vendor_product,
-            owner_id=current_user.id
+            owner_id=current_user.id,
+            # 分类体系字段
+            category_id=category_id,
+            subcategory_id=subcategory_id,
+            region_id=region_id,
+            # 配置来源信息
+            source_configuration_id=source_configuration_id,
+            source_type='from_config' if source_configuration_id else 'manual',
+            # 从配置引入时锁定MN编码
+            is_mn_locked=True if source_configuration_id else False
         )
         
         # 处理产品图片上传到Supabase
@@ -1712,6 +1864,7 @@ def create_product():
         db.session.commit()
         
         logger.info(f'产品创建成功: ID={new_product.id}, MN={new_product.product_mn}, 名称={new_product.product_name}, 有图片={has_image}, 有PDF={has_pdf}')
+        logger.info(f'[DEBUG] 保存后的配置信息: source_configuration_id={new_product.source_configuration_id}, source_type={new_product.source_type}, category_id={new_product.category_id}, subcategory_id={new_product.subcategory_id}, region_id={new_product.region_id}')
         
         return jsonify({
             'success': True,
@@ -1757,7 +1910,7 @@ def update_product(id):
         brand = request.form.get('brand') or None
         unit = request.form.get('unit')
         retail_price = request.form.get('retail_price')
-        currency = request.form.get('currency', 'CNY')
+        currency = request.form.get('currency', Config.DEFAULT_CURRENCY)
         description = request.form.get('description')
 
         # 分类字段从表单获取
@@ -2048,7 +2201,7 @@ def update_product_api(id):
             'brand': request.form.get('brand'),
             'unit': request.form.get('unit'),
             'retail_price': request.form.get('retail_price'),
-            'currency': request.form.get('currency', 'CNY')  # 默认为人民币
+            'currency': request.form.get('currency', Config.DEFAULT_CURRENCY)  # 默认货币
         }
         
         # 只有管理员能修改生产状态
@@ -2360,7 +2513,7 @@ def get_product(id):
             'brand': product.brand,
             'unit': product.unit,
             'retail_price': decimal_to_float(product.retail_price) if product.retail_price else 0,
-            'currency': product.currency if hasattr(product, 'currency') else 'CNY',
+            'currency': product.currency if hasattr(product, 'currency') else Config.DEFAULT_CURRENCY,
             'status': product.status,
             'is_vendor_product': product.is_vendor_product if hasattr(product, 'is_vendor_product') else False,
             'created_at': product.created_at.strftime('%Y-%m-%d %H:%M:%S') if product.created_at else None,
@@ -2658,6 +2811,53 @@ def view_product_detail(id):
             product.subcategory_id
         )
 
+        # 将规格按分类分组（与配置矩阵保持一致）
+        from app.models.spec_template import SpecDefinition, SpecCategory
+        specs_by_category = {}
+        spec_categories = []  # 按 display_order 排序的分类列表
+
+        # 获取所有分类（按 display_order 排序）
+        all_categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
+        category_map = {cat.id: cat for cat in all_categories}
+
+        # 通过 field_name 匹配 SpecDefinition 获取分类信息和英文名称
+        spec_names = [s['field_name'] for s in product_specs]
+        definitions = SpecDefinition.query.filter(SpecDefinition.name.in_(spec_names)).all()
+        name_to_category = {d.name: d.category_id for d in definitions}
+        name_to_name_en = {d.name: d.name_en for d in definitions}
+
+        # 未分类的规格放入 category_id=0
+        uncategorized_specs = []
+        for spec in product_specs:
+            # 添加英文名称
+            spec['field_name_en'] = name_to_name_en.get(spec['field_name'], '')
+            cat_id = name_to_category.get(spec['field_name'])
+            if cat_id and cat_id in category_map:
+                if cat_id not in specs_by_category:
+                    specs_by_category[cat_id] = []
+                specs_by_category[cat_id].append(spec)
+            else:
+                uncategorized_specs.append(spec)
+
+        # 构建按 display_order 排序的分类列表
+        for cat in all_categories:
+            if cat.id in specs_by_category:
+                spec_categories.append({
+                    'id': cat.id,
+                    'name': cat.name,
+                    'name_en': cat.name_en,
+                    'specs': specs_by_category[cat.id]
+                })
+
+        # 未分类的规格放在最后
+        if uncategorized_specs:
+            spec_categories.append({
+                'id': 0,
+                'name': '其他规格',
+                'name_en': 'Other Specs',
+                'specs': uncategorized_specs
+            })
+
         # 计算有效图片和PDF路径（三级引用）
         from app.utils.product_helpers import get_effective_image, get_effective_pdf
         effective_image = get_effective_image(product)
@@ -2746,6 +2946,7 @@ def view_product_detail(id):
         return render_template(template,
                                product=product,
                                product_specs=product_specs,
+                               spec_categories=spec_categories,
                                effective_image=effective_image,
                                effective_pdf=effective_pdf,
                                prev_product_id=prev_product_id,
@@ -3257,7 +3458,7 @@ def export_products():
                 product.brand or '',
                 product.unit or '',
                 float(product.retail_price) if product.retail_price else '',
-                product.currency or 'CNY',
+                product.currency or Config.DEFAULT_CURRENCY,
                 product.product_mn or '',
                 product.created_at.strftime('%Y-%m-%d %H:%M') if product.created_at else ''
             ]
@@ -3582,3 +3783,844 @@ def generate_product_qrcode(id):
     except Exception as e:
         logger.error(f"生成产品二维码失败: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+# ============================================================
+# 配置引入功能 API
+# ============================================================
+
+@bp.route('/api/products/configurations-tree', methods=['GET'])
+@login_required
+@permission_required('product', 'create')
+def get_configurations_tree():
+    """获取可引入配置的树状数据
+
+    返回按分类/子分类组织的配置产品树，用于产品库引入功能。
+    只返回 pilot（小批价）或 production（可生产）状态的配置。
+
+    Returns:
+        JSON: 树状配置数据
+        {
+            "success": true,
+            "data": [
+                {
+                    "id": "cat_1",
+                    "type": "category",
+                    "name": "基站",
+                    "children": [
+                        {
+                            "id": "sub_3",
+                            "type": "subcategory",
+                            "name": "宏基站",
+                            "children": [
+                                {
+                                    "id": 123,
+                                    "type": "configuration",
+                                    "template_model": "BS2800",
+                                    "mn_code": "EBS4X33N",
+                                    ...
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    """
+    from app.models.spec_template import ProductConfiguration, SpecTemplate
+
+    # 查询 pilot/production 状态的配置
+    configs = ProductConfiguration.query.filter(
+        ProductConfiguration.status.in_(['pilot', 'production']),
+        ProductConfiguration.is_active == True,
+        ProductConfiguration.mn_code.isnot(None)
+    ).join(SpecTemplate).all()
+
+    # 按分类/子分类组织成树
+    category_map = {}
+
+    for config in configs:
+        template = config.template
+        if not template or not template.category_id:
+            continue
+
+        cat_id = template.category_id
+        sub_id = template.subcategory_id
+
+        # 检查是否已引入
+        already_imported = Product.query.filter_by(
+            source_configuration_id=config.id
+        ).first() is not None
+
+        # 获取状态显示文本
+        status_display = _('可生产') if config.status == 'production' else _('小批价')
+
+        # 查找区域ID（通过区域编码查找 ProductCodeField）
+        # ProductCodeField 有 code 字段或其第一个 option 的 code 来标识区域
+        region_id = None
+        if config.region:
+            from app.models.product_code import ProductCodeField, ProductCodeFieldOption
+            # 先尝试通过 ProductCodeField.code 匹配
+            region_field = ProductCodeField.query.filter(
+                ProductCodeField.field_type == 'origin_location',
+                ProductCodeField.code == config.region
+            ).first()
+            if region_field:
+                region_id = region_field.id
+            else:
+                # 如果 field.code 是 '?' 则通过 option.code 查找
+                region_option = ProductCodeFieldOption.query.join(ProductCodeField).filter(
+                    ProductCodeField.field_type == 'origin_location',
+                    ProductCodeFieldOption.code == config.region
+                ).first()
+                if region_option:
+                    region_id = region_option.field_id
+
+        # 获取产品名称（使用子分类名称）
+        product_name = template.subcategory.name if template.subcategory else ''
+
+        # 构建配置节点数据
+        config_node = {
+            'id': config.id,
+            'type': 'configuration',
+            'template_id': template.id,
+            'template_model': template.model,
+            'mn_code': config.mn_code,
+            'config_code': config.config_code,
+            'status': config.status,
+            'status_display': status_display,
+            'region': config.region,
+            'region_id': region_id,
+            'region_name': config.region_name or config.region,
+            'category_id': template.category_id,
+            'category_name': template.category.name if template.category else None,
+            'subcategory_id': template.subcategory_id,
+            'subcategory_name': template.subcategory.name if template.subcategory else None,
+            'product_name': product_name,
+            'already_imported': already_imported
+        }
+
+        # 添加到分类树
+        if cat_id not in category_map:
+            category = template.category
+            category_map[cat_id] = {
+                'id': f'cat_{cat_id}',
+                'type': 'category',
+                'name': category.name if category else f'Category {cat_id}',
+                'category_id': cat_id,
+                'children': {}
+            }
+
+        # 添加到子分类
+        if sub_id:
+            if sub_id not in category_map[cat_id]['children']:
+                subcategory = template.subcategory
+                category_map[cat_id]['children'][sub_id] = {
+                    'id': f'sub_{sub_id}',
+                    'type': 'subcategory',
+                    'name': subcategory.name if subcategory else f'Subcategory {sub_id}',
+                    'subcategory_id': sub_id,
+                    'children': []
+                }
+            category_map[cat_id]['children'][sub_id]['children'].append(config_node)
+        else:
+            # 没有子分类的情况（直接放在分类下）
+            if '_no_sub' not in category_map[cat_id]['children']:
+                category_map[cat_id]['children']['_no_sub'] = {
+                    'id': f'sub_none_{cat_id}',
+                    'type': 'subcategory',
+                    'name': _('未分类'),
+                    'subcategory_id': None,
+                    'children': []
+                }
+            category_map[cat_id]['children']['_no_sub']['children'].append(config_node)
+
+    # 转换为列表结构
+    tree = []
+    for cat_id in sorted(category_map.keys()):
+        cat_node = category_map[cat_id].copy()
+        cat_node['children'] = list(cat_node['children'].values())
+        tree.append(cat_node)
+
+    return jsonify({'success': True, 'data': tree})
+
+
+@bp.route('/api/products/<int:product_id>/configuration-specs', methods=['GET'])
+@login_required
+@permission_required('product', 'edit')
+def get_configuration_specs(product_id):
+    """获取产品关联配置的规格数据
+
+    返回该产品源配置中的所有有值的规格项，用于规格引入选择。
+    编码规格（use_in_code=True）将被标记为必选。
+
+    Args:
+        product_id: 产品ID
+
+    Returns:
+        JSON: {
+            "success": true,
+            "data": {
+                "configuration": {配置信息},
+                "specs": [规格列表]
+            }
+        }
+    """
+    from app.models.spec_template import ProductConfiguration, SpecTemplate, SpecTemplateItem
+    from app.models.spec_template import generate_safe_code_char
+
+    product = Product.query.get_or_404(product_id)
+
+    if not product.source_configuration_id:
+        return jsonify({'success': False, 'message': _('该产品没有关联的配置版本')})
+
+    config = ProductConfiguration.query.get(product.source_configuration_id)
+    if not config:
+        return jsonify({'success': False, 'message': _('关联的配置版本不存在')})
+
+    template = config.template
+    if not template:
+        return jsonify({'success': False, 'message': _('配置模板不存在')})
+
+    specs = []
+
+    # 遍历模板规格项
+    for item in template.items:
+        if not item.definition:
+            continue
+
+        # 获取配置值（优先）或通用值
+        value = config.get_spec_value(item.id)
+        if not value:
+            continue  # 只返回有值的规格
+
+        # 获取编码字符（如果是编码规格）
+        code_char = None
+        if item.use_in_code and item.options:
+            code_char = generate_safe_code_char(value, item.options)
+            # 处理编码长度
+            if item.code_length == 2:
+                code_char = code_char.ljust(2, 'X')[:2]
+            else:
+                code_char = code_char[:1]
+
+        specs.append({
+            'template_item_id': item.id,
+            'name': item.definition.name,
+            'name_en': item.definition.name_en,
+            'value': value,
+            'unit': item.definition.unit or '',
+            'category': item.definition.category.name if item.definition.category else '',
+            'use_in_code': item.use_in_code,
+            'code_char': code_char,
+            'is_required': item.use_in_code  # 编码规格强制必选
+        })
+
+    # 按编码规格优先排序
+    specs.sort(key=lambda x: (not x['use_in_code'], x['category']))
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'configuration': {
+                'id': config.id,
+                'config_code': config.config_code,
+                'region': config.region,
+                'region_name': config.region_name or config.region,
+                'template_model': template.model,
+                'mn_code': config.mn_code
+            },
+            'specs': specs
+        }
+    })
+
+
+@bp.route('/api/products/<int:product_id>/import-specs', methods=['POST'])
+@login_required
+@permission_required('product', 'edit')
+def import_configuration_specs(product_id):
+    """从配置导入规格到产品
+
+    清空产品现有规格，导入选中的配置规格项。
+    重新生成产品描述和 spec_mn。
+
+    Args:
+        product_id: 产品ID
+
+    Request Body:
+        {
+            "spec_ids": [1, 2, 5]  // 选中的规格项 template_item_id 列表
+        }
+
+    Returns:
+        JSON: {
+            "success": true,
+            "message": "成功导入 X 个规格项",
+            "redirect": "产品详情页URL"
+        }
+    """
+    from app.models.spec_template import ProductConfiguration, SpecTemplate, SpecTemplateItem
+    from app.models.spec_template import generate_safe_code_char
+    from app.models.product_spec import ProductSpec
+
+    product = Product.query.get_or_404(product_id)
+
+    if not product.source_configuration_id:
+        return jsonify({'success': False, 'message': _('该产品没有关联的配置版本')})
+
+    config = ProductConfiguration.query.get(product.source_configuration_id)
+    if not config:
+        return jsonify({'success': False, 'message': _('关联的配置版本不存在')})
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'message': _('请求数据无效')})
+
+    selected_ids = data.get('spec_ids', [])
+
+    try:
+        # 清空现有规格
+        ProductSpec.query.filter_by(product_id=product_id).delete()
+
+        template = config.template
+        new_specs = []
+        display_order = 0
+
+        # 创建新规格
+        for item in template.items:
+            if item.id not in selected_ids:
+                continue
+
+            if not item.definition:
+                continue
+
+            value = config.get_spec_value(item.id)
+            if not value:
+                continue
+
+            # 获取编码字符（如果是编码规格）
+            code_char = None
+            if item.use_in_code and item.options:
+                code_char = generate_safe_code_char(value, item.options)
+                # 处理编码长度
+                if item.code_length == 2:
+                    code_char = code_char.ljust(2, 'X')[:2]
+                else:
+                    code_char = code_char[:1]
+
+            spec = ProductSpec(
+                product_id=product_id,
+                field_name=item.definition.name,
+                field_value=value,
+                field_code=code_char,
+                include_in_description=True,
+                display_order=display_order
+            )
+            db.session.add(spec)
+            new_specs.append(spec)
+            display_order += 1
+
+        db.session.flush()
+
+        # 重新生成产品描述
+        description_parts = []
+        for spec in new_specs:
+            if spec.include_in_description and spec.field_value:
+                description_parts.append(f"{spec.field_name}: {spec.field_value}")
+        product.specification = ", ".join(description_parts) if description_parts else ""
+
+        # 直接使用配置版本的 mn_code 作为 spec_mn（不重新计算，避免 ProductCodeField 配置不一致问题）
+        if config.mn_code:
+            product.spec_mn = config.mn_code
+            product.product_mn = config.mn_code
+        else:
+            # 如果配置没有 mn_code，回退到计算
+            from app.utils.product_helpers import generate_spec_mn
+            spec_mn = generate_spec_mn(product)
+            if spec_mn:
+                product.spec_mn = spec_mn
+                product.product_mn = spec_mn
+
+        # 锁定产品MN编码（引入后不可再修改）
+        product.is_mn_locked = True
+
+        product.updated_at = datetime.now()
+        db.session.commit()
+
+        logger.info(f"产品 {product_id} 成功导入 {len(new_specs)} 个规格项")
+
+        return jsonify({
+            'success': True,
+            'message': _('成功导入 %(count)d 个规格项', count=len(new_specs)),
+            'redirect': url_for('product.view_product_detail', id=product_id, tw=1)
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"导入规格失败: {str(e)}")
+        return jsonify({'success': False, 'message': _('导入失败: %(error)s', error=str(e))})
+
+
+# ============================================================================
+# 产品关联配置相关API (从已废弃的product_management.py迁移 2025-12-26)
+# ============================================================================
+
+@bp.route('/api/product/<int:product_id>/relations', methods=['GET'])
+@login_required
+def get_product_relations(product_id):
+    """
+    获取产品的关联配置列表
+
+    支持互斥组分组显示：
+    - 互斥组内的产品会被分组在一起
+    - 每个互斥组有自己的显示名称、选择模式、是否必选等属性
+    - 普通关联产品单独列出
+    """
+    try:
+        from app.models.product_relation import ProductRelation
+
+        product = Product.query.get_or_404(product_id)
+
+        relations_query = ProductRelation.query.join(
+            Product,
+            ProductRelation.related_product_id == Product.id
+        ).filter(
+            ProductRelation.main_product_type == ProductRelation.MAIN_TYPE_PRODUCT,
+            ProductRelation.main_product_id == product_id,
+            ProductRelation.is_active == True
+        ).order_by(
+            ProductRelation.display_order.asc(),
+            Product.product_name.desc()
+        ).all()
+
+        normal_relations = []
+        mutual_groups = {}
+
+        lang = session.get('language', 'zh')
+        badge_label_map = {
+            'required_accessory': {'zh': '必选', 'en': 'Required'},
+            'mutual_exclusion_required': {'zh': '必选互斥', 'en': 'Req.Excl'},
+            'mutual_exclusion_optional': {'zh': '可选互斥', 'en': 'Opt.Excl'},
+            'optional_accessory': {'zh': '可选配件', 'en': 'Optional'},
+            'recommended': {'zh': '推荐', 'en': 'Recommend'},
+            'alternative': {'zh': '替代产品', 'en': 'Alt'}
+        }
+
+        for relation in relations_query:
+            if not relation.related_product:
+                continue
+
+            badge_class_map = {
+                'required_accessory': 'badge relation-type-badge relation-type-required rounded-pill',
+                'recommended': 'badge relation-type-badge relation-type-recommended rounded-pill',
+                'required_mutual': 'badge relation-type-badge relation-type-required-mutual rounded-pill',
+                'optional_mutual': 'badge relation-type-badge relation-type-optional-mutual rounded-pill'
+            }
+            badge_class = badge_class_map.get(relation.relation_type, 'badge relation-type-badge relation-type-unknown rounded-pill')
+
+            nested_count = ProductRelation.query.join(
+                Product,
+                ProductRelation.related_product_id == Product.id
+            ).filter(
+                ProductRelation.main_product_type == ProductRelation.MAIN_TYPE_PRODUCT,
+                ProductRelation.main_product_id == relation.related_product_id,
+                ProductRelation.is_active == True,
+                or_(
+                    ProductRelation.relation_type == 'required_accessory',
+                    ProductRelation.relation_type == 'recommended',
+                    ProductRelation.mutual_exclusion_group.isnot(None)
+                )
+            ).count()
+
+            relation_info = {
+                'id': relation.id,
+                'related_product_id': relation.related_product_id,
+                'product_name': relation.related_product.product_name or relation.related_product.model or '',
+                'product_model': relation.related_product.model or relation.related_product.product_name or '',
+                'product_mn': relation.related_product.product_mn,
+                'brand': relation.related_product.brand or '',
+                'specification': relation.related_product.specification or '',
+                'retail_price': float(relation.related_product.retail_price) if relation.related_product.retail_price else 0,
+                'unit': relation.related_product.unit or 'Set',
+                'relation_type': relation.relation_type,
+                'relation_type_label': badge_label_map.get(relation.relation_type, {}).get(lang, relation.relation_type),
+                'relation_type_label_class': badge_class,
+                'default_quantity': relation.default_quantity,
+                'is_required': relation.is_required,
+                'is_default': relation.is_default or False,
+                'has_nested_configs': nested_count > 0,
+                'nested_count': nested_count
+            }
+
+            if relation.is_in_mutual_exclusion_group():
+                group_id = relation.mutual_exclusion_group
+                if group_id not in mutual_groups:
+                    is_required = relation.is_group_required or False
+                    group_badge_class = badge_class_map.get(
+                        'required_mutual' if is_required else 'optional_mutual',
+                        'badge relation-type-badge relation-type-unknown rounded-pill'
+                    )
+                    mutual_groups[group_id] = {
+                        'group_id': group_id,
+                        'group_name': relation.group_display_name or group_id,
+                        'is_required': is_required,
+                        'selection_mode': relation.group_selection_mode or 'single',
+                        'badge_class': group_badge_class,
+                        'badge_label': badge_label_map.get('mutual_exclusion_required' if is_required else 'mutual_exclusion_optional', {}).get(lang, '互斥'),
+                        'products': []
+                    }
+                mutual_groups[group_id]['products'].append(relation_info)
+            else:
+                normal_relations.append(relation_info)
+
+        total_count = len(normal_relations) + sum(len(group['products']) for group in mutual_groups.values())
+
+        return jsonify({
+            'success': True,
+            'data': normal_relations,
+            'groups': mutual_groups,
+            'total': total_count
+        })
+
+    except Exception as e:
+        logger.error(f"获取产品关联失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'获取产品关联失败: {str(e)}'}), 500
+
+
+@bp.route('/api/product/<int:product_id>/relations/<int:relation_id>', methods=['DELETE'])
+@login_required
+@permission_required('product', 'edit')
+def delete_product_relation(product_id, relation_id):
+    """删除产品关联配置"""
+    try:
+        from app.models.product_relation import ProductRelation
+
+        relation = ProductRelation.query.filter_by(
+            id=relation_id,
+            main_product_type=ProductRelation.MAIN_TYPE_PRODUCT,
+            main_product_id=product_id
+        ).first()
+
+        if not relation:
+            return jsonify({'success': False, 'message': '关联记录不存在'}), 404
+
+        db.session.delete(relation)
+        db.session.commit()
+
+        logger.info(f"用户 {current_user.id} 删除了产品 {product_id} 的关联 {relation_id}")
+        return jsonify({'success': True, 'message': '删除成功'})
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"删除产品关联失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'删除失败: {str(e)}'}), 500
+
+
+@bp.route('/api/product/<int:product_id>/mutual-exclusion-group', methods=['DELETE'])
+@login_required
+@permission_required('product', 'edit')
+def delete_mutual_exclusion_group(product_id):
+    """删除互斥组（删除组内所有产品关联）"""
+    try:
+        from app.models.product_relation import ProductRelation
+
+        data = request.get_json()
+        group_id = data.get('group_id')
+
+        if not group_id:
+            return jsonify({'success': False, 'message': '缺少互斥组ID'}), 400
+
+        relations = ProductRelation.query.filter_by(
+            main_product_type=ProductRelation.MAIN_TYPE_PRODUCT,
+            main_product_id=product_id,
+            mutual_exclusion_group=group_id
+        ).all()
+
+        if not relations:
+            return jsonify({'success': False, 'message': '互斥组不存在或已被删除'}), 404
+
+        deleted_count = 0
+        for relation in relations:
+            db.session.delete(relation)
+            deleted_count += 1
+
+        db.session.commit()
+
+        logger.info(f"用户 {current_user.id} 删除了产品 {product_id} 的互斥组 {group_id}")
+        return jsonify({
+            'success': True,
+            'message': f'成功删除互斥组，共删除 {deleted_count} 个产品关联',
+            'deleted_count': deleted_count
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"删除互斥组失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'删除失败: {str(e)}'}), 500
+
+
+@bp.route('/api/product/<int:product_id>/relations/batch', methods=['POST'])
+@login_required
+@permission_required('product', 'edit')
+def batch_add_product_relations(product_id):
+    """批量添加产品关联配置"""
+    try:
+        from app.models.product_relation import ProductRelation
+
+        product = Product.query.get_or_404(product_id)
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '缺少请求数据'}), 400
+
+        product_ids = data.get('product_ids', [])
+        relation_type = data.get('relation_type', 'required_accessory')
+        default_quantity = data.get('default_quantity', 1)
+
+        if not product_ids:
+            return jsonify({'success': False, 'message': '请至少选择一个产品'}), 400
+
+        valid_types = ['required_accessory', 'recommended', 'optional_accessory', 'alternative']
+        if relation_type not in valid_types:
+            return jsonify({'success': False, 'message': f'无效的关联类型: {relation_type}'}), 400
+
+        is_required = (relation_type == 'required_accessory')
+
+        added_count = 0
+        skipped_count = 0
+        errors = []
+
+        for related_product_id in product_ids:
+            try:
+                related_product = Product.query.get(related_product_id)
+                if not related_product:
+                    errors.append(f'产品ID {related_product_id} 不存在')
+                    continue
+
+                existing = ProductRelation.query.filter_by(
+                    main_product_type=ProductRelation.MAIN_TYPE_PRODUCT,
+                    main_product_id=product_id,
+                    related_product_id=related_product_id,
+                    is_active=True
+                ).first()
+
+                if existing:
+                    skipped_count += 1
+                    continue
+
+                relation = ProductRelation(
+                    main_product_type=ProductRelation.MAIN_TYPE_PRODUCT,
+                    main_product_id=product_id,
+                    related_product_id=related_product_id,
+                    relation_type=relation_type,
+                    is_required=is_required,
+                    default_quantity=default_quantity,
+                    is_active=True,
+                    display_order=0
+                )
+                db.session.add(relation)
+                added_count += 1
+
+            except Exception as e:
+                errors.append(f'添加产品ID {related_product_id} 失败: {str(e)}')
+
+        db.session.commit()
+
+        message_parts = []
+        if added_count > 0:
+            message_parts.append(f'成功添加 {added_count} 个关联产品')
+        if skipped_count > 0:
+            message_parts.append(f'跳过 {skipped_count} 个已存在的关联')
+        if errors:
+            message_parts.append(f'失败 {len(errors)} 个')
+
+        message = '；'.join(message_parts)
+
+        logger.info(f"用户 {current_user.id} 批量添加了产品 {product_id} 的关联: {message}")
+
+        return jsonify({
+            'success': True,
+            'message': message,
+            'data': {
+                'added': added_count,
+                'skipped': skipped_count,
+                'failed': len(errors),
+                'errors': errors
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"批量添加产品关联失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'批量添加失败: {str(e)}'}), 500
+
+
+@bp.route('/api/product/<int:product_id>/relations/batch-mutual-group', methods=['POST'])
+@login_required
+@permission_required('product', 'edit')
+def batch_add_mutual_exclusion_group(product_id):
+    """批量添加互斥组配置"""
+    try:
+        from app.models.product_relation import ProductRelation
+
+        product = Product.query.get_or_404(product_id)
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '缺少请求数据'}), 400
+
+        product_ids = data.get('product_ids', [])
+        group_name = data.get('group_name', '').strip()
+        is_required = data.get('is_required', False)
+        default_product_id = data.get('default_product_id')
+        default_quantity = data.get('default_quantity', 1)
+
+        if not product_ids or len(product_ids) < 2:
+            return jsonify({'success': False, 'message': '互斥组至少需要2个产品'}), 400
+
+        if not group_name:
+            return jsonify({'success': False, 'message': '请输入互斥组名称'}), 400
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        group_id = f"{group_name.lower().replace(' ', '_')}_{timestamp}"
+
+        added_count = 0
+        skipped_count = 0
+        errors = []
+
+        for pid in product_ids:
+            try:
+                related_product = Product.query.get(pid)
+                if not related_product:
+                    errors.append(f'产品ID {pid} 不存在')
+                    continue
+
+                existing = ProductRelation.query.filter_by(
+                    main_product_type=ProductRelation.MAIN_TYPE_PRODUCT,
+                    main_product_id=product_id,
+                    related_product_id=pid,
+                    is_active=True
+                ).first()
+
+                if existing:
+                    skipped_count += 1
+                    continue
+
+                relation = ProductRelation(
+                    main_product_type=ProductRelation.MAIN_TYPE_PRODUCT,
+                    main_product_id=product_id,
+                    related_product_id=pid,
+                    relation_type='recommended',
+                    default_quantity=default_quantity,
+                    is_required=False,
+                    mutual_exclusion_group=group_id,
+                    group_display_name=group_name,
+                    is_group_required=is_required,
+                    group_selection_mode='single',
+                    is_default=(pid == default_product_id)
+                )
+
+                db.session.add(relation)
+                added_count += 1
+
+            except Exception as e:
+                errors.append(f'添加产品ID {pid} 失败: {str(e)}')
+
+        db.session.commit()
+
+        message = f'成功创建互斥组"{group_name}"'
+        if skipped_count > 0:
+            message += f'，跳过 {skipped_count} 个已存在的关联'
+
+        logger.info(f"用户 {current_user.id} 为产品 {product_id} 创建了互斥组: {group_name}")
+
+        return jsonify({
+            'success': True,
+            'message': message,
+            'data': {
+                'group_id': group_id,
+                'added': added_count,
+                'skipped': skipped_count,
+                'failed': len(errors),
+                'errors': errors
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"创建互斥组失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'创建失败: {str(e)}'}), 500
+
+
+@bp.route('/api/product-tree', methods=['GET'])
+@login_required
+def get_product_tree():
+    """获取产品树数据 - 用于树状选择器"""
+    try:
+        tree_data = []
+
+        categories = ProductCategory.get_ordered_list()
+
+        for category in categories:
+            category_node = {
+                'id': f'cat_{category.id}',
+                'category_id': category.id,
+                'name': category.name,
+                'code_letter': category.code_letter,
+                'type': 'category',
+                'icon': 'fa-layer-group',
+                'children': []
+            }
+
+            subcategories = ProductSubcategory.query.filter_by(
+                category_id=category.id
+            ).order_by(ProductSubcategory.display_order).all()
+
+            for subcategory in subcategories:
+                subcategory_node = {
+                    'id': f'sub_{subcategory.id}',
+                    'subcategory_id': subcategory.id,
+                    'name': subcategory.name,
+                    'code_letter': subcategory.code_letter,
+                    'type': 'subcategory',
+                    'icon': 'fa-boxes',
+                    'children': []
+                }
+
+                products = Product.query.filter_by(
+                    subcategory_id=subcategory.id,
+                    status='active'
+                ).order_by(Product.product_mn).all()
+
+                for product in products:
+                    product_node = {
+                        'id': f'prod_{product.id}',
+                        'product_id': product.id,
+                        'mn': product.product_mn,
+                        'model': product.model or product.name or '',
+                        'name': product.name or '',
+                        'description': product.specification or '',
+                        'type': 'product',
+                        'icon': 'fa-microchip',
+                        'status': product.status
+                    }
+                    subcategory_node['children'].append(product_node)
+
+                if subcategory_node['children']:
+                    category_node['children'].append(subcategory_node)
+
+            if category_node['children']:
+                tree_data.append(category_node)
+
+        return jsonify({
+            'success': True,
+            'data': tree_data,
+            'total_categories': len(tree_data)
+        })
+
+    except Exception as e:
+        logger.error(f"获取产品树数据失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'获取产品树数据失败: {str(e)}'
+        }), 500

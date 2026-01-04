@@ -232,7 +232,8 @@
     {%- if current_lang == 'en' -%}万美元{% else %}万元{% endif -%}
 {% endmacro %}
 
-{% macro render_currency_with_symbol(amount, currency='CNY') %}
+{% macro render_currency_with_symbol(amount, currency=none) %}
+  {% set currency = currency or currency_config.default_currency %}
   {% if amount is not none %}
     {% set currency_symbols = {
       'CNY': '¥',
@@ -2082,7 +2083,7 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
                             {% set numeric_amount = card.amount | float if card.amount is string else (card.amount | default(0)) %}
                             {% set converted_amount = numeric_amount / (unit_config.divisor | default(10000)) %}
                             {% set formatted_amount = '{:,.{}f}'.format(converted_amount, unit_config.decimal_places | default(2)) %}
-                            <span class="fs-5" id="{{ card.id }}Amount">{{ currency_symbol | default('¥') }}{{ formatted_amount }}</span>
+                            <span class="fs-5" id="{{ card.id }}Amount">{{ currency_symbol | default(currency_config.symbol) }}{{ formatted_amount }}</span>
                             <span class="text-muted ms-1" id="{{ card.id }}Unit" 
                                   data-unit-config='{{ unit_config | tojson }}'>{{ unit_config.unit }}</span>
                         {% else %}
@@ -4143,28 +4144,39 @@ window.dismissStandardAlert = function() {
 {# 用户角色徽章组件 #}
 {% macro render_user_role_badge(role) %}
   {% set role_map = {
-    'admin': '管理员',
+    'admin': '系统管理员',
+    'ceo': '总经理',
+    'finance_director': '财务总监',
+    'finace_director': '财务总监',
+    'sales_director': '营销总监',
+    'channel_manager': '渠道经理',
+    'business_admin': '商务助理',
     'sales': '销售',
-    'product': '产品',
-    'service': '服务',
-    'vendor': '厂商',
-    'client': '客户'
+    'sales_manager': '销售经理',
+    'vendor_sales': '厂商销售',
+    'product_manager': '产品经理',
+    'service_manager': '服务经理',
+    'solution_manager': '解决方案经理',
+    'hrdp_manager': '绩效人事经理',
+    'customer_sales': '客户销售',
+    'dealer': '代理商',
+    'user': '普通用户'
   } %}
-  
+
   {% set role_text = role_map.get(role, role) if role else '未设置' %}
-  
+
   {% if role == 'admin' %}
     <span class="badge badge-pill badge-transparent user-role-admin">{{ _(role_text) }}</span>
-  {% elif role == 'sales' %}
+  {% elif role == 'sales' or role == 'sales_manager' or role == 'vendor_sales' or role == 'customer_sales' %}
     <span class="badge badge-pill badge-transparent user-role-sales">{{ _(role_text) }}</span>
-  {% elif role == 'product' %}
+  {% elif role == 'product_manager' or role == 'solution_manager' %}
     <span class="badge badge-pill badge-transparent user-role-product">{{ _(role_text) }}</span>
-  {% elif role == 'service' %}
+  {% elif role == 'service_manager' %}
     <span class="badge badge-pill badge-transparent user-role-service">{{ _(role_text) }}</span>
-  {% elif role == 'vendor' %}
+  {% elif role == 'dealer' %}
     <span class="badge badge-pill badge-transparent user-role-vendor">{{ _(role_text) }}</span>
-  {% elif role == 'client' %}
-    <span class="badge badge-pill badge-transparent user-role-client">{{ _(role_text) }}</span>
+  {% elif role == 'ceo' or role == 'sales_director' or role == 'channel_manager' %}
+    <span class="badge badge-pill badge-transparent user-role-admin">{{ _(role_text) }}</span>
   {% else %}
     <span class="badge badge-pill badge-transparent badge-muted">{{ _(role_text) }}</span>
   {% endif %}
@@ -8422,7 +8434,7 @@ document.addEventListener('DOMContentLoaded', function() {
     container_id='relationsList',
     title='关联产品配置',
     icon='fa-link',
-    api_url=url_for('rd_product.get_product_relations', product_id=product.id),
+    api_url=url_for('product.get_product_relations', product_id=product.id),
     columns=[
         {'key': 'product_name', 'label': '产品名称', 'width': '25%'},
         {'key': 'product_model', 'label': '产品型号', 'width': '20%'},
@@ -9210,4 +9222,71 @@ document.addEventListener('DOMContentLoaded', function() {
     {%- else -%}
     <span class="text-slate-400 dark:text-slate-500">-</span>
     {%- endif -%}
+{% endmacro %}
+
+{# ============================================================================= #}
+{# 用户状态徽章 - Tailwind 风格                                                  #}
+{# 用于显示用户账户的激活状态                                                     #}
+{# ============================================================================= #}
+{% macro render_tw_user_status_badge(is_active) %}
+{% if is_active %}
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300" style="display: inline-flex !important; flex-direction: row !important; white-space: nowrap !important; flex-wrap: nowrap !important;"><span class="material-symbols-outlined" style="font-size: 12px;">check_circle</span>{{ _('已激活') }}</span>
+{% else %}
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300" style="display: inline-flex !important; flex-direction: row !important; white-space: nowrap !important; flex-wrap: nowrap !important;"><span class="material-symbols-outlined" style="font-size: 12px;">pending</span>{{ _('未激活') }}</span>
+{% endif %}
+{% endmacro %}
+
+{# ============================================================================= #}
+{# 用户角色徽章 - Tailwind 风格                                                  #}
+{# 用于显示用户的角色类型，支持不同颜色区分                                       #}
+{# ============================================================================= #}
+{% macro render_tw_user_role_badge(role, role_dict=none) %}
+{% set role_colors = {
+    'admin': 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300',
+    'ceo': 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300',
+    'finance_director': 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+    'finace_director': 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+    'finance': 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+    'sales_director': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300',
+    'channel_manager': 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+    'business_admin': 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300',
+    'sales': 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300',
+    'vendor_sales': 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-300',
+    'product_manager': 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300'
+} %}
+{% set default_names = {
+    'admin': _('系统管理员'),
+    'ceo': _('CEO'),
+    'finance_director': _('财务总监'),
+    'finace_director': _('财务总监'),
+    'finance': _('财务'),
+    'sales_director': _('营销总监'),
+    'channel_manager': _('渠道经理'),
+    'business_admin': _('商务助理'),
+    'sales': _('销售'),
+    'vendor_sales': _('厂商销售'),
+    'product_manager': _('产品经理')
+} %}
+{% set display_name = role_dict.get(role) if role_dict else none %}
+{% if not display_name %}
+    {% set display_name = default_names.get(role, role) %}
+{% endif %}
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ role_colors.get(role, 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300') }}" style="width: fit-content;">{{ display_name or '-' }}</span>
+{% endmacro %}
+
+{# ============================================================================= #}
+{# 权限级别徽章 - Tailwind 风格                                                  #}
+{# 用于显示权限级别：系统级/企业级/部门级/个人级                                   #}
+{# ============================================================================= #}
+{% macro render_tw_permission_level_badge(level) %}
+{% set level_config = {
+    'system': {'color': 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300', 'label': _('系统级')},
+    'company': {'color': 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300', 'label': _('企业级')},
+    'department': {'color': 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300', 'label': _('部门级')},
+    'personal': {'color': 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300', 'label': _('个人级')}
+} %}
+{% set config = level_config.get(level, level_config.personal) %}
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ config.color }}">
+    {{ config.label }}
+</span>
 {% endmacro %}

@@ -30,18 +30,18 @@ v3.0 新增：按钮参数化，减少 slot 使用
 
 {% call(slot) tw_detail_layout(
     breadcrumb_items=[
-        {'label': _('研发库管理'), 'url': url_for('rd_product.index')},
+        {'label': _('产品库'), 'url': url_for('product.product_list')},
         {'label': _('产品详情')}
     ],
-    title=dev_product.name or dev_product.model,
-    subtitle=dev_product.model,
-    back_url=url_for('rd_product.index'),
+    title=product.name or product.model,
+    subtitle=product.model,
+    back_url=url_for('product.product_list'),
     prev_url=prev_url,
     next_url=next_url,
-    status_badges=render_tw_dev_status_badge(dev_product.status),
+    status_badges=render_tw_product_status_badge(product.status),
     edit_btn={
         'show': can_edit_button,
-        'onclick': 'ProductModal.openEdit(' ~ dev_product.id ~ ')'
+        'onclick': 'ProductModal.openEdit(' ~ product.id ~ ')'
     },
     delete_btn={
         'show': can_delete_button,
@@ -103,6 +103,7 @@ Slot 说明（v3.0简化）：
 
 {# 导入按钮组件 #}
 {% from 'components/tw_buttons.html' import tw_btn_outline with context %}
+{% from 'components/tw_nav_buttons.html' import render_tw_prev_next_buttons, render_tw_back_button with context %}
 
 {% macro tw_detail_layout(
     breadcrumb_items=[],
@@ -134,16 +135,16 @@ Slot 说明（v3.0简化）：
     <div class="flex-shrink-0 px-6 lg:px-10 pt-6 lg:pt-10 pb-4 bg-background-light dark:bg-black">
         <div class="max-w-7xl mx-auto">
             <!-- 面包屑和标题行 -->
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center justify-between">
-                <div>
+            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                <div class="min-w-0">
                     <!-- 面包屑导航 -->
                     {% if breadcrumb_items %}
                     <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-2">
                         {% for item in breadcrumb_items %}
                             {% if item.url %}
-                            <a class="hover:underline hover:text-primary" href="{{ item.url }}">{{ item.label }}</a>
+                            <a class="hover:underline hover:text-primary whitespace-nowrap" href="{{ item.url }}">{{ item.label }}</a>
                             {% else %}
-                            <span class="text-slate-800 dark:text-slate-200">{{ item.label }}</span>
+                            <span class="text-slate-800 dark:text-slate-200 whitespace-nowrap">{{ item.label }}</span>
                             {% endif %}
                             {% if not loop.last %}
                             <span>/</span>
@@ -152,48 +153,31 @@ Slot 说明（v3.0简化）：
                     </div>
                     {% endif %}
                     <!-- 页面标题 -->
-                    <h2 class="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{{ title }}</h2>
+                    <h1 class="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{{ title }}</h1>
                     {% if subtitle %}
                     <p class="text-lg text-slate-500 dark:text-slate-400 mt-1">{{ subtitle }}</p>
                     {% endif %}
                 </div>
 
                 <!-- 右侧按钮区域 -->
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 flex-shrink-0">
                     <!-- 1. 前后导航按钮（只显示有效方向，无边框） -->
-                    {% if prev_url or next_url %}
-                    <div class="flex items-center">
-                        {% if prev_url %}
-                        <a href="{{ prev_url }}"
-                           class="p-1.5 text-slate-400 dark:text-slate-400 hover:text-primary dark:hover:text-white transition-colors"
-                           title="{{ _prev_title }}">
-                            <span class="material-symbols-outlined text-xl">chevron_left</span>
-                        </a>
-                        {% endif %}
-                        {% if next_url %}
-                        <a href="{{ next_url }}"
-                           class="p-1.5 text-slate-400 dark:text-slate-400 hover:text-primary dark:hover:text-white transition-colors"
-                           title="{{ _next_title }}">
-                            <span class="material-symbols-outlined text-xl">chevron_right</span>
-                        </a>
-                        {% endif %}
-                    </div>
-                    {% endif %}
+                    {{ render_tw_prev_next_buttons(prev_url, next_url, _prev_title, _next_title) }}
 
                     <!-- 2. 状态徽章区域 -->
                     {% if status_badges is not none or edit_btn is not none or delete_btn is not none %}
                     {# 参数模式：使用传入的参数 #}
+                    {% if status_badges %}
                     <div class="flex items-center gap-2">
                         {% if show_status_label %}
                         <span class="text-slate-600 dark:text-slate-400 text-sm">{{ _('状态') }}:</span>
                         {% endif %}
-                        {{ status_badges }}
+                        {{ status_badges|safe }}
                     </div>
+                    {% endif %}
 
                     <!-- 3. 返回按钮 -->
-                    {% if back_url %}
-                    {{ tw_btn_outline(_back_label, href=back_url, icon='arrow_back', size='sm', color='slate') }}
-                    {% endif %}
+                    {{ render_tw_back_button(back_url, _back_label) }}
 
                     <!-- 4. 编辑按钮 -->
                     {% if edit_btn and edit_btn.show %}
@@ -211,18 +195,20 @@ Slot 说明（v3.0简化）：
                             {% set btn_color = action.color or 'slate' %}
                             {% if btn_color == 'success' %}
                             <button onclick="{{ action.onclick }}"
+                                {% if action.id %}id="{{ action.id }}"{% endif %}
                                 class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors">
                                 {% if action.icon %}<span class="material-symbols-outlined text-lg">{{ action.icon }}</span>{% endif %}
                                 {{ action.label }}
                             </button>
                             {% elif btn_color == 'primary' %}
                             <button onclick="{{ action.onclick }}"
+                                {% if action.id %}id="{{ action.id }}"{% endif %}
                                 class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
                                 {% if action.icon %}<span class="material-symbols-outlined text-lg">{{ action.icon }}</span>{% endif %}
                                 {{ action.label }}
                             </button>
                             {% else %}
-                            {{ tw_btn_outline(action.label, onclick=action.onclick, icon=action.icon, size='sm', color=btn_color) }}
+                            {{ tw_btn_outline(action.label, onclick=action.onclick, icon=action.icon, size='sm', color=btn_color, id=action.id) }}
                             {% endif %}
                         {% endif %}
                     {% endfor %}
@@ -334,16 +320,16 @@ Slot 说明（v3.0简化）：
 <div class="flex-shrink-0 px-6 lg:px-10 pt-6 lg:pt-10 pb-4 bg-background-light dark:bg-black">
     <div class="max-w-7xl mx-auto">
         <!-- 面包屑和标题行 -->
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-center justify-between">
-            <div>
+        <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div class="min-w-0">
                 <!-- 面包屑导航 -->
                 {% if breadcrumb_items %}
                 <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-2">
                     {% for item in breadcrumb_items %}
                         {% if item.url %}
-                        <a class="hover:underline hover:text-primary" href="{{ item.url }}">{{ item.label }}</a>
+                        <a class="hover:underline hover:text-primary whitespace-nowrap" href="{{ item.url }}">{{ item.label }}</a>
                         {% else %}
-                        <span class="text-slate-800 dark:text-slate-200">{{ item.label }}</span>
+                        <span class="text-slate-800 dark:text-slate-200 whitespace-nowrap">{{ item.label }}</span>
                         {% endif %}
                         {% if not loop.last %}
                         <span>/</span>
@@ -352,33 +338,16 @@ Slot 说明（v3.0简化）：
                 </div>
                 {% endif %}
                 <!-- 页面标题 -->
-                <h2 class="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{{ title }}</h2>
+                <h1 class="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{{ title }}</h1>
                 {% if subtitle %}
                 <p class="text-lg text-slate-500 dark:text-slate-400 mt-1">{{ subtitle }}</p>
                 {% endif %}
             </div>
 
             <!-- 右侧按钮区域 -->
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 flex-shrink-0">
                 <!-- 1. 前后导航按钮（只显示有效方向，无边框） -->
-                {% if prev_url or next_url %}
-                <div class="flex items-center">
-                    {% if prev_url %}
-                    <a href="{{ prev_url }}"
-                       class="p-1.5 text-slate-400 dark:text-slate-400 hover:text-primary dark:hover:text-white transition-colors"
-                       title="{{ _prev_title }}">
-                        <span class="material-symbols-outlined text-xl">chevron_left</span>
-                    </a>
-                    {% endif %}
-                    {% if next_url %}
-                    <a href="{{ next_url }}"
-                       class="p-1.5 text-slate-400 dark:text-slate-400 hover:text-primary dark:hover:text-white transition-colors"
-                       title="{{ _next_title }}">
-                        <span class="material-symbols-outlined text-xl">chevron_right</span>
-                    </a>
-                    {% endif %}
-                </div>
-                {% endif %}
+                {{ render_tw_prev_next_buttons(prev_url, next_url, _prev_title, _next_title) }}
 
                 <!-- 2. 状态徽章区域 -->
                 {% if status_badges %}
@@ -386,14 +355,12 @@ Slot 说明（v3.0简化）：
                     {% if show_status_label %}
                     <span class="text-slate-600 dark:text-slate-400 text-sm">{{ _('状态') }}:</span>
                     {% endif %}
-                    {{ status_badges }}
+                    {{ status_badges|safe }}
                 </div>
                 {% endif %}
 
                 <!-- 3. 返回按钮 -->
-                {% if back_url %}
-                {{ tw_btn_outline(_back_label, href=back_url, icon='arrow_back', size='sm', color='slate') }}
-                {% endif %}
+                {{ render_tw_back_button(back_url, _back_label) }}
 
                 <!-- 4. 编辑按钮 -->
                 {% if edit_btn and edit_btn.show %}
@@ -411,18 +378,20 @@ Slot 说明（v3.0简化）：
                         {% set btn_color = action.color or 'slate' %}
                         {% if btn_color == 'success' %}
                         <button onclick="{{ action.onclick }}"
+                            {% if action.id %}id="{{ action.id }}"{% endif %}
                             class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors">
                             {% if action.icon %}<span class="material-symbols-outlined text-lg">{{ action.icon }}</span>{% endif %}
                             {{ action.label }}
                         </button>
                         {% elif btn_color == 'primary' %}
                         <button onclick="{{ action.onclick }}"
+                            {% if action.id %}id="{{ action.id }}"{% endif %}
                             class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
                             {% if action.icon %}<span class="material-symbols-outlined text-lg">{{ action.icon }}</span>{% endif %}
                             {{ action.label }}
                         </button>
                         {% else %}
-                        {{ tw_btn_outline(action.label, onclick=action.onclick, icon=action.icon, size='sm', color=btn_color) }}
+                        {{ tw_btn_outline(action.label, onclick=action.onclick, icon=action.icon, size='sm', color=btn_color, id=action.id) }}
                         {% endif %}
                     {% endif %}
                 {% endfor %}

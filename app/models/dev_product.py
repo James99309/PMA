@@ -1,7 +1,43 @@
+"""
+=============================================================================
+DEPRECATED - 研发库模型 (2025-12-26)
+=============================================================================
+
+本模块已废弃，研发库功能已被规格模板系统(SpecTemplate)完全替代。
+
+保留原因：
+- 数据库表 dev_products 和 dev_product_specs 中存在历史数据
+- Product 模型的 source_dev_product_id 字段引用了这些记录
+
+注意事项：
+- 请勿在新代码中使用这些模型
+- 请勿添加新的路由或视图引用这些模型
+- 如需查询历史数据，可直接使用 SQLAlchemy 查询
+- 相关前端页面和路由已删除
+
+替代方案：
+- 产品规格管理 → 使用 SpecTemplate, SpecDefinition, SpecCategory
+- 产品配置 → 使用 ProductConfiguration
+- 产品入库 → 直接创建 Product 并关联 SpecTemplate
+
+删除的文件（仅供参考）：
+- app/routes/dev_product_management.py
+- app/routes/product_management.py
+- app/services/product_warehousing_service.py
+- app/services/rd_product_pdf_generator.py
+- app/templates/dev_product/
+- app/templates/product_management/
+- app/templates/pdf/rd_product_template.html
+=============================================================================
+"""
+
 from datetime import datetime
 from sqlalchemy import ForeignKey, Column, Integer, String, Text, Float, DateTime, Boolean, JSON
 from sqlalchemy.orm import relationship
 from app import db
+
+
+# ⚠️ DEPRECATED - 请勿在新代码中使用
 
 class DevProduct(db.Model):
     __tablename__ = 'dev_products'
@@ -25,7 +61,11 @@ class DevProduct(db.Model):
     owner_id = Column(Integer, ForeignKey('users.id'))
     created_by = Column(Integer, ForeignKey('users.id'))
     mn_code = Column(String(20))
-    
+
+    # 规格模板相关字段
+    spec_template_id = Column(Integer, ForeignKey('spec_templates.id'))
+    primary_config_id = Column(Integer, ForeignKey('product_configurations.id'))
+
     # 阶段跟踪相关字段
     stage_history = Column(JSON)  # 阶段历史记录
     stage_description = Column(Text)  # 阶段描述信息
@@ -45,6 +85,10 @@ class DevProduct(db.Model):
     owner = relationship("User", foreign_keys=[owner_id])
     creator = relationship("User", foreign_keys=[created_by])
     specs = relationship("DevProductSpec", back_populates="product", cascade="all, delete-orphan")
+
+    # 规格模板关联
+    spec_template = relationship("SpecTemplate", foreign_keys=[spec_template_id])
+    primary_configuration = relationship("ProductConfiguration", foreign_keys=[primary_config_id])
     
     # 甘特图相关关联
     milestones = relationship("DevProductMilestone", back_populates="product", cascade="all, delete-orphan")

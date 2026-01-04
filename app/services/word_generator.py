@@ -25,6 +25,7 @@ from copy import deepcopy
 import logging
 import openpyxl
 from openpyxl.styles import Alignment, Font, Border, Side
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +40,10 @@ class WordGenerator:
         """获取模板文件路径"""
         return os.path.join(self.template_dir, template_name)
 
-    def _get_currency_symbol(self, currency='CNY'):
+    def _get_currency_symbol(self, currency=None):
         """获取货币符号"""
         from app.utils.dictionary_helpers import get_currency_symbol
-        return get_currency_symbol(currency)
+        return get_currency_symbol(currency or Config.DEFAULT_CURRENCY)
 
     def _format_discount_rate(self, rate):
         """格式化折扣率为百分比，保留2位小数"""
@@ -127,7 +128,7 @@ class WordGenerator:
             doc = Document(template_path)
 
             # 准备基本数据
-            currency = pricing_order.currency or 'CNY'
+            currency = pricing_order.currency or Config.DEFAULT_CURRENCY
             currency_symbol = self._get_currency_symbol(currency)
 
             # 计算有效期（默认审批日期起60天）
@@ -264,7 +265,7 @@ class WordGenerator:
             doc = Document(template_path)
 
             # 准备基本数据
-            currency = pricing_order.currency or 'CNY'
+            currency = pricing_order.currency or Config.DEFAULT_CURRENCY
             currency_symbol = self._get_currency_symbol(currency)
 
             # 表格0: 基本信息
@@ -523,7 +524,7 @@ class WordGenerator:
             doc = Document(template_path)
 
             # 准备基本数据
-            currency = quotation.currency or 'CNY'
+            currency = quotation.currency or Config.DEFAULT_CURRENCY
             currency_symbol = self._get_currency_symbol(currency)
 
             # 表格0: 客户信息
@@ -699,7 +700,7 @@ class WordGenerator:
             ws = wb.active
 
             # 准备基本数据
-            currency = quotation.currency or 'CNY'
+            currency = quotation.currency or Config.DEFAULT_CURRENCY
             currency_symbol = self._get_currency_symbol(currency)
 
             # 货币显示名称

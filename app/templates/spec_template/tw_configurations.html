@@ -1,0 +1,816 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_detail_layout.html' import tw_detail_layout with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles with context %}
+{% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
+{% from 'components/tw_form_fields.html' import tw_form_field, tw_form_select, tw_form_textarea with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ template.model }} - {{ _('配置版本管理') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark">
+    {% call(slot) render_tw_layout(active_page='spec_template', show_search=false) %}
+    {% if slot == 'content' %}
+        <!-- 主内容 -->
+        {% call(page_slot) tw_detail_layout(
+            breadcrumb_items=[
+                {'label': _('规格模板管理'), 'url': url_for('spec_template.list_templates')},
+                {'label': template.model, 'url': url_for('spec_template.view_template', template_id=template.id)},
+                {'label': _('配置版本管理')}
+            ],
+            title=_('配置版本管理'),
+            subtitle=template.model ~ (' - ' ~ template.name if template.name and template.name != 'None' else ''),
+            back_url=url_for('spec_template.view_template', template_id=template.id),
+            show_status_label=false,
+            edit_btn={'show': false},
+            extra_actions=[
+                {
+                    'show': has_permission('rd_product', 'view') and template.configurations|selectattr('is_active')|selectattr('status', 'ne', 'production')|selectattr('status', 'ne', 'discontinued')|list|length > 0,
+                    'label': _('导出配置'),
+                    'onclick': 'exportConfigurations()',
+                    'icon': 'download',
+                    'color': 'secondary'
+                },
+                {
+                    'show': has_permission('rd_product', 'edit'),
+                    'label': _('导入配置'),
+                    'onclick': 'showImportModal()',
+                    'icon': 'upload',
+                    'color': 'secondary'
+                },
+                {
+                    'show': has_permission('rd_product', 'create'),
+                    'label': _('新建配置版本'),
+                    'onclick': 'openCreateConfigModal()',
+                    'icon': 'add',
+                    'color': 'primary'
+                }
+            ],
+            has_sidebar=false
+        ) %}
+        {% if page_slot == 'content' %}
+            <div x-data="configManager()">
+                <!-- 配置版本列表 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                    {% for config in template.configurations if config.is_active %}
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-lg transition-shadow">
+                        <div class="p-5">
+                            <!-- 头部 -->
+                            <div class="flex items-start justify-between mb-4">
+                                <div>
+                                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ config.config_code }}</h3>
+                                    {% if config.region %}
+                                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                                        <span class="material-symbols-outlined align-middle mr-1" style="font-size: 14px;">location_on</span>
+                                        {% for r in region_options %}{% if r.value == config.region %}{{ r.label }}{% endif %}{% endfor %}
+                                    </p>
+                                    {% endif %}
+                                </div>
+                                {% set is_chinese = session.get('language', 'zh') == 'zh' %}
+                                {% set status_badges = {
+                                    'development': {'bg': 'bg-slate-100 dark:bg-slate-700', 'text': 'text-slate-700 dark:text-slate-300', 'label': '研发中' if is_chinese else 'Development'},
+                                    'prototype': {'bg': 'bg-yellow-100 dark:bg-yellow-900/30', 'text': 'text-yellow-700 dark:text-yellow-400', 'label': '研发样机' if is_chinese else 'Prototype'},
+                                    'pilot': {'bg': 'bg-blue-100 dark:bg-blue-900/30', 'text': 'text-blue-700 dark:text-blue-400', 'label': '小批量' if is_chinese else 'Pilot'},
+                                    'production': {'bg': 'bg-green-100 dark:bg-green-900/30', 'text': 'text-green-700 dark:text-green-400', 'label': '可生产' if is_chinese else 'Production'},
+                                    'discontinued': {'bg': 'bg-red-100 dark:bg-red-900/30', 'text': 'text-red-700 dark:text-red-400', 'label': '停产' if is_chinese else 'Discontinued'}
+                                } %}
+                                {% set badge = status_badges.get(config.status, status_badges.development) %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full {{ badge.bg }} {{ badge.text }}">
+                                    {{ badge.label }}
+                                </span>
+                            </div>
+
+                            <!-- 信息 -->
+                            <div class="space-y-2 mb-4">
+                                {% if config.mn_code %}
+                                <div class="flex items-center text-sm {% if config.mn_locked %}text-amber-600 dark:text-amber-400{% else %}text-slate-600 dark:text-slate-400{% endif %}">
+                                    <span class="material-symbols-outlined mr-2" style="font-size: 18px;">qr_code</span>
+                                    <span>MN: {{ config.mn_code }}</span>
+                                    {% if config.mn_locked %}
+                                    <span class="ml-1" title="{{ _('MN编码已锁定（可生产/停产状态）') }}">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+                                        </svg>
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                                {% if config.power_spec %}
+                                <div class="flex items-center text-sm text-slate-600 dark:text-slate-400">
+                                    <span class="material-symbols-outlined mr-2" style="font-size: 18px;">bolt</span>
+                                    <span>{{ config.power_spec }}</span>
+                                </div>
+                                {% endif %}
+                                <div class="flex items-center text-sm text-slate-600 dark:text-slate-400">
+                                    <span class="material-symbols-outlined mr-2" style="font-size: 18px;">tune</span>
+                                    <span>{{ config.config_values|length }} {{ _('个自定义规格值') }}</span>
+                                </div>
+                            </div>
+
+                            <!-- 底部信息 -->
+                            <div class="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 pt-3 border-t border-slate-100 dark:border-slate-700">
+                                <span>{{ _('创建') }}: {{ config.created_at.strftime('%Y-%m-%d') if config.created_at else '-' }}</span>
+                                {% if config.creator %}
+                                <span>{{ config.creator.real_name or config.creator.username }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- 操作栏 -->
+                        <div class="px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end gap-2">
+                            <a href="{{ url_for('spec_template.spec_config_matrix_page', template_id=template.id) }}?config_id={{ config.id }}"
+                               class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                               title="{{ _('编辑规格值') }}">
+                                <span class="material-symbols-outlined" style="font-size: 18px;">tune</span>
+                            </a>
+                            {% if has_permission('rd_product', 'edit') %}
+                            <button type="button" onclick="openEditConfigModal({{ config.id }})"
+                               class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                               title="{{ _('编辑') }}">
+                                <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
+                            </button>
+                            {% endif %}
+                            {% if has_permission('rd_product', 'create') %}
+                            <button type="button" onclick="copyConfig({{ config.id }}, '{{ config.config_code }}')"
+                               class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                               title="{{ _('复制') }}">
+                                <span class="material-symbols-outlined" style="font-size: 18px;">content_copy</span>
+                            </button>
+                            {% endif %}
+                            {% if has_permission('rd_product', 'delete') and not config.mn_locked %}
+                            <button type="button" onclick="confirmDeleteConfig({{ config.id }}, '{{ config.config_code }}')"
+                               class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                               title="{{ _('删除') }}">
+                                <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <!-- 空状态 -->
+                    <div class="col-span-full flex flex-col items-center justify-center py-16 text-slate-400">
+                        <span class="material-symbols-outlined mb-3" style="font-size: 64px;">inventory_2</span>
+                        <p class="text-lg font-medium mb-2">{{ _('暂无配置版本') }}</p>
+                        <p class="text-sm mb-6">{{ _('创建配置版本来定义不同区域的产品规格') }}</p>
+                        {% if has_permission('rd_product', 'create') %}
+                        <button type="button" onclick="openCreateConfigModal()"
+                           class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
+                            <span class="material-symbols-outlined" style="font-size: 20px;">add</span>
+                            <span>{{ _('新建配置版本') }}</span>
+                        </button>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- 规格值编辑模态框 -->
+                <div x-show="showValuesModal" x-cloak
+                     class="fixed inset-0 z-50 overflow-y-auto"
+                     x-transition:enter="transition ease-out duration-300"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100"
+                     x-transition:leave="transition ease-in duration-200"
+                     x-transition:leave-start="opacity-100"
+                     x-transition:leave-end="opacity-0">
+                    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+                        <div class="fixed inset-0 transition-opacity bg-slate-900/50" @click="showValuesModal = false"></div>
+
+                        <div class="relative inline-block w-full max-w-5xl p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-slate-800 shadow-xl rounded-2xl"
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                             x-transition:leave="transition ease-in duration-200"
+                             x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                             x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+
+                            <!-- 头部 -->
+                            <div class="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-700">
+                                <div>
+                                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('编辑规格值') }}</h3>
+                                    <p class="text-sm text-slate-500 dark:text-slate-400" x-text="editingConfig ? editingConfig.config_code : ''"></p>
+                                </div>
+                                <button type="button" @click="showValuesModal = false"
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:text-slate-300 dark:hover:bg-slate-700 transition-colors">
+                                    <span class="material-symbols-outlined">close</span>
+                                </button>
+                            </div>
+
+                            <!-- 分类标签页 -->
+                            <div class="border-b border-slate-200 dark:border-slate-700 mt-4">
+                                <nav class="flex overflow-x-auto -mb-px" aria-label="Tabs">
+                                    {% for category in categories %}
+                                    {% set cat_items = items_by_category.get(category.id, []) %}
+                                    {% if cat_items %}
+                                    <button type="button"
+                                            @click="activeCategory = {{ category.id }}"
+                                            :class="activeCategory === {{ category.id }} ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-300'"
+                                            class="whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2">
+                                        <span>{{ category.name }}</span>
+                                        <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-medium rounded-full"
+                                              :class="activeCategory === {{ category.id }} ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400'">
+                                            {{ cat_items|length }}
+                                        </span>
+                                    </button>
+                                    {% endif %}
+                                    {% endfor %}
+                                </nav>
+                            </div>
+
+                            <!-- 规格值列表 -->
+                            <div class="mt-4 max-h-96 overflow-y-auto">
+                                {% for category in categories %}
+                                {% set cat_items = items_by_category.get(category.id, []) %}
+                                {% if cat_items %}
+                                <div x-show="activeCategory === {{ category.id }}" x-cloak>
+                                    <table class="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                                        <thead class="bg-slate-50 dark:bg-slate-800/50 sticky top-0">
+                                            <tr>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider w-1/4">
+                                                    {{ _('规格名称') }}
+                                                </th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider w-1/6">
+                                                    {{ _('单位') }}
+                                                </th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider w-1/4">
+                                                    {{ _('通用值') }}
+                                                </th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider w-1/3">
+                                                    {{ _('配置值') }}
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
+                                            {% for item in cat_items %}
+                                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                                                <td class="px-4 py-3">
+                                                    <div>
+                                                        <p class="text-sm font-medium text-slate-900 dark:text-white">{{ item.definition.name }}</p>
+                                                        {% if item.definition.name_en %}
+                                                        <p class="text-xs text-slate-500 dark:text-slate-400">{{ item.definition.name_en }}</p>
+                                                        {% endif %}
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+                                                    {{ item.definition.unit or '-' }}
+                                                </td>
+                                                <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+                                                    {{ item.general_value or '-' }}
+                                                </td>
+                                                <td class="px-4 py-3">
+                                                    <input type="text"
+                                                           :value="configValues[{{ item.id }}] || ''"
+                                                           @input="configValues[{{ item.id }}] = $event.target.value"
+                                                           placeholder="{{ _('留空使用通用值') }}"
+                                                           class="w-full px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-primary focus:border-primary">
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+
+                            <!-- 底部操作 -->
+                            <div class="flex items-center justify-end gap-3 pt-4 mt-4 border-t border-slate-200 dark:border-slate-700">
+                                <button type="button" @click="showValuesModal = false"
+                                        class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">
+                                    {{ _('取消') }}
+                                </button>
+                                <button type="button" @click="saveConfigValues()" :disabled="saving"
+                                        class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50">
+                                    <span x-show="!saving">{{ _('保存') }}</span>
+                                    <span x-show="saving">{{ _('保存中...') }}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+        {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 新建/编辑配置版本模态框 -->
+    {% call tw_form_modal(
+        modal_id='configModal',
+        title=_('新建配置版本'),
+        submit_text=_('保存'),
+        cancel_text=_('取消'),
+        size='md'
+    ) %}
+    <input type="hidden" id="configId" name="config_id" value="">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {{ tw_form_field('config_code', _('开发代号'), required=true, placeholder=_('如：TS、MSJ123')) }}
+        {{ tw_form_select('region', _('适用区域'), options=[{'value': '', 'label': _('请选择')}] + region_options) }}
+        {{ tw_form_select('status', _('生产状态'), options=status_options) }}
+        <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('MN编码') }}</label>
+            <div id="mn_code_display" class="px-3 py-2 text-sm bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-400">
+                {{ _('自动生成') }}
+            </div>
+        </div>
+    </div>
+    {{ tw_form_textarea('notes', _('备注'), rows=2) }}
+    {% endcall %}
+
+    <!-- 复制配置版本模态框 -->
+    {% call tw_form_modal(
+        modal_id='copyConfigModal',
+        title=_('复制配置版本'),
+        submit_text=_('复制'),
+        cancel_text=_('取消'),
+        size='md'
+    ) %}
+    <input type="hidden" id="copyConfigId" name="config_id" value="">
+    {{ tw_form_field('config_code', _('新开发代号'), required=true, placeholder=_('请输入新的开发代号')) }}
+    {{ tw_form_select('region', _('适用区域'), options=[{'value': '', 'label': _('保持原区域')}] + region_options) }}
+    {% endcall %}
+
+    <!-- 删除确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='deleteConfirmModal',
+        title=_('确认删除'),
+        message=_('您确定要删除这个配置版本吗？'),
+        confirm_text=_('删除'),
+        cancel_text=_('取消'),
+        variant='danger',
+        show_error=true
+    ) }}
+
+    <!-- 表单模态框脚本 -->
+    {{ tw_form_modal_script() }}
+
+    <!-- 确认模态框脚本 -->
+    {{ tw_confirm_modal_script() }}
+
+    <!-- 导入配置模态框 -->
+    <div id="importConfigModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50" onclick="if(event.target===this) closeImportModal()">
+        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg mx-4 overflow-hidden">
+            <div class="p-6 border-b border-slate-200 dark:border-slate-700">
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ _('导入配置') }}</h3>
+            </div>
+            <div class="p-6">
+                <div class="mb-4">
+                    <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                        {{ _('请选择要导入的Excel文件。您可以先导出现有配置作为模板。') }}
+                    </p>
+                    <ul class="text-sm text-slate-500 dark:text-slate-400 list-disc list-inside space-y-1 mb-4">
+                        <li>{{ _('只支持 .xlsx 或 .xls 格式') }}</li>
+                        <li>{{ _('锁定的配置（可生产/停产）将被跳过') }}</li>
+                        <li>{{ _('相同配置编码会更新现有配置') }}</li>
+                        <li>{{ _('新的配置编码会创建新配置') }}</li>
+                    </ul>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('选择文件') }}</label>
+                    <input type="file" id="importConfigFile" accept=".xlsx,.xls"
+                           class="block w-full text-sm text-slate-500 dark:text-slate-400
+                                  file:mr-4 file:py-2 file:px-4
+                                  file:rounded-lg file:border-0
+                                  file:text-sm file:font-medium
+                                  file:bg-primary/10 file:text-primary
+                                  hover:file:bg-primary/20
+                                  cursor-pointer">
+                </div>
+                <div id="importConfigResult" class="hidden mb-4">
+                    <div id="importConfigSuccess" class="hidden p-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg">
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-green-600 dark:text-green-400">check_circle</span>
+                            <span id="importConfigSuccessMsg" class="text-sm text-green-800 dark:text-green-200"></span>
+                        </div>
+                    </div>
+                    <div id="importConfigError" class="hidden p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg">
+                        <div class="flex items-start gap-2">
+                            <span class="material-symbols-outlined text-red-600 dark:text-red-400">error</span>
+                            <div>
+                                <span id="importConfigErrorMsg" class="text-sm text-red-800 dark:text-red-200"></span>
+                                <ul id="importConfigErrorList" class="mt-2 text-sm text-red-700 dark:text-red-300 list-disc list-inside"></ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="importConfigWarnings" class="hidden mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                        <div class="flex items-start gap-2">
+                            <span class="material-symbols-outlined text-yellow-600 dark:text-yellow-400">warning</span>
+                            <ul id="importConfigWarningList" class="text-sm text-yellow-800 dark:text-yellow-200 list-disc list-inside"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+                <button type="button" onclick="closeImportModal()"
+                        class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors">
+                    {{ _('取消') }}
+                </button>
+                <button type="button" onclick="submitImportConfig()" id="submitImportBtn"
+                        class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    {{ _('导入') }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 布局脚本 -->
+    {{ render_tw_layout_script() }}
+
+    <!-- 页面逻辑 -->
+    <script>
+    const TEMPLATE_ID = {{ template.id }};
+    const API_BASE = '{{ url_for("spec_template.list_templates") }}api';
+
+    function configManager() {
+        return {
+            showValuesModal: false,
+            editingConfig: null,
+            configValues: {},
+            activeCategory: {{ categories[0].id if categories else 'null' }},
+            saving: false,
+
+            async loadConfigValues(configId) {
+                try {
+                    const response = await fetch(`${API_BASE}/configurations/${configId}`);
+                    const result = await response.json();
+                    if (result.success) {
+                        this.editingConfig = result.data;
+                        this.configValues = {};
+                        // 转换values对象为以template_item_id为key的格式
+                        for (const [itemId, valueData] of Object.entries(result.data.values || {})) {
+                            this.configValues[itemId] = valueData.value;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showToast('{{ _("加载失败") }}', 'error');
+                }
+            },
+
+            async saveConfigValues() {
+                if (!this.editingConfig) return;
+
+                this.saving = true;
+                try {
+                    const values = [];
+                    for (const [itemId, value] of Object.entries(this.configValues)) {
+                        values.push({
+                            template_item_id: parseInt(itemId),
+                            value: value || null
+                        });
+                    }
+
+                    const response = await fetch(`${API_BASE}/configurations/${this.editingConfig.id}/values`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ values: values })
+                    });
+
+                    const result = await response.json();
+                    if (result.success) {
+                        showToast(result.message || '{{ _("保存成功") }}');
+                        this.showValuesModal = false;
+                        location.reload();
+                    } else {
+                        showToast(result.message || '{{ _("保存失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showToast('{{ _("保存失败") }}', 'error');
+                } finally {
+                    this.saving = false;
+                }
+            }
+        };
+    }
+
+    // 打开规格值编辑模态框
+    async function openEditValuesModal(configId) {
+        const manager = Alpine.$data(document.querySelector('[x-data="configManager()"]'));
+        await manager.loadConfigValues(configId);
+        manager.showValuesModal = true;
+    }
+
+    // 打开新建配置版本模态框
+    function openCreateConfigModal() {
+        document.getElementById('configId').value = '';
+        document.getElementById('configModal-form').reset();
+
+        openFormModal('configModal', {
+            title: '{{ _("新建配置版本") }}',
+            submitText: '{{ _("保存") }}',
+            onSubmit: async function(data, form) {
+                try {
+                    const response = await fetch(`${API_BASE}/${TEMPLATE_ID}/configurations`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        showToast(result.message || '{{ _("创建成功") }}');
+                        closeFormModal('configModal');
+                        location.reload();
+                    } else {
+                        showToast(result.message || '{{ _("创建失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showToast('{{ _("创建失败") }}', 'error');
+                }
+            }
+        });
+    }
+
+    // 打开编辑配置版本模态框
+    async function openEditConfigModal(configId) {
+        try {
+            const response = await fetch(`${API_BASE}/configurations/${configId}`);
+            const result = await response.json();
+
+            if (!result.success) {
+                showToast('{{ _("加载失败") }}', 'error');
+                return;
+            }
+
+            const config = result.data;
+            document.getElementById('configId').value = config.id;
+
+            const form = document.getElementById('configModal-form');
+            const configCodeField = form.querySelector('[name="config_code"]');
+            const regionField = form.querySelector('[name="region"]');
+
+            configCodeField.value = config.config_code || '';
+            regionField.value = config.region || '';
+            form.querySelector('[name="status"]').value = config.status || 'development';
+            form.querySelector('[name="notes"]').value = config.notes || '';
+
+            // 锁定状态下禁用开发代号和适用区域
+            const isLocked = config.mn_locked;
+            configCodeField.disabled = isLocked;
+            regionField.disabled = isLocked;
+
+            if (isLocked) {
+                configCodeField.classList.add('bg-slate-100', 'dark:bg-slate-700', 'cursor-not-allowed');
+                regionField.classList.add('bg-slate-100', 'dark:bg-slate-700', 'cursor-not-allowed');
+            } else {
+                configCodeField.classList.remove('bg-slate-100', 'dark:bg-slate-700', 'cursor-not-allowed');
+                regionField.classList.remove('bg-slate-100', 'dark:bg-slate-700', 'cursor-not-allowed');
+            }
+
+            // 显示MN编码（锁定时添加锁定图标）
+            const mnDisplay = document.getElementById('mn_code_display');
+            if (mnDisplay) {
+                if (isLocked) {
+                    mnDisplay.innerHTML = `${config.mn_code || '{{ _("自动生成") }}'} <svg class="inline w-4 h-4 ml-1 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>`;
+                    mnDisplay.classList.add('text-amber-600', 'dark:text-amber-400');
+                    mnDisplay.classList.remove('text-slate-600', 'dark:text-slate-400');
+                } else {
+                    mnDisplay.textContent = config.mn_code || '{{ _("自动生成") }}';
+                    mnDisplay.classList.remove('text-amber-600', 'dark:text-amber-400');
+                    mnDisplay.classList.add('text-slate-600', 'dark:text-slate-400');
+                }
+            }
+
+            openFormModal('configModal', {
+                title: '{{ _("编辑配置版本") }}',
+                submitText: '{{ _("保存") }}',
+                onSubmit: async function(data, form) {
+                    try {
+                        const response = await fetch(`${API_BASE}/configurations/${configId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(data)
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            showToast(result.message || '{{ _("更新成功") }}');
+                            closeFormModal('configModal');
+                            location.reload();
+                        } else {
+                            showToast(result.message || '{{ _("更新失败") }}', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        showToast('{{ _("更新失败") }}', 'error');
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('{{ _("加载失败") }}', 'error');
+        }
+    }
+
+    // 复制配置版本
+    function copyConfig(configId, configCode) {
+        document.getElementById('copyConfigId').value = configId;
+        document.getElementById('copyConfigModal-form').reset();
+        document.querySelector('#copyConfigModal-form input[name="config_code"]').value = configCode + '_copy';
+
+        openFormModal('copyConfigModal', {
+            title: '{{ _("复制配置版本") }}',
+            submitText: '{{ _("复制") }}',
+            onSubmit: async function(data, form) {
+                const id = document.getElementById('copyConfigId').value;
+
+                try {
+                    const response = await fetch(`${API_BASE}/configurations/${id}/copy`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        showToast(result.message || '{{ _("复制成功") }}');
+                        closeFormModal('copyConfigModal');
+                        location.reload();
+                    } else {
+                        showToast(result.message || '{{ _("复制失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showToast('{{ _("复制失败") }}', 'error');
+                }
+            }
+        });
+    }
+
+    // 删除配置版本
+    function confirmDeleteConfig(id, code) {
+        openConfirmModal('deleteConfirmModal', {
+            message: `{{ _("确定要删除配置版本") }} "${code}" {{ _("吗？") }}`,
+            data: { id: id },
+            onConfirm: async function(data) {
+                try {
+                    const response = await fetch(`${API_BASE}/configurations/${data.id}`, {
+                        method: 'DELETE'
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        showToast(result.message || '{{ _("删除成功") }}');
+                        location.reload();
+                    } else {
+                        throw new Error(result.message || '{{ _("删除失败") }}');
+                    }
+                } catch (error) {
+                    throw error;
+                }
+            }
+        });
+    }
+
+    // 导出配置
+    function exportConfigurations() {
+        window.location.href = `{{ url_for('spec_template.list_templates') }}api/${TEMPLATE_ID}/export-configurations`;
+    }
+
+    // 显示导入模态框
+    function showImportModal() {
+        const modal = document.getElementById('importConfigModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        // 重置表单状态
+        document.getElementById('importConfigFile').value = '';
+        document.getElementById('importConfigResult').classList.add('hidden');
+        document.getElementById('importConfigSuccess').classList.add('hidden');
+        document.getElementById('importConfigError').classList.add('hidden');
+        document.getElementById('importConfigWarnings').classList.add('hidden');
+        document.getElementById('submitImportBtn').disabled = false;
+    }
+
+    // 关闭导入模态框
+    function closeImportModal() {
+        const modal = document.getElementById('importConfigModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    // 提交导入配置
+    async function submitImportConfig() {
+        const fileInput = document.getElementById('importConfigFile');
+        if (!fileInput.files || !fileInput.files[0]) {
+            showToast('{{ _("请选择文件") }}', 'error');
+            return;
+        }
+
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const submitBtn = document.getElementById('submitImportBtn');
+        submitBtn.disabled = true;
+        submitBtn.textContent = '{{ _("导入中...") }}';
+
+        try {
+            const response = await fetch(`{{ url_for('spec_template.list_templates') }}api/${TEMPLATE_ID}/import-configurations`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            const resultDiv = document.getElementById('importConfigResult');
+            resultDiv.classList.remove('hidden');
+
+            if (result.success) {
+                document.getElementById('importConfigSuccess').classList.remove('hidden');
+                document.getElementById('importConfigError').classList.add('hidden');
+                document.getElementById('importConfigSuccessMsg').textContent = result.message;
+
+                // 显示警告信息
+                if (result.warnings && result.warnings.length > 0) {
+                    document.getElementById('importConfigWarnings').classList.remove('hidden');
+                    const warningList = document.getElementById('importConfigWarningList');
+                    warningList.innerHTML = '';
+                    result.warnings.forEach(warning => {
+                        const li = document.createElement('li');
+                        li.textContent = warning;
+                        warningList.appendChild(li);
+                    });
+                } else {
+                    document.getElementById('importConfigWarnings').classList.add('hidden');
+                }
+
+                // 2秒后刷新页面
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            } else {
+                document.getElementById('importConfigSuccess').classList.add('hidden');
+                document.getElementById('importConfigError').classList.remove('hidden');
+                document.getElementById('importConfigErrorMsg').textContent = result.message;
+
+                // 显示错误列表
+                if (result.errors && result.errors.length > 0) {
+                    const errorList = document.getElementById('importConfigErrorList');
+                    errorList.innerHTML = '';
+                    result.errors.forEach(error => {
+                        const li = document.createElement('li');
+                        li.textContent = error;
+                        errorList.appendChild(li);
+                    });
+                }
+
+                submitBtn.disabled = false;
+                submitBtn.textContent = '{{ _("导入") }}';
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('{{ _("导入失败") }}', 'error');
+            submitBtn.disabled = false;
+            submitBtn.textContent = '{{ _("导入") }}';
+        }
+    }
+    </script>
+</body>
+</html>

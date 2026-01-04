@@ -368,9 +368,7 @@
                                 {% if has_permission('product', 'view') %}
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('product.product_list') }}">{{ _('产品库') }}</a></li>
                                 {% endif %}
-                                {% if has_permission('product_code', 'view') %}
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('rd_product.index') }}">{{ _('研发库') }}</a></li>
-                                {% endif %}
+                                {# 研发库已废弃 (2025-12-26) #}
                                 {% if current_user.role in ['admin', 'product_manager'] %}
                                 <li><hr class="dropdown-divider my-1"></li>
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('product_code.tw_categories') }}">{{ _('产品分类') }}</a></li>
@@ -388,9 +386,7 @@
                             {% if has_permission('product', 'view') %}
                             <li><a class="dropdown-item" href="{{ url_for('product.product_list') }}">{{ _('产品库') }}</a></li>
                             {% endif %}
-                            {% if has_permission('product_code', 'view') %}
-                            <li><a class="dropdown-item" href="{{ url_for('rd_product.index') }}">{{ _('研发库') }}</a></li>
-                            {% endif %}
+                            {# 研发库已废弃 (2025-12-26) #}
                             {% if current_user.role in ['admin', 'product_manager'] %}
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('product_code.tw_categories') }}">{{ _('产品分类') }}</a></li>
@@ -450,13 +446,13 @@
                             </summary>
                             <ul class="list-unstyled ps-3 mb-0">
                                 {% if has_permission('user_management', 'view') %}
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('user.list_users') }}">{{ _('账户列表') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('user.list_users', tw=1) }}">{{ _('账户列表') }}</a></li>
                                 {% endif %}
                                 {% if has_permission('permission_management', 'view') %}
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('user.manage_role_permissions') }}">{{ _('权限管理') }}</a></li>
                                 {% endif %}
-                                {% if has_permission('performance_management', 'edit') %}
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('performance_config.role_config') }}">{{ _('绩效配置') }}</a></li>
+                                {% if has_permission('system_management', 'edit') or has_permission('performance_management', 'edit') %}
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('config_management.index') }}">{{ _('配置管理') }}</a></li>
                                 {% endif %}
                                 {% if has_permission('dictionary_management', 'view') %}
                                 <li><hr class="dropdown-divider my-1"></li>
@@ -478,7 +474,7 @@
                             {% if has_permission('user_management', 'view') %}
                             <li>
                                 <a class="dropdown-item"
-                                   href="{{ url_for('user.list_users') }}">
+                                   href="{{ url_for('user.list_users', tw=1) }}">
                                    {{ _('账户列表') }}
                                 </a>
                             </li>
@@ -491,11 +487,11 @@
                                 </a>
                             </li>
                             {% endif %}
-                            {% if has_permission('performance_management', 'edit') %}
+                            {% if has_permission('system_management', 'edit') or has_permission('performance_management', 'edit') %}
                             <li>
                                 <a class="dropdown-item"
-                                   href="{{ url_for('performance_config.role_config') }}">
-                                   {{ _('绩效配置') }}
+                                   href="{{ url_for('config_management.index') }}">
+                                   {{ _('配置管理') }}
                                 </a>
                             </li>
                             {% endif %}

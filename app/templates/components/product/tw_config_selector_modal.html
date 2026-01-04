@@ -1,0 +1,350 @@
+{#
+=============================================================================
+Tailwind 配置产品选择器模态框组件
+=============================================================================
+参考 tw_user_selector_modal.html 的树状选择器模式
+
+用于产品库从规格库引入配置产品时的选择器。
+显示按分类/子分类组织的树状配置列表。
+
+使用方式：
+{% from 'components/product/tw_config_selector_modal.html' import tw_config_selector_modal, tw_config_selector_script %}
+
+{{ tw_config_selector_modal(
+    modal_id='configSelectorModal',
+    title=_('选择配置产品'),
+    event_name='open-config-selector-modal'
+) }}
+
+{{ tw_config_selector_script('configSelectorModal') }}
+
+参数：
+- modal_id: 模态框ID（必填）
+- title: 模态框标题（必填）
+- event_name: 触发打开的事件名称（必填）
+- searchable: 是否显示搜索框，默认 true
+=============================================================================
+#}
+
+{% macro tw_config_selector_modal(
+    modal_id,
+    title,
+    event_name,
+    searchable=true
+) %}
+<div id="{{ modal_id }}"
+     x-data="{{ modal_id }}Data()"
+     x-show="open"
+     x-cloak
+     @{{ event_name }}.window="openModal()"
+     class="fixed inset-0 z-50 overflow-y-auto">
+    <!-- 背景遮罩 -->
+    <div class="fixed inset-0 bg-black/30 dark:bg-black/50 transition-opacity"
+         x-show="open"
+         x-transition:enter="ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @click="open = false">
+    </div>
+
+    <!-- 模态框内容 -->
+    <div class="flex min-h-full items-center justify-center p-4">
+        <div class="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl transform transition-all"
+             x-show="open"
+             x-transition:enter="ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="ease-in duration-200"
+             x-transition:leave-start="opacity-100 scale-100"
+             x-transition:leave-end="opacity-0 scale-95"
+             @click.stop>
+
+            <!-- 头部 -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 class="text-xl font-semibold text-slate-800 dark:text-white">{{ title }}</h3>
+                <button @click="open = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <div class="p-6">
+                {% if searchable %}
+                <!-- 搜索框 -->
+                <div class="mb-4">
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                            <span class="material-symbols-outlined" style="font-size: 20px;">search</span>
+                        </span>
+                        <input type="text" x-model="searchKeyword"
+                               class="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg
+                                      bg-white dark:bg-slate-800 text-slate-900 dark:text-white
+                                      placeholder-slate-400 focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
+                               placeholder="{{ _('搜索型号或MN编码...') }}">
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- 树状列表 -->
+                <div class="border border-slate-200 dark:border-slate-700 rounded-lg h-80 overflow-y-auto bg-slate-50/50 dark:bg-slate-800/50">
+                    <!-- 加载状态 -->
+                    <div x-show="loading" class="flex items-center justify-center h-full">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    </div>
+
+                    <!-- 空状态 -->
+                    <div x-show="!loading && filteredTree.length === 0" class="flex flex-col items-center justify-center h-full text-slate-400">
+                        <span class="material-symbols-outlined text-4xl mb-2">inventory_2</span>
+                        <span>{{ _('暂无可引入的配置产品') }}</span>
+                    </div>
+
+                    <!-- 树状列表内容 -->
+                    <ul x-show="!loading && filteredTree.length > 0" class="text-sm">
+                        <template x-for="category in filteredTree" :key="category.id">
+                            <li class="border-b border-slate-200 dark:border-slate-700 last:border-b-0">
+                                <!-- 分类节点 -->
+                                <div class="flex items-center p-3 hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer transition-colors"
+                                     @click="toggleNode(category.id)">
+                                    <span class="material-symbols-outlined text-lg mr-2 text-slate-500 dark:text-slate-400 transition-transform"
+                                          :class="isExpanded(category.id) ? 'rotate-0' : '-rotate-90'"
+                                          x-text="'expand_more'"></span>
+                                    <span class="material-symbols-outlined mr-2 text-amber-500">folder</span>
+                                    <span x-text="category.name" class="font-medium text-slate-800 dark:text-slate-200"></span>
+                                    <span class="ml-2 text-xs text-slate-400" x-text="'(' + countConfigs(category) + ')'"></span>
+                                </div>
+
+                                <!-- 子分类 -->
+                                <ul x-show="isExpanded(category.id)"
+                                    x-transition:enter="transition-all ease-out duration-200"
+                                    x-transition:enter-start="opacity-0 max-h-0"
+                                    x-transition:enter-end="opacity-100 max-h-[1000px]"
+                                    x-transition:leave="transition-all ease-in duration-150"
+                                    x-transition:leave-start="opacity-100 max-h-[1000px]"
+                                    x-transition:leave-end="opacity-0 max-h-0"
+                                    class="overflow-hidden">
+                                    <template x-for="subcategory in category.children" :key="subcategory.id">
+                                        <li class="border-t border-slate-100 dark:border-slate-700/50">
+                                            <!-- 子分类节点 -->
+                                            <div class="flex items-center p-3 pl-8 hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer transition-colors"
+                                                 @click="toggleNode(subcategory.id)">
+                                                <span class="material-symbols-outlined text-lg mr-2 text-slate-400 dark:text-slate-500 transition-transform"
+                                                      :class="isExpanded(subcategory.id) ? 'rotate-0' : '-rotate-90'"
+                                                      x-text="'expand_more'"></span>
+                                                <span class="material-symbols-outlined mr-2 text-blue-400">folder_open</span>
+                                                <span x-text="subcategory.name" class="text-slate-700 dark:text-slate-300"></span>
+                                                <span class="ml-2 text-xs text-slate-400" x-text="'(' + subcategory.children.length + ')'"></span>
+                                            </div>
+
+                                            <!-- 配置产品 -->
+                                            <ul x-show="isExpanded(subcategory.id)"
+                                                x-transition:enter="transition-all ease-out duration-200"
+                                                x-transition:enter-start="opacity-0 max-h-0"
+                                                x-transition:enter-end="opacity-100 max-h-[800px]"
+                                                x-transition:leave="transition-all ease-in duration-150"
+                                                x-transition:leave-start="opacity-100 max-h-[800px]"
+                                                x-transition:leave-end="opacity-0 max-h-0"
+                                                class="overflow-hidden">
+                                                <template x-for="config in subcategory.children" :key="config.id">
+                                                    <li class="border-t border-slate-100 dark:border-slate-700/50"
+                                                        :class="config.already_imported ? 'opacity-50' : ''">
+                                                        <div class="flex items-center justify-between p-3 pl-14 cursor-pointer transition-colors"
+                                                             :class="[
+                                                                 selectedConfigId === config.id ? 'bg-primary/10 dark:bg-primary/20' : 'hover:bg-slate-100 dark:hover:bg-slate-700/50',
+                                                                 config.already_imported ? 'cursor-not-allowed' : ''
+                                                             ]"
+                                                             @click="!config.already_imported && selectConfig(config)">
+                                                            <div class="flex items-center">
+                                                                <span class="material-symbols-outlined mr-2 text-primary">inventory_2</span>
+                                                                <span x-text="config.template_model" class="font-medium text-slate-800 dark:text-slate-200"></span>
+                                                                <span class="ml-2 font-mono text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded"
+                                                                      x-text="config.mn_code"></span>
+                                                            </div>
+                                                            <span class="text-xs px-2 py-1 rounded-full font-medium"
+                                                                  :class="config.already_imported ? 'bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400' :
+                                                                          config.status === 'production' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                                                                          'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'"
+                                                                  x-text="config.already_imported ? '{{ _('已引入') }}' : config.status_display"></span>
+                                                        </div>
+                                                    </li>
+                                                </template>
+                                            </ul>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+
+                <!-- 选中预览 -->
+                <div x-show="selectedConfig"
+                     x-transition:enter="transition-all ease-out duration-200"
+                     x-transition:enter-start="opacity-0 translate-y-2"
+                     x-transition:enter-end="opacity-100 translate-y-0"
+                     class="mt-4 p-4 bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-lg">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm font-medium text-primary">{{ _('已选择') }}</span>
+                        <button @click="selectedConfig = null; selectedConfigId = null"
+                                class="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                            {{ _('取消选择') }}
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 text-sm">
+                        <div class="flex items-center">
+                            <span class="text-slate-500 dark:text-slate-400 mr-2">{{ _('型号') }}:</span>
+                            <span x-text="selectedConfig?.template_model" class="font-medium text-slate-800 dark:text-slate-200"></span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-slate-500 dark:text-slate-400 mr-2">{{ _('MN编码') }}:</span>
+                            <span x-text="selectedConfig?.mn_code" class="font-mono text-slate-800 dark:text-slate-200"></span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-slate-500 dark:text-slate-400 mr-2">{{ _('区域') }}:</span>
+                            <span x-text="selectedConfig?.region_name || '-'" class="text-slate-800 dark:text-slate-200"></span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-slate-500 dark:text-slate-400 mr-2">{{ _('分类') }}:</span>
+                            <span x-text="(selectedConfig?.category_name || '') + ' / ' + (selectedConfig?.subcategory_name || '')"
+                                  class="text-slate-800 dark:text-slate-200"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部 -->
+            <div class="flex justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 rounded-b-xl">
+                <button @click="open = false"
+                        class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800
+                               border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                    {{ _('取消') }}
+                </button>
+                <button @click="confirmSelect()" :disabled="!selectedConfig"
+                        class="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg
+                               hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    {{ _('选择') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{% macro tw_config_selector_script(modal_id) %}
+<script>
+function {{ modal_id }}Data() {
+    return {
+        open: false,
+        loading: false,
+        searchKeyword: '',
+        configsTree: [],
+        expandedNodes: new Set(),
+        selectedConfigId: null,
+        selectedConfig: null,
+
+        // 打开模态框
+        async openModal() {
+            this.open = true;
+            this.searchKeyword = '';
+            this.selectedConfigId = null;
+            this.selectedConfig = null;
+            this.expandedNodes = new Set();
+            await this.loadConfigs();
+        },
+
+        // 加载配置数据
+        async loadConfigs() {
+            this.loading = true;
+            try {
+                const response = await fetch('{{ url_for("product.get_configurations_tree") }}');
+                const data = await response.json();
+                if (data.success) {
+                    this.configsTree = data.data;
+                } else {
+                    console.error('加载配置失败:', data.message);
+                }
+            } catch (error) {
+                console.error('加载配置失败:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        // 过滤树（搜索）
+        get filteredTree() {
+            if (!this.searchKeyword.trim()) return this.configsTree;
+            return this.filterTree(this.configsTree, this.searchKeyword.toLowerCase());
+        },
+
+        filterTree(tree, keyword) {
+            return tree.map(cat => {
+                const filteredChildren = cat.children?.map(sub => {
+                    const filteredConfigs = sub.children?.filter(c =>
+                        (c.template_model && c.template_model.toLowerCase().includes(keyword)) ||
+                        (c.mn_code && c.mn_code.toLowerCase().includes(keyword))
+                    );
+                    if (filteredConfigs && filteredConfigs.length > 0) {
+                        // 搜索时自动展开匹配的节点
+                        this.expandedNodes.add(cat.id);
+                        this.expandedNodes.add(sub.id);
+                        return { ...sub, children: filteredConfigs };
+                    }
+                    return null;
+                }).filter(Boolean);
+
+                if (filteredChildren && filteredChildren.length > 0) {
+                    return { ...cat, children: filteredChildren };
+                }
+                return null;
+            }).filter(Boolean);
+        },
+
+        // 统计分类下的配置数量
+        countConfigs(category) {
+            let count = 0;
+            if (category.children) {
+                category.children.forEach(sub => {
+                    if (sub.children) {
+                        count += sub.children.length;
+                    }
+                });
+            }
+            return count;
+        },
+
+        // 展开/折叠节点
+        toggleNode(nodeId) {
+            if (this.expandedNodes.has(nodeId)) {
+                this.expandedNodes.delete(nodeId);
+            } else {
+                this.expandedNodes.add(nodeId);
+            }
+            // 触发响应式更新
+            this.expandedNodes = new Set(this.expandedNodes);
+        },
+
+        isExpanded(nodeId) {
+            return this.expandedNodes.has(nodeId);
+        },
+
+        // 选择配置
+        selectConfig(config) {
+            this.selectedConfigId = config.id;
+            this.selectedConfig = config;
+        },
+
+        // 确认选择
+        confirmSelect() {
+            if (!this.selectedConfig) return;
+            this.open = false;
+            // 触发事件，传递选中的配置数据给产品模态框
+            window.dispatchEvent(new CustomEvent('config-selected', {
+                detail: this.selectedConfig
+            }));
+        }
+    };
+}
+</script>
+{% endmacro %}

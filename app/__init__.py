@@ -9,8 +9,9 @@ from app.models import User
 from app.models.temp_product import TempProduct
 from app.routes.product import bp as product_bp
 from app.routes.product_code import product_code_bp
-from app.routes.product_management import product_management_bp
-from app.routes.dev_product_management import bp as dev_product_bp
+# 研发库已废弃，相关蓝图已移除 (2025-12-26)
+# from app.routes.product_management import product_management_bp
+# from app.routes.dev_product_management import bp as dev_product_bp
 from app.routes.performance import register_performance_routes
 from datetime import timedelta, datetime
 from app.utils import version_check
@@ -201,26 +202,8 @@ def create_app(config_class=Config):
             '/product-code/api/category/'
         ]
         
-        # 特定的product_management API路径豁免
-        product_management_exempt_routes = [
-            '/product-management/save',
-            '/product-management/api/region-options',
-            '/product-management/api/category/',
-            '/product-management/api/subcategory/',
-            '/product-management/',  # 根路径
-            '/product-management/new',  # 新建产品
-            '/product-management/api/',  # 所有API路径
-            '/product-management/inventory',  # 库存页面
-        ]
-        
-        # 添加产品管理的动态路径
-        # 检查是否是产品管理的更新/删除/详情等动态路径
-        if request.path.startswith('/product-management/'):
-            parts = request.path.split('/')
-            if len(parts) >= 3 and parts[2].isdigit():
-                # 匹配形如 /product-management/数字/action 的路径
-                return True
-        
+        # 研发库已废弃，相关豁免路由已移除 (2025-12-26)
+
         # 项目管理模块路径豁免
         project_management_exempt_routes = [
             '/project/add',
@@ -244,11 +227,7 @@ def create_app(config_class=Config):
         for route in product_code_exempt_routes:
             if request.path.startswith(route):
                 return True
-        
-        for route in product_management_exempt_routes:
-            if request.path.startswith(route):
-                return True
-                
+
         for route in project_management_exempt_routes:
             if request.path.startswith(route):
                 return True
@@ -329,6 +308,12 @@ def create_app(config_class=Config):
     # 导入报销管理蓝图
     from app.views.expense import expense
 
+    # 导入配置管理蓝图
+    from app.views.config_management import config_management_bp
+
+    # 导入工作日历蓝图
+    from app.views.worklog import worklog
+
     # 注册所有Blueprint
     app.register_blueprint(main)
     app.register_blueprint(auth, url_prefix='/auth')
@@ -341,8 +326,9 @@ def create_app(config_class=Config):
     csrf.exempt(api_bp)
     app.register_blueprint(user_bp, url_prefix='/user')
     app.register_blueprint(product_code_bp, url_prefix='/product-code')
-    app.register_blueprint(product_management_bp, url_prefix='/product-management')
-    app.register_blueprint(dev_product_bp)  # 研发产品管理蓝图（URL前缀已在蓝图定义中设置）
+    # 研发库已废弃 (2025-12-26)
+    # app.register_blueprint(product_management_bp, url_prefix='/product-management')
+    # app.register_blueprint(dev_product_bp)
     app.register_blueprint(projectpm_bp, url_prefix='/projectpm')
     app.register_blueprint(approval_bp)
     app.register_blueprint(approval_config_bp)
@@ -351,7 +337,23 @@ def create_app(config_class=Config):
     csrf.exempt(pricing_order_bp)  # 豁免批价单蓝图的CSRF保护
     app.register_blueprint(inventory, url_prefix='/inventory')  # 注册库存管理蓝图
     app.register_blueprint(expense, url_prefix='/expense')  # 注册报销管理蓝图
-    
+    app.register_blueprint(config_management_bp)  # 注册配置管理蓝图
+    csrf.exempt(config_management_bp)  # 豁免配置管理蓝图的CSRF保护
+
+    # 注册工作日历蓝图
+    app.register_blueprint(worklog)
+    csrf.exempt(worklog)  # 豁免工作日历蓝图的CSRF保护
+
+    # 注册规格字典管理蓝图（全局规格定义管理）
+    from app.views.spec_definition import spec_definition_bp
+    app.register_blueprint(spec_definition_bp)
+    csrf.exempt(spec_definition_bp)
+
+    # 注册规格模板管理蓝图（型号级规格模板管理）
+    from app.views.spec_template import spec_template_bp
+    app.register_blueprint(spec_template_bp)
+    csrf.exempt(spec_template_bp)
+
     # 注册API v1蓝图
     app.register_blueprint(api_v1_bp, url_prefix='/api/v1')
     
@@ -402,7 +404,11 @@ def create_app(config_class=Config):
     
     # 注册绩效管理蓝图
     register_performance_routes(app)
-    
+
+    # 注册每日智能分析报告API蓝图
+    from app.api.v1.daily_report import daily_report_api
+    app.register_blueprint(daily_report_api)
+
     # 注册测试功能蓝图 - 暂时禁用以避免云端部署问题
     # try:
     #     from app.routes.test_routes import test_bp
@@ -731,6 +737,7 @@ def create_app(config_class=Config):
     app.jinja_env.filters['approval_status_label'] = make_i18n_filter(approval_status_label)
     app.jinja_env.filters['product_type_label'] = make_i18n_filter(product_type_label)
     app.jinja_env.filters['product_status_label'] = make_i18n_filter(product_status_label)
+    # 研发库已废弃 (2025-12-26)，但保留过滤器以避免模板解析错误
     app.jinja_env.filters['dev_product_status_label'] = make_i18n_filter(dev_product_status_label)
     app.jinja_env.filters['active_status_label'] = make_i18n_filter(active_status_label)
 
@@ -799,6 +806,10 @@ def create_app(config_class=Config):
     # 添加通用阶段配置函数到模板上下文
     from app.context_processors import inject_stage_configs
     app.context_processor(inject_stage_configs)
+
+    # 添加货币配置到模板上下文（基于数据库类型，与语言解耦）
+    from app.context_processors import inject_currency_config
+    app.context_processor(inject_currency_config)
 
     # 添加用户辅助函数到模板上下文
     from app.context_processors import inject_user_helpers

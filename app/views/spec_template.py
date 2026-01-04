@@ -1,0 +1,1594 @@
+"""
+规格模板管理路由
+
+提供型号级规格模板（SpecTemplate）的CRUD操作，
+以及模板规格项（SpecTemplateItem）的管理。
+"""
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, send_file, Response
+from flask_login import login_required, current_user
+from flask_babel import _
+import io
+import logging
+from urllib.parse import quote
+from app import db
+from datetime import datetime
+from app.models.spec_template import (
+    SpecCategory, SpecDefinition, SpecTemplate, SpecTemplateItem,
+    TestMethodDictionary, TestConditionDictionary,
+    ProductConfiguration, ProductConfigValue,
+    CONFIG_STATUS, REGIONS,
+    SAFE_CHARS, calculate_check_digit, generate_safe_code_char,
+    CODE_RULE_VERSION
+)
+from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField
+from app.models.dev_product import DevProduct
+from app.decorators import permission_required
+
+logger = logging.getLogger(__name__)
+
+
+def generate_code_rule_snapshot(config, mn_code, code_items_data):
+    """
+    生成编码规则快照
+
+    Args:
+        config: ProductConfiguration 对象
+        mn_code: 生成的 MN 编码字符串
+        code_items_data: 参与编码的规格项数据列表
+
+    Returns:
+        dict: 完整的编码规则快照
+    """
+    template = config.template
+
+    return {
+        "version": CODE_RULE_VERSION,
+        "generated_at": datetime.utcnow().isoformat(),
+        "template": {
+            "id": template.id,
+            "model": template.model,
+            "version": template.version
+        },
+        "category": {
+            "id": template.category_id,
+            "code": template.category.code_letter if template.category else None
+        },
+        "subcategory": {
+            "id": template.subcategory_id,
+            "code": template.subcategory.code_letter if template.subcategory else None
+        },
+        "region": config.region,
+        "code_items": code_items_data,
+        "mn_code": mn_code
+    }
+
+
+def generate_mn_code(config, template=None, save_snapshot=True):
+    """
+    生成配置版本的MN编码
+
+    编码结构：[区域码] + [分类码] + [子分类码] + [规格编码...] + [校验位]
+
+    Args:
+        config: ProductConfiguration 对象
+        template: SpecTemplate 对象（可选，如果config.template不可用）
+        save_snapshot: 是否保存编码规则快照（默认True）
+
+    Returns:
+        str: 完整的MN编码（含校验位），或 None（如果无法生成）
+    """
+    if template is None:
+        template = config.template
+
+    if not template:
+        return None
+
+    code_parts = []
+
+    # 1. 区域码（来自配置版本的region字段）
+    if config.region:
+        code_parts.append(config.region)
+    else:
+        code_parts.append('X')  # 未指定区域
+
+    # 2. 分类码（来自模板的category）
+    if template.category and hasattr(template.category, 'code_letter') and template.category.code_letter:
+        code_parts.append(template.category.code_letter)
+    else:
+        code_parts.append('X')
+
+    # 3. 子分类码（来自模板的subcategory）
+    if template.subcategory and hasattr(template.subcategory, 'code_letter') and template.subcategory.code_letter:
+        code_parts.append(template.subcategory.code_letter)
+    else:
+        code_parts.append('X')
+
+    # 4. 规格编码（来自 use_in_code=True 的规格项）
+    code_items = sorted(
+        [item for item in template.items if item.use_in_code],
+        key=lambda x: x.display_order
+    )
+
+    # 收集快照数据
+    code_items_data = []
+
+    for item in code_items:
+        # 获取配置值（优先使用配置值，否则使用通用值）
+        value = None
+        for cv in config.config_values:
+            if cv.template_item_id == item.id:
+                value = cv.value
+                break
+        if not value:
+            value = item.general_value
+
+        # 编码映射使用 item.options（在编辑模板时自动生成）
+        code_options = item.options or {}
+
+        # 生成编码字符
+        code_char = generate_safe_code_char(value, code_options)
+
+        # 处理编码长度（1位或2位）
+        if item.code_length == 2:
+            final_code_char = code_char.ljust(2, 'X')[:2]
+        else:
+            final_code_char = code_char[:1]
+
+        code_parts.append(final_code_char)
+
+        # 收集快照数据
+        code_items_data.append({
+            "item_id": item.id,
+            "definition_name": item.definition.name if item.definition else None,
+            "display_order": item.display_order,
+            "code_length": item.code_length,
+            "options": code_options,
+            "value": value,
+            "code_char": final_code_char
+        })
+
+    # 合并编码
+    main_code = ''.join(code_parts)
+
+    # 5. 计算校验位
+    check_digit = calculate_check_digit(main_code)
+    full_mn_code = main_code + check_digit
+
+    # 保存快照
+    if save_snapshot:
+        config.code_rule_version = CODE_RULE_VERSION
+        config.code_rule_snapshot = generate_code_rule_snapshot(config, full_mn_code, code_items_data)
+
+        # 标记当前版本已被使用（绑定）
+        # 只有第一次生成MN编码时才设置绑定时间
+        if template.version_first_used_at is None:
+            template.version_first_used_at = datetime.utcnow()
+
+        # 持久化所有规格值（包括使用默认值的），确保数据完整
+        existing_item_ids = {cv.template_item_id for cv in config.config_values}
+        for item in template.items:
+            if item.id not in existing_item_ids and item.general_value:
+                # 这个规格项没有保存过值，保存默认值
+                new_cv = ProductConfigValue(
+                    configuration_id=config.id,
+                    template_item_id=item.id,
+                    value=item.general_value
+                )
+                db.session.add(new_cv)
+
+    return full_mn_code
+
+
+def allocate_code_for_value(value, existing_options):
+    """
+    根据值内容计算编码字符（基于哈希的分配策略）
+
+    相同的值内容会从相同的起始位置开始查找可用编码，
+    使得编码更具有语义关联性，而不是所有默认值都是 "3"。
+
+    Args:
+        value: 需要编码的规格值
+        existing_options: 已有的编码映射 {"规格值": "编码字符"}
+
+    Returns:
+        str: 分配的编码字符，如果全部用完则返回 'X'
+    """
+    used_codes = set(existing_options.values()) if existing_options else set()
+
+    # 计算值的哈希，确定起始位置
+    # 使用字符串哈希，确保相同值总是从相同位置开始
+    if value:
+        hash_val = sum(ord(c) for c in str(value)) % len(SAFE_CHARS)
+    else:
+        hash_val = 0
+
+    # 从哈希位置开始，顺序查找第一个未被使用的编码
+    for i in range(len(SAFE_CHARS)):
+        idx = (hash_val + i) % len(SAFE_CHARS)
+        if SAFE_CHARS[idx] not in used_codes:
+            return SAFE_CHARS[idx]
+
+    return 'X'  # 所有编码已用完
+
+
+def ensure_code_for_value(options, value):
+    """
+    确保值有对应的编码，如果没有则分配新编码
+
+    Args:
+        options: 已有的编码映射（可能为 None）
+        value: 需要编码的值
+
+    Returns:
+        dict: 更新后的编码映射（新字典，不修改原字典）
+    """
+    # 复制字典，避免修改原对象（SQLAlchemy 需要检测到变化才会保存）
+    result = dict(options) if options else {}
+    if value and value not in result:
+        result[value] = allocate_code_for_value(value, result)
+    return result
+
+
+def increment_version(version):
+    """
+    递增版本号 V1.0 → V1.1 → V1.2 ...
+
+    Args:
+        version: 当前版本号字符串，如 'V1.0'
+
+    Returns:
+        str: 递增后的版本号
+    """
+    import re
+    match = re.match(r'V(\d+)\.(\d+)', version or 'V1.0')
+    if match:
+        major, minor = int(match.group(1)), int(match.group(2))
+        return f'V{major}.{minor + 1}'
+    return 'V1.1'
+
+
+def detect_structural_changes(template, new_items_data, new_category_id=None, new_subcategory_id=None):
+    """
+    检测是否有结构性变更（会影响MN编码结构的变更）
+
+    结构性变更包括：
+    - 添加/删除参与编码的规格项（use_in_code 变化）
+    - 修改规格项的编码顺序（display_order 变化）
+    - 修改编码长度（code_length 变化）
+    - 修改分类/子分类（影响MN前两位）
+
+    不包括：
+    - 新增值→编码映射（只是扩展 options 字典）
+    - 修改通用值
+    - 修改规格项名称、单位等非编码相关属性
+
+    Args:
+        template: SpecTemplate 对象
+        new_items_data: 新的规格项数据列表
+        new_category_id: 新的产品分类ID（可选）
+        new_subcategory_id: 新的产品子分类ID（可选）
+
+    Returns:
+        dict: {
+            'has_changes': bool,
+            'changes': [{'type': '变更类型', 'name': '规格项名称'}, ...]
+        }
+    """
+    changes = []
+
+    # 检查分类/子分类变化
+    if new_category_id is not None and new_category_id != template.category_id:
+        old_name = template.category.name if template.category else _('未设置')
+        changes.append({
+            'type': 'category_changed',
+            'name': old_name
+        })
+
+    if new_subcategory_id is not None and new_subcategory_id != template.subcategory_id:
+        old_name = template.subcategory.name if template.subcategory else _('未设置')
+        changes.append({
+            'type': 'subcategory_changed',
+            'name': old_name
+        })
+
+    # 获取现有参与编码的规格项
+    old_code_items = {}
+    for item in template.items:
+        if item.use_in_code:
+            old_code_items[item.definition_id] = {
+                'item': item,
+                'display_order': item.display_order,
+                'code_length': item.code_length
+            }
+
+    # 构建新的参与编码规格项映射
+    new_code_items = {}
+    for idx, item_data in enumerate(new_items_data):
+        def_id = item_data.get('definition_id')
+        use_in_code = item_data.get('use_in_code', False)
+        if use_in_code and def_id:
+            new_code_items[def_id] = {
+                'data': item_data,
+                'display_order': item_data.get('display_order', idx),
+                'code_length': item_data.get('code_length', 1)
+            }
+
+    # 检查新增的参与编码规格项
+    for def_id, new_info in new_code_items.items():
+        if def_id not in old_code_items:
+            # 获取规格项名称
+            definition = SpecDefinition.query.get(def_id)
+            name = definition.name if definition else str(def_id)
+            changes.append({
+                'type': 'add_code_item',
+                'name': name
+            })
+
+    # 检查删除的参与编码规格项
+    for def_id, old_info in old_code_items.items():
+        if def_id not in new_code_items:
+            name = old_info['item'].definition.name if old_info['item'].definition else str(def_id)
+            changes.append({
+                'type': 'remove_code_item',
+                'name': name
+            })
+
+    # 检查修改的参与编码规格项
+    for def_id in set(old_code_items.keys()) & set(new_code_items.keys()):
+        old_info = old_code_items[def_id]
+        new_info = new_code_items[def_id]
+        name = old_info['item'].definition.name if old_info['item'].definition else str(def_id)
+
+        # 检查编码长度变化
+        if old_info['code_length'] != new_info['code_length']:
+            changes.append({
+                'type': 'code_length_changed',
+                'name': name
+            })
+
+        # 检查显示顺序变化
+        if old_info['display_order'] != new_info['display_order']:
+            changes.append({
+                'type': 'order_changed',
+                'name': name
+            })
+
+    # 检查 use_in_code 从 True 变为 False 的情况（已在 remove_code_item 中处理）
+    # 检查 use_in_code 从 False 变为 True 的情况（已在 add_code_item 中处理）
+
+    return {
+        'has_changes': len(changes) > 0,
+        'changes': changes
+    }
+
+
+spec_template_bp = Blueprint('spec_template', __name__, url_prefix='/dev-product/spec-templates')
+
+
+@spec_template_bp.route('/')
+@login_required
+@permission_required('rd_product', 'view')
+def list_templates():
+    """规格模板列表页"""
+    templates = SpecTemplate.query.filter_by(is_active=True).order_by(SpecTemplate.created_at.desc()).all()
+
+    return render_template(
+        'spec_template/tw_list.html',
+        templates=templates
+    )
+
+
+@spec_template_bp.route('/create', methods=['GET'])
+@login_required
+@permission_required('rd_product', 'create')
+def create_template_page():
+    """创建规格模板页面"""
+    categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
+    definitions = SpecDefinition.query.filter_by(is_active=True).order_by(
+        SpecDefinition.category_id, SpecDefinition.display_order
+    ).all()
+    test_methods = TestMethodDictionary.query.filter_by(is_active=True).order_by(TestMethodDictionary.display_order).all()
+    test_conditions = TestConditionDictionary.query.filter_by(is_active=True).order_by(TestConditionDictionary.display_order).all()
+
+    # 按分类组织规格项
+    definitions_by_category = {}
+    for definition in definitions:
+        if definition.category_id not in definitions_by_category:
+            definitions_by_category[definition.category_id] = []
+        definitions_by_category[definition.category_id].append(definition)
+
+    # 获取产品分类和子分类数据（用于MN编码）
+    product_categories = ProductCategory.query.order_by(ProductCategory.display_order).all()
+    subcategories = ProductSubcategory.query.order_by(ProductSubcategory.display_order).all()
+
+    # 按分类组织子分类
+    subcategories_by_category = {}
+    for subcat in subcategories:
+        if subcat.category_id not in subcategories_by_category:
+            subcategories_by_category[subcat.category_id] = []
+        subcategories_by_category[subcat.category_id].append({
+            'id': subcat.id,
+            'name': subcat.name,
+            'code_letter': subcat.code_letter
+        })
+
+    # 规格定义数据（JSON格式，供前端动态排序使用）
+    definitions_data = {}
+    for category_id, defs in definitions_by_category.items():
+        definitions_data[category_id] = [d.to_dict() for d in defs]
+
+    return render_template(
+        'spec_template/tw_edit.html',
+        template=None,
+        categories=categories,
+        definitions_by_category=definitions_by_category,
+        definitions_data=definitions_data,
+        test_methods=test_methods,
+        test_conditions=test_conditions,
+        product_categories=product_categories,
+        subcategories_by_category=subcategories_by_category,
+        is_edit=False
+    )
+
+
+@spec_template_bp.route('/<int:template_id>', methods=['GET'])
+@login_required
+@permission_required('rd_product', 'view')
+def view_template(template_id):
+    """查看规格模板详情"""
+    template = SpecTemplate.query.get_or_404(template_id)
+    categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
+
+    # 获取模板中的规格项，按分类组织
+    items_by_category = {}
+    for item in template.items:
+        if item.definition and item.definition.category_id:
+            cat_id = item.definition.category_id
+            if cat_id not in items_by_category:
+                items_by_category[cat_id] = []
+            items_by_category[cat_id].append(item)
+
+    return render_template(
+        'spec_template/tw_detail.html',
+        template=template,
+        categories=categories,
+        items_by_category=items_by_category
+    )
+
+
+@spec_template_bp.route('/<int:template_id>/edit', methods=['GET'])
+@login_required
+@permission_required('rd_product', 'edit')
+def edit_template_page(template_id):
+    """编辑规格模板页面"""
+    template = SpecTemplate.query.get_or_404(template_id)
+    categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
+    definitions = SpecDefinition.query.filter_by(is_active=True).order_by(
+        SpecDefinition.category_id, SpecDefinition.display_order
+    ).all()
+    test_methods = TestMethodDictionary.query.filter_by(is_active=True).order_by(TestMethodDictionary.display_order).all()
+    test_conditions = TestConditionDictionary.query.filter_by(is_active=True).order_by(TestConditionDictionary.display_order).all()
+
+    # 按分类组织规格项
+    definitions_by_category = {}
+    for definition in definitions:
+        if definition.category_id not in definitions_by_category:
+            definitions_by_category[definition.category_id] = []
+        definitions_by_category[definition.category_id].append(definition)
+
+    # 获取模板中已选择的规格项ID和设置
+    selected_items = {}
+    for item in template.items:
+        selected_items[item.definition_id] = {
+            'id': item.id,
+            'definition_id': item.definition_id,  # 必须包含，前端保存时需要
+            'general_value': item.general_value,
+            'test_condition_id': item.test_condition_id,
+            'test_condition_text': item.test_condition_text,
+            'test_method_id': item.test_method_id,
+            'test_method_text': item.test_method_text,
+            'is_required': item.is_required,
+            'options': item.options,
+            'use_in_code': item.use_in_code,
+            'code_length': item.code_length,
+            'display_order': item.display_order
+        }
+
+    # 获取产品分类和子分类数据（用于MN编码）
+    product_categories = ProductCategory.query.order_by(ProductCategory.display_order).all()
+    subcategories = ProductSubcategory.query.order_by(ProductSubcategory.display_order).all()
+
+    # 按分类组织子分类
+    subcategories_by_category = {}
+    for subcat in subcategories:
+        if subcat.category_id not in subcategories_by_category:
+            subcategories_by_category[subcat.category_id] = []
+        subcategories_by_category[subcat.category_id].append({
+            'id': subcat.id,
+            'name': subcat.name,
+            'code_letter': subcat.code_letter
+        })
+
+    # 规格定义数据（JSON格式，供前端动态排序使用）
+    definitions_data = {}
+    for category_id, defs in definitions_by_category.items():
+        definitions_data[category_id] = [d.to_dict() for d in defs]
+
+    return render_template(
+        'spec_template/tw_edit.html',
+        template=template,
+        categories=categories,
+        definitions_by_category=definitions_by_category,
+        definitions_data=definitions_data,
+        test_methods=test_methods,
+        test_conditions=test_conditions,
+        selected_items=selected_items,
+        product_categories=product_categories,
+        subcategories_by_category=subcategories_by_category,
+        is_edit=True
+    )
+
+
+# ==================== API 端点 ====================
+
+@spec_template_bp.route('/api/list')
+@login_required
+@permission_required('rd_product', 'view')
+def api_list_templates():
+    """API: 获取规格模板列表"""
+    templates = SpecTemplate.query.filter_by(is_active=True).order_by(SpecTemplate.created_at.desc()).all()
+
+    return jsonify({
+        'success': True,
+        'data': [t.to_dict() for t in templates]
+    })
+
+
+@spec_template_bp.route('/api/create', methods=['POST'])
+@login_required
+@permission_required('rd_product', 'create')
+def api_create_template():
+    """API: 创建规格模板"""
+    data = request.get_json()
+
+    # 验证必填字段
+    if not data.get('model'):
+        return jsonify({'success': False, 'message': _('产品型号不能为空')}), 400
+
+    # 检查型号是否重复
+    existing = SpecTemplate.query.filter_by(model=data['model']).first()
+    if existing:
+        return jsonify({'success': False, 'message': _('该型号的规格模板已存在')}), 400
+
+    # 创建模板
+    template = SpecTemplate(
+        model=data['model'],
+        name=data.get('name'),
+        description=data.get('description'),
+        version=data.get('version', 'V1.0'),
+        category_id=data.get('category_id'),
+        subcategory_id=data.get('subcategory_id'),
+        created_by=current_user.id
+    )
+
+    db.session.add(template)
+    db.session.flush()  # 获取ID
+
+    # 添加规格项
+    items_data = data.get('items', [])
+    for idx, item_data in enumerate(items_data):
+        if not item_data.get('definition_id'):
+            continue
+
+        # 如果参与编码且有通用值，确保通用值有编码
+        use_in_code = item_data.get('use_in_code', False)
+        general_value = item_data.get('general_value')
+        options = item_data.get('options') or {}
+        if use_in_code and general_value:
+            options = ensure_code_for_value(options, general_value)
+
+        item = SpecTemplateItem(
+            template_id=template.id,
+            definition_id=item_data['definition_id'],
+            general_value=item_data.get('general_value'),
+            test_condition_id=item_data.get('test_condition_id'),
+            test_condition_text=item_data.get('test_condition_text'),
+            test_method_id=item_data.get('test_method_id'),
+            test_method_text=item_data.get('test_method_text'),
+            is_required=item_data.get('is_required', False),
+            options=options,
+            display_order=item_data.get('display_order', idx),
+            use_in_code=use_in_code,
+            code_length=item_data.get('code_length', 1)
+        )
+        db.session.add(item)
+
+    db.session.commit()
+
+    # 构建返回数据，包含 items 以便前端更新
+    result_data = template.to_dict()
+    result_data['items'] = [item.to_dict() for item in template.items]
+
+    return jsonify({
+        'success': True,
+        'message': _('规格模板创建成功'),
+        'data': result_data
+    })
+
+
+@spec_template_bp.route('/api/<int:template_id>', methods=['GET'])
+@login_required
+@permission_required('rd_product', 'view')
+def api_get_template(template_id):
+    """API: 获取规格模板详情"""
+    template = SpecTemplate.query.get_or_404(template_id)
+    result_data = template.to_dict()
+    result_data['items'] = [item.to_dict() for item in template.items]
+    return jsonify({
+        'success': True,
+        'data': result_data
+    })
+
+
+@spec_template_bp.route('/api/<int:template_id>', methods=['PUT'])
+@login_required
+@permission_required('rd_product', 'edit')
+def api_update_template(template_id):
+    """API: 更新规格模板"""
+    template = SpecTemplate.query.get_or_404(template_id)
+    data = request.get_json()
+
+    # 验证必填字段
+    if not data.get('model'):
+        return jsonify({'success': False, 'message': _('产品型号不能为空')}), 400
+
+    # 检查型号是否重复（排除自己）
+    existing = SpecTemplate.query.filter(
+        SpecTemplate.model == data['model'],
+        SpecTemplate.id != template_id
+    ).first()
+    if existing:
+        return jsonify({'success': False, 'message': _('该型号的规格模板已存在')}), 400
+
+    # ========== 版本升级检测 ==========
+    items_data = data.get('items', [])
+    new_category_id = data.get('category_id')
+    new_subcategory_id = data.get('subcategory_id')
+
+    # 检测结构性变更
+    structural_check = detect_structural_changes(
+        template,
+        items_data,
+        new_category_id=new_category_id,
+        new_subcategory_id=new_subcategory_id
+    )
+
+    # 如果有结构性变更且当前版本已被使用过（绑定过）
+    if structural_check['has_changes'] and template.version_first_used_at is not None:
+        # 检查前端是否确认了版本升级
+        if not data.get('confirm_version_upgrade'):
+            new_version = increment_version(template.version)
+            return jsonify({
+                'success': False,
+                'require_version_upgrade': True,
+                'current_version': template.version,
+                'new_version': new_version,
+                'changes': structural_check['changes'],
+                'message': _('检测到结构性变更，需要确认是否升级版本')
+            }), 409  # Conflict
+
+        # 用户确认升级，递增版本
+        template.version = increment_version(template.version)
+        template.version_first_used_at = None  # 新版本未绑定
+
+    # 更新基本信息
+    template.model = data['model']
+    template.name = data.get('name')
+    template.description = data.get('description')
+    # 只在用户明确要求或版本未被绑定时才直接更新版本号
+    if not structural_check['has_changes'] or template.version_first_used_at is None:
+        template.version = data.get('version', template.version)
+    template.category_id = new_category_id
+    template.subcategory_id = new_subcategory_id
+
+    # 删除不再需要的规格项
+    existing_definition_ids = {item['definition_id'] for item in items_data if item.get('definition_id')}
+    for item in template.items:
+        if item.definition_id not in existing_definition_ids:
+            # 在删除前，为锁定配置的规格值保存孤立项信息
+            for cv in item.config_values:
+                if cv.configuration and cv.configuration.mn_locked:
+                    # 保存规格信息，以便删除后仍能显示
+                    cv.orphaned_spec_name = item.definition.name if item.definition else None
+                    cv.orphaned_spec_name_en = item.definition.name_en if item.definition else None
+                    cv.orphaned_spec_unit = item.definition.unit if item.definition else None
+                    cv.orphaned_category_id = item.definition.category_id if item.definition else None
+            db.session.delete(item)
+
+    # 更新或添加规格项
+    for idx, item_data in enumerate(items_data):
+        if not item_data.get('definition_id'):
+            continue
+
+        # 获取规格定义
+        definition = SpecDefinition.query.get(item_data['definition_id'])
+
+        # 如果参与编码且有通用值，确保有编码映射
+        use_in_code = item_data.get('use_in_code', False)
+        general_value = item_data.get('general_value')
+        options = item_data.get('options') or {}
+        if use_in_code and general_value:
+            # 为通用值确保有编码
+            options = ensure_code_for_value(options, general_value)
+
+        # 查找已存在的规格项
+        existing_item = SpecTemplateItem.query.filter_by(
+            template_id=template.id,
+            definition_id=item_data['definition_id']
+        ).first()
+
+        if existing_item:
+            # 更新
+            existing_item.general_value = item_data.get('general_value')
+            existing_item.test_condition_id = item_data.get('test_condition_id')
+            existing_item.test_condition_text = item_data.get('test_condition_text')
+            existing_item.test_method_id = item_data.get('test_method_id')
+            existing_item.test_method_text = item_data.get('test_method_text')
+            existing_item.is_required = item_data.get('is_required', False)
+            existing_item.options = options
+            existing_item.display_order = item_data.get('display_order', idx)
+            existing_item.use_in_code = use_in_code
+            existing_item.code_length = item_data.get('code_length', 1)
+        else:
+            # 新增
+            new_item = SpecTemplateItem(
+                template_id=template.id,
+                definition_id=item_data['definition_id'],
+                general_value=item_data.get('general_value'),
+                test_condition_id=item_data.get('test_condition_id'),
+                test_condition_text=item_data.get('test_condition_text'),
+                test_method_id=item_data.get('test_method_id'),
+                test_method_text=item_data.get('test_method_text'),
+                is_required=item_data.get('is_required', False),
+                options=options,
+                display_order=item_data.get('display_order', idx),
+                use_in_code=use_in_code,
+                code_length=item_data.get('code_length', 1)
+            )
+            db.session.add(new_item)
+            db.session.flush()  # 获取新 ID
+
+            # 查找匹配的孤立配置值（同名规格），重新关联
+            if definition:
+                config_ids = [c.id for c in template.configurations]
+                if config_ids:
+                    orphaned_values = ProductConfigValue.query.filter(
+                        ProductConfigValue.template_item_id.is_(None),
+                        ProductConfigValue.orphaned_spec_name == definition.name,
+                        ProductConfigValue.configuration_id.in_(config_ids)
+                    ).all()
+
+                    for cv in orphaned_values:
+                        cv.template_item_id = new_item.id
+                        # 清除孤立标记
+                        cv.orphaned_spec_name = None
+                        cv.orphaned_spec_name_en = None
+                        cv.orphaned_spec_unit = None
+                        cv.orphaned_category_id = None
+
+    db.session.commit()
+
+    # 构建返回数据，包含 items 以便前端更新
+    result_data = template.to_dict()
+    result_data['items'] = [item.to_dict() for item in template.items]
+
+    return jsonify({
+        'success': True,
+        'message': _('规格模板更新成功'),
+        'data': result_data
+    })
+
+
+@spec_template_bp.route('/api/<int:template_id>', methods=['DELETE'])
+@login_required
+@permission_required('rd_product', 'delete')
+def api_delete_template(template_id):
+    """API: 删除规格模板（软删除）"""
+    template = SpecTemplate.query.get_or_404(template_id)
+
+    # 检查是否有研发产品在使用
+    dev_products_using = DevProduct.query.filter_by(spec_template_id=template_id).first()
+    if dev_products_using:
+        return jsonify({
+            'success': False,
+            'message': _('该模板已被研发产品使用，无法删除')
+        }), 400
+
+    template.is_active = False
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': _('规格模板删除成功')
+    })
+
+
+@spec_template_bp.route('/api/<int:template_id>/copy', methods=['POST'])
+@login_required
+@permission_required('rd_product', 'create')
+def api_copy_template(template_id):
+    """API: 复制规格模板"""
+    template = SpecTemplate.query.get_or_404(template_id)
+    data = request.get_json() or {}
+
+    # 生成新的型号名称
+    new_model = data.get('model', f"{template.model}_copy")
+
+    # 检查新型号是否已存在
+    if SpecTemplate.query.filter_by(model=new_model).first():
+        return jsonify({'success': False, 'message': _('该型号的规格模板已存在')}), 400
+
+    # 创建新模板
+    new_template = SpecTemplate(
+        model=new_model,
+        name=data.get('name', f"{template.name or ''} (副本)".strip()),
+        description=template.description,
+        version='V1.0',
+        created_by=current_user.id
+    )
+    db.session.add(new_template)
+    db.session.flush()
+
+    # 复制规格项
+    for item in template.items:
+        new_item = SpecTemplateItem(
+            template_id=new_template.id,
+            definition_id=item.definition_id,
+            general_value=item.general_value,
+            test_condition_id=item.test_condition_id,
+            test_condition_text=item.test_condition_text,
+            test_method_id=item.test_method_id,
+            test_method_text=item.test_method_text,
+            is_required=item.is_required,
+            options=item.options,
+            display_order=item.display_order,
+            use_in_code=item.use_in_code,
+            code_length=item.code_length
+        )
+        db.session.add(new_item)
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': _('规格模板复制成功'),
+        'data': new_template.to_dict()
+    })
+
+
+@spec_template_bp.route('/api/definitions-by-category')
+@login_required
+@permission_required('rd_product', 'view')
+def api_definitions_by_category():
+    """API: 获取按分类组织的规格定义"""
+    categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
+    definitions = SpecDefinition.query.filter_by(is_active=True).order_by(
+        SpecDefinition.category_id, SpecDefinition.display_order
+    ).all()
+
+    result = []
+    for category in categories:
+        cat_definitions = [d.to_dict() for d in definitions if d.category_id == category.id]
+        result.append({
+            'category': category.to_dict(),
+            'definitions': cat_definitions
+        })
+
+    return jsonify({
+        'success': True,
+        'data': result
+    })
+
+
+# ==================== 配置版本管理 API ====================
+
+@spec_template_bp.route('/<int:template_id>/spec-config')
+@login_required
+@permission_required('rd_product', 'view')
+def spec_config_matrix_page(template_id):
+    """矩阵式规格配置页面"""
+    template = SpecTemplate.query.get_or_404(template_id)
+
+    # 获取选中的配置ID（从配置版本管理页面跳转时传入）
+    selected_config_id = request.args.get('config_id', type=int)
+    categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
+
+    # 获取模板中的规格项，按分类组织
+    items_by_category = {}
+    all_items = []
+    for item in template.items:
+        all_items.append(item)
+        if item.definition and item.definition.category_id:
+            cat_id = item.definition.category_id
+            if cat_id not in items_by_category:
+                items_by_category[cat_id] = []
+            items_by_category[cat_id].append(item)
+
+    # 获取所有活跃的配置版本
+    configurations = [c for c in template.configurations if c.is_active]
+
+    # 构建规格值矩阵
+    config_values_matrix = {}
+    for config in configurations:
+        config_values_matrix[config.id] = {}
+        for cv in config.config_values:
+            config_values_matrix[config.id][cv.template_item_id] = cv.value
+
+    # 查找锁定配置中的"孤立"规格项（已从模板删除但配置中仍有值）
+    current_item_ids = {item.id for item in all_items}
+    orphaned_items = {}  # {template_item_id: SpecTemplateItem}
+    orphaned_items_by_category = {}  # {category_id: [items]}
+
+    # 锁定配置中"新增"的规格项（锁定后添加到模板的规格）
+    # {config_id: set(item_ids)} - 这些规格项在该配置锁定后才添加，不应显示默认值
+    new_items_after_lock = {}
+
+    for config in configurations:
+        if config.mn_locked:  # 只检查锁定的配置
+            # 获取 MN 编码生成时间
+            mn_generated_at = None
+            if config.code_rule_snapshot and isinstance(config.code_rule_snapshot, dict):
+                generated_at_str = config.code_rule_snapshot.get('generated_at')
+                if generated_at_str:
+                    try:
+                        mn_generated_at = datetime.fromisoformat(generated_at_str.replace('Z', '+00:00'))
+                    except (ValueError, AttributeError):
+                        pass
+
+            # 找出在 MN 生成后才添加的规格项
+            new_item_ids = set()
+            if mn_generated_at:
+                for item in all_items:
+                    if item.created_at and item.created_at > mn_generated_at:
+                        new_item_ids.add(item.id)
+            new_items_after_lock[config.id] = new_item_ids
+
+            # 查找孤立规格值（template_item 已被删除或不在当前模板中）
+            for cv in config.config_values:
+                # 情况1: template_item_id 为 NULL（规格项已被删除）
+                if cv.template_item_id is None and cv.orphaned_spec_name:
+                    # 使用唯一标识符（基于规格名称和分类）
+                    orphan_key = f"orphan_{cv.orphaned_spec_name}_{cv.orphaned_category_id}"
+                    if orphan_key not in orphaned_items:
+                        # 创建虚拟的孤立项信息
+                        orphaned_items[orphan_key] = {
+                            'id': orphan_key,
+                            'is_virtual': True,  # 标记为虚拟项
+                            'spec_name': cv.orphaned_spec_name,
+                            'spec_name_en': cv.orphaned_spec_name_en,
+                            'spec_unit': cv.orphaned_spec_unit,
+                            'category_id': cv.orphaned_category_id
+                        }
+                        # 按分类组织
+                        cat_id = cv.orphaned_category_id
+                        if cat_id:
+                            if cat_id not in orphaned_items_by_category:
+                                orphaned_items_by_category[cat_id] = []
+                            orphaned_items_by_category[cat_id].append(orphaned_items[orphan_key])
+                    # 记录孤立项的值到矩阵中
+                    if config.id not in config_values_matrix:
+                        config_values_matrix[config.id] = {}
+                    config_values_matrix[config.id][orphan_key] = cv.value
+
+                # 情况2: template_item_id 不在当前模板中（规格项仍存在但被移除了）
+                elif cv.template_item_id and cv.template_item_id not in current_item_ids:
+                    if cv.template_item_id not in orphaned_items and cv.template_item:
+                        item = cv.template_item
+                        orphaned_items[cv.template_item_id] = item
+                        # 按分类组织
+                        if item.definition and item.definition.category_id:
+                            cat_id = item.definition.category_id
+                            if cat_id not in orphaned_items_by_category:
+                                orphaned_items_by_category[cat_id] = []
+                            orphaned_items_by_category[cat_id].append(item)
+
+    # 构建 MN 编码相关数据
+    # 获取参与编码的规格项（按 display_order 排序）
+    code_items = sorted(
+        [item for item in all_items if item.use_in_code],
+        key=lambda x: x.display_order
+    )
+    code_items_data = []
+    # 编码位置映射：item.id -> (位置序号, 起始位置, 编码长度)
+    # MN 编码结构：[区域码1位] + [分类码1位] + [子分类码1位] + [规格编码...] + [校验位1位]
+    code_position_map = {}
+    current_pos = 4  # 前3位是区域+分类+子分类，从第4位开始
+    for idx, item in enumerate(code_items):
+        # 编码映射直接使用 item.options（编辑模板时已生成）
+        code_options = item.options or {}
+        code_length = item.code_length or 1
+
+        code_items_data.append({
+            'id': item.id,
+            'name': item.definition.name if item.definition else '',
+            'code_length': code_length,
+            'options': code_options,
+            'display_order': item.display_order
+        })
+
+        # 记录位置信息：第几个编码项，在 MN 编码中的位置
+        code_position_map[item.id] = {
+            'index': idx + 1,  # 第几个编码项（从1开始）
+            'start_pos': current_pos,  # 在 MN 编码中的起始位置
+            'length': code_length  # 编码长度
+        }
+        current_pos += code_length
+
+    return render_template(
+        'spec_template/tw_spec_config_matrix.html',
+        template=template,
+        categories=categories,
+        items_by_category=items_by_category,
+        all_items=all_items,
+        configurations=configurations,
+        config_values_matrix=config_values_matrix,
+        config_status=CONFIG_STATUS,
+        regions=REGIONS,
+        code_items_data=code_items_data,
+        code_position_map=code_position_map,
+        selected_config_id=selected_config_id,
+        orphaned_items_by_category=orphaned_items_by_category
+    )
+
+
+@spec_template_bp.route('/<int:template_id>/configurations')
+@login_required
+@permission_required('rd_product', 'view')
+def configurations_page(template_id):
+    """配置版本管理页面"""
+    template = SpecTemplate.query.get_or_404(template_id)
+    categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
+
+    # 获取模板中的规格项，按分类组织
+    items_by_category = {}
+    for item in template.items:
+        if item.definition and item.definition.category_id:
+            cat_id = item.definition.category_id
+            if cat_id not in items_by_category:
+                items_by_category[cat_id] = []
+            items_by_category[cat_id].append(item)
+
+    # 获取销售区域选项（来自 product_code_fields 的 origin_location，去重）
+    sales_regions = db.session.query(
+        ProductCodeField.code, ProductCodeField.name
+    ).filter_by(field_type='origin_location').distinct().all()
+    region_options = [{'value': r.code, 'label': f'{r.name} ({r.code})'} for r in sales_regions]
+
+    # 转换 config_status 为字典格式
+    status_options = [{'value': code, 'label': name} for code, name in CONFIG_STATUS]
+
+    return render_template(
+        'spec_template/tw_configurations.html',
+        template=template,
+        categories=categories,
+        items_by_category=items_by_category,
+        config_status=CONFIG_STATUS,
+        status_options=status_options,
+        region_options=region_options
+    )
+
+
+@spec_template_bp.route('/api/<int:template_id>/configurations')
+@login_required
+@permission_required('rd_product', 'view')
+def api_list_configurations(template_id):
+    """API: 获取模板的配置版本列表"""
+    template = SpecTemplate.query.get_or_404(template_id)
+    configurations = ProductConfiguration.query.filter_by(
+        template_id=template_id,
+        is_active=True
+    ).order_by(ProductConfiguration.created_at.desc()).all()
+
+    return jsonify({
+        'success': True,
+        'data': [c.to_dict() for c in configurations]
+    })
+
+
+@spec_template_bp.route('/api/<int:template_id>/configurations', methods=['POST'])
+@login_required
+@permission_required('rd_product', 'create')
+def api_create_configuration(template_id):
+    """API: 创建配置版本"""
+    template = SpecTemplate.query.get_or_404(template_id)
+    data = request.get_json()
+
+    # 验证必填字段
+    if not data.get('config_code'):
+        return jsonify({'success': False, 'message': _('配置编码不能为空')}), 400
+
+    # 检查配置编码是否重复
+    existing = ProductConfiguration.query.filter_by(
+        template_id=template_id,
+        config_code=data['config_code']
+    ).first()
+    if existing:
+        return jsonify({'success': False, 'message': _('该配置编码已存在')}), 400
+
+    # 创建配置版本
+    config = ProductConfiguration(
+        template_id=template_id,
+        config_code=data['config_code'],
+        region=data.get('region'),
+        region_name=data.get('region_name'),
+        status=data.get('status', 'development'),
+        power_spec=data.get('power_spec'),
+        power_cord_type=data.get('power_cord_type'),
+        notes=data.get('notes'),
+        created_by=current_user.id
+    )
+    db.session.add(config)
+    db.session.flush()
+
+    # 添加规格值（如果提供）
+    values_data = data.get('values', [])
+    for value_data in values_data:
+        if not value_data.get('template_item_id'):
+            continue
+        if not value_data.get('value'):
+            continue
+
+        config_value = ProductConfigValue(
+            configuration_id=config.id,
+            template_item_id=value_data['template_item_id'],
+            value=value_data['value'],
+            notes=value_data.get('notes')
+        )
+        db.session.add(config_value)
+
+    # 生成 MN 编码（在添加配置值之后）
+    config.mn_code = generate_mn_code(config, template)
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': _('配置版本创建成功'),
+        'data': config.to_dict()
+    })
+
+
+@spec_template_bp.route('/api/configurations/<int:config_id>', methods=['GET'])
+@login_required
+@permission_required('rd_product', 'view')
+def api_get_configuration(config_id):
+    """API: 获取配置版本详情"""
+    config = ProductConfiguration.query.get_or_404(config_id)
+
+    # 获取配置值
+    config_data = config.to_dict()
+    config_data['values'] = {}
+    for cv in config.config_values:
+        config_data['values'][cv.template_item_id] = {
+            'id': cv.id,
+            'value': cv.value,
+            'notes': cv.notes
+        }
+
+    return jsonify({
+        'success': True,
+        'data': config_data
+    })
+
+
+@spec_template_bp.route('/api/configurations/<int:config_id>', methods=['PUT'])
+@login_required
+@permission_required('rd_product', 'edit')
+def api_update_configuration(config_id):
+    """API: 更新配置版本"""
+    config = ProductConfiguration.query.get_or_404(config_id)
+    data = request.get_json()
+
+    # 检查是否锁定（可生产/停产状态）
+    is_locked = config.mn_locked
+
+    # 锁定状态下不更新开发代号和区域
+    if not is_locked:
+        # 验证必填字段
+        if not data.get('config_code'):
+            return jsonify({'success': False, 'message': _('配置编码不能为空')}), 400
+
+        # 检查配置编码是否重复（排除自己）
+        existing = ProductConfiguration.query.filter(
+            ProductConfiguration.template_id == config.template_id,
+            ProductConfiguration.config_code == data['config_code'],
+            ProductConfiguration.id != config_id
+        ).first()
+        if existing:
+            return jsonify({'success': False, 'message': _('该配置编码已存在')}), 400
+
+        # 更新开发代号和区域
+        config.config_code = data['config_code']
+        config.region = data.get('region')
+        config.region_name = data.get('region_name')
+
+    # 更新其他基本信息（状态、备注等始终可以更新）
+    config.status = data.get('status', config.status)
+    config.power_spec = data.get('power_spec')
+    config.power_cord_type = data.get('power_cord_type')
+    config.notes = data.get('notes')
+
+    # 更新规格值（只有当前端明确传入 values 时才处理）
+    values_data = data.get('values')
+    if values_data is not None:
+        existing_item_ids = {v['template_item_id'] for v in values_data if v.get('template_item_id') and v.get('value')}
+
+        # 删除不再需要的规格值（只有明确传入 values 时才删除）
+        for cv in config.config_values:
+            if cv.template_item_id not in existing_item_ids:
+                db.session.delete(cv)
+
+    # 更新或添加规格值
+    for value_data in (values_data or []):
+        if not value_data.get('template_item_id'):
+            continue
+        if not value_data.get('value'):
+            continue
+
+        existing_cv = ProductConfigValue.query.filter_by(
+            configuration_id=config.id,
+            template_item_id=value_data['template_item_id']
+        ).first()
+
+        if existing_cv:
+            existing_cv.value = value_data['value']
+            existing_cv.notes = value_data.get('notes')
+        else:
+            new_cv = ProductConfigValue(
+                configuration_id=config.id,
+                template_item_id=value_data['template_item_id'],
+                value=value_data['value'],
+                notes=value_data.get('notes')
+            )
+            db.session.add(new_cv)
+
+    # 锁定状态下不重新生成 MN 编码
+    if not is_locked:
+        config.mn_code = generate_mn_code(config)
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': _('配置版本更新成功'),
+        'data': config.to_dict()
+    })
+
+
+@spec_template_bp.route('/api/configurations/<int:config_id>', methods=['DELETE'])
+@login_required
+@permission_required('rd_product', 'delete')
+def api_delete_configuration(config_id):
+    """API: 删除配置版本（软删除）"""
+    config = ProductConfiguration.query.get_or_404(config_id)
+
+    # 锁定状态（可生产/停产）不允许删除
+    if config.mn_locked:
+        return jsonify({
+            'success': False,
+            'message': _('可生产或停产状态的配置版本不能删除')
+        }), 403
+
+    # 检查是否有产品在使用
+    # TODO: 检查产品库中是否有产品引用此配置
+
+    config.is_active = False
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': _('配置版本删除成功')
+    })
+
+
+@spec_template_bp.route('/api/configurations/<int:config_id>/copy', methods=['POST'])
+@login_required
+@permission_required('rd_product', 'create')
+def api_copy_configuration(config_id):
+    """API: 复制配置版本"""
+    config = ProductConfiguration.query.get_or_404(config_id)
+    data = request.get_json() or {}
+
+    # 生成新的配置编码
+    new_code = data.get('config_code', f"{config.config_code}_copy")
+
+    # 检查新编码是否已存在
+    if ProductConfiguration.query.filter_by(
+        template_id=config.template_id,
+        config_code=new_code
+    ).first():
+        return jsonify({'success': False, 'message': _('该配置编码已存在')}), 400
+
+    # 创建新配置版本
+    new_config = ProductConfiguration(
+        template_id=config.template_id,
+        config_code=new_code,
+        region=data.get('region', config.region),
+        region_name=data.get('region_name', config.region_name),
+        status='development',
+        mn_code=None,  # MN编码需要重新生成
+        power_spec=config.power_spec,
+        power_cord_type=config.power_cord_type,
+        notes=config.notes,
+        created_by=current_user.id
+    )
+    db.session.add(new_config)
+    db.session.flush()
+
+    # 复制规格值
+    for cv in config.config_values:
+        new_cv = ProductConfigValue(
+            configuration_id=new_config.id,
+            template_item_id=cv.template_item_id,
+            value=cv.value,
+            notes=cv.notes
+        )
+        db.session.add(new_cv)
+
+    # 生成 MN 编码
+    new_config.mn_code = generate_mn_code(new_config)
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': _('配置版本复制成功'),
+        'data': new_config.to_dict()
+    })
+
+
+@spec_template_bp.route('/api/configurations/<int:config_id>/values', methods=['PUT'])
+@login_required
+@permission_required('rd_product', 'edit')
+def api_update_config_values(config_id):
+    """API: 批量更新配置版本的规格值"""
+    config = ProductConfiguration.query.get_or_404(config_id)
+    data = request.get_json()
+    values_data = data.get('values', [])
+    save_all = data.get('save_all', False)  # 是否保存所有规格值（包括默认值）
+
+    # 收集需要更新编码映射的模板项
+    items_to_update_options = {}  # {template_item_id: value}
+
+    # 构建传入值的映射 {template_item_id: value_data}
+    values_map = {}
+    for value_data in values_data:
+        template_item_id = value_data.get('template_item_id')
+        if template_item_id:
+            values_map[template_item_id] = value_data
+
+    # 如果 save_all=true，获取模板的所有规格项
+    if save_all:
+        template = config.template
+        all_items = template.items if template else []
+        # 确保所有模板项都在处理列表中
+        for item in all_items:
+            if item.id not in values_map:
+                values_map[item.id] = {'template_item_id': item.id, 'value': None}
+
+    # 更新规格值
+    for template_item_id, value_data in values_map.items():
+        value = value_data.get('value')
+
+        # 如果用户没有输入值，使用默认值（通用值）
+        if not value:
+            template_item = SpecTemplateItem.query.get(template_item_id)
+            if template_item:
+                value = template_item.general_value
+
+        existing_cv = ProductConfigValue.query.filter_by(
+            configuration_id=config.id,
+            template_item_id=template_item_id
+        ).first()
+
+        if value:
+            # 有值（用户输入或默认值）则更新或创建
+            if existing_cv:
+                existing_cv.value = value
+                existing_cv.notes = value_data.get('notes')
+            else:
+                new_cv = ProductConfigValue(
+                    configuration_id=config.id,
+                    template_item_id=template_item_id,
+                    value=value,
+                    notes=value_data.get('notes')
+                )
+                db.session.add(new_cv)
+            # 记录需要检查编码映射的项
+            items_to_update_options[template_item_id] = value
+        # 如果连默认值都没有，就不保存
+
+    # 为新值分配编码并更新 SpecTemplateItem.options
+    for template_item_id, value in items_to_update_options.items():
+        # 刷新获取最新数据，避免并发请求读取到旧的 options
+        template_item = db.session.query(SpecTemplateItem).filter_by(id=template_item_id).with_for_update().first()
+        if template_item and template_item.use_in_code and value:
+            # 确保值有编码映射
+            updated_options = ensure_code_for_value(template_item.options, value)
+            if updated_options != template_item.options:
+                template_item.options = updated_options
+                db.session.flush()  # 立即写入，让后续请求能看到
+
+    # 检查 MN 编码是否锁定（可生产/停产状态）
+    mn_locked = config.mn_locked
+
+    if not mn_locked:
+        # 未锁定：重新生成 MN 编码
+        new_mn_code = generate_mn_code(config)
+
+        # 检查 MN 编码全局唯一性
+        from app.routes.product import check_mn_code_duplicate
+        duplicate_check = check_mn_code_duplicate(new_mn_code, exclude_config_id=config.id)
+        if duplicate_check['is_duplicate']:
+            db.session.rollback()
+            return jsonify({
+                'success': False,
+                'error_type': 'mn_code_conflict',
+                'message': _('MN 编码冲突'),
+                'mn_code': new_mn_code,
+                'conflict': duplicate_check
+            }), 409
+
+        config.mn_code = new_mn_code
+
+    db.session.commit()
+
+    # 收集更新后的 options（用于前端同步 CODE_ITEMS）
+    updated_item_options = {}
+    for template_item_id in items_to_update_options.keys():
+        template_item = SpecTemplateItem.query.get(template_item_id)
+        if template_item and template_item.use_in_code:
+            updated_item_options[template_item_id] = template_item.options
+
+    return jsonify({
+        'success': True,
+        'message': _('规格值更新成功') if not mn_locked else _('规格值更新成功（MN编码已锁定）'),
+        'mn_code': config.mn_code,
+        'mn_locked': mn_locked,
+        'updated_options': updated_item_options  # 返回更新后的 options
+    })
+
+
+# ==================== 导入导出 API ====================
+
+@spec_template_bp.route('/api/download-import-template')
+@login_required
+@permission_required('rd_product', 'view')
+def api_download_import_template():
+    """API: 下载规格模板导入模板Excel"""
+    from app.services.spec_import_service import SpecImportService
+
+    try:
+        excel_content = SpecImportService.generate_import_template()
+
+        return send_file(
+            io.BytesIO(excel_content),
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name='规格模板导入模板.xlsx'
+        )
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': _('生成模板失败: %(error)s', error=str(e))
+        }), 500
+
+
+@spec_template_bp.route('/api/import-create', methods=['POST'])
+@login_required
+@permission_required('rd_product', 'create')
+def api_import_create_template():
+    """API: 通过Excel导入创建规格模板"""
+    from app.services.spec_import_service import SpecImportService
+
+    # 检查文件
+    if 'file' not in request.files:
+        return jsonify({
+            'success': False,
+            'message': _('请选择要上传的文件')
+        }), 400
+
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({
+            'success': False,
+            'message': _('请选择要上传的文件')
+        }), 400
+
+    # 验证文件类型
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        return jsonify({
+            'success': False,
+            'message': _('请上传Excel文件（.xlsx或.xls格式）')
+        }), 400
+
+    # 调用导入服务
+    result = SpecImportService.import_template(file, current_user.id)
+
+    if result['success']:
+        return jsonify(result)
+    else:
+        return jsonify(result), 400
+
+
+# ========== 配置导出导入 API ==========
+
+@spec_template_bp.route('/api/<int:template_id>/export-configurations')
+@login_required
+@permission_required('rd_product', 'view')
+def api_export_configurations(template_id):
+    """API: 导出配置矩阵（只导出未锁定的配置）"""
+    from app.services.spec_import_service import SpecImportService
+
+    try:
+        excel_data = SpecImportService.export_configurations(template_id)
+
+        # 获取模板信息用于文件名
+        template = SpecTemplate.query.get(template_id)
+        filename = f"{template.model}_配置矩阵.xlsx" if template else "配置矩阵.xlsx"
+
+        return Response(
+            excel_data,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers={'Content-Disposition': f'attachment; filename*=UTF-8\'\'{quote(filename)}'}
+        )
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 400
+    except Exception as e:
+        logger.error(f"导出配置失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': _('导出失败: %(error)s', error=str(e))
+        }), 500
+
+
+@spec_template_bp.route('/api/<int:template_id>/import-configurations', methods=['POST'])
+@login_required
+@permission_required('rd_product', 'edit')
+def api_import_configurations(template_id):
+    """API: 导入配置矩阵"""
+    from app.services.spec_import_service import SpecImportService
+
+    # 检查文件
+    if 'file' not in request.files:
+        return jsonify({
+            'success': False,
+            'message': _('请选择要上传的文件')
+        }), 400
+
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({
+            'success': False,
+            'message': _('请选择要上传的文件')
+        }), 400
+
+    # 验证文件类型
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        return jsonify({
+            'success': False,
+            'message': _('请上传Excel文件（.xlsx或.xls格式）')
+        }), 400
+
+    # 调用导入服务
+    result = SpecImportService.import_configurations(file, template_id, current_user.id)
+
+    if result['success']:
+        return jsonify(result)
+    else:
+        return jsonify(result), 400

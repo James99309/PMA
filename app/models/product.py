@@ -39,6 +39,7 @@ class Product(db.Model):
     # 产品来源字段
     source_type = db.Column(db.String(20))  # 'manual'(手动创建) 或 'from_dev'(研发产品化)
     source_dev_product_id = db.Column(db.Integer, db.ForeignKey('dev_products.id'))  # 来源研发产品ID
+    source_configuration_id = db.Column(db.Integer, db.ForeignKey('product_configurations.id'))  # 来源配置版本ID
     productized_at = db.Column(db.DateTime)  # 产品化时间
 
     created_at = db.Column(db.DateTime, default=datetime.now)
@@ -53,6 +54,7 @@ class Product(db.Model):
     subcategory_obj = db.relationship('ProductSubcategory', foreign_keys=[subcategory_id], backref='products')
     region_obj = db.relationship('ProductCodeField', foreign_keys=[region_id], backref='products')
     source_dev_product = db.relationship('DevProduct', foreign_keys=[source_dev_product_id], backref='productized_products')
+    source_configuration = db.relationship('ProductConfiguration', foreign_keys=[source_configuration_id], backref='productized_products')
 
     @property
     def name(self):
@@ -101,4 +103,77 @@ class Product(db.Model):
         return f"{self.product_mn} [{self.spec_mn}]"
 
     def __repr__(self):
-        return f'<Product {self.name} ({self.product_mn})>' 
+        return f'<Product {self.name} ({self.product_mn})>'
+
+    def get_specs_from_configuration(self):
+        """从关联的配置版本获取规格数据
+
+        Returns:
+            dict: 按分类组织的规格数据
+            {
+                category_id: {
+                    'category': SpecCategory对象,
+                    'items': [{
+                        'name': 规格名称,
+                        'name_en': 英文名称,
+                        'unit': 单位,
+                        'value': 规格值（配置值或通用值）,
+                        'test_condition': 测试条件,
+                        'test_method': 测试方法
+                    }, ...]
+                }
+            }
+        """
+        if not self.source_configuration:
+            return {}
+
+        config = self.source_configuration
+        template = config.template
+        if not template:
+            return {}
+
+        result = {}
+        for item in template.items:
+            if not item.definition:
+                continue
+
+            cat_id = item.definition.category_id
+            if cat_id not in result:
+                result[cat_id] = {
+                    'category': item.definition.category,
+                    'items': []
+                }
+
+            # 获取配置值，如果没有则使用通用值
+            value = config.get_spec_value(item.id)
+
+            # 获取测试条件
+            test_condition = None
+            if item.test_condition:
+                test_condition = item.test_condition.name
+            elif item.test_condition_text:
+                test_condition = item.test_condition_text
+
+            # 获取测试方法
+            test_method = None
+            if item.test_method:
+                test_method = item.test_method.name
+            elif item.test_method_text:
+                test_method = item.test_method_text
+
+            result[cat_id]['items'].append({
+                'name': item.definition.name,
+                'name_en': item.definition.name_en,
+                'unit': item.definition.unit,
+                'value': value,
+                'test_condition': test_condition,
+                'test_method': test_method,
+                'is_required': item.is_required
+            })
+
+        return result
+
+    @property
+    def has_configuration_specs(self):
+        """检查是否使用新的配置版本规格系统"""
+        return self.source_configuration_id is not None 

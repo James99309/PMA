@@ -513,6 +513,36 @@ msgid "重置"
 msgstr "Reset"
 msgid "新增产品"
 msgstr "Add"
+msgid "请选择创建方式"
+msgstr "Select Creation Method"
+msgid "手动新建"
+msgstr "Create Manually"
+msgid "从配置引入"
+msgstr "Import from Config"
+msgid "从空白开始创建"
+msgstr "Create from scratch"
+msgid "从规格库配置导入"
+msgstr "Import from spec library"
+msgid "选择配置产品"
+msgstr "Select Configuration"
+msgid "搜索型号或MN编码..."
+msgstr "Search model or MN code..."
+msgid "已引入"
+msgstr "Imported"
+msgid "可生产"
+msgstr "Production"
+msgid "小批价"
+msgstr "Pilot"
+msgid "从配置引入产品"
+msgstr "Import Product from Config"
+msgid "MN编码"
+msgstr "MN Code"
+msgid "编码规格"
+msgstr "Code Specs"
+msgid "暂无配置"
+msgstr "No configurations"
+msgid "选择"
+msgstr "Select"
 msgid "加载中..."
 msgstr "Loading..."
 msgid "共"
@@ -1015,6 +1045,10 @@ msgid "报价单编号"
 msgstr "Quotation Number"
 msgid "项目"
 msgstr "Project"
+msgid "项目目标"
+msgstr "Project Target"
+msgid "客户目标"
+msgstr "Customer Target"
 msgid "报价单"
 msgstr "Quotation"
 msgid "订单"
@@ -1503,6 +1537,30 @@ msgid "餐费"
 msgstr "Meals"
 msgid "全部报销"
 msgstr "All Expenses"
+msgid "年度总预算"
+msgstr "Annual Total Budget"
+msgid "费用明细限制（不勾选 = 不限制，共享总预算）"
+msgstr "Expense Category Limits (unchecked = no limit, shared with total budget)"
+msgid "（不限制）"
+msgstr "(No Limit)"
+msgid "已分配"
+msgstr "Allocated"
+msgid "剩余共享"
+msgstr "Remaining Shared"
+msgid "已分配百分比超过100%"
+msgstr "Allocated percentage exceeds 100%"
+msgid "已分配百分比超过100%，请调整"
+msgstr "Allocated percentage exceeds 100%, please adjust"
+msgid "应用角色配置"
+msgstr "Apply Role Config"
+msgid "清除个人配置"
+msgstr "Clear Personal Config"
+msgid "已应用角色配置，请点击保存"
+msgstr "Role config applied, please click Save"
+msgid "确定清除选中用户的个人配置？将恢复使用角色默认值"
+msgstr "Clear personal config for selected users? Will revert to role defaults"
+msgid "已清除个人配置"
+msgstr "Personal config cleared"
 msgid "共享此记录"
 msgstr "Share this record"
 msgid "取消勾选后，此记录仅对管理员和上级账户可见"
@@ -1715,6 +1773,10 @@ msgid "子分类"
 msgstr "Subcategory"
 msgid "MN编码"
 msgstr "MN Code"
+msgid "开发代号"
+msgstr "Dev Code"
+msgid "新开发代号"
+msgstr "New Dev Code"
 msgid "产品编码"
 msgstr "Product Code"
 msgid "规格编码"
@@ -2539,6 +2601,10 @@ msgid "上一个产品"
 msgstr "Previous Product"
 msgid "下一个产品"
 msgstr "Next Product"
+msgid "上一个账户"
+msgstr "Previous User"
+msgid "下一个账户"
+msgstr "Next User"
 msgid "产品概览"
 msgstr "Product Overview"
 msgid "上传图片"
@@ -3183,8 +3249,22 @@ msgid "MN编号"
 msgstr "MN Number"
 msgid "MN编码已锁定"
 msgstr "MN code is locked"
+msgid "MN编码已锁定（可生产/停产状态）"
+msgstr "MN code is locked (Production/Discontinued status)"
 msgid "MN编码未锁定"
 msgstr "MN code is unlocked"
+msgid "未生成"
+msgstr "Not generated"
+msgid "规格值更新成功（MN编码已锁定）"
+msgstr "Spec values updated (MN code is locked)"
+msgid "可生产或停产状态的配置版本不能删除"
+msgstr "Production or discontinued configurations cannot be deleted"
+msgid "MN编码已锁定，不可编辑"
+msgstr "MN code is locked, cannot edit"
+msgid "MN编码第"
+msgstr "MN code position "
+msgid "位"
+msgstr ""
 msgid "PDF上传成功"
 msgstr "PDF uploaded successfully"
 msgid "PDF文件"
@@ -5533,3 +5613,1482 @@ msgid "暂无项目描述"
 msgstr "No project description"
 msgid "请详细描述项目的背景和情况,以供报备时区分"
 msgstr "Please describe the project background and situation in detail for distinction during registration"
+msgid "已删除规格"
+msgstr "Deleted Spec"
+msgid "此规格已从模板删除，仅锁定配置保留历史值"
+msgstr "This spec has been removed from template, only locked configs retain historical values"
+msgid "历史规格值（规格已从模板删除）"
+msgstr "Historical spec value (spec removed from template)"
+msgid "保存规格"
+msgstr "Save Specs"
+msgid "MN 编码需要更新"
+msgstr "MN Code Needs Update"
+msgid "检测到规格模板结构已变更，部分配置的 MN 编码需要重新生成。是否同时更新 MN 编码？"
+msgstr "Template structure has changed, some configurations need MN code regeneration. Update MN codes as well?"
+msgid "更新编码并保存"
+msgstr "Update Codes & Save"
+msgid "仅保存规格值"
+msgstr "Save Values Only"
+
+# 规格引入模态框翻译
+msgid "从配置引入规格"
+msgstr "Import Specs from Config"
+msgid "编码规格"
+msgstr "Code Specs"
+msgid "其他规格"
+msgstr "Other Specs"
+msgid "必选"
+msgstr "Required"
+msgid "可选"
+msgstr "Optional"
+msgid "全选"
+msgstr "Select All"
+msgid "取消全选"
+msgstr "Deselect All"
+msgid "引入后将替换产品现有的所有规格"
+msgstr "Import will replace all existing product specs"
+msgid "确认引入"
+msgstr "Confirm Import"
+msgid "无编码规格"
+msgstr "No code specs"
+msgid "无其他规格"
+msgstr "No other specs"
+msgid "导入失败"
+msgstr "Import failed"
+msgid "该产品没有关联的配置版本"
+msgstr "This product has no associated configuration version"
+msgid "关联的配置版本不存在"
+msgstr "Associated configuration version does not exist"
+msgid "配置模板不存在"
+msgstr "Configuration template does not exist"
+msgid "请求数据无效"
+msgstr "Invalid request data"
+msgid "成功导入 %(count)d 个规格项"
+msgstr "Successfully imported %(count)d spec items"
+msgid "导入失败: %(error)s"
+msgstr "Import failed: %(error)s"
+
+msgid "引入"
+msgstr "Import"
+
+# 薪资配置翻译
+msgid "薪资配置"
+msgstr "Salary Config"
+msgid "全局配置"
+msgstr "Global Config"
+msgid "保存薪资配置"
+msgstr "Save Salary Config"
+msgid "初始化默认数据"
+msgstr "Initialize Default Data"
+msgid "职级配置"
+msgstr "Grade Config"
+msgid "基础参数"
+msgstr "Base Params"
+msgid "阶梯规则"
+msgstr "Step Rules"
+msgid "公式配置"
+msgstr "Formula Config"
+msgid "团队配置"
+msgstr "Team Config"
+msgid "专业序列"
+msgstr "Professional Sequence"
+msgid "管理序列"
+msgstr "Management Sequence"
+msgid "添加职级"
+msgstr "Add Grade"
+msgid "年目标(万)"
+msgstr "Annual Target (10K)"
+msgid "个人目标(万)"
+msgstr "Personal Target (10K)"
+msgid "月基础工资"
+msgstr "Monthly Base Salary"
+msgid "月绩效基数"
+msgstr "Monthly Performance Base"
+msgid "个人权重"
+msgstr "Personal Weight"
+msgid "暂无专业序列职级，点击上方按钮添加"
+msgstr "No professional grades, click button above to add"
+msgid "暂无管理序列职级，点击上方按钮添加"
+msgstr "No management grades, click button above to add"
+msgid "暂无基础参数配置，请点击"初始化默认数据"按钮"
+msgstr "No base params, please click 'Initialize Default Data' button"
+msgid "绩效系数"
+msgstr "Performance Coefficient"
+msgid "提成比例"
+msgstr "Commission Rate"
+msgid "提成发放"
+msgstr "Commission Release"
+msgid "年终奖"
+msgstr "Annual Bonus"
+msgid "绩效系数档位"
+msgstr "Performance Coefficient Levels"
+msgid "批价提成比例"
+msgstr "Pricing Commission Rates"
+msgid "提成发放比例"
+msgstr "Commission Release Rates"
+msgid "年终奖档位"
+msgstr "Annual Bonus Levels"
+msgid "添加档位"
+msgstr "Add Level"
+msgid "最低阈值"
+msgstr "Min Threshold"
+msgid "系数/比例"
+msgstr "Coefficient/Rate"
+msgid "暂无此类型的阶梯规则，点击上方按钮添加"
+msgstr "No step rules of this type, click button above to add"
+msgid "暂无公式配置，请点击"初始化默认数据"按钮"
+msgstr "No formula config, please click 'Initialize Default Data' button"
+msgid "提示：公式配置当前为只读模式，修改请联系管理员"
+msgstr "Note: Formula config is read-only, contact admin to modify"
+msgid "销售团队列表"
+msgstr "Sales Team List"
+msgid "添加团队"
+msgstr "Add Team"
+msgid "团队名称"
+msgstr "Team Name"
+msgid "负责人"
+msgstr "Leader"
+msgid "负责人职级"
+msgstr "Leader Grade"
+msgid "年度目标(万)"
+msgstr "Annual Target (10K)"
+msgid "选择负责人..."
+msgstr "Select Leader..."
+msgid "选择职级..."
+msgstr "Select Grade..."
+msgid "暂无团队配置，点击上方按钮添加"
+msgstr "No teams configured, click button above to add"
+msgid "确定要删除此职级吗？"
+msgstr "Are you sure you want to delete this grade?"
+msgid "确定要删除此阶梯规则吗？"
+msgstr "Are you sure you want to delete this step rule?"
+msgid "确定要删除此团队吗？"
+msgstr "Are you sure you want to delete this team?"
+msgid "确定要初始化默认数据吗？这将覆盖现有配置。"
+msgstr "Are you sure you want to initialize default data? This will overwrite existing config."
+msgid "部分配置保存失败，请检查"
+msgstr "Some configs failed to save, please check"
+msgid "初始化成功"
+msgstr "Initialization successful"
+msgid "初始化失败"
+msgstr "Initialization failed"
+msgid "个人业绩/团队业绩"
+msgstr "Personal/Team"
+msgid "综合完成率"
+msgstr "Overall Rate"
+msgid "个人高批价率"
+msgstr "Personal High Price Rate"
+msgid "个人批价率"
+msgstr "Personal Price Rate"
+msgid "基础工资、管理津贴（月度结算）"
+msgstr "Base Salary, Management Allowance (Monthly)"
+msgid "绩效、提成（季度结算）"
+msgstr "Performance, Commission (Quarterly)"
+msgid "AI功能"
+msgstr "AI Feature"
+msgid "已启用"
+msgstr "Enabled"
+msgid "未启用"
+msgstr "Disabled"
+
+# 工作日历模块
+msgid "工作日历"
+msgstr "Work Calendar"
+msgid "工作项"
+msgstr "Work Item"
+msgid "工作日志"
+msgstr "Work Log"
+msgid "管理您的工作计划和日志"
+msgstr "Manage your work plans and logs"
+msgid "添加工作"
+msgstr "Add Work"
+msgid "我的日历"
+msgstr "My Calendar"
+msgid "创建工作项"
+msgstr "Create Work Item"
+msgid "编辑工作项"
+msgstr "Edit Work Item"
+msgid "完成工作项"
+msgstr "Complete Work Item"
+msgid "计划日期"
+msgstr "Planned Date"
+msgid "预计时长"
+msgstr "Estimated Hours"
+msgid "实际时长"
+msgstr "Actual Hours"
+msgid "小时"
+msgstr "Hours"
+msgid "工作类型"
+msgstr "Work Type"
+# ===== 工作类型大类 =====
+msgid "通用"
+msgstr "General"
+msgid "行销"
+msgstr "Sales"
+msgid "市场"
+msgstr "Marketing"
+msgid "服务"
+msgstr "Service"
+msgid "行政"
+msgstr "Administration"
+msgid "人事"
+msgstr "HR"
+msgid "财务"
+msgstr "Finance"
+msgid "产品"
+msgstr "Product"
+msgid "供应链"
+msgstr "Supply Chain"
+# ===== 通用类 =====
+msgid "会议"
+msgstr "Meeting"
+msgid "出差"
+msgstr "Business Trip"
+msgid "内部培训"
+msgstr "Internal Training"
+# ===== 行销类 =====
+msgid "拜访客户"
+msgstr "Customer Visit"
+msgid "售前支持"
+msgstr "Pre-sales Support"
+msgid "商务洽谈"
+msgstr "Business Negotiation"
+msgid "客户维护"
+msgstr "Customer Maintenance"
+# ===== 市场类 =====
+msgid "市场策划"
+msgstr "Market Planning"
+msgid "品牌推广"
+msgstr "Brand Promotion"
+msgid "活动执行"
+msgstr "Event Execution"
+# ===== 服务类 =====
+msgid "现场运维"
+msgstr "On-site Maintenance"
+msgid "服务响应"
+msgstr "Service Response"
+msgid "技术支持"
+msgstr "Technical Support"
+msgid "故障处理"
+msgstr "Troubleshooting"
+# ===== 行政类 =====
+msgid "行政事务"
+msgstr "Admin Affairs"
+msgid "办公管理"
+msgstr "Office Management"
+msgid "资产管理"
+msgstr "Asset Management"
+# ===== 人事类 =====
+msgid "人事事务"
+msgstr "HR Affairs"
+msgid "招聘面试"
+msgstr "Recruitment"
+msgid "员工关系"
+msgstr "Employee Relations"
+msgid "绩效管理"
+msgstr "Performance Management"
+# ===== 财务类 =====
+msgid "财务工作"
+msgstr "Finance Work"
+msgid "报销审核"
+msgstr "Expense Review"
+msgid "账务处理"
+msgstr "Accounting"
+# ===== 产品类 =====
+msgid "产品调研"
+msgstr "Product Research"
+msgid "需求分析"
+msgstr "Requirement Analysis"
+msgid "产品规划"
+msgstr "Product Planning"
+# ===== 供应链类 =====
+msgid "采购管理"
+msgstr "Procurement"
+msgid "库存管理"
+msgstr "Inventory Management"
+msgid "物流协调"
+msgstr "Logistics"
+msgid "品质跟踪"
+msgstr "Quality Tracking"
+msgid "标记完成"
+msgstr "Mark Complete"
+msgid "标记取消"
+msgstr "Mark Cancelled"
+msgid "已标记完成"
+msgstr "Marked Complete"
+msgid "提交日志"
+msgstr "Submit Log"
+msgid "日志已提交"
+msgstr "Log Submitted"
+msgid "团队日志"
+msgstr "Team Logs"
+msgid "今日统计"
+msgstr "Today's Statistics"
+msgid "已完成工作"
+msgstr "Completed Work"
+msgid "计划中"
+msgstr "Planned"
+msgid "已取消"
+msgstr "Cancelled"
+msgid "已完成"
+msgstr "Completed"
+msgid "计划工作项"
+msgstr "Planned Work Items"
+msgid "总工时"
+msgstr "Total Hours"
+msgid "关联项目"
+msgstr "Related Project"
+msgid "关联客户"
+msgstr "Related Customer"
+msgid "补充内容"
+msgstr "Additional Notes"
+msgid "执行备注"
+msgstr "Execution Notes"
+msgid "请输入工作标题"
+msgstr "Please enter work title"
+msgid "工作详细描述..."
+msgstr "Work description..."
+msgid "记录执行情况、遇到的问题等..."
+msgstr "Record execution status, issues encountered..."
+msgid "添加当日工作的其他说明..."
+msgstr "Add other notes for today's work..."
+msgid "全天事件"
+msgstr "All Day Event"
+msgid "开始时间"
+msgstr "Start Time"
+msgid "结束时间"
+msgstr "End Time"
+msgid "今天"
+msgstr "Today"
+msgid "月"
+msgstr "Month"
+msgid "周"
+msgstr "Week"
+msgid "日"
+msgstr "Day"
+msgid "查看日志"
+msgstr "View Log"
+msgid "保存备注"
+msgstr "Save Notes"
+msgid "备注已保存"
+msgstr "Notes Saved"
+msgid "请填写标题和计划日期"
+msgstr "Please fill in title and planned date"
+msgid "请填写实际时长"
+msgstr "Please fill in actual hours"
+msgid "确定要取消这个工作项吗？"
+msgstr "Are you sure you want to cancel this work item?"
+msgid "提交后将无法修改，确定要提交吗？"
+msgstr "Once submitted, it cannot be modified. Are you sure you want to submit?"
+msgid "预计"
+msgstr "Estimated"
+msgid "草稿"
+msgstr "Draft"
+msgid "已提交"
+msgstr "Submitted"
+msgid "无权查看此工作项"
+msgstr "No permission to view this work item"
+msgid "无权修改此工作项"
+msgstr "No permission to modify this work item"
+msgid "无权操作此工作项"
+msgstr "No permission to operate this work item"
+msgid "无权删除此工作项"
+msgstr "No permission to delete this work item"
+msgid "工作项不存在"
+msgstr "Work item not found"
+msgid "日期格式无效"
+msgstr "Invalid date format"
+msgid "标题不能为空"
+msgstr "Title cannot be empty"
+msgid "计划日期不能为空"
+msgstr "Planned date cannot be empty"
+msgid "日志已提交"
+msgstr "Log already submitted"
+
+#: app/templates/worklog/tw_calendar.html - Calendar form labels
+msgid "标题"
+msgstr "Title"
+
+msgid "开始日期"
+msgstr "Start Date"
+
+msgid "结束日期"
+msgstr "End Date"
+
+msgid "可选，跨天任务用"
+msgstr "Optional, for multi-day tasks"
+
+msgid "全天"
+msgstr "All Day"
+
+msgid "时间"
+msgstr "Time"
+
+msgid "共享"
+msgstr "Share"
+
+msgid "共享给"
+msgstr "Share with"
+
+msgid "选择共享用户"
+msgstr "Select users to share with"
+
+msgid "工作项详情"
+msgstr "Work Item Details"
+
+msgid "的行程"
+msgstr "'s itinerary"
+
+msgid "此行程由"
+msgstr "This itinerary is created by "
+
+msgid "创建并共享给您，仅可查看"
+msgstr "and shared with you, view-only"
+
+msgid "添加用户后，他们可以在日历中看到此行程"
+msgstr "After adding users, they can see this itinerary in the calendar"
+
+msgid "日志内容"
+msgstr "Log Content"
+
+msgid "的日志"
+msgstr "'s log"
+
+msgid "未完成"
+msgstr "Incomplete"
+
+msgid "未完成工作"
+msgstr "Incomplete Work"
+
+msgid "行动"
+msgstr "Actions"
+
+msgid "返回编辑"
+msgstr "Back to Edit"
+
+msgid "输入项目名称搜索..."
+msgstr "Search by project name..."
+
+msgid "记录工作内容、沟通情况..."
+msgstr "Record work content, communication details..."
+
+msgid "描述您的工作日志、进度和成果..."
+msgstr "Describe your work log, progress and achievements..."
+
+msgid "确定将此工作项标记为已完成吗？"
+msgstr "Are you sure you want to mark this work item as completed?"
+
+msgid "确定要删除这个工作项吗？此操作无法撤销。"
+msgstr "Are you sure you want to delete this work item? This action cannot be undone."
+
+#: app/templates/user/detail.html - User detail page
+msgid "编辑基本信息"
+msgstr "Edit Basic Info"
+
+msgid "编辑归属关系"
+msgstr "Edit Affiliation"
+
+msgid "厂商企业账户"
+msgstr "Vendor Enterprise Account"
+
+msgid "权限规则说明"
+msgstr "Permission Rules Description"
+
+msgid "当前角色"
+msgstr "Current Role"
+
+msgid "恢复角色设置"
+msgstr "Restore Role Settings"
+
+msgid "年度绩效统计"
+msgstr "Annual Performance Statistics"
+
+msgid "未保存的修改"
+msgstr "Unsaved Changes"
+
+msgid "您有未保存的权限修改，是否保存？"
+msgstr "You have unsaved permission changes. Save?"
+
+#: app/templates/index.html - Dashboard
+msgid "AI分析报告"
+msgstr "AI Report"
+
+msgid "查看AI分析报告"
+msgstr "View AI Report"
+
+msgid "有新的AI分析报告"
+msgstr "New AI Report"
+
+msgid "使用说明书"
+msgstr "User Manual"
+
+msgid "查看使用说明书"
+msgstr "View User Manual"
+
+msgid "年度费用预算"
+msgstr "Annual Expense Budget"
+
+msgid "已用"
+msgstr "Used"
+
+msgid "当月支出"
+msgstr "Monthly Expenditure"
+
+msgid "数据状态"
+msgstr "Data Status"
+
+msgid "累计报销费用"
+msgstr "Total Expense Amount"
+
+msgid "单号"
+msgstr "Number"
+
+msgid "暂无报销单"
+msgstr "No Expense Reports"
+
+msgid "频率范围"
+msgstr "Frequency Range"
+
+msgid "带宽"
+msgstr "Bandwidth"
+
+msgid "增益"
+msgstr "Gain"
+
+msgid "规格模板"
+msgstr "Spec Templates"
+
+msgid "配置管理"
+msgstr "Config Management"
+
+# 规格管理模块翻译
+msgid "规格模板管理"
+msgstr "Spec Template Management"
+
+msgid "配置版本管理"
+msgstr "Configuration Management"
+
+msgid "新建模板"
+msgstr "New Template"
+
+msgid "导入创建"
+msgstr "Import & Create"
+
+msgid "下载模板"
+msgstr "Download Template"
+
+msgid "个规格项"
+msgstr "spec items"
+
+msgid "个配置版本"
+msgstr "configurations"
+
+msgid "配置版本"
+msgstr "Configurations"
+
+msgid "测试方法字典"
+msgstr "Test Methods Dictionary"
+
+msgid "测试条件字典"
+msgstr "Test Conditions Dictionary"
+
+msgid "规格分类"
+msgstr "Spec Categories"
+
+msgid "中文名称"
+msgstr "Chinese Name"
+
+msgid "英文名称"
+msgstr "English Name"
+
+msgid "规格配置"
+msgstr "Spec Configuration"
+
+msgid "规格配置矩阵"
+msgstr "Spec Configuration Matrix"
+
+msgid "规格模板详情"
+msgstr "Spec Template Details"
+
+msgid "复制规格模板"
+msgstr "Copy Spec Template"
+
+msgid "编辑规格模板"
+msgstr "Edit Spec Template"
+
+msgid "新建规格模板"
+msgstr "New Spec Template"
+
+msgid "暂无规格模板"
+msgstr "No spec templates"
+
+msgid "创建一个规格模板来定义产品型号的规格结构"
+msgstr "Create a spec template to define the specification structure for product models"
+
+msgid "配置版本数"
+msgstr "Configurations"
+
+msgid "规格项总数"
+msgstr "Total Spec Items"
+
+msgid "必填项数"
+msgstr "Required Items"
+
+msgid "暂无配置版本"
+msgstr "No configurations"
+
+msgid "创建配置版本来定义不同区域的产品规格"
+msgstr "Create configurations to define product specifications for different regions"
+
+msgid "新建配置版本"
+msgstr "New Configuration"
+
+msgid "创建配置版本"
+msgstr "Create Configuration"
+
+msgid "复制配置版本"
+msgstr "Copy Configuration"
+
+msgid "导入配置"
+msgstr "Import Configuration"
+
+msgid "导出配置"
+msgstr "Export Configuration"
+
+msgid "适用区域"
+msgstr "Region"
+
+msgid "供电"
+msgstr "Power"
+
+msgid "通用值"
+msgstr "General Value"
+
+msgid "通用值 (General)"
+msgstr "General Value"
+
+msgid "配置值"
+msgstr "Config Value"
+
+msgid "编辑规格值"
+msgstr "Edit Spec Values"
+
+msgid "添加规格项"
+msgstr "Add Spec Item"
+
+msgid "规格项的详细说明"
+msgstr "Detailed description of the spec item"
+
+msgid "该分类下暂无规格项"
+msgstr "No spec items in this category"
+
+msgid "测试方法"
+msgstr "Test Methods"
+
+msgid "测试条件"
+msgstr "Test Conditions"
+
+msgid "测试方法列表"
+msgstr "Test Methods List"
+
+msgid "测试条件列表"
+msgstr "Test Conditions List"
+
+msgid "添加测试方法"
+msgstr "Add Test Method"
+
+msgid "添加测试条件"
+msgstr "Add Test Condition"
+
+msgid "暂无测试方法"
+msgstr "No test methods"
+
+msgid "暂无测试条件"
+msgstr "No test conditions"
+
+msgid "方法名称"
+msgstr "Method Name"
+
+msgid "方法说明"
+msgstr "Method Description"
+
+msgid "方法分类"
+msgstr "Method Category"
+
+msgid "测试方法的详细说明"
+msgstr "Detailed description of the test method"
+
+msgid "条件名称"
+msgstr "Condition Name"
+
+msgid "条件说明"
+msgstr "Condition Description"
+
+msgid "测试条件的详细说明"
+msgstr "Detailed description of the test condition"
+
+msgid "默认测试方法"
+msgstr "Default Test Method"
+
+msgid "默认测试条件"
+msgstr "Default Test Condition"
+
+msgid "选择测试方法"
+msgstr "Select Test Method"
+
+msgid "选择测试条件"
+msgstr "Select Test Condition"
+
+msgid "导入创建规格模板"
+msgstr "Import & Create Spec Template"
+
+msgid "使用说明："
+msgstr "Instructions:"
+
+msgid "点击"下载模板"获取Excel模板"
+msgstr "Click \"Download Template\" to get the Excel template"
+
+msgid "在Sheet1填写模板基本信息"
+msgstr "Fill in basic template info in Sheet1"
+
+msgid "在Sheet2选择规格项（填Y）并填写通用值"
+msgstr "Select spec items (mark Y) and fill in general values in Sheet2"
+
+msgid "上传填写好的Excel文件"
+msgstr "Upload the completed Excel file"
+
+msgid "选择Excel文件"
+msgstr "Select Excel File"
+
+msgid "支持 .xlsx 和 .xls 格式"
+msgstr "Supports .xlsx and .xls formats"
+
+msgid "只支持 .xlsx 或 .xls 格式"
+msgstr "Only .xlsx or .xls format supported"
+
+msgid "导入"
+msgstr "Import"
+
+msgid "复制"
+msgstr "Copy"
+
+msgid "新型号名称"
+msgstr "New Model Name"
+
+msgid "可选：模板描述名称"
+msgstr "Optional: Template description name"
+
+msgid "可选：模板描述"
+msgstr "Optional: Template description"
+
+msgid "您确定要删除这个规格模板吗？"
+msgstr "Are you sure you want to delete this spec template?"
+
+msgid "您确定要删除这个配置版本吗？"
+msgstr "Are you sure you want to delete this configuration?"
+
+msgid "您确定要删除这个规格项吗？此操作无法撤销。"
+msgstr "Are you sure you want to delete this spec item? This action cannot be undone."
+
+msgid "您确定要删除这个分类吗？"
+msgstr "Are you sure you want to delete this category?"
+
+msgid "您确定要删除这个测试方法吗？"
+msgstr "Are you sure you want to delete this test method?"
+
+msgid "您确定要删除这个测试条件吗？"
+msgstr "Are you sure you want to delete this test condition?"
+
+msgid "确认删除分类"
+msgstr "Confirm Delete Category"
+
+msgid "确认离开"
+msgstr "Confirm Leave"
+
+msgid "离开"
+msgstr "Leave"
+
+msgid "您有未保存的更改，确定要离开吗？未保存的更改将会丢失。"
+msgstr "You have unsaved changes. Are you sure you want to leave? Unsaved changes will be lost."
+
+msgid "继续编辑"
+msgstr "Continue Editing"
+
+msgid "放弃"
+msgstr "Discard"
+
+msgid "个未保存的更改"
+msgstr "unsaved changes"
+
+msgid "您有"
+msgstr "You have"
+
+msgid "保存全部"
+msgstr "Save All"
+
+msgid "MN编码"
+msgstr "MN Code"
+
+msgid "MN 编码冲突"
+msgstr "MN Code Conflict"
+
+msgid "MN 编码需要更新"
+msgstr "MN Code Needs Update"
+
+msgid "检测到 MN 编码需要更新"
+msgstr "MN code update detected"
+
+msgid "检测到的变更"
+msgstr "Detected Changes"
+
+msgid "检测到结构性变更"
+msgstr "Structural changes detected"
+
+msgid "更新编码"
+msgstr "Update Code"
+
+msgid "保持原区域"
+msgstr "Keep Original Region"
+
+msgid "个配置的 MN 编码"
+msgstr "configuration MN codes"
+
+msgid "以下 MN 编码与现有记录冲突，无法保存："
+msgstr "The following MN codes conflict with existing records and cannot be saved:"
+
+msgid "值类型"
+msgstr "Value Type"
+
+msgid "数字"
+msgstr "Number"
+
+msgid "文本"
+msgstr "Text"
+
+msgid "是/否"
+msgstr "Yes/No"
+
+msgid "映射"
+msgstr "Mapping"
+
+msgid "可选择或输入"
+msgstr "Select or enter"
+
+msgid "分类描述"
+msgstr "Category Description"
+
+msgid "可选的分类说明"
+msgstr "Optional category description"
+
+msgid "选择图标"
+msgstr "Select Icon"
+
+msgid "灰色图标已被其他分类使用"
+msgstr "Gray icons are already used by other categories"
+
+msgid "显示排序"
+msgstr "Display Order"
+
+msgid "编码长度"
+msgstr "Code Length"
+
+msgid "参与编码"
+msgstr "Include in Code"
+
+msgid "已被用于生成MN编码"
+msgstr "Already used to generate MN code"
+
+msgid "版本"
+msgstr "Version"
+
+msgid "当前版本"
+msgstr "Current Version"
+
+msgid "升级到"
+msgstr "Upgrade to"
+
+msgid "是否将版本升级到"
+msgstr "Upgrade version to"
+
+msgid "并保存?"
+msgstr "and save?"
+
+msgid "版本升级不会影响已有的MN编码，但新编码将使用新的结构。"
+msgstr "Version upgrade will not affect existing MN codes, but new codes will use the new structure."
+
+msgid "请先创建配置版本才能使用矩阵式规格配置"
+msgstr "Please create a configuration first to use the matrix spec configuration"
+
+msgid "请输入新的产品型号"
+msgstr "Please enter the new product model"
+
+msgid "请输入新的开发代号"
+msgstr "Please enter the new development code"
+
+msgid "请选择要导入的Excel文件。您可以先导出现有配置作为模板。"
+msgstr "Please select an Excel file to import. You can export existing configurations as a template first."
+
+msgid "选择文件"
+msgstr "Select File"
+
+msgid "选择分类"
+msgstr "Select Category"
+
+msgid "选择产品名称"
+msgstr "Select Product Name"
+
+msgid "输入通用规格值"
+msgstr "Enter general spec value"
+
+msgid "留空使用通用值"
+msgstr "Leave empty to use general value"
+
+msgid "勾选需要的规格项，并设置通用值"
+msgstr "Check the required spec items and set general values"
+
+msgid "新的配置编码会创建新配置"
+msgstr "A new config code will create a new configuration"
+
+msgid "相同配置编码会更新现有配置"
+msgstr "The same config code will update the existing configuration"
+
+msgid "锁定的配置（可生产/停产）将被跳过"
+msgstr "Locked configurations (production/discontinued) will be skipped"
+
+msgid "个自定义规格值"
+msgstr "custom spec values"
+
+msgid "成功更新"
+msgstr "Successfully updated"
+
+msgid "部分保存成功"
+msgstr "Partially saved"
+
+msgid "部分更新失败"
+msgstr "Some updates failed"
+
+msgid "规格模板配置已变更，点击保存以更新编码"
+msgstr "Spec template config changed, click save to update codes"
+
+msgid "如：DRFT-BDA410/M"
+msgstr "e.g.: DRFT-BDA410/M"
+
+msgid "如：下行频率范围"
+msgstr "e.g.: DL Frequency Range"
+
+msgid "如：DL Freq Range"
+msgstr "e.g.: DL Freq Range"
+
+msgid "如：MHz、dBm、°C"
+msgstr "e.g.: MHz, dBm, °C"
+
+msgid "如：TS、MSJ123"
+msgstr "e.g.: TS, MSJ123"
+
+msgid "如：Ta=25°C"
+msgstr "e.g.: Ta=25°C"
+
+msgid "如：ETSI EN 300 113"
+msgstr "e.g.: ETSI EN 300 113"
+
+msgid "如：自定义分类"
+msgstr "e.g.: Custom Category"
+
+msgid "如：Custom Category"
+msgstr "e.g.: Custom Category"
+
+# =====================================
+# 配置管理模块翻译 - 页签标题
+# =====================================
+
+msgid "基本配置"
+msgstr "Basic Config"
+
+msgid "归属配置"
+msgstr "Affiliation Config"
+
+msgid "权限配置"
+msgstr "Permission Config"
+
+msgid "费用配置"
+msgstr "Expense Config"
+
+# =====================================
+# 配置管理模块 - 通用UI文本
+# =====================================
+
+msgid "选择账户"
+msgstr "Select Account"
+
+msgid "请从左侧选择一个用户"
+msgstr "Please select a user from the left"
+
+msgid "请从左侧选择用户"
+msgstr "Please select a user from the left"
+
+msgid "编辑用户配置"
+msgstr "Edit User Config"
+
+msgid "请选择用户"
+msgstr "Please select a user"
+
+msgid "请从左侧列表选择一个用户"
+msgstr "Please select a user from the left list"
+
+# =====================================
+# 配置管理模块 - 基本配置
+# =====================================
+
+msgid "AI分析配置"
+msgstr "AI Analysis Config"
+
+msgid "AI分析功能"
+msgstr "AI Analysis"
+
+msgid "已开启"
+msgstr "Enabled"
+
+msgid "未开启"
+msgstr "Disabled"
+
+msgid "点击编辑按钮可配置自定义AI分析提示词"
+msgstr "Click edit to configure custom AI prompt"
+
+msgid "账户启用"
+msgstr "Account Active"
+
+msgid "部门负责人"
+msgstr "Department Manager"
+
+msgid "开启AI分析功能"
+msgstr "Enable AI Analysis"
+
+# =====================================
+# 配置管理模块 - 归属配置
+# =====================================
+
+msgid "数据归属关系"
+msgstr "Data Affiliation"
+
+msgid "数据归属权限设置"
+msgstr "Data Affiliation Settings"
+
+# =====================================
+# 配置管理模块 - 权限配置
+# =====================================
+
+msgid "请选择一个角色以配置权限"
+msgstr "Please select a role to configure permissions"
+
+msgid "批量用户权限配置"
+msgstr "Batch User Permission Config"
+
+msgid "配置该角色的默认权限"
+msgstr "Configure default permissions for this role"
+
+msgid "正在为"
+msgstr "Configuring for"
+
+msgid "位用户配置个人权限覆盖"
+msgstr "users personal permission override"
+
+msgid "应用角色权限"
+msgstr "Apply Role Permissions"
+
+msgid "清除个人权限"
+msgstr "Clear Personal Permissions"
+
+msgid "保存后将批量应用到所有选中的用户。混合状态的权限项（用户间不一致）不会被覆盖。"
+msgstr "Changes will be applied to all selected users. Mixed items won't be overridden."
+
+msgid "权限不一致"
+msgstr "Inconsistent"
+
+msgid "个人级"
+msgstr "Personal"
+
+msgid "部门级"
+msgstr "Department"
+
+msgid "企业级"
+msgstr "Company"
+
+msgid "系统级"
+msgstr "System"
+
+msgid "保持不变"
+msgstr "Keep unchanged"
+
+msgid "启用"
+msgstr "Enable"
+
+msgid "折扣权限"
+msgstr "Discount Permission"
+
+msgid "批价折扣下限"
+msgstr "Pricing discount limit"
+
+msgid "结算折扣下限"
+msgstr "Settlement discount limit"
+
+msgid "内容筛选"
+msgstr "Content Filter"
+
+msgid "子功能权限"
+msgstr "Sub-feature Permissions"
+
+# =====================================
+# 配置管理模块 - 绩效配置
+# =====================================
+
+msgid "目标配置"
+msgstr "Target Config"
+
+msgid "项目管理"
+msgstr "Project Management"
+
+msgid "用户绩效配置"
+msgstr "User Performance Config"
+
+msgid "正在配置"
+msgstr "Configuring"
+
+msgid "的个人绩效目标"
+msgstr "'s personal performance targets"
+
+msgid "请先选择用户以配置绩效目标"
+msgstr "Please select a user to configure targets"
+
+msgid "该用户暂无启用的绩效项目"
+msgstr "No enabled performance items for this user"
+
+msgid "暂无可配置的绩效项目"
+msgstr "No configurable performance items"
+
+msgid "年度目标"
+msgstr "Annual Target"
+
+msgid "来自薪资配置"
+msgstr "From salary config"
+
+msgid "启用季度目标"
+msgstr "Enable Quarterly Targets"
+
+msgid "启用月度目标"
+msgstr "Enable Monthly Targets"
+
+msgid "合计"
+msgstr "Total"
+
+msgid "月"
+msgstr "Month"
+
+msgid "个项目已启用"
+msgstr "items enabled"
+
+msgid "存在验证错误"
+msgstr "Validation errors exist"
+
+msgid "保存配置"
+msgstr "Save Config"
+
+msgid "确认取消"
+msgstr "Confirm Cancel"
+
+msgid "确定取消编辑？未保存的修改将丢失"
+msgstr "Cancel editing? Unsaved changes will be lost"
+
+# =====================================
+# 配置管理模块 - 费用配置
+# =====================================
+
+msgid "用户费用配置"
+msgstr "User Expense Config"
+
+msgid "的费用预算"
+msgstr "'s expense budget"
+
+msgid "请先从左侧选择用户以配置费用预算"
+msgstr "Please select a user to configure expense budget"
+
+msgid "年度总预算"
+msgstr "Annual Total Budget"
+
+msgid "费用明细限制（不勾选 = 不限制，共享总预算）"
+msgstr "Expense detail limits (unchecked = no limit, share total budget)"
+
+msgid "（不限制）"
+msgstr "(No limit)"
+
+msgid "已分配"
+msgstr "Allocated"
+
+msgid "剩余共享"
+msgstr "Remaining shared"
+
+msgid "已分配百分比超过100%"
+msgstr "Allocated percentage exceeds 100%"
+
+# =====================================
+# 配置管理模块 - 薪资配置
+# =====================================
+
+msgid "从左侧列表选择一个用户进行薪资配置"
+msgstr "Select a user from left to configure salary"
+
+msgid "查看该用户的薪资配置详情"
+msgstr "View user salary config details"
+
+msgid "编辑该用户的薪资配置"
+msgstr "Edit user salary config"
+
+msgid "清除配置"
+msgstr "Clear Config"
+
+msgid "职级"
+msgstr "Grade Level"
+
+msgid "未配置"
+msgstr "Not configured"
+
+msgid "配置模式"
+msgstr "Config Mode"
+
+msgid "自定义配置"
+msgstr "Custom Config"
+
+msgid "使用职级默认值"
+msgstr "Use grade defaults"
+
+msgid "个人目标"
+msgstr "Personal Target"
+
+msgid "默认"
+msgstr "Default"
+
+msgid "团队目标"
+msgstr "Team Target"
+
+msgid "月基础工资"
+msgstr "Monthly Base Salary"
+
+msgid "月绩效基数"
+msgstr "Monthly Performance Base"
+
+msgid "月管理津贴"
+msgstr "Monthly Management Allowance"
+
+msgid "奖励系数"
+msgstr "Reward Coefficients"
+
+msgid "提成比例系数"
+msgstr "Commission Rate Multiplier"
+
+msgid "年终奖系数"
+msgstr "Bonus Multiplier"
+
+msgid "团队分成比例"
+msgstr "Team Share Rate"
+
+msgid "权重配置"
+msgstr "Weight Config"
+
+msgid "个人权重"
+msgstr "Personal Weight"
+
+msgid "团队权重"
+msgstr "Team Weight"
+
+msgid "团队成员"
+msgstr "Team Members"
+
+msgid "未配置团队成员"
+msgstr "No team members configured"
+
+msgid "配置备注"
+msgstr "Config Notes"
+
+msgid "上次配置"
+msgstr "Last configured"
+
+msgid "由"
+msgstr "by"
+
+msgid "系统"
+msgstr "System"
+
+msgid "修改"
+msgstr "modified"
+
+msgid "该用户尚未配置薪资档位"
+msgstr "User has no salary grade configured"
+
+msgid "点击编辑按钮开始配置"
+msgstr "Click edit to start configuring"
+
+msgid "选择职级"
+msgstr "Select Grade"
+
+msgid "必选"
+msgstr "Required"
+
+msgid "请选择职级"
+msgstr "Please select a grade"
+
+msgid "专业序列 (L级)"
+msgstr "Professional (L Grade)"
+
+msgid "管理序列 (M级)"
+msgstr "Management (M Grade)"
+
+msgid "职级默认配置"
+msgstr "Grade Default Config"
+
+msgid "使用个人自定义配置"
+msgstr "Use custom personal config"
+
+msgid "启用后可覆盖职级默认值，不启用则直接应用职级默认配置"
+msgstr "Enable to override grade defaults"
+
+msgid "薪资带宽配置"
+msgstr "Salary Band Config"
+
+msgid "目标值配置"
+msgstr "Target Value Config"
+
+msgid "个人目标(万)"
+msgstr "Personal Target (10k)"
+
+msgid "年度目标(万)"
+msgstr "Annual Target (10k)"
+
+msgid "职级默认"
+msgstr "Grade default"
+
+msgid "成员合计"
+msgstr "Member total"
+
+msgid "仅管理层"
+msgstr "Manager only"
+
+msgid "奖励比例调整"
+msgstr "Reward Rate Adjustment"
+
+msgid "默认1.0，1.2表示提成增20%"
+msgstr "Default 1.0, 1.2 means +20%"
+
+msgid "默认1.0，0.8表示年终奖降20%"
+msgstr "Default 1.0, 0.8 means -20%"
+
+msgid "默认20%，从下属提成中获得"
+msgstr "Default 20%, from subordinate commission"
+
+msgid "选择成员"
+msgstr "Select Members"
+
+msgid "可选：记录调薪原因、生效日期等"
+msgstr "Optional: record adjustment reason, date, etc."
+
+msgid "留空则使用职级默认值，填写则覆盖默认值"
+msgstr "Leave empty for grade defaults"
+
+# =====================================
+# 配置管理模块 - 薪资配置模态框
+# =====================================
+
+msgid "确认清除"
+msgstr "Confirm Clear"
+
+msgid "确定要清除该用户的薪资配置吗？清除后将恢复为职级默认值。"
+msgstr "Clear user salary config? Will restore to grade defaults."
+
+msgid "选择团队成员"
+msgstr "Select Team Members"
+
+msgid "搜索用户..."
+msgstr "Search users..."
+
+msgid "没有可选择的用户"
+msgstr "No users available"
+
+msgid "选择更新范围"
+msgstr "Select Update Range"
+
+msgid "年份"
+msgstr "Year"
+
+msgid "年"
+msgstr "year"
+
+msgid "更新月份范围"
+msgstr "Update Month Range"
+
+msgid "基础工资、管理津贴（月度结算）"
+msgstr "Base salary, allowance (monthly)"
+
+msgid "绩效、提成（季度结算）"
+msgstr "Performance, commission (quarterly)"
+
+msgid "确认保存"
+msgstr "Confirm Save"
+
+# =====================================
+# 配置管理模块 - 全局配置
+# =====================================
+
+msgid "全局薪资规则配置"
+msgstr "Global Salary Rule Config"
+
+msgid "配置职级、基础参数、阶梯规则、公式和团队"
+msgstr "Configure grades, params, steps, formulas and teams"
+
+msgid "职级配置"
+msgstr "Grade Config"
+
+msgid "基础参数"
+msgstr "Base Parameters"
+
+msgid "阶梯规则"
+msgstr "Step Rules"
+
+msgid "公式配置"
+msgstr "Formula Config"
+
+msgid "团队配置"
+msgstr "Team Config"
+
+msgid "公式编辑器"
+msgstr "Formula Editor"
+
+msgid "可用变量"
+msgstr "Available Variables"
+
+msgid "阶梯函数"
+msgstr "Step Function"
+
+msgid "适用职级"
+msgstr "Applicable Grade"
+
+msgid "全部"
+msgstr "All"
+
+msgid "级"
+msgstr "Level"
+
+msgid "点击左侧变量添加到公式"
+msgstr "Click variables to add to formula"
+
+msgid "运算符"
+msgstr "Operators"
+
+msgid "清空"
+msgstr "Clear"
+
+msgid "生成的表达式"
+msgstr "Generated Expression"
+
+msgid "选择要应用阶梯规则的变量"
+msgstr "Select variable for step rule"
+
+msgid "暂无可选择的用户"
+msgstr "No users available"

@@ -6,22 +6,54 @@ from app.models.product import Product
 from app.models.product_spec import ProductSpec
 from app.models.product_code import ProductCategory, ProductSubcategory, ProductRegion, ProductCodeField, ProductCodeFieldOption, ProductCode, ProductCodeFieldValue, SpecificationDictionary
 from app.models.product_relation import ProductRelation
+# DEPRECATED - 研发库模型，仅用于访问历史数据 (2025-12-26)
 from app.models.dev_product import DevProduct, DevProductSpec
 from app.models.gantt_models import DevProductMilestone, StageDependency, StageAttachment, StageReview
+from app.models.spec_template import (
+    TestMethodDictionary, TestConditionDictionary, SpecCategory, SpecDefinition,
+    SpecTemplate, SpecTemplateItem, ProductConfiguration, ProductConfigValue, SpecAttachment
+)
 from app.models.dictionary import Dictionary
 from app.models.approval import ApprovalProcessTemplate, ApprovalStep, ApprovalInstance, ApprovalRecord, ApprovalStatus, ApprovalAction
 from app.models.pricing_order import PricingOrder, PricingOrderDetail, SettlementOrderDetail, PricingOrderApprovalRecord
 from app.models.performance import PerformanceTarget, PerformanceStatistics, FiveStarProjectBaseline
+from app.models.performance_config import (
+    RolePerformanceConfig, RolePerformanceItem, PerformanceMetricsDefinition,
+    RolePerformanceTarget, UserPerformanceTarget, get_user_effective_target
+)
 from app.models.expense import Expense, Department
+from app.models.expense_budget import ExpenseBudget
 from app.models.project_customer_association import ProjectCustomerAssociation
+from app.models.salary_config import (
+    SalaryGradeConfig, SalaryGradeBandwidth, SalaryBaseParams, SalaryStepRules,
+    SalaryFormulaConfig, SalesTeamConfig, EmployeeSalaryConfig,
+    QuarterlyPerformanceData, SalaryCalculationResult
+)
+from app.models.permission_module import (
+    PermissionModule, PermissionModuleFeature, RoleFeaturePermission
+)
+from app.models.ai_analysis_cache import AIAnalysisCache, UserDailyLoginRecord
+from app.models.worklog import WorkItem, WorkLog
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
            'ProductCategory', 'ProductSubcategory', 'ProductRegion', 'ProductCodeField',
            'ProductCodeFieldOption', 'ProductCode', 'ProductCodeFieldValue', 'SpecificationDictionary',
            'ProductRelation', 'DevProduct', 'DevProductSpec', 'DevProductMilestone', 'StageDependency',
-           'StageAttachment', 'StageReview', 'Dictionary',
+           'StageAttachment', 'StageReview',
+           'TestMethodDictionary', 'TestConditionDictionary', 'SpecCategory', 'SpecDefinition',
+           'SpecTemplate', 'SpecTemplateItem', 'ProductConfiguration', 'ProductConfigValue', 'SpecAttachment',
+           'Dictionary',
            'ApprovalProcessTemplate', 'ApprovalStep', 'ApprovalInstance', 'ApprovalRecord',
            'ApprovalStatus', 'ApprovalAction', 'PricingOrder', 'PricingOrderDetail',
            'SettlementOrderDetail', 'PricingOrderApprovalRecord', 'PerformanceTarget',
-           'PerformanceStatistics', 'FiveStarProjectBaseline', 'Expense', 'Department',
-           'ProjectCustomerAssociation'] 
+           'PerformanceStatistics', 'FiveStarProjectBaseline',
+           'RolePerformanceConfig', 'RolePerformanceItem', 'PerformanceMetricsDefinition',
+           'RolePerformanceTarget', 'UserPerformanceTarget', 'get_user_effective_target',
+           'Expense', 'Department',
+           'ExpenseBudget', 'ProjectCustomerAssociation',
+           'SalaryGradeConfig', 'SalaryGradeBandwidth', 'SalaryBaseParams', 'SalaryStepRules',
+           'SalaryFormulaConfig', 'SalesTeamConfig', 'EmployeeSalaryConfig',
+           'QuarterlyPerformanceData', 'SalaryCalculationResult',
+           'PermissionModule', 'PermissionModuleFeature', 'RoleFeaturePermission',
+           'AIAnalysisCache', 'UserDailyLoginRecord',
+           'WorkItem', 'WorkLog'] 

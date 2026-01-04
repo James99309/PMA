@@ -28,6 +28,62 @@ const PermissionPanel = (function() {
     let permissionLevels = [];
 
     /**
+     * 显示通知消息（兼容 Bootstrap 和 Tailwind 页面）
+     * 如果页面已定义 showNotification 则使用它，否则使用内置的 Tailwind 风格通知
+     */
+    function showNotification(message, type = 'info', duration = 3000) {
+        // 如果页面已有 showNotification 函数，则使用它
+        if (typeof window.showNotification === 'function') {
+            window.showNotification(message, type, duration);
+            return;
+        }
+
+        // 否则使用内置的 Tailwind 风格通知
+        const typeStyles = {
+            success: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800',
+            error: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800',
+            warning: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+            info: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+        };
+
+        const icons = {
+            success: 'check_circle',
+            error: 'error',
+            warning: 'warning',
+            info: 'info'
+        };
+
+        // 移除已有的通知
+        const existing = document.getElementById('permissionPanelNotification');
+        if (existing) existing.remove();
+
+        // 创建通知元素
+        const notification = document.createElement('div');
+        notification.id = 'permissionPanelNotification';
+        notification.className = `fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-lg border shadow-lg transition-all duration-300 ${typeStyles[type] || typeStyles.info}`;
+        notification.innerHTML = `
+            <span class="material-symbols-outlined text-xl">${icons[type] || icons.info}</span>
+            <span class="text-sm font-medium">${message}</span>
+            <button onclick="this.parentElement.remove()" class="ml-2 opacity-60 hover:opacity-100">
+                <span class="material-symbols-outlined text-lg">close</span>
+            </button>
+        `;
+
+        document.body.appendChild(notification);
+
+        // 自动移除
+        if (duration > 0) {
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.style.opacity = '0';
+                    notification.style.transform = 'translate(-50%, -20px)';
+                    setTimeout(() => notification.remove(), 300);
+                }
+            }, duration);
+        }
+    }
+
+    /**
      * 初始化权限面板
      * @param {String} configKey - 配置键名（格式：contextType_contextId）
      */
@@ -115,20 +171,39 @@ const PermissionPanel = (function() {
     }
 
     /**
-     * 检查模块是否启用（即是否有任何有效权限）
+     * 检查模块是否启用
+     * 只有权限级别为 'none' 时才算未启用
+     * 其他级别（personal/department/company/system）都视为启用，因为用户至少可以查看自己的数据
      */
     function isModuleEnabled(permission) {
         if (!permission) return false;
 
-        // 如果权限级别为 'none'，模块未启用
-        if (permission.permission_level === 'none') {
-            return false;
-        }
+        // 只有权限级别为 'none' 时，模块才算未启用
+        return permission.permission_level !== 'none';
+    }
 
-        return permission.can_view ||
-               permission.can_create ||
-               permission.can_edit ||
-               permission.can_delete;
+    /**
+     * 获取 Material Symbols 图标名称（从 FontAwesome 映射）
+     */
+    function getMaterialIcon(moduleId) {
+        const iconMap = {
+            'customer': 'business',
+            'project': 'work',
+            'quotation': 'request_quote',
+            'pricing_order': 'sell',
+            'settlement_order': 'receipt_long',
+            'expense': 'payments',
+            'product': 'inventory_2',
+            'inventory': 'warehouse',
+            'user_management': 'manage_accounts',
+            'role_management': 'admin_panel_settings',
+            'system_settings': 'settings',
+            'approval': 'approval',
+            'report': 'analytics',
+            'performance': 'insights',
+            'vendor': 'factory'
+        };
+        return iconMap[moduleId] || 'apps';
     }
 
     /**
@@ -154,19 +229,25 @@ const PermissionPanel = (function() {
             // 检查模块是否启用
             const isEnabled = isModuleEnabled(modulePermission);
 
-            // 获取模块图标
-            const icon = getModuleIcon(moduleId);
+            // 获取 Material 图标
+            const materialIcon = getMaterialIcon(moduleId);
 
             // 创建列表项，添加禁用状态样式
             const item = document.createElement('a');
             item.href = '#';
-            item.className = `list-group-item list-group-item-action ${!isEnabled ? 'module-disabled' : ''}`;
+            item.className = `tw-module-item ${!isEnabled ? 'module-disabled' : ''}`;
             item.dataset.moduleId = moduleId;
 
             item.innerHTML = `
-                <div>
-                    <i class="${icon} module-icon"></i>
-                    <span>${module.name || moduleId}</span>
+                <div class="tw-module-item-content">
+                    <span class="material-symbols-outlined tw-module-icon">${materialIcon}</span>
+                    <span class="tw-module-name">${module.name || moduleId}</span>
+                </div>
+                <div class="tw-module-status">
+                    ${isEnabled
+                        ? '<span class="tw-status-dot tw-status-enabled"></span>'
+                        : '<span class="tw-status-dot tw-status-disabled"></span>'
+                    }
                 </div>
             `;
 
@@ -201,7 +282,7 @@ const PermissionPanel = (function() {
         currentSelectedModule = moduleId;
 
         // 更新左侧选中状态
-        document.querySelectorAll('#moduleList .list-group-item').forEach(item => {
+        document.querySelectorAll('#moduleList .tw-module-item').forEach(item => {
             if (item.dataset.moduleId === moduleId) {
                 item.classList.add('active');
             } else {
@@ -243,10 +324,18 @@ const PermissionPanel = (function() {
         // 清空面板
         permissionConfigPanel.innerHTML = '';
 
-        // 模块标题
+        // 模块标题 - 使用新设计
+        const materialIcon = getMaterialIcon(moduleId);
         const titleHtml = `
-            <h4 class="mb-3">${module.name || moduleId}</h4>
-            <hr class="mb-4">
+            <div class="tw-config-header">
+                <div class="tw-config-header-icon">
+                    <span class="material-symbols-outlined">${materialIcon}</span>
+                </div>
+                <div class="tw-config-header-info">
+                    <h4 class="tw-config-title">${module.name || moduleId}</h4>
+                    <p class="tw-config-desc">${module.description || '配置此模块的访问权限'}</p>
+                </div>
+            </div>
         `;
         permissionConfigPanel.insertAdjacentHTML('beforeend', titleHtml);
 
@@ -320,32 +409,34 @@ const PermissionPanel = (function() {
 
         const html = `
             <!-- 数据范围 -->
-            <div class="permission-section" id="level_section_${moduleId}">
-                <h6>数据范围</h6>
-                <div class="radio-group">
+            <div class="tw-config-section" id="level_section_${moduleId}">
+                <div class="tw-section-header">
+                    <span class="material-symbols-outlined tw-section-icon">tune</span>
+                    <h6 class="tw-section-title">数据范围</h6>
+                </div>
+                <div class="tw-radio-group">
                     ${renderPermissionLevelRadios(moduleId, permissionLevel)}
                 </div>
             </div>
 
             <!-- 基础权限 -->
-            <div class="permission-section">
-                <div class="section-header-with-select-all">
-                    <h6>基础权限</h6>
-                    <div class="select-all-control">
+            <div class="tw-config-section">
+                <div class="tw-section-header">
+                    <span class="material-symbols-outlined tw-section-icon">security</span>
+                    <h6 class="tw-section-title">基础权限</h6>
+                    <label class="tw-select-all">
                         <input type="checkbox" id="selectAll_basic_${moduleId}">
-                        <label for="selectAll_basic_${moduleId}">全选</label>
-                    </div>
+                        <span>全选</span>
+                    </label>
                 </div>
-                <div class="checkbox-grid">
+                <div class="tw-checkbox-grid">
                     <div class="form-check">
                         <input class="form-check-input permission-checkbox" type="checkbox"
                                id="view_${moduleId}"
                                data-module="${moduleId}"
                                data-action="view"
                                ${permission.can_view ? 'checked' : ''}>
-                        <label class="form-check-label" for="view_${moduleId}">
-                            查看
-                        </label>
+                        <label class="form-check-label" for="view_${moduleId}">查看</label>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input permission-checkbox" type="checkbox"
@@ -353,9 +444,7 @@ const PermissionPanel = (function() {
                                data-module="${moduleId}"
                                data-action="create"
                                ${permission.can_create ? 'checked' : ''}>
-                        <label class="form-check-label" for="create_${moduleId}">
-                            创建
-                        </label>
+                        <label class="form-check-label" for="create_${moduleId}">创建</label>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input permission-checkbox" type="checkbox"
@@ -363,9 +452,7 @@ const PermissionPanel = (function() {
                                data-module="${moduleId}"
                                data-action="edit"
                                ${permission.can_edit ? 'checked' : ''}>
-                        <label class="form-check-label" for="edit_${moduleId}">
-                            编辑
-                        </label>
+                        <label class="form-check-label" for="edit_${moduleId}">编辑</label>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input permission-checkbox" type="checkbox"
@@ -373,9 +460,7 @@ const PermissionPanel = (function() {
                                data-module="${moduleId}"
                                data-action="delete"
                                ${permission.can_delete ? 'checked' : ''}>
-                        <label class="form-check-label" for="delete_${moduleId}">
-                            删除
-                        </label>
+                        <label class="form-check-label" for="delete_${moduleId}">删除</label>
                     </div>
                     ${hasOwnerChange ? `
                     <div class="form-check">
@@ -384,9 +469,7 @@ const PermissionPanel = (function() {
                                data-module="${moduleId}"
                                data-action="change_owner"
                                ${permission.can_change_owner ? 'checked' : ''}>
-                        <label class="form-check-label" for="change_owner_${moduleId}">
-                            修改拥有人
-                        </label>
+                        <label class="form-check-label" for="change_owner_${moduleId}">修改拥有人</label>
                     </div>
                     ` : ''}
                 </div>
@@ -425,7 +508,9 @@ const PermissionPanel = (function() {
         const editCheckbox = document.getElementById(`edit_${moduleId}`);
         const deleteCheckbox = document.getElementById(`delete_${moduleId}`);
         const changeOwnerCheckbox = document.getElementById(`change_owner_${moduleId}`);
-        const basicPermissionsSection = document.querySelector(`#permissionConfigPanel .permission-section:has(#selectAll_basic_${moduleId})`);
+        // 兼容新旧两种 CSS 类名
+        const basicPermissionsSection = document.querySelector(`#permissionConfigPanel .tw-config-section:has(#selectAll_basic_${moduleId})`) ||
+                                        document.querySelector(`#permissionConfigPanel .permission-section:has(#selectAll_basic_${moduleId})`);
         const contentFilterSection = document.querySelector('#permissionConfigPanel .content-filter-section');
         const discountSection = document.querySelector('#permissionConfigPanel .discount-section');
 
@@ -529,15 +614,35 @@ const PermissionPanel = (function() {
     }
 
     /**
-     * 渲染权限级别单选按钮
+     * 渲染权限级别单选按钮 - 简洁样式
      */
     function renderPermissionLevelRadios(moduleId, currentLevel) {
-        const levels = permissionLevels.length > 0 ? permissionLevels : [
-            {value: 'personal', label: '本人', desc: '只能访问自己创建的数据'},
-            {value: 'department', label: '本部门', desc: '可以访问本部门所有数据'},
-            {value: 'company', label: '全公司', desc: '可以访问全公司所有数据'},
-            {value: 'system', label: '系统级', desc: '可以访问系统所有数据'}
-        ];
+        // 本地定义的级别配置
+        const levelConfig = {
+            'none': {label: '未启用'},
+            'personal': {label: '本人'},
+            'department': {label: '本部门'},
+            'company': {label: '全公司'},
+            'system': {label: '系统级'}
+        };
+
+        // 使用服务器返回的级别顺序
+        let levels;
+        if (permissionLevels && permissionLevels.length > 0) {
+            levels = permissionLevels.map(serverLevel => {
+                const local = levelConfig[serverLevel.value] || {};
+                return {
+                    value: serverLevel.value,
+                    label: serverLevel.label || local.label || serverLevel.value
+                };
+            });
+        } else {
+            // 服务器未返回数据时使用默认配置
+            levels = Object.entries(levelConfig).map(([value, config]) => ({
+                value,
+                label: config.label
+            }));
+        }
 
         return levels.map(level => `
             <div class="form-check">
@@ -546,9 +651,7 @@ const PermissionPanel = (function() {
                        id="level_${level.value}_${moduleId}"
                        value="${level.value}"
                        ${currentLevel === level.value ? 'checked' : ''}>
-                <label class="form-check-label" for="level_${level.value}_${moduleId}">
-                    ${level.label}
-                </label>
+                <label class="form-check-label" for="level_${level.value}_${moduleId}">${level.label}</label>
             </div>
         `).join('');
     }
@@ -567,36 +670,37 @@ const PermissionPanel = (function() {
 
         if (moduleId === 'pricing_order') {
             discountInputHtml = `
-                <div class="col-md-12 mb-3">
-                    <label for="pricingDiscountLimit_${moduleId}" class="form-label">批价折扣下限 (%)</label>
-                    <input type="number" class="form-control"
+                <div class="tw-input-group">
+                    <label for="pricingDiscountLimit_${moduleId}" class="tw-input-label">批价折扣下限 (%)</label>
+                    <input type="number" class="tw-input"
                            id="pricingDiscountLimit_${moduleId}"
                            value="${pricingLimit}"
                            placeholder="输入批价折扣下限"
                            min="0" max="100" step="0.1">
-                    <small class="form-text text-muted">设置批价单的最低折扣率，低于此值需要更高权限审批</small>
+                    <p class="tw-input-hint">设置批价单的最低折扣率，低于此值需要更高权限审批</p>
                 </div>
             `;
         } else if (moduleId === 'settlement_order') {
             discountInputHtml = `
-                <div class="col-md-12 mb-3">
-                    <label for="settlementDiscountLimit_${moduleId}" class="form-label">结算折扣下限 (%)</label>
-                    <input type="number" class="form-control"
+                <div class="tw-input-group">
+                    <label for="settlementDiscountLimit_${moduleId}" class="tw-input-label">结算折扣下限 (%)</label>
+                    <input type="number" class="tw-input"
                            id="settlementDiscountLimit_${moduleId}"
                            value="${settlementLimit}"
                            placeholder="输入结算折扣下限"
                            min="0" max="100" step="0.1">
-                    <small class="form-text text-muted">设置结算单的最低折扣率，低于此值需要更高权限审批</small>
+                    <p class="tw-input-hint">设置结算单的最低折扣率，低于此值需要更高权限审批</p>
                 </div>
             `;
         }
 
         const html = `
-            <div class="discount-section">
-                <h6><i class="fas fa-percentage"></i> 折扣权限设置</h6>
-                <div class="row">
-                    ${discountInputHtml}
+            <div class="tw-config-section discount-section">
+                <div class="tw-section-header">
+                    <span class="material-symbols-outlined tw-section-icon">percent</span>
+                    <h6 class="tw-section-title">折扣权限设置</h6>
                 </div>
+                ${discountInputHtml}
             </div>
         `;
 
@@ -641,15 +745,15 @@ const PermissionPanel = (function() {
             );
 
             filterSectionsHtml += `
-                <div class="filter-category mb-3">
-                    <div class="category-header">
-                        <label class="form-label fw-bold">${label}</label>
-                        <div class="select-all-control">
+                <div class="tw-filter-category">
+                    <div class="tw-filter-header">
+                        <span class="tw-filter-label">${label}</span>
+                        <label class="tw-select-all">
                             <input type="checkbox" id="selectAll_${moduleId}_${filterKey}">
-                            <label for="selectAll_${moduleId}_${filterKey}">全选</label>
-                        </div>
+                            <span>全选</span>
+                        </label>
                     </div>
-                    <div class="checkbox-grid">
+                    <div class="tw-checkbox-grid">
                         ${checkboxesHtml}
                     </div>
                 </div>
@@ -657,8 +761,11 @@ const PermissionPanel = (function() {
         });
 
         const html = `
-            <div class="content-filter-section">
-                <h6>内容筛选配置</h6>
+            <div class="tw-config-section content-filter-section">
+                <div class="tw-section-header">
+                    <span class="material-symbols-outlined tw-section-icon">filter_list</span>
+                    <h6 class="tw-section-title">内容筛选配置</h6>
+                </div>
                 ${filterSectionsHtml}
             </div>
         `;
@@ -697,6 +804,32 @@ const PermissionPanel = (function() {
                 }
             });
         }
+    }
+
+    /**
+     * 渲染筛选复选框组 - 新设计
+     */
+    function renderFilterCheckboxGroup(options, idPrefix, moduleId, filterKey) {
+        if (!options || options.length === 0) return '';
+
+        return options.map(opt => {
+            const value = opt[0] || opt.value;
+            const label = opt[1] || opt.label;
+
+            return `
+                <label class="tw-filter-item">
+                    <input type="checkbox" class="tw-filter-checkbox content-filter-checkbox"
+                           id="${idPrefix}_${value}"
+                           data-module="${moduleId}"
+                           data-filter-type="${filterKey}"
+                           data-value="${value}">
+                    <span class="tw-filter-item-check">
+                        <span class="material-symbols-outlined">check</span>
+                    </span>
+                    <span class="tw-filter-item-label">${label}</span>
+                </label>
+            `;
+        }).join('');
     }
 
     /**
@@ -963,6 +1096,20 @@ const PermissionPanel = (function() {
         // 🆕 个人权限模式：筛选出差异权限
         const finalPermissions = filterPersonalPermissions(permissions);
 
+        console.log('准备保存权限，模块数:', MODULES.length, '权限数:', finalPermissions.length);
+
+        // 检查权限数组是否为空
+        if (!finalPermissions || finalPermissions.length === 0) {
+            console.warn('权限数组为空，无需保存');
+            showNotification('没有权限数据需要保存', 'warning', 3000);
+            if (saveButton) {
+                saveButton.disabled = false;
+                const btnText = config.contextType === 'role' ? '保存权限设置' : '保存个人权限';
+                saveButton.innerHTML = `<span class="material-symbols-outlined text-lg">save</span> ${btnText}`;
+            }
+            return;
+        }
+
         // 构建请求数据
         const requestData = config.contextType === 'role'
             ? { role: config.contextId, permissions: finalPermissions }
@@ -991,7 +1138,7 @@ const PermissionPanel = (function() {
         })
         .then(data => {
             if (data.success) {
-                showTopNotification('权限设置已成功保存！', 'success', 3000);
+                showNotification('权限设置已成功保存！', 'success', 3000);
 
                 // 清空缓存
                 modulePermissionsCache = {};
@@ -1000,18 +1147,18 @@ const PermissionPanel = (function() {
                 console.log('保存成功，已重置未保存状态');
             } else {
                 console.error('保存权限失败:', data.message);
-                showTopNotification(`保存权限失败: ${data.message || '未知错误'}`, 'error', 5000);
+                showNotification(`保存权限失败: ${data.message || '未知错误'}`, 'error', 5000);
             }
         })
         .catch(error => {
             console.error('保存权限时出错:', error);
-            showTopNotification('保存权限时发生错误，请稍后再试', 'error', 5000);
+            showNotification('保存权限时发生错误，请稍后再试', 'error', 5000);
         })
         .finally(() => {
             if (saveButton) {
                 saveButton.disabled = false;
                 const btnText = config.contextType === 'role' ? '保存权限设置' : '保存个人权限';
-                saveButton.innerHTML = `<i class="fas fa-save me-1"></i> ${btnText}`;
+                saveButton.innerHTML = `<span class="material-symbols-outlined text-lg">save</span> ${btnText}`;
             }
         });
     }
@@ -1037,7 +1184,7 @@ const PermissionPanel = (function() {
                     currentPermissions = JSON.parse(JSON.stringify(config.rolePermissions));
                 } else {
                     console.error('❌ 角色权限数据格式错误，应为数组:', config.rolePermissions);
-                    showTopNotification('恢复失败：角色权限数据格式错误', 'error', 3000);
+                    showNotification('恢复失败：角色权限数据格式错误', 'error', 3000);
                     return;
                 }
 
@@ -1092,11 +1239,21 @@ const PermissionPanel = (function() {
         // 更新列表项的样式
         const moduleItem = document.querySelector(`#moduleList [data-module-id="${moduleId}"]`);
         if (moduleItem) {
+            // 更新禁用样式
             if (isEnabled) {
                 moduleItem.classList.remove('module-disabled');
             } else {
                 moduleItem.classList.add('module-disabled');
             }
+
+            // 更新状态指示器
+            const statusContainer = moduleItem.querySelector('.tw-module-status');
+            if (statusContainer) {
+                statusContainer.innerHTML = isEnabled
+                    ? '<span class="tw-status-dot tw-status-enabled"></span>'
+                    : '<span class="tw-status-dot tw-status-disabled"></span>';
+            }
+
             console.log(`✅ 模块 ${moduleId} 状态已更新: ${isEnabled ? '启用' : '禁用'}`);
         }
     }

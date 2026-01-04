@@ -1,0 +1,104 @@
+{# 公式配置子页签内容 - 拖拽式公式构建器 #}
+<div class="space-y-4">
+    {# 公式列表 #}
+    <div class="grid grid-cols-1 gap-4">
+        <template x-for="formula in formulas" :key="formula.id || formula.formula_code">
+            <div class="border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:border-primary/50 transition-colors">
+                {# 公式头部 #}
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <h4 class="font-medium text-slate-900 dark:text-white" x-text="formula.formula_name"></h4>
+                        <code class="text-xs text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded" x-text="formula.formula_code"></code>
+                        {# 职级类型 - 编辑模式下显示下拉框 #}
+                        <template x-if="isEditing">
+                            <select x-model="formula.applicable_grade_type"
+                                    @change="markFormulaChanged(formula)"
+                                    class="px-2 py-0.5 text-xs rounded-full border-0 cursor-pointer focus:ring-2 focus:ring-primary/50"
+                                    :class="{
+                                        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400': formula.applicable_grade_type === 'ALL',
+                                        'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400': formula.applicable_grade_type === 'L',
+                                        'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400': formula.applicable_grade_type === 'M'
+                                    }">
+                                <option value="ALL">{{ _('全部') }}</option>
+                                <option value="L">L{{ _('级') }}</option>
+                                <option value="M">M{{ _('级') }}</option>
+                            </select>
+                        </template>
+                        {# 非编辑模式显示徽章 #}
+                        <template x-if="!isEditing">
+                            <span class="px-2 py-0.5 text-xs rounded-full"
+                                  :class="{
+                                      'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400': formula.applicable_grade_type === 'ALL',
+                                      'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400': formula.applicable_grade_type === 'L',
+                                      'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400': formula.applicable_grade_type === 'M'
+                                  }"
+                                  x-text="{'ALL': '{{ _('全部') }}', 'L': 'L{{ _('级') }}', 'M': 'M{{ _('级') }}'}[formula.applicable_grade_type || 'ALL']">
+                            </span>
+                        </template>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-1 text-xs rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400" x-text="formula.result_unit || '{{ _('无') }}'"></span>
+                        <button type="button" x-show="isEditing"
+                                @click.stop="openFormulaBuilder(formula)"
+                                class="text-primary hover:text-primary-dark p-1 transition-colors hover:bg-primary/10 rounded">
+                            <span class="material-symbols-outlined text-lg">edit</span>
+                        </button>
+                    </div>
+                </div>
+
+                {# 公式展示区 - 友好名称显示 #}
+                <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 mb-2">
+                    <div class="flex flex-wrap gap-1 items-center" x-show="formula.formula_elements && formula.formula_elements.length > 0">
+                        <template x-for="(elem, idx) in formula.formula_elements" :key="idx">
+                            <span class="inline-flex items-center"
+                                  :class="{
+                                      'px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-sm': elem.type === 'variable',
+                                      'px-1.5 text-slate-500 dark:text-slate-400 font-mono text-lg': elem.type === 'operator',
+                                      'px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded text-sm': elem.type === 'step',
+                                      'px-1 text-slate-400 dark:text-slate-500 font-mono text-lg': elem.type === 'paren',
+                                      'px-2 py-1 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 rounded text-sm': elem.type === 'number'
+                                  }">
+                                <template x-if="elem.type === 'variable'">
+                                    <span x-text="getVariableName(elem.code)"></span>
+                                </template>
+                                <template x-if="elem.type === 'operator'">
+                                    <span x-text="{'*': '×', '/': '÷', '+': '+', '-': '-'}[elem.value] || elem.value"></span>
+                                </template>
+                                <template x-if="elem.type === 'step'">
+                                    <span>
+                                        STEP(<span x-text="getVariableName(elem.variable)"></span>, <span x-text="getStepRuleName(elem.rule_type)"></span>)
+                                    </span>
+                                </template>
+                                <template x-if="elem.type === 'paren'">
+                                    <span x-text="elem.value"></span>
+                                </template>
+                                <template x-if="elem.type === 'number'">
+                                    <span x-text="elem.value"></span>
+                                </template>
+                            </span>
+                        </template>
+                    </div>
+                    {# 原始表达式（当没有结构化元素时显示） #}
+                    <code class="text-sm text-slate-700 dark:text-slate-300 break-all"
+                          x-show="!formula.formula_elements || formula.formula_elements.length === 0"
+                          x-text="formula.formula_expression"></code>
+                </div>
+
+                {# 描述 #}
+                <p class="text-xs text-slate-500" x-text="formula.description"></p>
+            </div>
+        </template>
+    </div>
+
+    {# 空状态 #}
+    <template x-if="formulas.length === 0">
+        <div class="text-center py-12 text-slate-400">
+            {{ _('暂无公式配置，请点击"初始化默认数据"按钮') }}
+        </div>
+    </template>
+
+    {# 提示信息 #}
+    <p class="text-xs text-slate-400 mt-4" x-show="!isEditing">
+        {{ _('提示：点击右上角"编辑"按钮启用编辑模式') }}
+    </p>
+</div>

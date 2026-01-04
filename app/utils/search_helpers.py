@@ -92,16 +92,14 @@ def fuzzy_search_field(
         包含搜索结果的字典列表
     """
     try:
-        # 参数验证
-        if not model_class or not search_fields or not query_term:
-            logger.warning("模糊查询参数不完整")
+        # 参数验证（model_class 和 search_fields 必须提供，query_term 可以为空）
+        if not model_class or not search_fields:
+            logger.warning("模糊查询参数不完整: model_class 或 search_fields 缺失")
             return []
-        
-        # 清理和验证搜索词，防止SQL注入
-        query_term = str(query_term).strip()
-        if len(query_term) < 1:
-            return []
-        
+
+        # 清理搜索词（允许为空，空查询返回所有可见数据）
+        query_term = str(query_term).strip() if query_term else ''
+
         # 限制搜索词长度，防止过长查询
         if len(query_term) > 100:
             query_term = query_term[:100]
@@ -131,18 +129,19 @@ def fuzzy_search_field(
         # 获取用户可访问的数据查询
         query = get_viewable_data(model_class, user, additional_filters or [])
         
-        # 构建模糊搜索条件
-        search_conditions = []
-        search_pattern = f"%{query_term}%"
-        
-        for field_name in valid_fields:
-            field = getattr(model_class, field_name)
-            # 使用ilike进行不区分大小写的模糊匹配
-            search_conditions.append(field.ilike(search_pattern))
-        
-        # 应用搜索条件（OR关系）
-        if search_conditions:
-            query = query.filter(or_(*search_conditions))
+        # 构建模糊搜索条件（仅当有搜索词时）
+        if query_term:
+            search_conditions = []
+            search_pattern = f"%{query_term}%"
+
+            for field_name in valid_fields:
+                field = getattr(model_class, field_name)
+                # 使用ilike进行不区分大小写的模糊匹配
+                search_conditions.append(field.ilike(search_pattern))
+
+            # 应用搜索条件（OR关系）
+            if search_conditions:
+                query = query.filter(or_(*search_conditions))
         
         # 应用排序
         if order_by and hasattr(model_class, order_by):

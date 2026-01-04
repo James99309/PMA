@@ -24,6 +24,7 @@ from app.models.customer import Company
 from app.models.quotation import Quotation
 from app.models.role_permissions import RolePermission
 from app.utils.access_control import get_viewable_data, can_edit_data
+from app.utils.sharing import get_shareable_users_tree
 from app.permissions import permission_required
 
 logger = logging.getLogger(__name__)
@@ -93,13 +94,16 @@ def list_users():
     """用户列表页面（使用标准组件）"""
     search = request.args.get('search', '')
     role = request.args.get('role', '')
-    status = request.args.get('status', '')
+    status = request.args.get('status', 'active')  # 默认显示已激活用户
     company = request.args.get('company', '')
 
     # 统一归属过滤
     base_query = get_viewable_data(User, current_user)
     query = base_query
-    
+
+    # 使用性能优化工具
+    from app.utils.performance_optimizer import ListPerformanceOptimizer
+
     if search:
         # 使用优化的搜索查询
         search_fields = ['username', 'real_name', 'email', 'company_name']
@@ -108,14 +112,12 @@ def list_users():
         )
     if role:
         query = query.filter(User.role == role)
-    if status:
+    # 状态筛选：active=已激活, inactive=未激活, all=全部
+    if status and status != 'all':
         is_active = True if status == 'active' else False
         query = query.filter(User._is_active == is_active)
     if company:
         query = query.filter(User.company_name == company)
-
-    # 使用性能优化工具
-    from app.utils.performance_optimizer import ListPerformanceOptimizer
     
     # 定义统计字段配置
     stat_fields = [
@@ -136,7 +138,7 @@ def list_users():
 
     # 优化列表查询 - 保持无限滚动，但限制最大记录数
     try:
-        users = query.order_by(User.id.desc()).limit(1000).all()  # 限制最多1000条记录防止过载
+        users = query.order_by(User.updated_at.desc()).limit(1000).all()  # 限制最多1000条记录防止过载
     except Exception as e:
         logger.error(f"用户列表查询失败: {str(e)}")
         db.session.rollback()
@@ -158,11 +160,12 @@ def list_users():
         User.company_name.isnot(None)
     ).distinct().all()
 
-    # 构建筛选配置
+    # 构建筛选配置（保持 tw 参数以确保筛选后仍使用 Tailwind 模板）
+    is_tw = request.args.get('tw') == '1'
     filter_config = {
-        'action_url': url_for('user.list_users'),
+        'action_url': url_for('user.list_users', tw=1) if is_tw else url_for('user.list_users'),
         'form_id': 'userFilterForm',
-        'reset_url': url_for('user.list_users'),
+        'reset_url': url_for('user.list_users', tw=1) if is_tw else url_for('user.list_users'),
         
         # 自动筛选配置
         'realtime_search': False,
@@ -294,22 +297,22 @@ def list_users():
                     'field': 'id',
                     'label': 'ID',
                     'type': 'text',
-                    'width': '80px',
+                    'width': '60px',
                     'sort_type': 'number'
                 },
                 {
-                    'key': 'username',
-                    'field': 'username',
-                    'label': '用户名',
+                    'key': 'real_name',
+                    'field': 'real_name',
+                    'label': '真实姓名',
                     'type': 'link',
                     'url_template': '/user/detail/{id}',
                     'width': '120px',
                     'sort_type': 'string'
                 },
                 {
-                    'key': 'real_name',
-                    'field': 'real_name',
-                    'label': '真实姓名',
+                    'key': 'username',
+                    'field': 'username',
+                    'label': '用户名',
                     'type': 'text',
                     'width': '120px',
                     'sort_type': 'string'
@@ -320,7 +323,7 @@ def list_users():
                     'label': '状态',
                     'type': 'badge',
                     'render': 'render_user_status_badge',
-                    'width': '100px',
+                    'width': '120px',
                     'sort_type': 'string'
                 },
                 {
@@ -380,11 +383,39 @@ def list_users():
         }
     }
 
+    # 支持TW模板
+    template = 'user/tw_list.html' if request.args.get('tw') == '1' else 'user/list.html'
     return render_template(
-        'user/list.html',
+        template,
         list_config=list_config,
-        items=user_items
+        items=user_items,
+        total_count=total_count,
+        role_dict=role_dict
     )
+
+@user_bp.route('/api/users/active', methods=['GET'])
+@login_required
+def get_active_users():
+    """获取所有活跃用户列表（简单版本，用于下拉选择器）"""
+    try:
+        users = User.query.filter(User._is_active.is_(True)).order_by(User.real_name).all()
+
+        return jsonify({
+            'success': True,
+            'data': [{
+                'id': u.id,
+                'username': u.username,
+                'real_name': u.real_name,
+                'role': u.role,
+                'company_name': u.company_name
+            } for u in users]
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
 
 @user_bp.route('/api/list_ajax', methods=['GET'])
 @login_required
@@ -454,10 +485,10 @@ def list_users_ajax():
                     query = query.order_by(sort_column.asc())
             else:
                 # 默认排序
-                query = query.order_by(User.created_at.desc())
+                query = query.order_by(User.updated_at.desc())
         else:
             # 默认排序
-            query = query.order_by(User.created_at.desc())
+            query = query.order_by(User.updated_at.desc())
         
         # 执行查询
         total_count = query.count()
@@ -664,7 +695,7 @@ def list_users_ajax_full():
             query = query.filter(User._is_active == False)
         
         # 排序
-        query = query.order_by(User.created_at.desc())
+        query = query.order_by(User.updated_at.desc())
         
         # 执行查询
         total_count = query.count()
@@ -1683,26 +1714,9 @@ def manage_departments():
         return redirect(url_for('user.list_users'))
 
 def get_default_modules():
-    """获取默认模块列表"""
-    return [
-        {"id": "project", "name": "项目管理", "description": "管理销售项目和跟进"},
-        {"id": "customer", "name": "客户管理", "description": "管理客户信息和联系人"},
-        {"id": "quotation", "name": "报价管理", "description": "管理产品报价"},
-        {"id": "product", "name": "产品管理", "description": "管理产品信息和价格"},
-        {"id": "rd_product", "name": "研发产品库", "description": "管理研发产品信息和技术参数"},
-        {"id": "product_code", "name": "产品编码", "description": "管理产品编码系统"},
-        {"id": "inventory", "name": "库存管理", "description": "管理库存信息和出入库"},
-        {"id": "settlement", "name": "结算管理", "description": "管理结算单和结算记录"},
-        {"id": "order", "name": "订单管理", "description": "管理采购订单和销售订单"},
-        {"id": "expense", "name": "报销管理", "description": "管理报销单的查看、创建、编辑、删除和审批权限"},
-        {"id": "pricing_order", "name": "批价单管理", "description": "管理批价单的查看、创建、编辑权限", "supports_discount_limits": True},
-        {"id": "settlement_order", "name": "结算单管理", "description": "管理结算单的查看、创建、编辑权限", "supports_discount_limits": True},
-        {"id": "user_management", "name": "账户列表", "description": "管理系统用户账户"},
-        {"id": "permission_management", "name": "权限管理", "description": "管理用户角色权限"},
-        {"id": "dictionary_management", "name": "字典管理", "description": "管理系统字典数据"},
-        {"id": "performance_management", "name": "绩效管理", "description": "管理用户绩效目标和统计数据"},
-        {"id": "project_rating", "name": "项目评分🌟", "description": "设置项目五星评分", "type": "switch"}
-    ]
+    """获取默认模块列表（数据库驱动，与配置管理保持一致）"""
+    from app.views.config_management import get_ordered_modules
+    return get_ordered_modules()
 
 @user_bp.route('/detail/<int:user_id>')
 @login_required
@@ -1785,7 +1799,39 @@ def user_detail(user_id):
         'affiliation_users': affiliation_users,
         'affiliation_count': len(affiliation_users)
     }
-    
+
+    # 准备归属关系模态框数据（复用共享组件）
+    users_tree = get_shareable_users_tree(current_user, 'user')
+
+    # 计算部门默认可见用户（部门经理可见本部门成员）
+    dept_default_users = []
+    if user.is_department_manager and user.department and user.company_name:
+        dept_members = User.query.filter(
+            User.department == user.department,
+            User.company_name == user.company_name,
+            User.id != user.id,
+            User._is_active == True
+        ).all()
+        for member in dept_members:
+            dept_default_users.append({
+                'id': member.id,
+                'name': member.real_name or member.username,
+                'initials': ((member.real_name or member.username) or '?')[:2]
+            })
+
+    # 获取已归属用户（排除部门默认用户，用于模态框）
+    dept_default_ids = [u['id'] for u in dept_default_users]
+    affiliated_users_for_modal = []
+    for aff in aff_qs:
+        if aff.owner_id not in dept_default_ids:
+            owner = UserModel.query.get(aff.owner_id)
+            if owner:
+                affiliated_users_for_modal.append({
+                    'id': owner.id,
+                    'name': owner.real_name or owner.username,
+                    'initials': ((owner.real_name or owner.username) or '?')[:2]
+                })
+
     # 准备内容筛选配置（配置驱动，支持国际化）
     filter_configs = {
         'project': {
@@ -1871,8 +1917,45 @@ def user_detail(user_id):
     # 计算用户管理编辑权限
     can_edit_user = current_user.has_permission('user_management', 'edit')
 
+    # 计算薪资管理权限
+    # 薪资查看权限：管理员或有user_management的view权限且用户在可访问范围内
+    can_view_salary = (
+        current_user.role == 'admin' or
+        (current_user.has_permission('user_management', 'view') and user.id in [u.id for u in accessible_users])
+    )
+    # 薪资编辑权限：管理员或有user_management的edit权限
+    can_edit_salary = (
+        current_user.role == 'admin' or
+        current_user.has_permission('user_management', 'edit')
+    )
+
+    # 支持TW模板
+    template = 'user/tw_detail.html' if request.args.get('tw') == '1' else 'user/detail.html'
+
+    # 当前年份（用于绩效看板）
+    current_year = datetime.now().year
+
+    # 获取用户的AI分析启用状态
+    ai_enabled = False
+    try:
+        from app.models.salary_config import EmployeeSalaryConfig
+        employee_config = EmployeeSalaryConfig.query.filter_by(user_id=user_id).first()
+        ai_enabled = employee_config.ai_analysis_enabled if employee_config else False
+    except Exception as e:
+        logger.warning(f"获取用户AI启用状态失败: {e}")
+        ai_enabled = False
+
+    # 计算上一个/下一个用户ID（用于导航）
+    all_user_ids = get_viewable_data(User, current_user).filter(
+        User._is_active == True
+    ).order_by(User.real_name.asc(), User.username.asc()).with_entities(User.id).all()
+    user_ids = [u.id for u in all_user_ids]
+    current_index = user_ids.index(user_id) if user_id in user_ids else -1
+    prev_user_id = user_ids[current_index - 1] if current_index > 0 else None
+    next_user_id = user_ids[current_index + 1] if current_index < len(user_ids) - 1 else None
+
     return render_template(
-        'user/detail.html',
+        template,
         user=user,
         permissions=permissions,
         role_permissions=role_permissions_list,  # 传递数组格式给前端
@@ -1884,7 +1967,19 @@ def user_detail(user_id):
         is_vendor=is_vendor,
         can_view_performance=can_view_performance,
         can_edit_performance=can_edit_performance,
-        can_edit_user=can_edit_user
+        can_edit_user=can_edit_user,
+        can_view_salary=can_view_salary,
+        can_edit_salary=can_edit_salary,
+        current_year=current_year,
+        # 归属关系模态框数据
+        users_tree=users_tree,
+        dept_default_users=dept_default_users,
+        affiliated_users_for_modal=affiliated_users_for_modal,
+        # 上一个/下一个用户导航
+        prev_user_id=prev_user_id,
+        next_user_id=next_user_id,
+        # AI功能状态
+        ai_enabled=ai_enabled
     )
 
 @user_bp.route('/batch-delete', methods=['POST'])
@@ -2091,11 +2186,11 @@ def api_edit_user(user_id):
         elif old_manager and not is_department_manager:
             remove_department_manager_affiliations(user)
         # 部门或公司变更，且仍为负责人
-        elif is_department_manager and (old_department != department or old_company != company):
+        elif is_department_manager and (old_department != department or old_company != company_name):
             remove_department_manager_affiliations(user)
             sync_department_manager_affiliations(user)
         # 普通成员变更部门/公司，自动为新部门负责人添加归属，并同步转移归属
-        if (old_department != department or old_company != company) and not is_department_manager:
+        if (old_department != department or old_company != company_name) and not is_department_manager:
             transfer_member_affiliations_on_department_change(user, old_department, old_company)
         
         logger.info(f"[API用户编辑] 成功，目标用户: {user.username}")
@@ -2401,5 +2496,7 @@ def profile():
         'affiliation_count': len(affiliation_users)
     }
     
-    return render_template('user/profile.html', user=user, permissions=permissions, 
+    # 支持TW模板
+    template = 'user/tw_profile.html' if request.args.get('tw') == '1' else 'user/profile.html'
+    return render_template(template, user=user, permissions=permissions,
                           affiliations=affiliations, role_dict=ROLE_DICT, modules=MODULES) 

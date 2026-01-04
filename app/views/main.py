@@ -192,6 +192,16 @@ def index():
     logging.info(f"[DEBUG] DATABASE_URL contains 'pma_db_sp8d': {'pma_db_sp8d' in db_url}")
     logging.info(f"[DEBUG] IS_SP8D={is_sp8d}, DEBUG={is_debug}, show_manual_download={show_manual_download}")
 
+    # 获取当前用户的AI分析启用状态
+    ai_enabled = False
+    try:
+        from app.models.salary_config import EmployeeSalaryConfig
+        employee_config = EmployeeSalaryConfig.query.filter_by(user_id=current_user.id).first()
+        ai_enabled = employee_config.ai_analysis_enabled if employee_config else False
+    except Exception as e:
+        logger.warning(f"获取AI启用状态失败: {str(e)}")
+        ai_enabled = False
+
     return render_template('index.html',
                          now=datetime.now(),
                          recent_projects=recent_projects,
@@ -203,7 +213,8 @@ def index():
                          current_version_number=version_number,
                          app_version=app_version,
                          last_upgrade_time=last_upgrade_time,
-                         show_manual_download=show_manual_download)
+                         show_manual_download=show_manual_download,
+                         ai_enabled=ai_enabled)
 
 @main.route('/api/recent_work_records')
 @login_required

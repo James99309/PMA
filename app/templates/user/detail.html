@@ -127,7 +127,7 @@
                         size='sm',
                         icon='fas fa-edit',
                         extra_class='d-none',
-                        attrs='id="editBaseBtn" title="编辑基本信息"'
+                        attrs='id="editBaseBtn" title="{{ _("编辑基本信息") }}"'
                     ) }}
                     {% endif %}
                     {% if can_edit_user %}
@@ -138,7 +138,7 @@
                         size='sm',
                         icon='fas fa-sitemap',
                         extra_class='d-none',
-                        attrs='id="editAffBtn" title="编辑归属关系"'
+                        attrs='id="editAffBtn" title="{{ _("编辑归属关系") }}"'
                     ) }}
                     {% endif %}
                     {% if can_view_performance %}
@@ -218,8 +218,8 @@
             <dd class="col-sm-9">
                 {{ user.company_name }}
                 {% if is_vendor %}
-                <span class="badge bg-primary ms-2" title="厂商企业账户">
-                    <i class="fas fa-industry"></i> 厂商
+                <span class="badge bg-primary ms-2" title="{{ _('厂商企业账户') }}">
+                    <i class="fas fa-industry"></i> {{ _('厂商') }}
                 </span>
                 {% endif %}
             </dd>
@@ -252,8 +252,8 @@
         <div class="alert alert-info mb-3">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h6 class="alert-heading mb-2"><i class="fas fa-info-circle"></i> 权限规则说明</h6>
-                    <p class="mb-0"><strong>当前角色：</strong>{{ role_dict.get(user.role, user.role or '-') }}</p>
+                    <h6 class="alert-heading mb-2"><i class="fas fa-info-circle"></i> {{ _('权限规则说明') }}</h6>
+                    <p class="mb-0"><strong>{{ _('当前角色') }}：</strong>{{ role_dict.get(user.role, user.role or '-') }}</p>
                 </div>
                 {% if can_edit_user %}
                 <a href="#"
@@ -261,7 +261,7 @@
                    class="text-decoration-underline"
                    title="将所有模块的权限恢复为角色默认设置"
                    onclick="return false;">
-                    <i class="fas fa-undo me-1"></i>恢复角色设置
+                    <i class="fas fa-undo me-1"></i>{{ _('恢复角色设置') }}
                 </a>
                 {% endif %}
             </div>
@@ -296,7 +296,7 @@
                     {% if can_edit_user %}
                     <div class="d-flex justify-content-end mb-3">
                         {{ render_button(
-                            text='保存个人权限',
+                            text=_('保存个人权限'),
                             color='primary',
                             icon='fas fa-save',
                             type='button',
@@ -368,7 +368,7 @@
         <div class="card">
             <div class="card-header">
                 <h6 class="card-title mb-0">
-                    <i class="fas fa-chart-bar me-2"></i><span id="performanceYear"></span>年度绩效统计
+                    <i class="fas fa-chart-bar me-2"></i><span id="performanceYear"></span>{{ _('年度绩效统计') }}
                 </h6>
             </div>
             <div class="card-body">
@@ -427,13 +427,13 @@
     <!-- 未保存提醒对话框 - 使用通用三选择组件 -->
     {{ render_three_choice_dialog(
         'unsavedChangesModal',
-        '未保存的修改',
-        '您有未保存的权限修改，是否保存？',
+        _('未保存的修改'),
+        _('您有未保存的权限修改，是否保存？'),
         'fas fa-exclamation-triangle',
         [
-            {'text': '保存修改', 'color': 'primary', 'icon': 'fas fa-save', 'action': 'handleSaveChanges'},
-            {'text': '放弃修改', 'color': 'danger', 'icon': 'fas fa-trash', 'action': 'handleDiscardChanges'},
-            {'text': '取消', 'color': 'secondary', 'icon': 'fas fa-times', 'action': 'handleCancelChanges'}
+            {'text': _('保存修改'), 'color': 'primary', 'icon': 'fas fa-save', 'action': 'handleSaveChanges'},
+            {'text': _('放弃修改'), 'color': 'danger', 'icon': 'fas fa-trash', 'action': 'handleDiscardChanges'},
+            {'text': _('取消'), 'color': 'secondary', 'icon': 'fas fa-times', 'action': 'handleCancelChanges'}
         ]
     ) }}
 </div>

@@ -1,0 +1,379 @@
+# -*- coding: utf-8 -*-
+"""
+工作日历与日志模块 - 数据模型
+
+WorkItem: 工作项/日历事件
+WorkLog: 日志汇总
+"""
+from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
+from sqlalchemy import Column, Integer, String, Text, Date, Time, DateTime, Boolean, Float, ForeignKey, JSON
+from sqlalchemy.orm import relationship
+
+from app import db
+
+
+def get_local_time():
+    """获取本地时间（北京时区）"""
+    return datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+
+
+class WorkItem(db.Model):
+    """工作项模型 - 日历事件"""
+    __tablename__ = 'work_items'
+
+    id = Column(Integer, primary_key=True)
+
+    # 基本信息
+    title = Column(String(200), nullable=False)         # 工作标题
+    description = Column(Text)                          # 工作描述
+
+    # 时间安排
+    planned_date = Column(Date, nullable=False, index=True)  # 计划日期（开始日期）
+    end_date = Column(Date, nullable=True)              # 结束日期（可选，跨天任务用）
+    start_time = Column(Time)                           # 开始时间（可选）
+    end_time = Column(Time)                             # 结束时间（可选）
+    is_all_day = Column(Boolean, default=True)          # 全天事件
+    estimated_hours = Column(Float)                     # 预计时长
+
+    # 关联信息
+    project_id = Column(Integer, ForeignKey('projects.id'), nullable=True)
+    project = relationship('Project', backref='work_items')
+
+    customer_id = Column(Integer, ForeignKey('companies.id'), nullable=True)
+    customer = relationship('Company', backref='work_items')
+
+    contact_id = Column(Integer, ForeignKey('contacts.id'), nullable=True)
+    contact = relationship('Contact', backref='work_items')
+
+    work_type = Column(String(50))                      # 工作类型（visit/meeting/development/research/admin/other）
+
+    # 执行状态
+    status = Column(String(20), default='planned', index=True)  # planned, completed, cancelled
+    completed_at = Column(DateTime)                     # 完成时间
+    actual_hours = Column(Float)                        # 实际时长
+    execution_notes = Column(Text)                      # 执行备注/补充内容
+
+    # 日志关联
+    worklog_id = Column(Integer, ForeignKey('worklogs.id'), nullable=True)
+    worklog = relationship('WorkLog', back_populates='work_items')
+
+    # 系统字段
+    owner_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    owner = relationship('User', backref='work_items')
+
+    created_at = Column(DateTime, default=get_local_time)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
+    is_deleted = Column(Boolean, default=False)
+
+    # 共享字段
+    shared_with_users = Column(JSON, default=list)  # 共享用户ID列表 [3, 5, 8]
+
+    # 工作类型颜色映射（9个大类颜色）
+    TYPE_COLORS = {
+        # 通用-其他 - 灰色 #64748b
+        'other': '#64748b',
+        # 行销 - 绿色 #22c55e (含通用的会议、出差)
+        'meeting': '#22c55e',
+        'business_trip': '#22c55e',
+        'customer_visit': '#22c55e',
+        'presales_support': '#22c55e',
+        'business_negotiation': '#22c55e',
+        'customer_maintenance': '#22c55e',
+        # 市场 - 橙色 #f59e0b
+        'market_planning': '#f59e0b',
+        'brand_promotion': '#f59e0b',
+        'event_execution': '#f59e0b',
+        # 服务 - 蓝色 #3b82f6
+        'onsite_maintenance': '#3b82f6',
+        'service_response': '#3b82f6',
+        'technical_support': '#3b82f6',
+        'troubleshooting': '#3b82f6',
+        # 行政 - 紫色 #8b5cf6 (含通用的内部培训)
+        'internal_training': '#8b5cf6',
+        'admin_affairs': '#8b5cf6',
+        'office_management': '#8b5cf6',
+        'asset_management': '#8b5cf6',
+        # 人事 - 粉色 #ec4899
+        'hr_affairs': '#ec4899',
+        'recruitment': '#ec4899',
+        'employee_relations': '#ec4899',
+        'performance_management': '#ec4899',
+        # 财务 - 青色 #14b8a6
+        'finance_work': '#14b8a6',
+        'expense_review': '#14b8a6',
+        'accounting': '#14b8a6',
+        # 产品 - 橘色 #f97316
+        'product_research': '#f97316',
+        'requirement_analysis': '#f97316',
+        'product_planning': '#f97316',
+        # 供应链 - 天蓝 #06b6d4
+        'procurement': '#06b6d4',
+        'inventory_management': '#06b6d4',
+        'logistics': '#06b6d4',
+        'quality_tracking': '#06b6d4',
+    }
+
+    # 工作类型标签（32个子类型）
+    TYPE_LABELS = {
+        # 通用
+        'meeting': '会议',
+        'business_trip': '出差',
+        'internal_training': '内部培训',
+        'other': '其他',
+        # 行销
+        'customer_visit': '拜访客户',
+        'presales_support': '售前支持',
+        'business_negotiation': '商务洽谈',
+        'customer_maintenance': '客户维护',
+        # 市场
+        'market_planning': '市场策划',
+        'brand_promotion': '品牌推广',
+        'event_execution': '活动执行',
+        # 服务
+        'onsite_maintenance': '现场运维',
+        'service_response': '服务响应',
+        'technical_support': '技术支持',
+        'troubleshooting': '故障处理',
+        # 行政
+        'admin_affairs': '行政事务',
+        'office_management': '办公管理',
+        'asset_management': '资产管理',
+        # 人事
+        'hr_affairs': '人事事务',
+        'recruitment': '招聘面试',
+        'employee_relations': '员工关系',
+        'performance_management': '绩效管理',
+        # 财务
+        'finance_work': '财务工作',
+        'expense_review': '报销审核',
+        'accounting': '账务处理',
+        # 产品
+        'product_research': '产品调研',
+        'requirement_analysis': '需求分析',
+        'product_planning': '产品规划',
+        # 供应链
+        'procurement': '采购管理',
+        'inventory_management': '库存管理',
+        'logistics': '物流协调',
+        'quality_tracking': '品质跟踪',
+    }
+
+    def to_calendar_event(self, current_user_id=None):
+        """转换为 FullCalendar 事件格式
+
+        Args:
+            current_user_id: 当前用户ID，用于判断是否是所有者
+        """
+        is_owner = self.owner_id == current_user_id if current_user_id else True
+        owner_name = self.owner.real_name or self.owner.username if self.owner else None
+
+        event = {
+            'id': self.id,
+            'title': self.title,
+            'start': self.planned_date.isoformat(),
+            'allDay': self.is_all_day,
+            'color': self.get_type_color(),
+            'editable': is_owner,  # 只有所有者可以拖拽编辑
+            'extendedProps': {
+                'status': self.status,
+                'work_type': self.work_type,
+                'work_type_label': self.get_type_label(),
+                'project_id': self.project_id,
+                'project_name': self.project.project_name if self.project else None,
+                'customer_id': self.customer_id,
+                'customer_name': self.customer.company_name if self.customer else None,
+                'estimated_hours': self.estimated_hours,
+                'actual_hours': self.actual_hours,
+                'execution_notes': self.execution_notes,
+                'description': self.description,
+                'end_date': self.end_date.isoformat() if self.end_date else None,
+                'is_owner': is_owner,
+                'owner_id': self.owner_id,
+                'owner_name': owner_name,
+                'shared_with_users': self.shared_with_users or [],
+                'contact_id': self.contact_id,
+                'contact_name': self.contact.name if self.contact else None
+            }
+        }
+
+        # 处理跨天任务（全天事件）
+        if self.end_date and self.is_all_day:
+            # FullCalendar 全天事件的 end 是 exclusive，需要加一天
+            event['end'] = (self.end_date + timedelta(days=1)).isoformat()
+        # 添加时间信息（如果不是全天事件）
+        elif not self.is_all_day and self.start_time:
+            event['start'] = f"{self.planned_date.isoformat()}T{self.start_time.isoformat()}"
+            if self.end_time:
+                # 如果有结束日期，使用结束日期；否则使用开始日期
+                end_date = self.end_date if self.end_date else self.planned_date
+                event['end'] = f"{end_date.isoformat()}T{self.end_time.isoformat()}"
+
+        # 事件样式类名
+        class_names = []
+
+        # 已完成/取消的事件添加特殊样式
+        if self.status == 'completed':
+            class_names.append('fc-event-completed')
+            event['editable'] = False
+        elif self.status == 'cancelled':
+            class_names.append('fc-event-cancelled')
+            event['editable'] = False
+
+        # 共享给我的事件添加特殊样式
+        if not is_owner:
+            class_names.append('fc-event-shared')
+            event['editable'] = False  # 共享事件不可编辑
+
+        if class_names:
+            event['classNames'] = class_names
+
+        return event
+
+    def get_type_color(self):
+        """获取工作类型对应颜色"""
+        return self.TYPE_COLORS.get(self.work_type, self.TYPE_COLORS['other'])
+
+    def get_type_label(self):
+        """获取工作类型标签"""
+        return self.TYPE_LABELS.get(self.work_type, '其他')
+
+    def to_dict(self):
+        """转换为字典"""
+        return {
+            'id': self.id,
+            'title': self.title,
+            'description': self.description,
+            'planned_date': self.planned_date.isoformat() if self.planned_date else None,
+            'end_date': self.end_date.isoformat() if self.end_date else None,
+            'start_time': self.start_time.isoformat() if self.start_time else None,
+            'end_time': self.end_time.isoformat() if self.end_time else None,
+            'is_all_day': self.is_all_day,
+            'estimated_hours': self.estimated_hours,
+            'project_id': self.project_id,
+            'project_name': self.project.project_name if self.project else None,
+            'customer_id': self.customer_id,
+            'customer_name': self.customer.company_name if self.customer else None,
+            'contact_id': self.contact_id,
+            'contact_name': self.contact.name if self.contact else None,
+            'work_type': self.work_type,
+            'work_type_label': self.get_type_label(),
+            'color': self.get_type_color(),
+            'status': self.status,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'actual_hours': self.actual_hours,
+            'execution_notes': self.execution_notes,
+            'owner_id': self.owner_id,
+            'owner_name': self.owner.real_name or self.owner.username if self.owner else None,
+            'shared_with_users': self.shared_with_users or [],
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class WorkLog(db.Model):
+    """工作日志模型"""
+    __tablename__ = 'worklogs'
+
+    id = Column(Integer, primary_key=True)
+
+    # 日志日期
+    log_date = Column(Date, nullable=False, index=True)  # 日志日期
+    log_type = Column(String(20), default='daily')       # daily, weekly
+    week_number = Column(Integer)                        # 周数（周报告用）
+    year = Column(Integer)                               # 年份（周报告用）
+
+    # 汇总内容（自动生成）
+    summary = Column(Text)                               # 日志摘要
+    total_hours = Column(Float, default=0.0)             # 总工时
+
+    # 补充内容
+    additional_notes = Column(Text)                      # 额外补充
+
+    # 状态
+    status = Column(String(20), default='draft')         # draft, submitted
+    submitted_at = Column(DateTime)
+
+    # @ 和 # 引用功能
+    mentioned_users = Column(JSON, default=list)         # 被 @ 的用户ID列表
+    mentioned_projects = Column(JSON, default=list)      # 被 # 引用的项目ID列表
+
+    # 工作项关联
+    work_items = relationship('WorkItem', back_populates='worklog')
+
+    # 系统字段
+    owner_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    owner = relationship('User', backref='worklogs')
+
+    created_at = Column(DateTime, default=get_local_time)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
+
+    # 唯一约束：每人每天只有一条日志
+    __table_args__ = (
+        db.UniqueConstraint('owner_id', 'log_date', 'log_type', name='uq_worklog_owner_date_type'),
+    )
+
+    def calculate_statistics(self):
+        """计算日志统计数据"""
+        all_items = [i for i in self.work_items if not i.is_deleted]
+        completed_items = [i for i in all_items if i.status == 'completed']
+        pending_items = [i for i in all_items if i.status == 'planned']
+
+        return {
+            'total_items': len(all_items),
+            'completed_items': len(completed_items),
+            'pending_items': len(pending_items),
+            'total_hours': sum(i.actual_hours or 0 for i in completed_items),
+            'project_count': len(set(i.project_id for i in all_items if i.project_id)),
+            'customer_count': len(set(i.customer_id for i in all_items if i.customer_id))
+        }
+
+    def to_dict(self, include_items=False):
+        """转换为字典"""
+        data = {
+            'id': self.id,
+            'log_date': self.log_date.isoformat() if self.log_date else None,
+            'log_type': self.log_type,
+            'week_number': self.week_number,
+            'year': self.year,
+            'summary': self.summary,
+            'total_hours': self.total_hours,
+            'additional_notes': self.additional_notes,
+            'status': self.status,
+            'submitted_at': self.submitted_at.isoformat() if self.submitted_at else None,
+            'mentioned_users': self.mentioned_users or [],
+            'mentioned_projects': self.mentioned_projects or [],
+            'owner_id': self.owner_id,
+            'owner_name': self.owner.real_name or self.owner.username if self.owner else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'statistics': self.calculate_statistics()
+        }
+
+        if include_items:
+            all_items = [i for i in self.work_items if not i.is_deleted]
+            data['completed_items'] = [i.to_dict() for i in all_items if i.status == 'completed']
+            data['pending_items'] = [i.to_dict() for i in all_items if i.status == 'planned']
+            data['cancelled_items'] = [i.to_dict() for i in all_items if i.status == 'cancelled']
+
+        return data
+
+    @classmethod
+    def get_or_create(cls, owner_id, log_date, log_type='daily'):
+        """获取或创建日志"""
+        worklog = cls.query.filter_by(
+            owner_id=owner_id,
+            log_date=log_date,
+            log_type=log_type
+        ).first()
+
+        if not worklog:
+            worklog = cls(
+                owner_id=owner_id,
+                log_date=log_date,
+                log_type=log_type
+            )
+            db.session.add(worklog)
+            db.session.flush()
+
+        return worklog

@@ -7,30 +7,117 @@ from app import db
 
 ROLE_TYPE = 'role'
 
-# 统一标签字典
-PROJECT_TYPE_LABELS = {
-    'channel_follow': {'zh': '渠道', 'en': 'Channel'},
-    'sales_focus': {'zh': '销售', 'en': 'Sales'},
-    'business_opportunity': {'zh': '服务', 'en': 'Service'}
-}
 
-PROJECT_STAGE_LABELS = {
-    'discover': {'zh': '发现', 'en': 'Discovery'},
-    'embed': {'zh': '植入', 'en': 'Embedding'},
-    'pre_tender': {'zh': '标前', 'en': 'Pre-tender'},
-    'tendering': {'zh': '标中', 'en': 'Tendering'},
-    'awarded': {'zh': '中标', 'en': 'Awarded'},
-    'quoted': {'zh': '批价', 'en': 'Pricing'},
-    'signed': {'zh': '签约', 'en': 'Contracted'},
-    'lost': {'zh': '失败', 'en': 'Failed'},
-    'paused': {'zh': '搁置', 'en': 'Paused'}
-}
+# =============================================================================
+# 数据库驱动的字典缓存系统
+# =============================================================================
 
-REPORT_SOURCE_LABELS = {
-    'channel': {'zh': '渠道', 'en': 'Channel'},
-    'sales': {'zh': '销售', 'en': 'Sales'},
-    'marketing': {'zh': '市场', 'en': 'Market'}
-}
+def _get_cached_dict(dict_type):
+    """
+    获取带缓存的字典数据（从数据库）
+    使用 Flask g 对象缓存，避免同一请求内重复查询
+
+    Args:
+        dict_type: 字典类型（如 'project_type', 'project_stage' 等）
+
+    Returns:
+        dict: {key: {'zh': value, 'en': value_en}, ...}
+    """
+    cache_key = f'_cached_dict_{dict_type}'
+    if not hasattr(g, cache_key):
+        items = Dictionary.query.filter_by(type=dict_type, is_active=True)\
+            .order_by(Dictionary.sort_order).all()
+        setattr(g, cache_key, {
+            d.key: {'zh': d.value, 'en': d.value_en or d.value}
+            for d in items
+        })
+    return getattr(g, cache_key)
+
+
+def _get_dict_label(dict_type, key, lang='zh'):
+    """
+    从数据库获取字典标签
+
+    Args:
+        dict_type: 字典类型
+        key: 字典键
+        lang: 语言代码（'zh' 或 'en'）
+
+    Returns:
+        str: 标签值，如果找不到则返回 key 本身
+    """
+    if not key:
+        return key
+    labels = _get_cached_dict(dict_type)
+    return labels.get(key, {}).get(lang, key)
+
+
+def _get_dict_options(dict_type):
+    """
+    从数据库获取语言感知的字典选项列表
+
+    Args:
+        dict_type: 字典类型
+
+    Returns:
+        list: [(key, label), ...] 选项列表
+    """
+    try:
+        from app.utils.i18n import get_current_language
+        lang = get_current_language()
+    except Exception:
+        lang = 'zh'
+
+    labels = _get_cached_dict(dict_type)
+    return [(k, v.get(lang, v.get('zh', k))) for k, v in labels.items()]
+
+
+# =============================================================================
+# 项目类型、项目阶段、报备来源（从数据库读取）
+# =============================================================================
+
+def project_type_label(key, lang='zh'):
+    """获取项目类型标签（从数据库）"""
+    return _get_dict_label('project_type', key, lang)
+
+
+def project_stage_label(key, lang='zh'):
+    """获取项目阶段标签（从数据库）"""
+    return _get_dict_label('project_stage', key, lang)
+
+
+def report_source_label(key, lang='zh'):
+    """获取报备来源标签（从数据库）"""
+    return _get_dict_label('report_source', key, lang)
+
+
+def company_type_label(key, lang='zh'):
+    """获取企业类型标签（从数据库）"""
+    return _get_dict_label('company_type', key, lang)
+
+
+def get_project_type_options():
+    """获取语言感知的项目类型选项（从数据库）"""
+    return _get_dict_options('project_type')
+
+
+def get_project_stage_options():
+    """获取语言感知的项目阶段选项（从数据库）"""
+    return _get_dict_options('project_stage')
+
+
+def get_report_source_options():
+    """获取语言感知的报备来源选项（从数据库）"""
+    return _get_dict_options('report_source')
+
+
+def get_company_type_options():
+    """获取语言感知的企业类型选项（从数据库）"""
+    return _get_dict_options('company_type')
+
+# =============================================================================
+# 保留的硬编码标签（业务状态类，不适合用户配置）
+# =============================================================================
 
 AUTHORIZATION_STATUS_LABELS = {
     'pending': {'zh': '待审', 'en': 'Pending'},
@@ -38,19 +125,7 @@ AUTHORIZATION_STATUS_LABELS = {
     'rejected': {'zh': '驳回', 'en': 'Reject'}
 }
 
-# 企业类型映射（规范化为8个主键，按业务逻辑排序）
-COMPANY_TYPE_LABELS = {
-    'user': {'zh': '用户', 'en': 'User'},
-    'designer': {'zh': '顾问', 'en': 'Conslt'},
-    'contractor': {'zh': '总包', 'en': 'Contrc'},
-    'integrator': {'zh': '集成', 'en': 'Integr'},
-    'dealer': {'zh': '经销', 'en': 'Dealer'},
-    'distributor': {'zh': '分销', 'en': 'Distri'},
-    'partner': {'zh': '伙伴', 'en': 'Partner'},
-    'other': {'zh': '其他', 'en': 'Other'}
-}
-
-# 企业类型颜色映射（保留向后兼容的别名）
+# 企业类型颜色映射（颜色不需要国际化，保留硬编码）
 COMPANY_TYPE_COLORS = {
     # 主键（8个）- 用于新数据
     'user': '#0B6EFD',
@@ -89,71 +164,17 @@ PRODUCT_SITUATION_LABELS = {
     'unqualified': {'zh': '未入围', 'en': 'Exclud'}
 }
 
-def project_type_label(key, lang='zh'):
-    return PROJECT_TYPE_LABELS.get(key, {}).get(lang, key)
-
-def project_stage_label(key, lang='zh'):
-    return PROJECT_STAGE_LABELS.get(key, {}).get(lang, key)
-
-# 语言感知的包装器函数，用于模板过滤器
-def project_type_label_i18n(key, lang=None):
-    """语言感知的项目类型标签，如果不提供语言参数则自动检测当前语言"""
-    if lang is None:
-        try:
-            from app.utils.i18n import get_current_language
-            lang = get_current_language()
-        except:
-            lang = 'zh'  # 默认中文
-    return project_type_label(key, lang)
-
-def project_stage_label_i18n(key, lang=None):
-    """语言感知的项目阶段标签，如果不提供语言参数则自动检测当前语言"""
-    if lang is None:
-        try:
-            from app.utils.i18n import get_current_language
-            lang = get_current_language()
-        except:
-            lang = 'zh'  # 默认中文
-    return project_stage_label(key, lang)
-
-def report_source_label(key, lang='zh'):
-    return REPORT_SOURCE_LABELS.get(key, {}).get(lang, key)
-
 def authorization_status_label(key, lang='zh'):
+    """获取授权状态标签（保留硬编码，业务状态类）"""
     return AUTHORIZATION_STATUS_LABELS.get(key, {}).get(lang, key)
-
-def company_type_label(key, lang='zh'):
-    return COMPANY_TYPE_LABELS.get(key, {}).get(lang, key)
 
 def company_type_color(key):
     """获取企业类型对应的颜色"""
     return COMPANY_TYPE_COLORS.get(key, '#6c757d')
 
 def product_situation_label(key, lang='zh'):
+    """获取品牌状况标签（保留硬编码）"""
     return PRODUCT_SITUATION_LABELS.get(key, {}).get(lang, key)
-
-# 语言感知选项生成函数
-def get_project_type_options():
-    """获取语言感知的项目类型选项"""
-    try:
-        from app.utils.i18n import get_current_language
-        lang_code = get_current_language()
-        return [(k, v[lang_code]) for k, v in PROJECT_TYPE_LABELS.items()]
-    except Exception as e:
-        import logging
-        logging.warning(f"get_project_type_options 获取语言失败: {e}")
-        return [(k, v['zh']) for k, v in PROJECT_TYPE_LABELS.items()]
-
-def get_report_source_options():
-    """获取语言感知的报备来源选项"""
-    try:
-        from app.utils.i18n import get_current_language
-        lang_code = get_current_language()
-        return [(k, v[lang_code]) for k, v in REPORT_SOURCE_LABELS.items()]
-    except Exception as e:
-        import logging
-        logging.warning(f"get_report_source_options 获取语言失败: {e}")
-        return [(k, v['zh']) for k, v in REPORT_SOURCE_LABELS.items()]
 
 def get_product_situation_options():
     """获取语言感知的品牌状况选项"""
@@ -165,17 +186,6 @@ def get_product_situation_options():
         import logging
         logging.warning(f"get_product_situation_options 获取语言失败: {e}")
         return [(k, v['zh']) for k, v in PRODUCT_SITUATION_LABELS.items()]
-
-def get_project_stage_options():
-    """获取语言感知的项目阶段选项"""
-    try:
-        from app.utils.i18n import get_current_language
-        lang_code = get_current_language()
-        return [(k, v[lang_code]) for k, v in PROJECT_STAGE_LABELS.items()]
-    except Exception as e:
-        import logging
-        logging.warning(f"get_project_stage_options 获取语言失败: {e}")
-        return [(k, v['zh']) for k, v in PROJECT_STAGE_LABELS.items()]
 
 def currency_type_label(key, lang='zh'):
     """获取货币类型标签"""
@@ -365,13 +375,94 @@ def get_currency_type_options():
         logging.warning(f"get_currency_type_options 获取语言失败: {e}")
         return [(k, v['zh']) for k, v in CURRENCY_TYPE_LABELS.items()]
 
-# 向后兼容性选项
-PROJECT_TYPE_OPTIONS = [(k, v['zh']) for k, v in PROJECT_TYPE_LABELS.items()]
-REPORT_SOURCE_OPTIONS = [(k, v['zh']) for k, v in REPORT_SOURCE_LABELS.items()]
+# 向后兼容性选项 - 使用 property 类实现懒加载，避免启动时查询数据库
+class _LazyOptions:
+    """延迟加载选项类，仅在访问时查询数据库"""
+
+    @property
+    def PROJECT_TYPE_OPTIONS(self):
+        return get_project_type_options()
+
+    @property
+    def PROJECT_STAGE_OPTIONS(self):
+        return get_project_stage_options()
+
+    @property
+    def REPORT_SOURCE_OPTIONS(self):
+        return get_report_source_options()
+
+    @property
+    def COMPANY_TYPE_OPTIONS(self):
+        return get_company_type_options()
+
+    # 向后兼容的 LABELS 字典（从数据库动态获取）
+    @property
+    def PROJECT_TYPE_LABELS(self):
+        return _get_cached_dict('project_type')
+
+    @property
+    def PROJECT_STAGE_LABELS(self):
+        return _get_cached_dict('project_stage')
+
+    @property
+    def REPORT_SOURCE_LABELS(self):
+        return _get_cached_dict('report_source')
+
+    @property
+    def COMPANY_TYPE_LABELS(self):
+        return _get_cached_dict('company_type')
+
+_lazy = _LazyOptions()
+
+# 保留硬编码的选项（业务状态类，不适合用户配置）
 AUTHORIZATION_STATUS_OPTIONS = [(k, v['zh']) for k, v in AUTHORIZATION_STATUS_LABELS.items()]
-COMPANY_TYPE_OPTIONS = [(k, v['zh']) for k, v in COMPANY_TYPE_LABELS.items()]
 PRODUCT_SITUATION_OPTIONS = [(k, v['zh']) for k, v in PRODUCT_SITUATION_LABELS.items()]
 CURRENCY_TYPE_OPTIONS = [(k, v['zh']) for k, v in CURRENCY_TYPE_LABELS.items()]
+
+# =============================================================================
+# 向后兼容的硬编码字典（已废弃，保留仅为兼容旧代码导入）
+# 新代码请使用 project_type_label()、get_project_type_options() 等函数
+# =============================================================================
+PROJECT_TYPE_LABELS = {
+    'channel_follow': {'zh': '渠道', 'en': 'Channel'},
+    'sales_focus': {'zh': '销售', 'en': 'Sales'},
+    'business_opportunity': {'zh': '服务', 'en': 'Service'},
+}
+
+PROJECT_STAGE_LABELS = {
+    'discover': {'zh': '发现', 'en': 'Discovery'},
+    'embed': {'zh': '植入', 'en': 'Embedding'},
+    'pre_tender': {'zh': '标前', 'en': 'Pre-tender'},
+    'tendering': {'zh': '标中', 'en': 'Tendering'},
+    'awarded': {'zh': '中标', 'en': 'Awarded'},
+    'quoted': {'zh': '批价', 'en': 'Pricing'},
+    'signed': {'zh': '签约', 'en': 'Contracted'},
+    'lost': {'zh': '失败', 'en': 'Failed'},
+    'paused': {'zh': '搁置', 'en': 'Paused'},
+}
+
+REPORT_SOURCE_LABELS = {
+    'channel': {'zh': '渠道', 'en': 'Channel'},
+    'sales': {'zh': '销售', 'en': 'Sales'},
+    'marketing': {'zh': '市场', 'en': 'Market'},
+}
+
+COMPANY_TYPE_LABELS = {
+    'user': {'zh': '用户', 'en': 'User'},
+    'designer': {'zh': '顾问', 'en': 'Conslt'},
+    'contractor': {'zh': '总包', 'en': 'Contrc'},
+    'integrator': {'zh': '集成', 'en': 'Integr'},
+    'dealer': {'zh': '经销', 'en': 'Dealer'},
+    'distributor': {'zh': '分销', 'en': 'Distri'},
+    'partner': {'zh': '伙伴', 'en': 'Partner'},
+    'other': {'zh': '其他', 'en': 'Other'},
+}
+
+# 向后兼容选项（基于硬编码字典）
+PROJECT_TYPE_OPTIONS = [(k, v['zh']) for k, v in PROJECT_TYPE_LABELS.items()]
+PROJECT_STAGE_OPTIONS = [(k, v['zh']) for k, v in PROJECT_STAGE_LABELS.items()]
+REPORT_SOURCE_OPTIONS = [(k, v['zh']) for k, v in REPORT_SOURCE_LABELS.items()]
+COMPANY_TYPE_OPTIONS = [(k, v['zh']) for k, v in COMPANY_TYPE_LABELS.items()]
 
 # 行业分类映射
 INDUSTRY_LABELS = {
@@ -473,17 +564,6 @@ def status_label(key, lang='zh'):
     return STATUS_LABELS.get(key, {}).get(lang, key)
 
 STATUS_OPTIONS = [(k, v['zh']) for k, v in STATUS_LABELS.items()]
-
-def get_company_type_options():
-    """获取语言感知的企业类型选项"""
-    try:
-        from app.utils.i18n import get_current_language
-        lang_code = get_current_language()
-        return [(k, v[lang_code]) for k, v in COMPANY_TYPE_LABELS.items()]
-    except Exception as e:
-        import logging
-        logging.warning(f"get_company_type_options 获取语言失败: {e}")
-        return [(k, v['zh']) for k, v in COMPANY_TYPE_LABELS.items()]
 
 def get_status_options():
     """获取语言感知的状态选项"""
@@ -805,3 +885,12 @@ def make_i18n_filter(label_func):
                 lang = 'zh'
         return label_func(key, lang)
     return wrapper
+
+
+# =============================================================================
+# 预定义的 i18n 过滤器版本（供模板直接使用）
+# =============================================================================
+project_type_label_i18n = make_i18n_filter(project_type_label)
+project_stage_label_i18n = make_i18n_filter(project_stage_label)
+report_source_label_i18n = make_i18n_filter(report_source_label)
+company_type_label_i18n = make_i18n_filter(company_type_label)

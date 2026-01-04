@@ -23,6 +23,7 @@ except ImportError:
     JSONProvider = None
 
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
+from flask_login import current_user
 from app.models.user import User
 
 def api_response(success=True, code=200, message="操作成功", data=None):
@@ -103,18 +104,77 @@ def jwt_required_with_permission(module, action):
         return wrapper
     return decorator
 
+def flexible_auth_with_permission(module, action):
+    """
+    灵活认证 + 权限检查装饰器
+    支持JWT认证或会话认证，同时检查权限
+
+    参数:
+        module (str): 模块名称
+        action (str): 操作类型 (view/create/edit/delete)
+
+    返回:
+        装饰器函数
+    """
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            user = None
+
+            # 尝试JWT认证
+            try:
+                verify_jwt_in_request(optional=True)
+                user_id = get_jwt_identity()
+                if user_id:
+                    user = User.query.get(user_id)
+            except Exception:
+                pass
+
+            # 如果JWT认证失败，尝试会话认证
+            if not user and current_user and current_user.is_authenticated:
+                user = current_user
+
+            # 如果都未认证
+            if not user:
+                return api_response(
+                    success=False,
+                    code=401,
+                    message="认证失败: 请先登录"
+                )
+
+            # 验证用户是否激活
+            if not user.is_active:
+                return api_response(
+                    success=False,
+                    code=403,
+                    message="账号未激活，请联系管理员"
+                )
+
+            # 检查权限
+            if not user.has_permission(module, action):
+                return api_response(
+                    success=False,
+                    code=403,
+                    message=f"无权执行此操作: {module}/{action}"
+                )
+
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
 def get_pagination_params():
     """
     获取分页参数
-    
+
     返回:
         tuple: (page, limit)
     """
     page = request.args.get('page', 1, type=int)
     limit = request.args.get('limit', 20, type=int)
-    
+
     # 确保参数在合理范围内
     page = max(1, page)
     limit = max(1, min(100, limit))  # 限制最大查询数量为100
-    
+
     return page, limit 

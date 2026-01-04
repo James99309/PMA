@@ -36,7 +36,7 @@ render_tw_expense_status_badge with context %}
     {'key': 'quantity', 'label': _('数量'), 'type': 'number', 'required': true, 'width': '80px', 'align': 'right', 'default': '1'},
     {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'width': '100px', 'align': 'right'}
 ] %}
-{% set currency_symbol = '¥' if default_currency == 'CNY' else '$' %}
+{% set currency_symbol = currency_config.symbol %}
 
 {# 锁定状态徽章 - 内联定义 #}
 {% macro render_tw_lock_status_badge(is_locked) %}
@@ -103,6 +103,7 @@ render_tw_expense_status_badge with context %}
         rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
         tailwind.config = {
@@ -503,7 +504,7 @@ render_tw_expense_status_badge with context %}
                                                 <a href="{{ url_for('quotation.view_quotation', id=quot.id, tw=1) }}" class="text-primary hover:underline">{{ quot.quotation_number }}</a>
                                             </td>
                                             <td class="p-3 text-slate-600 dark:text-slate-300">{{ quot.customer.company_name if quot.customer else '-' }}</td>
-                                            <td class="p-3 text-right font-medium text-slate-800 dark:text-white">{{ quot.currency_symbol or '¥' }}{{ '{:,.2f}'.format(quot.amount or 0) }}</td>
+                                            <td class="p-3 text-right font-medium text-slate-800 dark:text-white">{{ quot.currency_symbol or currency_config.symbol }}{{ '{:,.2f}'.format(quot.amount or 0) }}</td>
                                             <td class="p-3">{{ render_tw_owner_badge(quot.owner) }}</td>
                                             <td class="p-3 text-slate-500 dark:text-slate-400">{{ quot.updated_at.strftime('%Y-%m-%d') if quot.updated_at else '-' }}</td>
                                         </tr>
@@ -1265,15 +1266,6 @@ render_tw_expense_status_badge with context %}
             // TODO: 实现审批历史模态框
             alert('{{ _("审批历史功能待实现") }}');
         };
-
-        // 简单的 Toast 提示函数（如果页面没有的话）
-        function showToast(type, message) {
-            if (typeof window.showNotification === 'function') {
-                window.showNotification(type, message);
-            } else {
-                alert(message);
-            }
-        }
 
         // 格式化日期时间
         function formatDateTime(isoString) {

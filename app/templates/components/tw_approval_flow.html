@@ -646,17 +646,6 @@ window.{{ namespace }} = window.{{ namespace }} || {};
     };
 
     // =====================
-    // Toast 提示
-    // =====================
-    function showToast(type, message) {
-        if (typeof window.showNotification === 'function') {
-            window.showNotification(type, message);
-        } else {
-            alert(message);
-        }
-    }
-
-    // =====================
     // 格式化日期时间
     // =====================
     function formatDateTime(isoString) {

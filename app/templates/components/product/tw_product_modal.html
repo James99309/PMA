@@ -16,7 +16,19 @@
 
 JS调用方式：
 ProductModal.openCreate();  // 打开创建模态框
+ProductModal.openFromImport(configData);  // 从配置引入模式打开
 ProductModal.openEdit(productId);  // 打开编辑模态框
+
+引入模式 configData 结构：
+{
+    id: 配置ID,
+    category_id: 分类ID,
+    subcategory_id: 子分类ID,
+    region_id: 区域ID,
+    product_name: 产品名称,
+    template_model: 型号,
+    mn_code: MN编码
+}
 =============================================================================
 #}
 
@@ -38,6 +50,9 @@ ProductModal.openEdit(productId);  // 打开编辑模态框
             <form id="productModalForm" class="flex-1 flex flex-col overflow-hidden">
                 <input type="hidden" name="product_id" id="productId" value="">
                 <input type="hidden" name="product_type" id="productTypeInput" value="{{ product_type }}">
+                <!-- 引入模式相关字段 -->
+                <input type="hidden" name="source_configuration_id" id="sourceConfigurationId" value="">
+                <input type="hidden" name="source_type" id="sourceType" value="manual">
 
                 <!-- 内容区域（可滚动） -->
                 <div class="flex-1 overflow-y-auto p-6">
@@ -85,7 +100,7 @@ ProductModal.openEdit(productId);  // 打开编辑模态框
                                 <label for="productName" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                                     {{ _('产品名称') }}<span class="text-red-500">*</span>
                                 </label>
-                                <input type="text" id="productName" name="name" required list="productNameList"
+                                <input type="text" id="productName" name="product_name" required list="productNameList"
                                     class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm"
                                     placeholder="{{ _('输入或选择产品名称') }}">
                                 <datalist id="productNameList"></datalist>
@@ -96,7 +111,7 @@ ProductModal.openEdit(productId);  // 打开编辑模态框
                                 <label for="productModel" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                                     {{ _('产品型号') }}<span class="text-red-500">*</span>
                                 </label>
-                                <input type="text" id="productModel" name="product_model" required list="productModelList"
+                                <input type="text" id="productModel" name="model" required list="productModelList"
                                     class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm"
                                     placeholder="{{ _('输入或选择产品型号') }}">
                                 <datalist id="productModelList"></datalist>
@@ -180,6 +195,19 @@ ProductModal.openEdit(productId);  // 打开编辑模态框
                         </div>
                         {% endif %}
 
+                        <!-- 产品状态选择 -->
+                        <div>
+                            <label for="productStatus" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                {{ _('产品状态') }}
+                            </label>
+                            <select id="productStatus" name="status"
+                                class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
+                                <option value="active">{{ _('在售') }}</option>
+                                <option value="upcoming">{{ _('即将上市') }}</option>
+                                <option value="discontinued">{{ _('停产') }}</option>
+                            </select>
+                        </div>
+
                         <!-- MN编码预览（只读） -->
                         <div class="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
                             <div class="flex items-center justify-between">
@@ -189,7 +217,7 @@ ProductModal.openEdit(productId);  // 打开编辑模态框
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <span id="mnCodePreview" class="font-mono text-lg font-semibold text-primary">---</span>
-                                    <input type="hidden" name="mn_code_preview" id="mnCodePreviewInput" value="">
+                                    <input type="hidden" name="product_mn" id="mnCodePreviewInput" value="">
                                 </div>
                             </div>
                         </div>
@@ -257,18 +285,18 @@ window.ProductModal = (function() {
         csrfToken: '{{ csrf_token }}',
         productType: '{{ product_type }}',  // 'research' 或 'standard'
         urls: {
-            // 研发产品路由
-            save: '{{ url_for("rd_product.save") }}',
-            update: '{{ url_for("rd_product.update_product", id=0) }}'.replace('/0/', '/{id}/'),
-            getProduct: '{{ url_for("rd_product.product_detail", id=0) }}'.replace('/0', '/{id}'),
-            // 标准产品路由
+            // 产品路由（研发库已废弃，统一使用产品库路由）
+            save: '{{ url_for("product.create_product") }}',
+            update: '{{ url_for("product.update_product", id=0) }}'.replace('/0/', '/{id}/'),
+            getProduct: '{{ url_for("product.get_product", id=0) }}'.replace('/0', '/{id}'),
+            // 标准产品路由（保持兼容）
             standardUpdate: '{{ url_for("product.update_product", id=0) }}'.replace('/0/', '/{id}/'),
             standardGetProduct: '{{ url_for("product.get_product", id=0) }}'.replace('/0', '/{id}'),
             // 通用路由
-            getSubcategories: '{{ url_for("rd_product.get_subcategories", category_id=0) }}'.replace('/0/', '/{id}/'),
-            getUnits: '{{ url_for("rd_product.get_all_units") }}',
-            getProductNames: '{{ url_for("rd_product.get_product_names_by_subcategory", subcategory_id=0) }}'.replace('/0', '/{id}'),
-            getModels: '{{ url_for("rd_product.get_models_by_subcategory", subcategory_id=0) }}'.replace('/0', '/{id}'),
+            getSubcategories: '{{ url_for("product_code.api_category_subcategories", id=0) }}'.replace('/0/', '/{id}/'),
+            getUnits: '{{ url_for("product.get_product_units") }}',
+            getProductNames: '{{ url_for("product.get_products_by_name") }}',
+            getModels: '{{ url_for("product.get_product_models") }}',
             getBrands: '{{ url_for("product.get_product_brands") }}'
         },
         i18n: {
@@ -285,6 +313,8 @@ window.ProductModal = (function() {
 
     // 内部状态
     let isEditMode = false;
+    let isImportMode = false;  // 引入模式标记
+    let importedConfig = null;  // 引入的配置数据
     let currentProductId = null;
     let subcategoryCache = {};
     let categoryCodeMap = {};
@@ -411,9 +441,10 @@ window.ProductModal = (function() {
         try {
             const response = await fetch(config.urls.getUnits);
             const data = await response.json();
-            if (data.units) {
+            // API 直接返回数组格式
+            if (Array.isArray(data) && data.length > 0) {
                 unitSelect.innerHTML = '<option value="">{{ _("请选择单位") }}</option>';
-                data.units.forEach(unit => {
+                data.forEach(unit => {
                     const option = document.createElement('option');
                     option.value = unit;
                     option.textContent = unit;
@@ -470,9 +501,9 @@ window.ProductModal = (function() {
             const response = await fetch(url);
             const data = await response.json();
 
-            if (data.subcategories) {
-                subcategoryCache[categoryId] = data.subcategories;
-                populateSubcategories(data.subcategories);
+            if (data.success && data.data) {
+                subcategoryCache[categoryId] = data.data;
+                populateSubcategories(data.data);
             }
         } catch (error) {
             console.error('加载子分类失败:', error);
@@ -687,6 +718,12 @@ window.ProductModal = (function() {
             const formData = new FormData(form);
             const isStandardProduct = config.productType === 'standard';
 
+            // DEBUG: 打印表单数据
+            console.log('[DEBUG] handleSubmit - FormData内容:');
+            for (let [key, value] of formData.entries()) {
+                console.log(`  ${key}: ${value}`);
+            }
+
             // 添加确认标记
             if (confirmations.clearSpecs) {
                 formData.append('clear_specs_confirmed', 'true');
@@ -791,11 +828,18 @@ window.ProductModal = (function() {
      */
     function openCreate() {
         isEditMode = false;
+        isImportMode = false;
+        importedConfig = null;
         currentProductId = null;
 
         // 重置表单
         form.reset();
         document.getElementById('productId').value = '';
+        document.getElementById('sourceConfigurationId').value = '';
+        document.getElementById('sourceType').value = 'manual';
+
+        // 重置锁定状态
+        resetLockedFields();
 
         // 重置子分类
         subcategorySelect.innerHTML = '<option value="">' + config.i18n.selectCategory + '</option>';
@@ -817,6 +861,110 @@ window.ProductModal = (function() {
 
         // 显示模态框
         show();
+    }
+
+    /**
+     * 打开引入模式模态框（从配置引入）
+     * @param {Object} configData - 配置数据
+     */
+    async function openFromImport(configData) {
+        isEditMode = false;
+        isImportMode = true;
+        importedConfig = configData;
+        currentProductId = null;
+
+        // 重置表单
+        form.reset();
+        document.getElementById('productId').value = '';
+        document.getElementById('sourceConfigurationId').value = configData.id;
+        document.getElementById('sourceType').value = 'from_spec';
+        console.log('[DEBUG] openFromImport - configData:', configData);
+        console.log('[DEBUG] openFromImport - sourceConfigurationId 设置为:', configData.id);
+
+        // 更新标题和按钮
+        titleEl.textContent = '{{ _("从配置引入产品") }}';
+        submitBtn.querySelector('.submit-text').textContent = config.i18n.createBtn;
+        setButtonColor(false);  // 创建模式：绿色
+
+        // 显示模态框
+        show();
+
+        // 预填充并锁定字段
+        try {
+            // 设置分类
+            if (configData.category_id) {
+                categorySelect.value = configData.category_id;
+                await loadSubcategories(configData.category_id);
+            }
+
+            // 设置子分类
+            if (configData.subcategory_id) {
+                subcategorySelect.value = configData.subcategory_id;
+            }
+
+            // 设置区域
+            if (configData.region_id) {
+                regionSelect.value = configData.region_id;
+            }
+
+            // 设置产品名称和型号
+            productNameInput.value = configData.product_name || '';
+            productModelInput.value = configData.template_model || '';
+
+            // 设置MN编码（只读）
+            if (configData.mn_code) {
+                mnCodePreview.textContent = configData.mn_code;
+                mnCodeInput.value = configData.mn_code;
+            }
+
+            // 锁定关键字段（分类、子分类、区域、型号、MN编码）
+            setLockedFields();
+
+        } catch (error) {
+            console.error('填充引入数据失败:', error);
+        }
+    }
+
+    /**
+     * 设置锁定字段样式（引入模式）
+     */
+    function setLockedFields() {
+        const lockedClass = 'bg-slate-100 dark:bg-slate-700 cursor-not-allowed pointer-events-none';
+        const fields = [categorySelect, subcategorySelect, regionSelect, productModelInput];
+
+        fields.forEach(field => {
+            if (field) {
+                field.classList.add(...lockedClass.split(' '));
+                field.setAttribute('data-locked', 'true');
+            }
+        });
+
+        // MN编码预览区域显示锁定图标
+        const mnPreviewContainer = mnCodePreview.closest('.p-4');
+        if (mnPreviewContainer) {
+            mnPreviewContainer.classList.add('border-primary/50', 'bg-primary/5');
+        }
+    }
+
+    /**
+     * 重置锁定字段样式
+     */
+    function resetLockedFields() {
+        const lockedClass = 'bg-slate-100 dark:bg-slate-700 cursor-not-allowed pointer-events-none';
+        const fields = [categorySelect, subcategorySelect, regionSelect, productModelInput];
+
+        fields.forEach(field => {
+            if (field) {
+                field.classList.remove(...lockedClass.split(' '));
+                field.removeAttribute('data-locked');
+            }
+        });
+
+        // 重置MN编码预览区域样式
+        const mnPreviewContainer = mnCodePreview.closest('.p-4');
+        if (mnPreviewContainer) {
+            mnPreviewContainer.classList.remove('border-primary/50', 'bg-primary/5');
+        }
     }
 
     /**
@@ -910,6 +1058,12 @@ window.ProductModal = (function() {
         document.getElementById('currency').value = product.currency || 'CNY';
         unitSelect.value = product.unit || '';
 
+        // 设置产品状态
+        const statusSelect = document.getElementById('productStatus');
+        if (statusSelect) {
+            statusSelect.value = product.status || 'active';
+        }
+
         // 设置品牌和厂商产品标记（仅标准产品）
         if (config.productType === 'standard') {
             const brandInput = document.getElementById('brand');
@@ -956,7 +1110,10 @@ window.ProductModal = (function() {
         document.body.style.overflow = '';
         form.reset();
         isEditMode = false;
+        isImportMode = false;
+        importedConfig = null;
         currentProductId = null;
+        resetLockedFields();
     }
 
     // 初始化
@@ -965,6 +1122,7 @@ window.ProductModal = (function() {
     // 公开API
     return {
         openCreate: openCreate,
+        openFromImport: openFromImport,
         openEdit: openEdit,
         close: close
     };

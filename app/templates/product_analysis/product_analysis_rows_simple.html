@@ -31,8 +31,8 @@
     </td>
     <td class="text-center">{{ row.quantity or 0 }}</td>
     <td class="text-center">{{ "{:.1f}%".format((row.discount * 100) if row.discount else 100.0) }}</td>
-    <td class="text-end">¥{{ "{:,.2f}".format(row.unit_price or 0) }}</td>
-    <td class="text-end">¥{{ "{:,.2f}".format(row.total_price or 0) }}</td>
+    <td class="text-end">{{ currency_config.symbol }}{{ "{:,.2f}".format(row.unit_price or 0) }}</td>
+    <td class="text-end">{{ currency_config.symbol }}{{ "{:,.2f}".format(row.total_price or 0) }}</td>
     <td title="{{ row.product_mn or '-' }}">
         {% if row.product_mn and row.product_mn|length > 15 %}
             {{ row.product_mn[:15] }}...

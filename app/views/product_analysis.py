@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from app import db
 import logging
 from app.utils.dictionary_helpers import project_stage_label
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -423,7 +424,7 @@ def analysis():
                     'value': 1,  # 数量固定为1，重点是金额
                     'amount': round(stats_data['total_amount'] / 10000, 2),  # 转换为万元
                     'unit': _('项'),
-                    'amount_unit': _('万元'),  # 通用模组将自动处理语言感知切换
+                    'amount_unit': Config.AMOUNT_UNIT,  # 使用系统货币配置的金额单位
                     'color': 'primary',
                     'clickable': False,
                     'data_key': 'total_amount'
@@ -445,7 +446,7 @@ def analysis():
                     'value': stats_data['monthly_quantity'],  # 本月新增数量
                     'amount': round(stats_data['monthly_amount'] / 10000, 2),  # 转换为万元
                     'unit': _('个'),
-                    'amount_unit': _('万元'),  # 通用模组将自动处理语言感知切换
+                    'amount_unit': Config.AMOUNT_UNIT,  # 使用系统货币配置的金额单位
                     'color': 'warning',
                     'clickable': False,
                     'data_key': 'monthly_increase'
@@ -457,7 +458,7 @@ def analysis():
                     'value': 1,  # 数量固定为1，重点是金额
                     'amount': round(stats_data['avg_unit_price'] / 10000, 4),  # 转换为万元，保留4位小数
                     'unit': _('项'),
-                    'amount_unit': _('万元'),  # 通用模组将自动处理语言感知切换
+                    'amount_unit': Config.AMOUNT_UNIT,  # 使用系统货币配置的金额单位
                     'color': 'info',
                     'clickable': False,
                     'data_key': 'avg_unit_price'
