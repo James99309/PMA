@@ -15,8 +15,9 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
 {% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
 {% from 'components/tw_expense_budget_card.html' import render_tw_expense_budget_card with context %}
 
-{# 货币符号 - 使用报销单货币或全局默认 #}
-{% set currency_symbol = currency_config.symbol if not expense.currency or expense.currency == currency_config.default_currency else ('$' if expense.currency == 'USD' else currency_config.symbol) %}
+{# 货币符号 - 使用完整的货币映射表 #}
+{% set currency_symbols = {'CNY': '¥', 'USD': '$', 'HKD': 'HK$', 'TWD': 'NT$', 'SGD': 'S$', 'MYR': 'RM', 'IDR': 'Rp', 'THB': '฿', 'VND': '₫'} %}
+{% set currency_symbol = currency_symbols.get(expense.currency, currency_config.symbol) %}
 
 {# 锁定状态徽章 #}
 {% macro render_tw_lock_badge(is_locked) %}
