@@ -478,7 +478,7 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
     const tableConfig = {
         tableId: '{{ table_id }}',
         columns: {{ config.columns | default([]) | tojson | safe }},
-        currency: '{{ config.currency | default(currency_config.default_currency) }}',
+        currency: '{{ config.currency | default(currency_config.currency) }}',
         currencySymbol: '{{ config.currency_symbol | default(currency_config.symbol) }}',
         apiEndpoints: {{ config.api_endpoints | default({}) | tojson | safe }},
         // 实时保存模式回调（v1.1新增）

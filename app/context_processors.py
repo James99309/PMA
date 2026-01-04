@@ -276,6 +276,7 @@ def inject_currency_config():
     return {
         'currency_config': {
             'currency': Config.DEFAULT_CURRENCY,     # CNY / USD
+            'default_currency': Config.DEFAULT_CURRENCY,  # 别名，兼容旧模板
             'symbol': Config.CURRENCY_SYMBOL,        # ¥ / $
             'amount_unit': Config.AMOUNT_UNIT,       # 万元 / M
             'count_unit': Config.COUNT_UNIT,         # 个 / pcs
