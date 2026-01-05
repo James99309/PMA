@@ -190,41 +190,122 @@ def send_user_invitation_email(user_data):
         }
         role_name = role_names.get(role, '用户')
         
-        # 创建热情的邀请邮件内容
-        subject = f"🎉 热烈欢迎加入项目管理系统！"
-        
+        # 创建极简风格邀请邮件内容
+        subject = f"PMA系统账户邀请 - {real_name}"
+
         html_content = f"""
-        <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
-            <h2 style="color: #3f51b5; text-align: center; margin-bottom: 20px;">🎉 热烈欢迎加入我们！</h2>
-            
-            <p style="font-size: 16px; line-height: 1.6;">亲爱的 <strong>{real_name}</strong>：</p>
-            
-            <p style="font-size: 16px; line-height: 1.6;">太棒了！您已成功被添加到我们的项目管理系统！我们非常高兴您能够加入我们的团队，相信您的加入将为我们带来新的活力和创新！</p>
-            
-            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="margin-top: 0; color: #3f51b5;">您的账户信息</h3>
-                <p><strong>用户名：</strong> {username}</p>
-                <p><strong>公司名称：</strong> {company_name}</p>
-                <p><strong>用户角色：</strong> {role_name}</p>
+        <!DOCTYPE html>
+        <html lang="zh-CN">
+        <head>
+            <meta charset="utf-8"/>
+            <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #ffffff; font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 48px 24px;">
+                <!-- 头部 -->
+                <div style="text-align: center; padding-bottom: 32px; margin-bottom: 32px; border-bottom: 1px solid #a0a0a0;">
+                    <h1 style="font-size: 28px; font-weight: 300; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">PMA系统账户邀请</h1>
+                    <p style="font-size: 16px; color: #545454; margin: 0; font-family: 'Roboto Mono', monospace; letter-spacing: -0.025em;">ACCOUNT INVITATION</p>
+                </div>
+
+                <!-- 欢迎信息 -->
+                <div style="text-align: center; padding-bottom: 32px; margin-bottom: 32px; border-bottom: 1px solid #a0a0a0;">
+                    <p style="font-size: 18px; color: #404040; margin: 0 0 24px 0; font-weight: 300;">
+                        尊敬的 <strong style="font-weight: 500;">{real_name}</strong>，欢迎加入我们的团队
+                    </p>
+                    <a href="{activation_url}" style="display: inline-block; padding: 14px 32px; border: 1px solid #607d8b; color: #607d8b; text-decoration: none; font-weight: 500; font-size: 14px; letter-spacing: 0.025em; transition: all 0.2s;">
+                        &#8594;&nbsp;&nbsp;激活您的账户
+                    </a>
+                </div>
+
+                <!-- 账户信息 -->
+                <div style="margin-bottom: 32px;">
+                    <div style="display: flex; align-items: center; margin-bottom: 24px;">
+                        <span style="font-size: 24px; font-weight: 300; color: #1a1a1a; margin-right: 12px;">I.</span>
+                        <h2 style="font-size: 18px; font-weight: 400; margin: 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">账户信息</h2>
+                    </div>
+
+                    <div style="border-bottom: 1px solid #e8e8e8; padding-bottom: 24px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 8px 0; width: 50%;">
+                                    <span style="display: block; font-size: 12px; font-weight: 500; color: #545454; margin-bottom: 4px;">用户名</span>
+                                    <span style="font-size: 14px; color: #2c2c2c;">{username}</span>
+                                </td>
+                                <td style="padding: 8px 0; width: 50%;">
+                                    <span style="display: block; font-size: 12px; font-weight: 500; color: #545454; margin-bottom: 4px;">用户角色</span>
+                                    <span style="font-size: 14px; color: #2c2c2c;">{role_name}</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="2" style="padding: 8px 0;">
+                                    <span style="display: block; font-size: 12px; font-weight: 500; color: #545454; margin-bottom: 4px;">所属公司</span>
+                                    <span style="font-size: 14px; color: #2c2c2c;">{company_name}</span>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 操作说明 -->
+                <div style="margin-bottom: 32px;">
+                    <div style="display: flex; align-items: center; margin-bottom: 24px;">
+                        <span style="font-size: 24px; font-weight: 300; color: #1a1a1a; margin-right: 12px;">II.</span>
+                        <h2 style="font-size: 18px; font-weight: 400; margin: 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">激活步骤</h2>
+                    </div>
+
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr style="background-color: #e8e8e8;">
+                            <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #404040; letter-spacing: 0.025em;">步骤</td>
+                            <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #404040; letter-spacing: 0.025em;">操作说明</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #e8e8e8;">
+                            <td style="padding: 12px 16px; font-size: 14px; font-weight: 500; color: #1a1a1a;">1. 点击激活链接</td>
+                            <td style="padding: 12px 16px; font-size: 14px; color: #545454;">点击上方按钮或复制下方链接到浏览器</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #e8e8e8;">
+                            <td style="padding: 12px 16px; font-size: 14px; font-weight: 500; color: #1a1a1a;">2. 设置密码</td>
+                            <td style="padding: 12px 16px; font-size: 14px; color: #545454;">创建您的登录密码（至少8位字符）</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #e8e8e8;">
+                            <td style="padding: 12px 16px; font-size: 14px; font-weight: 500; color: #1a1a1a;">3. 完成激活</td>
+                            <td style="padding: 12px 16px; font-size: 14px; color: #545454;">使用用户名和新密码登录系统</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <!-- 重要提示 -->
+                <div style="border: 1px solid #a0a0a0; padding: 24px; margin-bottom: 32px;">
+                    <div style="display: flex; align-items: flex-start;">
+                        <div>
+                            <h3 style="font-size: 16px; font-weight: 500; color: #2c2c2c; margin: 0 0 12px 0;">重要提示</h3>
+                            <p style="font-size: 14px; color: #545454; margin: 0; line-height: 1.6;">
+                                此激活链接将在 <strong style="color: #607d8b;">24小时</strong> 内有效。如链接过期，请联系系统管理员重新发送邀请。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 激活链接备用 -->
+                <div style="margin-bottom: 32px;">
+                    <p style="font-size: 12px; color: #686868; margin: 0 0 8px 0;">如按钮无法点击，请复制以下链接到浏览器：</p>
+                    <p style="font-size: 12px; color: #607d8b; margin: 0; word-break: break-all; font-family: 'Roboto Mono', monospace;">
+                        {activation_url}
+                    </p>
+                </div>
+
+                <!-- 页脚 -->
+                <div style="text-align: center; padding-top: 32px; border-top: 1px solid #a0a0a0;">
+                    <p style="font-size: 12px; color: #686868; margin: 0; font-family: 'Roboto Mono', monospace;">
+                        &copy; 2025 PMA系统管理团队. All rights reserved.
+                    </p>
+                    <p style="font-size: 11px; color: #a0a0a0; margin: 8px 0 0 0;">
+                        此邮件由系统自动发送，请勿直接回复
+                    </p>
+                </div>
             </div>
-            
-            <p style="font-size: 16px; line-height: 1.6;">请点击下方按钮设置您的密码并激活账户：</p>
-            
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="{activation_url}" style="background-color: #3f51b5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
-                    设置密码并激活账户
-                </a>
-            </div>
-            
-            <p style="font-size: 16px; line-height: 1.6;"><strong>请注意：</strong>此激活链接将在24小时内有效，请尽快完成账户设置。</p>
-            
-            <p style="font-size: 16px; line-height: 1.6;">如有任何问题或需要帮助，请随时与管理员联系。</p>
-            
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #757575; font-size: 14px;">
-                <p>此邮件由系统自动发送，请勿直接回复</p>
-                <p>©️ 项目管理系统团队</p>
-            </div>
-        </div>
+        </body>
+        </html>
         """
         
         # 发送邮件

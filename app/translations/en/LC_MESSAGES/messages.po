@@ -7105,3 +7105,177 @@ msgstr "Category Details"
 
 msgid "暂无费用预算配置"
 msgstr "No expense budget configured"
+
+# =====================================
+# 消息通知面板组件翻译
+# =====================================
+
+msgid "消息通知"
+msgstr "Notifications"
+
+msgid "全部已读"
+msgstr "Mark all as read"
+
+msgid "待审批"
+msgstr "Pending Approvals"
+
+msgid "@我"
+msgstr "Mentions"
+
+msgid "暂无待审批记录"
+msgstr "No pending approvals"
+
+msgid "暂无@消息"
+msgstr "No mentions"
+
+msgid "暂无消息"
+msgstr "No notifications"
+
+msgid "查看全部审批"
+msgstr "View all approvals"
+
+msgid "已标记为已读"
+msgstr "Marked as read"
+
+msgid "刚刚"
+msgstr "Just now"
+
+msgid "分钟前"
+msgstr " minutes ago"
+
+msgid "小时前"
+msgstr " hours ago"
+
+msgid "天前"
+msgstr " days ago"
+
+msgid "与你共享了行程"
+msgstr "shared a schedule with you"
+
+msgid "取消了行程"
+msgstr "cancelled the schedule"
+
+msgid "完成了行程"
+msgstr "completed the schedule"
+
+msgid "行程"
+msgstr "Schedule"
+
+msgid "修改了行程时间"
+msgstr "changed the schedule time"
+
+msgid "将你从行程中移除"
+msgstr "removed you from the schedule"
+
+msgid "作废了行程"
+msgstr "invalidated the schedule"
+
+msgid "已作废"
+msgstr "Invalidated"
+
+# 公告管理模块
+msgid "公告管理"
+msgstr "Announcements"
+
+msgid "发布公告"
+msgstr "Publish Announcement"
+
+msgid "公告列表"
+msgstr "Announcement List"
+
+msgid "公告标题"
+msgstr "Title"
+
+msgid "公告内容"
+msgstr "Content"
+
+msgid "公告类型"
+msgstr "Type"
+
+msgid "发布范围"
+msgstr "Target Audience"
+
+msgid "系统通知"
+msgstr "System Notice"
+
+msgid "业务公告"
+msgstr "Business Announcement"
+
+msgid "紧急通知"
+msgstr "Urgent Notice"
+
+msgid "阅读统计"
+msgstr "Read Statistics"
+
+msgid "已发布"
+msgstr "Published"
+
+msgid "草稿"
+msgstr "Draft"
+
+msgid "全部公告"
+msgstr "All Announcements"
+
+msgid "定时发布"
+msgstr "Scheduled Time"
+
+msgid "目标人数"
+msgstr "Target"
+
+msgid "已读"
+msgstr "Read"
+
+msgid "未读"
+msgstr "Unread"
+
+msgid "搜索公告标题..."
+msgstr "Search announcement title..."
+
+msgid "请输入公告标题"
+msgstr "Please enter announcement title"
+
+msgid "请输入公告内容"
+msgstr "Please enter announcement content"
+
+msgid "请选择发布对象"
+msgstr "Please select target users"
+
+msgid "确定要发布此公告吗？发布后将无法编辑。"
+msgstr "Are you sure you want to publish this announcement? It cannot be edited after publishing."
+
+msgid "确定要删除此公告吗？"
+msgstr "Are you sure you want to delete this announcement?"
+
+msgid "编辑公告"
+msgstr "Edit Announcement"
+
+msgid "暂无公告"
+msgstr "No announcements"
+
+msgid "无匹配用户"
+msgstr "No matching users"
+
+msgid "加载用户列表..."
+msgstr "Loading users..."
+
+msgid "请先保存公告后再上传附件"
+msgstr "Please save the announcement before uploading attachments"
+
+msgid "上传成功"
+msgstr "Upload successful"
+
+# =====================================
+# 新手引导组件翻译
+# =====================================
+
+msgid "在这里查看和管理您的工作计划、安排行程，记录每日工作内容。"
+msgstr "View and manage your work schedule, plan trips, and record daily work here."
+
+msgid "查看系统通知、待审批任务和@您的消息，及时了解工作动态。"
+msgstr "View system notifications, pending approvals, and mentions to stay updated on work activities."
+
+msgid "完成"
+msgstr "Done"
+
+msgid "功能引导"
+msgstr "Feature Guide"

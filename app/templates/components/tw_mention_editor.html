@@ -450,6 +450,8 @@ function mentionEditor(editorId) {
 
         // 获取 mention 数据（供外部调用）
         getMentionData() {
+            // 先提取最新的 mention IDs，确保数据是最新的
+            this.extractMentionIds();
             return {
                 users: this.mentionedUserIds,
                 projects: this.mentionedProjectIds,

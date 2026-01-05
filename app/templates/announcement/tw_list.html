@@ -1,0 +1,760 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_page, render_tw_fixed_header_styles %}
+{% from 'components/tw_filter_bar.html' import render_tw_filter_bar, render_tw_filter_bar_script %}
+{% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles, render_tw_data_table_script, render_empty_row %}
+{% from 'components/tw_stat_card.html' import tw_stat_card, tw_stat_cards_grid %}
+{% from 'components/tw_user_selector_modal.html' import tw_user_selector_modal %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('公告管理') }} - PMA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        [x-cloak] {
+            display: none !important;
+        }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+    <!-- 数据表格样式 -->
+    {{ render_tw_data_table_styles() }}
+</head>
+
+<body class="bg-background-light dark:bg-background-dark">
+    {% call(slot) render_tw_layout(active_page='announcement', show_search=false) %}
+    {% if slot == 'content' %}
+    {% call(page_slot) render_tw_fixed_page() %}
+        {% if page_slot == 'header' %}
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('公告管理') }}</h1>
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="openCreateModal()"
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium">
+                    <span class="material-symbols-outlined text-lg">add</span>
+                    {{ _('发布公告') }}
+                </button>
+            </div>
+        {% elif page_slot == 'content' %}
+            <!-- 统计卡片 -->
+            {% call tw_stat_cards_grid(cols=3) %}
+                {{ tw_stat_card(title=_('全部公告'), value=total_count, icon='campaign', variant='info') }}
+                {{ tw_stat_card(title=_('已发布'), value=published_count, icon='check_circle', variant='success') }}
+                {{ tw_stat_card(title=_('草稿'), value=draft_count, icon='edit_note', variant='warning') }}
+            {% endcall %}
+
+            <!-- 筛选栏 -->
+            {{ render_tw_filter_bar(
+                form_id='filterForm',
+                action_url=url_for('announcement.list_view'),
+                filter_fields=[
+                    {
+                        'name': 'status',
+                        'label': _('状态'),
+                        'all_option_text': _('全部状态'),
+                        'options': status_options,
+                        'current_value': current_status
+                    },
+                    {
+                        'name': 'type',
+                        'label': _('类型'),
+                        'all_option_text': _('全部类型'),
+                        'options': type_options,
+                        'current_value': current_type
+                    }
+                ],
+                search_value=search,
+                cols=4
+            ) }}
+
+            <!-- 数据表格 -->
+            {% set columns = [
+                {'field': 'title', 'label': _('标题'), 'min_width': '200px'},
+                {'field': 'type', 'label': _('类型'), 'width': '100px'},
+                {'field': 'status', 'label': _('状态'), 'width': '100px'},
+                {'field': 'read_stats', 'label': _('阅读统计'), 'width': '120px'},
+                {'field': 'published_at', 'label': _('发布时间'), 'width': '160px'},
+                {'field': 'creator', 'label': _('创建人'), 'width': '100px'},
+                {'field': 'actions', 'label': _('操作'), 'width': '140px', 'align': 'center'}
+            ] %}
+
+            {% call render_tw_data_table(
+                table_id='announcementTable',
+                title=_('公告列表'),
+                total_count=announcements|length,
+                columns=columns,
+                max_height='calc(100vh - 400px)',
+                min_height='300px'
+            ) %}
+                {% if announcements %}
+                    {% for item in announcements %}
+                    <tr class="table-row-hover transition-colors">
+                        <td class="p-3">
+                            <span class="text-slate-900 dark:text-white font-medium">{{ item.title }}</span>
+                        </td>
+                        <td class="p-3">
+                            {% if item.announcement_type == 'urgent' %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                                {{ _('紧急通知') }}
+                            </span>
+                            {% elif item.announcement_type == 'business' %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                {{ _('业务公告') }}
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+                                {{ _('系统通知') }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="p-3">
+                            {% if item.status == 'published' %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                {{ _('已发布') }}
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                {{ _('草稿') }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="p-3 text-sm">
+                            {% if item.status == 'published' %}
+                            <span class="text-green-600 dark:text-green-400">{{ item.read_count }}</span>
+                            <span class="text-slate-400">/</span>
+                            <span class="text-slate-600 dark:text-slate-400">{{ item.target_user_count }}</span>
+                            <span class="text-slate-400 text-xs ml-1">{{ _('人') }}</span>
+                            {% else %}
+                            <span class="text-slate-400">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="p-3 text-sm text-slate-600 dark:text-slate-400">
+                            {{ item.published_at.strftime('%Y-%m-%d %H:%M') if item.published_at else '-' }}
+                        </td>
+                        <td class="p-3 text-sm text-slate-600 dark:text-slate-400">
+                            {{ item.creator.real_name or item.creator.username }}
+                        </td>
+                        <td class="p-3 text-center">
+                            <div class="flex items-center justify-center gap-1">
+                                <button type="button" onclick="viewAnnouncement({{ item.id }})"
+                                    class="p-1.5 text-slate-400 hover:text-primary transition-colors"
+                                    title="{{ _('查看') }}">
+                                    <span class="material-symbols-outlined text-lg">visibility</span>
+                                </button>
+                                {% if not item.is_readonly %}
+                                <button type="button" onclick="openEditModal({{ item.id }})"
+                                    class="p-1.5 text-slate-400 hover:text-primary transition-colors"
+                                    title="{{ _('编辑') }}">
+                                    <span class="material-symbols-outlined text-lg">edit</span>
+                                </button>
+                                {% endif %}
+                                {% if item.status == 'draft' %}
+                                <button type="button" onclick="publishAnnouncement({{ item.id }})"
+                                    class="p-1.5 text-slate-400 hover:text-green-500 transition-colors"
+                                    title="{{ _('发布') }}">
+                                    <span class="material-symbols-outlined text-lg">send</span>
+                                </button>
+                                {% endif %}
+                                <button type="button" onclick="deleteAnnouncement({{ item.id }})"
+                                    class="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
+                                    title="{{ _('删除') }}">
+                                    <span class="material-symbols-outlined text-lg">delete</span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    {{ render_empty_row(7, _('暂无公告')) }}
+                {% endif %}
+            {% endcall %}
+        {% endif %}
+    {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 创建/编辑公告模态框 -->
+    <div id="announcementModal" class="fixed inset-0 z-50 hidden">
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" onclick="closeModal()"></div>
+        <div class="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[900px] md:max-h-[85vh] bg-white dark:bg-slate-800 rounded-xl shadow-2xl flex flex-col">
+            <!-- 头部 -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 id="modalTitle" class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('发布公告') }}</h3>
+                <button type="button" onclick="closeModal()" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <!-- 内容 -->
+            <div class="flex-1 overflow-y-auto p-6">
+                <form id="announcementForm" class="space-y-4">
+                    <input type="hidden" id="announcementId" name="announcement_id" value="">
+
+                    <!-- 公告标题 -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('公告标题') }} <span class="text-red-500">*</span></label>
+                        <input type="text" id="title" name="title" required
+                            class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+                            placeholder="{{ _('请输入公告标题') }}">
+                    </div>
+
+                    <!-- 公告类型 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('公告类型') }}</label>
+                            <select id="announcement_type" name="announcement_type"
+                                class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                                <option value="system">{{ _('系统通知') }}</option>
+                                <option value="business">{{ _('业务公告') }}</option>
+                                <option value="urgent">{{ _('紧急通知') }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('定时发布') }}</label>
+                            <input type="datetime-local" id="scheduled_time" name="scheduled_time"
+                                class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                    </div>
+
+                    <!-- 发布范围 -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('发布范围') }} <span class="text-red-500">*</span></label>
+                        <!-- 已选用户头像列表 -->
+                        <div id="selectedUsersDisplay" class="flex flex-wrap items-center gap-2 min-h-[40px] p-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                            <!-- 已选用户会通过 JS 动态渲染 -->
+                            <span id="noUsersHint" class="text-sm text-slate-400 dark:text-slate-500">{{ _('点击添加按钮选择发布对象') }}</span>
+                            <!-- 添加按钮 -->
+                            <button type="button" onclick="openUserSelectorModal()"
+                                class="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center text-slate-400 hover:border-primary hover:text-primary transition-colors flex-shrink-0">
+                                <span class="material-symbols-outlined text-lg">add</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 公告内容 -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('公告内容') }} <span class="text-red-500">*</span></label>
+                        <textarea id="content" name="content" rows="6" required
+                            class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                            placeholder="{{ _('请输入公告内容') }}"></textarea>
+                    </div>
+
+                    <!-- 附件 -->
+                    <div id="attachmentSection" class="hidden">
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('附件') }}</label>
+                        <div id="attachmentList" class="space-y-2 mb-3"></div>
+                        <div class="flex items-center gap-2">
+                            <input type="file" id="attachmentInput" class="hidden" multiple
+                                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.jpg,.jpeg,.png,.gif">
+                            <button type="button" onclick="document.getElementById('attachmentInput').click()"
+                                class="inline-flex items-center gap-2 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                                <span class="material-symbols-outlined text-base">attach_file</span>
+                                {{ _('添加附件') }}
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 底部 -->
+            <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
+                <button type="button" onclick="closeModal()"
+                    class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                    {{ _('取消') }}
+                </button>
+                <button type="button" onclick="saveAnnouncement()"
+                    class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
+                    {{ _('保存') }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 查看公告模态框 -->
+    <div id="viewModal" class="fixed inset-0 z-50 hidden">
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" onclick="closeViewModal()"></div>
+        <div class="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[700px] md:max-h-[80vh] bg-white dark:bg-slate-800 rounded-xl shadow-2xl flex flex-col">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 id="viewModalTitle" class="text-lg font-semibold text-slate-900 dark:text-white"></h3>
+                <button type="button" onclick="closeViewModal()" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-6">
+                <div id="viewModalContent" class="prose dark:prose-invert max-w-none"></div>
+                <div id="viewModalAttachments" class="mt-4 space-y-2"></div>
+                <div id="viewModalStats" class="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 用户选择器模态框 -->
+    {{ tw_user_selector_modal(
+        modal_id='userSelectorModal',
+        title=_('选择发布对象'),
+        event_name='open-user-selector-modal',
+        users_tree=shareable_users_tree,
+        mode='multi',
+        selected_users=[],
+        save_callback='onUserSelectionSave',
+        searchable=true,
+        empty_text=_('暂无可选择的用户')
+    ) }}
+
+    <!-- 脚本 -->
+    {{ render_tw_layout_script() }}
+    {{ render_tw_filter_bar_script(form_id='filterForm') }}
+    {{ render_tw_data_table_script(table_id='announcementTable') }}
+
+    <script>
+    // 全局变量
+    let currentAnnouncementId = null;
+    let selectedUsers = [];  // 存储已选用户对象 [{id, name, initials}]
+
+    // 头像颜色方案
+    const avatarColors = [
+        'bg-blue-200 text-blue-600 dark:bg-blue-800 dark:text-blue-300',
+        'bg-purple-200 text-purple-600 dark:bg-purple-800 dark:text-purple-300',
+        'bg-teal-200 text-teal-600 dark:bg-teal-800 dark:text-teal-300',
+        'bg-yellow-200 text-yellow-600 dark:bg-yellow-800 dark:text-yellow-300',
+        'bg-red-200 text-red-600 dark:bg-red-800 dark:text-red-300',
+        'bg-green-200 text-green-600 dark:bg-green-800 dark:text-green-300'
+    ];
+
+    function getAvatarColor(userId) {
+        return avatarColors[userId % avatarColors.length];
+    }
+
+    // 渲染已选用户头像
+    function renderSelectedUsers() {
+        const container = document.getElementById('selectedUsersDisplay');
+        const hint = document.getElementById('noUsersHint');
+
+        if (selectedUsers.length === 0) {
+            hint.style.display = '';
+            // 只保留提示和添加按钮
+            container.innerHTML = `
+                <span id="noUsersHint" class="text-sm text-slate-400 dark:text-slate-500">{{ _('点击添加按钮选择发布对象') }}</span>
+                <button type="button" onclick="openUserSelectorModal()"
+                    class="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center text-slate-400 hover:border-primary hover:text-primary transition-colors flex-shrink-0">
+                    <span class="material-symbols-outlined text-lg">add</span>
+                </button>
+            `;
+            return;
+        }
+
+        // 渲染用户头像
+        let html = selectedUsers.map(user => `
+            <div class="relative group" title="${user.name}">
+                <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs ${getAvatarColor(user.id)}">
+                    ${user.initials}
+                </div>
+                <button type="button" onclick="removeUser(${user.id})"
+                    class="absolute -top-1 -right-1 w-4 h-4 bg-slate-500 hover:bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span class="material-symbols-outlined text-white" style="font-size: 10px;">close</span>
+                </button>
+            </div>
+        `).join('');
+
+        // 添加按钮
+        html += `
+            <button type="button" onclick="openUserSelectorModal()"
+                class="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center text-slate-400 hover:border-primary hover:text-primary transition-colors flex-shrink-0">
+                <span class="material-symbols-outlined text-lg">add</span>
+            </button>
+        `;
+
+        container.innerHTML = html;
+    }
+
+    // 移除用户
+    function removeUser(userId) {
+        selectedUsers = selectedUsers.filter(u => u.id !== userId);
+        renderSelectedUsers();
+    }
+
+    // 打开用户选择器模态框
+    function openUserSelectorModal() {
+        // 更新模态框中的已选用户状态
+        const modalEl = document.getElementById('userSelectorModal');
+        if (modalEl && modalEl.__x) {
+            modalEl.__x.$data.selectedUsers = [...selectedUsers];
+        }
+        window.dispatchEvent(new CustomEvent('open-user-selector-modal'));
+    }
+
+    // 用户选择保存回调
+    function onUserSelectionSave(newSelectedUsers, shareEnabled) {
+        selectedUsers = newSelectedUsers;
+        renderSelectedUsers();
+    }
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        // 附件上传
+        document.getElementById('attachmentInput')?.addEventListener('change', handleFileUpload);
+    });
+
+    // 打开创建模态框
+    function openCreateModal() {
+        currentAnnouncementId = null;
+        document.getElementById('announcementId').value = '';
+        document.getElementById('modalTitle').textContent = '{{ _("发布公告") }}';
+        document.getElementById('announcementForm').reset();
+        // 清空用户选择
+        selectedUsers = [];
+        renderSelectedUsers();
+        document.getElementById('attachmentSection').classList.add('hidden');
+        document.getElementById('attachmentList').innerHTML = '';
+        document.getElementById('announcementModal').classList.remove('hidden');
+    }
+
+    // 打开编辑模态框
+    async function openEditModal(id) {
+        currentAnnouncementId = id;
+
+        try {
+            const response = await fetch(`/announcement/api/get/${id}`);
+            const result = await response.json();
+
+            if (result.success) {
+                const data = result.data;
+                document.getElementById('announcementId').value = data.id;
+                document.getElementById('modalTitle').textContent = '{{ _("编辑公告") }}';
+                document.getElementById('title').value = data.title;
+                document.getElementById('content').value = data.content;
+                document.getElementById('announcement_type').value = data.announcement_type;
+                document.getElementById('scheduled_time').value = data.scheduled_time ? data.scheduled_time.slice(0, 16) : '';
+
+                // 设置已选用户 - 需要从 target_users (ID数组) 构建用户对象
+                selectedUsers = (data.target_users_info || []).map(u => ({
+                    id: u.id,
+                    name: u.name || u.real_name || u.username,
+                    initials: (u.name || u.real_name || u.username || '?').substring(0, 2).toUpperCase()
+                }));
+                renderSelectedUsers();
+
+                // 显示附件区域
+                document.getElementById('attachmentSection').classList.remove('hidden');
+                loadAttachments(data.attachments);
+
+                document.getElementById('announcementModal').classList.remove('hidden');
+            } else {
+                showToast(result.message, 'error');
+            }
+        } catch (error) {
+            console.error('加载公告详情失败:', error);
+            showToast('{{ _("加载失败") }}', 'error');
+        }
+    }
+
+    // 关闭模态框
+    function closeModal() {
+        document.getElementById('announcementModal').classList.add('hidden');
+    }
+
+    // 保存公告
+    async function saveAnnouncement() {
+        const title = document.getElementById('title').value.trim();
+        const content = document.getElementById('content').value.trim();
+        const announcement_type = document.getElementById('announcement_type').value;
+        const scheduled_time = document.getElementById('scheduled_time').value;
+
+        if (!title) {
+            showToast('{{ _("请输入公告标题") }}', 'warning');
+            return;
+        }
+        if (!content) {
+            showToast('{{ _("请输入公告内容") }}', 'warning');
+            return;
+        }
+        if (selectedUsers.length === 0) {
+            showToast('{{ _("请选择发布对象") }}', 'warning');
+            return;
+        }
+
+        const url = currentAnnouncementId
+            ? `/announcement/api/update/${currentAnnouncementId}`
+            : '/announcement/api/create';
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({
+                    title,
+                    content,
+                    announcement_type,
+                    scheduled_time: scheduled_time || null,
+                    target_users: selectedUsers.map(u => u.id)
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                closeModal();
+                location.reload();
+            } else {
+                showToast(result.message, 'error');
+            }
+        } catch (error) {
+            console.error('保存失败:', error);
+            showToast('{{ _("保存失败") }}', 'error');
+        }
+    }
+
+    // 发布公告
+    async function publishAnnouncement(id) {
+        if (!confirm('{{ _("确定要发布此公告吗？发布后将无法编辑。") }}')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/announcement/api/publish/${id}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                }
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast(result.message, 'success');
+                location.reload();
+            } else {
+                showToast(result.message, 'error');
+            }
+        } catch (error) {
+            console.error('发布失败:', error);
+            showToast('{{ _("发布失败") }}', 'error');
+        }
+    }
+
+    // 删除公告
+    async function deleteAnnouncement(id) {
+        if (!confirm('{{ _("确定要删除此公告吗？") }}')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/announcement/api/delete/${id}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                }
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast(result.message, 'success');
+                location.reload();
+            } else {
+                showToast(result.message, 'error');
+            }
+        } catch (error) {
+            console.error('删除失败:', error);
+            showToast('{{ _("删除失败") }}', 'error');
+        }
+    }
+
+    // 查看公告
+    async function viewAnnouncement(id) {
+        try {
+            const response = await fetch(`/announcement/api/get/${id}`);
+            const result = await response.json();
+
+            if (result.success) {
+                const data = result.data;
+                document.getElementById('viewModalTitle').textContent = data.title;
+                document.getElementById('viewModalContent').innerHTML = `<p class="whitespace-pre-wrap">${data.content}</p>`;
+
+                // 附件
+                let attachmentsHtml = '';
+                if (data.attachments && data.attachments.length > 0) {
+                    attachmentsHtml = '<div class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _("附件") }}</div>';
+                    data.attachments.forEach(att => {
+                        attachmentsHtml += `
+                            <a href="${att.file_url}" target="_blank" class="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-700/50 rounded hover:bg-slate-100 dark:hover:bg-slate-700">
+                                <span class="material-symbols-outlined text-slate-400">description</span>
+                                <span class="text-sm text-slate-700 dark:text-slate-300">${att.filename}</span>
+                            </a>
+                        `;
+                    });
+                }
+                document.getElementById('viewModalAttachments').innerHTML = attachmentsHtml;
+
+                // 统计
+                let statsHtml = `
+                    <div class="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                            <div class="text-2xl font-bold text-slate-900 dark:text-white">${data.target_user_count}</div>
+                            <div class="text-xs text-slate-500">{{ _('目标人数') }}</div>
+                        </div>
+                        <div>
+                            <div class="text-2xl font-bold text-green-600">${data.read_count}</div>
+                            <div class="text-xs text-slate-500">{{ _('已读') }}</div>
+                        </div>
+                        <div>
+                            <div class="text-2xl font-bold text-amber-600">${data.unread_count}</div>
+                            <div class="text-xs text-slate-500">{{ _('未读') }}</div>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('viewModalStats').innerHTML = data.status === 'published' ? statsHtml : '';
+
+                document.getElementById('viewModal').classList.remove('hidden');
+            }
+        } catch (error) {
+            console.error('加载失败:', error);
+        }
+    }
+
+    function closeViewModal() {
+        document.getElementById('viewModal').classList.add('hidden');
+    }
+
+    // 附件相关
+    function loadAttachments(attachments) {
+        const container = document.getElementById('attachmentList');
+        container.innerHTML = attachments.map(att => `
+            <div class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-700/50 rounded">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-slate-400">description</span>
+                    <a href="${att.file_url}" target="_blank" class="text-sm text-slate-700 dark:text-slate-300 hover:text-primary">${att.filename}</a>
+                </div>
+                <button type="button" onclick="deleteAttachment(${att.id})"
+                    class="p-1 text-slate-400 hover:text-red-500 transition-colors">
+                    <span class="material-symbols-outlined text-base">close</span>
+                </button>
+            </div>
+        `).join('');
+    }
+
+    async function handleFileUpload(e) {
+        if (!currentAnnouncementId) {
+            showToast('{{ _("请先保存公告后再上传附件") }}', 'warning');
+            return;
+        }
+
+        const files = e.target.files;
+        for (const file of files) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`/announcement/api/upload_attachment/${currentAnnouncementId}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showToast('{{ _("上传成功") }}', 'success');
+                    // 刷新附件列表
+                    const getResponse = await fetch(`/announcement/api/get/${currentAnnouncementId}`);
+                    const getData = await getResponse.json();
+                    if (getData.success) {
+                        loadAttachments(getData.data.attachments);
+                    }
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                console.error('上传失败:', error);
+                showToast('{{ _("上传失败") }}', 'error');
+            }
+        }
+        e.target.value = '';
+    }
+
+    async function deleteAttachment(id) {
+        try {
+            const response = await fetch(`/announcement/api/delete_attachment/${id}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                }
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                // 刷新附件列表
+                const getResponse = await fetch(`/announcement/api/get/${currentAnnouncementId}`);
+                const getData = await getResponse.json();
+                if (getData.success) {
+                    loadAttachments(getData.data.attachments);
+                }
+            } else {
+                showToast(result.message, 'error');
+            }
+        } catch (error) {
+            console.error('删除失败:', error);
+        }
+    }
+
+    // Toast提示
+    function showToast(message, type = 'info') {
+        if (window.Swal) {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: type,
+                title: message,
+                showConfirmButton: false,
+                timer: 3000
+            });
+        } else {
+            alert(message);
+        }
+    }
+    </script>
+</body>
+</html>

@@ -39,8 +39,8 @@ Tailwind 权限配置面板组件
 =============================================================================
 #}
 
-{# 权限配置面板 - 可编辑模式 #}
-{% macro render_tw_permission_panel(context_type, context_id, role, role_dict, can_edit=false) %}
+{# 权限配置面板 - 支持查看/编辑模式切换 #}
+{% macro render_tw_permission_panel(context_type, context_id, role, role_dict, can_edit=false, modules=[], permission_map={}) %}
 <div class="space-y-4">
     <!-- 权限规则说明 -->
     <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
@@ -56,20 +56,37 @@ Tailwind 权限配置面板组件
             </div>
             {% if can_edit %}
             <div class="flex items-center gap-3">
-                <a href="#"
-                   id="resetAllToRole"
-                   class="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                   title="{{ _('将所有模块的权限恢复为角色默认设置') }}"
-                   onclick="return false;">
-                    <span class="material-symbols-outlined text-base">undo</span>
-                    {{ _('恢复角色设置') }}
-                </a>
+                <!-- 查看模式：编辑按钮 -->
                 <button type="button"
-                        id="savePermissions"
-                        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                    <span class="material-symbols-outlined text-lg">save</span>
-                    {{ _('保存个人权限') }}
+                        id="enterEditMode"
+                        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
+                    <span class="material-symbols-outlined text-lg">edit</span>
+                    {{ _('编辑权限') }}
                 </button>
+
+                <!-- 编辑模式：操作按钮组（初始隐藏） -->
+                <div id="editModeButtons" class="hidden flex items-center gap-3">
+                    <button type="button"
+                            id="exitEditMode"
+                            class="inline-flex items-center gap-1 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
+                        <span class="material-symbols-outlined text-base">close</span>
+                        {{ _('取消') }}
+                    </button>
+                    <a href="#"
+                       id="resetAllToRole"
+                       class="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                       title="{{ _('将所有模块的权限恢复为角色默认设置') }}"
+                       onclick="return false;">
+                        <span class="material-symbols-outlined text-base">undo</span>
+                        {{ _('恢复角色设置') }}
+                    </a>
+                    <button type="button"
+                            id="savePermissions"
+                            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span class="material-symbols-outlined text-lg">save</span>
+                        {{ _('保存') }}
+                    </button>
+                </div>
             </div>
             {% endif %}
         </div>
@@ -83,40 +100,146 @@ Tailwind 权限配置面板组件
         </div>
     </div>
 
-    <!-- 权限配置区域 - 左右分栏布局 -->
-    <div id="permissionsContainer" class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <!-- 左侧：模块列表 -->
-        <div class="lg:col-span-1">
-            <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div class="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
-                    <h6 class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('模块列表') }}</h6>
-                </div>
-                <div id="moduleList" class="divide-y divide-slate-100 dark:divide-slate-700">
-                    <!-- 模块列表将通过JS动态生成 -->
-                    <div class="p-4 text-center text-slate-500 dark:text-slate-400 text-sm">
-                        <span class="material-symbols-outlined text-2xl mb-2 block">hourglass_empty</span>
-                        {{ _('加载中...') }}
+    <!-- ========== 查看模式：只显示有权限的模块（默认显示） ========== -->
+    <div id="permissionViewMode">
+        {{ render_tw_permission_view_only(modules, permission_map) }}
+    </div>
+
+    <!-- ========== 编辑模式：完整的左右分栏布局（初始隐藏） ========== -->
+    <div id="permissionEditMode" class="hidden">
+        <!-- 权限配置区域 - 左右分栏布局 -->
+        <div id="permissionsContainer" class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- 左侧：模块列表 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <div class="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+                        <h6 class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('模块列表') }}</h6>
+                    </div>
+                    <div id="moduleList" class="divide-y divide-slate-100 dark:divide-slate-700">
+                        <!-- 模块列表将通过JS动态生成 -->
+                        <div class="p-4 text-center text-slate-500 dark:text-slate-400 text-sm">
+                            <span class="material-symbols-outlined text-2xl mb-2 block">hourglass_empty</span>
+                            {{ _('加载中...') }}
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- 右侧：权限配置面板 -->
-        <div class="lg:col-span-3">
-            <!-- 权限配置内容 -->
-            <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
-                <div id="permissionConfigPanel">
-                    <!-- 选中模块的配置内容将通过JS动态生成 -->
-                    <div id="noModuleSelected" class="text-center py-12">
-                        <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 mb-4 block">touch_app</span>
-                        <h5 class="text-lg font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('请从左侧选择一个模块') }}</h5>
-                        <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('点击模块名称以查看和编辑其权限设置') }}</p>
+            <!-- 右侧：权限配置面板 -->
+            <div class="lg:col-span-3">
+                <!-- 权限配置内容 -->
+                <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
+                    <div id="permissionConfigPanel">
+                        <!-- 选中模块的配置内容将通过JS动态生成 -->
+                        <div id="noModuleSelected" class="text-center py-12">
+                            <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 mb-4 block">touch_app</span>
+                            <h5 class="text-lg font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('请从左侧选择一个模块') }}</h5>
+                            <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('点击模块名称以查看和编辑其权限设置') }}</p>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endmacro %}
+
+{# 只读权限视图 - 按分类分组，只显示有权限的模块 #}
+{% macro render_tw_permission_view_only(modules, permission_map) %}
+{# 1. 先按分类分组模块（只收集有权限的） #}
+{% set groups = {} %}
+{% set group_order = [] %}
+{% for module in modules %}
+    {# 使用中括号访问并用 |default 处理缺失值 #}
+    {% set perm = permission_map[module.id]|default({}) %}
+    {% set has_any = perm.can_view or perm.can_create or perm.can_edit or perm.can_delete %}
+    {% if has_any %}
+        {# 使用点符号访问字典属性，|default 处理缺失值 #}
+        {% set group_name = module.group|default(module.group_name)|default(_('其他')) %}
+        {% if group_name not in groups %}
+            {% if groups.update({group_name: []}) %}{% endif %}
+            {% if group_order.append(group_name) %}{% endif %}
+        {% endif %}
+        {% if groups[group_name].append({'module': module, 'perm': perm}) %}{% endif %}
+    {% endif %}
+{% endfor %}
+
+{# 2. 按分类渲染（只渲染有模块的分类，默认展开） #}
+{% if groups %}
+<div class="space-y-4">
+    {% for group_name in group_order %}
+    {% set group_modules = groups[group_name] %}
+    <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <!-- 分类标题 -->
+        <div class="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
+            <span class="material-symbols-outlined text-slate-500 dark:text-slate-400 text-lg">folder_open</span>
+            <span class="font-medium text-slate-700 dark:text-slate-300">{{ group_name }}</span>
+            <span class="text-xs text-slate-500 dark:text-slate-400">({{ group_modules|length }})</span>
+        </div>
+        <!-- 分类下的模块 -->
+        <div class="divide-y divide-slate-100 dark:divide-slate-700">
+            {% for item in group_modules %}
+            {% set module = item.module %}
+            {% set perm = item.perm %}
+            {% set level = perm.permission_level|default('personal') %}
+            {# 权限级别样式 #}
+            {% if level == 'system' %}
+                {% set level_color = 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' %}
+                {% set level_label = _('系统级') %}
+            {% elif level == 'company' %}
+                {% set level_color = 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' %}
+                {% set level_label = _('企业级') %}
+            {% elif level == 'department' %}
+                {% set level_color = 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' %}
+                {% set level_label = _('部门级') %}
+            {% else %}
+                {% set level_color = 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300' %}
+                {% set level_label = _('个人级') %}
+            {% endif %}
+            <div class="p-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-primary text-sm">{{ module.icon|default('apps') }}</span>
+                        </div>
+                        <span class="font-medium text-slate-700 dark:text-slate-300">{{ module.name|default(module.id) }}</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ level_color }}">
+                            {{ level_label }}
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-3 text-sm">
+                        <span class="flex items-center gap-1 {% if perm.can_view %}text-green-600 dark:text-green-400{% else %}text-slate-300 dark:text-slate-600{% endif %}">
+                            <span class="material-symbols-outlined text-base">{% if perm.can_view %}check_circle{% else %}cancel{% endif %}</span>
+                            {{ _('查看') }}
+                        </span>
+                        <span class="flex items-center gap-1 {% if perm.can_create %}text-green-600 dark:text-green-400{% else %}text-slate-300 dark:text-slate-600{% endif %}">
+                            <span class="material-symbols-outlined text-base">{% if perm.can_create %}check_circle{% else %}cancel{% endif %}</span>
+                            {{ _('创建') }}
+                        </span>
+                        <span class="flex items-center gap-1 {% if perm.can_edit %}text-green-600 dark:text-green-400{% else %}text-slate-300 dark:text-slate-600{% endif %}">
+                            <span class="material-symbols-outlined text-base">{% if perm.can_edit %}check_circle{% else %}cancel{% endif %}</span>
+                            {{ _('编辑') }}
+                        </span>
+                        <span class="flex items-center gap-1 {% if perm.can_delete %}text-green-600 dark:text-green-400{% else %}text-slate-300 dark:text-slate-600{% endif %}">
+                            <span class="material-symbols-outlined text-base">{% if perm.can_delete %}check_circle{% else %}cancel{% endif %}</span>
+                            {{ _('删除') }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+    <div class="text-center py-8 text-slate-500 dark:text-slate-400">
+        <span class="material-symbols-outlined text-4xl mb-2 block">lock</span>
+        <p>{{ _('暂无已配置的权限') }}</p>
+    </div>
+</div>
+{% endif %}
 {% endmacro %}
 
 

@@ -34,6 +34,9 @@ from app.models.permission_module import (
 )
 from app.models.ai_analysis_cache import AIAnalysisCache, UserDailyLoginRecord
 from app.models.worklog import WorkItem, WorkLog
+from app.models.worklog_read import WorklogRead
+from app.models.message import Message
+from app.models.announcement import Announcement, AnnouncementRead, AnnouncementAttachment
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
            'ProductCategory', 'ProductSubcategory', 'ProductRegion', 'ProductCodeField',
@@ -56,4 +59,5 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'QuarterlyPerformanceData', 'SalaryCalculationResult',
            'PermissionModule', 'PermissionModuleFeature', 'RoleFeaturePermission',
            'AIAnalysisCache', 'UserDailyLoginRecord',
-           'WorkItem', 'WorkLog'] 
+           'WorkItem', 'WorkLog', 'WorklogRead', 'Message',
+           'Announcement', 'AnnouncementRead', 'AnnouncementAttachment'] 

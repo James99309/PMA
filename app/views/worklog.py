@@ -13,7 +13,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from app import db
 from app.models.worklog import WorkItem, WorkLog
-from app.models.user import Affiliation
+from app.models.user import User, Affiliation
 from app.models.project import Project
 from app.models.customer import Company, Contact
 from app.models.quotation import Quotation
@@ -70,6 +70,50 @@ def can_view_work_item(user, work_item):
     if work_item.shared_with_users and user.id in work_item.shared_with_users:
         return True
     return False
+
+
+def get_leader_ids(user):
+    """获取需要通知的领导ID列表（部门负责人、团队负责人、管理员）"""
+    from app.models.user import User
+    leader_ids = set()
+
+    # 1. 部门负责人（同部门同公司的 is_department_manager=True）
+    if user.department and user.company_name:
+        dept_managers = User.query.filter(
+            User.department == user.department,
+            User.company_name == user.company_name,
+            User.is_department_manager == True,
+            User.id != user.id  # 排除自己
+        ).all()
+        for dm in dept_managers:
+            leader_ids.add(dm.id)
+
+    # 2. 团队负责人（通过 EmployeeSalaryConfig 和 SalesTeamConfig 表查询）
+    try:
+        from app.models.salary_config import EmployeeSalaryConfig, SalesTeamConfig
+        from datetime import datetime
+        current_year = datetime.now().year
+        # 查询用户的薪资配置，获取团队ID
+        employee_config = EmployeeSalaryConfig.query.filter(
+            EmployeeSalaryConfig.user_id == user.id,
+            EmployeeSalaryConfig.year == current_year
+        ).first()
+        if employee_config and employee_config.team_id:
+            team = SalesTeamConfig.query.get(employee_config.team_id)
+            if team and team.team_leader_id and team.team_leader_id != user.id:
+                leader_ids.add(team.team_leader_id)
+    except Exception:
+        pass  # 薪资配置表可能不存在或查询失败，忽略
+
+    # 3. 管理员（admin/ceo 角色）
+    admins = User.query.filter(
+        User.role.in_(['admin', 'ceo']),
+        User.id != user.id
+    ).all()
+    for admin in admins:
+        leader_ids.add(admin.id)
+
+    return leader_ids
 
 
 def get_daily_activities(user_id, target_date):
@@ -412,10 +456,46 @@ def get_items():
     # 获取有工作项的日期集合（用于前端高亮）
     dates_with_items = list(set(item.planned_date.isoformat() for item in items))
 
-    return jsonify({
+    result = {
         'events': events,
         'datesWithItems': dates_with_items
-    })
+    }
+
+    # 如果查看他人日历，额外返回日志已读/未读状态
+    if owner_id:
+        from app.models.worklog_read import WorklogRead
+
+        # 查询指定用户在日期范围内的日志
+        logs = WorkLog.query.filter(
+            WorkLog.owner_id == owner_id,
+            WorkLog.log_date >= start_date,
+            WorkLog.log_date < end_date,
+            WorkLog.status == 'submitted'  # 只显示已提交的日志
+        ).all()
+
+        if logs:
+            # 获取当前用户已读的日志ID
+            log_ids = [log.id for log in logs]
+            read_log_ids = WorklogRead.get_read_worklog_ids(current_user.id, log_ids)
+
+            # 分类：未读和已读
+            dates_with_unread_logs = []
+            dates_with_read_logs = []
+
+            for log in logs:
+                date_str = log.log_date.isoformat()
+                if log.id in read_log_ids:
+                    dates_with_read_logs.append(date_str)
+                else:
+                    dates_with_unread_logs.append(date_str)
+
+            result['datesWithUnreadLogs'] = list(set(dates_with_unread_logs))
+            result['datesWithReadLogs'] = list(set(dates_with_read_logs))
+        else:
+            result['datesWithUnreadLogs'] = []
+            result['datesWithReadLogs'] = []
+
+    return jsonify(result)
 
 
 @worklog.route('/api/items', methods=['POST'])
@@ -521,6 +601,7 @@ def create_item():
         start_time=start_time,
         end_time=end_time,
         is_all_day=data.get('is_all_day', True),
+        is_business_trip=data.get('is_business_trip', False),
         estimated_hours=estimated_hours,
         project_id=project_id,
         customer_id=customer_id,
@@ -532,6 +613,19 @@ def create_item():
 
     db.session.add(work_item)
     db.session.commit()
+
+    # 发送共享通知给被共享的用户
+    if shared_with_users:
+        from app.models.message import Message
+        for user_id in shared_with_users:
+            if user_id != current_user.id:  # 不通知自己
+                msg = Message.create_workitem_shared(
+                    sender_id=current_user.id,
+                    recipient_id=user_id,
+                    work_item=work_item
+                )
+                db.session.add(msg)
+        db.session.commit()
 
     return jsonify({
         'success': True,
@@ -575,6 +669,10 @@ def update_item(item_id):
     if not data:
         return jsonify({'success': False, 'message': _('无效的请求数据')}), 400
 
+    # 记录更新前的值，用于发送通知
+    old_planned_date = work_item.planned_date
+    old_shared_users = set(work_item.shared_with_users or [])
+
     # 更新字段
     if 'title' in data:
         work_item.title = data['title'].strip()
@@ -616,6 +714,8 @@ def update_item(item_id):
             work_item.end_time = None
     if 'is_all_day' in data:
         work_item.is_all_day = data['is_all_day']
+    if 'is_business_trip' in data:
+        work_item.is_business_trip = data['is_business_trip']
     if 'estimated_hours' in data:
         val = data['estimated_hours']
         if val == '' or val is None:
@@ -668,6 +768,50 @@ def update_item(item_id):
 
     db.session.commit()
 
+    # 发送通知
+    from app.models.message import Message
+    new_shared_users = set(work_item.shared_with_users or [])
+
+    # 1. 时间变更通知 - 通知所有共享用户（包括新增和原有的）
+    if work_item.planned_date != old_planned_date:
+        all_shared_users = old_shared_users | new_shared_users
+        for user_id in all_shared_users:
+            if user_id != current_user.id:
+                msg = Message.create_workitem_time_changed(
+                    sender_id=current_user.id,
+                    recipient_id=user_id,
+                    work_item=work_item,
+                    old_date=old_planned_date,
+                    new_date=work_item.planned_date
+                )
+                db.session.add(msg)
+
+    # 2. 共享用户变更通知
+    # 被移除的用户
+    removed_users = old_shared_users - new_shared_users
+    for user_id in removed_users:
+        if user_id != current_user.id:
+            msg = Message.create_workitem_unshared(
+                sender_id=current_user.id,
+                recipient_id=user_id,
+                work_item=work_item
+            )
+            db.session.add(msg)
+
+    # 新增的用户（如果时间没变更，才发送共享通知；时间变更时已经发送了时间变更通知）
+    if work_item.planned_date == old_planned_date:
+        added_users = new_shared_users - old_shared_users
+        for user_id in added_users:
+            if user_id != current_user.id:
+                msg = Message.create_workitem_shared(
+                    sender_id=current_user.id,
+                    recipient_id=user_id,
+                    work_item=work_item
+                )
+                db.session.add(msg)
+
+    db.session.commit()
+
     return jsonify({
         'success': True,
         'message': _('更新成功'),
@@ -678,7 +822,7 @@ def update_item(item_id):
 @worklog.route('/api/items/<int:item_id>', methods=['DELETE'])
 @login_required
 def delete_item(item_id):
-    """删除工作项（软删除）"""
+    """删除工作项（软删除或作废）"""
     work_item = WorkItem.query.get(item_id)
 
     if not work_item or work_item.is_deleted:
@@ -688,13 +832,40 @@ def delete_item(item_id):
     if work_item.owner_id != current_user.id:
         return jsonify({'success': False, 'message': _('只有创建人可以删除此行程')}), 403
 
-    work_item.is_deleted = True
-    db.session.commit()
+    from datetime import date as date_type
+    today = date_type.today()
 
-    return jsonify({
-        'success': True,
-        'message': _('删除成功')
-    })
+    if work_item.planned_date > today:
+        # 未来行程：标记为无效（中划线显示），保留记录
+        work_item.is_invalidated = True
+        db.session.commit()
+
+        # 通知共享用户
+        if work_item.shared_with_users:
+            from app.models.message import Message
+            for user_id in work_item.shared_with_users:
+                if user_id != current_user.id:
+                    msg = Message.create_workitem_invalidated(
+                        sender_id=current_user.id,
+                        recipient_id=user_id,
+                        work_item=work_item
+                    )
+                    db.session.add(msg)
+            db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': _('已作废')
+        })
+    else:
+        # 当天或过去的行程：软删除
+        work_item.is_deleted = True
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': _('删除成功')
+        })
 
 
 @worklog.route('/api/items/<int:item_id>/complete', methods=['POST'])
@@ -754,6 +925,19 @@ def complete_item(item_id):
 
     db.session.commit()
 
+    # 发送完成通知给被共享的用户
+    if work_item.shared_with_users:
+        from app.models.message import Message
+        for user_id in work_item.shared_with_users:
+            if user_id != current_user.id:  # 不通知自己
+                msg = Message.create_workitem_completed(
+                    sender_id=current_user.id,
+                    recipient_id=user_id,
+                    work_item=work_item
+                )
+                db.session.add(msg)
+        db.session.commit()
+
     return jsonify({
         'success': True,
         'message': _('标记完成'),
@@ -781,6 +965,19 @@ def cancel_item(item_id):
 
     db.session.commit()
 
+    # 发送取消通知给被共享的用户
+    if work_item.shared_with_users:
+        from app.models.message import Message
+        for user_id in work_item.shared_with_users:
+            if user_id != current_user.id:  # 不通知自己
+                msg = Message.create_workitem_cancelled(
+                    sender_id=current_user.id,
+                    recipient_id=user_id,
+                    work_item=work_item
+                )
+                db.session.add(msg)
+        db.session.commit()
+
     return jsonify({
         'success': True,
         'message': _('已取消'),
@@ -791,24 +988,55 @@ def cancel_item(item_id):
 @worklog.route('/api/daily/<log_date>', methods=['GET'])
 @login_required
 def get_daily_log(log_date):
-    """获取日志数据"""
+    """获取日志数据
+
+    支持查看他人日志：传入 owner_id 参数时，返回该用户的日志（只读模式）
+    """
     try:
         target_date = datetime.strptime(log_date, '%Y-%m-%d').date()
     except ValueError:
         return jsonify({'success': False, 'message': _('日期格式无效')}), 400
 
-    # 获取或创建日志
-    worklog = WorkLog.get_or_create(current_user.id, target_date)
-    db.session.commit()
+    # 检查是否查看他人日志
+    owner_id = request.args.get('owner_id', type=int)
+    is_readonly = False
 
-    # 获取当天的所有工作项（包括未关联到日志的 + 共享给当前用户的）
+    if owner_id and owner_id != current_user.id:
+        # 查看他人日志 - 只读模式
+        is_readonly = True
+        target_user_id = owner_id
+
+        # 只查询已存在的日志，不创建新日志
+        worklog = WorkLog.query.filter_by(
+            owner_id=owner_id,
+            log_date=target_date
+        ).first()
+
+        if not worklog:
+            return jsonify({
+                'success': True,
+                'data': {
+                    'log': None,
+                    'completed_items': [],
+                    'pending_items': [],
+                    'cancelled_items': [],
+                    'statistics': {},
+                    'activities': {},
+                    'is_readonly': True,
+                    'no_log': True
+                }
+            })
+    else:
+        # 查看自己的日志 - 可编辑
+        target_user_id = current_user.id
+        worklog = WorkLog.get_or_create(current_user.id, target_date)
+        db.session.commit()
+
+    # 获取当天的所有工作项
     work_items = WorkItem.query.filter(
         WorkItem.planned_date == target_date,
         WorkItem.is_deleted == False,
-        or_(
-            WorkItem.owner_id == current_user.id,
-            cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{current_user.id}]'::jsonb"))
-        )
+        WorkItem.owner_id == target_user_id
     ).order_by(WorkItem.created_at).all()
 
     # 分类工作项
@@ -827,17 +1055,25 @@ def get_daily_log(log_date):
     }
 
     # 查询当天的行动记录（创建或修改的业务数据）
-    activities = get_daily_activities(current_user.id, target_date)
+    activities = get_daily_activities(target_user_id, target_date)
+
+    # 获取日志所有者信息
+    log_data = worklog.to_dict()
+    if is_readonly:
+        owner = User.query.get(owner_id)
+        if owner:
+            log_data['owner_display_name'] = owner.real_name or owner.username
 
     return jsonify({
         'success': True,
         'data': {
-            'log': worklog.to_dict(),
+            'log': log_data,
             'completed_items': completed_items,
             'pending_items': pending_items,
             'cancelled_items': cancelled_items,
             'statistics': stats,
-            'activities': activities
+            'activities': activities,
+            'is_readonly': is_readonly
         }
     })
 
@@ -873,6 +1109,44 @@ def update_daily_log(log_date):
     })
 
 
+@worklog.route('/api/daily/<log_date>/mark-read', methods=['POST'])
+@login_required
+def mark_log_read(log_date):
+    """标记日志为已读（查看他人日志时调用）"""
+    try:
+        target_date = datetime.strptime(log_date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'success': False, 'message': _('日期格式无效')}), 400
+
+    # 获取要标记的日志所有者ID
+    owner_id = request.args.get('owner_id', type=int)
+    if not owner_id:
+        return jsonify({'success': False, 'message': '缺少 owner_id 参数'}), 400
+
+    # 不能标记自己的日志为已读
+    if owner_id == current_user.id:
+        return jsonify({'success': True, 'message': '无需标记自己的日志'})
+
+    # 查找日志
+    worklog = WorkLog.query.filter_by(
+        owner_id=owner_id,
+        log_date=target_date
+    ).first()
+
+    if not worklog:
+        return jsonify({'success': False, 'message': '日志不存在'}), 404
+
+    # 标记为已读
+    from app.models.worklog_read import WorklogRead
+    WorklogRead.mark_as_read(worklog.id, current_user.id)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': '已标记为已读'
+    })
+
+
 @worklog.route('/api/daily/<log_date>/submit', methods=['POST'])
 @login_required
 def submit_daily_log(log_date):
@@ -896,6 +1170,19 @@ def submit_daily_log(log_date):
     mentioned_users = data.get('mentioned_users', [])
     if isinstance(mentioned_users, list):
         worklog.mentioned_users = mentioned_users if mentioned_users else None
+
+        # 创建@消息通知
+        if mentioned_users:
+            from app.models.message import Message
+            for user_id in mentioned_users:
+                if user_id != current_user.id:  # 不给自己发消息
+                    msg = Message.create_worklog_mention(
+                        sender_id=current_user.id,
+                        recipient_id=user_id,
+                        worklog=worklog
+                    )
+                    db.session.add(msg)
+
     mentioned_projects = data.get('mentioned_projects', [])
     if isinstance(mentioned_projects, list):
         worklog.mentioned_projects = mentioned_projects if mentioned_projects else None
@@ -918,7 +1205,18 @@ def submit_daily_log(log_date):
 
     db.session.commit()
 
-    # TODO: 可以在这里发送通知给上级
+    # 发送日志提交通知给领导
+    leader_ids = get_leader_ids(current_user)
+    if leader_ids:
+        from app.models.message import Message
+        for leader_id in leader_ids:
+            msg = Message.create_worklog_submitted(
+                sender_id=current_user.id,
+                recipient_id=leader_id,
+                worklog=worklog
+            )
+            db.session.add(msg)
+        db.session.commit()
 
     return jsonify({
         'success': True,

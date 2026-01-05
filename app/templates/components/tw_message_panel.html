@@ -1,0 +1,529 @@
+{#
+=============================================================================
+消息通知面板组件
+=============================================================================
+从右侧滑入的消息面板，显示日志@消息和待审批记录。
+
+使用方式：
+{% from 'components/tw_message_panel.html' import render_message_button, render_message_panel, render_message_panel_script %}
+
+在顶部工具栏调用：
+{{ render_message_button() }}
+
+在页面底部调用：
+{{ render_message_panel() }}
+{{ render_message_panel_script() }}
+=============================================================================
+#}
+
+{# 消息图标按钮 #}
+{% macro render_message_button() %}
+<button id="onboarding-message-btn"
+        @click="$dispatch('toggle-message-panel')"
+        class="relative flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        title="{{ _('消息通知') }}">
+    <span class="material-symbols-outlined">notifications</span>
+    <!-- 未读徽章 -->
+    <span x-show="$store.message && $store.message.unreadCount > 0"
+          x-text="$store.message.unreadCount > 99 ? '99+' : $store.message.unreadCount"
+          x-cloak
+          class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-xs font-bold text-white bg-red-500 rounded-full">
+    </span>
+</button>
+{% endmacro %}
+
+{# 消息面板 #}
+{% macro render_message_panel() %}
+<!-- 消息面板容器 -->
+<div x-data="messagePanel()"
+     x-show="open"
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0"
+     x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0"
+     @toggle-message-panel.window="toggle()"
+     @keydown.escape.window="open && close()"
+     class="fixed inset-0 z-50"
+     x-cloak
+     style="display: none;">
+
+    <!-- 背景遮罩 -->
+    <div class="absolute inset-0 bg-black/30 dark:bg-black/50" @click="close()"></div>
+
+    <!-- 面板 -->
+    <div x-show="open"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="translate-x-full"
+         x-transition:enter-end="translate-x-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="translate-x-0"
+         x-transition:leave-end="translate-x-full"
+         @mouseenter="clearAutoHide()"
+         @mouseleave="startAutoHide()"
+         class="absolute top-0 right-0 h-full w-full sm:w-96 lg:w-[25vw] min-w-[320px] bg-white dark:bg-slate-900 shadow-2xl flex flex-col">
+
+        <!-- 面板头部 -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+            <h2 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('消息通知') }}</h2>
+            <div class="flex items-center gap-2">
+                <button @click="markAllRead()"
+                        class="text-sm text-primary hover:text-primary-dark transition-colors"
+                        x-show="data.counts.unread_mentions > 0">
+                    {{ _('全部已读') }}
+                </button>
+                <button @click="close()"
+                        class="flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 标签页切换 -->
+        <div class="flex border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+            <button @click="activeTab = 'mentions'"
+                    :class="activeTab === 'mentions' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                    class="flex-1 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center justify-center gap-1.5">
+                {{ _('@我') }}
+                <span x-show="data.counts.unread_mentions > 0"
+                      x-text="data.counts.unread_mentions > 99 ? '99+' : data.counts.unread_mentions"
+                      class="min-w-[18px] h-[18px] px-1 flex items-center justify-center text-xs font-bold text-white bg-red-500 rounded-full"></span>
+            </button>
+            <button @click="activeTab = 'approvals'"
+                    :class="activeTab === 'approvals' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                    class="flex-1 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center justify-center gap-1.5">
+                {{ _('待审批') }}
+                <span x-show="data.counts.pending_approvals > 0"
+                      x-text="data.counts.pending_approvals > 99 ? '99+' : data.counts.pending_approvals"
+                      class="min-w-[18px] h-[18px] px-1 flex items-center justify-center text-xs font-bold text-white bg-red-500 rounded-full"></span>
+            </button>
+        </div>
+
+        <!-- 内容区域 -->
+        <div class="flex-1 overflow-y-auto">
+            <!-- 加载状态 -->
+            <div x-show="loading" class="flex items-center justify-center py-12">
+                <div class="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
+            </div>
+
+            <!-- 待审批列表 -->
+            <div x-show="activeTab === 'approvals' && !loading">
+                <template x-if="data.approvals.length === 0">
+                    <div class="flex flex-col items-center justify-center py-12 text-slate-400">
+                        <span class="material-symbols-outlined text-4xl mb-2">task_alt</span>
+                        <span class="text-sm">{{ _('暂无待审批记录') }}</span>
+                    </div>
+                </template>
+                <template x-for="item in data.approvals" :key="item.id">
+                    <a :href="item.detail_url"
+                       target="_blank"
+                       @click="close()"
+                       class="flex items-start gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-amber-600 dark:text-amber-400">pending_actions</span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-sm font-medium text-slate-900 dark:text-white truncate" x-text="item.object_name"></span>
+                                <span class="text-xs text-slate-400 flex-shrink-0" x-text="formatTime(item.created_at)"></span>
+                            </div>
+                            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                <span x-text="getObjectTypeLabel(item.object_type)"></span>
+                            </div>
+                        </div>
+                        <span class="material-symbols-outlined text-slate-300 flex-shrink-0">chevron_right</span>
+                    </a>
+                </template>
+            </div>
+
+            <!-- 日志@消息和公告列表 -->
+            <div x-show="activeTab === 'mentions' && !loading">
+                <template x-if="data.mentions.length === 0">
+                    <div class="flex flex-col items-center justify-center py-12 text-slate-400">
+                        <span class="material-symbols-outlined text-4xl mb-2">notifications_none</span>
+                        <span class="text-sm">{{ _('暂无消息') }}</span>
+                    </div>
+                </template>
+                <template x-for="item in data.mentions" :key="item.id">
+                    <!-- 有权限时可点击跳转到发送者日历 -->
+                    <template x-if="item.can_view_calendar">
+                        <a :href="getMessageUrl(item)"
+                           @click="markRead([item.id])"
+                           class="flex items-start gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                           :class="{ 'bg-blue-50/50 dark:bg-blue-900/10': !item.is_read }">
+                            <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+                                 :class="getMessageBgColor(item)">
+                                <span class="material-symbols-outlined"
+                                      :class="getMessageTextColor(item)"
+                                      x-text="getMessageIcon(item)"></span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-sm font-medium text-slate-900 dark:text-white" x-text="item.title"></span>
+                                    <span class="text-xs text-slate-400 flex-shrink-0" x-text="formatTime(item.created_at)"></span>
+                                </div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2" x-text="item.content"></div>
+                            </div>
+                            <span class="material-symbols-outlined text-slate-300 flex-shrink-0">chevron_right</span>
+                        </a>
+                    </template>
+                    <!-- 无权限时仅展示消息内容，不显示箭头 -->
+                    <template x-if="!item.can_view_calendar">
+                        <div @click="markRead([item.id])"
+                             class="flex items-start gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800 cursor-default"
+                             :class="{ 'bg-blue-50/50 dark:bg-blue-900/10': !item.is_read }">
+                            <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+                                 :class="getMessageBgColor(item)">
+                                <span class="material-symbols-outlined"
+                                      :class="getMessageTextColor(item)"
+                                      x-text="getMessageIcon(item)"></span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-sm font-medium text-slate-900 dark:text-white" x-text="item.title"></span>
+                                    <span class="text-xs text-slate-400 flex-shrink-0" x-text="formatTime(item.created_at)"></span>
+                                </div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2" x-text="item.content"></div>
+                            </div>
+                        </div>
+                    </template>
+                </template>
+            </div>
+        </div>
+
+        <!-- 底部 -->
+        <div class="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
+            <a href="{{ url_for('approval.tw_center') }}"
+               class="block w-full py-2 text-center text-sm text-primary hover:text-primary-dark transition-colors">
+                {{ _('查看全部审批') }}
+            </a>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{# 消息面板 JavaScript #}
+{% macro render_message_panel_script() %}
+<script>
+// Alpine.js Store 用于全局状态管理
+document.addEventListener('alpine:init', () => {
+    Alpine.store('message', {
+        unreadCount: 0,
+        hasCheckedOnLogin: false,
+
+        async fetchUnreadCount() {
+            try {
+                const response = await fetch('/message/api/unread-count');
+                const data = await response.json();
+                if (data.success) {
+                    this.unreadCount = data.data.total;
+                }
+            } catch (e) {
+                console.error('Failed to fetch unread count:', e);
+            }
+        },
+
+        async checkAndShowPanel() {
+            if (this.hasCheckedOnLogin) return;
+            this.hasCheckedOnLogin = true;
+
+            try {
+                const response = await fetch('/message/api/has-unread');
+                const data = await response.json();
+                if (data.success && data.has_unread) {
+                    // 自动弹出面板
+                    window.dispatchEvent(new CustomEvent('toggle-message-panel'));
+                }
+            } catch (e) {
+                console.error('Failed to check unread:', e);
+            }
+        }
+    });
+
+    // 初始化时获取未读数量
+    Alpine.store('message').fetchUnreadCount();
+});
+
+// 消息面板组件
+function messagePanel() {
+    return {
+        open: false,
+        loading: false,
+        activeTab: 'mentions',
+        autoHideTimer: null,
+        data: {
+            mentions: [],
+            approvals: [],
+            counts: {
+                unread_mentions: 0,
+                pending_approvals: 0,
+                total: 0
+            }
+        },
+
+        init() {
+            // 检查是否刚登录
+            // 新手引导组件会处理 justLoggedIn 逻辑（首次登录时）
+            // 此处仅处理非首次登录的消息面板自动弹出
+            this.$nextTick(() => {
+                const isJustLoggedIn = sessionStorage.getItem('justLoggedIn');
+                const hasCompletedOnboarding = localStorage.getItem('pma_onboarding_completed');
+
+                // 仅在非首次登录（已完成引导）时自动检测消息
+                if (isJustLoggedIn && hasCompletedOnboarding === 'true') {
+                    sessionStorage.removeItem('justLoggedIn');
+                    Alpine.store('message').checkAndShowPanel();
+                }
+            });
+        },
+
+        toggle() {
+            if (this.open) {
+                this.close();
+            } else {
+                this.show();
+            }
+        },
+
+        async show() {
+            this.open = true;
+            this.loading = true;
+            await this.fetchData();
+            this.loading = false;
+            this.startAutoHide();
+        },
+
+        close() {
+            this.open = false;
+            this.clearAutoHide();
+        },
+
+        startAutoHide() {
+            this.clearAutoHide();
+            // 60秒后自动隐藏
+            this.autoHideTimer = setTimeout(() => {
+                this.close();
+            }, 60000);
+        },
+
+        clearAutoHide() {
+            if (this.autoHideTimer) {
+                clearTimeout(this.autoHideTimer);
+                this.autoHideTimer = null;
+            }
+        },
+
+        async fetchData() {
+            try {
+                const response = await fetch('/message/api/panel-data');
+                const result = await response.json();
+                if (result.success) {
+                    this.data = result.data;
+                    if (Alpine.store('message')) {
+                        Alpine.store('message').unreadCount = result.data.counts.total;
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to fetch message data:', e);
+            }
+        },
+
+        async markRead(messageIds) {
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+                // 分离消息ID和公告ID
+                const msgIds = messageIds.filter(id => !String(id).startsWith('ann_'));
+                const annIds = messageIds.filter(id => String(id).startsWith('ann_'))
+                                         .map(id => id.replace('ann_', ''));
+
+                // 标记消息已读
+                if (msgIds.length > 0) {
+                    await fetch('/message/api/mark-read', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({ message_ids: msgIds })
+                    });
+                }
+
+                // 标记公告已读
+                for (const annReadId of annIds) {
+                    // 需要从 mention 中获取 announcement_id
+                    const annItem = this.data.mentions.find(m => m.id === `ann_${annReadId}`);
+                    if (annItem && annItem.related_object_id) {
+                        await fetch(`/announcement/api/mark_read/${annItem.related_object_id}`, {
+                            method: 'POST',
+                            headers: { 'X-CSRFToken': csrfToken }
+                        });
+                    }
+                }
+
+                // 更新本地状态
+                messageIds.forEach(id => {
+                    const msg = this.data.mentions.find(m => m.id === id);
+                    if (msg) msg.is_read = true;
+                });
+                this.data.counts.unread_mentions = this.data.mentions.filter(m => !m.is_read).length;
+                this.data.counts.total = this.data.counts.unread_mentions + this.data.counts.pending_approvals;
+                if (Alpine.store('message')) {
+                    Alpine.store('message').unreadCount = this.data.counts.total;
+                }
+            } catch (e) {
+                console.error('Failed to mark read:', e);
+            }
+        },
+
+        async markAllRead() {
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+                // 标记所有消息已读
+                await fetch('/message/api/mark-read', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({ message_ids: [] })
+                });
+
+                // 标记所有公告已读
+                const unreadAnnouncements = this.data.mentions.filter(
+                    m => String(m.id).startsWith('ann_') && !m.is_read
+                );
+                for (const ann of unreadAnnouncements) {
+                    if (ann.related_object_id) {
+                        await fetch(`/announcement/api/mark_read/${ann.related_object_id}`, {
+                            method: 'POST',
+                            headers: { 'X-CSRFToken': csrfToken }
+                        });
+                    }
+                }
+
+                // 更新本地状态
+                this.data.mentions.forEach(m => m.is_read = true);
+                this.data.counts.unread_mentions = 0;
+                this.data.counts.total = this.data.counts.pending_approvals;
+                if (Alpine.store('message')) {
+                    Alpine.store('message').unreadCount = this.data.counts.total;
+                }
+            } catch (e) {
+                console.error('Failed to mark all read:', e);
+            }
+        },
+
+        getMessageUrl(item) {
+            // 根据消息类型和相关对象类型返回不同的 URL
+            if (item.related_object_type === 'workitem') {
+                // 行程类消息，跳转到日历页面查看行程
+                if (item.metadata && item.metadata.planned_date) {
+                    return `/worklog/calendar?date=${item.metadata.planned_date}`;
+                }
+                return '/worklog/calendar';
+            } else if (item.related_object_type === 'worklog') {
+                // 日志@消息，跳转到发送者的日历
+                if (item.metadata && item.metadata.log_date) {
+                    return `/worklog/calendar?date=${item.metadata.log_date}&owner_id=${item.sender_id}`;
+                }
+                return `/worklog/calendar?owner_id=${item.sender_id}`;
+            }
+            return '/worklog/calendar';
+        },
+
+        getMessageIcon(item) {
+            // 根据消息类型返回不同的图标
+            const icons = {
+                'worklog_mention': 'alternate_email',
+                'worklog_submitted': 'task_alt',
+                'workitem_shared': 'event',
+                'workitem_cancelled': 'event_busy',
+                'workitem_completed': 'event_available',
+                'workitem_time_changed': 'schedule',
+                'workitem_unshared': 'person_remove',
+                'workitem_invalidated': 'event_busy',
+                // 公告类型
+                'announcement_system': 'campaign',
+                'announcement_business': 'campaign',
+                'announcement_urgent': 'priority_high'
+            };
+            return icons[item.message_type] || 'notifications';
+        },
+
+        getMessageBgColor(item) {
+            // 根据消息类型返回图标背景颜色
+            const colors = {
+                'worklog_mention': 'bg-blue-100 dark:bg-blue-900/30',
+                'worklog_submitted': 'bg-emerald-100 dark:bg-emerald-900/30',
+                'workitem_shared': 'bg-purple-100 dark:bg-purple-900/30',
+                'workitem_cancelled': 'bg-red-100 dark:bg-red-900/30',
+                'workitem_completed': 'bg-green-100 dark:bg-green-900/30',
+                'workitem_time_changed': 'bg-amber-100 dark:bg-amber-900/30',
+                'workitem_unshared': 'bg-slate-100 dark:bg-slate-800',
+                'workitem_invalidated': 'bg-red-100 dark:bg-red-900/30',
+                // 公告类型
+                'announcement_system': 'bg-indigo-100 dark:bg-indigo-900/30',
+                'announcement_business': 'bg-cyan-100 dark:bg-cyan-900/30',
+                'announcement_urgent': 'bg-red-100 dark:bg-red-900/30'
+            };
+            return colors[item.message_type] || 'bg-blue-100 dark:bg-blue-900/30';
+        },
+
+        getMessageTextColor(item) {
+            // 根据消息类型返回图标文字颜色
+            const colors = {
+                'worklog_mention': 'text-blue-600 dark:text-blue-400',
+                'worklog_submitted': 'text-emerald-600 dark:text-emerald-400',
+                'workitem_shared': 'text-purple-600 dark:text-purple-400',
+                'workitem_cancelled': 'text-red-600 dark:text-red-400',
+                'workitem_completed': 'text-green-600 dark:text-green-400',
+                'workitem_time_changed': 'text-amber-600 dark:text-amber-400',
+                'workitem_unshared': 'text-slate-600 dark:text-slate-400',
+                'workitem_invalidated': 'text-red-600 dark:text-red-400',
+                // 公告类型
+                'announcement_system': 'text-indigo-600 dark:text-indigo-400',
+                'announcement_business': 'text-cyan-600 dark:text-cyan-400',
+                'announcement_urgent': 'text-red-600 dark:text-red-400'
+            };
+            return colors[item.message_type] || 'text-blue-600 dark:text-blue-400';
+        },
+
+        getObjectTypeLabel(type) {
+            const labels = {
+                'project': '{{ _("项目") }}',
+                'expense': '{{ _("报销单") }}',
+                'quotation': '{{ _("报价单") }}',
+                'pricing_order': '{{ _("批价单") }}',
+                'purchase_order': '{{ _("采购订单") }}',
+                'customer': '{{ _("客户") }}',
+                'rd_product': '{{ _("研发产品") }}',
+                'workitem': '{{ _("行程") }}',
+                'announcement': '{{ _("公告") }}'
+            };
+            return labels[type] || type;
+        },
+
+        formatTime(isoString) {
+            if (!isoString) return '';
+            const date = new Date(isoString);
+            const now = new Date();
+            const diff = now - date;
+
+            // 小于1分钟
+            if (diff < 60000) return '{{ _("刚刚") }}';
+            // 小于1小时
+            if (diff < 3600000) return Math.floor(diff / 60000) + '{{ _("分钟前") }}';
+            // 小于24小时
+            if (diff < 86400000) return Math.floor(diff / 3600000) + '{{ _("小时前") }}';
+            // 小于7天
+            if (diff < 604800000) return Math.floor(diff / 86400000) + '{{ _("天前") }}';
+            // 其他
+            return date.toLocaleDateString();
+        }
+    };
+}
+</script>
+{% endmacro %}

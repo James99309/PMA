@@ -6,9 +6,6 @@
     <button @click="open = !open" class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 w-full text-left">
         <span class="material-symbols-outlined text-slate-600 dark:text-slate-400">account_circle</span>
         <span class="text-slate-600 dark:text-slate-300 text-sm font-medium flex-1 truncate">{{ user.real_name or user.username }}</span>
-        {% if pending_approval_count > 0 %}
-        <span class="notification-badge">{{ pending_approval_count }}</span>
-        {% endif %}
         <span :class="{'rotate-180': open}" class="material-symbols-outlined text-slate-600 dark:text-slate-400 transition-transform text-base">expand_more</span>
     </button>
     <div class="absolute bottom-full mb-2 w-full bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 p-2" x-show="open" x-transition x-cloak @click.away="open = false">

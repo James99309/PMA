@@ -1,0 +1,400 @@
+# -*- coding: utf-8 -*-
+"""
+站内消息模型 - 用于存储日志@消息等站内通知
+
+Message: 站内消息记录
+"""
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON, Index
+
+from app import db
+
+
+def get_local_time():
+    """获取本地时间（北京时区）"""
+    return datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+
+
+class Message(db.Model):
+    """站内消息模型"""
+    __tablename__ = 'messages'
+
+    id = Column(Integer, primary_key=True)
+
+    # 消息类型: worklog_mention(日志@), approval_reminder(审批提醒) 等
+    message_type = Column(String(50), nullable=False, index=True)
+
+    # 发送者和接收者
+    sender_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
+
+    recipient_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    recipient = db.relationship('User', foreign_keys=[recipient_id], backref='received_messages')
+
+    # 消息内容
+    title = Column(String(200), nullable=False)      # 消息标题
+    content = Column(Text)                           # 消息内容预览
+
+    # 关联对象（如日志ID、项目ID等）
+    related_object_type = Column(String(50))         # 'worklog', 'project', 'expense' 等
+    related_object_id = Column(Integer)              # 关联对象ID
+
+    # 元数据（存储额外信息，如日志日期等）
+    # 注意：不能使用 metadata 作为字段名，因为它是 SQLAlchemy 的保留字
+    extra_data = Column('metadata', JSON, default=dict)
+
+    # 状态
+    is_read = Column(Boolean, default=False, index=True)
+    read_at = Column(DateTime)
+
+    # 系统字段
+    created_at = Column(DateTime, default=get_local_time, index=True)
+
+    # 索引：用于快速查询未读消息
+    __table_args__ = (
+        Index('ix_messages_recipient_unread', 'recipient_id', 'is_read'),
+    )
+
+    def to_dict(self):
+        """转换为字典"""
+        return {
+            'id': self.id,
+            'message_type': self.message_type,
+            'sender_id': self.sender_id,
+            'sender_name': self.sender.real_name or self.sender.username if self.sender else None,
+            'recipient_id': self.recipient_id,
+            'title': self.title,
+            'content': self.content,
+            'related_object_type': self.related_object_type,
+            'related_object_id': self.related_object_id,
+            'metadata': self.extra_data or {},
+            'is_read': self.is_read,
+            'read_at': self.read_at.isoformat() if self.read_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+    @classmethod
+    def get_unread_count(cls, user_id):
+        """获取用户未读消息数量"""
+        return cls.query.filter(
+            cls.recipient_id == user_id,
+            cls.is_read == False
+        ).count()
+
+    @classmethod
+    def get_unread_messages(cls, user_id, limit=50):
+        """获取用户未读消息列表"""
+        return cls.query.filter(
+            cls.recipient_id == user_id,
+            cls.is_read == False
+        ).order_by(cls.created_at.desc()).limit(limit).all()
+
+    @classmethod
+    def get_all_messages(cls, user_id, limit=50):
+        """获取用户所有消息列表（包括已读）"""
+        return cls.query.filter(
+            cls.recipient_id == user_id
+        ).order_by(cls.created_at.desc()).limit(limit).all()
+
+    @classmethod
+    def create_worklog_mention(cls, sender_id, recipient_id, worklog):
+        """创建日志@消息
+
+        Args:
+            sender_id: 发送者用户ID（日志作者）
+            recipient_id: 接收者用户ID（被@的用户）
+            worklog: WorkLog 对象
+
+        Returns:
+            Message: 创建的消息对象（未提交到数据库）
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+
+        # 截取内容预览（最多100字符）
+        content_preview = ''
+        if worklog.additional_notes:
+            # 移除 mention 标记，只保留纯文本预览
+            import re
+            clean_text = re.sub(r'[@#%]\[([^\]|]+)\|[^\]]+\]', r'\1', worklog.additional_notes)
+            content_preview = clean_text[:100] + ('...' if len(clean_text) > 100 else '')
+
+        return cls(
+            message_type='worklog_mention',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 在日志中@了你',
+            content=content_preview,
+            related_object_type='worklog',
+            related_object_id=worklog.id,
+            extra_data={
+                'log_date': worklog.log_date.isoformat() if worklog.log_date else None,
+                'log_type': worklog.log_type
+            }
+        )
+
+    @classmethod
+    def mark_as_read(cls, message_ids, user_id):
+        """批量标记消息为已读
+
+        Args:
+            message_ids: 消息ID列表，为空则标记所有未读消息
+            user_id: 用户ID
+        """
+        now = get_local_time()
+
+        if not message_ids:
+            # 标记所有未读消息为已读
+            cls.query.filter(
+                cls.recipient_id == user_id,
+                cls.is_read == False
+            ).update({
+                'is_read': True,
+                'read_at': now
+            })
+        else:
+            # 标记指定消息为已读
+            cls.query.filter(
+                cls.id.in_(message_ids),
+                cls.recipient_id == user_id
+            ).update({
+                'is_read': True,
+                'read_at': now
+            }, synchronize_session=False)
+
+        db.session.commit()
+
+    @classmethod
+    def create_workitem_shared(cls, sender_id, recipient_id, work_item):
+        """创建行程共享通知
+
+        Args:
+            sender_id: 发送者用户ID（行程创建者）
+            recipient_id: 接收者用户ID（被共享的用户）
+            work_item: WorkItem 对象
+
+        Returns:
+            Message: 创建的消息对象（未提交到数据库）
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+
+        # 内容预览：行程标题
+        content_preview = work_item.title[:100] if work_item.title else ''
+
+        return cls(
+            message_type='workitem_shared',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 与你共享了行程',
+            content=content_preview,
+            related_object_type='workitem',
+            related_object_id=work_item.id,
+            extra_data={
+                'planned_date': work_item.planned_date.isoformat() if work_item.planned_date else None,
+                'work_type': work_item.work_type
+            }
+        )
+
+    @classmethod
+    def create_workitem_cancelled(cls, sender_id, recipient_id, work_item):
+        """创建行程取消通知
+
+        Args:
+            sender_id: 发送者用户ID（行程创建者）
+            recipient_id: 接收者用户ID（被共享的用户）
+            work_item: WorkItem 对象
+
+        Returns:
+            Message: 创建的消息对象（未提交到数据库）
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+
+        content_preview = work_item.title[:100] if work_item.title else ''
+
+        return cls(
+            message_type='workitem_cancelled',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 取消了行程',
+            content=content_preview,
+            related_object_type='workitem',
+            related_object_id=work_item.id,
+            extra_data={
+                'planned_date': work_item.planned_date.isoformat() if work_item.planned_date else None,
+                'work_type': work_item.work_type
+            }
+        )
+
+    @classmethod
+    def create_workitem_completed(cls, sender_id, recipient_id, work_item):
+        """创建行程完成通知
+
+        Args:
+            sender_id: 发送者用户ID（行程创建者）
+            recipient_id: 接收者用户ID（被共享的用户）
+            work_item: WorkItem 对象
+
+        Returns:
+            Message: 创建的消息对象（未提交到数据库）
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+
+        content_preview = work_item.title[:100] if work_item.title else ''
+
+        return cls(
+            message_type='workitem_completed',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 完成了行程',
+            content=content_preview,
+            related_object_type='workitem',
+            related_object_id=work_item.id,
+            extra_data={
+                'planned_date': work_item.planned_date.isoformat() if work_item.planned_date else None,
+                'work_type': work_item.work_type
+            }
+        )
+
+    @classmethod
+    def create_workitem_time_changed(cls, sender_id, recipient_id, work_item, old_date, new_date):
+        """创建行程时间变更通知
+
+        Args:
+            sender_id: 发送者用户ID（行程创建者）
+            recipient_id: 接收者用户ID（被共享的用户）
+            work_item: WorkItem 对象
+            old_date: 原日期
+            new_date: 新日期
+
+        Returns:
+            Message: 创建的消息对象（未提交到数据库）
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+
+        content_preview = work_item.title[:100] if work_item.title else ''
+
+        return cls(
+            message_type='workitem_time_changed',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 修改了行程时间',
+            content=content_preview,
+            related_object_type='workitem',
+            related_object_id=work_item.id,
+            extra_data={
+                'planned_date': new_date.isoformat() if new_date else None,
+                'old_date': old_date.isoformat() if old_date else None,
+                'work_type': work_item.work_type
+            }
+        )
+
+    @classmethod
+    def create_workitem_unshared(cls, sender_id, recipient_id, work_item):
+        """创建行程取消共享通知（被移除）
+
+        Args:
+            sender_id: 发送者用户ID（行程创建者）
+            recipient_id: 接收者用户ID（被移除的用户）
+            work_item: WorkItem 对象
+
+        Returns:
+            Message: 创建的消息对象（未提交到数据库）
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+
+        content_preview = work_item.title[:100] if work_item.title else ''
+
+        return cls(
+            message_type='workitem_unshared',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 将你从行程中移除',
+            content=content_preview,
+            related_object_type='workitem',
+            related_object_id=work_item.id,
+            extra_data={
+                'planned_date': work_item.planned_date.isoformat() if work_item.planned_date else None,
+                'work_type': work_item.work_type
+            }
+        )
+
+    @classmethod
+    def create_workitem_invalidated(cls, sender_id, recipient_id, work_item):
+        """创建行程作废通知
+
+        Args:
+            sender_id: 发送者用户ID（行程创建者）
+            recipient_id: 接收者用户ID（被共享的用户）
+            work_item: WorkItem 对象
+
+        Returns:
+            Message: 创建的消息对象（未提交到数据库）
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+
+        content_preview = work_item.title[:100] if work_item.title else ''
+
+        return cls(
+            message_type='workitem_invalidated',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 作废了行程',
+            content=content_preview,
+            related_object_type='workitem',
+            related_object_id=work_item.id,
+            extra_data={
+                'planned_date': work_item.planned_date.isoformat() if work_item.planned_date else None,
+                'work_type': work_item.work_type
+            }
+        )
+
+    @classmethod
+    def create_worklog_submitted(cls, sender_id, recipient_id, worklog):
+        """创建日志提交通知
+
+        Args:
+            sender_id: 发送者用户ID（日志作者）
+            recipient_id: 接收者用户ID（领导）
+            worklog: WorkLog 对象
+
+        Returns:
+            Message: 创建的消息对象（未提交到数据库）
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+
+        # 截取内容预览
+        content_preview = ''
+        if worklog.additional_notes:
+            import re
+            clean_text = re.sub(r'[@#%]\[([^\]|]+)\|[^\]]+\]', r'\1', worklog.additional_notes)
+            content_preview = clean_text[:100] + ('...' if len(clean_text) > 100 else '')
+
+        return cls(
+            message_type='worklog_submitted',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 提交了工作日志',
+            content=content_preview,
+            related_object_type='worklog',
+            related_object_id=worklog.id,
+            extra_data={
+                'log_date': worklog.log_date.isoformat() if worklog.log_date else None,
+                'log_type': worklog.log_type
+            }
+        )

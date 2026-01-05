@@ -782,6 +782,14 @@ def create_app(config_class=Config):
     from app.routes.notification import notification
     app.register_blueprint(notification)
 
+    # 注册消息蓝图
+    from app.views.message import message as message_bp
+    app.register_blueprint(message_bp)
+
+    # 注册公告蓝图
+    from app.views.announcement import announcement_bp
+    app.register_blueprint(announcement_bp)
+
     # 添加审批相关函数到模板上下文
     from app.context_processors import inject_approval_functions
     app.context_processor(inject_approval_functions)

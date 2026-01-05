@@ -33,6 +33,8 @@ Tailwind 统一布局组件
 #}
 {% from 'components/tw_user_menu.html' import render_tw_user_menu with context %}
 {% from 'components/tw_nav_menu.html' import render_tw_nav_menu with context %}
+{% from 'components/tw_message_panel.html' import render_message_button, render_message_panel, render_message_panel_script %}
+{% from 'components/tw_onboarding.html' import render_onboarding_resources, render_onboarding_script %}
 
 {% macro render_tw_layout(active_page='dashboard', show_search=true, search_value='', search_placeholder=none) %}
 {# 获取待审批数量 #}
@@ -92,8 +94,16 @@ Tailwind 统一布局组件
 
         <!-- 右侧：语言、深色模式、其他按钮 -->
         <div class="flex items-center gap-2 lg:gap-4">
+            <!-- 帮助/引导按钮 -->
+            <button onclick="window.startOnboardingManually && window.startOnboardingManually()"
+                    class="flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    title="{{ _('功能引导') }}">
+                <span class="material-symbols-outlined">help_outline</span>
+            </button>
+
             <!-- 工作日历入口 -->
-            <a href="{{ url_for('worklog.calendar') }}"
+            <a id="onboarding-calendar-btn"
+               href="{{ url_for('worklog.calendar') }}"
                class="flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                title="{{ _('工作日历') }}">
                 <span class="material-symbols-outlined">calendar_today</span>
@@ -117,6 +127,9 @@ Tailwind 统一布局组件
                     </a>
                 </div>
             </div>
+
+            <!-- 消息通知 -->
+            {{ render_message_button() }}
 
             <!-- 深色模式切换 -->
             <button id="themeToggle" class="flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
@@ -153,6 +166,9 @@ Tailwind 统一布局组件
             {{ caller('content') if caller else '' }}
         </main>
     </div>
+
+    <!-- 消息通知面板 -->
+    {{ render_message_panel() }}
 </div>
 {% endmacro %}
 
@@ -161,6 +177,14 @@ Tailwind 统一布局组件
 {% macro render_tw_layout_script() %}
 {# Tailwind 通知组件 - 全局可用 #}
 <script src="{{ url_for('static', filename='js/common/tw-notification.js') }}"></script>
+{# 消息通知面板脚本 #}
+{{ render_message_panel_script() }}
+{# 新手引导资源 #}
+{{ render_onboarding_resources() }}
+{# 检测刚登录标记，设置 sessionStorage 供消息面板使用 #}
+{% if session.pop('just_logged_in', False) %}
+<script>sessionStorage.setItem('justLoggedIn', 'true');</script>
+{% endif %}
 <script>
 (function() {
     // ========== 搜索框功能 ==========
@@ -270,4 +294,6 @@ Tailwind 统一布局组件
     }
 })();
 </script>
+{# 新手引导脚本 #}
+{{ render_onboarding_script() }}
 {% endmacro %}

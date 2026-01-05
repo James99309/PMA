@@ -1998,9 +1998,9 @@ def get_approval_object_url(instance):
     object_id = instance.object_id
     
     if object_type == 'project':
-        return url_for('project.view_project', project_id=object_id)
+        return url_for('project.view_project', project_id=object_id, tw=1)
     elif object_type == 'quotation':
-        return url_for('quotation.view_quotation', id=object_id)
+        return url_for('quotation.view_quotation', id=object_id, tw=1)
     elif object_type == 'customer':
         return url_for('customer.view_company', company_id=object_id)
     elif object_type == 'pricing_order':
@@ -2008,9 +2008,10 @@ def get_approval_object_url(instance):
     elif object_type == 'purchase_order':
         return url_for('inventory.order_detail', id=object_id)
     elif object_type == 'expense':
-        return url_for('expense.expense_detail', id=object_id, from_approval='true')  # 🔥 修复：添加报销单详情页路由，标记来自审批中心
+        return url_for('expense.expense_detail', id=object_id, from_approval='true')
     elif object_type == 'rd_product':
-        return url_for('dev_product.dev_product_detail', dev_product_id=object_id)
+        # 研发产品蓝图已停用，返回首页
+        return url_for('main.index')
     else:
         return url_for('main.index')
 

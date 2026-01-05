@@ -183,7 +183,7 @@ Tailwind 共享导航菜单组件
 
 <!-- 系统管理组 -->
 {% if has_permission('system_settings', 'edit') %}
-<div x-data="{ open: {{ 'true' if active_page in ['admin', 'version', 'approval_config', 'notification', 'history', 'backup'] else 'false' }} }">
+<div x-data="{ open: {{ 'true' if active_page in ['admin', 'version', 'approval_config', 'notification', 'history', 'backup', 'announcement'] else 'false' }} }">
     <button @click="open = !open" class="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
         <div class="flex items-center gap-3">
             <span class="material-symbols-outlined text-slate-600 dark:text-slate-400">settings</span>
@@ -215,6 +215,10 @@ Tailwind 共享导航菜单组件
         <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'backup' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('backup.index') }}">
             <span class="material-symbols-outlined text-base {% if active_page == 'backup' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">cloud_upload</span>
             <span class="{% if active_page == 'backup' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('数据库备份') }}</span>
+        </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'announcement' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('announcement.list_view') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'announcement' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">campaign</span>
+            <span class="{% if active_page == 'announcement' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('公告管理') }}</span>
         </a>
     </div>
 </div>

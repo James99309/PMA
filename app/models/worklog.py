@@ -65,6 +65,8 @@ class WorkItem(db.Model):
     created_at = Column(DateTime, default=get_local_time)
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
     is_deleted = Column(Boolean, default=False)
+    is_invalidated = Column(Boolean, default=False)  # 标记为无效（中划线显示，保留记录）
+    is_business_trip = Column(Boolean, default=False)  # 是否出差
 
     # 共享字段
     shared_with_users = Column(JSON, default=list)  # 共享用户ID列表 [3, 5, 8]
@@ -73,9 +75,8 @@ class WorkItem(db.Model):
     TYPE_COLORS = {
         # 通用-其他 - 灰色 #64748b
         'other': '#64748b',
-        # 行销 - 绿色 #22c55e (含通用的会议、出差)
+        # 行销 - 绿色 #22c55e (含通用的会议)
         'meeting': '#22c55e',
-        'business_trip': '#22c55e',
         'customer_visit': '#22c55e',
         'presales_support': '#22c55e',
         'business_negotiation': '#22c55e',
@@ -114,11 +115,10 @@ class WorkItem(db.Model):
         'quality_tracking': '#06b6d4',
     }
 
-    # 工作类型标签（32个子类型）
+    # 工作类型标签（31个子类型，出差已改为独立勾选框）
     TYPE_LABELS = {
         # 通用
         'meeting': '会议',
-        'business_trip': '出差',
         'internal_training': '内部培训',
         'other': '其他',
         # 行销
@@ -193,7 +193,9 @@ class WorkItem(db.Model):
                 'owner_name': owner_name,
                 'shared_with_users': self.shared_with_users or [],
                 'contact_id': self.contact_id,
-                'contact_name': self.contact.name if self.contact else None
+                'contact_name': self.contact.name if self.contact else None,
+                'is_invalidated': self.is_invalidated,
+                'is_business_trip': self.is_business_trip
             }
         }
 
@@ -266,6 +268,8 @@ class WorkItem(db.Model):
             'owner_id': self.owner_id,
             'owner_name': self.owner.real_name or self.owner.username if self.owner else None,
             'shared_with_users': self.shared_with_users or [],
+            'is_invalidated': self.is_invalidated,
+            'is_business_trip': self.is_business_trip,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

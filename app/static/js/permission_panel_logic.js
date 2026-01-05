@@ -19,6 +19,8 @@ const PermissionPanel = (function() {
     let modulePermissionsCache = {};
     let hasUnsavedChanges = false;
     let pendingRoleSwitch = null;
+    let isEditMode = false;          // 是否处于编辑模式
+    let panelInitialized = false;    // 编辑面板是否已初始化
 
     // 配置数据
     let config = null;
@@ -101,8 +103,26 @@ const PermissionPanel = (function() {
 
         console.log('权限面板初始化:', config.contextType, config.contextId);
 
+        // 绑定模式切换事件（立即绑定，不依赖元数据加载）
+        attachModeToggleListeners();
+
+        // 注意：编辑面板的初始化延迟到进入编辑模式时执行
+        // 这样可以在查看模式下避免不必要的API调用和DOM操作
+    }
+
+    /**
+     * 初始化编辑面板（进入编辑模式时调用）
+     */
+    function initEditPanel() {
+        if (panelInitialized) {
+            console.log('编辑面板已初始化，跳过');
+            return Promise.resolve();
+        }
+
+        console.log('初始化编辑面板...');
+
         // 加载模块元数据
-        loadModuleMetadata().then(() => {
+        return loadModuleMetadata().then(() => {
             // 渲染模块列表
             renderModuleList();
 
@@ -116,6 +136,9 @@ const PermissionPanel = (function() {
 
             // 初始化保存按钮状态
             updateSaveButtonState();
+
+            panelInitialized = true;
+            console.log('✅ 编辑面板初始化完成');
         });
     }
 
@@ -1256,6 +1279,83 @@ const PermissionPanel = (function() {
 
             console.log(`✅ 模块 ${moduleId} 状态已更新: ${isEnabled ? '启用' : '禁用'}`);
         }
+    }
+
+    /**
+     * 绑定模式切换事件监听器
+     */
+    function attachModeToggleListeners() {
+        // 进入编辑模式按钮
+        const enterEditBtn = document.getElementById('enterEditMode');
+        if (enterEditBtn) {
+            enterEditBtn.addEventListener('click', enterEditMode);
+        }
+
+        // 退出编辑模式按钮
+        const exitEditBtn = document.getElementById('exitEditMode');
+        if (exitEditBtn) {
+            exitEditBtn.addEventListener('click', exitEditMode);
+        }
+    }
+
+    /**
+     * 进入编辑模式
+     */
+    function enterEditMode() {
+        console.log('进入编辑模式');
+        isEditMode = true;
+
+        // 切换显示状态
+        const viewMode = document.getElementById('permissionViewMode');
+        const editMode = document.getElementById('permissionEditMode');
+        const enterBtn = document.getElementById('enterEditMode');
+        const editBtns = document.getElementById('editModeButtons');
+
+        if (viewMode) viewMode.classList.add('hidden');
+        if (editMode) editMode.classList.remove('hidden');
+        if (enterBtn) enterBtn.classList.add('hidden');
+        if (editBtns) editBtns.classList.remove('hidden');
+
+        // 初始化编辑面板（如果还没初始化）
+        initEditPanel();
+    }
+
+    /**
+     * 退出编辑模式
+     */
+    function exitEditMode() {
+        // 如果有未保存的更改，提示用户
+        if (hasUnsavedChanges) {
+            if (!confirm('您有未保存的更改，确定要放弃吗？')) {
+                return;
+            }
+        }
+
+        doExitEditMode();
+    }
+
+    /**
+     * 执行退出编辑模式
+     */
+    function doExitEditMode() {
+        console.log('退出编辑模式');
+        isEditMode = false;
+
+        // 切换显示状态
+        const viewMode = document.getElementById('permissionViewMode');
+        const editMode = document.getElementById('permissionEditMode');
+        const enterBtn = document.getElementById('enterEditMode');
+        const editBtns = document.getElementById('editModeButtons');
+
+        if (viewMode) viewMode.classList.remove('hidden');
+        if (editMode) editMode.classList.add('hidden');
+        if (enterBtn) enterBtn.classList.remove('hidden');
+        if (editBtns) editBtns.classList.add('hidden');
+
+        // 重置未保存状态
+        hasUnsavedChanges = false;
+        modulePermissionsCache = {};
+        updateSaveButtonState();
     }
 
     /**

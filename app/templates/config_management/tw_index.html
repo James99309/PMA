@@ -2635,6 +2635,17 @@
             get groupedModules() {
                 const groups = {};
                 this.modules.forEach(module => {
+                    // 查看模式下只显示启用的模块，编辑模式显示所有模块
+                    if (!this.isEditing) {
+                        const perm = this.permissions[module.id];
+                        // 模块未启用则跳过（检查 permission_level 不是 'none' 或有任意权限）
+                        const isEnabled = perm && (
+                            perm.permission_level !== 'none' ||
+                            perm.can_view || perm.can_create || perm.can_edit || perm.can_delete
+                        );
+                        if (!isEnabled) return;
+                    }
+
                     const groupName = module.group_name || module.group || '{{ _("其他") }}';
                     if (!groups[groupName]) {
                         groups[groupName] = {
@@ -2669,6 +2680,9 @@
                         // 同步全局变量（兼容旧代码）
                         currentRole = roleCode;
                         permissionData = data.data;
+
+                        // 🔧 默认展开所有分组（查看模式友好）
+                        this.expandAllGroups();
                     } else {
                         showNotification(data.message || '{{ _("加载失败") }}', 'error');
                     }
@@ -2704,6 +2718,9 @@
                         this.contentFilterOptions = data.data.content_filter_options || {};
                         this.featurePermissions = data.data.feature_permissions || {};
                         this.userCount = data.data.user_count || userIds.length;
+
+                        // 🔧 默认展开所有分组
+                        this.expandAllGroups();
                     } else {
                         showNotification(data.message || '{{ _("加载失败") }}', 'error');
                     }
@@ -2908,6 +2925,18 @@
 
             isGroupExpanded(groupName) {
                 return this.expandedGroups.includes(groupName);
+            },
+
+            // 🔧 展开所有分组（查看模式友好）
+            expandAllGroups() {
+                // 收集所有分组名称
+                const allGroupNames = new Set();
+                this.modules.forEach(module => {
+                    const groupName = module.group_name || module.group || '{{ _("其他") }}';
+                    allGroupNames.add(groupName);
+                });
+                // 设置所有分组为展开状态
+                this.expandedGroups = Array.from(allGroupNames);
             },
 
             // 模块权限辅助方法

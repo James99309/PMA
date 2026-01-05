@@ -112,6 +112,9 @@ def login():
                 # 缓存初始化失败不应影响登录流程
                 logger.error(f"初始化待审批数量缓存失败: {e}")
 
+            # 设置登录标记，用于消息面板自动弹出
+            session['just_logged_in'] = True
+
             # 重定向到登录前的页面或默认页面
             next_page = request.args.get('next')
             if not next_page or urlparse(next_page).netloc != '':

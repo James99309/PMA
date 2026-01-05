@@ -264,15 +264,23 @@
                 </div>
             </div>
 
-            <!-- 权限标签页（只读模式 - 权限编辑已移至配置管理） -->
+            <!-- 权限标签页 - 支持查看/编辑模式切换 -->
             <div id="tab-perm" class="tab-panel hidden">
-                {# permissions 已经是列表格式，传给 macro 后由 macro 内部通过 module 查找对应权限 #}
+                {# 构建权限映射 #}
                 {% set permission_map = {} %}
                 {% for perm in permissions %}
                     {% if permission_map.update({perm.module: perm}) %}{% endif %}
                 {% endfor %}
 
-                {{ render_tw_permission_readonly_table(modules, permission_map, filter_configs) }}
+                {{ render_tw_permission_panel(
+                    context_type='user',
+                    context_id=user.id,
+                    role=user.role,
+                    role_dict=role_dict,
+                    can_edit=can_edit_user,
+                    modules=modules,
+                    permission_map=permission_map
+                ) }}
             </div>
 
             <!-- 归属关系标签页 -->
@@ -734,6 +742,11 @@
     </script>
 
     {{ render_tw_tabs_script(on_change_callback='onTabChange') }}
+
+    <!-- 权限面板脚本 -->
+    {% if can_edit_user %}
+    {{ render_tw_permission_panel_script('user', user.id) }}
+    {% endif %}
 
     <!-- 发送邀请邮件 AJAX 处理 -->
     {% if not user.is_active and can_edit_user %}
