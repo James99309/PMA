@@ -211,7 +211,7 @@ MODULE_METADATA_FALLBACK = {
         'icon': 'campaign',
         'supports_discount': False,
         'supports_owner_change': False,
-        'supports_affiliation': False,
+        'supports_affiliation': True,
         'supports_content_filter': False,
         'description': '管理系统公告'
     }

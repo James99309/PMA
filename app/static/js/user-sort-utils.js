@@ -7,6 +7,7 @@
 /**
  * 按部门和团队分组排序用户列表
  * 排序规则：
+ * 0. 未激活用户排在最后
  * 1. 按部门名称分组（相同部门放在一起）
  * 2. 同部门内排序：
  *    - 部门负责人最优先
@@ -17,6 +18,7 @@
  * 3. 每个分组内按姓名排序
  *
  * @param {Array} users - 用户列表，需包含以下字段：
+ *   - is_active: 是否激活（可选，默认 true）
  *   - department: 部门名称
  *   - is_department_manager: 是否为部门负责人
  *   - team_name: 团队名称（可选）
@@ -28,7 +30,12 @@ function sortUsersByDepartment(users) {
     if (!users || !Array.isArray(users)) return users;
 
     return [...users].sort((a, b) => {
-        // 1. 先按部门名称排序（相同部门放一起）
+        // 0. 先按激活状态排序（激活用户优先）
+        const isActiveA = a.is_active !== false ? 1 : 0;
+        const isActiveB = b.is_active !== false ? 1 : 0;
+        if (isActiveB !== isActiveA) return isActiveB - isActiveA;
+
+        // 1. 再按部门名称排序（相同部门放一起）
         const deptA = a.department || '';
         const deptB = b.department || '';
         const deptCompare = deptA.localeCompare(deptB, 'zh-CN');

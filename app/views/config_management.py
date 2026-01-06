@@ -1409,13 +1409,13 @@ def api_get_vendor_users():
         # 获取角色字典用于显示名称转换
         role_dict = {d.key: d.value for d in Dictionary.query.filter_by(type='role', is_active=True).all()}
 
-        # 1. 获取所有标记为厂商的公司名称
-        vendor_companies = Dictionary.query.filter_by(
-            type='company', is_vendor=True, is_active=True
+        # 1. 获取所有公司名称（包括厂商和第三方）
+        all_companies = Dictionary.query.filter_by(
+            type='company', is_active=True
         ).all()
-        vendor_company_names = [c.value for c in vendor_companies]
+        company_names = [c.value for c in all_companies]
 
-        if not vendor_company_names:
+        if not company_names:
             return jsonify({
                 'success': True,
                 'data': {
@@ -1424,10 +1424,9 @@ def api_get_vendor_users():
                 }
             })
 
-        # 2. 查询属于这些公司的活跃用户
+        # 2. 查询属于这些公司的用户（包含未激活用户）
         query = User.query.filter(
-            User.company_name.in_(vendor_company_names),
-            User._is_active.is_(True)
+            User.company_name.in_(company_names)
         )
 
         # 3. 搜索过滤
@@ -1530,6 +1529,7 @@ def api_get_vendor_users():
                 'grade_id': grade_id,
                 'team_id': team_id,
                 'team_name': team_name,
+                'is_active': u.is_active,
                 'is_department_manager': u.is_department_manager or False,
                 'is_team_leader': u.id in team_leader_ids
             })

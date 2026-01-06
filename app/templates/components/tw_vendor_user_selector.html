@@ -95,7 +95,10 @@
             {% if multi_select %}
             <!-- 多选模式：复选框 -->
             <div class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors"
-                 :class="{'bg-primary/10': isUserSelected(user.id)}"
+                 :class="{
+                     'bg-primary/10': isUserSelected(user.id),
+                     'opacity-50': user.is_active === false
+                 }"
                  @click="toggleUserSelection(user.id)">
                 <input type="checkbox"
                        :checked="isUserSelected(user.id)"
@@ -106,8 +109,14 @@
                     <span class="material-symbols-outlined text-primary text-sm">person</span>
                 </div>
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300 truncate"
-                       x-html="highlightMatch(user.real_name || user.username)"></p>
+                    <div class="flex items-center gap-1.5">
+                        <p class="text-sm font-medium text-slate-700 dark:text-slate-300 truncate"
+                           x-html="highlightMatch(user.real_name || user.username)"></p>
+                        <span x-show="user.is_active === false"
+                              class="text-xs px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400 flex-shrink-0">
+                            {{ _('停用') }}
+                        </span>
+                    </div>
                     <p class="text-xs text-slate-500 dark:text-slate-400 truncate" x-text="user.department || user.role || ''"></p>
                 </div>
                 <div class="flex items-center gap-1.5">
@@ -117,14 +126,24 @@
             {% else %}
             <!-- 单选模式 -->
             <div class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors"
-                 :class="{'bg-primary/10 border-l-2 border-primary': selectedUserId === user.id, 'bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-500': typeof isUserMatched === 'function' && isUserMatched(user) && selectedUserId !== user.id}"
+                 :class="{
+                     'bg-primary/10 border-l-2 border-primary': selectedUserId === user.id,
+                     'bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-500': typeof isUserMatched === 'function' && isUserMatched(user) && selectedUserId !== user.id,
+                     'opacity-50': user.is_active === false
+                 }"
                  @click="selectUser(user.id)">
                 <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                     <span class="material-symbols-outlined text-primary text-sm">person</span>
                 </div>
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300 truncate"
-                       x-html="highlightMatch(user.real_name || user.username)"></p>
+                    <div class="flex items-center gap-1.5">
+                        <p class="text-sm font-medium text-slate-700 dark:text-slate-300 truncate"
+                           x-html="highlightMatch(user.real_name || user.username)"></p>
+                        <span x-show="user.is_active === false"
+                              class="text-xs px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400 flex-shrink-0">
+                            {{ _('停用') }}
+                        </span>
+                    </div>
                     <p class="text-xs text-slate-500 dark:text-slate-400 truncate" x-text="user.department || user.role || ''"></p>
                 </div>
                 <div class="flex items-center gap-1.5">
