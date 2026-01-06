@@ -71,10 +71,12 @@ def list_quotations():
         project_stage_filter = filters.get('project_stage_filter', '')
 
         # 默认筛选：首次加载时只显示当前用户的报价单
+        # 注意：system/company级别权限用户不应用默认过滤
         owner_filter = apply_default_owner_filter(
             request.args, filters, current_user.id,
             owner_field='owner_filter',
-            filter_keys=['search', 'project_stage_filter', 'project_type_filter', 'project']
+            filter_keys=['search', 'project_stage_filter', 'project_type_filter', 'project'],
+            module_id='quotation'
         )
         project_search = request.args.get('project', '')
 

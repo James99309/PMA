@@ -252,6 +252,34 @@ class User(db.Model, UserMixin):
             print(f"[ERROR][get_permission_level] Database error: {str(e)}")
             return 'personal'
 
+    def get_permission_config(self, module):
+        """
+        获取用户在指定模块的权限配置对象
+        用于读取 content_filters 等配置字段。
+
+        参数:
+            module: 模块名称（如 'project', 'quotation', 'customer'）
+
+        返回:
+            Permission 或 RolePermission 对象，包含 content_filters 等字段
+            如果没有找到配置，返回 None
+        """
+        from app.models.role_permissions import RolePermission
+
+        try:
+            # 优先查询个人权限
+            personal_perm = self.permissions.filter_by(module=module).first()
+            if personal_perm:
+                return personal_perm
+
+            # 其次查询角色权限
+            return RolePermission.query.filter_by(
+                role=self.role, module=module
+            ).first()
+        except Exception as e:
+            print(f"[ERROR][get_permission_config] Database error: {str(e)}")
+            return None
+
     def is_module_enabled(self, module_name):
         """
         检查用户是否启用了指定模块（即是否有任何有效权限）

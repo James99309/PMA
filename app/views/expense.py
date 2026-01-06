@@ -82,10 +82,12 @@ def expense_list():
         status_filter = filters.get('status', '')
 
         # 默认筛选：首次加载时只显示当前用户的报销单
+        # 注意：根据权限级别过滤，但不使用数据归属（expense.supports_affiliation=False）
         owner_id = apply_default_owner_filter(
             request.args, filters, current_user.id,
             owner_field='owner_id',
-            filter_keys=['search', 'status', 'customer_id']
+            filter_keys=['search', 'status', 'customer_id'],
+            module_id='expense'
         )
 
         # 获取排序参数
@@ -1289,11 +1291,12 @@ def expense_detail(id):
         # 移除action和department关联加载，因为已从模型中删除
     ).get_or_404(id)
     
-    # 检查访问权限
-    from app.utils.access_control import has_approval_permission
-    can_view = can_edit_data(expense_obj, current_user)
+    # 检查访问权限 - 使用查看权限而非编辑权限
+    from app.utils.access_control import has_approval_permission, get_viewable_data
+    viewable_expenses = get_viewable_data(Expense, current_user)
+    can_view = viewable_expenses.filter_by(id=id).first() is not None
 
-    # 如果没有编辑权限，检查是否有审批权限（审批人需要能查看报销单详情）
+    # 如果没有查看权限，检查是否有审批权限（审批人需要能查看报销单详情）
     if not can_view:
         can_view = has_approval_permission(current_user, expense_obj)
 

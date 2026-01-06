@@ -576,7 +576,8 @@ def apply_default_owner_filter(
     filters: Dict[str, Any],
     current_user_id: int,
     owner_field: str = 'owner_filter',
-    filter_keys: Optional[List[str]] = None
+    filter_keys: Optional[List[str]] = None,
+    module_id: Optional[str] = None
 ) -> str:
     """
     应用默认的负责人筛选（首次加载时只显示当前用户的数据）
@@ -584,12 +585,16 @@ def apply_default_owner_filter(
     当URL中没有任何筛选参数时，默认按当前用户筛选。
     当用户明确选择"全部"或使用其他筛选条件时，正常显示。
 
+    注意：system/company级别权限的用户不应用默认owner过滤，
+    让 get_viewable_data() 的结果生效。
+
     Args:
         request_args: 请求参数字典 (request.args)
         filters: 已提取的筛选参数字典（会被修改）
         current_user_id: 当前用户ID
         owner_field: 负责人筛选字段名（如 'owner_filter', 'owner_id'）
         filter_keys: 需要检查的筛选参数列表，None则使用默认列表
+        module_id: 模块ID，用于检查用户权限级别（如 'customer', 'project'）
 
     Returns:
         owner_filter 的值（用于模板显示）
@@ -599,9 +604,30 @@ def apply_default_owner_filter(
         owner_filter = apply_default_owner_filter(
             request.args, filters, current_user.id,
             owner_field='owner_filter',
-            filter_keys=['search', 'status', 'type']
+            filter_keys=['search', 'status', 'type'],
+            module_id='customer'
         )
     """
+    # 检查是否应该跳过默认owner过滤，让 get_viewable_data() 的权限结果生效
+    # 两种情况跳过：1. 非个人级别权限  2. 有数据归属（下属）
+    if module_id:
+        from flask_login import current_user
+        from app.utils.module_metadata import module_supports_affiliation
+
+        # 1. 检查权限级别：system/company/department 不应用默认过滤
+        permission_level = current_user.get_permission_level(module_id)
+        if permission_level in ('system', 'company', 'department'):
+            return filters.get(owner_field, '')
+
+        # 2. 检查数据归属：如果模块支持归属且用户有下属，也跳过过滤
+        if module_supports_affiliation(module_id):
+            from app.models.user import Affiliation
+            has_subordinates = Affiliation.query.filter_by(
+                viewer_id=current_user.id
+            ).first() is not None
+            if has_subordinates:
+                return filters.get(owner_field, '')
+
     # 默认检查的筛选参数
     if filter_keys is None:
         filter_keys = ['search', 'status', 'type', 'category']

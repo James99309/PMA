@@ -226,10 +226,12 @@ def list_companies():
     search = filters.get('search', '')
 
     # 默认筛选：首次加载时只显示当前用户的客户
+    # 注意：system/company级别权限用户不应用默认过滤
     owner_filter = apply_default_owner_filter(
         request.args, filters, current_user.id,
         owner_field='owner_filter',
-        filter_keys=['search', 'company_type', 'industry', 'country', 'status_filter']
+        filter_keys=['search', 'company_type', 'industry', 'country', 'status_filter'],
+        module_id='customer'
     )
     company_type_filter = filters.get('company_type', '')
     industry_filter = filters.get('industry', '')

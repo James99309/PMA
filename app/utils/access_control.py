@@ -144,41 +144,65 @@ def apply_content_filters(query, model_class, module_name, user):
 
     返回:
         应用了内容过滤后的Query对象
+
+    规则:
+        - 如果没有配置 content_filters（为空）→ 不做过滤（兼容旧数据）
+        - 如果配置了 content_filters 但某字段为空列表 → 该字段返回空查询（没权限）
     """
     try:
         # 获取用户的权限数据（包含content_filters）
         from app.models.user import Permission
+        from app.models.role_permissions import RolePermission
+
+        # 优先查个人权限
         user_permission = Permission.query.filter_by(
             user_id=user.id,
             module=module_name
         ).first()
 
+        # 如果个人权限没有 content_filters，查角色权限
         if not user_permission or not user_permission.content_filters:
-            return query
+            role_permission = RolePermission.query.filter_by(
+                role=user.role,
+                module=module_name
+            ).first()
+            if role_permission and role_permission.content_filters:
+                content_filters = role_permission.content_filters
+                logger.debug(f"使用角色权限的 content_filters: {content_filters}")
+            else:
+                # 没有任何 content_filters 配置，不做过滤（兼容旧数据）
+                return query
+        else:
+            content_filters = user_permission.content_filters
 
-        content_filters = user_permission.content_filters
         logger.debug(f"应用 {module_name} 模块的内容过滤: {content_filters}")
 
         # 根据模块类型应用不同的过滤规则
+        # 新规则：如果字段存在但为空列表 → 返回空查询（没权限）
         if module_name == 'project' and model_class.__name__ == 'Project':
-            # 项目类型过滤 - 允许NULL值通过（未分类项目）
-            if 'project_type' in content_filters and content_filters['project_type']:
+            # 项目类型过滤
+            if 'project_type' in content_filters:
                 allowed_types = content_filters['project_type']
-                if isinstance(allowed_types, list) and allowed_types:
-                    query = query.filter(
-                        or_(
-                            model_class.project_type.in_(allowed_types),
-                            model_class.project_type.is_(None)
+                if isinstance(allowed_types, list):
+                    if allowed_types:
+                        # 有配置的类型 → 过滤
+                        query = query.filter(
+                            or_(
+                                model_class.project_type.in_(allowed_types),
+                                model_class.project_type.is_(None)
+                            )
                         )
-                    )
-                    logger.debug(f"应用项目类型过滤: {allowed_types} (含NULL)")
+                        logger.debug(f"应用项目类型过滤: {allowed_types} (含NULL)")
+                    else:
+                        # 空列表 → 没权限
+                        logger.debug(f"项目类型过滤为空列表，返回空查询")
+                        return query.filter(False)
 
-            # 业务类型过滤 - 允许NULL值通过（未分类项目）
-            if 'business_type' in content_filters and content_filters['business_type']:
+            # 业务类型过滤
+            if 'business_type' in content_filters:
                 allowed_business_types = content_filters['business_type']
-                if isinstance(allowed_business_types, list) and allowed_business_types:
-                    # 检查模型是否有business_type字段
-                    if hasattr(model_class, 'business_type'):
+                if isinstance(allowed_business_types, list) and hasattr(model_class, 'business_type'):
+                    if allowed_business_types:
                         query = query.filter(
                             or_(
                                 model_class.business_type.in_(allowed_business_types),
@@ -186,56 +210,93 @@ def apply_content_filters(query, model_class, module_name, user):
                             )
                         )
                         logger.debug(f"应用业务类型过滤: {allowed_business_types} (含NULL)")
+                    else:
+                        logger.debug(f"业务类型过滤为空列表，返回空查询")
+                        return query.filter(False)
 
-            # 项目状态过滤 - 允许NULL值通过（未设置状态的项目）
-            if 'project_status' in content_filters and content_filters['project_status']:
+            # 项目状态过滤
+            if 'project_status' in content_filters:
                 allowed_statuses = content_filters['project_status']
-                if isinstance(allowed_statuses, list) and allowed_statuses:
-                    query = query.filter(
-                        or_(
-                            model_class.status.in_(allowed_statuses),
-                            model_class.status.is_(None)
+                if isinstance(allowed_statuses, list):
+                    if allowed_statuses:
+                        query = query.filter(
+                            or_(
+                                model_class.status.in_(allowed_statuses),
+                                model_class.status.is_(None)
+                            )
                         )
-                    )
-                    logger.debug(f"应用项目状态过滤: {allowed_statuses} (含NULL)")
+                        logger.debug(f"应用项目状态过滤: {allowed_statuses} (含NULL)")
+                    else:
+                        logger.debug(f"项目状态过滤为空列表，返回空查询")
+                        return query.filter(False)
 
         elif module_name == 'customer' and model_class.__name__ == 'Company':
-            # 行业过滤 - 允许NULL值通过（未分类客户）
-            if 'industry' in content_filters and content_filters['industry']:
+            # 行业过滤
+            if 'industry' in content_filters:
                 allowed_industries = content_filters['industry']
-                if isinstance(allowed_industries, list) and allowed_industries:
-                    query = query.filter(
-                        or_(
-                            model_class.industry.in_(allowed_industries),
-                            model_class.industry.is_(None)
+                if isinstance(allowed_industries, list):
+                    if allowed_industries:
+                        query = query.filter(
+                            or_(
+                                model_class.industry.in_(allowed_industries),
+                                model_class.industry.is_(None)
+                            )
                         )
-                    )
-                    logger.debug(f"应用行业过滤: {allowed_industries} (含NULL)")
+                        logger.debug(f"应用行业过滤: {allowed_industries} (含NULL)")
+                    else:
+                        logger.debug(f"行业过滤为空列表，返回空查询")
+                        return query.filter(False)
 
-            # 地区过滤 - 允许NULL值通过（未分类客户）
-            if 'region' in content_filters and content_filters['region']:
+            # 地区过滤
+            if 'region' in content_filters:
                 allowed_regions = content_filters['region']
-                if isinstance(allowed_regions, list) and allowed_regions:
-                    query = query.filter(
-                        or_(
-                            model_class.region.in_(allowed_regions),
-                            model_class.region.is_(None)
+                if isinstance(allowed_regions, list):
+                    if allowed_regions:
+                        query = query.filter(
+                            or_(
+                                model_class.region.in_(allowed_regions),
+                                model_class.region.is_(None)
+                            )
                         )
-                    )
-                    logger.debug(f"应用地区过滤: {allowed_regions} (含NULL)")
+                        logger.debug(f"应用地区过滤: {allowed_regions} (含NULL)")
+                    else:
+                        logger.debug(f"地区过滤为空列表，返回空查询")
+                        return query.filter(False)
 
         elif module_name == 'quotation' and model_class.__name__ == 'Quotation':
-            # 报价单状态过滤 - 允许NULL值通过（未设置状态的报价单）
-            if 'quotation_status' in content_filters and content_filters['quotation_status']:
-                allowed_statuses = content_filters['quotation_status']
-                if isinstance(allowed_statuses, list) and allowed_statuses:
-                    query = query.filter(
-                        or_(
-                            model_class.status.in_(allowed_statuses),
-                            model_class.status.is_(None)
+            # 报价单项目类型过滤（通过关联的项目）
+            if 'project_type' in content_filters:
+                allowed_types = content_filters['project_type']
+                if isinstance(allowed_types, list):
+                    if allowed_types:
+                        # 需要 JOIN 项目表来过滤
+                        from app.models.project import Project
+                        query = query.join(Project, model_class.project_id == Project.id).filter(
+                            or_(
+                                Project.project_type.in_(allowed_types),
+                                Project.project_type.is_(None)
+                            )
                         )
-                    )
-                    logger.debug(f"应用报价单状态过滤: {allowed_statuses} (含NULL)")
+                        logger.debug(f"应用报价单项目类型过滤: {allowed_types} (含NULL)")
+                    else:
+                        logger.debug(f"报价单项目类型过滤为空列表，返回空查询")
+                        return query.filter(False)
+
+            # 报价单状态过滤
+            if 'quotation_status' in content_filters:
+                allowed_statuses = content_filters['quotation_status']
+                if isinstance(allowed_statuses, list):
+                    if allowed_statuses:
+                        query = query.filter(
+                            or_(
+                                model_class.status.in_(allowed_statuses),
+                                model_class.status.is_(None)
+                            )
+                        )
+                        logger.debug(f"应用报价单状态过滤: {allowed_statuses} (含NULL)")
+                    else:
+                        logger.debug(f"报价单状态过滤为空列表，返回空查询")
+                        return query.filter(False)
 
         # 其他模块可以在这里继续扩展
 
@@ -461,70 +522,84 @@ def get_viewable_data(model_class, user, special_filters=None):
         if not user.has_permission('quotation', 'view'):
             # 如果没有报价单查看权限，返回空查询
             return model_class.query.filter(False)
-        
+
         # 统一处理角色字符串，去除空格
         user_role = user.role.strip() if user.role else ''
 
         # 基于四级权限系统的数据访问控制
         # 注：财务总监等角色通过权限配置系统授予 system 级权限，无需硬编码
         permission_level = user.get_permission_level('quotation')
-        
+        logger.info(f"🔍 [QUOTATION_ACCESS] 用户 {user.username} 权限级别: {permission_level}, company_name: '{user.company_name}'")
+
+        # 构建基础查询
+        query = None
+
         if permission_level == 'system':
             # 系统级权限：可以查看所有报价单
-            return model_class.query.filter(*special_filters if special_filters else [])
-        elif permission_level == 'company' and user.company_name:
-            # 企业级权限：可以查看企业内所有用户创建的报价单
-            company_user_ids = get_company_user_ids(user, include_affiliations=True)
+            query = model_class.query.filter(*special_filters if special_filters else [])
+        elif permission_level == 'company':
+            if not user.company_name:
+                # company_name 为空，无法按企业过滤，降级到 personal 级别
+                logger.warning(f"⚠️ [QUOTATION_ACCESS] 用户 {user.username} 有 company 级别权限但 company_name 为空，降级到 personal")
+            else:
+                # 企业级权限：可以查看企业内所有用户创建的报价单
+                company_user_ids = get_company_user_ids(user, include_affiliations=True)
+                logger.info(f"🔍 [QUOTATION_ACCESS] 用户 {user.username} 公司用户IDs: {company_user_ids}")
 
-            # 直接通过报价单owner过滤（而不是通过项目）
-            return model_class.query.filter(
-                model_class.owner_id.in_(company_user_ids),
-                *special_filters if special_filters else []
-            )
-        elif permission_level == 'department' and user.department and user.company_name:
-            # 部门级权限：可以查看部门内所有用户创建的报价单（包括归属关系）
-            dept_user_ids = get_department_user_ids(user, include_affiliations=True)
+                # 直接通过报价单owner过滤（而不是通过项目）
+                query = model_class.query.filter(
+                    model_class.owner_id.in_(company_user_ids),
+                    *special_filters if special_filters else []
+                )
+        elif permission_level == 'department':
+            if not user.department or not user.company_name:
+                # department 或 company_name 为空，降级到 personal 级别
+                logger.warning(f"⚠️ [QUOTATION_ACCESS] 用户 {user.username} 有 department 级别权限但 department='{user.department}' 或 company_name='{user.company_name}' 为空，降级到 personal")
+            else:
+                # 部门级权限：可以查看部门内所有用户创建的报价单（包括归属关系）
+                dept_user_ids = get_department_user_ids(user, include_affiliations=True)
+                logger.info(f"🔍 [QUOTATION_ACCESS] 用户 {user.username} 部门用户IDs: {dept_user_ids}")
 
-            # 直接通过报价单owner过滤（而不是通过项目）
-            return model_class.query.filter(
-                model_class.owner_id.in_(dept_user_ids),
-                *special_filters if special_filters else []
-            )
-        
-        # 收集所有可访问的报价单ID列表，避免使用UNION（因为JSON字段无法比较）
-        accessible_quotation_ids = set()
-        
-        # 1. 直接归属（自己创建的报价单）
-        owned_quotations = model_class.query.filter(model_class.owner_id == user.id).with_entities(model_class.id).all()
-        accessible_quotation_ids.update([q.id for q in owned_quotations])
-        
-        # 2. 归属链（Affiliation - 下级创建的报价单）
-        affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
-        if affiliation_owner_ids:
-            subordinate_quotations = model_class.query.filter(model_class.owner_id.in_(affiliation_owner_ids)).with_entities(model_class.id).all()
-            accessible_quotation_ids.update([q.id for q in subordinate_quotations])
-        
-        # 3. 销售负责人相关的项目的报价单
-        sales_manager_projects = Project.query.filter(
-            Project.vendor_sales_manager_id == user.id
-        ).with_entities(Project.id).all()
-        if sales_manager_projects:
-            sales_manager_project_ids = [p.id for p in sales_manager_projects]
-            sales_manager_quotations = model_class.query.filter(model_class.project_id.in_(sales_manager_project_ids)).with_entities(model_class.id).all()
-            accessible_quotation_ids.update([q.id for q in sales_manager_quotations])
-        
-        # 4. 项目类型过滤已移除硬编码
-        # 注：渠道经理、营销总监、服务经理等角色应通过权限配置系统设置：
-        # - 配置 quotation 模块的 company 或 system 级权限
-        # - 使用 content_filters 字段限制可见的 project_type
-        # 例如：content_filters = {"project_type": ["channel_follow"]}
+                # 直接通过报价单owner过滤（而不是通过项目）
+                query = model_class.query.filter(
+                    model_class.owner_id.in_(dept_user_ids),
+                    *special_filters if special_filters else []
+                )
 
-        # 返回基于ID列表的查询
-        if accessible_quotation_ids:
-            return model_class.query.filter(model_class.id.in_(accessible_quotation_ids)).filter(*special_filters if special_filters else [])
-        else:
-            # 如果没有可访问的报价单，返回空查询
-            return model_class.query.filter(model_class.id == -1)
+        # 如果还没有构建查询（降级到 personal 级别）
+        if query is None:
+            # 收集所有可访问的报价单ID列表，避免使用UNION（因为JSON字段无法比较）
+            accessible_quotation_ids = set()
+
+            # 1. 直接归属（自己创建的报价单）
+            owned_quotations = model_class.query.filter(model_class.owner_id == user.id).with_entities(model_class.id).all()
+            accessible_quotation_ids.update([q.id for q in owned_quotations])
+
+            # 2. 归属链（Affiliation - 下级创建的报价单）
+            affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
+            if affiliation_owner_ids:
+                subordinate_quotations = model_class.query.filter(model_class.owner_id.in_(affiliation_owner_ids)).with_entities(model_class.id).all()
+                accessible_quotation_ids.update([q.id for q in subordinate_quotations])
+
+            # 3. 销售负责人相关的项目的报价单
+            sales_manager_projects = Project.query.filter(
+                Project.vendor_sales_manager_id == user.id
+            ).with_entities(Project.id).all()
+            if sales_manager_projects:
+                sales_manager_project_ids = [p.id for p in sales_manager_projects]
+                sales_manager_quotations = model_class.query.filter(model_class.project_id.in_(sales_manager_project_ids)).with_entities(model_class.id).all()
+                accessible_quotation_ids.update([q.id for q in sales_manager_quotations])
+
+            # 返回基于ID列表的查询
+            if accessible_quotation_ids:
+                query = model_class.query.filter(model_class.id.in_(accessible_quotation_ids)).filter(*special_filters if special_filters else [])
+            else:
+                # 如果没有可访问的报价单，返回空查询
+                return model_class.query.filter(model_class.id == -1)
+
+        # 应用内容过滤（统一处理）
+        query = apply_content_filters(query, model_class, 'quotation', user)
+        return query
     
     # 客户特殊权限处理 - 基于权限管理系统（重构版）
     if model_class.__name__ in ['Company', 'Contact']:

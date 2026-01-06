@@ -161,10 +161,12 @@ def list_projects():
     filters = extract_filter_params(request.args, PROJECT_FILTER_CONFIG, prefix='filter_')
 
     # 默认筛选：首次加载时只显示当前用户的项目
+    # 注意：system/company级别权限用户不应用默认过滤
     owner_id = apply_default_owner_filter(
         request.args, filters, current_user.id,
         owner_field='owner_id',
-        filter_keys=['search', 'current_stage', 'industry', 'project_type', 'is_active', 'filter_owner_id']
+        filter_keys=['search', 'current_stage', 'industry', 'project_type', 'is_active', 'filter_owner_id'],
+        module_id='project'
     )
 
     query = apply_filters_to_query(query, Project, filters, PROJECT_FILTER_CONFIG)
