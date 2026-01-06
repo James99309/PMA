@@ -514,6 +514,11 @@
                             <td class="px-6 py-4 text-sm text-right text-gray-500 dark:text-gray-400" x-text="(item.weight * 100) + '%'"></td>
                         </tr>
                     </template>
+                    <tr x-show="!activityScore.breakdown || Object.keys(activityScore.breakdown).length === 0">
+                        <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                            {{ _('暂无详细指标数据') }}
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -603,6 +608,7 @@ function performanceDashboardData(userId, year, dashboardUrl) {
         monthlyGrowth: [],
         expenseBudget: {},
         activityScore: {},
+        activityMonthlyTrend: [],
         industryTrend: {},
         configuredItems: [],  // 配置的绩效项目代码列表（用于动态列显示）
 
@@ -649,6 +655,7 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                     this.monthlyGrowth = result.data.monthly_growth || [];
                     this.expenseBudget = result.data.expense_budget || {};
                     this.activityScore = result.data.activity_score || {};
+                    this.activityMonthlyTrend = result.data.activity_monthly_trend || [];
                     this.industryTrend = result.data.industry_trend || {};
                     this.configuredItems = result.data.configured_items || ['implant_amount', 'sales_amount', 'new_customers', 'new_projects'];
 
@@ -793,7 +800,13 @@ function performanceDashboardData(userId, year, dashboardUrl) {
 
         initActivityRadarChart() {
             const chartDom = document.getElementById('activityRadarChart');
-            if (!chartDom || !this.activityScore.breakdown) return;
+            if (!chartDom) return;
+
+            // 如果没有数据，显示空状态
+            if (!this.activityScore.breakdown || Object.keys(this.activityScore.breakdown).length === 0) {
+                chartDom.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 dark:text-slate-500">{{ _("暂无活跃度数据") }}</div>';
+                return;
+            }
 
             if (this.charts.activityRadar) {
                 this.charts.activityRadar.dispose();
@@ -831,21 +844,108 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             const chartDom = document.getElementById('activityTrendChart');
             if (!chartDom) return;
 
-            // TODO: 需要加载月度活跃度趋势数据
+            // 如果没有数据，显示空状态
+            if (!this.activityMonthlyTrend || this.activityMonthlyTrend.length === 0) {
+                chartDom.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 dark:text-slate-500">{{ _("暂无趋势数据") }}</div>';
+                return;
+            }
+
+            if (this.charts.activityTrend) {
+                this.charts.activityTrend.dispose();
+            }
+
+            this.charts.activityTrend = echarts.init(chartDom);
+
+            const months = this.activityMonthlyTrend.map(d => d.month + '{{ _("月") }}');
+            const scores = this.activityMonthlyTrend.map(d => d.score);
+            const actionCounts = this.activityMonthlyTrend.map(d => d.action_count);
+
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    formatter: function(params) {
+                        let result = params[0].axisValue + '<br/>';
+                        params.forEach(p => {
+                            result += p.marker + ' ' + p.seriesName + ': ' + p.value + '<br/>';
+                        });
+                        return result;
+                    }
+                },
+                legend: {
+                    data: ['{{ _("活跃度评分") }}', '{{ _("行动记录") }}'],
+                    bottom: 0,
+                    textStyle: { color: '#94a3b8' }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%',
+                    top: '10%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: months,
+                    axisLine: { lineStyle: { color: '#cbd5e1' } },
+                    axisLabel: { color: '#64748b' }
+                },
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: '{{ _("评分") }}',
+                        max: 100,
+                        axisLine: { show: false },
+                        axisLabel: { color: '#64748b' },
+                        splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } }
+                    },
+                    {
+                        type: 'value',
+                        name: '{{ _("数量") }}',
+                        axisLine: { show: false },
+                        axisLabel: { color: '#64748b' },
+                        splitLine: { show: false }
+                    }
+                ],
+                series: [
+                    {
+                        name: '{{ _("活跃度评分") }}',
+                        type: 'line',
+                        smooth: true,
+                        data: scores,
+                        itemStyle: { color: '#3b82f6' },
+                        areaStyle: { color: 'rgba(59, 130, 246, 0.1)' }
+                    },
+                    {
+                        name: '{{ _("行动记录") }}',
+                        type: 'bar',
+                        yAxisIndex: 1,
+                        data: actionCounts,
+                        itemStyle: { color: '#10b981', opacity: 0.7 }
+                    }
+                ]
+            };
+
+            this.charts.activityTrend.setOption(option);
         },
 
         initIndustryPieChart() {
             const chartDom = document.getElementById('industryPieChart');
             if (!chartDom) return;
 
+            const yearlyStats = this.getYearlyIndustryStats();
+            const data = Object.entries(yearlyStats).map(([name, value]) => ({ name, value }));
+
+            // 如果没有数据，显示空状态
+            if (data.length === 0) {
+                chartDom.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 dark:text-slate-500">{{ _("暂无行业数据") }}</div>';
+                return;
+            }
+
             if (this.charts.industryPie) {
                 this.charts.industryPie.dispose();
             }
 
             this.charts.industryPie = echarts.init(chartDom);
-
-            const yearlyStats = this.getYearlyIndustryStats();
-            const data = Object.entries(yearlyStats).map(([name, value]) => ({ name, value }));
 
             const option = {
                 tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
@@ -864,7 +964,89 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             const chartDom = document.getElementById('industryTrendChart');
             if (!chartDom) return;
 
-            // TODO: 实现月度行业趋势图
+            // 检查是否有数据
+            if (!this.industryTrend || Object.keys(this.industryTrend).length === 0) {
+                chartDom.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 dark:text-slate-500">{{ _("暂无行业趋势数据") }}</div>';
+                return;
+            }
+
+            // 检查是否有实际的行业数据
+            const yearlyStats = this.getYearlyIndustryStats();
+            if (Object.keys(yearlyStats).length === 0) {
+                chartDom.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 dark:text-slate-500">{{ _("暂无行业趋势数据") }}</div>';
+                return;
+            }
+
+            if (this.charts.industryTrend) {
+                this.charts.industryTrend.dispose();
+            }
+
+            this.charts.industryTrend = echarts.init(chartDom);
+
+            // 收集所有行业
+            const industries = new Set();
+            Object.values(this.industryTrend).forEach(monthData => {
+                Object.keys(monthData).forEach(industry => industries.add(industry));
+            });
+            const industryList = Array.from(industries);
+
+            // 生成月份数据
+            const months = [];
+            const seriesData = {};
+            industryList.forEach(ind => { seriesData[ind] = []; });
+
+            for (let month = 1; month <= 12; month++) {
+                months.push(month + '{{ _("月") }}');
+                const monthData = this.industryTrend[month] || {};
+                industryList.forEach(ind => {
+                    seriesData[ind].push(monthData[ind] || 0);
+                });
+            }
+
+            // 生成系列
+            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
+            const series = industryList.map((ind, index) => ({
+                name: ind,
+                type: 'bar',
+                stack: 'total',
+                data: seriesData[ind],
+                itemStyle: { color: colors[index % colors.length] }
+            }));
+
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' }
+                },
+                legend: {
+                    data: industryList,
+                    bottom: 0,
+                    textStyle: { color: '#94a3b8', fontSize: 10 },
+                    type: 'scroll'
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%',
+                    top: '10%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: months,
+                    axisLine: { lineStyle: { color: '#cbd5e1' } },
+                    axisLabel: { color: '#64748b' }
+                },
+                yAxis: {
+                    type: 'value',
+                    axisLine: { show: false },
+                    axisLabel: { color: '#64748b' },
+                    splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } }
+                },
+                series: series
+            };
+
+            this.charts.industryTrend.setOption(option);
         },
 
         // 辅助方法

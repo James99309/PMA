@@ -780,6 +780,8 @@
                                                                                                    :data-module="module.id"
                                                                                                    :data-filter="filterKey"
                                                                                                    :disabled="!isEditing"
+                                                                                                   :checked="isFilterAllChecked(module.id, filterKey)"
+                                                                                                   x-effect="$el.indeterminate = isFilterPartiallyChecked(module.id, filterKey)"
                                                                                                    @change="toggleFilterSelectAll(module.id, filterKey, $event)">
                                                                                             <span class="text-slate-500">{{ _('全选') }}</span>
                                                                                         </label>
@@ -797,7 +799,7 @@
                                                                                                        :data-value="option[0]"
                                                                                                        :checked="isFilterChecked(module.id, filterKey, option[0])"
                                                                                                        :disabled="!isEditing"
-                                                                                                       @change="markChanged()">
+                                                                                                       @change="toggleFilterValue(module.id, filterKey, option[0], $event.target.checked)">
                                                                                                 <span x-text="option[1]"></span>
                                                                                             </label>
                                                                                         </template>
@@ -2956,35 +2958,40 @@
                     return;
                 }
 
-                // 简单比较：检查是否有任何模块的权限不同
+                // 如果用户没有配置任何个人权限，视为没有差异（使用角色默认）
+                if (Object.keys(this.permissions).length === 0) {
+                    this.hasPersonalDiff = false;
+                    return;
+                }
+
+                // 比较时使用默认值，避免 undefined 导致的误判
+                const getBool = (val) => val === true;
+                const getLevel = (val) => val || 'personal';
+
+                // 只比较用户已配置的模块
                 for (const moduleId of Object.keys(this.permissions)) {
-                    const personal = this.permissions[moduleId];
+                    const personal = this.permissions[moduleId] || {};
                     const role = this.rolePermissions[moduleId];
 
+                    // 如果角色没有这个模块的配置，但用户有，视为有差异
                     if (!role) {
-                        // 个人有权限但角色没有
                         this.hasPersonalDiff = true;
                         return;
                     }
 
-                    // 比较关键字段
-                    if (personal.permission_level !== role.permission_level ||
-                        personal.can_view !== role.can_view ||
-                        personal.can_create !== role.can_create ||
-                        personal.can_edit !== role.can_edit ||
-                        personal.can_delete !== role.can_delete) {
+                    // 比较关键字段（使用宽松比较）
+                    if (getLevel(personal.permission_level) !== getLevel(role.permission_level) ||
+                        getBool(personal.can_view) !== getBool(role.can_view) ||
+                        getBool(personal.can_create) !== getBool(role.can_create) ||
+                        getBool(personal.can_edit) !== getBool(role.can_edit) ||
+                        getBool(personal.can_delete) !== getBool(role.can_delete)) {
                         this.hasPersonalDiff = true;
                         return;
                     }
                 }
 
-                // 检查角色有权限但个人没有的情况
-                for (const moduleId of Object.keys(this.rolePermissions)) {
-                    if (!this.permissions[moduleId]) {
-                        this.hasPersonalDiff = true;
-                        return;
-                    }
-                }
+                // 注意：不检查"角色有权限但个人没有"的情况
+                // 因为用户没配置个人权限时，默认使用角色权限，不应视为差异
 
                 this.hasPersonalDiff = false;
             },
@@ -3049,15 +3056,18 @@
                             }
                         }
 
-                        // 收集内容筛选
-                        const contentFilter = {};
-                        container.querySelectorAll('.content-filter:checked').forEach(cb => {
-                            const filterKey = cb.dataset.filter;
-                            const value = cb.dataset.value;
-                            if (!contentFilter[filterKey]) contentFilter[filterKey] = [];
-                            contentFilter[filterKey].push(value);
-                        });
-                        if (Object.keys(contentFilter).length > 0) {
+                        // 收集内容筛选 - 如果模块有内容筛选配置，始终发送（即使为空）
+                        const filterConfig = this.getFilterConfig(module.id);
+                        if (filterConfig) {
+                            const contentFilter = {};
+                            // 遍历模块定义的所有筛选字段
+                            for (const filterKey of Object.keys(filterConfig)) {
+                                contentFilter[filterKey] = [];
+                                container.querySelectorAll(`.content-filter[data-filter="${filterKey}"]:checked`).forEach(cb => {
+                                    contentFilter[filterKey].push(cb.dataset.value);
+                                });
+                            }
+                            // 始终发送 content_filter（空对象表示"无权限"）
                             permissionsData[module.id].content_filter = contentFilter;
                         }
                     }
@@ -3086,9 +3096,12 @@
                     const data = await response.json();
 
                     if (data.success) {
-                        this.hasChanges = false;
-                        this.isEditing = false;
                         showNotification('{{ _("保存成功") }}', 'success');
+                        // 重新加载权限数据以确保UI状态正确
+                        await this.loadRolePermissions(this.roleCode);
+                        // 确保退出编辑模式
+                        this.isEditing = false;
+                        this.hasChanges = false;
                     } else {
                         showNotification(data.message || '{{ _("保存失败") }}', 'error');
                     }
@@ -3130,6 +3143,19 @@
                             can_delete: container.querySelector('.perm-delete')?.checked || false,
                             permission_level: container.querySelector('.perm-level')?.value || 'personal'
                         };
+
+                        // 收集内容筛选 - 如果模块有内容筛选配置，始终发送（即使为空）
+                        const filterConfig = this.getFilterConfig(module.id);
+                        if (filterConfig) {
+                            const contentFilter = {};
+                            for (const filterKey of Object.keys(filterConfig)) {
+                                contentFilter[filterKey] = [];
+                                container.querySelectorAll(`.content-filter[data-filter="${filterKey}"]:checked`).forEach(cb => {
+                                    contentFilter[filterKey].push(cb.dataset.value);
+                                });
+                            }
+                            permissionsData[module.id].content_filter = contentFilter;
+                        }
                     }
 
                     // 收集子功能权限
@@ -3158,6 +3184,7 @@
 
                     if (data.success) {
                         this.hasChanges = false;
+                        this.isEditing = false;
                         showNotification(data.message || '{{ _("保存成功") }}', 'success');
                     } else {
                         showNotification(data.message || '{{ _("保存失败") }}', 'error');
@@ -3243,6 +3270,50 @@
             isFilterChecked(moduleId, filterKey, value) {
                 const values = this.getFilterValues(moduleId, filterKey);
                 return values.includes(value);
+            },
+
+            // 检查指定模块的筛选项是否全选
+            isFilterAllChecked(moduleId, filterKey) {
+                const config = this.getFilterConfig(moduleId);
+                if (!config || !config[filterKey]) return false;
+                const allValues = config[filterKey].options.map(([v]) => v);
+                const checkedValues = this.getFilterValues(moduleId, filterKey);
+                return allValues.length > 0 && allValues.every(v => checkedValues.includes(v));
+            },
+
+            // 检查指定模块的筛选项是否部分选中
+            isFilterPartiallyChecked(moduleId, filterKey) {
+                const config = this.getFilterConfig(moduleId);
+                if (!config || !config[filterKey]) return false;
+                const allValues = config[filterKey].options.map(([v]) => v);
+                const checkedValues = this.getFilterValues(moduleId, filterKey);
+                return checkedValues.length > 0 && checkedValues.length < allValues.length;
+            },
+
+            // 切换单个筛选项
+            toggleFilterValue(moduleId, filterKey, value, isChecked) {
+                if (!this.permissions[moduleId]) {
+                    this.permissions[moduleId] = {};
+                }
+                if (!this.permissions[moduleId].content_filter) {
+                    this.permissions[moduleId].content_filter = {};
+                }
+                if (!this.permissions[moduleId].content_filter[filterKey]) {
+                    this.permissions[moduleId].content_filter[filterKey] = [];
+                }
+
+                const values = this.permissions[moduleId].content_filter[filterKey];
+                if (isChecked) {
+                    if (!values.includes(value)) {
+                        values.push(value);
+                    }
+                } else {
+                    const index = values.indexOf(value);
+                    if (index > -1) {
+                        values.splice(index, 1);
+                    }
+                }
+                this.markChanged();
             },
 
             toggleFilterSelectAll(moduleId, filterKey, event) {

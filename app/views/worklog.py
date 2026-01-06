@@ -284,20 +284,42 @@ def get_daily_activities(user_id, target_date):
     # 查询行动记录（Action）- 项目/客户下添加的行动
     # 使用 Action.date（行动日期）而非 created_at（创建时间戳）
     # 这样当用户在今天完成昨天的工作项时，行动记录能正确显示在昨天的日志中
+
+    # 获取当天已完成的带客户或项目关联的工作项，用于排除重复的行动记录
+    # 当工作项完成时勾选"同步行动记录"会创建 Action，这里需要排除这些重复的
+    completed_work_items = WorkItem.query.filter(
+        WorkItem.owner_id == user_id,
+        or_(WorkItem.planned_date == target_date, WorkItem.end_date == target_date),
+        WorkItem.status == 'completed',
+        WorkItem.is_deleted == False,
+        or_(WorkItem.customer_id.isnot(None), WorkItem.project_id.isnot(None))
+    ).all()
+
+    # 收集需要排除的 (customer_id, project_id) 组合
+    excluded_pairs = {(w.customer_id, w.project_id) for w in completed_work_items}
+
+    # 查询当天的行动记录
     created_actions = Action.query.filter(
         Action.owner_id == user_id,
         Action.date == target_date
     ).all()
+
+    # 过滤掉与工作项重复的行动记录（相同 customer_id + project_id 组合）
+    filtered_actions = [
+        a for a in created_actions
+        if (a.company_id, a.project_id) not in excluded_pairs
+    ]
+
     activities['actions']['created'] = [
         {
             'id': a.id,
-            'name': (a.communication[:30] + '...' if len(a.communication) > 30 else a.communication) if a.communication else f'行动#{a.id}',
+            'content': a.communication or '',  # 返回完整内容
             'project_name': a.project.project_name if a.project else None,
             'customer_name': a.company.company_name if a.company else None
         }
-        for a in created_actions
+        for a in filtered_actions
     ]
-    activities['summary']['actions_created'] = len(created_actions)
+    activities['summary']['actions_created'] = len(filtered_actions)
 
     # 计算总数
     activities['summary']['total_created'] = (

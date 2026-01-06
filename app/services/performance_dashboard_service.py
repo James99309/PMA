@@ -86,6 +86,7 @@ class PerformanceDashboardService:
             # 新增聚合逻辑
             expense_budget = PerformanceDashboardService.get_expense_budget_data(user_id, year)
             activity_score = PerformanceDashboardService.get_activity_score(user_id, year)
+            activity_monthly_trend = PerformanceDashboardService.get_monthly_activity_trend(user_id, year)
 
             # 汇总年度数据
             summary = PerformanceDashboardService._calculate_yearly_summary(yearly_stats, targets_dict)
@@ -110,6 +111,7 @@ class PerformanceDashboardService:
                 'goal_achievement': goal_achievement,
                 'expense_budget': expense_budget,
                 'activity_score': activity_score,
+                'activity_monthly_trend': activity_monthly_trend,
                 'industry_trend': industry_stats,
                 'monthly_growth': monthly_growth,
                 'configured_items': configured_items,
@@ -123,6 +125,7 @@ class PerformanceDashboardService:
                 'goal_achievement': [],
                 'expense_budget': PerformanceDashboardService._empty_expense_budget(),
                 'activity_score': PerformanceDashboardService._empty_activity_score(),
+                'activity_monthly_trend': [],
                 'industry_trend': {},
                 'monthly_growth': [],
                 'configured_items': ['implant_amount', 'sales_amount', 'new_customers', 'new_projects'],

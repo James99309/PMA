@@ -132,6 +132,69 @@ def _check_permission_level_scope(user, target_owner_id, permission_level):
 
     return False
 
+def _apply_join_filter(query, model_class, join_config, allowed_values, filter_key):
+    """
+    处理需要 JOIN 其他表的筛选
+
+    参数:
+        query: 查询对象
+        model_class: 主模型类
+        join_config: JOIN 配置，包含 model, join_on, filter_attr
+        allowed_values: 允许的值列表
+        filter_key: 过滤字段名（用于日志）
+
+    返回:
+        应用了 JOIN 过滤后的 Query 对象
+    """
+    model_name = join_config.get('model')
+    join_on = join_config.get('join_on')
+    filter_attr = join_config.get('filter_attr')
+
+    if not all([model_name, join_on, filter_attr]):
+        logger.warning(f"join_config 配置不完整: {join_config}")
+        return query
+
+    # 动态获取要 JOIN 的模型类
+    join_model = None
+    if model_name == 'Project':
+        join_model = Project
+    elif model_name == 'Company':
+        join_model = Company
+    elif model_name == 'Contact':
+        join_model = Contact
+    elif model_name == 'Quotation':
+        join_model = Quotation
+    # 可按需扩展更多模型
+
+    if not join_model:
+        logger.warning(f"未知的 JOIN 模型: {model_name}")
+        return query
+
+    # 检查主模型是否有 join_on 字段
+    if not hasattr(model_class, join_on):
+        logger.warning(f"模型 {model_class.__name__} 没有属性 {join_on}")
+        return query
+
+    # 检查 JOIN 模型是否有 filter_attr 字段
+    if not hasattr(join_model, filter_attr):
+        logger.warning(f"模型 {join_model.__name__} 没有属性 {filter_attr}")
+        return query
+
+    # 执行 JOIN 和过滤
+    query = query.join(
+        join_model,
+        getattr(model_class, join_on) == join_model.id
+    ).filter(
+        or_(
+            getattr(join_model, filter_attr).in_(allowed_values),
+            getattr(join_model, filter_attr).is_(None)
+        )
+    )
+    logger.debug(f"应用 JOIN 过滤 ({model_name}.{filter_attr}): {allowed_values}")
+
+    return query
+
+
 def apply_content_filters(query, model_class, module_name, user):
     """
     应用内容过滤器（content_filters）到查询
@@ -146,10 +209,14 @@ def apply_content_filters(query, model_class, module_name, user):
         应用了内容过滤后的Query对象
 
     规则:
-        - 如果没有配置 content_filters（为空）→ 不做过滤（兼容旧数据）
+        - 如果模块定义了内容筛选选项但用户未配置 → 返回空查询（没权限）
         - 如果配置了 content_filters 但某字段为空列表 → 该字段返回空查询（没权限）
     """
     try:
+        # 获取模块的内容筛选配置（定义了哪些字段需要筛选）
+        from app.views.config_management import get_content_filter_options
+        module_filter_options = get_content_filter_options().get(module_name, {})
+
         # 获取用户的权限数据（包含content_filters）
         from app.models.user import Permission
         from app.models.role_permissions import RolePermission
@@ -170,135 +237,56 @@ def apply_content_filters(query, model_class, module_name, user):
                 content_filters = role_permission.content_filters
                 logger.debug(f"使用角色权限的 content_filters: {content_filters}")
             else:
-                # 没有任何 content_filters 配置，不做过滤（兼容旧数据）
+                # 没有任何 content_filters 配置
+                # 如果模块定义了内容筛选选项，则必须配置才能查看
+                if module_filter_options:
+                    logger.debug(f"{module_name} 模块定义了内容筛选但用户未配置，返回空查询")
+                    return query.filter(False)
+                # 模块没有定义内容筛选选项，不做过滤
                 return query
         else:
             content_filters = user_permission.content_filters
 
         logger.debug(f"应用 {module_name} 模块的内容过滤: {content_filters}")
 
-        # 根据模块类型应用不同的过滤规则
-        # 新规则：如果字段存在但为空列表 → 返回空查询（没权限）
-        if module_name == 'project' and model_class.__name__ == 'Project':
-            # 项目类型过滤
-            if 'project_type' in content_filters:
-                allowed_types = content_filters['project_type']
-                if isinstance(allowed_types, list):
-                    if allowed_types:
-                        # 有配置的类型 → 过滤
-                        query = query.filter(
-                            or_(
-                                model_class.project_type.in_(allowed_types),
-                                model_class.project_type.is_(None)
-                            )
-                        )
-                        logger.debug(f"应用项目类型过滤: {allowed_types} (含NULL)")
-                    else:
-                        # 空列表 → 没权限
-                        logger.debug(f"项目类型过滤为空列表，返回空查询")
-                        return query.filter(False)
+        # 检查：模块定义的每个筛选字段，用户都必须配置
+        for filter_key in module_filter_options.keys():
+            if filter_key not in content_filters:
+                logger.debug(f"{module_name} 模块缺少必需的筛选字段 {filter_key}，返回空查询")
+                return query.filter(False)
 
-            # 业务类型过滤
-            if 'business_type' in content_filters:
-                allowed_business_types = content_filters['business_type']
-                if isinstance(allowed_business_types, list) and hasattr(model_class, 'business_type'):
-                    if allowed_business_types:
-                        query = query.filter(
-                            or_(
-                                model_class.business_type.in_(allowed_business_types),
-                                model_class.business_type.is_(None)
-                            )
-                        )
-                        logger.debug(f"应用业务类型过滤: {allowed_business_types} (含NULL)")
-                    else:
-                        logger.debug(f"业务类型过滤为空列表，返回空查询")
-                        return query.filter(False)
+        # 动态应用过滤规则（AND 逻辑：所有字段都必须满足）
+        for filter_key, allowed_values in content_filters.items():
+            if not isinstance(allowed_values, list):
+                continue
 
-            # 项目状态过滤
-            if 'project_status' in content_filters:
-                allowed_statuses = content_filters['project_status']
-                if isinstance(allowed_statuses, list):
-                    if allowed_statuses:
-                        query = query.filter(
-                            or_(
-                                model_class.status.in_(allowed_statuses),
-                                model_class.status.is_(None)
-                            )
-                        )
-                        logger.debug(f"应用项目状态过滤: {allowed_statuses} (含NULL)")
-                    else:
-                        logger.debug(f"项目状态过滤为空列表，返回空查询")
-                        return query.filter(False)
+            # 空列表 = 无权限
+            if not allowed_values:
+                logger.debug(f"{module_name}.{filter_key} 为空列表，返回空查询")
+                return query.filter(False)
 
-        elif module_name == 'customer' and model_class.__name__ == 'Company':
-            # 行业过滤
-            if 'industry' in content_filters:
-                allowed_industries = content_filters['industry']
-                if isinstance(allowed_industries, list):
-                    if allowed_industries:
-                        query = query.filter(
-                            or_(
-                                model_class.industry.in_(allowed_industries),
-                                model_class.industry.is_(None)
-                            )
-                        )
-                        logger.debug(f"应用行业过滤: {allowed_industries} (含NULL)")
-                    else:
-                        logger.debug(f"行业过滤为空列表，返回空查询")
-                        return query.filter(False)
+            # 获取该字段的配置
+            filter_config = module_filter_options.get(filter_key, {})
 
-            # 地区过滤
-            if 'region' in content_filters:
-                allowed_regions = content_filters['region']
-                if isinstance(allowed_regions, list):
-                    if allowed_regions:
-                        query = query.filter(
-                            or_(
-                                model_class.region.in_(allowed_regions),
-                                model_class.region.is_(None)
-                            )
+            # 检查是否需要 JOIN
+            join_config = filter_config.get('join_config')
+            if join_config:
+                query = _apply_join_filter(query, model_class, join_config, allowed_values, filter_key)
+            else:
+                # 普通字段过滤
+                # 优先使用配置中的 model_attr，否则使用 filter_key
+                model_attr = filter_config.get('model_attr', filter_key)
+                if hasattr(model_class, model_attr):
+                    attr = getattr(model_class, model_attr)
+                    query = query.filter(
+                        or_(
+                            attr.in_(allowed_values),
+                            attr.is_(None)
                         )
-                        logger.debug(f"应用地区过滤: {allowed_regions} (含NULL)")
-                    else:
-                        logger.debug(f"地区过滤为空列表，返回空查询")
-                        return query.filter(False)
-
-        elif module_name == 'quotation' and model_class.__name__ == 'Quotation':
-            # 报价单项目类型过滤（通过关联的项目）
-            if 'project_type' in content_filters:
-                allowed_types = content_filters['project_type']
-                if isinstance(allowed_types, list):
-                    if allowed_types:
-                        # 需要 JOIN 项目表来过滤
-                        from app.models.project import Project
-                        query = query.join(Project, model_class.project_id == Project.id).filter(
-                            or_(
-                                Project.project_type.in_(allowed_types),
-                                Project.project_type.is_(None)
-                            )
-                        )
-                        logger.debug(f"应用报价单项目类型过滤: {allowed_types} (含NULL)")
-                    else:
-                        logger.debug(f"报价单项目类型过滤为空列表，返回空查询")
-                        return query.filter(False)
-
-            # 报价单状态过滤
-            if 'quotation_status' in content_filters:
-                allowed_statuses = content_filters['quotation_status']
-                if isinstance(allowed_statuses, list):
-                    if allowed_statuses:
-                        query = query.filter(
-                            or_(
-                                model_class.status.in_(allowed_statuses),
-                                model_class.status.is_(None)
-                            )
-                        )
-                        logger.debug(f"应用报价单状态过滤: {allowed_statuses} (含NULL)")
-                    else:
-                        logger.debug(f"报价单状态过滤为空列表，返回空查询")
-                        return query.filter(False)
-
-        # 其他模块可以在这里继续扩展
+                    )
+                    logger.debug(f"应用 {module_name}.{filter_key} 过滤: {allowed_values} (含NULL)")
+                else:
+                    logger.warning(f"模型 {model_class.__name__} 没有属性 {model_attr}，跳过过滤")
 
         return query
 

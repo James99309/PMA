@@ -1105,11 +1105,22 @@
                                                 <span class="material-symbols-outlined text-rose-600 text-lg">campaign</span>
                                                 <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('行动') }}</span>
                                             </div>
-                                            <div class="flex flex-wrap gap-2 flex-1">
+                                            <div class="flex flex-col gap-2 flex-1">
                                                 <template x-for="item in logData.activities?.actions?.created || []" :key="'a-'+item.id">
-                                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 rounded text-xs" :title="(item.project_name || item.customer_name || '')">
-                                                        <span x-text="item.name"></span>
-                                                    </span>
+                                                    <div class="p-2 bg-rose-50 dark:bg-rose-900/20 rounded border border-rose-200 dark:border-rose-800">
+                                                        <p class="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap" x-text="item.content || item.name"></p>
+                                                        <div class="mt-1 flex flex-wrap gap-3 text-xs text-slate-500 dark:text-slate-400"
+                                                             x-show="item.project_name || item.customer_name">
+                                                            <span x-show="item.customer_name" class="inline-flex items-center gap-1">
+                                                                <span class="material-symbols-outlined text-sm">business</span>
+                                                                <span x-text="item.customer_name"></span>
+                                                            </span>
+                                                            <span x-show="item.project_name" class="inline-flex items-center gap-1">
+                                                                <span class="material-symbols-outlined text-sm">folder</span>
+                                                                <span x-text="item.project_name"></span>
+                                                            </span>
+                                                        </div>
+                                                    </div>
                                                 </template>
                                             </div>
                                         </div>

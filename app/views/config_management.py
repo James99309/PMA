@@ -1326,6 +1326,19 @@ def get_content_filter_options():
                 'label': str(_l('业务类型')),
                 'options': get_business_type_options()
             }
+        },
+        # 报价单模块筛选选项
+        'quotation': {
+            'project_type': {
+                'label': str(_l('项目类型')),
+                'options': get_project_type_options(),
+                # 需要 JOIN 项目表来过滤
+                'join_config': {
+                    'model': 'Project',
+                    'join_on': 'project_id',
+                    'filter_attr': 'project_type'
+                }
+            }
         }
     }
 
