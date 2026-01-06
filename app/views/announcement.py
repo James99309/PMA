@@ -12,6 +12,7 @@ from app.models.announcement import Announcement, AnnouncementRead, Announcement
 from app.models.user import User
 from app.utils.supabase_client import get_supabase_client
 from app.utils.sharing import get_shareable_users_tree
+from app.utils.permissions import get_accessible_users_by_permission_only
 import logging
 
 logger = logging.getLogger(__name__)
@@ -31,8 +32,16 @@ def list_view():
     announcement_type = request.args.get('type', '')
     search = request.args.get('search', '').strip()
 
-    # 构建查询
-    query = Announcement.query.filter(Announcement.is_deleted == False)
+    # 获取用户可访问的用户列表（基于权限级别）
+    # 公告是系统管理类模块，不应受业务数据归属关系影响
+    accessible_users = get_accessible_users_by_permission_only(current_user, 'announcement')
+    accessible_user_ids = [u.id for u in accessible_users]
+
+    # 构建查询 - 只显示可访问用户创建的公告
+    query = Announcement.query.filter(
+        Announcement.is_deleted == False,
+        Announcement.created_by.in_(accessible_user_ids)
+    )
 
     if status:
         query = query.filter(Announcement.status == status)
@@ -44,12 +53,13 @@ def list_view():
     # 排序：最新的在前
     announcements = query.order_by(Announcement.created_at.desc()).all()
 
-    # 统计数据
-    total_count = Announcement.query.filter(Announcement.is_deleted == False).count()
-    published_count = Announcement.query.filter(
+    # 统计数据 - 同样基于权限过滤
+    base_query = Announcement.query.filter(
         Announcement.is_deleted == False,
-        Announcement.status == 'published'
-    ).count()
+        Announcement.created_by.in_(accessible_user_ids)
+    )
+    total_count = base_query.count()
+    published_count = base_query.filter(Announcement.status == 'published').count()
     draft_count = total_count - published_count
 
     # 公告类型选项
@@ -87,7 +97,7 @@ def list_view():
 
 @announcement_bp.route('/api/create', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('announcement', 'create')
 def api_create():
     """创建公告API"""
     try:
@@ -126,7 +136,7 @@ def api_create():
 
 @announcement_bp.route('/api/update/<int:announcement_id>', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('announcement', 'edit')
 def api_update(announcement_id):
     """更新公告API"""
     try:
@@ -166,7 +176,7 @@ def api_update(announcement_id):
 
 @announcement_bp.route('/api/publish/<int:announcement_id>', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('announcement', 'edit')
 def api_publish(announcement_id):
     """发布公告API"""
     try:
@@ -209,7 +219,7 @@ def api_publish(announcement_id):
 
 @announcement_bp.route('/api/delete/<int:announcement_id>', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('announcement', 'delete')
 def api_delete(announcement_id):
     """删除公告API（软删除）"""
     try:
@@ -247,7 +257,7 @@ def api_get(announcement_id):
 
 @announcement_bp.route('/api/upload_attachment/<int:announcement_id>', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('announcement', 'edit')
 def api_upload_attachment(announcement_id):
     """上传附件API"""
     try:
@@ -318,7 +328,7 @@ def api_upload_attachment(announcement_id):
 
 @announcement_bp.route('/api/delete_attachment/<int:attachment_id>', methods=['POST'])
 @login_required
-@admin_required
+@permission_required('announcement', 'edit')
 def api_delete_attachment(attachment_id):
     """删除附件API"""
     try:
@@ -350,7 +360,7 @@ def api_delete_attachment(attachment_id):
 
 @announcement_bp.route('/api/read_stats/<int:announcement_id>')
 @login_required
-@admin_required
+@permission_required('announcement', 'view')
 def api_read_stats(announcement_id):
     """获取阅读统计API"""
     try:
@@ -423,7 +433,7 @@ def api_my_announcements():
 
 @announcement_bp.route('/api/users')
 @login_required
-@admin_required
+@permission_required('announcement', 'create')
 def api_get_users():
     """获取用户列表API（用于发布范围选择）"""
     try:

@@ -344,22 +344,46 @@ class SharingService:
 def get_shareable_users(current_user, model_type=None):
     """
     获取可以共享给的用户列表
-    
-    根据业务需求，允许用户将数据分享给系统中的所有活跃用户，
-    不受公司边界限制，以支持跨公司协作和灵活的数据共享需求。
-    
+
+    如果指定了 model_type，会根据用户在该模块的权限级别和归属关系过滤用户。
+    如果没有指定 model_type，返回所有系统活跃用户（保持向后兼容）。
+
     参数:
         current_user: 当前用户
-        model_type: 模型类型（保留参数以兼容现有调用）
-        
+        model_type: 模型类型，如 'announcement', 'project', 'quotation' 等
+
     返回:
-        用户查询对象
+        用户查询对象或用户列表
     """
     from app.models.user import User
-    
-    # 基础查询：排除当前用户，包含活跃用户
-    # 活跃用户包括：1. 管理员(role='admin') 2. _is_active=True的用户
     from sqlalchemy import or_
+
+    # 如果指定了模块类型，根据该模块的权限级别过滤用户
+    if model_type:
+        from app.utils.permissions import get_accessible_users
+
+        # 获取可访问的用户（基于权限级别 + 归属关系）
+        accessible_users = get_accessible_users(current_user, model_type)
+
+        # 排除当前用户，只保留活跃用户
+        filtered_users = [
+            u for u in accessible_users
+            if u.id != current_user.id and (u.role == 'admin' or u._is_active)
+        ]
+
+        logger.debug(f"用户 {current_user.username} 在模块 {model_type} 可分享给 {len(filtered_users)} 个用户（基于权限级别过滤）")
+
+        # 返回一个模拟查询对象，实际是列表
+        # 为了兼容 get_shareable_users_tree 中的 .all() 调用
+        class UserListWrapper:
+            def __init__(self, users):
+                self._users = users
+            def all(self):
+                return self._users
+
+        return UserListWrapper(filtered_users)
+
+    # 没有指定模块类型，返回所有系统活跃用户（保持向后兼容）
     base_query = User.query.filter(
         User.id != current_user.id,
         or_(
@@ -367,15 +391,8 @@ def get_shareable_users(current_user, model_type=None):
             User._is_active == True  # 其他用户根据_is_active字段
         )
     )
-    
-    # 移除公司限制，允许分享给所有系统中的活跃用户
-    # 这样支持：
-    # 1. 跨公司业务协作
-    # 2. 客户与供应商之间的信息共享
-    # 3. 项目中多方参与的协作需求
-    # 4. 更灵活的数据共享策略
-    
-    logger.debug(f"用户 {current_user.username} 可分享给所有系统活跃用户，支持跨公司协作")
+
+    logger.debug(f"用户 {current_user.username} 可分享给所有系统活跃用户（未指定模块类型）")
     return base_query
 
 def get_shareable_users_tree(current_user, model_type=None):
