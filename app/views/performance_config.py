@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 performance_config_bp = Blueprint('performance_config', __name__, url_prefix='/performance/config')
 
 @performance_config_bp.route('/')
-@login_required  
-@permission_required('config_management', 'edit')
+@login_required
+@permission_required('config_management', 'view')
 def role_config():
     """绩效配置主页面"""
     try:
@@ -92,7 +92,7 @@ def role_config():
 
 @performance_config_bp.route('/api/roles')
 @login_required
-@permission_required('config_management', 'edit')  
+@permission_required('config_management', 'view')
 def api_get_roles():
     """获取所有可配置角色列表API"""
     try:
@@ -110,7 +110,7 @@ def api_get_roles():
 
 @performance_config_bp.route('/api/role/<role_code>')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_role_config(role_code):
     """获取指定角色的绩效配置API"""
     try:
@@ -303,7 +303,7 @@ def api_save_role_config(role_code):
 
 @performance_config_bp.route('/api/metrics/active')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_active_metrics():
     """获取已启用的绩效指标列表API（用于下拉选择等场景）"""
     try:
@@ -338,7 +338,7 @@ def api_get_active_metrics():
 
 @performance_config_bp.route('/api/formula-templates')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_formula_templates():
     """获取公式模板列表API"""
     try:
@@ -373,7 +373,7 @@ def api_get_formula_templates():
 
 @performance_config_bp.route('/api/preview/<role_code>')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_preview_config(role_code):
     """预览角色配置效果API"""
     try:
@@ -407,7 +407,7 @@ def api_preview_config(role_code):
 
 @performance_config_bp.route('/api/data-tables')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_data_tables():
     """获取可用的数据表列表API"""
     try:
@@ -458,7 +458,7 @@ def api_get_data_tables():
 
 @performance_config_bp.route('/api/table/<table_name>/fields')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_table_fields(table_name):
     """获取指定数据表的字段列表API"""
     try:
@@ -534,7 +534,7 @@ def api_get_table_fields(table_name):
 
 @performance_config_bp.route('/api/formula-templates-extended')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_formula_templates_extended():
     """获取扩展公式模板列表API"""
     try:
@@ -582,7 +582,7 @@ def api_get_formula_templates_extended():
 
 @performance_config_bp.route('/api/preset-items')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_preset_items():
     """获取预置绩效项目列表API - 从数据库读取"""
     try:
@@ -626,7 +626,7 @@ def api_get_preset_items():
 
 @performance_config_bp.route('/api/metrics')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_metrics():
     """获取所有绩效指标（含已禁用的）"""
     try:
@@ -792,7 +792,7 @@ def api_delete_metric(metric_id):
 
 @performance_config_bp.route('/api/metrics/data-source-presets')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_data_source_presets():
     """获取可用的数据源预设配置"""
     presets = {
@@ -852,7 +852,7 @@ def api_get_data_source_presets():
 
 @performance_config_bp.route('/api/shareable-users-tree')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_shareable_users_tree():
     """获取可分享用户的组织架构数据API"""
     try:
@@ -922,7 +922,7 @@ def api_get_shareable_users_tree():
 
 @performance_config_bp.route('/api/field-values/<table_name>/<field_name>')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_field_values(table_name, field_name):
     """获取指定字段的实际值API"""
     try:
@@ -1008,7 +1008,7 @@ def api_get_field_values(table_name, field_name):
 
 @performance_config_bp.route('/api/role/<role_code>/targets/<int:year>')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_role_targets(role_code, year):
     """获取角色的年度绩效目标配置"""
     try:
@@ -1158,7 +1158,7 @@ def api_save_role_targets(role_code, year):
 
 @performance_config_bp.route('/api/preset-items-with-units')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_preset_items_with_units():
     """获取预置绩效项目及其单位类型"""
     try:
@@ -2170,7 +2170,7 @@ def api_clear_user_targets(user_id, year):
 
 @performance_config_bp.route('/api/users/targets/batch', methods=['POST'])
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')  # 基础权限是view，保存操作在内部检查edit权限
 def api_batch_user_targets():
     """批量获取或保存多个用户的绩效目标配置"""
     try:
@@ -2188,10 +2188,12 @@ def api_batch_user_targets():
         logger.info(f"=== API: 批量用户目标配置 user_ids={user_ids}, year={year}, is_save={items is not None} ===")
 
         if items is not None:
-            # ===== 保存操作 =====
+            # ===== 保存操作需要edit权限 =====
+            if not current_user.has_permission('config_management', 'edit'):
+                return jsonify({'success': False, 'message': '没有编辑权限'}), 403
             return _batch_save_user_targets(user_ids, year, items)
         else:
-            # ===== 获取操作 =====
+            # ===== 获取操作只需要view权限 =====
             return _batch_get_user_targets(user_ids, year)
 
     except Exception as e:

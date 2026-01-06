@@ -151,11 +151,13 @@
                                             <span class="material-symbols-outlined text-primary">badge</span>
                                             {{ _('基本信息') }}
                                         </h3>
+                                        {% if can_edit %}
                                         <button @click="openEditModal()"
                                                 class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors">
                                             <span class="material-symbols-outlined text-lg">edit</span>
                                             {{ _('编辑') }}
                                         </button>
+                                        {% endif %}
                                     </div>
                                     <div class="p-6">
                                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -405,11 +407,13 @@
                                         <span class="text-slate-400">-</span>
                                         {{ _('数据归属关系') }}
                                     </h3>
+                                    {% if can_edit %}
                                     <button @click="openEditModal()"
                                             class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors">
                                         <span class="material-symbols-outlined text-lg">edit</span>
                                         {{ _('编辑归属') }}
                                     </button>
+                                    {% endif %}
                                 </div>
 
                                 <!-- 部门和角色信息 -->
@@ -524,6 +528,7 @@
                                             </p>
                                         </div>
                                         <div class="flex items-center gap-2">
+                                            {% if can_edit %}
                                             <!-- 批量模式按钮 -->
                                             <template x-if="mode === 'batch'">
                                                 <div class="flex items-center gap-2">
@@ -545,7 +550,9 @@
                                                     </button>
                                                 </div>
                                             </template>
+                                            {% endif %}
                                             <!-- 角色模式按钮 -->
+                                            {% if can_edit %}
                                             <template x-if="mode === 'role'">
                                                 <div class="flex items-center gap-2">
                                                     <button x-show="!isEditing" type="button" @click="startEdit()"
@@ -565,6 +572,7 @@
                                                     </button>
                                                 </div>
                                             </template>
+                                            {% endif %}
                                         </div>
                                     </div>
 
@@ -837,11 +845,13 @@
                                         <span class="text-slate-500">{{ _('项') }}</span>
                                     </div>
                                     <!-- 编辑按钮 -->
+                                    {% if can_edit %}
                                     <button x-show="!isEditing" @click="isEditing = true" type="button"
                                             class="px-4 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
                                         <span class="material-symbols-outlined text-sm">edit</span>
                                         {{ _('编辑') }}
                                     </button>
+                                    {% endif %}
                                 </div>
                             </div>
 
@@ -1126,11 +1136,13 @@
                                 </div>
                                 <div x-show="selectedUserId" class="flex items-center gap-2">
                                     <!-- 编辑按钮 -->
+                                    {% if can_edit %}
                                     <button x-show="!isEditing" @click="isEditing = true" type="button"
                                             class="px-4 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
                                         <span class="material-symbols-outlined text-sm">edit</span>
                                         {{ _('编辑') }}
                                     </button>
+                                    {% endif %}
                                 </div>
                             </div>
 
@@ -1289,6 +1301,7 @@
                                         <span x-show="selectedUserId && isEditing">{{ _('编辑该用户的薪资配置') }}</span>
                                     </p>
                                 </div>
+                                {% if can_edit %}
                                 <div class="flex items-center gap-2" x-show="selectedUserId">
                                     <!-- 清除配置按钮（编辑模式下显示） -->
                                     <button x-show="isEditing" type="button" @click="clearUserConfig()"
@@ -1315,6 +1328,7 @@
                                         {{ _('取消') }}
                                     </button>
                                 </div>
+                                {% endif %}
                             </div>
 
                             <!-- ========== 非编辑模式：配置详情展示 ========== -->
@@ -1939,6 +1953,7 @@
                             <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('全局薪资规则配置') }}</h3>
                             <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ _('配置职级、基础参数、阶梯规则、公式和团队') }}</p>
                         </div>
+                        {% if can_edit %}
                         <div class="flex items-center gap-2">
                             <button x-show="!isEditing" @click="isEditing = true" type="button"
                                     class="px-4 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
@@ -1958,6 +1973,7 @@
                                 {{ _('取消') }}
                             </button>
                         </div>
+                        {% endif %}
                     </div>
 
                     <!-- 子页签导航 - 无复选框 -->

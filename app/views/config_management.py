@@ -223,12 +223,16 @@ def index():
         # 获取用户树数据（用于归属配置）
         users_tree = get_shareable_users_tree(current_user, 'user')
 
+        # 检查编辑权限
+        can_edit = current_user.has_permission('config_management', 'edit')
+
         return render_template('config_management/tw_index.html',
                              role_dict=role_dict,
                              available_roles=available_roles,
                              modules=modules,
                              current_year=current_year,
-                             users_tree=users_tree)
+                             users_tree=users_tree,
+                             can_edit=can_edit)
     except Exception as e:
         logger.error(f"加载配置管理页面失败: {e}", exc_info=True)
         flash(f'页面加载失败: {str(e)}', 'error')
@@ -241,7 +245,7 @@ def index():
 
 @config_management_bp.route('/api/roles')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_roles():
     """获取可配置角色列表"""
     try:
@@ -260,7 +264,7 @@ def api_get_roles():
 
 @config_management_bp.route('/api/role-permissions/<role>')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_role_permissions(role):
     """获取角色默认权限"""
     from flask import session
@@ -435,7 +439,7 @@ def api_save_role_permissions(role):
 
 @config_management_bp.route('/api/role/<role>/users')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_role_users(role):
     """获取角色下的用户列表（含权限覆盖状态）"""
     try:
@@ -486,7 +490,7 @@ def api_get_role_users(role):
 
 @config_management_bp.route('/api/users/permissions/batch', methods=['POST'])
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_batch_get_user_permissions():
     """批量获取用户权限（多选用户时获取共同权限）"""
     try:
@@ -734,7 +738,7 @@ def api_reset_user_permissions(user_id):
 
 @config_management_bp.route('/api/expense-budgets')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_expense_budgets():
     """获取用户预算列表"""
     try:
@@ -889,11 +893,16 @@ def api_batch_set_expense_budgets():
 
 @config_management_bp.route('/api/role/<role_code>/budget', methods=['GET', 'POST'])
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_role_budget(role_code):
     """获取或保存角色默认费用预算"""
     try:
         from app.models.expense_budget import RoleExpenseBudget
+
+        # POST 请求需要 edit 权限
+        if request.method == 'POST':
+            if not current_user.has_permission('config_management', 'edit'):
+                return jsonify({'success': False, 'message': '没有编辑权限'}), 403
 
         if request.method == 'GET':
             year = request.args.get('year', datetime.now().year, type=int)
@@ -979,7 +988,7 @@ def api_role_budget(role_code):
 
 @config_management_bp.route('/api/users/budget/batch', methods=['POST'])
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')  # 基础权限是view，保存操作在内部检查edit权限
 def api_batch_user_budget():
     """批量获取或保存用户费用预算"""
     try:
@@ -997,7 +1006,9 @@ def api_batch_user_budget():
             return jsonify({'success': False, 'message': '请提供用户ID列表'}), 400
 
         if budget_data is not None:
-            # ===== 保存操作 =====
+            # ===== 保存操作需要edit权限 =====
+            if not current_user.has_permission('config_management', 'edit'):
+                return jsonify({'success': False, 'message': '没有编辑权限'}), 403
             updated_count = 0
             created_count = 0
 
@@ -1394,7 +1405,7 @@ def get_available_roles():
 
 @config_management_bp.route('/api/vendor-users')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_vendor_users():
     """获取厂商公司的所有用户（扁平列表，用于薪资分配或绩效配置）"""
     try:
@@ -1555,7 +1566,7 @@ def api_get_vendor_users():
 
 @config_management_bp.route('/api/salary/grades')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_salary_grades():
     """获取职级配置列表"""
     try:
@@ -1680,7 +1691,7 @@ def api_delete_salary_grade(grade_id):
 
 @config_management_bp.route('/api/salary/base-params')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_salary_base_params():
     """获取基础参数配置"""
     try:
@@ -1745,7 +1756,7 @@ def api_save_salary_base_param():
 
 @config_management_bp.route('/api/salary/step-rules')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_salary_step_rules():
     """获取阶梯规则列表"""
     try:
@@ -1835,7 +1846,7 @@ def api_delete_salary_step_rule(rule_id):
 
 @config_management_bp.route('/api/salary/formulas')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_salary_formulas():
     """获取公式配置列表"""
     try:
@@ -1853,7 +1864,7 @@ def api_get_salary_formulas():
 
 @config_management_bp.route('/api/salary/formula-variables')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_formula_variables():
     """获取公式可用变量列表（分组）- 包含动态KPI指标"""
     try:
@@ -1934,7 +1945,7 @@ def api_save_salary_formula():
 
 @config_management_bp.route('/api/salary/teams')
 @login_required
-@permission_required('config_management', 'edit')
+@permission_required('config_management', 'view')
 def api_get_salary_teams():
     """获取团队配置列表"""
     try:
@@ -2024,6 +2035,7 @@ def api_delete_salary_team(team_id):
 
 @config_management_bp.route('/api/salary/user/<int:user_id>/config')
 @login_required
+@permission_required('config_management', 'view')
 def get_user_salary_config(user_id):
     """获取用户薪资配置"""
     try:
@@ -2049,6 +2061,7 @@ def get_user_salary_config(user_id):
 
 @config_management_bp.route('/api/salary/users/batch-config', methods=['POST'])
 @login_required
+@permission_required('config_management', 'edit')
 def batch_save_user_salary_config():
     """批量保存用户薪资配置"""
     try:
@@ -2101,6 +2114,7 @@ def batch_save_user_salary_config():
 
 @config_management_bp.route('/api/salary/users/apply-role-config', methods=['POST'])
 @login_required
+@permission_required('config_management', 'edit')
 def apply_role_salary_config():
     """应用角色默认配置到用户"""
     try:
@@ -2141,6 +2155,7 @@ def apply_role_salary_config():
 
 @config_management_bp.route('/api/salary/users/clear-config', methods=['POST'])
 @login_required
+@permission_required('config_management', 'edit')
 def clear_user_salary_config():
     """清除用户个人薪资配置"""
     try:

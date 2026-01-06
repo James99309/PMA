@@ -39,68 +39,10 @@ Tailwind 权限配置面板组件
 =============================================================================
 #}
 
-{# 权限配置面板 - 支持查看/编辑模式切换 #}
+{# 权限配置面板 - 只读展示模式 #}
 {% macro render_tw_permission_panel(context_type, context_id, role, role_dict, can_edit=false, modules=[], permission_map={}) %}
 <div class="space-y-4">
-    <!-- 权限规则说明 -->
-    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-                <h6 class="flex items-center gap-2 text-blue-800 dark:text-blue-200 font-medium mb-1">
-                    <span class="material-symbols-outlined text-lg">info</span>
-                    {{ _('权限规则说明') }}
-                </h6>
-                <p class="text-sm text-blue-700 dark:text-blue-300">
-                    <strong>{{ _('当前角色') }}：</strong>{{ role_dict.get(role, role or '-') }}
-                </p>
-            </div>
-            {% if can_edit %}
-            <div class="flex items-center gap-3">
-                <!-- 查看模式：编辑按钮 -->
-                <button type="button"
-                        id="enterEditMode"
-                        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
-                    <span class="material-symbols-outlined text-lg">edit</span>
-                    {{ _('编辑权限') }}
-                </button>
-
-                <!-- 编辑模式：操作按钮组（初始隐藏） -->
-                <div id="editModeButtons" class="hidden flex items-center gap-3">
-                    <button type="button"
-                            id="exitEditMode"
-                            class="inline-flex items-center gap-1 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
-                        <span class="material-symbols-outlined text-base">close</span>
-                        {{ _('取消') }}
-                    </button>
-                    <a href="#"
-                       id="resetAllToRole"
-                       class="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                       title="{{ _('将所有模块的权限恢复为角色默认设置') }}"
-                       onclick="return false;">
-                        <span class="material-symbols-outlined text-base">undo</span>
-                        {{ _('恢复角色设置') }}
-                    </a>
-                    <button type="button"
-                            id="savePermissions"
-                            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span class="material-symbols-outlined text-lg">save</span>
-                        {{ _('保存') }}
-                    </button>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- 角色默认权限提示 -->
-        <div id="roleDefaultNotice" class="hidden mt-3 pt-3 border-t border-blue-200 dark:border-blue-700">
-            <p class="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
-                <span class="material-symbols-outlined text-base">warning</span>
-                <strong>{{ _('当前显示的是角色默认权限') }}</strong>{{ _('，修改并保存后将创建您的个人权限设置。') }}
-            </p>
-        </div>
-    </div>
-
-    <!-- ========== 查看模式：只显示有权限的模块（默认显示） ========== -->
+    <!-- ========== 查看模式：只显示有权限的模块 ========== -->
     <div id="permissionViewMode">
         {{ render_tw_permission_view_only(modules, permission_map) }}
     </div>

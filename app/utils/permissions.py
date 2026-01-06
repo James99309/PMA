@@ -321,8 +321,9 @@ def get_accessible_users_by_permission_only(current_user, context_module=None):
             return []
 
         # 1. admin 管理员特权：可以查看所有用户（最高优先级）
+        # 注意：账户管理模块需要看到所有用户，包括未激活的，否则无法管理
         if current_user.role == 'admin':
-            return User.query.filter(User._is_active == True).all()
+            return User.query.all()
 
         # 2. 权限模块数据权限（第二优先级）
         # 根据上下文模块检查相应的权限
@@ -349,14 +350,14 @@ def get_accessible_users_by_permission_only(current_user, context_module=None):
                     highest_permission_level = 'department'
 
         # 根据最高权限级别确定可访问范围
+        # 注意：不再过滤 _is_active，因为账户管理需要能看到所有用户状态
         if highest_permission_level == 'system':
-            # 系统级权限：可以查看所有用户
-            return User.query.filter(User._is_active == True).all()
+            # 系统级权限：可以查看所有用户（包括未激活）
+            return User.query.all()
         elif highest_permission_level == 'company' and current_user.company_name:
             # 企业级权限：可以查看企业下所有用户
             accessible_users = User.query.filter(
-                User.company_name == current_user.company_name,
-                User._is_active == True
+                User.company_name == current_user.company_name
             ).order_by(User.real_name, User.username).all()
             logger.info(f"用户 {current_user.username} 通过模块 {context_module or '默认'} 的 company 级权限可访问 {len(accessible_users)} 个用户")
             return accessible_users
@@ -364,8 +365,7 @@ def get_accessible_users_by_permission_only(current_user, context_module=None):
             # 部门级权限：可以查看部门下所有用户
             accessible_users = User.query.filter(
                 User.department == current_user.department,
-                User.company_name == current_user.company_name,
-                User._is_active == True
+                User.company_name == current_user.company_name
             ).order_by(User.real_name, User.username).all()
             logger.info(f"用户 {current_user.username} 通过模块 {context_module or '默认'} 的 department 级权限可访问 {len(accessible_users)} 个用户")
             return accessible_users

@@ -1912,10 +1912,11 @@ def user_detail(user_id):
     can_edit_user = current_user.has_permission('user_management', 'edit')
 
     # 计算薪资管理权限
-    # 薪资查看权限：管理员或有user_management的view权限且用户在可访问范围内
+    # 薪资查看权限：管理员或有user_management的view权限
+    # 注：用户已通过 get_viewable_data 验证访问权限，能进入此页面说明已有权限
     can_view_salary = (
         current_user.role == 'admin' or
-        (current_user.has_permission('user_management', 'view') and user.id in [u.id for u in accessible_users])
+        current_user.has_permission('user_management', 'view')
     )
     # 薪资编辑权限：管理员或有user_management的edit权限
     can_edit_salary = (
