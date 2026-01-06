@@ -1,24 +1,65 @@
 {# 费用预算统计卡片组件
    参数:
    - expense_budget: 费用预算数据字典 (来自 PerformanceDashboardService.get_expense_budget_data())
+     - 必须包含 current_month, current_year, monthly_trend 用于显示月度数据
    - currency_symbol: 货币符号 (默认 '¥')
    - show_title: 是否显示标题 (默认 true)
    - compact: 紧凑模式 (默认 false)
 #}
 {% macro render_tw_expense_budget_card(expense_budget, currency_symbol='¥', show_title=true, compact=false) %}
+{# 计算月度数据 #}
+{% set current_month = expense_budget.current_month or 1 %}
+{% set current_year = expense_budget.current_year or 0 %}
+{% set monthly_trend = expense_budget.monthly_trend or [] %}
+{% set monthly_budget = ((expense_budget.budget_total or 0) / 12)|round(2) %}
+{# 使用 selectattr 和 first 过滤器获取当月数据 #}
+{% set monthly_data = monthly_trend|selectattr('month', 'equalto', current_month)|list|first %}
+{% set monthly_expense = monthly_data.amount if monthly_data else 0 %}
+{% set monthly_usage_rate = ((monthly_expense / monthly_budget * 100) if monthly_budget > 0 else 0)|round(1) %}
+
 <div class="bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800">
     {% if show_title %}
     <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
         <h3 class="text-sm font-semibold text-slate-800 dark:text-white flex items-center gap-2">
             <span class="material-symbols-outlined text-lg text-primary">analytics</span>
             {{ _('费用统计') }}
+            {% if current_year %}
+            <span class="text-xs font-normal text-slate-400 dark:text-slate-500">({{ current_year }}{{ _('年') }}{{ current_month }}{{ _('月') }})</span>
+            {% endif %}
         </h3>
     </div>
     {% endif %}
     <div class="{% if compact %}p-4 space-y-3{% else %}p-5 space-y-4{% endif %}">
         {% if expense_budget.has_budget %}
-        <!-- 有预算配置：显示完整进度 -->
+        <!-- 有预算配置：显示月度和年度进度 -->
+
+        <!-- 当月费用 -->
         <div class="space-y-2">
+            <div class="flex items-center justify-between text-sm">
+                <span class="text-slate-600 dark:text-slate-400">{{ _('当月费用') }}</span>
+                <span class="font-medium
+                    {% if monthly_usage_rate > 100 %}text-red-600 dark:text-red-400
+                    {% elif monthly_usage_rate > 80 %}text-yellow-600 dark:text-yellow-400
+                    {% else %}text-green-600 dark:text-green-400{% endif %}">
+                    {{ '{:.1f}'.format(monthly_usage_rate) }}%
+                </span>
+            </div>
+            <div class="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                <div class="h-full rounded-full transition-all duration-500
+                    {% if monthly_usage_rate > 100 %}bg-red-500
+                    {% elif monthly_usage_rate > 80 %}bg-yellow-500
+                    {% elif monthly_usage_rate > 60 %}bg-orange-500
+                    {% else %}bg-green-500{% endif %}"
+                    style="width: {{ [monthly_usage_rate, 100]|min }}%"></div>
+            </div>
+            <div class="text-xs text-slate-500 dark:text-slate-400">
+                {{ _('已用') }} {{ currency_symbol }}{{ '{:,.0f}'.format(monthly_expense) }}
+                / {{ currency_symbol }}{{ '{:,.0f}'.format(monthly_budget) }}
+            </div>
+        </div>
+
+        <!-- 年度费用 -->
+        <div class="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
             <div class="flex items-center justify-between text-sm">
                 <span class="text-slate-600 dark:text-slate-400">{{ _('年度费用') }}</span>
                 <span class="font-medium
@@ -82,9 +123,17 @@
         {% endif %}
         {% endif %}
         {% elif expense_budget.expense_total and expense_budget.expense_total > 0 %}
-        <!-- 无预算但有报销：只显示累计金额 -->
+        <!-- 无预算但有报销：显示月度和年度累计金额 -->
         <div class="space-y-3">
+            <!-- 当月报销 -->
             <div class="flex items-center justify-between">
+                <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('当月报销') }}</span>
+                <span class="text-lg font-semibold text-slate-800 dark:text-white">
+                    {{ currency_symbol }}{{ '{:,.0f}'.format(monthly_expense) }}
+                </span>
+            </div>
+            <!-- 年度累计 -->
+            <div class="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
                 <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('年度累计报销') }}</span>
                 <span class="text-lg font-semibold text-slate-800 dark:text-white">
                     {{ currency_symbol }}{{ '{:,.0f}'.format(expense_budget.expense_total) }}

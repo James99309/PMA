@@ -1337,7 +1337,10 @@ def manage_user_affiliations(user_id):
         flash('用户不存在或无权限查看', 'danger')
         return redirect(url_for('user.list_users'))
     ROLE_DICT = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
-    return render_template('user/affiliations.html', target_user=target_user, role_dict=ROLE_DICT)
+
+    return render_template('user/affiliations.html',
+                           target_user=target_user,
+                           role_dict=ROLE_DICT)
 
 @user_bp.route('/api/check-duplicates', methods=['POST'])
 @login_required
@@ -1815,8 +1818,15 @@ def user_detail(user_id):
         for member in dept_members:
             dept_default_users.append({
                 'id': member.id,
+                'user_id': member.id,
+                'username': member.username,
+                'real_name': member.real_name,
                 'name': member.real_name or member.username,
-                'initials': ((member.real_name or member.username) or '?')[:2]
+                'initials': ((member.real_name or member.username) or '?')[:2],
+                'department': member.department,
+                'company_name': member.company_name,
+                'role': member.role,
+                'is_department_manager': member.is_department_manager
             })
 
     # 获取已归属用户（排除部门默认用户，用于模态框）

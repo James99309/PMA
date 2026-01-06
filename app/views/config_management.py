@@ -1473,12 +1473,12 @@ def api_get_vendor_users():
                 ).all()
                 users_with_performance = {t.user_id for t in targets}
             elif config_type == 'affiliation':
-                # 归属配置：作为 owner 有归属记录
+                # 归属配置：作为 viewer 有归属记录（该用户配置了可以查看谁）
                 from app.models.user import Affiliation
                 affiliations = Affiliation.query.filter(
-                    Affiliation.owner_id.in_(user_ids)
+                    Affiliation.viewer_id.in_(user_ids)
                 ).all()
-                users_with_performance = {a.owner_id for a in affiliations}
+                users_with_performance = {a.viewer_id for a in affiliations}
             elif config_type == 'expense':
                 # 费用配置：有费用预算记录
                 from app.models.expense_budget import ExpenseBudget

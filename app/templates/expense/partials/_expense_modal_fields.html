@@ -378,9 +378,9 @@
                    data-field-code="invoice_amount"
                    class="expense-cell-input no-spinner w-full h-8 px-1 text-xs bg-transparent border border-transparent rounded transition-all text-slate-900 dark:text-slate-100 placeholder:text-slate-400 hover:border-slate-300 hover:bg-slate-50 dark:hover:border-slate-600 dark:hover:bg-slate-800/50 focus:border-primary focus:ring-1 focus:ring-primary focus:bg-white dark:focus:bg-slate-800 text-right">
         </td>
-        {# 汇率 60px (1位整数+2位小数, 无spinner) #}
+        {# 汇率 60px (2位整数+4位小数, 无spinner) #}
         <td class="px-1 py-2" style="width: 60px;">
-            <input type="number" name="exchange_rate" step="0.01" min="0" max="9.99" value="1"
+            <input type="number" name="exchange_rate" step="0.0001" min="0" max="99.9999" value="1"
                    data-field-code="exchange_rate"
                    class="expense-cell-input no-spinner w-full h-8 px-1 text-xs bg-transparent border border-transparent rounded transition-all text-slate-900 dark:text-slate-100 hover:border-slate-300 hover:bg-slate-50 dark:hover:border-slate-600 dark:hover:bg-slate-800/50 focus:border-primary focus:ring-1 focus:ring-primary focus:bg-white dark:focus:bg-slate-800 text-center expense-exchange-rate">
         </td>

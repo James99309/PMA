@@ -7100,6 +7100,12 @@ msgstr "No users available"
 msgid "年度费用"
 msgstr "Annual Expenses"
 
+msgid "当月费用"
+msgstr "Monthly Expenses"
+
+msgid "当月报销"
+msgstr "Monthly Expense"
+
 msgid "分类明细"
 msgstr "Category Details"
 

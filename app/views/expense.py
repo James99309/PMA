@@ -1339,11 +1339,16 @@ def expense_detail(id):
     # 编辑权限判断
     can_edit_this_expense = can_edit_data(expense_obj, current_user) and not expense_obj.is_locked
 
-    # 获取费用预算统计数据
+    # 获取费用预算统计数据（使用报销单创建时的年月）
+    expense_year = expense_obj.created_at.year if expense_obj.created_at else datetime.now().year
+    expense_month = expense_obj.created_at.month if expense_obj.created_at else datetime.now().month
     expense_budget_data = PerformanceDashboardService.get_expense_budget_data(
         expense_obj.owner_id,
-        datetime.now().year
+        expense_year
     )
+    # 添加月份信息，供模板使用
+    expense_budget_data['current_month'] = expense_month
+    expense_budget_data['current_year'] = expense_year
 
     # 使用 Tailwind 版本模板
     return render_template('expense/tw_expense_detail.html',

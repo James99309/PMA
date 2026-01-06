@@ -64,7 +64,7 @@ def get_affiliations():
 @api_v1_bp.route('/affiliations/<int:user_id>', methods=['GET'])
 @flexible_auth
 def get_user_affiliations(user_id):
-    """获取可以查看该用户数据的用户列表（谁可以看该用户的数据）"""
+    """获取该用户可以查看的其他用户列表（该用户可以看谁的数据）"""
     auth_user = get_current_user_flexible()
     if not auth_user:
         return api_response(success=False, code=401, message="未认证")
@@ -90,26 +90,52 @@ def get_user_affiliations(user_id):
             )
 
     try:
-        # 查询以该用户为 owner 的归属关系（谁可以看该用户的数据）
-        affiliations = Affiliation.query.filter_by(owner_id=user_id).all()
+        # 查询以该用户为 viewer 的归属关系（该用户可以看谁的数据）
+        affiliations = Affiliation.query.filter_by(viewer_id=user_id).all()
 
-        # 格式化数据：返回 viewer 信息
+        # 格式化数据：返回 owner 信息（该用户可以看的其他用户）
         result = []
         for affiliation in affiliations:
-            viewer = User.query.get(affiliation.viewer_id)
-            if viewer:
+            owner = User.query.get(affiliation.owner_id)
+            if owner:
                 result.append({
-                    'user_id': viewer.id,
-                    'username': viewer.username,
-                    'real_name': viewer.real_name,
-                    'role': viewer.role,
-                    'company_name': viewer.company_name
+                    'user_id': owner.id,
+                    'username': owner.username,
+                    'real_name': owner.real_name,
+                    'role': owner.role,
+                    'company_name': owner.company_name,
+                    'department': owner.department,
+                    'is_department_manager': owner.is_department_manager
                 })
-        
+
+        # 计算部门默认可见用户（部门负责人自动可见本部门成员）
+        dept_default_users = []
+        if target_user.is_department_manager and target_user.department and target_user.company_name:
+            dept_members = User.query.filter(
+                User.department == target_user.department,
+                User.company_name == target_user.company_name,
+                User.id != target_user.id,
+                User._is_active == True
+            ).all()
+            for member in dept_members:
+                dept_default_users.append({
+                    'user_id': member.id,
+                    'username': member.username,
+                    'real_name': member.real_name,
+                    'role': member.role,
+                    'company_name': member.company_name,
+                    'department': member.department,
+                    'is_department_manager': member.is_department_manager,
+                    'is_dept_default': True
+                })
+
         return api_response(
             success=True,
             message="获取成功",
-            data=result
+            data={
+                'affiliations': result,
+                'dept_default_users': dept_default_users
+            }
         )
     except Exception as e:
         logger.error(f"获取数据归属关系失败: {str(e)}")
@@ -170,7 +196,7 @@ def create_affiliations_batch():
 @api_v1_bp.route('/affiliations/<int:user_id>/batch', methods=['POST'])
 @flexible_auth
 def set_user_affiliations(user_id):
-    """批量设置可以查看该用户数据的用户列表（设置谁可以看该用户的数据）"""
+    """批量设置该用户可以查看的其他用户列表（设置该用户可以看谁的数据）"""
     auth_user = get_current_user_flexible()
     if not auth_user:
         return api_response(success=False, code=401, message="未认证")
@@ -184,30 +210,30 @@ def set_user_affiliations(user_id):
             message="无权限执行此操作"
         )
 
-    # 获取请求数据（支持 viewer_ids 或 owner_ids 参数名，兼容旧代码）
+    # 获取请求数据（owner_ids 表示该用户可以看谁的数据）
     try:
         data = request.get_json()
-        viewer_ids = data.get('viewer_ids') or data.get('owner_ids', [])
-        if not data or (viewer_ids is None):
+        owner_ids = data.get('owner_ids', [])
+        if not data or (owner_ids is None):
             logger.warning(f"无效的请求数据: {data}")
             return api_response(
                 success=False,
                 code=400,
-                message="无效的请求数据，缺少viewer_ids字段"
+                message="无效的请求数据，缺少owner_ids字段"
             )
-        # 确保viewer_ids是列表类型
-        if not isinstance(viewer_ids, list):
-            logger.warning(f"viewer_ids不是列表类型: {type(viewer_ids)}")
+        # 确保owner_ids是列表类型
+        if not isinstance(owner_ids, list):
+            logger.warning(f"owner_ids不是列表类型: {type(owner_ids)}")
             return api_response(
                 success=False,
                 code=400,
-                message="viewer_ids必须是数组类型"
+                message="owner_ids必须是数组类型"
             )
-        # 允许viewer_ids为空，表示清空归属关系
-        if len(viewer_ids) == 0:
-            Affiliation.query.filter_by(owner_id=user_id).delete()
+        # 允许owner_ids为空，表示清空归属关系
+        if len(owner_ids) == 0:
+            Affiliation.query.filter_by(viewer_id=user_id).delete()
             db.session.commit()
-            logger.info(f"用户 {user_id} 的归属关系已全部清空")
+            logger.info(f"用户 {user_id} 的可见归属关系已全部清空")
             return api_response(success=True, message="归属关系已全部清空")
     except Exception as e:
         logger.error(f"解析请求数据失败: {str(e)}")
@@ -228,36 +254,36 @@ def set_user_affiliations(user_id):
         )
 
     try:
-        # 删除现有的所有归属关系（以该用户为 owner 的记录）
-        old_count = Affiliation.query.filter_by(owner_id=user_id).count()
-        Affiliation.query.filter_by(owner_id=user_id).delete()
-        logger.info(f"已删除用户 {target_user.username} 的 {old_count} 条现有数据归属关系")
+        # 删除现有的所有归属关系（以该用户为 viewer 的记录）
+        old_count = Affiliation.query.filter_by(viewer_id=user_id).count()
+        Affiliation.query.filter_by(viewer_id=user_id).delete()
+        logger.info(f"已删除用户 {target_user.username} 的 {old_count} 条现有可见归属关系")
 
-        # 创建新的归属关系（该用户为 owner，选中的用户为 viewer）
+        # 创建新的归属关系（该用户为 viewer，选中的用户为 owner）
         added_count = 0
-        for viewer_id in viewer_ids:
+        for owner_id in owner_ids:
             try:
-                # 确保 viewer ID 是整数
-                viewer_id = int(viewer_id)
+                # 确保 owner ID 是整数
+                owner_id = int(owner_id)
 
-                # 确保 viewer 存在且有效
-                viewer = User.query.get(viewer_id)
-                if viewer and viewer.id != user_id:  # 不能将自己设为自己的 viewer
-                    # 添加到 Affiliation 表：owner_id=目标用户，viewer_id=选中的用户
-                    affiliation = Affiliation(owner_id=user_id, viewer_id=viewer_id)
+                # 确保 owner 存在且有效
+                owner = User.query.get(owner_id)
+                if owner and owner.id != user_id:  # 不能将自己设为自己的可见对象
+                    # 添加到 Affiliation 表：viewer_id=目标用户，owner_id=选中的用户
+                    affiliation = Affiliation(owner_id=owner_id, viewer_id=user_id)
                     db.session.add(affiliation)
                     added_count += 1
                 else:
-                    if viewer_id == user_id:
-                        logger.warning(f"跳过用户 {user_id} 自己作为自己的 viewer")
+                    if owner_id == user_id:
+                        logger.warning(f"跳过用户 {user_id} 自己作为自己的可见对象")
                     else:
-                        logger.warning(f"跳过不存在的 viewer ID: {viewer_id}")
+                        logger.warning(f"跳过不存在的 owner ID: {owner_id}")
             except ValueError:
-                logger.warning(f"跳过无效的 viewer ID: {viewer_id}")
+                logger.warning(f"跳过无效的 owner ID: {owner_id}")
                 continue
 
         db.session.commit()
-        logger.info(f"为用户 {target_user.username} 添加了 {added_count} 条新的数据归属关系")
+        logger.info(f"为用户 {target_user.username} 添加了 {added_count} 条新的可见归属关系")
 
         return api_response(
             success=True,
