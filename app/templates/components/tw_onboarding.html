@@ -95,45 +95,51 @@
 /* 按钮基础样式 - 与 tw_buttons.html 一致 */
 .driver-popover-prev-btn,
 .driver-popover-next-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    height: 2rem;
-    padding: 0 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    border: none;
-    outline: none;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 2rem !important;
+    padding: 0 0.875rem !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    border-radius: 0.5rem !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    outline: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
 }
 
 /* 主按钮 - Primary 样式 */
 .driver-popover-next-btn {
     background-color: var(--color-primary, #137fec) !important;
     color: #ffffff !important;
-    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    border: none !important;
 }
 
 .driver-popover-next-btn:hover {
     background-color: var(--color-primary-hover, #0f6fd1) !important;
-    opacity: 0.9;
 }
 
 .driver-popover-next-btn:focus {
-    box-shadow: 0 0 0 2px rgba(19, 127, 236, 0.5);
+    outline: none !important;
+    box-shadow: none !important;
 }
 
 /* 次按钮 - Outline 样式 */
 .driver-popover-prev-btn {
     background-color: transparent !important;
     color: #475569 !important;
-    border: 1px solid #cbd5e1 !important;
+    border: 1px solid #e2e8f0 !important;
 }
 
 .driver-popover-prev-btn:hover {
-    background-color: #f1f5f9 !important;
+    background-color: #f8fafc !important;
+}
+
+.driver-popover-prev-btn:focus {
+    outline: none !important;
+    box-shadow: none !important;
 }
 
 .dark .driver-popover-prev-btn {
@@ -165,13 +171,13 @@
     color: #f1f5f9;
 }
 
-/* 遮罩层 */
+/* 遮罩层 - 降低透明度让背景更清晰 */
 .driver-overlay {
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.3);
 }
 
 .dark .driver-overlay {
-    background-color: rgba(0, 0, 0, 0.7);
+    background-color: rgba(0, 0, 0, 0.5);
 }
 
 /* 高亮元素 */
@@ -180,14 +186,8 @@
     border-radius: 0.5rem;
 }
 
-/* 箭头 */
-.driver-popover-arrow {
-    border-color: #ffffff;
-}
-
-.dark .driver-popover-arrow {
-    border-color: #0f172a;
-}
+/* 箭头 - 不覆盖默认样式，让 Driver.js 自动处理 */
+/* Driver.js 使用 CSS border 技巧创建三角形箭头 */
 </style>
 {% endmacro %}
 
@@ -195,6 +195,14 @@
 {% macro render_onboarding_script(steps=none, storage_key='pma_onboarding_completed', auto_start=true, trigger_message_panel=true) %}
 {# 默认的仪表盘引导步骤（宏内部定义以确保可访问） #}
 {% set default_steps = [
+    {
+        'element': '#sidebarToggleBtn',
+        'title': _('收起侧边栏'),
+        'description': _('点击收起或展开左侧导航菜单，获得更大的工作区域。'),
+        'side': 'bottom',
+        'align': 'start',
+        'action': 'toggle'
+    },
     {
         'element': '#onboarding-calendar-btn',
         'title': _('工作日历'),
@@ -206,6 +214,29 @@
         'element': '#onboarding-message-btn',
         'title': _('消息通知'),
         'description': _('查看系统通知、待审批任务和@您的消息，及时了解工作动态。'),
+        'side': 'bottom',
+        'align': 'center',
+        'action': 'toggle'
+    },
+    {
+        'element': '#themeToggle',
+        'title': _('深浅模式'),
+        'description': _('点击切换深色或浅色主题，根据您的使用习惯调整界面显示。'),
+        'side': 'bottom',
+        'align': 'center',
+        'action': 'toggle'
+    },
+    {
+        'element': '#aiReportIconContainer',
+        'title': _('AI分析报告'),
+        'description': _('AI 智能分析您的业务数据，生成每日分析报告，帮助您了解业务动态。'),
+        'side': 'bottom',
+        'align': 'center'
+    },
+    {
+        'element': '#manualDownloadBtn',
+        'title': _('使用说明书'),
+        'description': _('点击查看系统使用说明书，了解各功能的详细用法。'),
         'side': 'bottom',
         'align': 'center'
     }
@@ -261,16 +292,25 @@
             return;
         }
 
-        // 转换步骤格式
-        const steps = ONBOARDING_STEPS.map(step => ({
-            element: step.element,
-            popover: {
-                title: step.title,
-                description: step.description,
-                side: step.side || 'bottom',
-                align: step.align || 'center'
-            }
-        }));
+        // 转换步骤格式，并过滤掉不存在的元素
+        const steps = ONBOARDING_STEPS
+            .filter(step => document.querySelector(step.element))
+            .map(step => ({
+                element: step.element,
+                popover: {
+                    title: step.title,
+                    description: step.description,
+                    side: step.side || 'bottom',
+                    align: step.align || 'center',
+                    action: step.action || null  // 保存动作类型
+                }
+            }));
+
+        // 如果没有可用的步骤，直接返回
+        if (steps.length === 0) {
+            console.warn('Onboarding: No valid elements found');
+            return;
+        }
 
         const driverObj = driverFn({
             showProgress: true,
@@ -280,10 +320,32 @@
             doneBtnText: '{{ _("完成") }}',
             allowClose: true,
             animate: true,
-            overlayOpacity: 0.5,
+            overlayOpacity: 0.3,
             stagePadding: 8,
             stageRadius: 8,
             popoverOffset: 12,
+            // 通用动作机制：在步骤高亮时执行动作
+            onHighlightStarted: (element, step, options) => {
+                const action = step?.popover?.action;
+                if (!action || !element) return;
+
+                // 延迟执行，让高亮动画先完成
+                setTimeout(() => {
+                    switch (action) {
+                        case 'click':
+                            element.click();
+                            break;
+                        case 'toggle':
+                            // 点击两次：先触发效果，再恢复原状
+                            element.click();
+                            setTimeout(() => element.click(), 800);
+                            break;
+                        case 'focus':
+                            element.focus();
+                            break;
+                    }
+                }, 300);
+            },
             onDestroyStarted: () => {
                 // 仅首次登录引导时标记完成
                 if (!isManual) {

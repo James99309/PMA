@@ -155,7 +155,34 @@ Tailwind 用户选择器模态框组件
                         </div>
                         {% endif %}
 
-                        <div class="border border-slate-200 dark:border-slate-700 rounded-md h-80 overflow-y-auto">
+                        <!-- 搜索结果（扁平化显示） -->
+                        <div x-show="isSearchMode" class="border border-slate-200 dark:border-slate-700 rounded-md h-80 overflow-y-auto">
+                            <ul class="text-sm text-slate-800 dark:text-slate-200">
+                                <template x-for="user in flatFilteredUsers" :key="'flat-' + user.id">
+                                    <li class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 last:border-b-0">
+                                        <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center cursor-pointer transition-colors"
+                                             :class="isUserSelected(user.user_id) ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'"
+                                             @click="toggleUser(user)">
+                                            <span x-show="isUserSelected(user.user_id)" class="material-symbols-outlined text-white" style="font-size: 14px;">check</span>
+                                        </div>
+                                        <div class="ml-3 flex-1 min-w-0">
+                                            <span class="block font-medium" x-text="user.name"></span>
+                                            <span class="block text-xs text-slate-400 dark:text-slate-500 truncate" x-text="user.path"></span>
+                                        </div>
+                                    </li>
+                                </template>
+
+                                <!-- 无匹配结果 -->
+                                <template x-if="flatFilteredUsers.length === 0">
+                                    <li class="p-4 text-center text-slate-400">
+                                        {{ _('没有找到匹配的用户') }}
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+
+                        <!-- 树形结构（非搜索模式） -->
+                        <div x-show="!isSearchMode" class="border border-slate-200 dark:border-slate-700 rounded-md h-80 overflow-y-auto">
                             <ul class="text-sm text-slate-800 dark:text-slate-200">
                                 <template x-for="company in filteredUsersTree" :key="company.id">
                                     <li class="border-b border-slate-200 dark:border-slate-700 last:border-b-0"
@@ -330,9 +357,36 @@ Tailwind 用户选择器模态框组件
                     </div>
                     {% endif %}
 
-                    <!-- 用户树形列表 -->
-                    <div class="border border-slate-200 dark:border-slate-700 rounded-md h-80 overflow-y-auto">
-                        <input type="hidden" name="{{ field_name }}" :value="selectedUserId">
+                    <input type="hidden" name="{{ field_name }}" :value="selectedUserId">
+
+                    <!-- 搜索结果（扁平化显示） -->
+                    <div x-show="isSearchMode" class="border border-slate-200 dark:border-slate-700 rounded-md h-80 overflow-y-auto">
+                        <ul class="text-sm text-slate-800 dark:text-slate-200">
+                            <template x-for="user in flatFilteredUsers" :key="'flat-single-' + user.id">
+                                <li class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-200 dark:border-slate-700 last:border-b-0"
+                                    @click="selectUser(user.user_id)">
+                                    <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors"
+                                         :class="selectedUserId == user.user_id ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'">
+                                        <span x-show="selectedUserId == user.user_id" class="material-symbols-outlined text-white" style="font-size: 14px;">check</span>
+                                    </div>
+                                    <div class="ml-3 flex-1 min-w-0">
+                                        <span class="block font-medium" x-text="user.name"></span>
+                                        <span class="block text-xs text-slate-400 dark:text-slate-500 truncate" x-text="user.path"></span>
+                                    </div>
+                                </li>
+                            </template>
+
+                            <!-- 无匹配结果 -->
+                            <template x-if="flatFilteredUsers.length === 0">
+                                <li class="p-4 text-center text-slate-400">
+                                    {{ _('没有找到匹配的用户') }}
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+
+                    <!-- 用户树形列表（非搜索模式） -->
+                    <div x-show="!isSearchMode" class="border border-slate-200 dark:border-slate-700 rounded-md h-80 overflow-y-auto">
                         <ul class="text-sm text-slate-800 dark:text-slate-200">
                             <template x-for="company in filteredUsersTree" :key="company.id">
                                 <li class="border-b border-slate-200 dark:border-slate-700 last:border-b-0"
@@ -413,7 +467,7 @@ Tailwind 用户选择器模态框组件
                             <!-- 空状态 -->
                             <template x-if="filteredUsersTree.length === 0">
                                 <li class="p-4 text-center text-slate-400">
-                                    {{ empty_text or _('没有找到匹配的用户') }}
+                                    {{ empty_text or _('暂无可选择的用户') }}
                                 </li>
                             </template>
                         </ul>
@@ -510,6 +564,33 @@ function {{ modal_id }}Data() {
                 }
                 return null;
             }).filter(c => c !== null);
+        },
+
+        // 判断是否在搜索模式
+        get isSearchMode() {
+            return this.searchKeyword.trim().length > 0;
+        },
+
+        // 获取所有用户的扁平化列表（带路径信息）
+        get allFlatUsers() {
+            const users = [];
+            const collectUsers = (node, path = []) => {
+                if (node.type === 'user') {
+                    users.push({ ...node, path: path.join(' > ') });
+                } else if (node.children) {
+                    const newPath = node.name ? [...path, node.name] : path;
+                    node.children.forEach(child => collectUsers(child, newPath));
+                }
+            };
+            this.usersTree.forEach(company => collectUsers(company, [company.name]));
+            return users;
+        },
+
+        // 搜索时返回扁平化的匹配用户
+        get flatFilteredUsers() {
+            if (!this.searchKeyword.trim()) return [];
+            const keyword = this.searchKeyword.toLowerCase();
+            return this.allFlatUsers.filter(u => u.name.toLowerCase().includes(keyword));
         },
 
         // 统计节点下用户数

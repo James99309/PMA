@@ -192,6 +192,10 @@ Tailwind 共享导航菜单组件
         <span class="material-symbols-outlined text-slate-400 text-base transition-transform" :class="{ 'rotate-180': open }">expand_more</span>
     </button>
     <div x-show="open" x-collapse class="pl-4 mt-1 flex flex-col gap-1">
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'announcement' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('announcement.list_view') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'announcement' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">campaign</span>
+            <span class="{% if active_page == 'announcement' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('公告管理') }}</span>
+        </a>
         <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'admin' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('admin.system_settings') }}">
             <span class="material-symbols-outlined text-base {% if active_page == 'admin' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">settings_applications</span>
             <span class="{% if active_page == 'admin' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('系统参数设置') }}</span>
@@ -215,10 +219,6 @@ Tailwind 共享导航菜单组件
         <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'backup' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('backup.index') }}">
             <span class="material-symbols-outlined text-base {% if active_page == 'backup' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">cloud_upload</span>
             <span class="{% if active_page == 'backup' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('数据库备份') }}</span>
-        </a>
-        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'announcement' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('announcement.list_view') }}">
-            <span class="material-symbols-outlined text-base {% if active_page == 'announcement' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">campaign</span>
-            <span class="{% if active_page == 'announcement' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('公告管理') }}</span>
         </a>
     </div>
 </div>

@@ -56,7 +56,8 @@ Tailwind 统一布局组件
             </div>
             <h1 class="text-slate-900 dark:text-white text-base font-medium leading-normal whitespace-nowrap">PMA System</h1>
             <!-- 收缩按钮 -->
-            <button @click="sidebarCollapsed = !sidebarCollapsed"
+            <button id="sidebarToggleBtn"
+                    @click="sidebarCollapsed = !sidebarCollapsed"
                     class="flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
                     :title="sidebarCollapsed ? '{{ _('展开侧边栏') }}' : '{{ _('收起侧边栏') }}'">
                 <!-- 展开状态：显示收起图标 -->

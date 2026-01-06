@@ -205,6 +205,15 @@ MODULE_METADATA_FALLBACK = {
         'supports_affiliation': False,
         'supports_content_filter': False,
         'description': '管理数据库备份'
+    },
+    'announcement': {
+        'name': '公告管理',
+        'icon': 'campaign',
+        'supports_discount': False,
+        'supports_owner_change': False,
+        'supports_affiliation': False,
+        'supports_content_filter': False,
+        'description': '管理系统公告'
     }
 }
 

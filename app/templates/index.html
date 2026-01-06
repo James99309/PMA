@@ -112,7 +112,8 @@
                             {% endif %}
                             {% if show_manual_download %}
                             <!-- 说明书下载按钮 - SP8D数据库或开发模式可见 -->
-                            <a href="{{ url_for('static', filename='docs/PMA系统产品使用说明书_V6.1.pdf') }}"
+                            <a id="manualDownloadBtn"
+                               href="{{ url_for('static', filename='docs/PMA系统产品使用说明书_V6.1.pdf') }}"
                                target="_blank"
                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-sm font-medium transition-colors"
                                title="{{ _('查看使用说明书') }}">

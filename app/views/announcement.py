@@ -7,7 +7,7 @@ from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 
 from app.extensions import db
-from app.decorators import admin_required
+from app.decorators import permission_required
 from app.models.announcement import Announcement, AnnouncementRead, AnnouncementAttachment, get_local_time
 from app.models.user import User
 from app.utils.supabase_client import get_supabase_client
@@ -23,7 +23,7 @@ announcement_bp = Blueprint('announcement', __name__, url_prefix='/announcement'
 
 @announcement_bp.route('/list')
 @login_required
-@admin_required
+@permission_required('announcement', 'view')
 def list_view():
     """公告列表页面（管理端）"""
     # 获取筛选参数

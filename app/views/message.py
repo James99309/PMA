@@ -4,9 +4,12 @@
 
 提供消息面板所需的 API 接口
 """
+import logging
 from flask import Blueprint, jsonify, request, url_for
 from flask_login import login_required, current_user
 from flask_babel import gettext as _
+
+logger = logging.getLogger(__name__)
 
 from app import db
 from app.models.message import Message
@@ -52,22 +55,23 @@ def get_panel_data():
             msg_dict['can_view_calendar'] = can_view
             mention_list.append(msg_dict)
 
-        # 2. 获取用户的公告记录，混入 mention_list
+        # 2. 获取用户的未读公告，混入 mention_list（与@消息一致：已读即消失）
         announcement_records = AnnouncementRead.query.filter(
-            AnnouncementRead.user_id == current_user.id
+            AnnouncementRead.user_id == current_user.id,
+            AnnouncementRead.is_read == False
         ).join(Announcement).filter(
             Announcement.status == 'published',
             Announcement.is_deleted == False
         ).order_by(Announcement.published_at.desc()).limit(20).all()
 
+        logger.info(f"[消息面板] 用户 {current_user.id} 公告记录数: {len(announcement_records)}")
+
         for record in announcement_records:
             ann = record.announcement
-            # 截取内容前100字符
-            content_preview = ann.content[:100] + '...' if len(ann.content) > 100 else ann.content
             mention_list.append({
                 'id': f'ann_{record.id}',
                 'title': ann.title,
-                'content': content_preview,
+                'content': ann.content,  # 显示完整内容
                 'message_type': f'announcement_{ann.announcement_type}',
                 'is_read': record.is_read,
                 'created_at': ann.published_at.isoformat() if ann.published_at else None,

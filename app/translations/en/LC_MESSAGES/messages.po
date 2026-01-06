@@ -7274,6 +7274,24 @@ msgstr "View and manage your work schedule, plan trips, and record daily work he
 msgid "查看系统通知、待审批任务和@您的消息，及时了解工作动态。"
 msgstr "View system notifications, pending approvals, and mentions to stay updated on work activities."
 
+msgid "深浅模式"
+msgstr "Theme Mode"
+
+msgid "点击切换深色或浅色主题，根据您的使用习惯调整界面显示。"
+msgstr "Click to toggle between dark and light themes to customize the interface display."
+
+msgid "AI 智能分析您的业务数据，生成每日分析报告，帮助您了解业务动态。"
+msgstr "AI analyzes your business data and generates daily reports to help you understand business trends."
+
+msgid "点击查看系统使用说明书，了解各功能的详细用法。"
+msgstr "Click to view the user manual and learn detailed usage of system features."
+
+msgid "收起侧边栏"
+msgstr "Collapse Sidebar"
+
+msgid "点击收起或展开左侧导航菜单，获得更大的工作区域。"
+msgstr "Click to collapse or expand the left navigation menu for a larger workspace."
+
 msgid "完成"
 msgstr "Done"
 

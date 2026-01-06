@@ -146,48 +146,27 @@
                     </div>
                 </template>
                 <template x-for="item in data.mentions" :key="item.id">
-                    <!-- 有权限时可点击跳转到发送者日历 -->
-                    <template x-if="item.can_view_calendar">
-                        <a :href="getMessageUrl(item)"
-                           @click="markRead([item.id])"
-                           class="flex items-start gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                           :class="{ 'bg-blue-50/50 dark:bg-blue-900/10': !item.is_read }">
-                            <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-                                 :class="getMessageBgColor(item)">
-                                <span class="material-symbols-outlined"
-                                      :class="getMessageTextColor(item)"
-                                      x-text="getMessageIcon(item)"></span>
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center justify-between gap-2">
-                                    <span class="text-sm font-medium text-slate-900 dark:text-white" x-text="item.title"></span>
-                                    <span class="text-xs text-slate-400 flex-shrink-0" x-text="formatTime(item.created_at)"></span>
-                                </div>
-                                <div class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2" x-text="item.content"></div>
-                            </div>
-                            <span class="material-symbols-outlined text-slate-300 flex-shrink-0">chevron_right</span>
-                        </a>
-                    </template>
-                    <!-- 无权限时仅展示消息内容，不显示箭头 -->
-                    <template x-if="!item.can_view_calendar">
-                        <div @click="markRead([item.id])"
-                             class="flex items-start gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800 cursor-default"
-                             :class="{ 'bg-blue-50/50 dark:bg-blue-900/10': !item.is_read }">
-                            <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-                                 :class="getMessageBgColor(item)">
-                                <span class="material-symbols-outlined"
-                                      :class="getMessageTextColor(item)"
-                                      x-text="getMessageIcon(item)"></span>
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center justify-between gap-2">
-                                    <span class="text-sm font-medium text-slate-900 dark:text-white" x-text="item.title"></span>
-                                    <span class="text-xs text-slate-400 flex-shrink-0" x-text="formatTime(item.created_at)"></span>
-                                </div>
-                                <div class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2" x-text="item.content"></div>
-                            </div>
+                    <div @click="markRead([item.id]); item.can_view_calendar && (window.location.href = getMessageUrl(item))"
+                         class="flex items-start gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800 transition-colors"
+                         :class="[
+                             !item.is_read ? 'bg-blue-50/50 dark:bg-blue-900/10' : '',
+                             item.can_view_calendar ? 'hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer' : 'cursor-default'
+                         ]">
+                        <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+                             :class="getMessageBgColor(item)">
+                            <span class="material-symbols-outlined"
+                                  :class="getMessageTextColor(item)"
+                                  x-text="getMessageIcon(item)"></span>
                         </div>
-                    </template>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-sm font-medium text-slate-900 dark:text-white" x-text="item.title"></span>
+                                <span class="text-xs text-slate-400 flex-shrink-0" x-text="formatTime(item.created_at)"></span>
+                            </div>
+                            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1 whitespace-pre-wrap" x-text="item.content"></div>
+                        </div>
+                        <span x-show="item.can_view_calendar" class="material-symbols-outlined text-slate-300 flex-shrink-0">chevron_right</span>
+                    </div>
                 </template>
             </div>
         </div>
@@ -318,8 +297,11 @@ function messagePanel() {
             try {
                 const response = await fetch('/message/api/panel-data');
                 const result = await response.json();
+                console.log('消息面板API响应:', result);  // 调试日志
                 if (result.success) {
                     this.data = result.data;
+                    console.log('mentions数量:', this.data.mentions.length);  // 调试日志
+                    console.log('mentions数据:', this.data.mentions);  // 调试日志
                     if (Alpine.store('message')) {
                         Alpine.store('message').unreadCount = result.data.counts.total;
                     }
