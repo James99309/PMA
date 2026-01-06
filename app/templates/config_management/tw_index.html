@@ -513,41 +513,83 @@
                                 <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
                                     <!-- 头部 -->
                                     <div class="flex items-center justify-between mb-6">
-                                        <div>
-                                            <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                                                <span x-show="mode === 'batch'" class="material-symbols-outlined text-primary">group</span>
-                                                <span x-text="mode === 'role' ? roleDisplay : '{{ _('批量用户权限配置') }}'"></span>
-                                            </h3>
-                                            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                                <template x-if="mode === 'role'">
-                                                    <span>{{ _('配置该角色的默认权限') }}</span>
-                                                </template>
-                                                <template x-if="mode === 'batch'">
-                                                    <span>{{ _('正在为') }} <strong class="text-primary" x-text="userCount"></strong> {{ _('位用户配置个人权限覆盖') }}</span>
-                                                </template>
-                                            </p>
+                                        <div class="flex items-center gap-3">
+                                            <div>
+                                                <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                                                    <span x-show="mode === 'batch'" class="material-symbols-outlined text-primary">group</span>
+                                                    <span x-text="mode === 'role' ? roleDisplay : '{{ _('批量用户权限配置') }}'"></span>
+                                                </h3>
+                                                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                                    <template x-if="mode === 'role'">
+                                                        <span>{{ _('配置该角色的默认权限') }}</span>
+                                                    </template>
+                                                    <template x-if="mode === 'batch'">
+                                                        <span>{{ _('正在为') }} <strong class="text-primary" x-text="userCount"></strong> {{ _('位用户配置个人权限覆盖') }}</span>
+                                                    </template>
+                                                </p>
+                                            </div>
+                                            <!-- 权限来源徽章 -->
+                                            <template x-if="isPersonalPermission">
+                                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                                                    <span class="material-symbols-outlined text-sm">person</span>
+                                                    {{ _('个人权限') }}
+                                                </span>
+                                            </template>
+                                            <template x-if="!isPersonalPermission && mode === 'role'">
+                                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                                    <span class="material-symbols-outlined text-sm">group</span>
+                                                    {{ _('角色权限') }}
+                                                </span>
+                                            </template>
                                         </div>
                                         <div class="flex items-center gap-2">
                                             {% if can_edit %}
                                             <!-- 批量模式按钮 -->
                                             <template x-if="mode === 'batch'">
                                                 <div class="flex items-center gap-2">
-                                                    <button type="button" @click="savePermissions()" :disabled="saving"
-                                                            class="px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-slate-300 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
-                                                        <span class="material-symbols-outlined text-sm" x-show="!saving">save</span>
-                                                        <span class="material-symbols-outlined text-sm animate-spin" x-show="saving">progress_activity</span>
-                                                        <span x-text="saving ? '{{ _('保存中...') }}' : '{{ _('保存') }}'"></span>
-                                                    </button>
-                                                    <button type="button" @click="applyRolePermissions()"
-                                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-primary hover:bg-primary/10 rounded-lg transition-colors">
-                                                        <span class="material-symbols-outlined text-base">content_copy</span>
-                                                        {{ _('应用角色权限') }}
-                                                    </button>
-                                                    <button type="button" @click="resetUsersPermissions()"
-                                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors">
-                                                        <span class="material-symbols-outlined text-base">restart_alt</span>
-                                                        {{ _('清除个人权限') }}
-                                                    </button>
+                                                    <!-- 单用户模式：编辑按钮（查看模式时显示） -->
+                                                    <template x-if="isPersonalPermission && !isEditing">
+                                                        <button type="button" @click="startEdit()"
+                                                                class="px-4 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
+                                                            <span class="material-symbols-outlined text-sm">edit</span>
+                                                            {{ _('编辑') }}
+                                                        </button>
+                                                    </template>
+                                                    <!-- 编辑模式或多用户批量模式：操作按钮 -->
+                                                    <template x-if="isEditing || !isPersonalPermission">
+                                                        <div class="flex items-center gap-2">
+                                                            <!-- 保存按钮 -->
+                                                            <button type="button" @click="savePermissions()" :disabled="saving"
+                                                                    class="px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-slate-300 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
+                                                                <span class="material-symbols-outlined text-sm" x-show="!saving">save</span>
+                                                                <span class="material-symbols-outlined text-sm animate-spin" x-show="saving">progress_activity</span>
+                                                                <span x-text="saving ? '{{ _('保存中...') }}' : '{{ _('保存') }}'"></span>
+                                                            </button>
+                                                            <!-- 取消按钮：仅单用户编辑模式 -->
+                                                            <button x-show="isPersonalPermission && isEditing" type="button" @click="cancelEdit()"
+                                                                    class="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-sm font-medium rounded-lg transition-colors">
+                                                                {{ _('取消') }}
+                                                            </button>
+                                                            <!-- 应用角色权限按钮：仅单用户编辑模式且有差异时显示 -->
+                                                            <button x-show="isPersonalPermission && isEditing && hasPersonalDiff" type="button" @click="applyRolePermissions()"
+                                                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-primary hover:bg-primary/10 rounded-lg transition-colors">
+                                                                <span class="material-symbols-outlined text-base">sync</span>
+                                                                {{ _('应用角色权限') }}
+                                                            </button>
+                                                            <!-- 清除个人权限按钮：仅单用户编辑模式时显示 -->
+                                                            <button x-show="isPersonalPermission && isEditing" type="button" @click="clearPersonalPermissions()"
+                                                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                                                                <span class="material-symbols-outlined text-base">delete_sweep</span>
+                                                                {{ _('清除个人权限') }}
+                                                            </button>
+                                                            <!-- 批量清除按钮：仅多用户时显示 -->
+                                                            <button x-show="!isPersonalPermission" type="button" @click="resetUsersPermissions()"
+                                                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors">
+                                                                <span class="material-symbols-outlined text-base">restart_alt</span>
+                                                                {{ _('批量清除权限') }}
+                                                            </button>
+                                                        </div>
+                                                    </template>
                                                 </div>
                                             </template>
                                             {% endif %}
@@ -575,19 +617,6 @@
                                             {% endif %}
                                         </div>
                                     </div>
-
-                                    <!-- 批量模式提示 -->
-                                    <template x-if="mode === 'batch'">
-                                        <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-6">
-                                            <div class="flex items-start gap-2">
-                                                <span class="material-symbols-outlined text-amber-600 text-lg mt-0.5">info</span>
-                                                <p class="text-sm text-amber-800 dark:text-amber-200">
-                                                    {{ _('保存后将批量应用到所有选中的用户。混合状态的权限项（用户间不一致）不会被覆盖。') }}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </template>
-
                                     <!-- 分组列表 -->
                                     <div class="space-y-6">
                                         <template x-for="group in groupedModules" :key="group.name">
@@ -793,6 +822,17 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- 权限配置未保存确认模态框 -->
+                {{ tw_confirm_modal(
+                    modal_id='permUnsavedModal',
+                    title=_('未保存的更改'),
+                    message=_('您有未保存的更改，是否保存？'),
+                    confirm_text=_('保存'),
+                    cancel_text=_('不保存'),
+                    stay_text=_('取消'),
+                    variant='warning'
+                ) }}
             </div>
 
             <!-- 绩效配置标签页 -->
@@ -2411,12 +2451,70 @@
 
             // 选择角色（配置角色级别）
             selectRole(roleCode) {
+                // 检查权限面板是否有未保存的更改
+                const panel = getPermissionPanelInstance();
+                if (panel && panel.hasChanges && panel.isEditing) {
+                    // 存储待切换的目标
+                    this._pendingSwitchAction = () => this._doSelectRole(roleCode);
+                    openConfirmModal('permUnsavedModal', {
+                        onConfirm: async () => {
+                            // 保存后切换
+                            await panel.savePermissions();
+                            if (this._pendingSwitchAction) {
+                                this._pendingSwitchAction();
+                                this._pendingSwitchAction = null;
+                            }
+                        },
+                        onCancel: () => {
+                            // 不保存直接切换
+                            panel.hasChanges = false;
+                            panel.isEditing = false;
+                            if (this._pendingSwitchAction) {
+                                this._pendingSwitchAction();
+                                this._pendingSwitchAction = null;
+                            }
+                        }
+                    });
+                    return;
+                }
+                this._doSelectRole(roleCode);
+            },
+
+            // 实际执行角色选择
+            _doSelectRole(roleCode) {
                 this.selectedRole = roleCode;
                 this.selectedUsers = [];
                 this.configMode = 'role';
                 if (callbacks.onRoleSelected) {
                     callbacks.onRoleSelected.call(this, roleCode);
                 }
+            },
+
+            // 检查未保存更改并执行操作的辅助方法
+            _checkUnsavedAndExecute(action) {
+                const panel = getPermissionPanelInstance();
+                if (panel && panel.hasChanges && panel.isEditing) {
+                    this._pendingSwitchAction = action;
+                    openConfirmModal('permUnsavedModal', {
+                        onConfirm: async () => {
+                            await panel.savePermissions();
+                            if (this._pendingSwitchAction) {
+                                this._pendingSwitchAction();
+                                this._pendingSwitchAction = null;
+                            }
+                        },
+                        onCancel: () => {
+                            panel.hasChanges = false;
+                            panel.isEditing = false;
+                            if (this._pendingSwitchAction) {
+                                this._pendingSwitchAction();
+                                this._pendingSwitchAction = null;
+                            }
+                        }
+                    });
+                    return true; // 表示有未保存更改，已显示弹窗
+                }
+                return false; // 没有未保存更改
             },
 
             // 展开/折叠角色用户列表
@@ -2452,6 +2550,13 @@
 
             // 切换用户选择
             toggleUserSelection(userId, roleCode) {
+                if (this._checkUnsavedAndExecute(() => this._doToggleUserSelection(userId, roleCode))) {
+                    return;
+                }
+                this._doToggleUserSelection(userId, roleCode);
+            },
+
+            _doToggleUserSelection(userId, roleCode) {
                 const idx = this.selectedUsers.indexOf(userId);
                 if (idx === -1) {
                     this.selectedUsers.push(userId);
@@ -2473,6 +2578,13 @@
 
             // 选择角色下的所有用户
             selectAllInRole(roleCode) {
+                if (this._checkUnsavedAndExecute(() => this._doSelectAllInRole(roleCode))) {
+                    return;
+                }
+                this._doSelectAllInRole(roleCode);
+            },
+
+            _doSelectAllInRole(roleCode) {
                 const users = this.roleUsers[roleCode] || [];
                 users.forEach(user => {
                     if (!this.selectedUsers.includes(user.id)) {
@@ -2489,6 +2601,13 @@
 
             // 取消选择角色下的所有用户
             unselectAllInRole(roleCode) {
+                if (this._checkUnsavedAndExecute(() => this._doUnselectAllInRole(roleCode))) {
+                    return;
+                }
+                this._doUnselectAllInRole(roleCode);
+            },
+
+            _doUnselectAllInRole(roleCode) {
                 const users = this.roleUsers[roleCode] || [];
                 const userIds = users.map(u => u.id);
                 this.selectedUsers = this.selectedUsers.filter(id => !userIds.includes(id));
@@ -2506,6 +2625,13 @@
 
             // 清空所有用户选择
             clearSelection() {
+                if (this._checkUnsavedAndExecute(() => this._doClearSelection())) {
+                    return;
+                }
+                this._doClearSelection();
+            },
+
+            _doClearSelection() {
                 this.selectedUsers = [];
                 this.configMode = 'role';
                 if (callbacks.onNoSelection) {
@@ -2610,6 +2736,13 @@
 
             // 选中单个用户并跳转（点击整行时触发）
             selectSingleUser(userId, roleCode) {
+                if (this._checkUnsavedAndExecute(() => this._doSelectSingleUser(userId, roleCode))) {
+                    return;
+                }
+                this._doSelectSingleUser(userId, roleCode);
+            },
+
+            _doSelectSingleUser(userId, roleCode) {
                 // 清空之前的选择，只选中当前用户
                 this.selectedUsers = [userId];
                 this.configMode = 'users';
@@ -2643,6 +2776,12 @@
             roleDisplay: '',
             userCount: 0,
             selectedUserIds: [],
+
+            // 个人权限相关状态
+            isPersonalPermission: false,   // 当前是否显示个人权限
+            rolePermissions: {},           // 缓存的角色权限（用于比较）
+            hasPersonalDiff: false,        // 个人权限是否与角色权限不同
+            currentUserRole: '',           // 当前用户的角色代码
 
             // 展开状态
             expandedGroups: [],
@@ -2681,6 +2820,8 @@
                 this.roleCode = roleCode;
                 this.isEditing = false;
                 this.hasChanges = false;
+                this.isPersonalPermission = false;  // 角色权限模式
+                this.hasPersonalDiff = false;
 
                 try {
                     const response = await fetch(`/config-management/api/role-permissions/${roleCode}`);
@@ -2710,12 +2851,23 @@
                 }
             },
 
-            async loadBatchPermissions(userIds) {
+            async loadBatchPermissions(userIds, userRole = null) {
                 this.loading = true;
                 this.mode = 'batch';
                 this.selectedUserIds = userIds;
-                this.isEditing = true;  // 批量模式默认编辑状态
+                // 单用户个人权限模式默认查看状态，多用户批量模式默认编辑状态
+                this.isEditing = userIds.length > 1;
                 this.hasChanges = false;
+
+                // 判断是否为单用户个人权限模式
+                const isSingleUser = userIds.length === 1;
+                this.isPersonalPermission = isSingleUser;
+                this.hasPersonalDiff = false;
+
+                // 存储用户角色（用于加载角色权限进行比较）
+                if (userRole) {
+                    this.currentUserRole = userRole;
+                }
 
                 try {
                     const response = await fetch('/config-management/api/users/permissions/batch', {
@@ -2735,8 +2887,18 @@
                         this.featurePermissions = data.data.feature_permissions || {};
                         this.userCount = data.data.user_count || userIds.length;
 
+                        // 如果是单用户，获取用户角色并加载角色权限进行比较
+                        if (isSingleUser && data.data.user_role) {
+                            this.currentUserRole = data.data.user_role;
+                        }
+
                         // 🔧 默认展开所有分组
                         this.expandAllGroups();
+
+                        // 如果是单用户且有角色信息，加载角色权限进行比较
+                        if (isSingleUser && this.currentUserRole) {
+                            await this._loadRolePermissionsForCompare(this.currentUserRole);
+                        }
                     } else {
                         showNotification(data.message || '{{ _("加载失败") }}', 'error');
                     }
@@ -2746,6 +2908,60 @@
                 } finally {
                     this.loading = false;
                 }
+            },
+
+            // 加载角色权限用于比较（不影响当前显示）
+            async _loadRolePermissionsForCompare(roleCode) {
+                try {
+                    const response = await fetch(`/config-management/api/role-permissions/${roleCode}`);
+                    const data = await response.json();
+                    if (data.success) {
+                        this.rolePermissions = data.data.permissions || {};
+                        this._comparePermissions();
+                    }
+                } catch (error) {
+                    console.error('加载角色权限失败:', error);
+                }
+            },
+
+            // 比较个人权限与角色权限
+            _comparePermissions() {
+                if (!this.isPersonalPermission || !this.rolePermissions) {
+                    this.hasPersonalDiff = false;
+                    return;
+                }
+
+                // 简单比较：检查是否有任何模块的权限不同
+                for (const moduleId of Object.keys(this.permissions)) {
+                    const personal = this.permissions[moduleId];
+                    const role = this.rolePermissions[moduleId];
+
+                    if (!role) {
+                        // 个人有权限但角色没有
+                        this.hasPersonalDiff = true;
+                        return;
+                    }
+
+                    // 比较关键字段
+                    if (personal.permission_level !== role.permission_level ||
+                        personal.can_view !== role.can_view ||
+                        personal.can_create !== role.can_create ||
+                        personal.can_edit !== role.can_edit ||
+                        personal.can_delete !== role.can_delete) {
+                        this.hasPersonalDiff = true;
+                        return;
+                    }
+                }
+
+                // 检查角色有权限但个人没有的情况
+                for (const moduleId of Object.keys(this.rolePermissions)) {
+                    if (!this.permissions[moduleId]) {
+                        this.hasPersonalDiff = true;
+                        return;
+                    }
+                }
+
+                this.hasPersonalDiff = false;
             },
 
             startEdit() {
@@ -3052,28 +3268,84 @@
                 return '';
             },
 
-            // 应用角色权限（用于批量模式）
+            // 应用角色权限（用于单用户个人权限模式）
             async applyRolePermissions() {
-                const instance = getPermissionConfigInstance();
-                if (!instance || !instance.selectedRole) return;
+                // 优先使用已缓存的角色权限
+                if (this.rolePermissions && Object.keys(this.rolePermissions).length > 0) {
+                    this.permissions = JSON.parse(JSON.stringify(this.rolePermissions));
+                    this.hasChanges = true;
+                    this.hasPersonalDiff = false;
+                    showNotification('{{ _("已应用角色权限，请保存以生效") }}', 'info');
+                    return;
+                }
 
-                // 重新加载角色权限作为模板
+                // 如果没有缓存，重新加载
+                const instance = getPermissionConfigInstance();
+                const roleCode = this.currentUserRole || (instance && instance.selectedRole);
+                if (!roleCode) {
+                    showNotification('{{ _("无法获取角色信息") }}', 'error');
+                    return;
+                }
+
                 try {
-                    const response = await fetch(`/config-management/api/role-permissions/${instance.selectedRole}`);
+                    const response = await fetch(`/config-management/api/role-permissions/${roleCode}`);
                     const data = await response.json();
 
                     if (data.success) {
                         this.permissions = data.data.permissions || {};
                         this.featurePermissions = data.data.feature_permissions || {};
                         this.hasChanges = true;
-                        showNotification('{{ _("已应用角色权限模板") }}', 'success');
+                        this.hasPersonalDiff = false;
+                        showNotification('{{ _("已应用角色权限，请保存以生效") }}', 'info');
                     }
                 } catch (error) {
                     console.error('应用角色权限失败:', error);
+                    showNotification('{{ _("操作失败") }}', 'error');
                 }
             },
 
-            // 清除个人权限（用于批量模式）
+            // 清除单个用户的个人权限
+            async clearPersonalPermissions() {
+                if (!this.isPersonalPermission || this.selectedUserIds.length !== 1) {
+                    return;
+                }
+
+                if (!confirm('{{ _("确定清除该用户的所有个人权限配置？清除后将使用角色默认权限。") }}')) {
+                    return;
+                }
+
+                this.saving = true;
+                try {
+                    const userId = this.selectedUserIds[0];
+                    const response = await fetch(`/config-management/api/users/${userId}/permissions/reset`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        showNotification('{{ _("已清除个人权限") }}', 'success');
+                        // 重新加载角色权限
+                        const instance = getPermissionConfigInstance();
+                        if (instance && instance.selectedRole) {
+                            await this.loadRolePermissions(instance.selectedRole);
+                        }
+                    } else {
+                        showNotification(data.message || '{{ _("操作失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('清除个人权限失败:', error);
+                    showNotification('{{ _("操作失败，请重试") }}', 'error');
+                } finally {
+                    this.saving = false;
+                }
+            },
+
+            // 批量清除多个用户的个人权限
             async resetUsersPermissions() {
                 if (!confirm('{{ _("确定清除选中用户的个人权限？将恢复使用角色默认值") }}')) {
                     return;
@@ -3556,7 +3828,8 @@
             loadBatchUserPermissions() {
                 const panel = getPermissionPanelInstance();
                 if (panel) {
-                    panel.loadBatchPermissions(this.selectedUsers);
+                    // 传递当前选中的角色用于权限比较
+                    panel.loadBatchPermissions(this.selectedUsers, this.selectedRole);
                 }
             }
         };

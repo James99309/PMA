@@ -12,6 +12,7 @@ Create Date: 2026-01-01
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -21,11 +22,35 @@ branch_labels = None
 depends_on = None
 
 
+def table_exists(table_name):
+    """检查表是否存在"""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    return table_name in inspector.get_table_names()
+
+
+def column_exists(table_name, column_name):
+    """检查列是否存在"""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if table_name not in inspector.get_table_names():
+        return False
+    columns = [c['name'] for c in inspector.get_columns(table_name)]
+    return column_name in columns
+
+
 def upgrade():
-    # 删除废弃的AI提示词字段
-    with op.batch_alter_table('employee_salary_config', schema=None) as batch_op:
-        batch_op.drop_column('ai_personal_prompt')
-        batch_op.drop_column('ai_team_prompt')
+    # 检查表是否存在
+    if not table_exists('employee_salary_config'):
+        return
+
+    # 删除废弃的AI提示词字段（只删除存在的列）
+    columns_to_drop = ['ai_personal_prompt', 'ai_team_prompt']
+
+    for col in columns_to_drop:
+        if column_exists('employee_salary_config', col):
+            with op.batch_alter_table('employee_salary_config', schema=None) as batch_op:
+                batch_op.drop_column(col)
 
 
 def downgrade():
