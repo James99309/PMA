@@ -270,7 +270,7 @@
         <div class="border border-slate-200 dark:border-slate-700 rounded-lg flex-grow flex flex-col overflow-hidden relative">
             {# 表格头部 #}
             <div id="expenseModalTableHeader" class="hidden overflow-x-auto flex-shrink-0">
-                <table class="text-sm" style="min-width: 920px;">
+                <table class="text-sm" style="min-width: 960px;">
                     <thead class="bg-slate-50 dark:bg-slate-800/50">
                         <tr class="text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                             <th class="px-2 py-2.5" style="width: 110px;">{{ _('报销科目') }}</th>
@@ -278,9 +278,9 @@
                             <th class="px-2 py-2.5" style="width: 200px;">{{ _('描述') }}</th>
                             <th class="px-2 py-2.5 text-center" style="width: 40px;">{{ _('单据') }}</th>
                             <th class="px-2 py-2.5 text-center" style="width: 55px;" title="{{ _('货币') }}">{{ _('币') }}</th>
-                            <th class="px-2 py-2.5 text-right" style="width: 85px;">{{ _('金额') }}</th>
+                            <th class="px-2 py-2.5 text-right" style="width: 105px;">{{ _('金额') }}</th>
                             <th class="px-2 py-2.5 text-center" style="width: 60px;">{{ _('汇率') }}</th>
-                            <th class="px-2 py-2.5 text-right" style="width: 100px;">{{ _('报销额') }}</th>
+                            <th class="px-2 py-2.5 text-right" style="width: 115px;">{{ _('报销额') }}</th>
                             <th class="px-2 py-2.5 text-center" style="width: 160px;">{{ _('发票') }}</th>
                             <th class="px-2 py-2.5" style="width: 36px;"></th>
                         </tr>
@@ -290,7 +290,7 @@
 
             {# 表格主体（水平+垂直滚动） #}
             <div class="flex-1 min-h-0 overflow-auto" id="expenseModalTableScroll">
-                <table class="text-sm" style="min-width: 920px;">
+                <table class="text-sm" style="min-width: 960px;">
                     <tbody id="expenseModalTableBody" class="divide-y divide-slate-200 dark:divide-slate-700">
                         {# 动态行由 JavaScript 生成 #}
                     </tbody>
@@ -372,9 +372,9 @@
                 <option value="VND" data-symbol="₫">₫</option>
             </select>
         </td>
-        {# 金额 85px (4位整数+2位小数, 无spinner) #}
-        <td class="px-1 py-2" style="width: 85px;">
-            <input type="number" name="invoice_amount" step="0.01" min="0" max="9999.99" required placeholder="0.00"
+        {# 金额 105px (6位整数+2位小数, 无spinner) #}
+        <td class="px-1 py-2" style="width: 105px;">
+            <input type="number" name="invoice_amount" step="0.01" min="0" max="999999.99" required placeholder="0.00"
                    data-field-code="invoice_amount"
                    class="expense-cell-input no-spinner w-full h-8 px-1 text-xs bg-transparent border border-transparent rounded transition-all text-slate-900 dark:text-slate-100 placeholder:text-slate-400 hover:border-slate-300 hover:bg-slate-50 dark:hover:border-slate-600 dark:hover:bg-slate-800/50 focus:border-primary focus:ring-1 focus:ring-primary focus:bg-white dark:focus:bg-slate-800 text-right">
         </td>
@@ -384,8 +384,8 @@
                    data-field-code="exchange_rate"
                    class="expense-cell-input no-spinner w-full h-8 px-1 text-xs bg-transparent border border-transparent rounded transition-all text-slate-900 dark:text-slate-100 hover:border-slate-300 hover:bg-slate-50 dark:hover:border-slate-600 dark:hover:bg-slate-800/50 focus:border-primary focus:ring-1 focus:ring-primary focus:bg-white dark:focus:bg-slate-800 text-center expense-exchange-rate">
         </td>
-        {# 报销额 100px (5位整数+2位小数) #}
-        <td class="px-1 py-2" style="width: 100px;">
+        {# 报销额 115px (7位整数+2位小数) #}
+        <td class="px-1 py-2" style="width: 115px;">
             <div class="w-full h-8 px-1.5 flex items-center justify-end text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 rounded expense-current-amount">
                 0.00
             </div>

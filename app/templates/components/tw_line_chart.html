@@ -273,7 +273,17 @@ Tailwind SVG 月度折线图组件
 window.initSvgLineChart = function(chartId, monthlyData, options = {}) {
     const unit = options.unit || '';
     const color = options.color || '#2979ff';
-    const monthLabel = options.monthLabel || '{{ month_label }}';
+
+    // 获取月份简写标签（支持国际化）
+    function getMonthShortLabel(month) {
+        const lang = document.documentElement.lang || 'zh';
+        if (lang === 'en') {
+            const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return names[month - 1];
+        }
+        return month + '月';
+    }
 
     const svg = document.getElementById(chartId);
     if (!svg || !monthlyData || monthlyData.length < 12) return;
@@ -362,7 +372,7 @@ window.initSvgLineChart = function(chartId, monthlyData, options = {}) {
     for (let i = 0; i < 12; i++) {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.setAttribute('x', getX(i)); text.setAttribute('y', '200');
-        text.textContent = String(i + 1);
+        text.textContent = getMonthShortLabel(i + 1);
         xLabels.appendChild(text);
     }
 
@@ -410,7 +420,7 @@ window.initSvgLineChart = function(chartId, monthlyData, options = {}) {
 
         g.addEventListener('mouseenter', function() {
             const formattedVal = p.val.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-            tooltipText.textContent = p.month + monthLabel + ': ' + (unit.indexOf('¥') >= 0 || unit === '元' ? '¥' : '') + formattedVal + (unit === '元' ? '' : unit);
+            tooltipText.textContent = getMonthShortLabel(p.month) + ': ' + (unit.indexOf('¥') >= 0 || unit === '元' ? '¥' : '') + formattedVal + (unit === '元' ? '' : unit);
             tooltip.setAttribute('visibility', 'visible');
             circle.setAttribute('r', '5');
         });

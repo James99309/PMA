@@ -187,19 +187,19 @@ def list_users():
         'filter_fields': [
             {
                 'name': 'status',
-                'label': '账号状态',
-                'all_option_text': '全部状态',
+                'label': _('账号状态'),
+                'all_option_text': _('全部状态'),
                 'current_value': status,
                 'col_width': 2,
                 'options': [
-                    {'value': 'active', 'label': '已激活', 'translate': False},
-                    {'value': 'inactive', 'label': '未激活', 'translate': False}
+                    {'value': 'active', 'label': _('已激活'), 'translate': False},
+                    {'value': 'inactive', 'label': _('未激活'), 'translate': False}
                 ]
             },
             {
                 'name': 'role',
-                'label': '用户角色',
-                'all_option_text': '全部角色',
+                'label': _('用户角色'),
+                'all_option_text': _('全部角色'),
                 'current_value': role,
                 'col_width': 2,
                 'options': [
@@ -209,8 +209,8 @@ def list_users():
             },
             {
                 'name': 'company',
-                'label': '企业',
-                'all_option_text': '全部企业',
+                'label': _('企业'),
+                'all_option_text': _('全部企业'),
                 'current_value': company,
                 'col_width': 3,
                 'options': [
@@ -219,9 +219,9 @@ def list_users():
                 ]
             }
         ],
-        
-        'search_button_text': '搜索',
-        'reset_button_text': '重置'
+
+        'search_button_text': _('搜索'),
+        'reset_button_text': _('重置')
     }
 
     # 直接使用用户对象，让模板自动访问属性
@@ -238,34 +238,34 @@ def list_users():
             'cards': [
                 {
                     'id': 'total',
-                    'title': '全部用户',
+                    'title': _('全部用户'),
                     'icon': 'fas fa-users',
                     'value': total_count,
-                    'unit': '个',
+                    'unit': _('个'),
                     'color': 'primary'
                 },
                 {
                     'id': 'active',
-                    'title': '已激活',
+                    'title': _('已激活'),
                     'icon': 'fas fa-user-check',
                     'value': active_count,
-                    'unit': '个',
+                    'unit': _('个'),
                     'color': 'success'
                 },
                 {
                     'id': 'inactive',
-                    'title': '未激活',
+                    'title': _('未激活'),
                     'icon': 'fas fa-user-times',
                     'value': inactive_count,
-                    'unit': '个',
+                    'unit': _('个'),
                     'color': 'warning'
                 },
                 {
                     'id': 'admin',
-                    'title': '管理员',
+                    'title': _('管理员'),
                     'icon': 'fas fa-user-shield',
                     'value': admin_count,
-                    'unit': '个',
+                    'unit': _('个'),
                     'color': 'info'
                 }
             ]
@@ -303,7 +303,7 @@ def list_users():
                 {
                     'key': 'real_name',
                     'field': 'real_name',
-                    'label': '真实姓名',
+                    'label': _('真实姓名'),
                     'type': 'link',
                     'url_template': '/user/detail/{id}',
                     'width': '120px',
@@ -312,7 +312,7 @@ def list_users():
                 {
                     'key': 'username',
                     'field': 'username',
-                    'label': '用户名',
+                    'label': _('用户名'),
                     'type': 'text',
                     'width': '120px',
                     'sort_type': 'string'
@@ -320,7 +320,7 @@ def list_users():
                 {
                     'key': 'is_active',
                     'field': '_is_active',
-                    'label': '状态',
+                    'label': _('状态'),
                     'type': 'badge',
                     'render': 'render_user_status_badge',
                     'width': '120px',
@@ -329,7 +329,7 @@ def list_users():
                 {
                     'key': 'email',
                     'field': 'email',
-                    'label': '邮箱地址',
+                    'label': _('邮箱地址'),
                     'type': 'text',
                     'width': '200px',
                     'sort_type': 'string'
@@ -337,7 +337,7 @@ def list_users():
                 {
                     'key': 'company_name',
                     'field': 'company_name',
-                    'label': '企业名称',
+                    'label': _('企业名称'),
                     'type': 'text',
                     'width': '180px',
                     'sort_type': 'string'
@@ -345,7 +345,7 @@ def list_users():
                 {
                     'key': 'department',
                     'field': 'department',
-                    'label': '部门',
+                    'label': _('部门'),
                     'type': 'text',
                     'width': '140px',
                     'sort_type': 'string'
@@ -353,7 +353,7 @@ def list_users():
                 {
                     'key': 'role',
                     'field': 'role',
-                    'label': '角色',
+                    'label': _('角色'),
                     'type': 'badge',
                     'render': 'render_user_role_badge',
                     'width': '120px',
@@ -364,7 +364,7 @@ def list_users():
                 {
                     'key': 'updated_at',
                     'field': 'updated_at',
-                    'label': '更新时间',
+                    'label': _('更新时间'),
                     'type': 'date',
                     'format': 'datetimeformat',
                     'width': '160px',
@@ -373,7 +373,7 @@ def list_users():
                 {
                     'key': 'created_at',
                     'field': 'created_at',
-                    'label': '创建时间',
+                    'label': _('创建时间'),
                     'type': 'date',
                     'format': 'datetimeformat',
                     'width': '160px',

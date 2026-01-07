@@ -222,7 +222,7 @@ msgstr "Edit Company"
 msgid "企业代码"
 msgstr "Company Code"
 msgid "企业名称"
-msgstr "Company Name"
+msgstr "Company"
 msgid "国家/地区"
 msgstr "Country/Region"
 msgid "请选择国家"
@@ -370,7 +370,7 @@ msgstr "System Integrator"
 msgid "报备日期"
 msgstr "Report"
 msgid "更新时间"
-msgstr "Update"
+msgstr "Updated"
 msgid "创建日期"
 msgstr "Creation"
 msgid "筛选..."
@@ -650,7 +650,7 @@ msgstr "Total number and amount of valid projects (excluding signed, failed, and
 msgid "项"
 msgstr "items"
 msgid "万元"
-msgstr "10K CNY"
+msgstr "0K"
 msgid "业务推进"
 msgstr "Business Progress"
 msgid "本月内项目状态有推进的统计"
@@ -908,15 +908,15 @@ msgstr "Version"
 msgid "审批流程配置"
 msgstr "Workflow"
 msgid "通知中心"
-msgstr "Notification"
+msgstr "Notifications"
 msgid "历史记录"
 msgstr "History"
 msgid "数据库备份"
 msgstr "Backup"
 msgid "个人设置"
-msgstr "Personal Settings"
+msgstr "Settings"
 msgid "审批中心"
-msgstr "Approval Center"
+msgstr "Approvals"
 msgid "消息中心"
 msgstr "Notification Center"
 msgid "退出登录"
@@ -1080,9 +1080,9 @@ msgstr "Submit failed"
 msgid "删除失败"
 msgstr "Delete failed"
 msgid "绩效看板"
-msgstr "Performance Dashboard"
+msgstr "Performance"
 msgid "管理员"
-msgstr "Administrator"
+msgstr "Admin"
 msgid "财务总监"
 msgstr "Finance Director"
 msgid "销售总监"
@@ -1180,7 +1180,7 @@ msgstr "Invalid project ID, please select a project again"
 msgid "请至少添加一个有效的产品明细"
 msgstr "Please add at least one valid product item"
 msgid "个"
-msgstr "pcs"
+msgstr ""
 msgid "未知错误"
 msgstr "Unknown error"
 msgid "服务器内部错误"
@@ -1898,7 +1898,7 @@ msgstr "Username cannot be modified"
 msgid "真实姓名"
 msgstr "Real Name"
 msgid "邮箱地址"
-msgstr "Email Address"
+msgstr "Email"
 msgid "电话号码"
 msgstr "Phone Number"
 msgid "公司信息由管理员设置"
@@ -2200,7 +2200,7 @@ msgstr "Replied"
 msgid "无回复"
 msgstr "No Reply"
 msgid "绩效配置"
-msgstr "Performance Configuration"
+msgstr "Performance"
 msgid "缩小"
 msgstr "Zoom Out"
 msgid "放大"
@@ -4570,7 +4570,7 @@ msgstr "For UI display"
 msgid "用户管理"
 msgstr "User management"
 msgid "用户角色"
-msgstr "User role"
+msgstr "Role"
 msgid "用户详情"
 msgstr "User details"
 msgid "申请注册"
@@ -5673,9 +5673,9 @@ msgstr "Import"
 
 # 薪资配置翻译
 msgid "薪资配置"
-msgstr "Salary Config"
+msgstr "Salary"
 msgid "全局配置"
-msgstr "Global Config"
+msgstr "Global"
 msgid "保存薪资配置"
 msgstr "Save Salary Config"
 msgid "初始化默认数据"
@@ -6126,7 +6126,7 @@ msgid "查看使用说明书"
 msgstr "View User Manual"
 
 msgid "年度费用预算"
-msgstr "Annual Expense Budget"
+msgstr "Budget"
 
 msgid "已用"
 msgstr "Used"
@@ -6135,7 +6135,10 @@ msgid "当月支出"
 msgstr "Monthly Expenditure"
 
 msgid "数据状态"
-msgstr "Data Status"
+msgstr "Status"
+
+msgid "当月"
+msgstr "Month"
 
 msgid "累计报销费用"
 msgstr "Total Expense Amount"
@@ -6159,7 +6162,7 @@ msgid "规格模板"
 msgstr "Spec Templates"
 
 msgid "配置管理"
-msgstr "Config Management"
+msgstr "Config"
 
 # 规格管理模块翻译
 msgid "规格模板管理"
@@ -6602,16 +6605,16 @@ msgstr "e.g.: Custom Category"
 # =====================================
 
 msgid "基本配置"
-msgstr "Basic Config"
+msgstr "Basic"
 
 msgid "归属配置"
-msgstr "Affiliation Config"
+msgstr "Affiliation"
 
 msgid "权限配置"
-msgstr "Permission Config"
+msgstr "Permission"
 
 msgid "费用配置"
-msgstr "Expense Config"
+msgstr "Expense"
 
 # =====================================
 # 配置管理模块 - 通用UI文本
@@ -7303,3 +7306,279 @@ msgstr "Done"
 
 msgid "功能引导"
 msgstr "Feature Guide"
+
+#: app/templates/components/tw_performance_dashboard.html
+msgid "综合评分"
+msgstr "Overall Score"
+
+#: app/templates/components/tw_performance_dashboard.html
+msgid "等级"
+msgstr "Grade"
+
+#: app/templates/components/tw_performance_dashboard.html
+msgid "维度分析"
+msgstr "Dimension Analysis"
+
+#: app/templates/components/tw_performance_dashboard.html
+msgid "客户覆盖率"
+msgstr "Customer Coverage"
+
+#: app/templates/components/tw_performance_dashboard.html
+msgid "详细指标"
+msgstr "Detailed Metrics"
+
+#: app/templates/components/tw_performance_dashboard.html
+msgid "目标值"
+msgstr "Target"
+
+#: app/templates/components/tw_performance_dashboard.html
+msgid "个项目"
+msgstr "projects"
+
+#: app/templates/components/tw_performance_dashboard.html
+msgid "个客户"
+msgstr "customers"
+
+#: app/templates/components/tw_performance_dashboard.html
+msgid "行动记录数"
+msgstr "Action Records"
+
+#: app/templates/components/tw_performance_dashboard.html
+msgid "活跃客户数"
+msgstr "Active Customers"
+
+# 绩效仪表板标签页翻译
+msgid "目标达成"
+msgstr "Goals"
+
+msgid "报销预算"
+msgstr "Budget"
+
+msgid "行业分布"
+msgstr "Industry"
+
+msgid "客户分布"
+msgstr "Customers"
+
+# 薪资明细页面翻译
+msgid "薪资明细"
+msgstr "Salary Details"
+
+msgid "年度概览"
+msgstr "Annual Overview"
+
+msgid "年度业绩"
+msgstr "Annual Performance"
+
+msgid "个人完成率"
+msgstr "Personal Completion Rate"
+
+msgid "薪资构成"
+msgstr "Salary Composition"
+
+msgid "年基础工资"
+msgstr "Annual Base Salary"
+
+msgid "管理津贴"
+msgstr "Management Allowance"
+
+msgid "绩效工资"
+msgstr "Performance Salary"
+
+msgid "个人提成"
+msgstr "Personal Commission"
+
+msgid "团队分成"
+msgstr "Team Commission Share"
+
+msgid "年总收入"
+msgstr "Annual Total Income"
+
+msgid "季度业绩"
+msgstr "Quarterly Performance"
+
+msgid "实时计算"
+msgstr "Real-time Calculation"
+
+msgid "计算依据"
+msgstr "Calculation Basis"
+
+msgid "团队分成明细"
+msgstr "Team Commission Details"
+
+msgid "作为团队负责人获得的分成"
+msgstr "Commission earned as team leader"
+
+msgid "下属姓名"
+msgstr "Subordinate Name"
+
+msgid "提成基数"
+msgstr "Commission Base"
+
+msgid "分成比例"
+msgstr "Share Ratio"
+
+msgid "分成金额"
+msgstr "Share Amount"
+
+msgid "暂无季度业绩数据"
+msgstr "No quarterly performance data"
+
+msgid "暂无薪资配置数据"
+msgstr "No salary configuration data"
+
+msgid "请先在配置管理中设置职级和薪资参数"
+msgstr "Please configure grade and salary parameters first"
+
+msgid "个人配置"
+msgstr "Custom Config"
+
+# 客户分布相关翻译
+msgid "客户类型分布"
+msgstr "Customer Type Distribution"
+
+msgid "客户活跃度趋势"
+msgstr "Customer Activity Trend"
+
+msgid "客户价值排名"
+msgstr "Customer Value Ranking"
+
+msgid "客户类型统计"
+msgstr "Customer Type Statistics"
+
+# 行业分布相关翻译
+msgid "月度行业趋势"
+msgstr "Monthly Industry Trend"
+
+msgid "行业统计"
+msgstr "Industry Statistics"
+
+msgid "月度新增客户趋势"
+msgstr "Monthly New Customer Trend"
+
+# 第二批缺失翻译 - 绩效仪表板和账户管理
+msgid "业绩(万)"
+msgstr "Performance (10K)"
+
+msgid "个人"
+msgstr "Personal"
+
+msgid "团队"
+msgstr "Team"
+
+msgid "季度"
+msgstr "Quarter"
+
+msgid "实际值"
+msgstr "Actual Value"
+
+msgid "已超出预算"
+msgstr "Over Budget"
+
+msgid "得分"
+msgstr "Score"
+
+msgid "成交金额"
+msgstr "Deal Amount"
+
+msgid "手动添加"
+msgstr "Manually Added"
+
+msgid "排名"
+msgstr "Rank"
+
+msgid "新增账户"
+msgstr "Add Account"
+
+msgid "是否部门负责人"
+msgstr "Department Manager"
+
+msgid "显示最近12个月数据（全局分析）"
+msgstr "Showing last 12 months data (Global Analysis)"
+
+msgid "暂无客户价值数据"
+msgstr "No customer value data"
+
+msgid "暂无客户数据"
+msgstr "No customer data"
+
+msgid "暂无报销数据"
+msgstr "No expense data"
+
+msgid "暂无月度数据"
+msgstr "No monthly data"
+
+msgid "暂无行业数据"
+msgstr "No industry data"
+
+msgid "暂无详细指标数据"
+msgstr "No detailed metrics data"
+
+msgid "月度数据"
+msgstr "Monthly Data"
+
+msgid "权重"
+msgstr "Weight"
+
+msgid "用户列表"
+msgstr "User List"
+
+msgid "科目分布"
+msgstr "Category Distribution"
+
+msgid "范围"
+msgstr "Range"
+
+msgid "部门默认"
+msgstr "Dept Default"
+
+msgid "重试"
+msgstr "Retry"
+
+msgid "项目数"
+msgstr "Projects"
+
+# 活跃度等级翻译
+msgid "优秀"
+msgstr "Excellent"
+
+msgid "良好"
+msgstr "Good"
+
+msgid "一般"
+msgstr "Average"
+
+msgid "待提升"
+msgstr "Needs Improvement"
+
+# 活跃度指标翻译
+msgid "平均字数"
+msgstr "Avg. Characters"
+
+msgid "项目关联率"
+msgstr "Project Link Rate"
+
+# 活跃度图表翻译
+msgid "内容详细"
+msgstr "Content Detail"
+
+msgid "客户覆盖"
+msgstr "Customer Coverage"
+
+msgid "项目关联"
+msgstr "Project Link"
+
+msgid "活跃度评分"
+msgstr "Activity Score"
+
+msgid "评分"
+msgstr "Score"
+
+msgid "账号状态"
+msgstr "Status"
+
+msgid "全部角色"
+msgstr "All Roles"
+
+msgid "全部用户"
+msgstr "All Users"

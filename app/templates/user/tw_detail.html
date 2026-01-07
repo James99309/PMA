@@ -379,7 +379,7 @@
                             <select x-model.number="selectedYear" @change="onYearChange()"
                                     class="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm">
                                 <template x-for="year in availableYears" :key="year">
-                                    <option :value="year" :selected="year === selectedYear" x-text="year + '{{ _('年') }}'"></option>
+                                    <option :value="year" :selected="year === selectedYear" x-text="year"></option>
                                 </template>
                             </select>
                         </div>
@@ -484,7 +484,7 @@
                                         <!-- 动态月度列：仅显示已开始的月份 -->
                                         <template x-for="month in currentMonths" :key="'th_' + month">
                                             <th class="px-2 py-3 text-right font-medium text-slate-700 dark:text-slate-300 text-xs whitespace-nowrap"
-                                                x-text="month + '{{ _('月') }}'"></th>
+                                                x-text="getMonthLabel(month)"></th>
                                         </template>
                                     </tr>
                                 </thead>
@@ -1019,6 +1019,19 @@
                 if (pct >= 90) return 'text-blue-600 dark:text-blue-400';
                 if (pct >= 80) return 'text-yellow-600 dark:text-yellow-400';
                 return 'text-red-600 dark:text-red-400';
+            },
+
+            // 获取月份标签（中文：1月，英文：Jan）
+            getMonthLabel(month) {
+                const monthNum = parseInt(month);
+                if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) return month;
+                const lang = document.documentElement.lang || 'zh';
+                if (lang === 'en') {
+                    const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    return names[monthNum - 1];
+                }
+                return monthNum + '月';
             }
         };
     }

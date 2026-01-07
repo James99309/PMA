@@ -31,7 +31,7 @@
             <select x-model.number="selectedYear" @change="onYearChange()"
                     class="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm">
                 <template x-for="y in availableYears" :key="y">
-                    <option :value="y" :selected="y === selectedYear" x-text="y + '{{ _('年') }}'"></option>
+                    <option :value="y" :selected="y === selectedYear" x-text="y"></option>
                 </template>
             </select>
         </div>
@@ -333,7 +333,7 @@
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
                     <template x-for="row in goalAchievement" :key="row.month">
                         <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                            <td class="w-16 px-3 py-2 text-slate-900 dark:text-white whitespace-nowrap" x-text="row.month + '{{ _('月') }}'"></td>
+                            <td class="w-16 px-3 py-2 text-slate-900 dark:text-white whitespace-nowrap" x-text="getMonthLabel(row.month)"></td>
                             <template x-for="item in configuredItems" :key="item + '_' + row.month">
                                 <td class="px-4 py-2 text-right whitespace-nowrap">
                                     {# 实际值/目标值 #}
@@ -504,7 +504,7 @@
                           'text-red-600 dark:text-red-400': activityScore.grade === 'D'
                       }"
                       x-text="activityScore.grade"></span>
-                <span class="text-sm text-gray-500 dark:text-gray-400" x-text="activityScore.grade_text"></span>
+                <span class="text-sm text-gray-500 dark:text-gray-400" x-text="getGradeText(activityScore.grade_text)"></span>
             </div>
         </div>
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 col-span-1">
@@ -609,7 +609,7 @@
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 <template x-for="(count, industry) in getYearlyIndustryStats()" :key="industry">
                     <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                        <p class="text-sm font-medium text-gray-900 dark:text-white" x-text="industry"></p>
+                        <p class="text-sm font-medium text-gray-900 dark:text-white" x-text="getIndustryLabel(industry)"></p>
                         <p class="text-2xl font-bold text-primary-600 dark:text-primary-400 mt-1" x-text="count"></p>
                         <p class="text-xs text-gray-500 dark:text-gray-400">{{ _('个项目') }}</p>
                     </div>
@@ -786,22 +786,25 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                     this.loadDashboard();
                 }
             });
-            // 监听标签页切换，在切换到对应标签页时初始化图表（解决隐藏容器中 ECharts 无法获取尺寸的问题）
+            // 监听标签页切换，在切换到对应标签页时初始化图表
+            // 使用 requestAnimationFrame 确保浏览器完成布局计算后再初始化图表
             this.$watch('activeTab', (newTab) => {
-                this.$nextTick(() => {
-                    if (newTab === 'activity') {
-                        this.initActivityRadarChart();
-                        this.initActivityTrendChart();
-                    } else if (newTab === 'industry') {
-                        this.initIndustryPieChart();
-                        this.initIndustryTrendChart();
-                    } else if (newTab === 'expense') {
-                        this.initExpenseTrendChart();
-                    } else if (newTab === 'customer') {
-                        this.initCustomerTypePieChart();
-                        this.initCustomerTrendChart();
-                        this.initCustomerActivityChart();
-                    }
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        if (newTab === 'activity') {
+                            this.initActivityRadarChart();
+                            this.initActivityTrendChart();
+                        } else if (newTab === 'industry') {
+                            this.initIndustryPieChart();
+                            this.initIndustryTrendChart();
+                        } else if (newTab === 'expense') {
+                            this.initExpenseTrendChart();
+                        } else if (newTab === 'customer') {
+                            this.initCustomerTypePieChart();
+                            this.initCustomerTrendChart();
+                            this.initCustomerActivityChart();
+                        }
+                    });
                 });
             });
             await this.loadDashboard();
@@ -859,7 +862,7 @@ function performanceDashboardData(userId, year, dashboardUrl) {
         initCharts() {
             // 延迟初始化图表，确保DOM已渲染
             setTimeout(() => {
-                // 初始化目标趋势 SVG 折线图
+                // 初始化目标趋势 SVG 折线图（始终在 goals tab 可见）
                 this.initGoalTrendChart();
 
                 if (typeof echarts === 'undefined') {
@@ -867,13 +870,22 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                     return;
                 }
 
-                // 初始化图表
-                this.initExpenseTrendChart();
-                // 注意: 报销科目分布现在使用模板内联横向柱状图渲染，无需 ECharts
-                this.initActivityRadarChart();
-                this.initActivityTrendChart();
-                this.initIndustryPieChart();
-                this.initIndustryTrendChart();
+                // 只初始化当前活跃 tab 的图表（避免在隐藏容器中初始化导致尺寸问题）
+                // 其他 tab 的图表由 $watch('activeTab') 在切换时初始化
+                if (this.activeTab === 'expense') {
+                    this.initExpenseTrendChart();
+                } else if (this.activeTab === 'activity') {
+                    this.initActivityRadarChart();
+                    this.initActivityTrendChart();
+                } else if (this.activeTab === 'industry') {
+                    this.initIndustryPieChart();
+                    this.initIndustryTrendChart();
+                } else if (this.activeTab === 'customer') {
+                    this.initCustomerTypePieChart();
+                    this.initCustomerTrendChart();
+                    this.initCustomerActivityChart();
+                }
+                // 注意: 'goals' tab 使用 SVG 折线图，已在上面初始化
             }, 100);
         },
 
@@ -1041,13 +1053,15 @@ function performanceDashboardData(userId, year, dashboardUrl) {
 
             // 处理月份标签：支持数字格式(1-12)和字符串格式('YYYY-MM')
             const months = this.activityMonthlyTrend.map(d => {
+                let monthNum;
                 if (typeof d.month === 'number') {
-                    return d.month + '{{ _("月") }}';
+                    monthNum = d.month;
                 } else {
-                    // 'YYYY-MM' 格式，显示为 'MM月' 或 'YY/MM'
+                    // 'YYYY-MM' 格式
                     const parts = d.month.split('-');
-                    return parts[1] + '{{ _("月") }}';  // 简化显示为 '02月'
+                    monthNum = parseInt(parts[1]);
                 }
+                return this.getMonthLabel(monthNum);
             });
             const scores = this.activityMonthlyTrend.map(d => d.score);
             const actionCounts = this.activityMonthlyTrend.map(d => d.action_count);
@@ -1125,7 +1139,10 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             if (!chartDom) return;
 
             const yearlyStats = this.getYearlyIndustryStats();
-            const data = Object.entries(yearlyStats).map(([name, value]) => ({ name, value }));
+            const data = Object.entries(yearlyStats).map(([key, value]) => ({
+                name: this.getIndustryLabel(key),
+                value
+            }));
 
             // 如果没有数据，显示空状态
             if (data.length === 0) {
@@ -1212,10 +1229,10 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 });
             });
 
-            // 生成系列
+            // 生成系列（使用翻译后的行业名称）
             const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
             const series = industryList.map((ind, index) => ({
-                name: ind,
+                name: this.getIndustryLabel(ind),
                 type: 'bar',
                 stack: 'total',
                 data: seriesData[ind],
@@ -1228,7 +1245,7 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                     axisPointer: { type: 'shadow' }
                 },
                 legend: {
-                    data: industryList,
+                    data: industryList.map(ind => this.getIndustryLabel(ind)),
                     bottom: 0,
                     textStyle: { color: '#94a3b8', fontSize: 10 },
                     type: 'scroll'
@@ -1628,7 +1645,7 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             }
         },
 
-        // 获取费用范围标签
+        // 获取费用范围标签（优先使用翻译映射）
         getExpenseScopeLabel(scope) {
             const labels = {
                 'personal': '{{ _("个人") }}',
@@ -1636,7 +1653,35 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 'department': '{{ _("部门") }}',
                 'company': '{{ _("公司") }}'
             };
-            return scope.scope_name || labels[scope.scope_type] || scope.scope_type;
+            // 优先使用翻译映射，而不是后端返回的scope_name
+            return labels[scope.scope_type] || scope.scope_name || scope.scope_type;
+        },
+
+        // 获取等级文字翻译
+        getGradeText(gradeText) {
+            const labels = {
+                '优秀': '{{ _("优秀") }}',
+                '良好': '{{ _("良好") }}',
+                '一般': '{{ _("一般") }}',
+                '待提升': '{{ _("待提升") }}'
+            };
+            return labels[gradeText] || gradeText;
+        },
+
+        // 获取月份标签（中文：1月，英文：Jan）
+        getMonthLabel(month) {
+            const monthNum = parseInt(month);
+            if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) return month;
+
+            // 检测当前语言
+            const lang = document.documentElement.lang || 'zh';
+            if (lang === 'en') {
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                return monthNames[monthNum - 1];
+            }
+            // 中文显示：1月, 2月...
+            return monthNum + '月';
         },
 
         // 格式化指标值（用于月度数据表格的紧凑显示）
@@ -1699,6 +1744,15 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 'other': 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-400'
             };
             return classes[type] || classes['other'];
+        },
+
+        // 行业标签翻译（从全局字典获取）
+        getIndustryLabel(industry) {
+            // 优先使用全局字典
+            if (typeof window.getDictLabel === 'function') {
+                return window.getDictLabel('industry', industry) || industry;
+            }
+            return industry;
         }
     };
 }

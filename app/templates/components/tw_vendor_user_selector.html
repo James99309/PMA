@@ -68,7 +68,7 @@
                     @change="onYearChange()"
                     class="text-xs px-2 py-1.5 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-md text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-primary flex-shrink-0">
                 <template x-for="year in availableYears" :key="year">
-                    <option :value="year" :selected="year === selectedYear" x-text="year + '{{ _('年') }}'"></option>
+                    <option :value="year" :selected="year === selectedYear" x-text="year"></option>
                 </template>
             </select>
             {% endif %}

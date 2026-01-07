@@ -10,6 +10,7 @@
 """
 
 from flask import current_app
+from flask_babel import get_locale
 
 
 def get_system_currency():
@@ -34,12 +35,23 @@ def get_currency_symbol():
 
 def get_amount_unit():
     """
-    获取金额单位
+    获取金额单位（根据当前语言返回）
 
     Returns:
-        str: 金额单位 ('万元' 或 'M')
+        str: 金额单位 (中文: '万元', 英文: '0K')
     """
-    return current_app.config.get('AMOUNT_UNIT', '万元')
+    base_unit = current_app.config.get('AMOUNT_UNIT', '万元')
+    # OVS 数据库使用 'M' 单位，不需要翻译
+    if base_unit == 'M':
+        return base_unit
+    # 中文万元在英文界面显示为 '0K'
+    try:
+        locale = get_locale()
+        if locale and str(locale) == 'en':
+            return '0K'
+    except RuntimeError:
+        pass
+    return base_unit
 
 
 def get_amount_divisor():
