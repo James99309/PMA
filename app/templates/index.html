@@ -334,6 +334,8 @@
                             <!-- 左侧：报销列表（50%宽度，独立滚动） -->
                             <div class="w-1/2 max-h-64 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600">
                                 <div class="flex flex-col gap-4">
+                                    {# 货币符号映射 #}
+                                    {% set expense_currency_symbols = {'CNY': '¥', 'USD': '$', 'HKD': 'HK$', 'TWD': 'NT$', 'SGD': 'S$', 'MYR': 'RM', 'IDR': 'Rp', 'THB': '฿', 'VND': '₫'} %}
                                     {% if recent_expenses and recent_expenses|length > 0 %}
                                         {% for expense in recent_expenses %}
                                         <div class="flex items-center justify-between">
@@ -365,7 +367,7 @@
                                                     </p>
                                                 </div>
                                             </div>
-                                            <p class="text-sm font-medium text-slate-800 dark:text-slate-200 flex-shrink-0 ml-2">¥{{ "%.2f"|format(expense.total_amount) if expense.total_amount else '0.00' }}</p>
+                                            <p class="text-sm font-medium text-slate-800 dark:text-slate-200 flex-shrink-0 ml-2">{{ expense_currency_symbols.get(expense.currency, currency_config.symbol) }}{{ "%.2f"|format(expense.total_amount) if expense.total_amount else '0.00' }}</p>
                                         </div>
                                         {% endfor %}
                                     {% else %}
@@ -376,10 +378,10 @@
 
                             <!-- 右侧：统计区域（50%宽度） -->
                             <div class="w-1/2 border-l border-slate-200 dark:border-slate-700 pl-6">
-                                <!-- 年度总计 -->
+                                <!-- 年度总计 - 使用系统货币 -->
                                 <div class="mb-6">
                                     <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('今年累计') }}</p>
-                                    <p class="text-4xl font-bold text-primary tracking-tight">¥{{ "{:,.2f}".format(expense_year_total) }}</p>
+                                    <p class="text-4xl font-bold text-primary tracking-tight">{{ currency_config.symbol }}{{ "{:,.2f}".format(expense_year_total) }}</p>
                                 </div>
                                 <!-- 月度折线图 SVG (使用公共组件) -->
                                 {{ render_tw_line_chart(chart_id='expenseMonthlyChart', color='#2979ff') }}

@@ -111,6 +111,10 @@ class PerformanceDashboardService:
                 - activity_score: 活跃度评分
                 - industry_trend: 行业分布趋势
                 - monthly_growth: 月度增长数据
+                - customer_type_stats: 客户类型分布（全局）
+                - customer_trend: 客户新增趋势（最近12个月）
+                - customer_activity: 客户活跃度趋势
+                - customer_value: 客户价值排名
         """
         try:
             # 复用现有服务获取年度统计
@@ -167,6 +171,12 @@ class PerformanceDashboardService:
             activity_score = PerformanceDashboardService.get_activity_score(user_id)  # 全局模式
             activity_monthly_trend = PerformanceDashboardService.get_monthly_activity_trend(user_id)  # 全局模式
 
+            # 客户分布数据（全局模式，最近12个月）
+            customer_type_stats = PerformanceService.calculate_customer_type_statistics(user_id)  # 全局模式
+            customer_trend = PerformanceService.get_monthly_customer_statistics(user_id)  # 全局模式
+            customer_activity = PerformanceDashboardService.get_customer_activity_trend(user_id)
+            customer_value = PerformanceDashboardService.get_customer_value_ranking(user_id)
+
             # 汇总年度数据
             summary = PerformanceDashboardService._calculate_yearly_summary(yearly_stats, targets_dict)
 
@@ -195,6 +205,11 @@ class PerformanceDashboardService:
                 'industry_trend': industry_stats,
                 'monthly_growth': monthly_growth,
                 'configured_items': configured_items,
+                # 客户分布数据
+                'customer_type_stats': customer_type_stats,
+                'customer_trend': customer_trend,
+                'customer_activity': customer_activity,
+                'customer_value': customer_value,
             }
 
         except Exception as e:
@@ -211,6 +226,11 @@ class PerformanceDashboardService:
                 'industry_trend': {},
                 'monthly_growth': [],
                 'configured_items': ['implant_amount', 'sales_amount', 'new_customers', 'new_projects'],
+                # 客户分布数据默认值
+                'customer_type_stats': {},
+                'customer_trend': {},
+                'customer_activity': [],
+                'customer_value': [],
             }
 
     @staticmethod
@@ -670,6 +690,130 @@ class PerformanceDashboardService:
             return trend
         except Exception as e:
             logger.error(f"获取月度活跃度趋势失败: {e}")
+            return []
+
+    @staticmethod
+    def get_customer_activity_trend(user_id):
+        """获取客户活跃度趋势（最近12个月）
+
+        基于 Action 表统计用户客户的活跃情况
+
+        Args:
+            user_id: 用户ID
+
+        Returns:
+            list: 月度客户活跃度数据
+                [{month: '2025-02', active_customers: 12, total_actions: 45}, ...]
+        """
+        try:
+            from dateutil.relativedelta import relativedelta
+
+            trend = []
+            now = datetime.now()
+
+            for i in range(11, -1, -1):  # 从11个月前到当前月
+                target_date = now - relativedelta(months=i)
+                year_month = target_date.strftime('%Y-%m')
+                ym_year = target_date.year
+                ym_month = target_date.month
+
+                # 统计该月该用户客户的行动记录
+                # 行动记录必须关联到该用户创建的客户
+                action_query = db.session.query(
+                    func.count(func.distinct(Action.company_id)).label('active_customers'),
+                    func.count(Action.id).label('total_actions')
+                ).join(
+                    Company, Action.company_id == Company.id
+                ).filter(
+                    Company.owner_id == user_id,
+                    Company.is_deleted == False,
+                    extract('year', Action.created_at) == ym_year,
+                    extract('month', Action.created_at) == ym_month
+                ).first()
+
+                active_customers = action_query[0] or 0
+                total_actions = action_query[1] or 0
+
+                trend.append({
+                    'month': year_month,
+                    'active_customers': active_customers,
+                    'total_actions': total_actions
+                })
+
+            return trend
+        except Exception as e:
+            logger.error(f"获取客户活跃度趋势失败: {e}")
+            return []
+
+    @staticmethod
+    def get_customer_value_ranking(user_id, limit=10):
+        """获取客户价值排名
+
+        基于客户关联的项目数量和批价单金额
+
+        Args:
+            user_id: 用户ID
+            limit: 返回数量限制（默认Top 10）
+
+        Returns:
+            list: 客户价值排名数据
+                [{company_id, company_name, company_type, project_count, total_amount}, ...]
+        """
+        try:
+            from app.models.pricing_order import PricingOrder
+
+            # 子查询：每个客户关联的项目数
+            project_subquery = db.session.query(
+                Project.company_id,
+                func.count(Project.id).label('project_count')
+            ).filter(
+                Project.owner_id == user_id
+            ).group_by(Project.company_id).subquery()
+
+            # 子查询：每个客户关联的已审批批价单金额
+            # 批价单通过项目关联到客户
+            amount_subquery = db.session.query(
+                Project.company_id,
+                func.coalesce(func.sum(PricingOrder.pricing_total_amount), 0).label('total_amount')
+            ).join(
+                PricingOrder, Project.id == PricingOrder.project_id
+            ).filter(
+                Project.owner_id == user_id,
+                PricingOrder.status == 'approved'
+            ).group_by(Project.company_id).subquery()
+
+            # 主查询：获取客户信息和统计数据
+            query = db.session.query(
+                Company.id,
+                Company.name,
+                Company.company_type,
+                func.coalesce(project_subquery.c.project_count, 0).label('project_count'),
+                func.coalesce(amount_subquery.c.total_amount, 0).label('total_amount')
+            ).outerjoin(
+                project_subquery, Company.id == project_subquery.c.company_id
+            ).outerjoin(
+                amount_subquery, Company.id == amount_subquery.c.company_id
+            ).filter(
+                Company.owner_id == user_id,
+                Company.is_deleted == False
+            ).order_by(
+                func.coalesce(amount_subquery.c.total_amount, 0).desc(),
+                func.coalesce(project_subquery.c.project_count, 0).desc()
+            ).limit(limit)
+
+            result = []
+            for row in query.all():
+                result.append({
+                    'company_id': row[0],
+                    'company_name': row[1],
+                    'company_type': row[2] or 'other',
+                    'project_count': row[3],
+                    'total_amount': float(row[4])
+                })
+
+            return result
+        except Exception as e:
+            logger.error(f"获取客户价值排名失败: {e}")
             return []
 
     @staticmethod

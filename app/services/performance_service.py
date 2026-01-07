@@ -452,6 +452,102 @@ class PerformanceService:
             return {}
 
     @staticmethod
+    def calculate_customer_type_statistics(user_id, year=None, month=None, year_month=None):
+        """计算客户类型分布统计
+
+        Args:
+            user_id: 用户ID
+            year: 年份（可选，None表示全局分析）
+            month: 月份（可选，需配合year使用）
+            year_month: 年月字符串格式 'YYYY-MM'（可选，用于跨年月份查询）
+
+        Returns:
+            dict: 客户类型统计数据 {类型名: 数量}
+        """
+        try:
+            customer_stats = {}
+
+            # 构建查询条件
+            company_filter = [Company.owner_id == user_id, Company.is_deleted == False]
+
+            # 支持三种模式：
+            # 1. year_month: 跨年月份查询（优先级最高）
+            # 2. year + month: 指定年月
+            # 3. year: 指定年份
+            # 4. 无参数: 全局分析（所有数据）
+            if year_month:
+                ym_year, ym_month = map(int, year_month.split('-'))
+                company_filter.append(extract('year', Company.created_at) == ym_year)
+                company_filter.append(extract('month', Company.created_at) == ym_month)
+            elif year is not None:
+                company_filter.append(extract('year', Company.created_at) == year)
+                if month is not None:
+                    company_filter.append(extract('month', Company.created_at) == month)
+            # else: 全局模式，不添加时间过滤条件
+
+            # 按客户类型统计
+            query = db.session.query(
+                Company.company_type,
+                func.count(Company.id).label('count')
+            ).filter(*company_filter).group_by(Company.company_type)
+
+            for company_type, count in query.all():
+                type_name = company_type or 'other'
+                customer_stats[type_name] = count
+
+            return customer_stats
+        except Exception as e:
+            logger.error(f"计算客户类型统计失败: {e}")
+            return {}
+
+    @staticmethod
+    def get_monthly_customer_statistics(user_id, year=None):
+        """获取用户按月份的客户类型统计数据
+
+        Args:
+            user_id: 用户ID
+            year: 年份（可选，None表示全局模式返回最近12个月）
+
+        Returns:
+            dict: 月度客户类型统计数据
+                - 指定年份模式: {1: {...}, 2: {...}, ...}
+                - 全局模式: {'2024-02': {...}, '2024-03': {...}, ...}
+        """
+        try:
+            monthly_customer_stats = {}
+
+            if year is not None:
+                # 指定年份模式：返回该年1-12月
+                for month in range(1, 13):
+                    month_stats = PerformanceService.calculate_customer_type_statistics(user_id, year, month)
+                    # 添加月度总计
+                    total = sum(month_stats.values())
+                    month_stats['total'] = total
+                    monthly_customer_stats[month] = month_stats
+            else:
+                # 全局模式：返回最近12个月（跨年）
+                from datetime import datetime
+                from dateutil.relativedelta import relativedelta
+
+                now = datetime.now()
+                for i in range(11, -1, -1):  # 从11个月前到当前月
+                    target_date = now - relativedelta(months=i)
+                    year_month = target_date.strftime('%Y-%m')
+
+                    month_stats = PerformanceService.calculate_customer_type_statistics(
+                        user_id, year_month=year_month
+                    )
+                    # 添加月度总计
+                    total = sum(month_stats.values())
+                    month_stats['total'] = total
+                    monthly_customer_stats[year_month] = month_stats
+
+            return monthly_customer_stats
+        except Exception as e:
+            logger.error(f"获取月度客户类型统计失败: {e}")
+            return {}
+
+    @staticmethod
     def refresh_all_statistics(user_id, year):
         """刷新用户年度所有统计数据到缓存表（可选功能）
 

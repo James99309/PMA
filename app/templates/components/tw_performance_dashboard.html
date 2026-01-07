@@ -42,9 +42,9 @@
         </button>
     </div>
 
-    {# 全局分析提示 - 仅在活跃度和行业分布标签页显示 #}
+    {# 全局分析提示 - 在活跃度、行业分布和客户分布标签页显示 #}
     <div class="flex items-center text-sm text-slate-500 dark:text-slate-400"
-         x-show="activeTab === 'activity' || activeTab === 'industry'"
+         x-show="activeTab === 'activity' || activeTab === 'industry' || activeTab === 'customer'"
          x-transition:enter="transition ease-out duration-200"
          x-transition:enter-start="opacity-0"
          x-transition:enter-end="opacity-100"
@@ -68,7 +68,8 @@
             {'key': 'goals', 'label': _('目标达成'), 'icon': 'target'},
             {'key': 'expense', 'label': _('报销预算'), 'icon': 'receipt_long'},
             {'key': 'activity', 'label': _('活跃度'), 'icon': 'trending_up'},
-            {'key': 'industry', 'label': _('行业分布'), 'icon': 'factory'}
+            {'key': 'industry', 'label': _('行业分布'), 'icon': 'factory'},
+            {'key': 'customer', 'label': _('客户分布'), 'icon': 'groups'}
         ] %}
         {{ render_tw_alpine_tabs(dashboard_tabs, model='activeTab') }}
 
@@ -90,6 +91,11 @@
         {# ======================== 行业分布标签页 ======================== #}
         <div x-show="activeTab === 'industry'" x-cloak>
             {{ render_industry_section() }}
+        </div>
+
+        {# ======================== 客户分布标签页 ======================== #}
+        <div x-show="activeTab === 'customer'" x-cloak>
+            {{ render_customer_section() }}
         </div>
 
     </div>
@@ -619,6 +625,108 @@
 
 
 {# ============================================================== #}
+{# 客户分布部分                                                     #}
+{# ============================================================== #}
+{% macro render_customer_section() %}
+<div class="space-y-6">
+    {# 客户分布图表 #}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center">
+                <span class="material-symbols-outlined mr-2 text-primary">pie_chart</span>{{ _('客户类型分布') }}
+            </h3>
+            <div id="customerTypePieChart" class="h-64"></div>
+        </div>
+        <div class="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center">
+                <span class="material-symbols-outlined mr-2 text-primary">bar_chart</span>{{ _('月度新增客户趋势') }}
+            </h3>
+            <div id="customerTrendChart" class="h-64"></div>
+        </div>
+    </div>
+
+    {# 客户活跃度趋势 #}
+    <div class="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center">
+            <span class="material-symbols-outlined mr-2 text-primary">trending_up</span>{{ _('客户活跃度趋势') }}
+        </h3>
+        <div id="customerActivityChart" class="h-64"></div>
+    </div>
+
+    {# 客户价值排名 #}
+    <div class="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
+                <span class="material-symbols-outlined mr-2 text-primary">leaderboard</span>{{ _('客户价值排名') }}
+                <span class="ml-2 text-sm text-slate-500 dark:text-slate-400">(Top 10)</span>
+            </h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                <thead class="bg-slate-50 dark:bg-slate-700/50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ _('排名') }}</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ _('客户名称') }}</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ _('客户类型') }}</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ _('项目数') }}</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ _('成交金额') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
+                    <template x-for="(customer, index) in customerValue" :key="customer.company_id">
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="inline-flex items-center justify-center w-6 h-6 text-xs font-semibold rounded-full"
+                                      :class="index < 3 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400'"
+                                      x-text="index + 1"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white" x-text="customer.company_name"></td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                      :class="getCustomerTypeClass(customer.company_type)"
+                                      x-text="getCustomerTypeLabel(customer.company_type)"></span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 text-right" x-text="customer.project_count"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-right"
+                                :class="customer.total_amount > 0 ? 'text-green-600 dark:text-green-400' : 'text-slate-500 dark:text-slate-400'"
+                                x-text="formatAmount(customer.total_amount)"></td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+            <div x-show="!customerValue || customerValue.length === 0" class="text-center py-8 text-slate-500 dark:text-slate-400">
+                {{ _('暂无客户价值数据') }}
+            </div>
+        </div>
+    </div>
+
+    {# 客户类型统计卡片 #}
+    <div class="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
+                <span class="material-symbols-outlined mr-2 text-primary">list</span>{{ _('客户类型统计') }}
+            </h3>
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <template x-for="(count, type) in customerTypeStats" :key="type">
+                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                        <p class="text-sm font-medium text-gray-900 dark:text-white" x-text="getCustomerTypeLabel(type)"></p>
+                        <p class="text-2xl font-bold text-primary-600 dark:text-primary-400 mt-1" x-text="count"></p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ _('个客户') }}</p>
+                    </div>
+                </template>
+            </div>
+            <div x-show="!customerTypeStats || Object.keys(customerTypeStats).length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">
+                {{ _('暂无客户数据') }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ============================================================== #}
 {# JavaScript 数据对象                                              #}
 {# ============================================================== #}
 {% macro render_performance_dashboard_script() %}
@@ -657,6 +765,11 @@ function performanceDashboardData(userId, year, dashboardUrl) {
         activityMonthlyTrend: [],
         industryTrend: {},
         configuredItems: [],  // 配置的绩效项目代码列表（用于动态列显示）
+        // 客户分布数据
+        customerTypeStats: {},
+        customerTrend: {},
+        customerActivity: [],
+        customerValue: [],
 
         // 图表实例
         charts: {},
@@ -684,6 +797,10 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                         this.initIndustryTrendChart();
                     } else if (newTab === 'expense') {
                         this.initExpenseTrendChart();
+                    } else if (newTab === 'customer') {
+                        this.initCustomerTypePieChart();
+                        this.initCustomerTrendChart();
+                        this.initCustomerActivityChart();
                     }
                 });
             });
@@ -719,6 +836,11 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                     this.activityMonthlyTrend = result.data.activity_monthly_trend || [];
                     this.industryTrend = result.data.industry_trend || {};
                     this.configuredItems = result.data.configured_items || ['implant_amount', 'sales_amount', 'new_customers', 'new_projects'];
+                    // 客户分布数据
+                    this.customerTypeStats = result.data.customer_type_stats || {};
+                    this.customerTrend = result.data.customer_trend || {};
+                    this.customerActivity = result.data.customer_activity || [];
+                    this.customerValue = result.data.customer_value || [];
 
                     this.$nextTick(() => {
                         this.initCharts();
@@ -1136,6 +1258,226 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             this.charts.industryTrend.setOption(option);
         },
 
+        // ================= 客户分布图表 =================
+
+        initCustomerTypePieChart() {
+            const chartDom = document.getElementById('customerTypePieChart');
+            if (!chartDom) return;
+
+            const data = Object.entries(this.customerTypeStats)
+                .map(([type, count]) => ({
+                    name: this.getCustomerTypeLabel(type),
+                    value: count
+                }));
+
+            if (data.length === 0) {
+                chartDom.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 dark:text-slate-500">{{ _("暂无客户数据") }}</div>';
+                return;
+            }
+
+            if (this.charts.customerTypePie) {
+                this.charts.customerTypePie.dispose();
+            }
+
+            this.charts.customerTypePie = echarts.init(chartDom);
+
+            // 客户类型颜色
+            const typeColors = {
+                'user': '#3b82f6',       // 最终用户 - 蓝色
+                'dealer': '#10b981',      // 经销商 - 绿色
+                'integrator': '#8b5cf6',  // 集成商 - 紫色
+                'designer': '#f59e0b',    // 设计院 - 橙色
+                'contractor': '#ef4444',  // 总包商 - 红色
+                'distributor': '#06b6d4', // 代理商 - 青色
+                'partner': '#ec4899',     // 合作伙伴 - 粉色
+                'other': '#94a3b8'        // 其他 - 灰色
+            };
+
+            const option = {
+                tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+                color: Object.keys(this.customerTypeStats).map(type => typeColors[type] || '#94a3b8'),
+                series: [{
+                    type: 'pie',
+                    radius: '60%',
+                    data: data,
+                    label: { show: true, formatter: '{b}: {c}' }
+                }]
+            };
+
+            this.charts.customerTypePie.setOption(option);
+        },
+
+        initCustomerTrendChart() {
+            const chartDom = document.getElementById('customerTrendChart');
+            if (!chartDom) return;
+
+            if (!this.customerTrend || Object.keys(this.customerTrend).length === 0) {
+                chartDom.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 dark:text-slate-500">{{ _("暂无客户趋势数据") }}</div>';
+                return;
+            }
+
+            if (this.charts.customerTrend) {
+                this.charts.customerTrend.dispose();
+            }
+
+            this.charts.customerTrend = echarts.init(chartDom);
+
+            // 获取月份数据
+            const monthKeys = Object.keys(this.customerTrend).sort((a, b) => {
+                if (!isNaN(a) && !isNaN(b)) return parseInt(a) - parseInt(b);
+                return a.localeCompare(b);
+            });
+
+            const months = monthKeys.map(monthKey => {
+                if (!isNaN(monthKey)) return monthKey + '{{ _("月") }}';
+                const parts = monthKey.split('-');
+                return parts[1] + '{{ _("月") }}';
+            });
+
+            // 收集所有客户类型
+            const types = new Set();
+            Object.values(this.customerTrend).forEach(monthData => {
+                Object.keys(monthData).forEach(t => {
+                    if (t !== 'total') types.add(t);
+                });
+            });
+            const typeList = Array.from(types);
+
+            // 生成系列数据
+            const seriesData = {};
+            typeList.forEach(t => { seriesData[t] = []; });
+
+            monthKeys.forEach(monthKey => {
+                const monthData = this.customerTrend[monthKey] || {};
+                typeList.forEach(t => {
+                    seriesData[t].push(monthData[t] || 0);
+                });
+            });
+
+            // 客户类型颜色
+            const typeColors = {
+                'user': '#3b82f6', 'dealer': '#10b981', 'integrator': '#8b5cf6',
+                'designer': '#f59e0b', 'contractor': '#ef4444', 'distributor': '#06b6d4',
+                'partner': '#ec4899', 'other': '#94a3b8'
+            };
+
+            const series = typeList.map(t => ({
+                name: this.getCustomerTypeLabel(t),
+                type: 'bar',
+                stack: 'total',
+                data: seriesData[t],
+                itemStyle: { color: typeColors[t] || '#94a3b8' }
+            }));
+
+            const option = {
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                legend: {
+                    data: typeList.map(t => this.getCustomerTypeLabel(t)),
+                    bottom: 0,
+                    textStyle: { color: '#94a3b8', fontSize: 10 },
+                    type: 'scroll'
+                },
+                grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
+                xAxis: {
+                    type: 'category',
+                    data: months,
+                    axisLine: { lineStyle: { color: '#cbd5e1' } },
+                    axisLabel: { color: '#64748b' }
+                },
+                yAxis: {
+                    type: 'value',
+                    axisLine: { show: false },
+                    axisLabel: { color: '#64748b' },
+                    splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } }
+                },
+                series: series
+            };
+
+            this.charts.customerTrend.setOption(option);
+        },
+
+        initCustomerActivityChart() {
+            const chartDom = document.getElementById('customerActivityChart');
+            if (!chartDom) return;
+
+            if (!this.customerActivity || this.customerActivity.length === 0) {
+                chartDom.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 dark:text-slate-500">{{ _("暂无客户活跃度数据") }}</div>';
+                return;
+            }
+
+            if (this.charts.customerActivity) {
+                this.charts.customerActivity.dispose();
+            }
+
+            this.charts.customerActivity = echarts.init(chartDom);
+
+            const months = this.customerActivity.map(d => {
+                if (typeof d.month === 'number') return d.month + '{{ _("月") }}';
+                const parts = d.month.split('-');
+                return parts[1] + '{{ _("月") }}';
+            });
+
+            const activeCustomers = this.customerActivity.map(d => d.active_customers);
+            const totalActions = this.customerActivity.map(d => d.total_actions);
+
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross' }
+                },
+                legend: {
+                    data: ['{{ _("活跃客户数") }}', '{{ _("行动记录数") }}'],
+                    bottom: 0,
+                    textStyle: { color: '#94a3b8', fontSize: 10 }
+                },
+                grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
+                xAxis: {
+                    type: 'category',
+                    data: months,
+                    axisLine: { lineStyle: { color: '#cbd5e1' } },
+                    axisLabel: { color: '#64748b' }
+                },
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: '{{ _("客户数") }}',
+                        position: 'left',
+                        axisLine: { show: false },
+                        axisLabel: { color: '#64748b' },
+                        splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } }
+                    },
+                    {
+                        type: 'value',
+                        name: '{{ _("行动数") }}',
+                        position: 'right',
+                        axisLine: { show: false },
+                        axisLabel: { color: '#64748b' },
+                        splitLine: { show: false }
+                    }
+                ],
+                series: [
+                    {
+                        name: '{{ _("活跃客户数") }}',
+                        type: 'bar',
+                        yAxisIndex: 0,
+                        data: activeCustomers,
+                        itemStyle: { color: '#3b82f6' }
+                    },
+                    {
+                        name: '{{ _("行动记录数") }}',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        data: totalActions,
+                        smooth: true,
+                        itemStyle: { color: '#10b981' },
+                        lineStyle: { width: 2 }
+                    }
+                ]
+            };
+
+            this.charts.customerActivity.setOption(option);
+        },
+
         // 辅助方法
         getYearlyIndustryStats() {
             if (!this.industryTrend) return {};
@@ -1327,6 +1669,36 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             if (score >= 60) return 'text-blue-600 dark:text-blue-400';
             if (score >= 40) return 'text-yellow-600 dark:text-yellow-400';
             return 'text-red-600 dark:text-red-400';
+        },
+
+        // 客户类型标签
+        getCustomerTypeLabel(type) {
+            const labels = {
+                'user': '{{ _("最终用户") }}',
+                'dealer': '{{ _("经销商") }}',
+                'integrator': '{{ _("集成商") }}',
+                'designer': '{{ _("设计院") }}',
+                'contractor': '{{ _("总包商") }}',
+                'distributor': '{{ _("代理商") }}',
+                'partner': '{{ _("合作伙伴") }}',
+                'other': '{{ _("其他") }}'
+            };
+            return labels[type] || type;
+        },
+
+        // 客户类型徽章样式类
+        getCustomerTypeClass(type) {
+            const classes = {
+                'user': 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400',
+                'dealer': 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400',
+                'integrator': 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400',
+                'designer': 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400',
+                'contractor': 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400',
+                'distributor': 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-400',
+                'partner': 'bg-pink-100 text-pink-700 dark:bg-pink-900/50 dark:text-pink-400',
+                'other': 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-400'
+            };
+            return classes[type] || classes['other'];
         }
     };
 }
