@@ -23,6 +23,11 @@
         <h3 class="text-sm font-semibold text-slate-800 dark:text-white flex items-center gap-2">
             <span class="material-symbols-outlined text-lg text-primary">analytics</span>
             {{ _('费用统计') }}
+            {% if expense_budget.scope_type and expense_budget.scope_type != 'personal' %}
+            <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                {{ expense_budget.scope_name }}
+            </span>
+            {% endif %}
             {% if current_year %}
             <span class="text-xs font-normal text-slate-400 dark:text-slate-500">({{ current_year }}{{ _('年') }}{{ current_month }}{{ _('月') }})</span>
             {% endif %}

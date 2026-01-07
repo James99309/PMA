@@ -17,6 +17,8 @@ from app.models.salary_config import EmployeeSalaryConfig, QuarterlyPerformanceD
 from app.models.performance_config import (
     RolePerformanceTarget, UserPerformanceTarget, PerformanceMetricsDefinition
 )
+from app.services.exchange_rate_service import exchange_rate_service
+from config import Config
 import logging
 
 logger = logging.getLogger(__name__)
@@ -34,6 +36,64 @@ class PerformanceDashboardService:
         'communication': ['communication'],  # 通讯费
         'other': ['meals', 'other'],  # 其他
     }
+
+    @staticmethod
+    def _get_expense_scopes(user, year):
+        """根据用户角色确定费用统计范围（支持多范围）
+
+        返回用户所有适用的费用范围，始终包含个人:
+        - 普通用户 → [个人]
+        - 团队负责人 → [个人, 团队]
+        - 部门负责人 → [个人, 部门]
+        - 部门+团队负责人 → [个人, 团队, 部门]
+        - CEO/Admin/Finance → [个人, 公司]
+
+        Returns:
+            list: 范围列表，每个元素为 (user_ids, scope_type, scope_name)
+        """
+        from app.models.performance_config import ConfigurablePerformanceService
+
+        scopes = []
+
+        # 1. CEO/Admin/Finance -> 个人 + 公司范围
+        if user.role in ['ceo', 'admin', 'finance', 'finance_director', 'finace_director']:
+            scopes.append(([user.id], 'personal', '个人'))
+            user_ids = ConfigurablePerformanceService.get_user_ids_by_scope(user.id, 'company')
+            scopes.append((user_ids, 'company', '公司'))
+            return scopes
+
+        # 2. 始终添加个人范围（第一位）
+        scopes.append(([user.id], 'personal', '个人'))
+
+        # 3. 团队负责人 -> 添加团队范围（第二位）
+        team = SalesTeamConfig.query.filter(
+            SalesTeamConfig.team_leader_id == user.id,
+            SalesTeamConfig.is_active == True
+        ).first()
+        if team:
+            member_configs = EmployeeSalaryConfig.query.filter(
+                EmployeeSalaryConfig.team_id == team.id,
+                EmployeeSalaryConfig.year == year
+            ).all()
+            member_ids = list(set([c.user_id for c in member_configs] + [user.id]))
+            scopes.append((member_ids, 'team', team.team_name))
+
+        # 4. 部门负责人 -> 添加部门范围（第三位）
+        if user.is_department_manager and user.department:
+            user_ids = ConfigurablePerformanceService.get_user_ids_by_scope(user.id, 'department')
+            scopes.append((user_ids, 'department', user.department))
+
+        return scopes
+
+    @staticmethod
+    def _get_expense_scope(user, year):
+        """根据用户角色确定费用统计范围（单范围，向后兼容）
+
+        Returns:
+            tuple: (user_ids, scope_type, scope_name)
+        """
+        scopes = PerformanceDashboardService._get_expense_scopes(user, year)
+        return scopes[0] if scopes else ([user.id], 'personal', '个人')
 
     @staticmethod
     def get_dashboard_data(user_id, year):
@@ -55,7 +115,8 @@ class PerformanceDashboardService:
         try:
             # 复用现有服务获取年度统计
             yearly_stats = PerformanceService.get_yearly_statistics(user_id, year)
-            industry_stats = PerformanceService.get_monthly_industry_statistics(user_id, year)
+            # 行业分布使用全局模式（不按年份过滤，显示最近12个月）
+            industry_stats = PerformanceService.get_monthly_industry_statistics(user_id)  # 全局模式
 
             # 从绩效目标配置获取目标数据（使用新的目标表）
             targets_dict = PerformanceDashboardService.get_user_kpi_targets(user_id, year)
@@ -84,9 +145,27 @@ class PerformanceDashboardService:
                         }
 
             # 新增聚合逻辑
-            expense_budget = PerformanceDashboardService.get_expense_budget_data(user_id, year)
-            activity_score = PerformanceDashboardService.get_activity_score(user_id, year)
-            activity_monthly_trend = PerformanceDashboardService.get_monthly_activity_trend(user_id, year)
+            # 获取费用预算范围（根据用户角色，支持多范围）
+            user = User.query.get(user_id)
+            expense_scopes = PerformanceDashboardService._get_expense_scopes(user, year)
+
+            # 为每个范围获取费用预算数据
+            expense_budgets = []
+            current_month = datetime.now().month
+            for scope_user_ids, scope_type, scope_name in expense_scopes:
+                budget_data = PerformanceDashboardService.get_expense_budget_data(user_id, year, scope_user_ids)
+                budget_data['scope_type'] = scope_type
+                budget_data['scope_name'] = scope_name
+                budget_data['current_month'] = current_month
+                budget_data['current_year'] = year
+                expense_budgets.append(budget_data)
+
+            # 保持 expense_budget 为第一个范围（向后兼容）
+            expense_budget = expense_budgets[0] if expense_budgets else PerformanceDashboardService._empty_expense_budget()
+
+            # 活跃度使用全局模式（不按年份过滤，显示最近12个月）
+            activity_score = PerformanceDashboardService.get_activity_score(user_id)  # 全局模式
+            activity_monthly_trend = PerformanceDashboardService.get_monthly_activity_trend(user_id)  # 全局模式
 
             # 汇总年度数据
             summary = PerformanceDashboardService._calculate_yearly_summary(yearly_stats, targets_dict)
@@ -110,6 +189,7 @@ class PerformanceDashboardService:
                 'team_summary': team_summary,
                 'goal_achievement': goal_achievement,
                 'expense_budget': expense_budget,
+                'expense_budgets': expense_budgets,  # 多范围费用预算数据
                 'activity_score': activity_score,
                 'activity_monthly_trend': activity_monthly_trend,
                 'industry_trend': industry_stats,
@@ -119,11 +199,13 @@ class PerformanceDashboardService:
 
         except Exception as e:
             logger.error(f"获取看板数据失败: {e}")
+            empty_budget = PerformanceDashboardService._empty_expense_budget()
             return {
                 'summary': PerformanceDashboardService._empty_summary(),
                 'team_summary': None,
                 'goal_achievement': [],
-                'expense_budget': PerformanceDashboardService._empty_expense_budget(),
+                'expense_budget': empty_budget,
+                'expense_budgets': [empty_budget],  # 多范围费用预算数据
                 'activity_score': PerformanceDashboardService._empty_activity_score(),
                 'activity_monthly_trend': [],
                 'industry_trend': {},
@@ -132,67 +214,105 @@ class PerformanceDashboardService:
             }
 
     @staticmethod
-    def get_expense_budget_data(user_id, year):
+    def get_expense_budget_data(user_id, year, scope_user_ids=None):
         """获取报销预算数据
 
         Args:
             user_id: 用户ID
             year: 年份
+            scope_user_ids: 可选，范围内的用户ID列表（用于团队/部门/公司汇总）
 
         Returns:
             dict: 报销预算数据
         """
         try:
-            # 获取预算设置（优先个人预算，回退到角色默认预算）
-            budget = ExpenseBudget.query.filter_by(user_id=user_id, year=year).first()
-            is_personal_config = budget is not None
-            role_budget = None
+            # 确定目标用户ID列表
+            target_user_ids = scope_user_ids or [user_id]
+            is_multi_user = len(target_user_ids) > 1
 
-            # 如果没有个人预算，尝试获取角色默认预算
-            if not budget:
-                user = User.query.get(user_id)
-                if user and user.role:
-                    role_budget = RoleExpenseBudget.query.filter_by(
-                        role_code=user.role, year=year
-                    ).first()
+            # 汇总所有目标用户的预算
+            budget_total = 0
+            has_any_budget = False
 
-            # 确定有效预算源
-            effective_budget = budget or role_budget
+            for uid in target_user_ids:
+                # 获取个人预算
+                user_budget = ExpenseBudget.query.filter_by(user_id=uid, year=year).first()
+                if user_budget:
+                    budget_total += float(user_budget.total_budget or 0)
+                    has_any_budget = True
+                else:
+                    # 回退到角色默认预算
+                    user = User.query.get(uid)
+                    if user and user.role:
+                        role_budget = RoleExpenseBudget.query.filter_by(
+                            role_code=user.role, year=year
+                        ).first()
+                        if role_budget:
+                            budget_total += float(role_budget.total_budget or 0)
+                            has_any_budget = True
 
             # 获取已报销金额（已审批通过的，包括待支付和已支付）
-            expense_query = db.session.query(
-                func.sum(Expense.total_amount)
-            ).filter(
-                Expense.owner_id == user_id,
+            # 支持多货币转换：将所有报销单金额转换为系统基准货币后汇总
+            base_currency = Config.DEFAULT_CURRENCY  # 系统基准货币（CNY）
+
+            expenses = Expense.query.filter(
+                Expense.owner_id.in_(target_user_ids),
                 extract('year', Expense.created_at) == year,
                 Expense.status.in_(['approved', 'awaiting_payment', 'paid']),
                 Expense.is_deleted == False
-            )
-            expense_total = expense_query.scalar() or 0
+            ).all()
+
+            expense_total = 0.0
+            for expense in expenses:
+                amount = float(expense.total_amount or 0)
+                # 如果报销单货币与系统基准货币不同，进行汇率转换
+                if expense.currency and expense.currency != base_currency:
+                    try:
+                        amount = exchange_rate_service.convert_amount(
+                            amount, expense.currency, base_currency
+                        )
+                    except Exception as conv_err:
+                        logger.warning(f"报销单 {expense.id} 货币转换失败 {expense.currency} -> {base_currency}: {conv_err}")
+                        # 转换失败时保持原值
+                expense_total += amount
 
             # 按科目统计实际报销
-            by_category = PerformanceDashboardService._get_expense_by_category(user_id, year)
+            by_category = PerformanceDashboardService._get_expense_by_category(target_user_ids, year)
 
             # 计算月度趋势
-            monthly_trend = PerformanceDashboardService._get_expense_monthly_trend(user_id, year)
+            monthly_trend = PerformanceDashboardService._get_expense_monthly_trend(target_user_ids, year)
 
-            # 预算值（从有效预算源获取）
-            budget_total = float(effective_budget.total_budget) if effective_budget else 0
+            # 计算使用率和剩余
             remaining = budget_total - expense_total
             usage_rate = (expense_total / budget_total * 100) if budget_total > 0 else 0
 
-            # 按科目预算对比
+            # 按科目预算对比（多用户模式下汇总所有用户的分类预算）
             category_comparison = {}
-            if effective_budget:
-                budget_categories = effective_budget.get_category_budgets()
-                for cat_key, budget_amount in budget_categories.items():
-                    actual = by_category.get(cat_key, 0)
-                    category_comparison[cat_key] = {
-                        'budget': budget_amount,
-                        'actual': actual,
-                        'remaining': budget_amount - actual,
-                        'usage_rate': (actual / budget_amount * 100) if budget_amount > 0 else 0
-                    }
+            category_budgets_total = {}  # 汇总各分类预算
+
+            for uid in target_user_ids:
+                user_budget = ExpenseBudget.query.filter_by(user_id=uid, year=year).first()
+                effective = user_budget
+                if not effective:
+                    u = User.query.get(uid)
+                    if u and u.role:
+                        effective = RoleExpenseBudget.query.filter_by(role_code=u.role, year=year).first()
+
+                if effective:
+                    cat_budgets = effective.get_category_budgets()
+                    for cat_key, amount in cat_budgets.items():
+                        category_budgets_total[cat_key] = category_budgets_total.get(cat_key, 0) + amount
+
+            # 生成分类对比数据
+            for cat_key, cat_budget in category_budgets_total.items():
+                actual = by_category.get(cat_key, 0)
+                category_comparison[cat_key] = {
+                    'budget': cat_budget,
+                    'expense': actual,
+                    'actual': actual,
+                    'remaining': cat_budget - actual,
+                    'usage_rate': (actual / cat_budget * 100) if cat_budget > 0 else 0
+                }
 
             return {
                 'budget_total': budget_total,
@@ -202,9 +322,8 @@ class PerformanceDashboardService:
                 'by_category': by_category,
                 'category_comparison': category_comparison,
                 'monthly_trend': monthly_trend,
-                'has_budget': effective_budget is not None,
-                'is_personal_config': is_personal_config,
-                'is_role_default': not is_personal_config and role_budget is not None
+                'has_budget': has_any_budget,
+                'is_multi_user': is_multi_user
             }
 
         except Exception as e:
@@ -212,21 +331,49 @@ class PerformanceDashboardService:
             return PerformanceDashboardService._empty_expense_budget()
 
     @staticmethod
-    def _get_expense_by_category(user_id, year):
-        """按科目统计实际报销金额"""
+    def _get_expense_by_category(user_ids, year):
+        """按科目统计实际报销金额（支持多货币转换）
+
+        Args:
+            user_ids: 用户ID或用户ID列表
+            year: 年份
+        """
         try:
-            # 查询已审批的报销明细
+            # 兼容单个ID和列表
+            if not isinstance(user_ids, (list, tuple)):
+                user_ids = [user_ids]
+
+            base_currency = Config.DEFAULT_CURRENCY  # 系统基准货币（CNY）
+
+            # 查询已审批的报销明细，同时获取报销单货币
             query = db.session.query(
                 ExpenseDetail.expense_category,
-                func.sum(ExpenseDetail.current_amount)
+                ExpenseDetail.current_amount,
+                Expense.currency
             ).join(Expense).filter(
-                Expense.owner_id == user_id,
+                Expense.owner_id.in_(user_ids),
                 extract('year', Expense.created_at) == year,
                 Expense.status.in_(['approved', 'awaiting_payment', 'paid']),
                 Expense.is_deleted == False
-            ).group_by(ExpenseDetail.expense_category)
+            )
 
-            raw_totals = {row[0]: float(row[1] or 0) for row in query.all()}
+            # 按科目汇总，同时进行货币转换
+            raw_totals = {}
+            for row in query.all():
+                category = row[0]
+                amount = float(row[1] or 0)
+                expense_currency = row[2] or base_currency
+
+                # 货币转换
+                if expense_currency != base_currency:
+                    try:
+                        amount = exchange_rate_service.convert_amount(
+                            amount, expense_currency, base_currency
+                        )
+                    except Exception as conv_err:
+                        logger.warning(f"分类统计货币转换失败 {expense_currency} -> {base_currency}: {conv_err}")
+
+                raw_totals[category] = raw_totals.get(category, 0) + amount
 
             # 映射到预算科目
             result = {}
@@ -241,24 +388,49 @@ class PerformanceDashboardService:
             return {}
 
     @staticmethod
-    def _get_expense_monthly_trend(user_id, year):
-        """获取月度报销趋势"""
+    def _get_expense_monthly_trend(user_ids, year):
+        """获取月度报销趋势（支持多货币转换）
+
+        Args:
+            user_ids: 用户ID或用户ID列表
+            year: 年份
+        """
         try:
+            # 兼容单个ID和列表
+            if not isinstance(user_ids, (list, tuple)):
+                user_ids = [user_ids]
+
+            base_currency = Config.DEFAULT_CURRENCY  # 系统基准货币（CNY）
+
+            # 查询每笔报销单的月份、金额和货币
             query = db.session.query(
                 extract('month', Expense.created_at).label('month'),
-                func.sum(Expense.total_amount).label('amount')
+                Expense.total_amount,
+                Expense.currency
             ).filter(
-                Expense.owner_id == user_id,
+                Expense.owner_id.in_(user_ids),
                 extract('year', Expense.created_at) == year,
                 Expense.status.in_(['approved', 'awaiting_payment', 'paid']),
                 Expense.is_deleted == False
-            ).group_by(
-                extract('month', Expense.created_at)
-            ).order_by(
-                extract('month', Expense.created_at)
             )
 
-            monthly_data = {int(row.month): float(row.amount or 0) for row in query.all()}
+            # 按月份汇总，同时进行货币转换
+            monthly_data = {}
+            for row in query.all():
+                month = int(row[0])
+                amount = float(row[1] or 0)
+                expense_currency = row[2] or base_currency
+
+                # 货币转换
+                if expense_currency != base_currency:
+                    try:
+                        amount = exchange_rate_service.convert_amount(
+                            amount, expense_currency, base_currency
+                        )
+                    except Exception as conv_err:
+                        logger.warning(f"月度趋势货币转换失败 {expense_currency} -> {base_currency}: {conv_err}")
+
+                monthly_data[month] = monthly_data.get(month, 0) + amount
 
             # 补全12个月
             trend = []
@@ -279,7 +451,7 @@ class PerformanceDashboardService:
             return []
 
     @staticmethod
-    def get_activity_score(user_id, year, month=None):
+    def get_activity_score(user_id, year=None, month=None, year_month=None):
         """计算活跃度评分
 
         评分维度（权重）：
@@ -291,35 +463,53 @@ class PerformanceDashboardService:
 
         Args:
             user_id: 用户ID
-            year: 年份
-            month: 月份（可选，不传则计算年度）
+            year: 年份（可选，None表示全局分析）
+            month: 月份（可选，需配合year使用）
+            year_month: 年月字符串格式 'YYYY-MM'（可选，用于跨年月份查询）
 
         Returns:
             dict: 活跃度评分数据
         """
         try:
             # 构建基础过滤条件
-            action_filters = [
-                Action.owner_id == user_id,
-                extract('year', Action.created_at) == year
-            ]
-            if month:
-                action_filters.append(extract('month', Action.created_at) == month)
+            action_filters = [Action.owner_id == user_id]
 
-            # 基准值（根据是否指定月份调整）
-            base_action_count = 50 if month else 600
-            base_reply_count = 30 if month else 360
+            # 支持三种模式：
+            # 1. year_month: 跨年月份查询（优先级最高）
+            # 2. year + month: 指定年月
+            # 3. year: 指定年份
+            # 4. 无参数: 全局分析（最近12个月基准）
+            if year_month:
+                # 解析 'YYYY-MM' 格式
+                ym_year, ym_month = map(int, year_month.split('-'))
+                action_filters.append(extract('year', Action.created_at) == ym_year)
+                action_filters.append(extract('month', Action.created_at) == ym_month)
+                base_action_count = 50
+                base_reply_count = 30
+            elif year is not None:
+                action_filters.append(extract('year', Action.created_at) == year)
+                if month:
+                    action_filters.append(extract('month', Action.created_at) == month)
+                base_action_count = 50 if month else 600
+                base_reply_count = 30 if month else 360
+            else:
+                # 全局模式：使用最近12个月的基准
+                base_action_count = 600
+                base_reply_count = 360
 
             # 数量维度 - 行动记录数
             action_count = Action.query.filter(*action_filters).count()
 
             # 数量维度 - 回复数
-            reply_filters = [
-                ActionReply.owner_id == user_id,
-                extract('year', ActionReply.created_at) == year
-            ]
-            if month:
-                reply_filters.append(extract('month', ActionReply.created_at) == month)
+            reply_filters = [ActionReply.owner_id == user_id]
+            if year_month:
+                ym_year, ym_month = map(int, year_month.split('-'))
+                reply_filters.append(extract('year', ActionReply.created_at) == ym_year)
+                reply_filters.append(extract('month', ActionReply.created_at) == ym_month)
+            elif year is not None:
+                reply_filters.append(extract('year', ActionReply.created_at) == year)
+                if month:
+                    reply_filters.append(extract('month', ActionReply.created_at) == month)
             reply_count = ActionReply.query.filter(*reply_filters).count()
 
             # 质量维度 - 平均字数
@@ -430,19 +620,53 @@ class PerformanceDashboardService:
             return PerformanceDashboardService._empty_activity_score()
 
     @staticmethod
-    def get_monthly_activity_trend(user_id, year):
-        """获取月度活跃度趋势"""
+    def get_monthly_activity_trend(user_id, year=None):
+        """获取月度活跃度趋势
+
+        Args:
+            user_id: 用户ID
+            year: 年份（可选，None表示全局模式返回最近12个月）
+
+        Returns:
+            list: 月度活跃度数据列表
+                - 指定年份模式: [{month: 1, score: ..., ...}, ...]
+                - 全局模式: [{month: '2024-02', score: ..., ...}, ...]
+        """
         try:
             trend = []
-            for month in range(1, 13):
-                score_data = PerformanceDashboardService.get_activity_score(user_id, year, month)
-                trend.append({
-                    'month': month,
-                    'score': score_data['score'],
-                    'grade': score_data['grade'],
-                    'action_count': score_data['breakdown']['action_count']['value'],
-                    'reply_count': score_data['breakdown']['reply_count']['value'],
-                })
+
+            if year is not None:
+                # 指定年份模式：返回该年1-12月
+                for month in range(1, 13):
+                    score_data = PerformanceDashboardService.get_activity_score(user_id, year, month)
+                    trend.append({
+                        'month': month,
+                        'score': score_data['score'],
+                        'grade': score_data['grade'],
+                        'action_count': score_data['breakdown']['action_count']['value'],
+                        'reply_count': score_data['breakdown']['reply_count']['value'],
+                    })
+            else:
+                # 全局模式：返回最近12个月（跨年）
+                from datetime import datetime
+                from dateutil.relativedelta import relativedelta
+
+                now = datetime.now()
+                for i in range(11, -1, -1):  # 从11个月前到当前月
+                    target_date = now - relativedelta(months=i)
+                    year_month = target_date.strftime('%Y-%m')
+
+                    score_data = PerformanceDashboardService.get_activity_score(
+                        user_id, year_month=year_month
+                    )
+                    trend.append({
+                        'month': year_month,  # 格式: '2024-02'
+                        'score': score_data['score'],
+                        'grade': score_data['grade'],
+                        'action_count': score_data['breakdown']['action_count']['value'],
+                        'reply_count': score_data['breakdown']['reply_count']['value'],
+                    })
+
             return trend
         except Exception as e:
             logger.error(f"获取月度活跃度趋势失败: {e}")
@@ -665,8 +889,11 @@ class PerformanceDashboardService:
             'category_comparison': {},
             'monthly_trend': [],
             'has_budget': False,
-            'is_personal_config': False,
-            'is_role_default': False
+            'is_multi_user': False,
+            'scope_type': 'personal',
+            'scope_name': '个人',
+            'current_month': datetime.now().month,
+            'current_year': datetime.now().year
         }
 
     @staticmethod

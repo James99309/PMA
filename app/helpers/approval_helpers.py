@@ -3377,11 +3377,11 @@ def start_approval_process(object_type, object_id, template_id, user_id=None, au
 
         current_app.logger.info(f"成功发起审批流程: {object_type}:{object_id}, 模板ID: {template_id}, 实例ID: {instance.id}")
 
-        # 通知第一步审批人
+        # 通知第一步审批人（站内消息）
         first_step = instance.get_steps()[0] if instance.get_steps() else None
         if first_step:
-            from app.services.approval_email_service import ApprovalEmailService
-            ApprovalEmailService.send_approval_notification(instance, first_step, actual_approver=get_step_actual_approver(first_step, instance))
+            from app.services.approval_message_service import ApprovalMessageService
+            ApprovalMessageService.send_approval_notification(instance, first_step, actual_approver=get_step_actual_approver(first_step, instance))
 
         return instance
     except Exception as e:
@@ -3663,8 +3663,8 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
 
         # 通知提交人审批被拒绝
         try:
-            from app.services.approval_email_service import ApprovalEmailService
-            ApprovalEmailService.send_approval_notification(
+            from app.services.approval_message_service import ApprovalMessageService
+            ApprovalMessageService.send_approval_notification(
                 instance, current_step, action, comment,
                 custom_context=None, notify_submitter=True
             )
@@ -3713,8 +3713,8 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
 
             # 通知提交人流程已完成
             try:
-                from app.services.approval_email_service import ApprovalEmailService
-                ApprovalEmailService.send_approval_notification(
+                from app.services.approval_message_service import ApprovalMessageService
+                ApprovalMessageService.send_approval_notification(
                     instance, current_step, action, comment,
                     custom_context=custom_context, notify_submitter=True
                 )
@@ -3787,8 +3787,8 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
                     _update_expense_status_for_payment_stage(instance, user_id, comment)
 
                 # 通知下一步审批人
-                from app.services.approval_email_service import ApprovalEmailService
-                ApprovalEmailService.send_approval_notification(instance, next_step, actual_approver=get_step_actual_approver(next_step, instance))
+                from app.services.approval_message_service import ApprovalMessageService
+                ApprovalMessageService.send_approval_notification(instance, next_step, actual_approver=get_step_actual_approver(next_step, instance))
             else:
                 # 无下一步：流程完成
                 instance.status = ApprovalStatus.APPROVED
@@ -3796,8 +3796,8 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
 
                 # 通知提交人流程已完成
                 try:
-                    from app.services.approval_email_service import ApprovalEmailService
-                    ApprovalEmailService.send_approval_notification(
+                    from app.services.approval_message_service import ApprovalMessageService
+                    ApprovalMessageService.send_approval_notification(
                         instance, current_step, action, comment,
                         custom_context=None, notify_submitter=True
                     )
@@ -3829,15 +3829,15 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
         db.session.commit()
         current_app.logger.info(f"审批操作成功提交: 实例{instance_id}, 当前步骤{instance.current_step}")
 
-        # 发送邮件通知（邮件服务内部会检查send_email标志）
+        # 发送站内消息通知
         try:
-            from app.services.approval_email_service import ApprovalEmailService
-            ApprovalEmailService.send_approval_notification(
+            from app.services.approval_message_service import ApprovalMessageService
+            ApprovalMessageService.send_approval_notification(
                 instance, current_step, action, comment, custom_context=None
             )
         except Exception as e:
             # 记录日志但不影响主流程
-            current_app.logger.error(f"发送审批邮件失败: {str(e)}", exc_info=True)
+            current_app.logger.error(f"发送审批通知失败: {str(e)}", exc_info=True)
 
         return True
     except Exception as e:
@@ -4163,8 +4163,8 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
 
         # 通知提交人审批被拒绝
         try:
-            from app.services.approval_email_service import ApprovalEmailService
-            ApprovalEmailService.send_approval_notification(
+            from app.services.approval_message_service import ApprovalMessageService
+            ApprovalMessageService.send_approval_notification(
                 instance, current_step, action, comment,
                 custom_context=None, notify_submitter=True
             )
@@ -4213,8 +4213,8 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
 
             # 通知提交人流程已完成
             try:
-                from app.services.approval_email_service import ApprovalEmailService
-                ApprovalEmailService.send_approval_notification(
+                from app.services.approval_message_service import ApprovalMessageService
+                ApprovalMessageService.send_approval_notification(
                     instance, current_step, action, comment,
                     custom_context=custom_context, notify_submitter=True
                 )
@@ -4287,8 +4287,8 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
                     _update_expense_status_for_payment_stage(instance, user_id, comment)
 
                 # 通知下一步审批人
-                from app.services.approval_email_service import ApprovalEmailService
-                ApprovalEmailService.send_approval_notification(instance, next_step, actual_approver=get_step_actual_approver(next_step, instance))
+                from app.services.approval_message_service import ApprovalMessageService
+                ApprovalMessageService.send_approval_notification(instance, next_step, actual_approver=get_step_actual_approver(next_step, instance))
             else:
                 # 无下一步：流程完成
                 instance.status = ApprovalStatus.APPROVED
@@ -4296,8 +4296,8 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
 
                 # 通知提交人流程已完成
                 try:
-                    from app.services.approval_email_service import ApprovalEmailService
-                    ApprovalEmailService.send_approval_notification(
+                    from app.services.approval_message_service import ApprovalMessageService
+                    ApprovalMessageService.send_approval_notification(
                         instance, current_step, action, comment,
                         custom_context=None, notify_submitter=True
                     )

@@ -146,11 +146,11 @@
                     </div>
                 </template>
                 <template x-for="item in data.mentions" :key="item.id">
-                    <div @click="markRead([item.id]); item.can_view_calendar && (window.location.href = getMessageUrl(item))"
+                    <div @click="markRead([item.id]); (item.can_view_calendar || item.detail_url) && (window.location.href = getMessageUrl(item))"
                          class="flex items-start gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800 transition-colors"
                          :class="[
                              !item.is_read ? 'bg-blue-50/50 dark:bg-blue-900/10' : '',
-                             item.can_view_calendar ? 'hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer' : 'cursor-default'
+                             (item.can_view_calendar || item.detail_url) ? 'hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer' : 'cursor-default'
                          ]">
                         <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
                              :class="getMessageBgColor(item)">
@@ -165,7 +165,7 @@
                             </div>
                             <div class="text-xs text-slate-500 dark:text-slate-400 mt-1 whitespace-pre-wrap" x-text="item.content"></div>
                         </div>
-                        <span x-show="item.can_view_calendar" class="material-symbols-outlined text-slate-300 flex-shrink-0">chevron_right</span>
+                        <span x-show="item.can_view_calendar || item.detail_url" class="material-symbols-outlined text-slate-300 flex-shrink-0">chevron_right</span>
                     </div>
                 </template>
             </div>
@@ -400,6 +400,10 @@ function messagePanel() {
 
         getMessageUrl(item) {
             // 根据消息类型和相关对象类型返回不同的 URL
+            // 审批消息：使用后端返回的 detail_url
+            if (item.message_type && item.message_type.startsWith('approval_')) {
+                return item.detail_url || '#';
+            }
             if (item.related_object_type === 'workitem') {
                 // 行程类消息，跳转到日历页面查看行程
                 if (item.metadata && item.metadata.planned_date) {
@@ -430,7 +434,11 @@ function messagePanel() {
                 // 公告类型
                 'announcement_system': 'campaign',
                 'announcement_business': 'campaign',
-                'announcement_urgent': 'priority_high'
+                'announcement_urgent': 'priority_high',
+                // 审批消息类型
+                'approval_approved': 'check_circle',
+                'approval_rejected': 'cancel',
+                'approval_cc': 'mail'
             };
             return icons[item.message_type] || 'notifications';
         },
@@ -449,7 +457,11 @@ function messagePanel() {
                 // 公告类型
                 'announcement_system': 'bg-indigo-100 dark:bg-indigo-900/30',
                 'announcement_business': 'bg-cyan-100 dark:bg-cyan-900/30',
-                'announcement_urgent': 'bg-red-100 dark:bg-red-900/30'
+                'announcement_urgent': 'bg-red-100 dark:bg-red-900/30',
+                // 审批消息类型
+                'approval_approved': 'bg-green-100 dark:bg-green-900/30',
+                'approval_rejected': 'bg-red-100 dark:bg-red-900/30',
+                'approval_cc': 'bg-sky-100 dark:bg-sky-900/30'
             };
             return colors[item.message_type] || 'bg-blue-100 dark:bg-blue-900/30';
         },
@@ -468,7 +480,11 @@ function messagePanel() {
                 // 公告类型
                 'announcement_system': 'text-indigo-600 dark:text-indigo-400',
                 'announcement_business': 'text-cyan-600 dark:text-cyan-400',
-                'announcement_urgent': 'text-red-600 dark:text-red-400'
+                'announcement_urgent': 'text-red-600 dark:text-red-400',
+                // 审批消息类型
+                'approval_approved': 'text-green-600 dark:text-green-400',
+                'approval_rejected': 'text-red-600 dark:text-red-400',
+                'approval_cc': 'text-sky-600 dark:text-sky-400'
             };
             return colors[item.message_type] || 'text-blue-600 dark:text-blue-400';
         },

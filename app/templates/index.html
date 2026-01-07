@@ -172,29 +172,32 @@
                                         </div>
                                     </template>
 
-                                    <!-- 年度费用预算 -->
-                                    <div class="space-y-2">
-                                        <div class="flex items-center justify-between">
-                                            <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('年度费用预算') }}</span>
-                                            <span class="text-sm font-semibold" :class="getExpenseColorText(yearRate)" x-text="yearRate + '%'"></span>
+                                    <!-- 费用预算（多范围） -->
+                                    <template x-for="(budget, idx) in expenseBudgets" :key="idx">
+                                        <div :class="idx > 0 ? 'pt-3 border-t border-slate-200 dark:border-slate-700' : ''">
+                                            <div class="space-y-2">
+                                                <div class="flex items-center justify-between">
+                                                    <span class="text-sm font-medium flex items-center gap-1.5"
+                                                          :class="getScopeTextColor(budget.scope_type)">
+                                                        {{ _('年度费用预算') }}
+                                                        <span x-text="'(' + getScopeLabel(budget.scope_type) + ')'"></span>
+                                                    </span>
+                                                    <span class="text-sm font-semibold"
+                                                          :class="getScopeTextColor(budget.scope_type)"
+                                                          x-text="Math.round(budget.usage_rate || 0) + '%'"></span>
+                                                </div>
+                                                <div class="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                                                    <div class="h-full rounded-full transition-all duration-500"
+                                                         :class="getScopeBarColor(budget.scope_type)"
+                                                         :style="'width: ' + Math.min(budget.usage_rate || 0, 100) + '%'"></div>
+                                                </div>
+                                                <div class="text-xs text-slate-500 dark:text-slate-400 flex justify-between">
+                                                    <span>{{ _('已用') }} <span x-text="formatAmount(budget.expense_total || 0)"></span> / <span x-text="formatAmount(budget.budget_total || 0)"></span></span>
+                                                    <span>{{ _('当月') }} <span x-text="formatAmount(budget.monthExpense || 0)"></span></span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div class="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                                            <div class="h-full rounded-full transition-all duration-500"
-                                                 :class="getExpenseColor(yearRate)"
-                                                 :style="'width: ' + Math.min(yearRate, 100) + '%'"></div>
-                                        </div>
-                                        <div class="text-xs text-slate-500 dark:text-slate-400">
-                                            {{ _('已用') }} <span x-text="formatAmount(yearExpense)"></span> / <span x-text="formatAmount(yearBudget)"></span>
-                                        </div>
-                                    </div>
-
-                                    <!-- 当月费用 -->
-                                    <div class="pt-2 border-t border-slate-200 dark:border-slate-700">
-                                        <div class="flex items-center justify-between">
-                                            <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('当月支出') }}</span>
-                                            <span class="text-sm font-semibold text-slate-900 dark:text-white" x-text="formatAmount(monthExpense)"></span>
-                                        </div>
-                                    </div>
+                                    </template>
                                 </div>
                             </div>
                             {% endcall %}
@@ -505,12 +508,8 @@
             // 动态绩效指标
             configuredItems: [],
             summary: {},
-            // 年度费用
-            yearBudget: 0,
-            yearExpense: 0,
-            yearRate: 0,
-            // 当月费用
-            monthExpense: 0,
+            // 费用预算（支持多范围）
+            expenseBudgets: [],
 
             async loadData() {
                 try {
@@ -528,17 +527,15 @@
                         this.configuredItems = result.data.configured_items || [];
                         this.summary = result.data.summary || {};
 
-                        // 解析费用数据
-                        const expenseBudget = result.data.expense_budget || {};
-                        this.yearBudget = (expenseBudget.budget_total || 0) / 100;  // 分转元
-                        this.yearExpense = (expenseBudget.expense_total || 0) / 100;
-                        this.yearRate = Math.round(expenseBudget.usage_rate || 0);
-
-                        // 当月费用
-                        const monthlyTrend = expenseBudget.monthly_trend || [];
+                        // 解析费用数据（支持多范围，后端返回已是元单位）
+                        this.expenseBudgets = (result.data.expense_budgets || [result.data.expense_budget]).filter(b => b);
+                        // 为每个范围计算当月费用
                         const currentMonth = new Date().getMonth() + 1;
-                        const currentMonthData = monthlyTrend.find(m => m.month === currentMonth);
-                        this.monthExpense = currentMonthData ? (currentMonthData.amount || 0) / 100 : 0;
+                        this.expenseBudgets.forEach(budget => {
+                            const monthlyTrend = budget.monthly_trend || [];
+                            const currentMonthData = monthlyTrend.find(m => m.month === currentMonth);
+                            budget.monthExpense = currentMonthData ? (currentMonthData.amount || 0) : 0;
+                        });
                     }
                 } catch (e) {
                     console.error('加载数据状态失败:', e);
@@ -620,6 +617,39 @@
                 if (rate <= 80) return 'text-yellow-600 dark:text-yellow-400';
                 if (rate <= 100) return 'text-orange-600 dark:text-orange-400';
                 return 'text-red-600 dark:text-red-400';
+            },
+
+            // 范围标签（只显示类型，不显示具体名称）
+            getScopeLabel(type) {
+                const labels = {
+                    'personal': '{{ _("个人") }}',
+                    'team': '{{ _("团队") }}',
+                    'department': '{{ _("部门") }}',
+                    'company': '{{ _("企业") }}'
+                };
+                return labels[type] || type;
+            },
+
+            // 范围文字颜色（与百分比一致）
+            getScopeTextColor(type) {
+                const colors = {
+                    'personal': 'text-slate-600 dark:text-slate-400',
+                    'team': 'text-blue-600 dark:text-blue-400',
+                    'department': 'text-violet-600 dark:text-violet-400',
+                    'company': 'text-green-600 dark:text-green-400'
+                };
+                return colors[type] || 'text-slate-600 dark:text-slate-400';
+            },
+
+            // 范围进度条颜色
+            getScopeBarColor(type) {
+                const colors = {
+                    'personal': 'bg-slate-500',
+                    'team': 'bg-blue-500',
+                    'department': 'bg-violet-500',
+                    'company': 'bg-green-500'
+                };
+                return colors[type] || 'bg-slate-500';
             },
 
             // 格式化金额（万元）- 费用使用

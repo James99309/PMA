@@ -398,3 +398,95 @@ class Message(db.Model):
                 'log_type': worklog.log_type
             }
         )
+
+    # ========== 审批通知相关方法 ==========
+
+    @classmethod
+    def create_approval_notification(cls, sender_id, recipient_id, instance, action=None,
+                                     comment=None, custom_context=None, is_cc=False):
+        """创建审批通知消息
+
+        Args:
+            sender_id: 发送者用户ID（提交人或审批人）
+            recipient_id: 接收者用户ID（审批人或提交人）
+            instance: ApprovalInstance 审批实例
+            action: 审批动作 ('approve', 'reject', None表示待审批)
+            comment: 审批意见
+            custom_context: 自定义上下文（业务编号、金额等）
+            is_cc: 是否为抄送消息
+
+        Returns:
+            Message: 创建的消息对象（未提交到数据库）
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '系统'
+
+        # 获取动作文本
+        action_value = action.value if hasattr(action, 'value') else action
+        action_map = {
+            'approve': '已通过',
+            'reject': '已拒绝',
+            'recall': '已召回',
+            None: '待审批'
+        }
+        action_text = action_map.get(action_value, '处理中')
+
+        # 获取对象类型中文名
+        object_map = {
+            'quotation': '报价单',
+            'order': '订单',
+            'project': '项目',
+            'expense': '报销单',
+            'pricing_order': '批价单',
+            'settlement_order': '结算单',
+        }
+        object_name = object_map.get(instance.object_type, instance.object_type)
+
+        # 获取业务编号
+        if custom_context and 'business_number' in custom_context:
+            object_identifier = custom_context['business_number']
+        else:
+            object_identifier = f"#{instance.object_id}"
+
+        # 确定消息类型
+        if is_cc:
+            message_type = 'approval_cc'
+            title = f'[抄送] {object_name} {object_identifier} {action_text}'
+        elif action_value == 'approve':
+            message_type = 'approval_approved'
+            title = f'{object_name} {object_identifier} 审批已通过'
+        elif action_value == 'reject':
+            message_type = 'approval_rejected'
+            title = f'{object_name} {object_identifier} 审批被拒绝'
+        else:
+            message_type = 'approval_pending'
+            title = f'{object_name} {object_identifier} 待您审批'
+
+        # 构建内容预览
+        content_parts = []
+        if custom_context:
+            if custom_context.get('object_title'):
+                content_parts.append(f"主题: {custom_context['object_title']}")
+            if custom_context.get('total_amount'):
+                content_parts.append(f"金额: {custom_context['total_amount']}")
+        if comment:
+            content_parts.append(f"意见: {comment[:50]}{'...' if len(comment) > 50 else ''}")
+        content_preview = ' | '.join(content_parts) if content_parts else f"由 {sender_name} 提交"
+
+        return cls(
+            message_type=message_type,
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=title,
+            content=content_preview,
+            related_object_type=instance.object_type,
+            related_object_id=instance.object_id,
+            extra_data={
+                'instance_id': instance.id,
+                'action': action_value,
+                'business_number': custom_context.get('business_number') if custom_context else None,
+                'object_title': custom_context.get('object_title') if custom_context else None,
+                'is_cc': is_cc
+            }
+        )

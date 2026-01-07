@@ -162,32 +162,51 @@ class PerformanceService:
             return 0
     
     @staticmethod
-    def calculate_industry_statistics(user_id, year, month=None):
-        """计算行业维度统计（基于项目的行业字段）"""
+    def calculate_industry_statistics(user_id, year=None, month=None, year_month=None):
+        """计算行业维度统计（基于项目的行业字段）
+
+        Args:
+            user_id: 用户ID
+            year: 年份（可选，None表示全局分析）
+            month: 月份（可选，需配合year使用）
+            year_month: 年月字符串格式 'YYYY-MM'（可选，用于跨年月份查询）
+
+        Returns:
+            dict: 行业统计数据 {行业名: 数量}
+        """
         try:
             # 按行业统计新增项目
             industry_stats = {}
-            
+
             # 构建项目查询条件
-            project_filter = [
-                Project.owner_id == user_id,
-                extract('year', Project.created_at) == year
-            ]
-            
-            # 如果指定了月份，添加月份条件
-            if month is not None:
-                project_filter.append(extract('month', Project.created_at) == month)
-            
+            project_filter = [Project.owner_id == user_id]
+
+            # 支持三种模式：
+            # 1. year_month: 跨年月份查询（优先级最高）
+            # 2. year + month: 指定年月
+            # 3. year: 指定年份
+            # 4. 无参数: 全局分析（所有数据）
+            if year_month:
+                # 解析 'YYYY-MM' 格式
+                ym_year, ym_month = map(int, year_month.split('-'))
+                project_filter.append(extract('year', Project.created_at) == ym_year)
+                project_filter.append(extract('month', Project.created_at) == ym_month)
+            elif year is not None:
+                project_filter.append(extract('year', Project.created_at) == year)
+                if month is not None:
+                    project_filter.append(extract('month', Project.created_at) == month)
+            # else: 全局模式，不添加时间过滤条件
+
             # 按项目行业统计
             project_query = db.session.query(
                 Project.industry,
                 func.count(Project.id).label('count')
             ).filter(*project_filter).group_by(Project.industry)
-            
+
             for industry, count in project_query.all():
                 industry_name = industry or '未分类'
                 industry_stats[industry_name] = count
-            
+
             return industry_stats
         except Exception as e:
             logger.error(f"计算行业统计失败: {e}")
@@ -392,15 +411,41 @@ class PerformanceService:
             return 'danger'   # 红色
     
     @staticmethod
-    def get_monthly_industry_statistics(user_id, year):
-        """获取用户年度按月份的行业统计数据"""
+    def get_monthly_industry_statistics(user_id, year=None):
+        """获取用户按月份的行业统计数据
+
+        Args:
+            user_id: 用户ID
+            year: 年份（可选，None表示全局模式返回最近12个月）
+
+        Returns:
+            dict: 月度行业统计数据
+                - 指定年份模式: {1: {...}, 2: {...}, ...}
+                - 全局模式: {'2024-02': {...}, '2024-03': {...}, ...}
+        """
         try:
             monthly_industry_stats = {}
-            
-            for month in range(1, 13):
-                month_stats = PerformanceService.calculate_industry_statistics(user_id, year, month)
-                monthly_industry_stats[month] = month_stats
-            
+
+            if year is not None:
+                # 指定年份模式：返回该年1-12月
+                for month in range(1, 13):
+                    month_stats = PerformanceService.calculate_industry_statistics(user_id, year, month)
+                    monthly_industry_stats[month] = month_stats
+            else:
+                # 全局模式：返回最近12个月（跨年）
+                from datetime import datetime
+                from dateutil.relativedelta import relativedelta
+
+                now = datetime.now()
+                for i in range(11, -1, -1):  # 从11个月前到当前月
+                    target_date = now - relativedelta(months=i)
+                    year_month = target_date.strftime('%Y-%m')
+
+                    month_stats = PerformanceService.calculate_industry_statistics(
+                        user_id, year_month=year_month
+                    )
+                    monthly_industry_stats[year_month] = month_stats
+
             return monthly_industry_stats
         except Exception as e:
             logger.error(f"获取月度行业统计失败: {e}")

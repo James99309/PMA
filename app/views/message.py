@@ -23,7 +23,7 @@ message = Blueprint('message', __name__, url_prefix='/message')
 @message.route('/api/panel-data', methods=['GET'])
 @login_required
 def get_panel_data():
-    """获取消息面板数据（日志@消息 + 待审批记录）"""
+    """获取消息面板数据（日志@消息 + 审批通知 + 待审批记录）"""
     try:
         # 1. 获取日志@消息（未读优先，最多20条）
         unread_messages = Message.get_unread_messages(current_user.id, limit=20)
@@ -35,6 +35,10 @@ def get_panel_data():
 
         mention_list = []
         for msg in unread_messages:
+            # 跳过审批消息（由后面单独处理，避免重复添加）
+            if msg.message_type in ['approval_approved', 'approval_rejected', 'approval_cc']:
+                continue
+
             msg_dict = msg.to_dict()
 
             # 判断是否可以查看发送者的日历
@@ -53,6 +57,23 @@ def get_panel_data():
                 can_view = True
 
             msg_dict['can_view_calendar'] = can_view
+            mention_list.append(msg_dict)
+
+        # 1.5 获取审批通知消息（结果通知 + 抄送，未读）
+        approval_messages = Message.query.filter(
+            Message.recipient_id == current_user.id,
+            Message.is_read == False,
+            Message.message_type.in_(['approval_approved', 'approval_rejected', 'approval_cc'])
+        ).order_by(Message.created_at.desc()).limit(20).all()
+
+        for msg in approval_messages:
+            msg_dict = msg.to_dict()
+            # 添加详情页 URL
+            msg_dict['detail_url'] = _get_approval_detail_url(
+                msg.related_object_type,
+                msg.related_object_id
+            )
+            msg_dict['can_view_calendar'] = False  # 审批消息不跳转日历
             mention_list.append(msg_dict)
 
         # 2. 获取用户的未读公告，混入 mention_list（与@消息一致：已读即消失）
@@ -237,21 +258,26 @@ def _get_object_name(instance):
 
 
 def _get_detail_url(instance):
-    """获取审批对象详情页URL"""
+    """获取审批对象详情页URL（从审批实例）"""
+    return _get_approval_detail_url(instance.object_type, instance.object_id)
+
+
+def _get_approval_detail_url(object_type, object_id):
+    """获取审批对象详情页URL（从对象类型和ID）"""
     try:
-        if instance.object_type == 'project':
-            return url_for('project.view_project', project_id=instance.object_id, tw=1)
-        elif instance.object_type == 'expense':
-            return url_for('expense.expense_detail', id=instance.object_id)
-        elif instance.object_type == 'quotation':
-            return url_for('quotation.view_quotation', id=instance.object_id, tw=1)
-        elif instance.object_type == 'pricing_order':
-            return url_for('pricing_order.edit_pricing_order', order_id=instance.object_id)
-        elif instance.object_type == 'purchase_order':
-            return url_for('inventory.order_detail', id=instance.object_id)
-        elif instance.object_type == 'customer':
-            return url_for('customer.view_company', company_id=instance.object_id)
-        elif instance.object_type == 'rd_product':
+        if object_type == 'project':
+            return url_for('project.view_project', project_id=object_id, tw=1)
+        elif object_type == 'expense':
+            return url_for('expense.expense_detail', id=object_id)
+        elif object_type == 'quotation':
+            return url_for('quotation.view_quotation', id=object_id, tw=1)
+        elif object_type == 'pricing_order':
+            return url_for('pricing_order.edit_pricing_order', order_id=object_id)
+        elif object_type == 'purchase_order':
+            return url_for('inventory.order_detail', id=object_id)
+        elif object_type == 'customer':
+            return url_for('customer.view_company', company_id=object_id)
+        elif object_type == 'rd_product':
             # 研发产品蓝图已停用，返回空链接
             return '#'
         else:
