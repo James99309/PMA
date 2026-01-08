@@ -1,0 +1,467 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_modal_base.html' import tw_modal %}
+
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('部门管理') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark">
+{% call(slot) render_tw_layout(active_page='user', show_search=false) %}
+    {% if slot == 'content' %}
+    {% call(page_slot) render_tw_fixed_page() %}
+    {% if page_slot == 'header' %}
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('部门管理') }}</h1>
+        <div class="flex items-center gap-3">
+            <a href="{{ url_for('user.list_users') }}"
+               class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium transition-colors">
+                <span class="material-symbols-outlined" style="font-size: 20px;">arrow_back</span>
+                <span>{{ _('返回用户管理') }}</span>
+            </a>
+            <button type="button" @click="$dispatch('open-add-dept-modal')"
+                    class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
+                <span class="material-symbols-outlined" style="font-size: 20px;">add</span>
+                <span>{{ _('新增部门') }}</span>
+            </button>
+        </div>
+    {% elif page_slot == 'content' %}
+        {# 主内容区 #}
+        <div x-data="departmentManager()" x-init="init()" @open-add-dept-modal.window="showAddModal = true" class="space-y-6">
+            {# 筛选区域 #}
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4">
+                <div class="flex flex-wrap gap-4 items-center">
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('按公司筛选') }}</label>
+                        <select x-model="filterCompany" @change="filterDepartments()"
+                                class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary">
+                            <option value="">{{ _('全部公司') }}</option>
+                            {% for company in companies %}
+                            <option value="{{ company }}">{{ company }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button type="button" @click="filterCompany = ''; filterDepartments()"
+                                class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 text-sm font-medium transition-colors">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">refresh</span>
+                            <span>{{ _('重置') }}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {# 部门列表表格 #}
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                        {{ _('部门列表') }}
+                        <span class="text-sm font-normal text-slate-500" x-text="'(' + filteredDepartments.length + ')'"></span>
+                    </h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-slate-50 dark:bg-slate-800/50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ _('部门名称') }}</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ _('所属公司') }}</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ _('部门负责人') }}</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ _('状态') }}</th>
+                                <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ _('操作') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+                            <template x-for="dept in filteredDepartments" :key="dept.id">
+                                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                    <td class="px-6 py-4">
+                                        <span class="text-sm font-medium text-slate-900 dark:text-white" x-text="dept.name"></span>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <span class="text-sm text-slate-600 dark:text-slate-400" x-text="dept.company_name"></span>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <span class="text-sm text-slate-600 dark:text-slate-400" x-text="dept.manager_name || '-'"></span>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <span x-show="dept.is_active" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                            {{ _('启用') }}
+                                        </span>
+                                        <span x-show="!dept.is_active" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">
+                                            {{ _('禁用') }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 text-right">
+                                        <div class="flex items-center justify-end gap-2">
+                                            <button type="button" @click="editDepartment(dept)"
+                                                    class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                                    title="{{ _('编辑') }}">
+                                                <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
+                                            </button>
+                                            <button type="button" @click="toggleStatus(dept)"
+                                                    class="inline-flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
+                                                    :class="dept.is_active ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20' : 'text-green-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'"
+                                                    :title="dept.is_active ? '{{ _('禁用') }}' : '{{ _('启用') }}'">
+                                                <span class="material-symbols-outlined" style="font-size: 18px;" x-text="dept.is_active ? 'block' : 'check_circle'"></span>
+                                            </button>
+                                            <button type="button" @click="confirmDelete(dept)"
+                                                    class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                    title="{{ _('删除') }}">
+                                                <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                            <template x-if="filteredDepartments.length === 0">
+                                <tr>
+                                    <td colspan="5" class="px-6 py-12 text-center">
+                                        <div class="flex flex-col items-center gap-2">
+                                            <span class="material-symbols-outlined text-slate-300 dark:text-slate-600" style="font-size: 48px;">folder_off</span>
+                                            <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('暂无部门数据') }}</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {# 新增/编辑部门模态框 #}
+            <div x-show="showAddModal || showEditModal" x-cloak
+                 class="fixed inset-0 z-50 overflow-y-auto"
+                 x-transition:enter="ease-out duration-300"
+                 x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100"
+                 x-transition:leave="ease-in duration-200"
+                 x-transition:leave-start="opacity-100"
+                 x-transition:leave-end="opacity-0">
+                <div class="flex min-h-screen items-center justify-center p-4">
+                    <div class="fixed inset-0 bg-black/50" @click="closeModal()"></div>
+                    <div class="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-xl"
+                         x-transition:enter="ease-out duration-300"
+                         x-transition:enter-start="opacity-0 scale-95"
+                         x-transition:enter-end="opacity-100 scale-100"
+                         x-transition:leave="ease-in duration-200"
+                         x-transition:leave-start="opacity-100 scale-100"
+                         x-transition:leave-end="opacity-0 scale-95">
+                        <div class="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
+                            <h3 class="text-lg font-semibold text-slate-900 dark:text-white" x-text="showEditModal ? '{{ _('编辑部门') }}' : '{{ _('新增部门') }}'"></h3>
+                            <button type="button" @click="closeModal()"
+                                    class="text-slate-400 hover:text-slate-500 dark:hover:text-slate-300">
+                                <span class="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <form @submit.prevent="saveDepartment()">
+                            <div class="p-6 space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                        {{ _('部门名称') }} <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="text" x-model="form.name" required
+                                           class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                                           placeholder="{{ _('请输入部门名称') }}">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                        {{ _('所属公司') }} <span class="text-red-500">*</span>
+                                    </label>
+                                    <select x-model="form.company_name" required :disabled="showEditModal"
+                                            class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <option value="">{{ _('请选择公司') }}</option>
+                                        {% for company in companies %}
+                                        <option value="{{ company }}">{{ company }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                        {{ _('部门负责人') }}
+                                    </label>
+                                    <select x-model="form.manager_id"
+                                            class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary">
+                                        <option value="">{{ _('无') }}</option>
+                                        {% for user in users %}
+                                        <option value="{{ user.id }}">{{ user.real_name or user.username }} ({{ user.company_name }})</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-end gap-3 p-6 border-t border-slate-200 dark:border-slate-700">
+                                <button type="button" @click="closeModal()"
+                                        class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                                    {{ _('取消') }}
+                                </button>
+                                <button type="submit" :disabled="saving"
+                                        class="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50">
+                                    <span x-show="!saving" x-text="showEditModal ? '{{ _('保存') }}' : '{{ _('创建') }}'"></span>
+                                    <span x-show="saving">{{ _('保存中...') }}</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            {# 删除确认模态框 #}
+            <div x-show="showDeleteModal" x-cloak
+                 class="fixed inset-0 z-50 overflow-y-auto"
+                 x-transition:enter="ease-out duration-300"
+                 x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100"
+                 x-transition:leave="ease-in duration-200"
+                 x-transition:leave-start="opacity-100"
+                 x-transition:leave-end="opacity-0">
+                <div class="flex min-h-screen items-center justify-center p-4">
+                    <div class="fixed inset-0 bg-black/50" @click="showDeleteModal = false"></div>
+                    <div class="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-6">
+                        <div class="flex flex-col items-center text-center">
+                            <div class="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
+                                <span class="material-symbols-outlined text-red-500" style="font-size: 24px;">warning</span>
+                            </div>
+                            <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">{{ _('确认删除') }}</h3>
+                            <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                                {{ _('确定要删除部门') }} "<span x-text="deletingDept?.name" class="font-medium text-slate-700 dark:text-slate-300"></span>" {{ _('吗？此操作不可恢复。') }}
+                            </p>
+                            <div class="flex items-center gap-3 w-full">
+                                <button type="button" @click="showDeleteModal = false"
+                                        class="flex-1 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                                    {{ _('取消') }}
+                                </button>
+                                <button type="button" @click="deleteDepartment()" :disabled="deleting"
+                                        class="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50">
+                                    <span x-show="!deleting">{{ _('删除') }}</span>
+                                    <span x-show="deleting">{{ _('删除中...') }}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+    {% endcall %}
+    {% endif %}
+{% endcall %}
+
+<script>
+function departmentManager() {
+    return {
+        // 数据
+        departments: [
+            {% for dept in departments %}
+            {
+                id: {{ dept.id }},
+                name: "{{ dept.name | e }}",
+                company_name: "{{ dept.company_name | e if dept.company_name else '' }}",
+                manager_id: {{ dept.manager_id if dept.manager_id else 'null' }},
+                manager_name: "{{ dept.manager.real_name | e if dept.manager else '' }}",
+                is_active: {{ 'true' if dept.is_active else 'false' }}
+            }{{ ',' if not loop.last else '' }}
+            {% endfor %}
+        ],
+        filteredDepartments: [],
+        filterCompany: '',
+
+        // 模态框状态
+        showAddModal: false,
+        showEditModal: false,
+        showDeleteModal: false,
+
+        // 表单
+        form: {
+            id: null,
+            name: '',
+            company_name: '',
+            manager_id: ''
+        },
+
+        // 删除相关
+        deletingDept: null,
+        deleting: false,
+        saving: false,
+
+        // 初始化
+        init() {
+            this.filterDepartments();
+        },
+
+        // 筛选部门
+        filterDepartments() {
+            if (this.filterCompany) {
+                this.filteredDepartments = this.departments.filter(d => d.company_name === this.filterCompany);
+            } else {
+                this.filteredDepartments = [...this.departments];
+            }
+        },
+
+        // 编辑部门
+        editDepartment(dept) {
+            this.form = {
+                id: dept.id,
+                name: dept.name,
+                company_name: dept.company_name,
+                manager_id: dept.manager_id || ''
+            };
+            this.showEditModal = true;
+        },
+
+        // 关闭模态框
+        closeModal() {
+            this.showAddModal = false;
+            this.showEditModal = false;
+            this.form = { id: null, name: '', company_name: '', manager_id: '' };
+        },
+
+        // 保存部门
+        async saveDepartment() {
+            if (!this.form.name || !this.form.company_name) {
+                alert('{{ _('部门名称和所属公司不能为空') }}');
+                return;
+            }
+
+            this.saving = true;
+            const isEdit = !!this.form.id;
+            const url = isEdit
+                ? `/user/api/departments/${this.form.id}`
+                : '/user/api/departments';
+            const method = isEdit ? 'PUT' : 'POST';
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify({
+                        name: this.form.name,
+                        company_name: this.form.company_name,
+                        manager_id: this.form.manager_id || null
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    window.location.reload();
+                } else {
+                    alert(result.message || '{{ _('操作失败') }}');
+                }
+            } catch (e) {
+                console.error('Error:', e);
+                alert('{{ _('操作失败，请稍后重试') }}');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        // 切换状态
+        async toggleStatus(dept) {
+            const action = dept.is_active ? '{{ _('禁用') }}' : '{{ _('启用') }}';
+            if (!confirm(`{{ _('确定要') }}${action}{{ _('部门') }} "${dept.name}" {{ _('吗？') }}`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/user/api/departments/${dept.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify({ is_active: !dept.is_active })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    dept.is_active = !dept.is_active;
+                } else {
+                    alert(result.message || '{{ _('操作失败') }}');
+                }
+            } catch (e) {
+                console.error('Error:', e);
+                alert('{{ _('操作失败，请稍后重试') }}');
+            }
+        },
+
+        // 确认删除
+        confirmDelete(dept) {
+            this.deletingDept = dept;
+            this.showDeleteModal = true;
+        },
+
+        // 删除部门
+        async deleteDepartment() {
+            if (!this.deletingDept) return;
+
+            this.deleting = true;
+            try {
+                const response = await fetch(`/user/api/departments/${this.deletingDept.id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    }
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    window.location.reload();
+                } else {
+                    alert(result.message || '{{ _('删除失败') }}');
+                }
+            } catch (e) {
+                console.error('Error:', e);
+                alert('{{ _('删除失败，请稍后重试') }}');
+            } finally {
+                this.deleting = false;
+                this.showDeleteModal = false;
+            }
+        }
+    };
+}
+</script>
+
+{{ render_tw_layout_script() }}
+</body>
+</html>

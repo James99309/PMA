@@ -6,6 +6,7 @@
 {% from 'components/tw_mention_editor.html' import tw_mention_editor, tw_mention_editor_script, tw_mention_preview_script with context %}
 {% from 'components/tw_file_upload.html' import render_new_file_upload, render_file_upload, render_file_icons with context %}
 {% from 'components/tw_file_preview.html' import render_file_preview_modal, render_file_preview_script with context %}
+{% from 'components/tw_grouped_select.html' import tw_grouped_select_input with context %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 
@@ -480,11 +481,15 @@
                     </header>
                     <div class="flex-1 overflow-y-auto p-6">
                         <div class="space-y-5">
+                            <!-- 标题：组合输入框（工作类型选择器 + 内容输入） -->
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('标题') }} <span class="text-red-500">*</span></label>
-                                <input type="text" x-model="formData.title" required
-                                       class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                                       placeholder="{{ _('请输入工作标题') }}">
+                                {{ tw_grouped_select_input(
+                                    group_list=work_type_groups,
+                                    labels_map=work_type_labels_json,
+                                    placeholder=_('请输入工作内容'),
+                                    required=true
+                                ) }}
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
@@ -498,61 +503,6 @@
                                            @change="calculateDuration()"
                                            class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
                                 </div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('工作类型') }}</label>
-                                <select x-model="formData.work_type" @change="onWorkTypeChange()"
-                                        class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
-                                    <optgroup label="{{ _('通用') }}">
-                                        <option value="meeting">{{ _('会议') }}</option>
-                                        <option value="internal_training">{{ _('内部培训') }}</option>
-                                        <option value="other">{{ _('其他') }}</option>
-                                    </optgroup>
-                                    <optgroup label="{{ _('行销') }}">
-                                        <option value="customer_visit">{{ _('拜访客户') }}</option>
-                                        <option value="presales_support">{{ _('售前支持') }}</option>
-                                        <option value="business_negotiation">{{ _('商务洽谈') }}</option>
-                                        <option value="customer_maintenance">{{ _('客户维护') }}</option>
-                                    </optgroup>
-                                    <optgroup label="{{ _('市场') }}">
-                                        <option value="market_planning">{{ _('市场策划') }}</option>
-                                        <option value="brand_promotion">{{ _('品牌推广') }}</option>
-                                        <option value="event_execution">{{ _('活动执行') }}</option>
-                                    </optgroup>
-                                    <optgroup label="{{ _('服务') }}">
-                                        <option value="onsite_maintenance">{{ _('现场运维') }}</option>
-                                        <option value="service_response">{{ _('服务响应') }}</option>
-                                        <option value="technical_support">{{ _('技术支持') }}</option>
-                                        <option value="troubleshooting">{{ _('故障处理') }}</option>
-                                    </optgroup>
-                                    <optgroup label="{{ _('行政') }}">
-                                        <option value="admin_affairs">{{ _('行政事务') }}</option>
-                                        <option value="office_management">{{ _('办公管理') }}</option>
-                                        <option value="asset_management">{{ _('资产管理') }}</option>
-                                    </optgroup>
-                                    <optgroup label="{{ _('人事') }}">
-                                        <option value="hr_affairs">{{ _('人事事务') }}</option>
-                                        <option value="recruitment">{{ _('招聘面试') }}</option>
-                                        <option value="employee_relations">{{ _('员工关系') }}</option>
-                                        <option value="performance_management">{{ _('绩效管理') }}</option>
-                                    </optgroup>
-                                    <optgroup label="{{ _('财务') }}">
-                                        <option value="finance_work">{{ _('财务工作') }}</option>
-                                        <option value="expense_review">{{ _('报销审核') }}</option>
-                                        <option value="accounting">{{ _('账务处理') }}</option>
-                                    </optgroup>
-                                    <optgroup label="{{ _('产品') }}">
-                                        <option value="product_research">{{ _('产品调研') }}</option>
-                                        <option value="requirement_analysis">{{ _('需求分析') }}</option>
-                                        <option value="product_planning">{{ _('产品规划') }}</option>
-                                    </optgroup>
-                                    <optgroup label="{{ _('供应链') }}">
-                                        <option value="procurement">{{ _('采购管理') }}</option>
-                                        <option value="inventory_management">{{ _('库存管理') }}</option>
-                                        <option value="logistics">{{ _('物流协调') }}</option>
-                                        <option value="quality_tracking">{{ _('品质跟踪') }}</option>
-                                    </optgroup>
-                                </select>
                             </div>
                             <div>
                                 <div class="flex items-center gap-6 mb-2">
@@ -1340,8 +1290,16 @@ function workCalendar() {
         showCustomerDropdown: false,
         searchTimer: null,
         formData: {
-            title: '', planned_date: '', end_date: '', work_type: 'other', is_all_day: false,
-            start_time: '', end_time: '', estimated_hours: '', project_id: '', customer_id: '', contact_id: '', description: ''
+            planned_date: '', end_date: '', work_type: 'other', is_all_day: false,
+            is_business_trip: false, start_time: '', end_time: '', estimated_hours: '',
+            project_id: '', customer_id: '', contact_id: '', description: ''
+        },
+        // 组合输入框组件状态
+        groupedSelect: {
+            selectedValue: 'other',
+            inputContent: '',
+            showMenu: false,
+            expandedGroups: []
         },
         completeData: { actual_hours: '', execution_notes: '' },
         // 共享相关状态
@@ -1651,30 +1609,92 @@ function workCalendar() {
             this.sharedUsers = [];
             this.isOwner = true;
             this.ownerName = '';
-            this.formData = { title: '', planned_date: '', end_date: '', work_type: 'other', is_all_day: false, is_business_trip: false,
+            this.formData = { planned_date: '', end_date: '', work_type: 'other', is_all_day: false, is_business_trip: false,
                 start_time: '09:00', end_time: '10:00', estimated_hours: '', project_id: '', customer_id: '', contact_id: '', description: '' };
+            // 重置组合输入框组件状态
+            this.groupedSelect = {
+                selectedValue: 'other',
+                inputContent: '',
+                showMenu: false,
+                expandedGroups: []
+            };
         },
 
-        // 工作类型变化时更新标题前缀
-        onWorkTypeChange() {
-            const label = this.workTypeLabels[this.formData.work_type] || '';
-            const currentTitle = this.formData.title || '';
-
-            // 动态生成匹配所有工作类型前缀的正则表达式
-            const allLabels = Object.values(this.workTypeLabels).map(l => l.replace(/[\/]/g, '\\/')).join('|');
-            const prefixPattern = new RegExp('^(' + allLabels + ')-');
-
-            if (prefixPattern.test(currentTitle)) {
-                // 替换现有前缀
-                this.formData.title = currentTitle.replace(prefixPattern, label + '-');
-            } else if (currentTitle) {
-                // 添加前缀到已有内容
-                this.formData.title = label + '-' + currentTitle;
-            } else {
-                // 空标题，只设置前缀
-                this.formData.title = label + '-';
+        // ========== 组合输入框组件方法 ==========
+        toggleGroupedMenu() {
+            this.groupedSelect.showMenu = !this.groupedSelect.showMenu;
+            // 打开时自动展开当前选中项所在分组
+            if (this.groupedSelect.showMenu && this.groupedSelect.selectedValue) {
+                this.expandGroupedForValue(this.groupedSelect.selectedValue);
             }
         },
+
+        toggleGroupedGroup(key) {
+            const index = this.groupedSelect.expandedGroups.indexOf(key);
+            if (index > -1) {
+                // 点击已展开的分组 - 折叠它
+                this.groupedSelect.expandedGroups.splice(index, 1);
+            } else {
+                // 点击未展开的分组 - 清空其他，只展开这一个（手风琴效果）
+                this.groupedSelect.expandedGroups = [key];
+            }
+        },
+
+        selectGroupedItem(value) {
+            this.groupedSelect.selectedValue = value;
+            this.groupedSelect.showMenu = false;
+        },
+
+        getGroupedSelectLabel() {
+            return this.workTypeLabels[this.groupedSelect.selectedValue] || this.groupedSelect.selectedValue || '';
+        },
+
+        getGroupedSelectFullValue() {
+            const label = this.getGroupedSelectLabel();
+            const content = this.groupedSelect.inputContent.trim();
+            if (!label) return content;
+            if (!content) return label + '-';
+            return label + '-' + content;
+        },
+
+        expandGroupedForValue(value) {
+            // 根据值找到对应的分组并展开
+            const groupMap = {
+                'meeting': 'common', 'internal_training': 'common', 'other': 'common',
+                'customer_visit': 'sales', 'presales_support': 'sales', 'business_negotiation': 'sales', 'customer_maintenance': 'sales',
+                'market_planning': 'marketing', 'brand_promotion': 'marketing', 'event_execution': 'marketing',
+                'onsite_maintenance': 'service', 'service_response': 'service', 'technical_support': 'service', 'troubleshooting': 'service',
+                'admin_affairs': 'admin', 'office_management': 'admin', 'asset_management': 'admin',
+                'hr_affairs': 'hr', 'recruitment': 'hr', 'employee_relations': 'hr', 'performance_management': 'hr',
+                'finance_work': 'finance', 'expense_review': 'finance', 'accounting': 'finance',
+                'product_research': 'product', 'requirement_analysis': 'product', 'product_planning': 'product',
+                'procurement': 'supply_chain', 'inventory_management': 'supply_chain', 'logistics': 'supply_chain', 'quality_tracking': 'supply_chain'
+            };
+            const groupKey = groupMap[value];
+            if (groupKey && !this.groupedSelect.expandedGroups.includes(groupKey)) {
+                this.groupedSelect.expandedGroups.push(groupKey);
+            }
+        },
+
+        parseGroupedTitle(fullTitle, workType) {
+            if (!fullTitle) {
+                this.groupedSelect.selectedValue = workType || 'other';
+                this.groupedSelect.inputContent = '';
+                return;
+            }
+            this.groupedSelect.selectedValue = workType || 'other';
+            const label = this.workTypeLabels[workType] || '';
+            const prefix = label + '-';
+            if (label && fullTitle.startsWith(prefix)) {
+                this.groupedSelect.inputContent = fullTitle.substring(prefix.length);
+            } else if (fullTitle.includes('-')) {
+                const parts = fullTitle.split('-');
+                this.groupedSelect.inputContent = parts.slice(1).join('-');
+            } else {
+                this.groupedSelect.inputContent = fullTitle;
+            }
+        },
+        // ========== 组合输入框组件方法结束 ==========
 
         // 加载客户的联系人列表
         async loadContacts() {
@@ -1892,9 +1912,7 @@ function workCalendar() {
 
             // 确保初始时长为空（由用户触发计算或手动输入）
             this.formData.estimated_hours = '';
-            // 设置默认标题前缀（工作类型-）
-            const defaultLabel = this.workTypeLabels[this.formData.work_type] || '';
-            this.formData.title = defaultLabel + '-';
+            // 组合输入框组件已在 resetFormData 中初始化
             document.getElementById('workItemModal').classList.remove('hidden');
             document.body.style.overflow = 'hidden';
         },
@@ -1928,7 +1946,7 @@ function workCalendar() {
                     this.endHour = eh || '10'; this.endMinute = em || '00';
                 } else { this.endHour = '10'; this.endMinute = '00'; }
                 this.formData = {
-                    title: item.title || '', planned_date: item.planned_date || '', end_date: item.end_date || '',
+                    planned_date: item.planned_date || '', end_date: item.end_date || '',
                     work_type: item.work_type || 'other', is_all_day: item.is_all_day !== false,
                     is_business_trip: item.is_business_trip || false,
                     start_time: item.start_time || '09:00', end_time: item.end_time || '10:00',
@@ -1937,6 +1955,11 @@ function workCalendar() {
                     contact_id: item.contact_id ? String(item.contact_id) : '',  // 转为字符串，匹配 <select> value 类型
                     description: item.description || ''
                 };
+
+                // 设置组合输入框组件（解析标题）
+                if (this.groupedSelect) {
+                    this.parseGroupedTitle(item.title || '', item.work_type || 'other');
+                }
 
                 // 设置搜索输入框显示文本
                 this.projectSearchInput = item.project_name || '';
@@ -2105,17 +2128,24 @@ function workCalendar() {
         },
 
         async saveWorkItem() {
-            if (!this.formData.title || !this.formData.planned_date) {
-                window.TwNotification?.show('{{ _("请填写标题和计划日期") }}', 'warning');
+            // 从组合输入框组件获取完整标题
+            const fullTitle = this.getGroupedSelectFullValue();
+            const workType = this.groupedSelect.selectedValue;
+            const titleContent = this.groupedSelect.inputContent;
+
+            if (!titleContent.trim() || !this.formData.planned_date) {
+                window.TwNotification?.show('{{ _("请填写工作内容和计划日期") }}', 'warning');
                 return;
             }
             this.saving = true;
             const url = this.editingItem ? `/worklog/api/items/${this.editingItem}` : '/worklog/api/items';
             const method = this.editingItem ? 'PUT' : 'POST';
             try {
-                // 构建请求数据，包含共享用户ID列表
+                // 构建请求数据，包含共享用户ID列表和组合标题
                 const requestData = {
                     ...this.formData,
+                    title: fullTitle,
+                    work_type: workType,
                     shared_with_users: this.sharedUsers.map(u => u.id)
                 };
                 const response = await fetch(url, {

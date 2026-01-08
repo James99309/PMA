@@ -276,19 +276,25 @@ class ExpenseDetail(db.Model):
 class Department(db.Model):
     """部门模型"""
     __tablename__ = 'departments'
-    
+
     id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False, unique=True)  # 部门名称
-    code = Column(String(20), nullable=False, unique=True)  # 部门代码
+    name = Column(String(100), nullable=False)  # 部门名称
+    code = Column(String(50), nullable=False)  # 部门代码
+    company_name = Column(String(200), nullable=True)  # 所属公司
     parent_id = Column(Integer, ForeignKey('departments.id'), nullable=True)  # 上级部门
     manager_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # 部门经理
     is_active = Column(Boolean, default=True)  # 是否启用
     created_at = Column(DateTime, default=get_local_time)
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
-    
+
     # 关系定义
     parent = relationship('Department', remote_side=[id], backref='children')
     manager = relationship('User', backref='managed_departments')
+
+    # 复合唯一约束：同一公司内部门名称唯一
+    __table_args__ = (
+        db.UniqueConstraint('name', 'company_name', name='uq_department_name_company'),
+    )
     
     def __repr__(self):
         return f'<Department {self.name}>'

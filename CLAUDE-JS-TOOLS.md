@@ -49,6 +49,7 @@
 | file-upload-component.js | 通用文件上传组件 | 图片/PDF附件上传、预览、删除 | 2 | ✅ 已文档化 🆕 |
 | common/attachment-display.js | 附件图标显示组件 | 统一的附件图标方块渲染（预览、删除） | 1 | ✅ 已文档化 🆕 |
 | currency-helpers.js | 货币转换辅助工具 | 货币符号、单位、除数映射及格式化 | 2+ | ✅ 已文档化 🆕 |
+| tw-grouped-select.js | 树形分组下拉选择器 | 分组下拉选择+输入框组合（类型选择器） | 1 | ✅ 已文档化 🆕 |
 
 > **说明**:
 > - ✅ 已文档化 - 有完整的API文档和使用示例
@@ -518,6 +519,221 @@ def api_reorder_categories():
 - 卡片列表排序
 - 简单项目列表排序
 - 不需要SortableJS复杂功能的场景
+
+---
+
+#### tw-grouped-select（树形分组下拉选择器）
+
+**基本信息**
+
+- **模板组件**: `app/templates/components/tw_grouped_select.html`
+- **功能描述**: 树形分组下拉选择器 + 输入框组合组件
+- **依赖库**: Alpine.js
+- **创建日期**: 2026-01-09
+
+**已使用页面**
+1. `app/templates/worklog/tw_calendar.html` - 工作日历页面的标题输入
+
+**核心特性**
+- 统一输入框外观，前半部分为类型选择器，后半部分为内容输入
+- 树形折叠下拉菜单，支持手风琴效果（展开一个自动折叠其他）
+- 自动展开当前选中项所在分组
+- 切换类型时保留输入内容
+- 完整的暗色模式支持
+- 键盘导航支持（ESC关闭）
+
+**⚠️ 使用说明**
+
+当前为**嵌入式组件**，需在父 Alpine 组件中添加状态和方法。
+原因：Alpine.js 嵌套 x-data 存在初始化问题，故采用父组件集成方式。
+
+---
+
+**使用步骤**
+
+**1. 后端准备数据**（views.py）
+
+```python
+from flask_babel import _
+
+# 分组数据 - 注意使用 options 而非 items（避免与 Jinja2 内置冲突）
+work_type_groups = [
+    {'key': 'common', 'label': _('通用'), 'options': [
+        {'value': 'meeting', 'label': _('会议')},
+        {'value': 'internal_training', 'label': _('内部培训')},
+        {'value': 'other', 'label': _('其他')}
+    ]},
+    {'key': 'sales', 'label': _('行销'), 'options': [
+        {'value': 'customer_visit', 'label': _('拜访客户')},
+        {'value': 'presales_support', 'label': _('售前支持')},
+        {'value': 'business_negotiation', 'label': _('商务洽谈')}
+    ]},
+    # ... 更多分组
+]
+
+# 标签映射（用于显示和解析）
+work_type_labels = {
+    'meeting': _('会议'),
+    'internal_training': _('内部培训'),
+    'other': _('其他'),
+    'customer_visit': _('拜访客户'),
+    # ... 所有选项
+}
+
+return render_template('xxx.html',
+    work_type_groups=work_type_groups,
+    work_type_labels=work_type_labels
+)
+```
+
+**2. 父组件添加状态**（Alpine x-data 中）
+
+```javascript
+return {
+    // ... 其他状态
+
+    // 标签映射（从后端传入）
+    workTypeLabels: {{ work_type_labels | tojson | safe }},
+
+    // 组合输入框状态
+    groupedSelect: {
+        selectedValue: 'other',      // 当前选中的值
+        inputContent: '',            // 输入框内容
+        showMenu: false,             // 下拉菜单显示状态
+        expandedGroups: []           // 展开的分组列表
+    },
+
+    // ... 其他状态
+}
+```
+
+**3. 父组件添加方法**（Alpine methods 中）
+
+```javascript
+// ========== 组合输入框组件方法 ==========
+toggleGroupedMenu() {
+    this.groupedSelect.showMenu = !this.groupedSelect.showMenu;
+    // 打开时自动展开当前选中项所在分组
+    if (this.groupedSelect.showMenu && this.groupedSelect.selectedValue) {
+        this.expandGroupedForValue(this.groupedSelect.selectedValue);
+    }
+},
+
+toggleGroupedGroup(key) {
+    const index = this.groupedSelect.expandedGroups.indexOf(key);
+    if (index > -1) {
+        // 点击已展开的分组 - 折叠它
+        this.groupedSelect.expandedGroups.splice(index, 1);
+    } else {
+        // 点击未展开的分组 - 清空其他，只展开这一个（手风琴效果）
+        this.groupedSelect.expandedGroups = [key];
+    }
+},
+
+selectGroupedItem(value) {
+    this.groupedSelect.selectedValue = value;
+    this.groupedSelect.showMenu = false;
+},
+
+getGroupedSelectLabel() {
+    return this.workTypeLabels[this.groupedSelect.selectedValue] || this.groupedSelect.selectedValue || '';
+},
+
+getGroupedSelectFullValue() {
+    const label = this.getGroupedSelectLabel();
+    const content = this.groupedSelect.inputContent.trim();
+    if (!label) return content;
+    if (!content) return label + '-';
+    return label + '-' + content;
+},
+
+expandGroupedForValue(value) {
+    // 根据值找到对应的分组并展开（需要根据实际分组配置修改）
+    const groupMap = {
+        'meeting': 'common', 'internal_training': 'common', 'other': 'common',
+        'customer_visit': 'sales', 'presales_support': 'sales', 'business_negotiation': 'sales',
+        // ... 根据实际分组配置
+    };
+    const groupKey = groupMap[value];
+    if (groupKey && !this.groupedSelect.expandedGroups.includes(groupKey)) {
+        this.groupedSelect.expandedGroups.push(groupKey);
+    }
+},
+
+parseGroupedTitle(fullTitle, workType) {
+    // 解析标题，分离类型和内容（用于编辑时回填）
+    if (!fullTitle) {
+        this.groupedSelect.selectedValue = workType || 'other';
+        this.groupedSelect.inputContent = '';
+        return;
+    }
+    this.groupedSelect.selectedValue = workType || 'other';
+    const label = this.workTypeLabels[workType] || '';
+    const prefix = label + '-';
+    if (label && fullTitle.startsWith(prefix)) {
+        this.groupedSelect.inputContent = fullTitle.substring(prefix.length);
+    } else if (fullTitle.includes('-')) {
+        const parts = fullTitle.split('-');
+        this.groupedSelect.inputContent = parts.slice(1).join('-');
+    } else {
+        this.groupedSelect.inputContent = fullTitle;
+    }
+},
+
+resetGroupedSelect(defaultValue = 'other') {
+    this.groupedSelect.selectedValue = defaultValue;
+    this.groupedSelect.inputContent = '';
+    this.groupedSelect.showMenu = false;
+    this.groupedSelect.expandedGroups = [];
+},
+// ========== 组合输入框组件方法结束 ==========
+```
+
+**4. 模板中使用宏**
+
+```jinja2
+{% from 'components/tw_grouped_select.html' import tw_grouped_select_input %}
+
+<!-- 在表单中使用 -->
+<div class="space-y-1">
+    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">
+        {{ _('标题') }}
+    </label>
+    {{ tw_grouped_select_input(
+        group_list=work_type_groups,
+        labels_map=work_type_labels,
+        placeholder=_('请输入工作内容'),
+        required=true
+    ) }}
+</div>
+```
+
+**5. 获取/设置值**
+
+```javascript
+// 获取完整标题（保存时使用）
+const title = this.getGroupedSelectFullValue();  // "会议-周例会"
+
+// 获取分离的值
+const workType = this.groupedSelect.selectedValue;    // "meeting"
+const content = this.groupedSelect.inputContent;      // "周例会"
+
+// 编辑时解析已有标题
+this.parseGroupedTitle(item.title, item.work_type);
+
+// 重置（新建时）
+this.resetGroupedSelect('other');
+```
+
+---
+
+**适用场景**
+- 工作类型选择 + 标题输入
+- 费用类型选择 + 说明输入
+- 任何需要"分类选择 + 自定义内容"的场景
+
+**参考实现**
+- 完整示例：`app/templates/worklog/tw_calendar.html` 第1298-1696行
 
 ---
 

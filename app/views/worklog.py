@@ -355,6 +355,59 @@ def calendar():
     # 工作类型映射（用于前端 JavaScript）
     work_type_labels_json = {key: _(label) for key, label in WorkItem.TYPE_LABELS.items()}
 
+    # 工作类型分组数据（用于组合输入框组件）
+    work_type_groups = [
+        {'key': 'common', 'label': _('通用'), 'options': [
+            {'value': 'meeting', 'label': _('会议')},
+            {'value': 'internal_training', 'label': _('内部培训')},
+            {'value': 'other', 'label': _('其他')}
+        ]},
+        {'key': 'sales', 'label': _('行销'), 'options': [
+            {'value': 'customer_visit', 'label': _('拜访客户')},
+            {'value': 'presales_support', 'label': _('售前支持')},
+            {'value': 'business_negotiation', 'label': _('商务洽谈')},
+            {'value': 'customer_maintenance', 'label': _('客户维护')}
+        ]},
+        {'key': 'marketing', 'label': _('市场'), 'options': [
+            {'value': 'market_planning', 'label': _('市场策划')},
+            {'value': 'brand_promotion', 'label': _('品牌推广')},
+            {'value': 'event_execution', 'label': _('活动执行')}
+        ]},
+        {'key': 'service', 'label': _('服务'), 'options': [
+            {'value': 'onsite_maintenance', 'label': _('现场运维')},
+            {'value': 'service_response', 'label': _('服务响应')},
+            {'value': 'technical_support', 'label': _('技术支持')},
+            {'value': 'troubleshooting', 'label': _('故障处理')}
+        ]},
+        {'key': 'admin', 'label': _('行政'), 'options': [
+            {'value': 'admin_affairs', 'label': _('行政事务')},
+            {'value': 'office_management', 'label': _('办公管理')},
+            {'value': 'asset_management', 'label': _('资产管理')}
+        ]},
+        {'key': 'hr', 'label': _('人事'), 'options': [
+            {'value': 'hr_affairs', 'label': _('人事事务')},
+            {'value': 'recruitment', 'label': _('招聘面试')},
+            {'value': 'employee_relations', 'label': _('员工关系')},
+            {'value': 'performance_management', 'label': _('绩效管理')}
+        ]},
+        {'key': 'finance', 'label': _('财务'), 'options': [
+            {'value': 'finance_work', 'label': _('财务工作')},
+            {'value': 'expense_review', 'label': _('报销审核')},
+            {'value': 'accounting', 'label': _('账务处理')}
+        ]},
+        {'key': 'product', 'label': _('产品'), 'options': [
+            {'value': 'product_research', 'label': _('产品调研')},
+            {'value': 'requirement_analysis', 'label': _('需求分析')},
+            {'value': 'product_planning', 'label': _('产品规划')}
+        ]},
+        {'key': 'supply_chain', 'label': _('供应链'), 'options': [
+            {'value': 'procurement', 'label': _('采购管理')},
+            {'value': 'inventory_management', 'label': _('库存管理')},
+            {'value': 'logistics', 'label': _('物流协调')},
+            {'value': 'quality_tracking', 'label': _('品质跟踪')}
+        ]}
+    ]
+
     # 检查是否有下属（用于显示团队日志按钮）
     # 有下属的用户可以查看团队日志
     subordinate_ids = get_subordinate_user_ids(current_user)
@@ -375,6 +428,7 @@ def calendar():
         'worklog/tw_calendar.html',
         work_type_options=work_type_options,
         work_type_labels_json=work_type_labels_json,
+        work_type_groups=work_type_groups,
         has_manage_permission=has_manage_permission,
         projects=projects,
         customers=customers,
@@ -934,12 +988,8 @@ def complete_item(item_id):
     worklog = WorkLog.get_or_create(current_user.id, work_item.planned_date)
     work_item.worklog_id = worklog.id
 
-    # 更新日志总工时（使用 round 避免浮点数精度问题）
-    worklog.total_hours = round(sum(
-        i.actual_hours or 0
-        for i in worklog.work_items
-        if i.status == 'completed' and not i.is_deleted
-    ), 1)
+    # 更新日志总工时（使用智能计算：去重、扣除午休、上限8小时）
+    worklog.total_hours = worklog.calculate_smart_hours()
 
     # 如果关联了客户或项目，且有行动记录内容，则同步创建 Action 记录
     sync_action = data.get('sync_action', False)
@@ -1081,12 +1131,12 @@ def get_daily_log(log_date):
     pending_items = [i.to_dict() for i in work_items if i.status == 'planned']
     cancelled_items = [i.to_dict() for i in work_items if i.status == 'cancelled']
 
-    # 计算统计数据（使用 round 避免浮点数精度问题）
+    # 计算统计数据（使用智能工时计算：去重、扣除午休、上限8小时）
     stats = {
         'total_items': len(work_items),
         'completed_items': len(completed_items),
         'pending_items': len(pending_items),
-        'total_hours': round(sum(i.actual_hours or 0 for i in work_items if i.status == 'completed'), 1),
+        'total_hours': WorkLog._calculate_hours_for_items(work_items),  # 智能计算
         'project_count': len(set(i.project_id for i in work_items if i.project_id)),
         'customer_count': len(set(i.customer_id for i in work_items if i.customer_id))
     }
@@ -1228,17 +1278,16 @@ def submit_daily_log(log_date):
     worklog.status = 'submitted'
     worklog.submitted_at = get_local_time()
 
-    # 更新总工时（包含共享给当前用户的已完成工作项）
-    work_items = WorkItem.query.filter(
+    # 更新总工时（使用智能计算，包含共享给当前用户的工作项）
+    # 查询共享给当前用户但不属于当前用户的工作项
+    shared_items = WorkItem.query.filter(
         WorkItem.planned_date == target_date,
         WorkItem.status == 'completed',
         WorkItem.is_deleted == False,
-        or_(
-            WorkItem.owner_id == current_user.id,
-            cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{current_user.id}]'::jsonb"))
-        )
+        WorkItem.owner_id != current_user.id,  # 排除自己的（已在 worklog.work_items 中）
+        cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{current_user.id}]'::jsonb"))
     ).all()
-    worklog.total_hours = round(sum(i.actual_hours or 0 for i in work_items), 1)
+    worklog.total_hours = worklog.calculate_smart_hours(extra_items=shared_items)
 
     db.session.commit()
 

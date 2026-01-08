@@ -2263,7 +2263,8 @@ def get_user_basic_info(user_id):
                     'role': user.role,
                     'settlement_currency': user.settlement_currency,
                     'is_active': user.is_active,
-                    'is_department_manager': user.is_department_manager
+                    'is_department_manager': user.is_department_manager,
+                    'managed_department_ids': user.managed_department_ids
                 },
                 'ai_config': {
                     'enabled': employee_config.ai_analysis_enabled if employee_config else False

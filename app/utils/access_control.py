@@ -87,15 +87,62 @@ def get_personal_viewable_user_ids(user):
     affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
     viewable_user_ids.extend([aff.owner_id for aff in affiliations])
 
-    # 部门负责人权限
-    if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+    # 部门负责人权限 - 使用新的辅助函数，支持多部门管理
+    managed_depts = get_managed_departments(user)
+    for dept_name, company_name in managed_depts:
         dept_users = User.query.filter_by(
-            department=user.department,
-            company_name=user.company_name
+            department=dept_name,
+            company_name=company_name
         ).all()
         viewable_user_ids.extend([u.id for u in dept_users])
 
     return list(set(viewable_user_ids))
+
+
+def get_managed_departments(user):
+    """
+    获取用户管理的部门列表（兼容新旧两种方式）
+
+    新方式：通过Department.manager_id关联
+    旧方式：通过User.is_department_manager标记（向后兼容）
+
+    参数:
+        user: 用户对象
+
+    返回:
+        list: [(department_name, company_name), ...] 部门名称和公司名称的元组列表
+    """
+    managed_depts = []
+
+    # 新方式：从Department表获取管理的部门
+    from app.models.expense import Department
+    departments = Department.query.filter_by(manager_id=user.id).all()
+    for dept in departments:
+        managed_depts.append((dept.name, dept.company_name))
+
+    # 旧方式：向后兼容is_department_manager标记
+    if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+        # 检查是否已经通过新方式添加（避免重复）
+        if (user.department, user.company_name) not in managed_depts:
+            managed_depts.append((user.department, user.company_name))
+
+    return managed_depts
+
+
+def is_manager_of_department(user, department_name, company_name):
+    """
+    检查用户是否是指定部门的负责人（兼容新旧两种方式）
+
+    参数:
+        user: 用户对象
+        department_name: 部门名称
+        company_name: 公司名称
+
+    返回:
+        bool: 是否是该部门的负责人
+    """
+    managed_depts = get_managed_departments(user)
+    return (department_name, company_name) in managed_depts
 
 def _check_permission_level_scope(user, target_owner_id, permission_level):
     """
@@ -792,12 +839,13 @@ def get_viewable_data(model_class, user, special_filters=None):
                     ).all()
                     subordinate_ids.extend([u.id for u in subordinates])
         
-        # 2. 基于部门负责人关系的上级权限
-        if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+        # 2. 基于部门负责人关系的上级权限 - 支持多部门管理
+        managed_depts = get_managed_departments(user)
+        for dept_name, company_name in managed_depts:
             # 部门负责人可以查看本部门所有成员的非共享记录
             dept_members = User.query.filter(
-                User.department == user.department,
-                User.company_name == user.company_name,
+                User.department == dept_name,
+                User.company_name == company_name,
                 User.id != user.id  # 排除自己
             ).all()
             subordinate_ids.extend([u.id for u in dept_members])
@@ -1089,15 +1137,19 @@ def can_edit_data(model_obj, user):
                 return (owner and owner.department == user.department and
                        owner.company_name == user.company_name)
 
-        # 部门负责人特殊权限：可以编辑本公司本部门所有用户的报销单
-        if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+        # 部门负责人特殊权限：可以编辑本公司本部门所有用户的报销单 - 支持多部门管理
+        managed_depts = get_managed_departments(user)
+        if managed_depts:
             if hasattr(model_obj, 'owner') and model_obj.owner:
-                return (model_obj.owner.department == user.department and
-                       model_obj.owner.company_name == user.company_name)
+                owner_dept = (model_obj.owner.department, model_obj.owner.company_name)
+                if owner_dept in managed_depts:
+                    return True
             else:
                 owner = User.query.get(model_obj.owner_id)
-                return (owner and owner.department == user.department and
-                       owner.company_name == user.company_name)
+                if owner:
+                    owner_dept = (owner.department, owner.company_name)
+                    if owner_dept in managed_depts:
+                        return True
 
         # personal级别：已在基本权限保障中处理，这里返回False
         return False
@@ -1208,15 +1260,16 @@ def can_view_company(user, company):
         logger.debug(f"[权限检查] 归属关系权限 - 允许访问")
         return True
     
-    # 部门负责人权限：可以查看本公司本部门所有用户的客户
-    if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+    # 部门负责人权限：可以查看本公司本部门所有用户的客户 - 支持多部门管理
+    managed_depts = get_managed_departments(user)
+    if managed_depts:
         company_owner = User.query.get(company.owner_id)
-        if (company_owner and 
-            company_owner.department == user.department and 
-            company_owner.company_name == user.company_name):
-            logger.debug(f"[权限检查] 部门负责人权限 - 允许访问")
-            return True
-    
+        if company_owner:
+            owner_dept = (company_owner.department, company_owner.company_name)
+            if owner_dept in managed_depts:
+                logger.debug(f"[权限检查] 部门负责人权限 - 允许访问")
+                return True
+
     # 判断是否创建了该公司下的联系人
     from app.models.customer import Contact
     contact_count = Contact.query.filter_by(company_id=company.id, owner_id=user.id).count()
@@ -1291,14 +1344,15 @@ def can_view_quotation(user, quotation):
         logger.debug(f"[权限检查] 归属关系权限 - 允许访问")
         return True
 
-    # 部门负责人权限：可以查看本公司本部门所有用户的报价单
-    if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+    # 部门负责人权限：可以查看本公司本部门所有用户的报价单 - 支持多部门管理
+    managed_depts = get_managed_departments(user)
+    if managed_depts:
         quotation_owner = User.query.get(quotation.owner_id)
-        if (quotation_owner and
-            quotation_owner.department == user.department and
-            quotation_owner.company_name == user.company_name):
-            logger.debug(f"[权限检查] 部门负责人权限 - 允许访问")
-            return True
+        if quotation_owner:
+            owner_dept = (quotation_owner.department, quotation_owner.company_name)
+            if owner_dept in managed_depts:
+                logger.debug(f"[权限检查] 部门负责人权限 - 允许访问")
+                return True
 
     # 判断是否通过共享获得权限
     if hasattr(quotation, 'shared_with_users') and quotation.shared_with_users:
@@ -1383,14 +1437,15 @@ def can_view_pricing_order(user, pricing_order):
 
     # 批价单不使用归属关系机制（已移除，与报销单保持一致）
 
-    # 部门负责人权限：可以查看本公司本部门所有用户的批价单
-    if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+    # 部门负责人权限：可以查看本公司本部门所有用户的批价单 - 支持多部门管理
+    managed_depts = get_managed_departments(user)
+    if managed_depts:
         creator = User.query.get(pricing_order.created_by)
-        if (creator and
-            creator.department == user.department and
-            creator.company_name == user.company_name):
-            logger.debug(f"[权限检查] 部门负责人权限 - 允许访问")
-            return True
+        if creator:
+            creator_dept = (creator.department, creator.company_name)
+            if creator_dept in managed_depts:
+                logger.debug(f"[权限检查] 部门负责人权限 - 允许访问")
+                return True
 
     # 判断是否通过共享获得权限
     if hasattr(pricing_order, 'shared_with_users') and pricing_order.shared_with_users:

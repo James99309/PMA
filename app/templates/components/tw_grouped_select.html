@@ -1,0 +1,140 @@
+{#
+=============================================================================
+Tailwind 树形分组下拉选择器 + 输入框组合组件
+=============================================================================
+提供统一的分组下拉选择器与输入框组合，支持树形折叠分组菜单。
+
+注意：此组件需要在父级 Alpine 组件中提供以下状态和方法：
+- groupedSelect: { selectedValue, inputContent, showMenu, expandedGroups }
+- groupedSelectMethods: { toggleMenu, toggleGroup, selectItem, getSelectedLabel }
+
+使用方式：
+1. 在父组件中初始化状态（见 tw-grouped-select.js 的 initGroupedSelect 函数）
+2. 在模板中使用宏渲染 UI
+
+参数：
+- group_list: 分组数据，格式：[{key, label, options: [{value, label}]}]
+- labels_map: 值到标签的映射
+- placeholder: 输入框占位符
+- required: 是否必填
+- disabled: 是否禁用
+=============================================================================
+#}
+
+{% macro tw_grouped_select_input(
+    group_list,
+    labels_map,
+    placeholder='',
+    required=false,
+    disabled=false
+) %}
+<div class="relative">
+
+    <!-- 组合输入框外观 -->
+    <div class="flex items-center h-10 rounded-lg border transition-colors
+                border-slate-300 dark:border-slate-600
+                bg-white dark:bg-slate-800
+                focus-within:ring-2 focus-within:ring-primary/50 focus-within:border-primary
+                {% if disabled %}opacity-50 cursor-not-allowed{% endif %}"
+         :class="groupedSelect.showMenu ? 'ring-2 ring-primary/50 border-primary' : ''">
+
+        <!-- 类型选择触发器 -->
+        <button type="button"
+                @click="{% if not disabled %}toggleGroupedMenu(){% endif %}"
+                @keydown.escape="groupedSelect.showMenu = false"
+                class="flex items-center gap-1.5 h-full pl-3 pr-2
+                       text-sm text-slate-700 dark:text-slate-200
+                       hover:bg-slate-50 dark:hover:bg-slate-700/50
+                       rounded-l-lg transition-colors shrink-0
+                       focus:outline-none"
+                {% if disabled %}disabled{% endif %}>
+            <span x-text="getGroupedSelectLabel()" class="font-medium"></span>
+            <svg class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200"
+                 :class="groupedSelect.showMenu ? 'rotate-180' : ''"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+        </button>
+
+        <!-- 分隔符 -->
+        <span class="text-slate-400 dark:text-slate-500 select-none px-0.5">-</span>
+
+        <!-- 内容输入框 -->
+        <input type="text"
+               x-model="groupedSelect.inputContent"
+               class="flex-1 h-full bg-transparent border-none
+                      text-sm text-slate-900 dark:text-white
+                      placeholder:text-slate-400 dark:placeholder:text-slate-500
+                      focus:ring-0 focus:outline-none pr-3"
+               placeholder="{{ placeholder }}"
+               {% if required %}required{% endif %}
+               {% if disabled %}disabled{% endif %}>
+    </div>
+
+    <!-- 下拉菜单 -->
+    <div x-show="groupedSelect.showMenu"
+         x-transition:enter="transition ease-out duration-150"
+         x-transition:enter-start="opacity-0 -translate-y-1"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-100"
+         x-transition:leave-start="opacity-100 translate-y-0"
+         x-transition:leave-end="opacity-0 -translate-y-1"
+         @click.outside="groupedSelect.showMenu = false"
+         @keydown.escape.window="groupedSelect.showMenu = false"
+         class="absolute left-0 top-full mt-1 w-64 max-h-80 overflow-y-auto
+                bg-white dark:bg-slate-800
+                rounded-lg shadow-lg
+                border border-slate-200 dark:border-slate-700
+                z-50"
+         x-cloak>
+
+        <div class="py-1">
+            {% for group in group_list %}
+            <div class="border-b border-slate-100 dark:border-slate-700 last:border-b-0">
+                <!-- 分组标题（可点击展开/折叠） -->
+                <button type="button"
+                        @click="toggleGroupedGroup('{{ group.key }}')"
+                        class="w-full flex items-center justify-between px-3 py-2
+                               text-sm font-medium text-slate-600 dark:text-slate-300
+                               hover:bg-slate-50 dark:hover:bg-slate-700/50
+                               transition-colors">
+                    <span>{{ group.label }}</span>
+                    <svg class="w-4 h-4 text-slate-400 transition-transform duration-200"
+                         :class="groupedSelect.expandedGroups.includes('{{ group.key }}') ? 'rotate-90' : ''"
+                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </button>
+
+                <!-- 分组选项 -->
+                <div x-show="groupedSelect.expandedGroups.includes('{{ group.key }}')"
+                     x-transition:enter="transition ease-out duration-100"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100"
+                     class="pb-1">
+                    {% for item in group.options %}
+                    <button type="button"
+                            @click="selectGroupedItem('{{ item.value }}')"
+                            class="w-full flex items-center gap-2 pl-6 pr-3 py-1.5
+                                   text-sm text-slate-700 dark:text-slate-200
+                                   hover:bg-primary/10 dark:hover:bg-primary/20
+                                   transition-colors"
+                            :class="groupedSelect.selectedValue === '{{ item.value }}' ? 'bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary-light font-medium' : ''">
+                        <!-- 选中指示器 -->
+                        <span class="w-4 flex justify-center">
+                            <svg x-show="groupedSelect.selectedValue === '{{ item.value }}'"
+                                 class="w-4 h-4 text-primary"
+                                 fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                        </span>
+                        <span>{{ item.label }}</span>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endmacro %}

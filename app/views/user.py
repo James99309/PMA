@@ -1705,21 +1705,154 @@ def manage_companies():
 @user_bp.route('/manage-departments', methods=['GET'])
 @login_required
 def manage_departments():
-    """部门字典管理页面（管理dictionaries表中type=department的记录）"""
+    """部门管理页面（管理 Department 表）"""
     if not current_user.has_permission('dictionary_management', 'view'):
         flash('您没有权限访问此页面', 'danger')
         return redirect(url_for('main.index'))
-    
+
     try:
-        # 获取所有部门字典项，包括禁用的，按排序号排序
-        dict_departments = Dictionary.query.filter_by(type='department').order_by(Dictionary.sort_order).all()
-        departments = [department.to_dict() for department in dict_departments]  # 使用to_dict方法转换为字典
-        
-        return render_template('user/department_management.html', departments=departments)
+        from app.models.expense import Department
+
+        # 获取所有部门，按公司和名称排序
+        departments = Department.query.order_by(Department.company_name, Department.name).all()
+
+        # 获取所有公司列表（从用户表）
+        companies = db.session.query(User.company_name).filter(
+            User.company_name.isnot(None),
+            User.company_name != ''
+        ).distinct().order_by(User.company_name).all()
+        company_list = [c[0] for c in companies]
+
+        # 获取所有可选的用户（用于设置负责人）
+        users = User.query.filter(
+            User._is_active == True
+        ).order_by(User.company_name, User.real_name).all()
+
+        return render_template('user/tw_department_management.html',
+                               departments=departments,
+                               companies=company_list,
+                               users=users)
     except Exception as e:
-        logger.error(f"加载部门字典管理页面时出错: {str(e)}")
-        flash('加载部门字典管理页面时出错，请稍后重试', 'danger')
+        logger.error(f"加载部门管理页面时出错: {str(e)}")
+        flash('加载部门管理页面时出错，请稍后重试', 'danger')
         return redirect(url_for('user.list_users'))
+
+
+@user_bp.route('/api/departments', methods=['GET'])
+@login_required
+def api_get_departments():
+    """获取部门列表 API"""
+    from app.models.expense import Department
+
+    company_name = request.args.get('company_name')
+    query = Department.query
+
+    if company_name:
+        query = query.filter_by(company_name=company_name)
+
+    departments = query.order_by(Department.name).all()
+
+    return jsonify({
+        'success': True,
+        'data': [{
+            'id': d.id,
+            'name': d.name,
+            'code': d.code,
+            'company_name': d.company_name,
+            'manager_id': d.manager_id,
+            'manager_name': d.manager.real_name if d.manager else None,
+            'is_active': d.is_active
+        } for d in departments]
+    })
+
+
+@user_bp.route('/api/departments', methods=['POST'])
+@login_required
+def api_create_department():
+    """创建部门 API"""
+    if not current_user.has_permission('dictionary_management', 'edit'):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+
+    from app.models.expense import Department
+
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    company_name = data.get('company_name', '').strip()
+    manager_id = data.get('manager_id')
+
+    if not name or not company_name:
+        return jsonify({'success': False, 'message': '部门名称和公司不能为空'})
+
+    # 检查是否已存在
+    existing = Department.query.filter_by(name=name, company_name=company_name).first()
+    if existing:
+        return jsonify({'success': False, 'message': '该公司已存在同名部门'})
+
+    # 生成代码
+    code = f"{name[:10]}_{company_name[:4]}"
+
+    dept = Department(
+        name=name,
+        code=code,
+        company_name=company_name,
+        manager_id=int(manager_id) if manager_id else None,
+        is_active=True
+    )
+    db.session.add(dept)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': '部门创建成功', 'id': dept.id})
+
+
+@user_bp.route('/api/departments/<int:dept_id>', methods=['PUT'])
+@login_required
+def api_update_department(dept_id):
+    """更新部门 API"""
+    if not current_user.has_permission('dictionary_management', 'edit'):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+
+    from app.models.expense import Department
+
+    dept = Department.query.get(dept_id)
+    if not dept:
+        return jsonify({'success': False, 'message': '部门不存在'})
+
+    data = request.get_json()
+
+    if 'name' in data:
+        dept.name = data['name'].strip()
+    if 'manager_id' in data:
+        dept.manager_id = int(data['manager_id']) if data['manager_id'] else None
+    if 'is_active' in data:
+        dept.is_active = data['is_active']
+
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': '部门更新成功'})
+
+
+@user_bp.route('/api/departments/<int:dept_id>', methods=['DELETE'])
+@login_required
+def api_delete_department(dept_id):
+    """删除部门 API"""
+    if not current_user.has_permission('dictionary_management', 'edit'):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+
+    from app.models.expense import Department
+
+    dept = Department.query.get(dept_id)
+    if not dept:
+        return jsonify({'success': False, 'message': '部门不存在'})
+
+    # 检查是否有用户归属此部门
+    users_in_dept = User.query.filter_by(department=dept.name, company_name=dept.company_name).count()
+    if users_in_dept > 0:
+        return jsonify({'success': False, 'message': f'该部门下有 {users_in_dept} 个用户，无法删除'})
+
+    db.session.delete(dept)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': '部门删除成功'})
 
 def get_default_modules():
     """获取默认模块列表（数据库驱动，与配置管理保持一致）"""
@@ -2185,7 +2318,29 @@ def api_edit_user(user_id):
         user.is_department_manager = is_department_manager
         if password and password.strip():
             user.set_password(password)
-        
+
+        # 处理管理部门关系
+        managed_department_ids = data.get('managed_department_ids', [])
+        if managed_department_ids is not None:
+            from app.models.expense import Department
+            # 获取当前用户管理的所有部门
+            current_managed = Department.query.filter_by(manager_id=user.id).all()
+            current_managed_ids = [d.id for d in current_managed]
+
+            # 移除不再管理的部门
+            for dept in current_managed:
+                if dept.id not in managed_department_ids:
+                    dept.manager_id = None
+
+            # 添加新管理的部门
+            for dept_id in managed_department_ids:
+                if dept_id not in current_managed_ids:
+                    dept = Department.query.get(dept_id)
+                    if dept:
+                        dept.manager_id = user.id
+
+            logger.info(f"[API用户编辑] 管理部门更新，用户: {user.username}, 部门IDs: {managed_department_ids}")
+
         # 移除嵌套的try，整合成单一try-except结构
         db.session.commit()
         from app.models.user import sync_department_manager_affiliations, remove_department_manager_affiliations, sync_affiliations_for_new_member, transfer_member_affiliations_on_department_change

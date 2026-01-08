@@ -85,6 +85,19 @@ class User(db.Model, UserMixin):
         """返回用户的名称，优先使用真实姓名，如果没有则使用用户名"""
         return self.real_name or self.username
 
+    @property
+    def managed_department_ids(self):
+        """获取用户管理的部门ID列表"""
+        from app.models.expense import Department
+        departments = Department.query.filter_by(manager_id=self.id).all()
+        return [d.id for d in departments]
+
+    @property
+    def managed_departments(self):
+        """获取用户管理的部门列表"""
+        from app.models.expense import Department
+        return Department.query.filter_by(manager_id=self.id).all()
+
     def to_dict(self):
         """将用户信息转为字典，用于API响应"""
         return {

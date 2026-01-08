@@ -331,10 +331,119 @@ class WorkLog(db.Model):
             'total_items': len(all_items),
             'completed_items': len(completed_items),
             'pending_items': len(pending_items),
-            'total_hours': sum(i.actual_hours or 0 for i in completed_items),
+            'total_hours': self.calculate_smart_hours(),  # 使用智能工时计算
             'project_count': len(set(i.project_id for i in all_items if i.project_id)),
             'customer_count': len(set(i.customer_id for i in all_items if i.customer_id))
         }
+
+    def calculate_smart_hours(self, extra_items=None):
+        """
+        智能计算工时：
+        1. 排除跨天和全天事件
+        2. 时间段去重（合并重叠）
+        3. 扣除午休（12:00-13:00）
+        4. 上限8小时
+
+        参数：
+        - extra_items: 额外的工作项列表（如共享工作项），会与 self.work_items 合并计算
+
+        规则说明：
+        - 排除条件：跨天工作项(end_date != planned_date)、全天事件(is_all_day=True)
+        - 只计算有具体时间段(start_time, end_time)的已完成工作项
+        - 午休时段：12:00-13:00（1小时）
+        - 最大累计上限：8小时
+        """
+        # 合并工作项列表
+        all_items = list(self.work_items) if self.work_items else []
+        if extra_items:
+            # 使用 id 去重，避免重复计算
+            existing_ids = {i.id for i in all_items}
+            for item in extra_items:
+                if item.id not in existing_ids:
+                    all_items.append(item)
+
+        return self._calculate_hours_for_items(all_items)
+
+    @staticmethod
+    def _calculate_hours_for_items(work_items):
+        """
+        对工作项列表进行智能工时计算（静态方法，可复用）
+
+        规则：
+        1. 排除跨天和全天事件
+        2. 时间段去重（合并重叠）
+        3. 扣除午休（12:00-13:00）
+        4. 上限8小时
+        """
+        # 时间常量
+        LUNCH_START_MIN = 720   # 12:00 = 12*60
+        LUNCH_END_MIN = 780     # 13:00 = 13*60
+        MAX_HOURS = 8.0
+
+        def time_to_minutes(t):
+            """将 time 对象转换为从 00:00 开始的分钟数"""
+            return t.hour * 60 + t.minute
+
+        # 筛选有效工作项：非跨天、非全天、有时间段的已完成工作项
+        valid_items = [
+            i for i in work_items
+            if i.status == 'completed'
+            and not i.is_deleted
+            and not i.is_all_day                                    # 排除全天事件
+            and not (i.end_date and i.end_date != i.planned_date)   # 排除跨天
+            and i.start_time and i.end_time                         # 必须有时间段
+        ]
+
+        if not valid_items:
+            return 0.0
+
+        # 提取所有时间段（转换为分钟数）
+        intervals = []
+        for item in valid_items:
+            start_min = time_to_minutes(item.start_time)
+            end_min = time_to_minutes(item.end_time)
+            if end_min > start_min:  # 确保有效时间段
+                intervals.append((start_min, end_min))
+
+        if not intervals:
+            return 0.0
+
+        # 合并重叠时间段
+        intervals.sort(key=lambda x: x[0])
+        merged = []
+        for start, end in intervals:
+            if merged and start <= merged[-1][1]:
+                # 有重叠或相邻，扩展结束时间
+                merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+            else:
+                merged.append((start, end))
+
+        # 计算总时长（扣除午休重叠部分）
+        def calculate_minutes_excluding_lunch(start, end):
+            """计算时间段分钟数，扣除与午休(12:00-13:00)重叠的部分"""
+            if end <= LUNCH_START_MIN or start >= LUNCH_END_MIN:
+                # 不与午休重叠
+                return end - start
+            elif start >= LUNCH_START_MIN and end <= LUNCH_END_MIN:
+                # 完全在午休内
+                return 0
+            elif start < LUNCH_START_MIN and end > LUNCH_END_MIN:
+                # 跨越整个午休
+                return (LUNCH_START_MIN - start) + (end - LUNCH_END_MIN)
+            elif start < LUNCH_START_MIN:
+                # 与午休前半段重叠（开始在午休前，结束在午休中）
+                return LUNCH_START_MIN - start
+            else:
+                # 与午休后半段重叠（开始在午休中，结束在午休后）
+                return end - LUNCH_END_MIN
+
+        total_minutes = sum(
+            calculate_minutes_excluding_lunch(start, end)
+            for start, end in merged
+        )
+
+        hours = total_minutes / 60.0
+        return round(min(hours, MAX_HOURS), 1)
 
     def to_dict(self, include_items=False):
         """转换为字典"""
