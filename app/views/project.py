@@ -39,7 +39,6 @@ from app.utils.activity_tracker import check_company_activity, update_active_sta
 from app.models.settings import SystemSettings
 from zoneinfo import ZoneInfo
 from app.utils.role_mappings import get_role_display_name
-from app.utils.solution_manager_notifications import notify_solution_managers_project_created, notify_solution_managers_project_stage_changed
 from flask import after_this_request
 from app.utils.change_tracker import ChangeTracker
 from app.helpers.approval_helpers import get_object_approval_instance, get_available_templates
@@ -1270,24 +1269,21 @@ def add_project():
             try:
                 import threading
                 from app.services.event_dispatcher import notify_project_created
-                from app.utils.solution_manager_notifications import notify_solution_managers_project_created
-                
+
                 def send_notifications_async():
                     """异步发送通知"""
                     with current_app.app_context():
                         try:
                             # 触发项目创建通知
                             notify_project_created(project, current_user)
-                            # 通知解决方案经理
-                            notify_solution_managers_project_created(project)
                             current_app.logger.debug('异步项目创建通知已发送')
                         except Exception as notify_err:
                             current_app.logger.warning(f"异步触发项目创建通知失败: {str(notify_err)}")
-                
+
                 # 启动异步通知线程
                 threading.Thread(target=send_notifications_async, daemon=True).start()
                 current_app.logger.debug('异步项目创建通知线程已启动')
-                
+
             except Exception as notify_err:
                 logger.warning(f"启动异步项目创建通知失败: {str(notify_err)}")
 
@@ -1440,27 +1436,24 @@ def edit_project(project_id):
                 try:
                     # 项目活跃度已在上面统一更新，这里只记录日志
                     current_app.logger.debug(f"项目阶段变更后项目 {project.id} 活跃度已更新")
-                    
+
                     import threading
                     from app.services.event_dispatcher import notify_project_status_updated
-                    from app.utils.solution_manager_notifications import notify_solution_managers_project_stage_changed
-                    
+
                     def send_stage_notifications_async():
                         """异步发送阶段变更通知"""
                         with current_app.app_context():
                             try:
                                 # 触发项目阶段变更通知
                                 notify_project_status_updated(project, current_user, old_stage)
-                                # 通知解决方案经理
-                                notify_solution_managers_project_stage_changed(project, old_stage, new_stage)
                                 current_app.logger.debug('异步项目阶段变更通知已发送')
                             except Exception as notify_err:
                                 current_app.logger.warning(f"异步触发项目阶段变更通知失败: {str(notify_err)}")
-                    
+
                     # 启动异步通知线程
                     threading.Thread(target=send_stage_notifications_async, daemon=True).start()
                     current_app.logger.debug('异步项目阶段变更通知线程已启动')
-                    
+
                 except Exception as notify_err:
                     current_app.logger.warning(f"启动异步项目阶段变更通知失败: {str(notify_err)}")
 
@@ -2434,24 +2427,21 @@ def update_project_stage():
                 try:
                     import threading
                     from app.services.event_dispatcher import notify_project_status_updated
-                    from app.utils.solution_manager_notifications import notify_solution_managers_project_stage_changed
-                    
+
                     def send_stage_notifications_async():
                         """异步发送阶段变更通知"""
                         with current_app.app_context():
                             try:
                                 # 触发项目阶段变更通知
                                 notify_project_status_updated(project, current_user, old_stage)
-                                # 通知解决方案经理
-                                notify_solution_managers_project_stage_changed(project, old_stage, new_stage)
                                 current_app.logger.debug('异步项目阶段变更通知已发送')
                             except Exception as notify_err:
                                 current_app.logger.warning(f"异步触发项目阶段变更通知失败: {str(notify_err)}")
-                    
+
                     # 启动异步通知线程
                     threading.Thread(target=send_stage_notifications_async, daemon=True).start()
                     current_app.logger.debug('异步项目阶段变更通知线程已启动')
-                    
+
                 except Exception as notify_err:
                     current_app.logger.warning(f"启动异步项目阶段变更通知失败: {str(notify_err)}")
             

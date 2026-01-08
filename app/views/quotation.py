@@ -30,7 +30,6 @@ from app.utils.activity_tracker import check_company_activity, update_active_sta
 from app.models.settings import SystemSettings
 from zoneinfo import ZoneInfo
 from app.utils.role_mappings import get_role_display_name
-from app.utils.solution_manager_notifications import notify_solution_managers_quotation_created, notify_solution_managers_quotation_updated
 from app.helpers.approval_helpers import get_object_approval_instance, get_current_step_info, can_user_approve
 from sqlalchemy import event
 from app.models.quotation import update_quotation_product_signature, QuotationDetail
@@ -1442,6 +1441,13 @@ def create_quotation():
                     # 注意：项目金额更新交由SQLAlchemy事件监听器处理，此处无需手动更新
                     current_app.logger.info('项目报价金额将由事件监听器自动更新')
 
+                    # 发送站内消息给解决方案经理
+                    try:
+                        from app.utils.solution_manager_notifications import send_quotation_internal_message
+                        send_quotation_internal_message(quotation, current_user.id, 'created')
+                    except Exception as msg_err:
+                        current_app.logger.warning(f"发送报价单创建消息失败: {str(msg_err)}")
+
                     # 检查并创建配置产品到研发产品库
                     try:
                         created_products = create_products_from_configured_specs(quotation)
@@ -1454,15 +1460,13 @@ def create_quotation():
                     # 异步触发报价单创建通知，避免阻塞响应
                     try:
                         from app.utils.notification_helpers import trigger_event_notification
-                        from flask import url_for
                         import threading
-                        from app.utils.solution_manager_notifications import notify_solution_managers_quotation_created
-                        
+
                         # 在线程外获取app实例和必要数据
                         app = current_app._get_current_object()
                         quotation_owner_id = quotation.owner_id
                         quotation_id = quotation.id
-                        
+
                         def send_notifications_async():
                             """异步发送通知"""
                             with app.app_context():
@@ -1472,7 +1476,7 @@ def create_quotation():
                                     if fresh_quotation:
                                         # 构建URL而不使用url_for
                                         quotation_url = f"http://localhost:10000/quotation/{quotation_id}/detail"
-                                        
+
                                         # 触发报价单创建通知
                                         trigger_event_notification(
                                             event_key='quotation_created',
@@ -1484,16 +1488,14 @@ def create_quotation():
                                                 'current_year': datetime.now().year
                                             }
                                         )
-                                        # 通知解决方案经理（异步）
-                                        notify_solution_managers_quotation_created(fresh_quotation)
                                         app.logger.debug('异步报价单创建通知已发送')
                                 except Exception as notify_err:
                                     app.logger.warning(f"异步触发报价单创建通知失败: {str(notify_err)}")
-                        
+
                         # 启动异步通知线程
                         threading.Thread(target=send_notifications_async, daemon=True).start()
                         current_app.logger.debug('异步通知线程已启动')
-                        
+
                     except Exception as notify_err:
                         logger.warning(f"启动异步通知失败: {str(notify_err)}")
                     
@@ -3605,6 +3607,13 @@ def save_quotation(id):
                     current_app.logger.error(f'创建研发产品失败: {str(create_err)}')
                     # 不影响报价单保存成功
 
+                # 发送站内消息给解决方案经理
+                try:
+                    from app.utils.solution_manager_notifications import send_quotation_internal_message
+                    send_quotation_internal_message(quotation, current_user.id, 'updated')
+                except Exception as msg_err:
+                    current_app.logger.warning(f"发送报价单修改消息失败: {str(msg_err)}")
+
             except Exception as commit_error:
                 db.session.rollback()
                 error_type = type(commit_error).__name__
@@ -3648,15 +3657,13 @@ def save_quotation(id):
         # 异步触发通知，避免阻塞保存操作
         try:
             from app.utils.notification_helpers import trigger_event_notification
-            from flask import url_for
             import threading
-            from app.utils.solution_manager_notifications import notify_solution_managers_quotation_created
-            
+
             # 在线程外获取app实例和必要数据
             app = current_app._get_current_object()
             quotation_owner_id = quotation.owner_id
             quotation_id = quotation.id
-            
+
             def send_notifications_async():
                 """异步发送通知"""
                 with app.app_context():
@@ -3666,8 +3673,8 @@ def save_quotation(id):
                         if fresh_quotation:
                             # 构建URL而不使用url_for
                             quotation_url = f"http://localhost:10000/quotation/{quotation_id}/detail"
-                            
-                            # 触发报价单更新通知（而不是创建通知）
+
+                            # 触发报价单更新通知
                             trigger_event_notification(
                                 event_key='quotation_updated',
                                 target_user_id=quotation_owner_id,
@@ -3681,11 +3688,11 @@ def save_quotation(id):
                             app.logger.debug('异步事件通知已触发')
                     except Exception as notify_err:
                         app.logger.warning(f"异步触发通知失败: {str(notify_err)}")
-            
+
             # 启动异步通知线程
             threading.Thread(target=send_notifications_async, daemon=True).start()
             current_app.logger.debug('异步通知线程已启动')
-            
+
         except Exception as notify_err:
             current_app.logger.warning(f"启动异步通知失败: {str(notify_err)}")
         

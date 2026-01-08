@@ -571,9 +571,18 @@ def get_available_accounts():
             # 注：可见账户范围通过权限级别控制
             permission_level = current_user.get_permission_level('customer')
             if permission_level in ['company', 'department'] or current_user.is_department_manager:
-                # 部门级权限可以查看同部门活跃下属
+                # 获取用户管理的所有部门名称
+                from app.models.expense import Department
+                managed_depts = Department.query.filter_by(manager_id=current_user.id).all()
+                managed_dept_names = [d.name for d in managed_depts]
+
+                # 包含自己的部门
+                if current_user.department and current_user.department not in managed_dept_names:
+                    managed_dept_names.append(current_user.department)
+
+                # 查询这些部门的所有用户
                 subordinates = User.query.filter(
-                    User.department == current_user.department,
+                    User.department.in_(managed_dept_names),
                     User.id != current_user.id,
                     User._is_active == True
                 ).all()

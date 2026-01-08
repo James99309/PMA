@@ -226,7 +226,8 @@ def update_user(user_id):
     role = data.get('role')
     is_active = data.get('is_active', user.is_active)
     settlement_currency = data.get('settlement_currency')
-    
+    managed_department_ids = data.get('managed_department_ids')
+
     # 验证邮箱是否已被其他用户使用
     if email and email != user.email:
         if User.query.filter(func.lower(User.email) == func.lower(email), User.id != user_id).first():
@@ -258,7 +259,25 @@ def update_user(user_id):
 
     user.is_department_manager = is_department_manager
     user.is_active = is_active
-    
+
+    # 处理管理部门关系
+    if managed_department_ids is not None:
+        from app.models.expense import Department
+        current_managed = Department.query.filter_by(manager_id=user.id).all()
+        current_managed_ids = [d.id for d in current_managed]
+
+        # 移除不再管理的部门
+        for dept in current_managed:
+            if dept.id not in managed_department_ids:
+                dept.manager_id = None
+
+        # 添加新管理的部门
+        for dept_id in managed_department_ids:
+            if dept_id not in current_managed_ids:
+                dept = Department.query.get(dept_id)
+                if dept:
+                    dept.manager_id = user.id
+
     try:
         db.session.commit()
         

@@ -499,12 +499,20 @@ def get_items():
         if not can_view_others:
             return jsonify({'error': '无权查看他人日历', 'events': [], 'datesWithItems': []}), 403
 
-        # 部门负责人只能查看同部门成员
+        # 部门负责人只能查看管理部门的成员
         if current_user.is_department_manager and not is_admin_or_ceo():
             from app.models.user import User
+            from app.models.expense import Department
             target_user = User.query.get(owner_id)
-            if not target_user or target_user.department != current_user.department:
-                return jsonify({'error': '只能查看同部门成员日历', 'events': [], 'datesWithItems': []}), 403
+
+            # 获取用户管理的所有部门名称
+            managed_depts = Department.query.filter_by(manager_id=current_user.id).all()
+            managed_dept_names = [d.name for d in managed_depts]
+            if current_user.department and current_user.department not in managed_dept_names:
+                managed_dept_names.append(current_user.department)
+
+            if not target_user or target_user.department not in managed_dept_names:
+                return jsonify({'error': '只能查看管理部门成员日历', 'events': [], 'datesWithItems': []}), 403
 
         # 查询指定用户的工作项
         query = WorkItem.query.filter(

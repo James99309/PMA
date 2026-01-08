@@ -421,8 +421,17 @@ function messagePanel() {
                     return `/worklog/calendar?date=${item.metadata.log_date}&owner_id=${item.sender_id}`;
                 }
                 return `/worklog/calendar?owner_id=${item.sender_id}`;
+            } else if (item.related_object_type === 'quotation') {
+                // 报价单消息，跳转到报价单详情页
+                return `/quotation/${item.related_object_id}/detail?tw=1`;
+            } else if (item.related_object_type === 'project') {
+                // 项目消息，跳转到项目详情页
+                return `/project/${item.related_object_id}/tw_detail`;
+            } else if (item.related_object_type === 'expense') {
+                // 报销单消息，跳转到报销单详情页
+                return `/expense/${item.related_object_id}/tw_detail`;
             }
-            return '/worklog/calendar';
+            return '#';
         },
 
         getMessageIcon(item) {
@@ -443,7 +452,10 @@ function messagePanel() {
                 // 审批消息类型
                 'approval_approved': 'check_circle',
                 'approval_rejected': 'cancel',
-                'approval_cc': 'mail'
+                'approval_cc': 'mail',
+                // 报价单消息类型
+                'quotation_created': 'request_quote',
+                'quotation_updated': 'edit_note'
             };
             return icons[item.message_type] || 'notifications';
         },
@@ -541,7 +553,8 @@ function messagePanel() {
             }
 
             // 其他类型：跳转到详情页
-            if (item.can_view_calendar || item.detail_url) {
+            const clickableTypes = ['workitem', 'worklog', 'quotation', 'project', 'expense'];
+            if (item.can_view_calendar || item.detail_url || clickableTypes.includes(item.related_object_type)) {
                 window.location.href = this.getMessageUrl(item);
             }
         }

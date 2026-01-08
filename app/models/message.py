@@ -490,3 +490,81 @@ class Message(db.Model):
                 'is_cc': is_cc
             }
         )
+
+    # ========== 报价单通知相关方法 ==========
+
+    @classmethod
+    def create_quotation_created(cls, sender_id, recipient_id, quotation):
+        """创建报价单新建通知消息
+
+        Args:
+            sender_id: 发送者用户ID（报价单创建人）
+            recipient_id: 接收者用户ID（解决方案经理）
+            quotation: Quotation 对象
+
+        Returns:
+            Message: 创建的消息对象（未提交到数据库）
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+
+        # 获取项目名称
+        project_name = quotation.project.project_name if quotation.project else '未知项目'
+
+        # 格式化金额
+        amount_str = f"{quotation.amount:,.2f}" if quotation.amount else '0.00'
+
+        return cls(
+            message_type='quotation_created',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 创建了报价单 {quotation.quotation_number}',
+            content=f'项目: {project_name}，金额: {amount_str}',
+            related_object_type='quotation',
+            related_object_id=quotation.id,
+            extra_data={
+                'quotation_number': quotation.quotation_number,
+                'project_id': quotation.project_id,
+                'project_name': project_name,
+                'amount': float(quotation.amount) if quotation.amount else 0
+            }
+        )
+
+    @classmethod
+    def create_quotation_updated(cls, sender_id, recipient_id, quotation):
+        """创建报价单修改通知消息
+
+        Args:
+            sender_id: 发送者用户ID（报价单修改人）
+            recipient_id: 接收者用户ID（解决方案经理）
+            quotation: Quotation 对象
+
+        Returns:
+            Message: 创建的消息对象（未提交到数据库）
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+
+        # 获取项目名称
+        project_name = quotation.project.project_name if quotation.project else '未知项目'
+
+        # 格式化金额
+        amount_str = f"{quotation.amount:,.2f}" if quotation.amount else '0.00'
+
+        return cls(
+            message_type='quotation_updated',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 修改了报价单 {quotation.quotation_number}',
+            content=f'项目: {project_name}，金额: {amount_str}',
+            related_object_type='quotation',
+            related_object_id=quotation.id,
+            extra_data={
+                'quotation_number': quotation.quotation_number,
+                'project_id': quotation.project_id,
+                'project_name': project_name,
+                'amount': float(quotation.amount) if quotation.amount else 0
+            }
+        )
