@@ -1472,6 +1472,12 @@ function workCalendar() {
                     const clickedEl = info.jsEvent.target;
                     const isOtherMonth = info.dayEl.classList.contains('fc-day-other');
 
+                    // 查看他人日历时，所有点击都只打开日志查看（禁止创建）
+                    if (self.selectedAccountId) {
+                        self.openLogModal(info.dateStr);
+                        return;
+                    }
+
                     // 其他月份的日期（如月视图中显示的上月/下月日期），直接打开日志
                     if (isOtherMonth) {
                         self.openLogModal(info.dateStr);
@@ -1486,7 +1492,7 @@ function workCalendar() {
                         // 点击日期数字，打开日志
                         self.openLogModal(info.dateStr);
                     } else {
-                        // 点击其他区域，打开行程创建
+                        // 点击其他区域，打开行程创建（仅自己的日历）
                         self.openCreateModal(info.dateStr);
                     }
                 },
@@ -1514,6 +1520,10 @@ function workCalendar() {
                     else if (props.status === 'cancelled') { info.el.classList.add('fc-event-cancelled'); }
                     // 添加作废样式
                     if (props.is_invalidated) { info.el.classList.add('fc-event-invalidated'); }
+                    // 查看他人日历时，移除虚线样式（保持与自己日历一致的视觉效果）
+                    if (self.selectedAccountId) {
+                        info.el.classList.remove('fc-event-shared');
+                    }
                 },
                 dayCellDidMount: function(info) {
                     // 使用本地时间格式化日期，避免时区问题
