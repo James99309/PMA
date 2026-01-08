@@ -981,9 +981,9 @@
                                                     <span class="font-medium text-slate-900 dark:text-white"
                                                           :class="{ 'line-through': item.is_invalidated }"
                                                           x-text="item.title"></span>
-                                                    <span class="text-sm text-slate-500" x-text="item.actual_hours + 'h'"></span>
+                                                    <span class="text-sm text-slate-500" x-text="parseFloat(item.actual_hours || 0).toFixed(1) + 'h'"></span>
                                                 </div>
-                                                <p class="text-sm text-slate-600 dark:text-slate-400 mt-1" x-text="item.execution_notes" x-show="item.execution_notes"></p>
+                                                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2" x-text="item.description" x-show="item.description"></p>
                                             </div>
                                         </template>
                                     </div>

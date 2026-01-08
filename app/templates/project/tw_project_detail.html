@@ -38,6 +38,9 @@ render_tw_expense_status_badge with context %}
 ] %}
 {% set currency_symbol = currency_config.symbol %}
 
+{# 货币符号映射 - 用于报销单金额显示 #}
+{% set currency_symbols = {'CNY': '¥', 'USD': '$', 'HKD': 'HK$', 'TWD': 'NT$', 'SGD': 'S$', 'MYR': 'RM', 'IDR': 'Rp', 'THB': '฿', 'VND': '₫'} %}
+
 {# 锁定状态徽章 - 内联定义 #}
 {% macro render_tw_lock_status_badge(is_locked) %}
 {% if is_locked %}
@@ -430,7 +433,7 @@ render_tw_expense_status_badge with context %}
                             {'label': _('项目负责人'), 'badge': render_tw_owner_badge(project.owner), 'edit_btn': {'onclick': 'openChangeOwnerModal()', 'show': can_edit_owner}},
                             {'label': _('厂商销售负责人'), 'badge': render_tw_owner_badge(project.vendor_sales_manager) if project.vendor_sales_manager else none, 'value': _('未设置') if not project.vendor_sales_manager else none, 'edit_btn': {'onclick': 'openChangeVendorSalesModal()', 'show': can_edit_owner}},
                             {'label': _('预测出货时间'), 'value': project.delivery_forecast.strftime('%Y-%m-%d') if project.delivery_forecast else '-'},
-                            {'label': _('累计报销费用'), 'value': '¥{:,.2f}'.format(total_expense_amount or 0)}
+                            {'label': _('累计报销费用'), 'value': '{}{:,.2f}'.format(currency_config.symbol, total_expense_amount or 0)}
                         ],
                         footer=project_description_footer
                     ) }}
@@ -552,7 +555,7 @@ render_tw_expense_status_badge with context %}
                                             </td>
                                             <td class="p-3 text-right text-slate-600 dark:text-slate-300">
                                                 {% if expense.total_amount %}
-                                                    ¥{{ '{:,.2f}'.format(expense.total_amount) }}
+                                                    {{ currency_symbols.get(expense.currency, '¥') }}{{ '{:,.2f}'.format(expense.total_amount) }}
                                                 {% else %}
                                                     <span class="text-slate-400">-</span>
                                                 {% endif %}
@@ -572,6 +575,7 @@ render_tw_expense_status_badge with context %}
                         can_view=can_view_sharing,
                         can_edit=can_edit_sharing,
                         shared_users=shared_users_info,
+                        share_enabled=project.share_enabled,
                         open_modal_func='openSharingModal'
                     ) }}
 

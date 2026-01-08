@@ -425,7 +425,13 @@ class ConfigurablePerformanceService:
 
 
 class RolePerformanceTarget(db.Model):
-    """角色绩效目标配置表 - 全局默认目标"""
+    """
+    角色绩效目标配置表 - 全局默认目标
+
+    ⚠️ 已废弃 (2026-01-08)
+    此表已废弃，请使用 EmployeeSalaryConfig 和 SalaryGrade 配置目标。
+    保留此表仅为兼容旧数据，新功能不应使用此表。
+    """
     __tablename__ = 'role_performance_targets'
 
     id = Column(Integer, primary_key=True)
@@ -509,7 +515,13 @@ class RolePerformanceTarget(db.Model):
 
 
 class UserPerformanceTarget(db.Model):
-    """用户绩效目标表 - 个人覆盖"""
+    """
+    用户绩效目标表 - 个人覆盖
+
+    ⚠️ 已废弃 (2026-01-08)
+    此表已废弃，请使用 EmployeeSalaryConfig.annual_target_override 配置个人目标。
+    保留此表仅为兼容旧数据，新功能不应使用此表。
+    """
     __tablename__ = 'user_performance_targets'
 
     id = Column(Integer, primary_key=True)
@@ -564,10 +576,11 @@ class UserPerformanceTarget(db.Model):
 
 def get_user_effective_target(user_id, year, item_code, period_type='annual', period=None):
     """
-    获取用户有效目标值，优先级：
-    1. 用户个人覆盖
-    2. 角色默认配置
-    3. 返回 None
+    获取用户有效目标值
+
+    ⚠️ 已废弃 (2026-01-08)
+    此函数已废弃，请使用 EmployeeSalaryConfig.get_effective_value('annual_target') 获取目标。
+    返回 None 让调用方回退到新系统。
 
     Args:
         user_id: 用户ID
@@ -577,46 +590,7 @@ def get_user_effective_target(user_id, year, item_code, period_type='annual', pe
         period: 季度(1-4)或月份(1-12)
 
     Returns:
-        目标值或 None
+        None: 已废弃，始终返回 None
     """
-    from app.models.user import User
-
-    # 1. 检查个人覆盖
-    user_target = UserPerformanceTarget.query.filter_by(
-        user_id=user_id, year=year, item_code=item_code
-    ).first()
-
-    if user_target:
-        if period_type == 'annual' and user_target.annual_target_override is not None:
-            return float(user_target.annual_target_override)
-        elif period_type == 'quarterly' and period:
-            override = getattr(user_target, f'q{period}_target_override', None)
-            if override is not None:
-                return float(override)
-        elif period_type == 'monthly' and period:
-            if user_target.monthly_targets_override:
-                value = user_target.monthly_targets_override.get(str(period))
-                if value is not None:
-                    return float(value)
-
-    # 2. 查询角色默认
-    user = User.query.get(user_id)
-    if not user:
-        return None
-
-    role_target = RolePerformanceTarget.query.filter_by(
-        role_code=user.role, year=year, item_code=item_code
-    ).first()
-
-    if role_target:
-        if period_type == 'annual':
-            return float(role_target.annual_target) if role_target.annual_target else None
-        elif period_type == 'quarterly' and period:
-            value = getattr(role_target, f'q{period}_target', None)
-            return float(value) if value else None
-        elif period_type == 'monthly' and period:
-            if role_target.monthly_targets:
-                value = role_target.monthly_targets.get(str(period))
-                return float(value) if value else None
-
+    # 废弃旧系统，返回 None 让调用方使用 EmployeeSalaryConfig
     return None

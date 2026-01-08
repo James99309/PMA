@@ -48,6 +48,7 @@
 | common/tw-notification.js | 通知提示组件 | 显示成功/错误/警告通知 | 5+ | 📋 待补充文档 |
 | file-upload-component.js | 通用文件上传组件 | 图片/PDF附件上传、预览、删除 | 2 | ✅ 已文档化 🆕 |
 | common/attachment-display.js | 附件图标显示组件 | 统一的附件图标方块渲染（预览、删除） | 1 | ✅ 已文档化 🆕 |
+| currency-helpers.js | 货币转换辅助工具 | 货币符号、单位、除数映射及格式化 | 2+ | ✅ 已文档化 🆕 |
 
 > **说明**:
 > - ✅ 已文档化 - 有完整的API文档和使用示例
@@ -1102,6 +1103,94 @@ QuotationModal.init({
 项目搜索组件，支持项目名称、项目编号等搜索。
 
 **后续任务**: 补充完整的API文档和使用示例
+
+---
+
+#### currency-helpers.js
+
+**基本信息**
+
+- **文件路径**: `app/static/js/currency-helpers.js`
+- **功能描述**: 货币辅助工具模块，提供货币符号、单位、除数的统一映射及格式化功能
+- **依赖库**: 无外部依赖
+- **创建日期**: 2026-01-08
+
+**已使用页面**
+
+1. `app/templates/config_management/tw_index.html` - 配置管理页面（费用配置、薪资分配）
+2. `app/templates/user/tw_detail.html` - 用户详情页薪资明细
+3. `app/templates/index.html` - 仪表盘金额显示
+4. `app/templates/expense/tw_expense_detail.html` - 报销单详情
+
+**支持的货币**
+
+| 货币代码 | 符号 | 单位 | 除数 |
+|---------|------|------|------|
+| CNY | ¥ | 万元 | 10000 |
+| USD | $ | K | 1000 |
+| HKD | HK$ | K | 1000 |
+| TWD | NT$ | K | 1000 |
+| SGD | S$ | K | 1000 |
+| MYR | RM | K | 1000 |
+| IDR | Rp | M | 1000000 |
+| THB | ฿ | K | 1000 |
+| VND | ₫ | M | 1000000 |
+
+**API文档**
+
+```javascript
+// 获取货币符号
+CurrencyHelpers.getSymbol('HKD')     // 返回 'HK$'
+
+// 获取金额单位（用于大金额显示）
+CurrencyHelpers.getUnit('CNY')       // 返回 '万元'
+
+// 获取金额除数
+CurrencyHelpers.getDivisor('CNY')    // 返回 10000
+
+// 格式化大金额
+CurrencyHelpers.formatLargeAmount(350, 'CNY')  // 返回 '¥350.00 万元'
+CurrencyHelpers.formatLargeAmount(350, 'HKD')  // 返回 'HK$350.00 K'
+
+// 格式化普通金额
+CurrencyHelpers.formatAmount(18000, 'HKD')     // 返回 'HK$18,000.00'
+
+// 设置系统默认值（用于 Jinja 模板配置）
+CurrencyHelpers.setDefaults({
+    currency: 'CNY',
+    symbol: '¥',
+    unit: '万元',
+    divisor: 10000
+});
+
+// 检查货币是否支持
+CurrencyHelpers.isSupported('HKD')   // 返回 true
+
+// 获取所有支持的货币
+CurrencyHelpers.getSupportedCurrencies()  // 返回 ['CNY', 'USD', 'HKD', ...]
+```
+
+**在模板中引入**
+
+```html
+<script src="{{ url_for('static', filename='js/currency-helpers.js') }}"></script>
+```
+
+**在 Alpine.js 组件中使用**
+
+```javascript
+// 获取用户结算货币符号
+getUserCurrencySymbol() {
+    const currency = this.selectedUserData?.settlement_currency || '{{ currency_config.currency }}';
+    return CurrencyHelpers.getSymbol(currency);
+}
+
+// 获取用户结算货币单位
+getUserCurrencyUnit() {
+    const currency = this.selectedUserData?.settlement_currency || '{{ currency_config.currency }}';
+    return CurrencyHelpers.getUnit(currency);
+}
+```
 
 ---
 

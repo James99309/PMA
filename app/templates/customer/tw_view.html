@@ -14,6 +14,10 @@
 {% from 'components/tw_sharing_card.html' import tw_sharing_card with context %}
 {% from 'components/tw_user_selector_modal.html' import tw_user_selector_modal with context %}
 {% from 'macros/ui_helpers.html' import render_tw_customer_status_badge, render_tw_project_stage_badge_key, render_tw_quotation_badge, render_tw_primary_badge, render_tw_expense_status_badge with context %}
+
+{# 货币符号映射 - 用于报销单金额显示 #}
+{% set currency_symbols = {'CNY': '¥', 'USD': '$', 'HKD': 'HK$', 'TWD': 'NT$', 'SGD': 'S$', 'MYR': 'RM', 'IDR': 'Rp', 'THB': '฿', 'VND': '₫'} %}
+
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 <head>
@@ -181,7 +185,7 @@
                                     {'icon': 'location_city', 'label': _('省/州'), 'value': company.region, 'hide_empty': true},
                                     {'icon': 'location_on', 'label': _('详细地址'), 'value': company.address, 'hide_empty': true},
                                     {'icon': 'person', 'label': _('负责人'), 'value': company.owner.real_name or company.owner.username if company.owner else none, 'hide_empty': true},
-                                    {'icon': 'payments', 'label': _('累计报销费用'), 'value': '¥{:,.2f}'.format(total_expense_amount or 0)}
+                                    {'icon': 'payments', 'label': _('累计报销费用'), 'value': '{}{:,.2f}'.format(currency_config.symbol, total_expense_amount or 0)}
                                 ]
                             ) }}
 
@@ -316,7 +320,7 @@
                                         </td>
                                         <td class="p-3 text-right text-slate-600 dark:text-slate-300">
                                             {% if expense.total_amount %}
-                                                ¥{{ '{:,.2f}'.format(expense.total_amount) }}
+                                                {{ currency_symbols.get(expense.currency, '¥') }}{{ '{:,.2f}'.format(expense.total_amount) }}
                                             {% else %}
                                                 <span class="text-slate-400">-</span>
                                             {% endif %}
@@ -333,6 +337,7 @@
                                 can_view=can_view_sharing,
                                 can_edit=can_edit_sharing,
                                 shared_users=shared_users_info,
+                                share_enabled=company.share_enabled,
                                 open_modal_func='openSharingModal'
                             ) }}
 

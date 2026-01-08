@@ -23,17 +23,36 @@ performance_bp = Blueprint('performance', __name__, url_prefix='/performance')
 @login_required
 @permission_required('config_management', 'view')
 def index():
-    """绩效管理首页"""
-    # 首先检测语言环境，用于后续所有国际化处理（包括异常处理）
-    from app.utils.i18n import get_current_language
-    from flask import session
-    from app.utils.dictionary_helpers import prepare_stats_card_amount, prepare_stats_card_amount_from_wan
-    current_language = get_current_language()
-    is_english = current_language == 'en'
+    """绩效管理首页 - 重定向到用户详情页的绩效标签"""
+    # 获取要查看的用户ID（默认为当前用户）
+    selected_user_id = request.args.get('user_id', current_user.id, type=int)
 
-    try:
-        current_year = datetime.now().year
-        current_tab = request.args.get('tab', 'overview')
+    # 重定向到用户详情页的绩效标签（TW风格）
+    return redirect(url_for('user.user_detail', user_id=selected_user_id) + '?tw=1#performance')
+
+
+# 以下旧版绩效看板代码已移除（Bootstrap版本）
+# 旧版代码可在 git 历史中查看
+# 当前绩效功能已集成到用户详情页的绩效标签中
+
+
+# 旧版绩效看板代码已删除（约500行），可在 git 历史中查看
+
+
+@performance_bp.route('/target_settings_redirect')
+@login_required
+def target_settings_redirect():
+    """重定向到用户详情页的绩效设置"""
+    selected_user_id = request.args.get('user_id', current_user.id, type=int)
+    return redirect(url_for('user.user_detail', user_id=selected_user_id) + '?tw=1#performance')
+
+
+# ============= 目标设置路由 =============
+# 删除旧代码块开始 >>>>
+_DELETION_MARKER = """
+try:
+    current_year = datetime.now().year
+    current_tab = request.args.get('tab', 'overview')
         
         # 获取可访问的用户列表（基于权限）
         accessible_users = get_accessible_users(current_user, 'config_management')
@@ -524,7 +543,7 @@ def index():
                                  list_config=None)
         except Exception as fallback_error:
             logger.error(f"回退视图也失败: {fallback_error}")
-            return redirect(url_for('main.index'))
+"""  # 旧代码块结束标记
 
 
 @performance_bp.route('/target_settings')
@@ -733,7 +752,7 @@ def save_targets_batch():
 @performance_bp.route('/save_target', methods=['POST'])
 @login_required
 def save_target():
-    """保存绩效目标（单个）"""
+    """保存绩效目标(单个)"""
     try:
         data = request.get_json()
         user_id = data.get('user_id')

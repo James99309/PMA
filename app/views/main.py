@@ -155,6 +155,8 @@ def index():
     fresh_user = User.query.get(current_user.id)
     user_settlement_currency = (fresh_user.settlement_currency if fresh_user else None) or Config.DEFAULT_CURRENCY
     user_currency_symbol = get_currency_symbol(user_settlement_currency)
+    # 获取 CNY → 用户结算货币 的汇率
+    user_exchange_rate = exchange_rate_service.get_exchange_rate('CNY', user_settlement_currency)
     if current_user.has_permission('expense', 'view'):
         try:
             from app.models.expense import Expense
@@ -235,6 +237,7 @@ def index():
                          expense_year_total=expense_year_total,
                          user_currency_symbol=user_currency_symbol,
                          user_settlement_currency=user_settlement_currency,
+                         user_exchange_rate=user_exchange_rate,
                          current_version_number=version_number,
                          app_version=app_version,
                          last_upgrade_time=last_upgrade_time,

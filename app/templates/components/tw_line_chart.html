@@ -92,10 +92,11 @@ Tailwind SVG 月度折线图组件
 
 
 {# 渲染折线图脚本 #}
-{% macro render_tw_line_chart_script(chart_id, data_var, unit='', color='#2979ff', month_label='月') %}
+{% macro render_tw_line_chart_script(chart_id, data_var, unit='', color='#2979ff', month_label='月', currency='CNY') %}
 <script>
 (function() {
     const monthlyData = {{ data_var }};
+    const currency = '{{ currency }}';
     const svg = document.getElementById('{{ chart_id }}');
     if (!svg || !monthlyData || monthlyData.length < 12) return;
 
@@ -125,11 +126,18 @@ Tailwind SVG 月度折线图组件
 
     const niceMax = getNiceMax(maxVal);
 
-    // 格式化Y轴标签（支持小数值和大数值）
+    // 格式化Y轴标签 - 使用 CurrencyHelpers 公用函数
     function formatYLabel(val) {
+        if (typeof CurrencyHelpers !== 'undefined' && currency) {
+            const divisor = CurrencyHelpers.getDivisor(currency);
+            const unit = CurrencyHelpers.getUnit(currency);
+            if (val >= divisor) {
+                return (val / divisor).toFixed(val % divisor === 0 ? 0 : 1) + unit;
+            }
+        }
+        // 回退逻辑
         if (val >= 10000) return (val / 10000).toFixed(val % 10000 === 0 ? 0 : 1) + '万';
         if (val >= 1000) return (val / 1000).toFixed(val % 1000 === 0 ? 0 : 1) + 'k';
-        // 小数值直接显示整数
         return Number.isInteger(val) ? val.toString() : val.toFixed(1);
     }
 
@@ -269,10 +277,12 @@ Tailwind SVG 月度折线图组件
  * @param {string} options.unit - 单位（默认 ''）
  * @param {string} options.color - 主题色（默认 '#2979ff'）
  * @param {string} options.monthLabel - 月份标签（默认 '月'）
+ * @param {string} options.currency - 货币代码（默认 'CNY'）
  */
 window.initSvgLineChart = function(chartId, monthlyData, options = {}) {
     const unit = options.unit || '';
     const color = options.color || '#2979ff';
+    const currency = options.currency || 'CNY';
 
     // 获取月份简写标签（支持国际化）
     function getMonthShortLabel(month) {
@@ -332,11 +342,18 @@ window.initSvgLineChart = function(chartId, monthlyData, options = {}) {
 
     const niceMax = getNiceMax(maxVal);
 
-    // 格式化Y轴标签（支持小数值和大数值）
+    // 格式化Y轴标签 - 使用 CurrencyHelpers 公用函数
     function formatYLabel(val) {
+        if (typeof CurrencyHelpers !== 'undefined' && currency) {
+            const divisor = CurrencyHelpers.getDivisor(currency);
+            const unitStr = CurrencyHelpers.getUnit(currency);
+            if (val >= divisor) {
+                return (val / divisor).toFixed(val % divisor === 0 ? 0 : 1) + unitStr;
+            }
+        }
+        // 回退逻辑
         if (val >= 10000) return (val / 10000).toFixed(val % 10000 === 0 ? 0 : 1) + '万';
         if (val >= 1000) return (val / 1000).toFixed(val % 1000 === 0 ? 0 : 1) + 'k';
-        // 小数值直接显示整数
         return Number.isInteger(val) ? val.toString() : val.toFixed(1);
     }
 
@@ -458,6 +475,7 @@ window.initSvgLineChart = function(chartId, monthlyData, options = {}) {
  * @param {number[]} personalData - 个人12个月的数据数组
  * @param {number[]} teamData - 团队12个月的数据数组
  * @param {Object} options - 配置选项
+ * @param {string} options.currency - 货币代码（默认 'CNY'）
  */
 window.initDualLineChart = function(chartId, personalData, teamData, options = {}) {
     const unit = options.unit || '';
@@ -466,6 +484,7 @@ window.initDualLineChart = function(chartId, personalData, teamData, options = {
     const personalLabel = options.personalLabel || '个人';
     const teamLabel = options.teamLabel || '团队';
     const monthLabel = options.monthLabel || '月';
+    const currency = options.currency || 'CNY';
 
     const svg = document.getElementById(chartId);
     if (!svg || !personalData || personalData.length < 12) return;
@@ -504,7 +523,16 @@ window.initDualLineChart = function(chartId, personalData, teamData, options = {
 
     const niceMax = getNiceMax(maxVal);
 
+    // 格式化Y轴标签 - 使用 CurrencyHelpers 公用函数
     function formatYLabel(val) {
+        if (typeof CurrencyHelpers !== 'undefined' && currency) {
+            const divisor = CurrencyHelpers.getDivisor(currency);
+            const unitStr = CurrencyHelpers.getUnit(currency);
+            if (val >= divisor) {
+                return (val / divisor).toFixed(val % divisor === 0 ? 0 : 1) + unitStr;
+            }
+        }
+        // 回退逻辑
         if (val >= 10000) return (val / 10000).toFixed(val % 10000 === 0 ? 0 : 1) + '万';
         if (val >= 1000) return (val / 1000).toFixed(val % 1000 === 0 ? 0 : 1) + 'k';
         return Number.isInteger(val) ? val.toString() : val.toFixed(1);

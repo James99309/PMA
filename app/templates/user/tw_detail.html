@@ -44,6 +44,8 @@
     </script>
     <!-- ECharts for performance dashboard -->
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <!-- Currency helpers for unified currency conversion -->
+    <script src="{{ url_for('static', filename='js/currency-helpers.js') }}"></script>
     <script>
         tailwind.config = {
             darkMode: "class",
@@ -434,14 +436,14 @@
                                 <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('年度目标') }}</p>
                                 <p class="text-2xl font-bold text-slate-900 dark:text-white">
                                     <span x-text="formatNumber(overview.annual_target)"></span>
-                                    <span class="text-base font-normal text-slate-500 dark:text-slate-400">{{ _('万') }}</span>
+                                    <span class="text-base font-normal text-slate-500 dark:text-slate-400" x-text="amountUnit"></span>
                                 </p>
                             </div>
                             <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 text-center">
                                 <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('年度业绩') }}</p>
                                 <p class="text-2xl font-bold text-slate-900 dark:text-white">
                                     <span x-text="formatNumber(overview.annual_achievement)"></span>
-                                    <span class="text-base font-normal text-slate-500 dark:text-slate-400">{{ _('万') }}</span>
+                                    <span class="text-base font-normal text-slate-500 dark:text-slate-400" x-text="amountUnit"></span>
                                 </p>
                             </div>
                             <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 text-center">
@@ -465,7 +467,7 @@
                             <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                                 <span class="material-symbols-outlined text-primary">account_balance_wallet</span>
                                 {{ _('薪资构成') }}
-                                <span class="text-sm font-normal text-slate-500 dark:text-slate-400">({{ currency_config.amount_unit }})</span>
+                                <span class="text-sm font-normal text-slate-500 dark:text-slate-400">(<span x-text="amountUnit"></span>)</span>
                             </h3>
                             <!-- 数据来源图例 -->
                             <div class="flex items-center gap-4 text-xs">
@@ -900,6 +902,10 @@
             totalTeamShare: 0,
             monthlyData: [],
             currentMonths: [],
+            // 货币信息（从API获取，支持用户结算货币）
+            currency: '{{ currency_config.currency }}',
+            currencySymbol: '{{ currency_config.symbol }}',
+            amountUnit: '{{ currency_config.amount_unit }}',
 
             init() {
                 // 从共享 store 同步年份
@@ -998,6 +1004,10 @@
                         this.teamShareDetails = result.team_share_details || [];
                         this.totalTeamShare = this.teamShareDetails.reduce((sum, s) => sum + (s.share_amount || 0), 0);
                         this.monthlyData = result.monthly_data || [];
+                        // 更新货币信息（支持用户结算货币）
+                        this.currency = result.currency || '{{ currency_config.currency }}';
+                        this.currencySymbol = result.currency_symbol || '{{ currency_config.symbol }}';
+                        this.amountUnit = result.amount_unit || '{{ currency_config.amount_unit }}';
                     } else {
                         this.hasData = false;
                     }

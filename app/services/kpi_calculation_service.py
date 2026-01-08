@@ -222,10 +222,8 @@ class KpiCalculationService:
         """
         获取用户的KPI目标值
 
-        优先级:
-        1. UserPerformanceTarget (用户个人覆盖)
-        2. RolePerformanceTarget (角色默认目标)
-        3. 返回 None
+        2026-01-08: 废弃旧的 RolePerformanceTarget/UserPerformanceTarget 系统
+        统一使用 EmployeeSalaryConfig，返回 None 让调用方回退到新系统
 
         Args:
             user_id: 用户ID
@@ -233,43 +231,10 @@ class KpiCalculationService:
             year: 年份
 
         Returns:
-            float: 目标值，如果未配置则返回None
+            None: 已废弃，返回 None
         """
-        from app.models.performance_config import (
-            RolePerformanceTarget, UserPerformanceTarget
-        )
-        from app.models.user import User
-
-        try:
-            # 1. 先查用户个人覆盖
-            user_target = UserPerformanceTarget.query.filter_by(
-                user_id=user_id,
-                year=year,
-                item_code=item_code
-            ).first()
-
-            if user_target and user_target.annual_target_override is not None:
-                return float(user_target.annual_target_override)
-
-            # 2. 查角色默认目标
-            user = User.query.get(user_id)
-            if not user:
-                return None
-
-            role_target = RolePerformanceTarget.query.filter_by(
-                role_code=user.role,
-                year=year,
-                item_code=item_code
-            ).first()
-
-            if role_target and role_target.annual_target is not None:
-                return float(role_target.annual_target)
-
-            return None
-
-        except Exception as e:
-            logger.error(f"获取KPI目标失败: user_id={user_id}, item_code={item_code}: {e}")
-            return None
+        # 废弃旧系统，返回 None 让调用方使用 EmployeeSalaryConfig
+        return None
 
     @staticmethod
     def get_kpi_rate(user_id, item_code, year, month=None):

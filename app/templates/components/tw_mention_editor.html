@@ -363,17 +363,16 @@ function mentionEditor(editorId) {
                         emptyText: '未找到匹配的报价单',
                         loadingText: '搜索中...',
                         renderItem: (quotation, isHighlighted) => {
-                            // 格式化金额显示
+                            // 格式化金额显示 - 使用报价单的实际货币符号
                             const amount = quotation.amount || 0;
-                            const amountText = amount >= 10000
-                                ? (amount / 10000).toFixed(2) + '万'
-                                : amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            const currencySymbol = quotation.currency_symbol || '¥';
+                            const amountText = amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                             return `
                                 <div>
                                     <div class="font-medium truncate">${quotation.project_name}</div>
                                     <div class="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
                                         <span class="truncate">${quotation.quotation_number || '未编号'}</span>
-                                        <span class="flex-shrink-0 font-medium text-amber-600 dark:text-amber-400">¥${amountText}</span>
+                                        <span class="flex-shrink-0 font-medium text-amber-600 dark:text-amber-400">${currencySymbol}${amountText}</span>
                                     </div>
                                 </div>
                             `;

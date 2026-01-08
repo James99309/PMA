@@ -14,9 +14,7 @@ from app.models.customer import Company
 from app.models.project import Project
 from app.services.performance_service import PerformanceService
 from app.models.salary_config import EmployeeSalaryConfig, QuarterlyPerformanceData, SalesTeamConfig
-from app.models.performance_config import (
-    RolePerformanceTarget, UserPerformanceTarget, PerformanceMetricsDefinition
-)
+# 2026-01-08: 废弃旧的 KPI 目标系统，不再需要导入 RolePerformanceTarget, UserPerformanceTarget, PerformanceMetricsDefinition
 from app.services.exchange_rate_service import exchange_rate_service
 from config import Config
 import logging
@@ -124,13 +122,23 @@ class PerformanceDashboardService:
 
             # 从绩效目标配置获取目标数据（使用新的目标表）
             targets_dict = PerformanceDashboardService.get_user_kpi_targets(user_id, year)
+            logger.info(f"[DEBUG] get_user_kpi_targets returned: {bool(targets_dict)}, keys: {list(targets_dict.keys()) if targets_dict else []}")
 
             # 如果新目标表无数据，回退到薪资配置
             if not targets_dict:
+                logger.info(f"[DEBUG] Falling back to EmployeeSalaryConfig for user_id={user_id}")
                 employee_config = EmployeeSalaryConfig.query.filter_by(user_id=user_id).first()
+                logger.info(f"[DEBUG] employee_config found: {bool(employee_config)}")
+                if employee_config:
+                    logger.info(f"[DEBUG] grade_id: {employee_config.grade_id}, use_custom_config: {employee_config.use_custom_config}")
+                    logger.info(f"[DEBUG] annual_target_override: {employee_config.annual_target_override}")
+                    if employee_config.grade:
+                        logger.info(f"[DEBUG] grade.annual_target: {employee_config.grade.annual_target}")
+
                 if employee_config and employee_config.grade_id:
                     # 获取年度目标
                     annual_target = employee_config.get_effective_value('annual_target', 0)
+                    logger.info(f"[DEBUG] get_effective_value('annual_target'): {annual_target}")
                     monthly_targets_config = employee_config.monthly_targets or {}
 
                     for month in range(1, 13):
@@ -147,6 +155,7 @@ class PerformanceDashboardService:
                             'new_customers_target': 0,
                             'new_projects_target': 0
                         }
+                    logger.info(f"[DEBUG] Final targets_dict month 1: {targets_dict.get(1, {})}")
 
             # 新增聚合逻辑
             # 获取费用预算范围（根据用户角色，支持多范围）
@@ -1125,129 +1134,24 @@ class PerformanceDashboardService:
     @staticmethod
     def get_user_kpi_targets(user_id, year):
         """
-        获取用户的所有KPI目标（从新的目标表读取）
+        获取用户的所有KPI目标
 
-        优先级：
-        1. UserPerformanceTarget (用户个人目标) - 优先使用
-        2. RolePerformanceTarget (角色默认目标) - 回退使用
+        注意：旧的 RolePerformanceTarget/UserPerformanceTarget 系统已废弃
+        现在统一使用 EmployeeSalaryConfig 系统配置目标
+        返回空字典让调用方回退到薪资配置
 
         Args:
             user_id: 用户ID
             year: 年份
 
         Returns:
-            dict: {month: {item_code: target_value, ...}, ...}
-                  如果没有配置返回空字典
+            dict: 空字典，让系统回退到 EmployeeSalaryConfig
         """
-        try:
-            user = User.query.get(user_id)
-            if not user:
-                return {}
+        # 2026-01-08: 废弃旧的 KPI 目标系统，统一使用薪资配置
+        # 直接返回空字典，让 get_dashboard_data() 回退到 EmployeeSalaryConfig
+        return {}
 
-            role_code = user.role
-            targets_dict = {}
-
-            # 1. 获取角色目标配置
-            role_targets = RolePerformanceTarget.query.filter_by(
-                role_code=role_code,
-                year=year
-            ).all()
-            role_targets_dict = {rt.item_code: rt for rt in role_targets}
-
-            # 2. 获取用户个人目标配置（独立查询，不依赖角色目标）
-            user_targets = UserPerformanceTarget.query.filter_by(
-                user_id=user_id,
-                year=year
-            ).all()
-            user_targets_dict = {ut.item_code: ut for ut in user_targets}
-
-            # 3. 如果两者都没有配置，返回空字典（让调用方回退到薪资配置）
-            if not role_targets and not user_targets:
-                return {}
-
-            # 4. 合并所有目标项目代码（用户个人目标 + 角色目标）
-            all_item_codes = set(role_targets_dict.keys()) | set(user_targets_dict.keys())
-
-            # 5. 构建月度目标字典
-            for month in range(1, 13):
-                month_targets = {
-                    'sales_amount_target': 0,
-                    'implant_amount_target': 0,
-                    'new_customers_target': 0,
-                    'new_projects_target': 0
-                }
-
-                for item_code in all_item_codes:
-                    user_target = user_targets_dict.get(item_code)
-                    role_target = role_targets_dict.get(item_code)
-
-                    # 确定年度目标值（用户个人目标优先）
-                    annual_target = 0
-                    if user_target and user_target.annual_target_override:
-                        annual_target = float(user_target.annual_target_override)
-                    elif role_target and role_target.annual_target:
-                        annual_target = float(role_target.annual_target)
-
-                    # 计算月度目标（按优先级：月度配置 → 季度配置÷3 → 年度配置÷12）
-                    monthly_target = 0
-
-                    # 优先级1：月度配置
-                    if user_target and user_target.enable_monthly_override and user_target.monthly_targets_override:
-                        user_monthly_val = user_target.monthly_targets_override.get(str(month))
-                        if user_monthly_val:
-                            monthly_target = float(user_monthly_val)
-                    elif role_target and role_target.enable_monthly and role_target.monthly_targets:
-                        monthly_val = role_target.monthly_targets.get(str(month))
-                        if monthly_val:
-                            monthly_target = float(monthly_val)
-
-                    # 优先级2：季度配置（季度目标 ÷ 3）
-                    if monthly_target == 0:
-                        quarter = (month - 1) // 3 + 1  # 1-3月=Q1, 4-6月=Q2, 7-9月=Q3, 10-12月=Q4
-                        quarterly_target = None
-
-                        # 用户季度配置优先
-                        if user_target and user_target.enable_quarterly_override:
-                            q_targets = {
-                                1: user_target.q1_target_override,
-                                2: user_target.q2_target_override,
-                                3: user_target.q3_target_override,
-                                4: user_target.q4_target_override
-                            }
-                            quarterly_target = q_targets.get(quarter)
-
-                        # 回退到角色季度配置
-                        if quarterly_target is None and role_target and role_target.enable_quarterly:
-                            q_targets = {
-                                1: role_target.q1_target,
-                                2: role_target.q2_target,
-                                3: role_target.q3_target,
-                                4: role_target.q4_target
-                            }
-                            quarterly_target = q_targets.get(quarter)
-
-                        if quarterly_target:
-                            monthly_target = float(quarterly_target) / 3  # 季度目标除以3
-
-                    # 优先级3：年度配置（年度目标 ÷ 12）
-                    if monthly_target == 0 and annual_target:
-                        monthly_target = annual_target / 12
-
-                    # 映射到标准字段名
-                    target_key = PerformanceDashboardService._map_item_code_to_target_key(item_code)
-                    if target_key:
-                        # 注意：PerformanceService使用元为单位，需要转换
-                        if item_code in ['sales_target', 'implant_amount', 'high_price_amount']:
-                            monthly_target = monthly_target * 10000  # 万元→元
-                        month_targets[target_key] = monthly_target
-
-                targets_dict[month] = month_targets
-
-            return targets_dict
-
-        except Exception as e:
-            logger.error(f"获取用户KPI目标失败: user_id={user_id}, year={year}, error={e}")
-            return {}
+    # 2026-01-08: 删除 _get_user_kpi_targets_legacy 方法，旧的 KPI 目标系统已废弃
 
     @staticmethod
     def _map_item_code_to_target_key(item_code):
@@ -1265,71 +1169,18 @@ class PerformanceDashboardService:
         """
         获取用户配置的绩效项目代码列表
 
-        优先级：
-        1. 用户个人配置 (UserPerformanceTarget)
-        2. 角色默认配置 (RolePerformanceTarget)
-        3. 默认显示所有指标
+        2026-01-08: 废弃旧的 RolePerformanceTarget/UserPerformanceTarget 系统
+        统一使用 EmployeeSalaryConfig，默认显示所有指标
 
         Args:
             user_id: 用户ID
             year: 年份
 
         Returns:
-            list: 绩效项目代码列表，如 ['implant_amount', 'sales_amount', 'new_customers', 'new_projects']
+            list: 绩效项目代码列表
         """
-        try:
-            # 默认指标顺序
-            default_items = ['implant_amount', 'sales_amount', 'new_customers', 'new_projects']
-
-            # item_code 到 前端 metric key 的映射
-            code_to_metric = {
-                'implant_amount': 'implant_amount',
-                'sales_target': 'sales_amount',
-                'new_customers': 'new_customers',
-                'new_projects': 'new_projects',
-            }
-
-            # 1. 查用户个人配置
-            user_items = UserPerformanceTarget.query.filter_by(
-                user_id=user_id, year=year
-            ).all()
-
-            if user_items:
-                # 有个人配置，返回有目标的项目
-                result = []
-                for item in user_items:
-                    if item.annual_target_override and item.annual_target_override > 0:
-                        metric_key = code_to_metric.get(item.item_code)
-                        if metric_key and metric_key not in result:
-                            result.append(metric_key)
-                if result:
-                    # 按默认顺序排序
-                    return [m for m in default_items if m in result]
-
-            # 2. 回退到角色配置
-            user = User.query.get(user_id)
-            if user and user.role:
-                role_items = RolePerformanceTarget.query.filter_by(
-                    role_code=user.role, year=year
-                ).all()
-
-                if role_items:
-                    result = []
-                    for item in role_items:
-                        if item.annual_target and item.annual_target > 0:
-                            metric_key = code_to_metric.get(item.item_code)
-                            if metric_key and metric_key not in result:
-                                result.append(metric_key)
-                    if result:
-                        # 按默认顺序排序
-                        return [m for m in default_items if m in result]
-
-            # 3. 默认显示所有
-            return default_items
-
-        except Exception as e:
-            logger.error(f"获取配置的绩效项目失败: user_id={user_id}, year={year}, error={e}")
-            return ['implant_amount', 'sales_amount', 'new_customers', 'new_projects']
+        # 废弃旧系统，默认显示所有指标
+        return ['implant_amount', 'sales_amount', 'new_customers', 'new_projects']
 
     @staticmethod
     def _get_team_summary_for_manager(user_id, year):
@@ -1375,12 +1226,12 @@ class PerformanceDashboardService:
             if not team_perf or team_perf.get('team_target', 0) <= 0:
                 return None
 
-            # 转换为与summary相同的格式
-            # 注意：team_achievement 和 team_target 单位是万元
+            # 转换为与summary相同的格式（元）
+            # team_achievement 和 team_target 原单位是万元，需乘10000转为元
             team_summary = {
                 'sales_amount': {
-                    'actual': team_perf['team_achievement'],
-                    'target': team_perf['team_target'],
+                    'actual': team_perf['team_achievement'] * 10000,
+                    'target': team_perf['team_target'] * 10000,
                     'rate': round(team_perf['team_completion_rate'] * 100, 1),
                     'status': 'success' if team_perf['team_completion_rate'] >= 1 else (
                         'warning' if team_perf['team_completion_rate'] >= 0.8 else 'danger'

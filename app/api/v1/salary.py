@@ -15,15 +15,14 @@ from app.models.salary_config import (
     SalaryStepRules, EmployeeSalaryConfig, QuarterlyPerformanceData,
     SalaryCalculationResult, SalesTeamConfig, SalaryPeriodSnapshot
 )
-from app.models.performance_config import (
-    UserPerformanceTarget, RolePerformanceTarget
-)
+# 2026-01-08: 废弃旧的 KPI 目标系统，不再需要导入 UserPerformanceTarget, RolePerformanceTarget
 from app.utils.auth import flexible_auth
 from app.utils.permissions import get_accessible_users
 from app.models.pricing_order import PricingOrder
 from app import db
 from datetime import datetime
 from sqlalchemy import extract
+from config import Config
 import logging
 
 logger = logging.getLogger(__name__)
@@ -228,10 +227,8 @@ def get_quarterly_target_from_performance_config(user_id, year, quarter, annual_
     """
     从绩效配置获取季度目标
 
-    优先级：
-    1. 用户个人绩效配置（UserPerformanceTarget）的季度目标
-    2. 角色绩效配置（RolePerformanceTarget）的季度目标
-    3. 默认：年度目标 / 4
+    2026-01-08: 废弃旧的 RolePerformanceTarget/UserPerformanceTarget 系统
+    统一使用 EmployeeSalaryConfig，直接返回年度目标 / 4
 
     参数：
         user_id: 用户ID
@@ -240,35 +237,9 @@ def get_quarterly_target_from_performance_config(user_id, year, quarter, annual_
         annual_target: 年度目标（从薪资配置获取）
 
     返回：
-        季度目标值
+        季度目标值（年度目标 / 4）
     """
-    q_field_map = {1: 'q1_target', 2: 'q2_target', 3: 'q3_target', 4: 'q4_target'}
-    q_override_field_map = {1: 'q1_target_override', 2: 'q2_target_override',
-                            3: 'q3_target_override', 4: 'q4_target_override'}
-
-    # 1. 检查用户个人绩效配置
-    user_target = UserPerformanceTarget.query.filter_by(
-        user_id=user_id, year=year, item_code='sales_target'
-    ).first()
-
-    if user_target and user_target.enable_quarterly_override:
-        q_value = getattr(user_target, q_override_field_map[quarter], None)
-        if q_value is not None:
-            return float(q_value)
-
-    # 2. 检查角色绩效配置
-    user = User.query.get(user_id)
-    if user and user.role:
-        role_target = RolePerformanceTarget.query.filter_by(
-            role_code=user.role, year=year, item_code='sales_target'
-        ).first()
-
-        if role_target and role_target.enable_quarterly:
-            q_value = getattr(role_target, q_field_map[quarter], None)
-            if q_value is not None:
-                return float(q_value)
-
-    # 3. 默认：年度目标 / 4
+    # 废弃旧系统，直接使用年度目标平摊
     return annual_target / 4 if annual_target > 0 else 0
 
 
@@ -1227,6 +1198,73 @@ def get_user_salary_dashboard(user_id):
                 month_data['is_settled'] = is_settled
                 month_data['snapshot_status'] = None
 
+        # ========== 货币转换逻辑 ==========
+        # 获取目标用户的结算货币
+        target_user = User.query.get(user_id)
+        user_currency = (target_user.settlement_currency if target_user else None) or Config.DEFAULT_CURRENCY
+
+        # 默认使用系统货币信息
+        from app.utils.i18n import get_currency_symbol as get_symbol
+        from app.utils.currency_helpers import get_amount_unit_by_code, get_amount_divisor_by_code
+
+        currency_symbol = get_symbol(user_currency)
+        amount_unit = get_amount_unit_by_code(user_currency)
+
+        # 如果用户货币与系统默认不同，进行汇率转换
+        if user_currency != Config.DEFAULT_CURRENCY:
+            from app.services.exchange_rate_service import exchange_rate_service
+
+            # 获取系统默认除数和目标除数
+            system_divisor = Config.AMOUNT_DIVISOR  # 10000 for CNY
+            target_divisor = get_amount_divisor_by_code(user_currency)  # 1000 for HKD
+
+            # 转换系数 = 系统除数 / 目标除数 × 汇率
+            # 例如：CNY万元 → HKD K: 10000/1000 × 1.11 ≈ 11.1
+            exchange_rate = exchange_rate_service.get_exchange_rate(Config.DEFAULT_CURRENCY, user_currency)
+            conversion_factor = (system_divisor / target_divisor) * exchange_rate
+
+            def convert_amount(amount):
+                """转换金额（从系统货币单位到用户货币单位）"""
+                if amount is None or amount == 0:
+                    return amount
+                return round(amount * conversion_factor, 4)
+
+            # 转换 overview 中的金额
+            overview_data['annual_target'] = convert_amount(overview_data.get('annual_target', 0))
+            overview_data['annual_achievement'] = convert_amount(overview_data.get('annual_achievement', 0))
+            if 'team_target' in overview_data:
+                overview_data['team_target'] = convert_amount(overview_data['team_target'])
+            if 'team_achievement' in overview_data:
+                overview_data['team_achievement'] = convert_amount(overview_data['team_achievement'])
+
+            # 转换 breakdown 中的金额
+            amount_fields = ['annual_base_salary', 'management_allowance', 'performance_salary',
+                           'personal_commission', 'team_commission_share', 'annual_bonus', 'annual_total_income']
+            for field in amount_fields:
+                if field in breakdown_data:
+                    breakdown_data[field] = convert_amount(breakdown_data[field])
+
+            # 转换季度数据
+            for q in quarterly_list:
+                q['personal_achievement'] = convert_amount(q.get('personal_achievement', 0))
+                q['team_achievement'] = convert_amount(q.get('team_achievement', 0))
+                q['achievement'] = convert_amount(q.get('achievement', 0))
+
+            # 转换团队分成详情
+            for detail in team_share_details:
+                detail['commission_base'] = convert_amount(detail.get('commission_base', 0))
+                detail['share_amount'] = convert_amount(detail.get('share_amount', 0))
+
+            # 转换月度数据（月度数据是元，不是万元，需要不同的转换）
+            # 月度薪资直接用汇率转换，不改变单位
+            for month in monthly_data:
+                for field in ['base_salary', 'performance_salary', 'personal_commission',
+                             'team_share_commission', 'monthly_total']:
+                    if field in month:
+                        original = month[field]
+                        if original and original != 0:
+                            month[field] = round(original * exchange_rate, 2)
+
         return api_response(
             success=True,
             message="获取成功",
@@ -1237,7 +1275,11 @@ def get_user_salary_dashboard(user_id):
                 'breakdown': breakdown_data,
                 'quarterly_data': quarterly_list,
                 'team_share_details': team_share_details,
-                'monthly_data': monthly_data
+                'monthly_data': monthly_data,
+                # 新增：返回货币信息供前端使用
+                'currency': user_currency,
+                'currency_symbol': currency_symbol,
+                'amount_unit': amount_unit
             }
         )
 
@@ -1410,6 +1452,8 @@ def save_user_salary_config(user_id):
 
     try:
         data = request.get_json()
+        logger.info(f"[DEBUG] save_user_salary_config 收到数据: user_id={user_id}, data={data}")
+        logger.info(f"[DEBUG] annual_target_override in data: {'annual_target_override' in data}, value: {data.get('annual_target_override')}")
         if not data:
             return api_response(success=False, code=400, message="请求数据无效")
 

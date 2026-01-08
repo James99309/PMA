@@ -935,18 +935,15 @@ def create_expense():
                     # 转换数据类型
                     expense_date = datetime.strptime(detail['expense_date'], '%Y-%m-%d').date()
                     invoice_amount = float(detail['invoice_amount'])
-                    current_amount = float(detail.get('current_amount', invoice_amount))  # 如果没有转换金额，使用发票金额
-                    
+
+                    # 处理汇率字段 - 统一保留4位小数精度
+                    exchange_rate = round(float(detail.get('exchange_rate', 1.0)), 4)
+
+                    # 使用4位精度汇率计算金额，保持与前端一致
+                    current_amount = round(invoice_amount * exchange_rate, 2)
+
                     # 确保amount字段也有值（向后兼容）
-                    amount = float(detail.get('amount', current_amount))  # 优先使用amount，否则使用current_amount
-                    
-                    # 处理汇率字段
-                    exchange_rate = float(detail.get('exchange_rate', 1.0))  # 获取前端传递的汇率
-                    
-                    # 如果没有汇率信息，尝试根据金额计算
-                    if exchange_rate == 1.0 and invoice_amount > 0 and current_amount != invoice_amount:
-                        exchange_rate = current_amount / invoice_amount
-                        logger.info(f"明细{index}计算汇率: {current_amount} / {invoice_amount} = {exchange_rate}")
+                    amount = current_amount
                     
                     # 调试日志
                     logger.info(f"明细{index}数据处理: invoice_amount={invoice_amount}, current_amount={current_amount}, amount={amount}, exchange_rate={exchange_rate}")
@@ -1722,18 +1719,19 @@ def edit_expense(id):
                         if 'invoice_amount' in editable_fields and 'invoice_amount' in detail:
                             invoice_amount = float(detail['invoice_amount'])
                             detail_obj.invoice_amount = invoice_amount
-                            # 重新计算转换后的金额
-                            exchange_rate = detail_obj.exchange_rate or 1.0
-                            detail_obj.current_amount = invoice_amount * exchange_rate
+                            # 重新计算转换后的金额（汇率保持4位精度）
+                            exchange_rate = round(detail_obj.exchange_rate or 1.0, 4)
+                            detail_obj.current_amount = round(invoice_amount * exchange_rate, 2)
                             detail_obj.amount = detail_obj.current_amount  # 向后兼容
                             logger.info(f"更新明细 {detail_obj.id} 发票金额: {invoice_amount}")
 
                         if 'exchange_rate' in editable_fields and 'exchange_rate' in detail:
-                            exchange_rate = float(detail.get('exchange_rate', 1.0))
+                            # 汇率统一保留4位小数精度
+                            exchange_rate = round(float(detail.get('exchange_rate', 1.0)), 4)
                             detail_obj.exchange_rate = exchange_rate
-                            # 重新计算转换后的金额
+                            # 重新计算转换后的金额（金额保持2位精度）
                             invoice_amount = detail_obj.invoice_amount or 0
-                            detail_obj.current_amount = invoice_amount * exchange_rate
+                            detail_obj.current_amount = round(invoice_amount * exchange_rate, 2)
                             detail_obj.amount = detail_obj.current_amount  # 向后兼容
                             logger.info(f"更新明细 {detail_obj.id} 汇率: {exchange_rate}, 转换金额: {detail_obj.current_amount}")
 
@@ -1772,10 +1770,12 @@ def edit_expense(id):
                     # 转换数据类型
                     expense_date = datetime.strptime(detail['expense_date'], '%Y-%m-%d').date()
                     invoice_amount = float(detail['invoice_amount'])
-                    current_amount = float(detail.get('current_amount', invoice_amount))
-                    exchange_rate = float(detail.get('exchange_rate', 1.0))
+                    # 处理汇率字段 - 统一保留4位小数精度
+                    exchange_rate = round(float(detail.get('exchange_rate', 1.0)), 4)
+                    # 使用4位精度汇率计算金额，保持与前端一致
+                    current_amount = round(invoice_amount * exchange_rate, 2)
                     document_count = int(detail.get('document_count', 1))
-                    
+
                     if invoice_amount <= 0:
                         return jsonify({'success': False, 'message': f'第{index+1}条明细的发票金额必须大于0'}), 400
                     

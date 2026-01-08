@@ -934,12 +934,12 @@ def complete_item(item_id):
     worklog = WorkLog.get_or_create(current_user.id, work_item.planned_date)
     work_item.worklog_id = worklog.id
 
-    # 更新日志总工时
-    worklog.total_hours = sum(
+    # 更新日志总工时（使用 round 避免浮点数精度问题）
+    worklog.total_hours = round(sum(
         i.actual_hours or 0
         for i in worklog.work_items
         if i.status == 'completed' and not i.is_deleted
-    )
+    ), 1)
 
     # 如果关联了客户或项目，且有行动记录内容，则同步创建 Action 记录
     sync_action = data.get('sync_action', False)
@@ -1081,12 +1081,12 @@ def get_daily_log(log_date):
     pending_items = [i.to_dict() for i in work_items if i.status == 'planned']
     cancelled_items = [i.to_dict() for i in work_items if i.status == 'cancelled']
 
-    # 计算统计数据
+    # 计算统计数据（使用 round 避免浮点数精度问题）
     stats = {
         'total_items': len(work_items),
         'completed_items': len(completed_items),
         'pending_items': len(pending_items),
-        'total_hours': sum(i.actual_hours or 0 for i in work_items if i.status == 'completed'),
+        'total_hours': round(sum(i.actual_hours or 0 for i in work_items if i.status == 'completed'), 1),
         'project_count': len(set(i.project_id for i in work_items if i.project_id)),
         'customer_count': len(set(i.customer_id for i in work_items if i.customer_id))
     }
@@ -1238,7 +1238,7 @@ def submit_daily_log(log_date):
             cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{current_user.id}]'::jsonb"))
         )
     ).all()
-    worklog.total_hours = sum(i.actual_hours or 0 for i in work_items)
+    worklog.total_hours = round(sum(i.actual_hours or 0 for i in work_items), 1)
 
     db.session.commit()
 

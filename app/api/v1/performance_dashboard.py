@@ -10,10 +10,12 @@ from app.api.v1 import api_v1_bp
 from app.api.v1.utils import api_response
 from app.models.user import User
 from app.services.performance_dashboard_service import PerformanceDashboardService
+from app.services.exchange_rate_service import exchange_rate_service
 from app.utils.auth import flexible_auth
 from app.utils.permissions import get_accessible_users
 from app.utils.dictionary_helpers import get_company_type_options, get_industry_options, COMPANY_TYPE_LABELS, INDUSTRY_LABELS
 from app import db
+from config import Config
 from datetime import datetime
 import logging
 
@@ -113,12 +115,21 @@ def get_performance_dashboard(user_id):
             if k not in industry_dict:
                 industry_dict[k] = v.get(lang, v.get('zh', k))
 
+        # 获取目标用户的货币配置
+        target_user = User.query.get(user_id)
+        user_currency = target_user.settlement_currency if target_user else Config.DEFAULT_CURRENCY
+        user_exchange_rate = exchange_rate_service.get_exchange_rate('CNY', user_currency)
+
         return api_response(
             success=True,
             message="获取成功",
             data={
                 'user_id': user_id,
                 'year': year,
+                'currency_config': {
+                    'currency': user_currency,
+                    'exchange_rate': user_exchange_rate
+                },
                 'dictionaries': {
                     'company_type': company_type_dict,
                     'industry': industry_dict

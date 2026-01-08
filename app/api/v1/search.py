@@ -232,6 +232,8 @@ def search_quotations():
                     'authorization_code': project.authorization_code or '',
                     'project_type': project.project_type or '',
                     'amount': float(quotation.amount) if quotation.amount else 0,
+                    'currency': quotation.currency or 'CNY',
+                    'currency_symbol': quotation.currency_symbol,
                     'display_text': display_text,
                     'created_at': quotation.created_at.isoformat() if quotation.created_at else None
                 })

@@ -22,6 +22,7 @@
         rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script src="{{ url_for('static', filename='js/currency-helpers.js') }}"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
@@ -1462,39 +1463,39 @@
                                             {{ _('薪资配置') }}
                                         </h4>
                                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                                            <!-- 年度目标/个人目标 -->
+                                            <!-- 年度目标/个人目标（换算为用户结算货币） -->
                                             <div class="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-600">
                                                 <div class="text-slate-500 dark:text-slate-400 text-xs mb-1">
                                                     <span x-show="isMGrade && teamMembers.length > 0">{{ _('个人目标') }}</span>
                                                     <span x-show="!isMGrade || teamMembers.length === 0">{{ _('年度目标') }}</span>
                                                 </div>
-                                                <div class="font-semibold text-slate-900 dark:text-white" x-text="getEffectiveValue('annual_target') + '{{ currency_config.amount_unit }}'"></div>
+                                                <div class="font-semibold text-slate-900 dark:text-white" x-text="CurrencyHelpers.formatWithSmartUnit(convertTargetAmount(getEffectiveValue('annual_target')), getUserCurrency(), {withSymbol: true})"></div>
                                                 <div x-show="userConfig.annual_target_override" class="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                                                    {{ _('默认') }}: <span x-text="selectedGrade?.annual_target || 0"></span>{{ currency_config.amount_unit }}
+                                                    {{ _('默认') }}: <span x-text="(selectedGrade?.annual_target || 0) + '{{ currency_config.amount_unit }}'"></span>
                                                 </div>
                                             </div>
-                                            <!-- 团队目标（M级有团队成员时显示） -->
+                                            <!-- 团队目标（M级有团队成员时显示，换算为用户结算货币） -->
                                             <div x-show="isMGrade && teamMembers.length > 0" class="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-600">
                                                 <div class="text-slate-500 dark:text-slate-400 text-xs mb-1">{{ _('团队目标') }}</div>
-                                                <div class="font-semibold text-slate-900 dark:text-white" x-text="(teamTarget || 0) + '{{ currency_config.amount_unit }}'"></div>
+                                                <div class="font-semibold text-slate-900 dark:text-white" x-text="CurrencyHelpers.formatWithSmartUnit(convertTargetAmount(teamTarget || 0), getUserCurrency(), {withSymbol: true})"></div>
                                             </div>
                                             <div class="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-600">
                                                 <div class="text-slate-500 dark:text-slate-400 text-xs mb-1">{{ _('月基础工资') }}</div>
-                                                <div class="font-semibold text-slate-900 dark:text-white" x-text="'{{ currency_config.symbol }}' + formatNumber(getEffectiveValue('monthly_base_salary'))"></div>
+                                                <div class="font-semibold text-slate-900 dark:text-white" x-text="getUserCurrencySymbol() + formatNumber(convertMonthlyAmount(getEffectiveValue('monthly_base_salary')))"></div>
                                                 <div x-show="userConfig.monthly_base_salary_override" class="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                                                    {{ _('默认') }}: {{ currency_config.symbol }}<span x-text="formatNumber(selectedGrade?.monthly_base_salary || 0)"></span>
+                                                    {{ _('默认') }}: <span x-text="'{{ currency_config.symbol }}' + formatNumber(selectedGrade?.monthly_base_salary || 0)"></span>
                                                 </div>
                                             </div>
                                             <div class="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-600">
                                                 <div class="text-slate-500 dark:text-slate-400 text-xs mb-1">{{ _('月绩效基数') }}</div>
-                                                <div class="font-semibold text-slate-900 dark:text-white" x-text="'{{ currency_config.symbol }}' + formatNumber(getEffectiveValue('monthly_performance_base'))"></div>
+                                                <div class="font-semibold text-slate-900 dark:text-white" x-text="getUserCurrencySymbol() + formatNumber(convertMonthlyAmount(getEffectiveValue('monthly_performance_base')))"></div>
                                                 <div x-show="userConfig.monthly_performance_base_override" class="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                                                    {{ _('默认') }}: {{ currency_config.symbol }}<span x-text="formatNumber(selectedGrade?.monthly_performance_base || 0)"></span>
+                                                    {{ _('默认') }}: <span x-text="'{{ currency_config.symbol }}' + formatNumber(selectedGrade?.monthly_performance_base || 0)"></span>
                                                 </div>
                                             </div>
                                             <div class="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-600">
                                                 <div class="text-slate-500 dark:text-slate-400 text-xs mb-1">{{ _('月管理津贴') }}</div>
-                                                <div class="font-semibold text-slate-900 dark:text-white" x-text="'{{ currency_config.symbol }}' + formatNumber(userConfig.monthly_management_allowance_override || 0)"></div>
+                                                <div class="font-semibold text-slate-900 dark:text-white" x-text="getUserCurrencySymbol() + formatNumber(convertMonthlyAmount(userConfig.monthly_management_allowance_override || 0))"></div>
                                             </div>
                                         </div>
                                     </div>
@@ -1609,21 +1610,21 @@
                                                 </select>
                                             </div>
 
-                                            <!-- 职级信息预览 -->
+                                            <!-- 职级信息预览（直接显示用户结算货币） -->
                                             <div x-show="selectedGrade" class="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-600">
-                                                <div class="text-sm text-slate-500 dark:text-slate-400 mb-2">{{ _('职级默认配置') }}:</div>
+                                                <div class="text-sm text-slate-500 dark:text-slate-400 mb-2">{{ _('职级默认配置') }} <span class="text-xs">(<span x-text="getUserCurrency()"></span>)</span>:</div>
                                                 <div class="grid grid-cols-3 gap-4 text-sm">
                                                     <div>
                                                         <span class="text-slate-500 dark:text-slate-400">{{ _('年度目标') }}:</span>
-                                                        <span class="font-medium text-slate-900 dark:text-white ml-1" x-text="selectedGrade ? selectedGrade.annual_target + '{{ currency_config.amount_unit }}' : '-'"></span>
+                                                        <span class="font-medium text-slate-900 dark:text-white ml-1" x-text="selectedGrade ? CurrencyHelpers.formatWithSmartUnit(convertTargetAmount(selectedGrade.annual_target), getUserCurrency(), {withSymbol: true}) : '-'"></span>
                                                     </div>
                                                     <div>
                                                         <span class="text-slate-500 dark:text-slate-400">{{ _('月基础工资') }}:</span>
-                                                        <span class="font-medium text-slate-900 dark:text-white ml-1" x-text="selectedGrade ? '{{ currency_config.symbol }}' + formatNumber(selectedGrade.monthly_base_salary) : '-'"></span>
+                                                        <span class="font-medium text-slate-900 dark:text-white ml-1" x-text="selectedGrade ? getUserCurrencySymbol() + formatNumber(convertMonthlyAmount(selectedGrade.monthly_base_salary)) : '-'"></span>
                                                     </div>
                                                     <div>
                                                         <span class="text-slate-500 dark:text-slate-400">{{ _('月绩效基数') }}:</span>
-                                                        <span class="font-medium text-slate-900 dark:text-white ml-1" x-text="selectedGrade ? '{{ currency_config.symbol }}' + formatNumber(selectedGrade.monthly_performance_base) : '-'"></span>
+                                                        <span class="font-medium text-slate-900 dark:text-white ml-1" x-text="selectedGrade ? getUserCurrencySymbol() + formatNumber(convertMonthlyAmount(selectedGrade.monthly_performance_base)) : '-'"></span>
                                                     </div>
                                                 </div>
                                                 <div x-show="selectedGrade && selectedGrade.grade_type === 'M'" class="mt-2 text-sm">
@@ -1652,29 +1653,29 @@
 
                                     <!-- 薪资配置（自定义模式下显示） -->
                                     <div x-show="userConfig.use_custom_config" x-transition class="space-y-4">
-                                        <!-- 薪资带宽配置 -->
+                                        <!-- 薪资带宽配置（使用用户结算货币） -->
                                         <div class="bg-slate-50 dark:bg-slate-700/30 rounded-lg p-4">
                                             <h4 class="font-medium text-slate-900 dark:text-white mb-3 flex items-center gap-2">
                                                 <span class="material-symbols-outlined text-primary text-lg">tune</span>
-                                                {{ _('薪资带宽配置') }}
+                                                {{ _('薪资带宽配置') }} <span class="text-xs text-slate-400">(<span x-text="getUserCurrency()"></span>)</span>
                                             </h4>
                                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                 <div>
-                                                    <label class="block text-xs text-slate-500 mb-1">{{ _('月基础工资') }}</label>
+                                                    <label class="block text-xs text-slate-500 mb-1">{{ _('月基础工资') }} (<span x-text="getUserCurrencySymbol()"></span>)</label>
                                                     <input type="number" x-model.number="userConfig.monthly_base_salary_override"
-                                                           :placeholder="selectedGrade?.monthly_base_salary || 0"
+                                                           :placeholder="convertMonthlyAmount(selectedGrade?.monthly_base_salary || 0)"
                                                            class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800">
-                                                    <p class="text-xs text-slate-400 mt-1">{{ _('默认') }}: <span x-text="formatNumber(selectedGrade?.monthly_base_salary || 0)"></span></p>
+                                                    <p class="text-xs text-slate-400 mt-1">{{ _('默认') }}: <span x-text="getUserCurrencySymbol() + formatNumber(convertMonthlyAmount(selectedGrade?.monthly_base_salary || 0))"></span></p>
                                                 </div>
                                                 <div>
-                                                    <label class="block text-xs text-slate-500 mb-1">{{ _('月绩效基数') }}</label>
+                                                    <label class="block text-xs text-slate-500 mb-1">{{ _('月绩效基数') }} (<span x-text="getUserCurrencySymbol()"></span>)</label>
                                                     <input type="number" x-model.number="userConfig.monthly_performance_base_override"
-                                                           :placeholder="selectedGrade?.monthly_performance_base || 0"
+                                                           :placeholder="convertMonthlyAmount(selectedGrade?.monthly_performance_base || 0)"
                                                            class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800">
-                                                    <p class="text-xs text-slate-400 mt-1">{{ _('默认') }}: <span x-text="formatNumber(selectedGrade?.monthly_performance_base || 0)"></span></p>
+                                                    <p class="text-xs text-slate-400 mt-1">{{ _('默认') }}: <span x-text="getUserCurrencySymbol() + formatNumber(convertMonthlyAmount(selectedGrade?.monthly_performance_base || 0))"></span></p>
                                                 </div>
                                                 <div>
-                                                    <label class="block text-xs text-slate-500 mb-1">{{ _('月管理津贴') }}</label>
+                                                    <label class="block text-xs text-slate-500 mb-1">{{ _('月管理津贴') }} (<span x-text="getUserCurrencySymbol()"></span>)</label>
                                                     <input type="number" x-model.number="userConfig.monthly_management_allowance_override"
                                                            placeholder="0"
                                                            class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800">
@@ -1682,28 +1683,28 @@
                                             </div>
                                         </div>
 
-                                        <!-- 目标值配置 -->
+                                        <!-- 目标值配置（使用用户结算货币） -->
                                         <div class="bg-slate-50 dark:bg-slate-700/30 rounded-lg p-4">
                                             <h4 class="font-medium text-slate-900 dark:text-white mb-3 flex items-center gap-2">
                                                 <span class="material-symbols-outlined text-primary text-lg">flag</span>
-                                                {{ _('目标值配置') }}
+                                                {{ _('目标值配置') }} <span class="text-xs text-slate-400">(<span x-text="getUserCurrency()"></span>)</span>
                                             </h4>
                                             <div class="flex items-center gap-4 flex-wrap">
-                                                <!-- 个人目标/年度目标 -->
+                                                <!-- 个人目标/年度目标（使用用户结算货币单位） -->
                                                 <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                                    <span x-show="isMGrade && teamMembers.length > 0">{{ _('个人目标') }}({{ currency_config.amount_unit }}):</span>
-                                                    <span x-show="!isMGrade || teamMembers.length === 0">{{ _('年度目标') }}({{ currency_config.amount_unit }}):</span>
+                                                    <span x-show="isMGrade && teamMembers.length > 0">{{ _('个人目标') }}(<span x-text="getUserCurrencyUnit()"></span>):</span>
+                                                    <span x-show="!isMGrade || teamMembers.length === 0">{{ _('年度目标') }}(<span x-text="getUserCurrencyUnit()"></span>):</span>
                                                 </label>
                                                 <input type="number" x-model.number="userConfig.annual_target_override"
-                                                       :placeholder="selectedGrade?.annual_target || 0"
+                                                       :placeholder="convertTargetAmount(selectedGrade?.annual_target || 0)"
                                                        class="w-28 px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800">
-                                                <span class="text-sm text-slate-500 dark:text-slate-400">{{ _('职级默认') }}: <span x-text="selectedGrade?.annual_target || 0"></span>{{ currency_config.amount_unit }}</span>
+                                                <span class="text-sm text-slate-500 dark:text-slate-400">{{ _('职级默认') }}: <span x-text="CurrencyHelpers.formatWithSmartUnit(convertTargetAmount(selectedGrade?.annual_target || 0), getUserCurrency(), {withSymbol: true})"></span></span>
 
                                                 <!-- 团队目标（M级有团队成员时显示，自动计算=成员目标合计） -->
                                                 <template x-if="isMGrade && teamMembers.length > 0">
                                                     <div class="flex items-center gap-4 ml-4">
                                                         <span class="text-sm text-slate-500 dark:text-slate-400">
-                                                            {{ _('团队目标') }}: <span class="font-medium text-slate-900 dark:text-white" x-text="teamTarget + '{{ currency_config.amount_unit }}'"></span>
+                                                            {{ _('团队目标') }}: <span class="font-medium text-slate-900 dark:text-white" x-text="CurrencyHelpers.formatWithSmartUnit(convertTargetAmount(teamTarget), getUserCurrency(), {withSymbol: true})"></span>
                                                             <span class="text-xs">({{ _('成员合计') }})</span>
                                                         </span>
                                                     </div>
@@ -4505,13 +4506,9 @@
                 return user?.settlement_currency || '{{ currency_config.currency }}';
             },
 
-            // 获取当前选中用户的货币符号
+            // 获取当前选中用户的货币符号（使用共享工具）
             getUserCurrencySymbol() {
-                const symbols = {
-                    'CNY': '¥', 'USD': '$', 'HKD': 'HK$', 'TWD': 'NT$',
-                    'SGD': 'S$', 'MYR': 'RM', 'IDR': 'Rp', 'THB': '฿', 'VND': '₫'
-                };
-                return symbols[this.getUserCurrency()] || '{{ currency_config.symbol }}';
+                return CurrencyHelpers.getSymbol(this.getUserCurrency());
             },
 
             // 年份变更 - 同步到共享 store
@@ -6148,6 +6145,85 @@
                 return this.selectedGrade.grade_type === 'M';
             },
 
+            // 获取当前选中用户的结算货币
+            getUserCurrency() {
+                const user = this.vendorUsers.find(u => u.id === this.selectedUserId);
+                return user?.settlement_currency || '{{ currency_config.currency }}';
+            },
+
+            // 获取当前选中用户的货币符号（使用共享工具）
+            getUserCurrencySymbol() {
+                return CurrencyHelpers.getSymbol(this.getUserCurrency());
+            },
+
+            // 获取当前选中用户的货币单位（使用共享工具）
+            getUserCurrencyUnit() {
+                const currency = this.getUserCurrency();
+                // CNY 使用翻译后的单位，其他货币使用共享工具的默认值
+                if (currency === 'CNY') {
+                    return '{{ _("万元") }}';
+                }
+                return CurrencyHelpers.getUnit(currency);
+            },
+
+            // ========== 汇率换算相关 ==========
+            // 汇率（系统货币 -> 用户货币）
+            exchangeRate: 1.0,
+
+            // 加载汇率
+            async loadExchangeRate() {
+                const userCurrency = this.getUserCurrency();
+                const systemCurrency = '{{ currency_config.currency }}';
+
+                if (userCurrency === systemCurrency) {
+                    this.exchangeRate = 1.0;
+                    CurrencyHelpers.setExchangeRate(1.0);  // 同步到公用工具
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/v1/exchange-rate?from=${systemCurrency}&to=${userCurrency}`);
+                    const data = await response.json();
+                    if (data.success) {
+                        this.exchangeRate = data.rate || 1.0;
+                        CurrencyHelpers.setExchangeRate(this.exchangeRate);  // 同步到公用工具
+                    }
+                } catch (error) {
+                    console.error('获取汇率失败:', error);
+                    this.exchangeRate = 1.0;
+                    CurrencyHelpers.setExchangeRate(1.0);  // 同步到公用工具
+                }
+            },
+
+            // 换算年度目标（CNY万元 → 用户货币显示单位 K/M/万元）
+            // 使用 CurrencyHelpers 统一转换函数
+            convertTargetAmount(amount) {
+                if (!amount) return 0;
+                // CurrencyHelpers.convertFromCNYWan() 已包含汇率转换
+                return Number(CurrencyHelpers.convertFromCNYWan(amount, this.getUserCurrency()).toFixed(2));
+            },
+
+            // 换算月薪金额（CNY元 → 用户货币元，不转换单位）
+            convertMonthlyAmount(amount) {
+                if (!amount) return 0;
+                // 直接使用汇率转换，不改变单位
+                return Math.round(amount * CurrencyHelpers.getExchangeRate());
+            },
+
+            // 反向换算年度目标（用户货币显示单位 → CNY万元）
+            // 用于保存时将用户输入的金额转换回系统货币
+            reverseConvertTargetAmount(amount) {
+                if (!amount || CurrencyHelpers.getExchangeRate() === 1) return amount;
+                // CurrencyHelpers.convertToCNYWan() 已包含汇率逆转换
+                return Number(CurrencyHelpers.convertToCNYWan(amount, this.getUserCurrency()).toFixed(2));
+            },
+
+            // 反向换算月薪金额（用户货币元 → CNY元）
+            reverseConvertMonthlyAmount(amount) {
+                if (!amount || CurrencyHelpers.getExchangeRate() === 1) return amount;
+                return Math.round(amount / CurrencyHelpers.getExchangeRate());
+            },
+
             // 可选的团队成员（排除当前用户，支持搜索过滤）
             get availableTeamMembers() {
                 const search = this.teamMemberSearch.trim().toLowerCase();
@@ -6292,10 +6368,12 @@
             },
 
             // 选择用户
-            selectUser(userId) {
+            async selectUser(userId) {
                 this.selectedUserId = userId;
                 this.isEditing = false;
                 this.teamMembers = [];  // 重置团队成员
+                // 加载汇率（用户结算货币与系统货币的换算）
+                await this.loadExchangeRate();
                 this.loadUserConfig(userId);
             },
 
@@ -6314,14 +6392,17 @@
                     const data = await response.json();
                     if (data.success && data.data && data.data.config) {
                         const config = data.data.config;
+                        // 原始数据是系统货币，需要转换为用户结算货币
                         this.userConfig = {
                             grade_id: config.grade_id ? String(config.grade_id) : '',
                             team_id: config.team_id || '',
                             use_custom_config: config.use_custom_config || false,
-                            monthly_base_salary_override: config.monthly_base_salary_override,
-                            monthly_performance_base_override: config.monthly_performance_base_override,
-                            monthly_management_allowance_override: config.monthly_management_allowance_override,
-                            annual_target_override: config.annual_target_override,
+                            // 月薪金额转换为用户货币
+                            monthly_base_salary_override: config.monthly_base_salary_override ? this.convertMonthlyAmount(config.monthly_base_salary_override) : null,
+                            monthly_performance_base_override: config.monthly_performance_base_override ? this.convertMonthlyAmount(config.monthly_performance_base_override) : null,
+                            monthly_management_allowance_override: config.monthly_management_allowance_override ? this.convertMonthlyAmount(config.monthly_management_allowance_override) : null,
+                            // 年度目标转换为用户货币单位
+                            annual_target_override: config.annual_target_override ? this.convertTargetAmount(config.annual_target_override) : null,
                             personal_weight_override: config.personal_weight_override,
                             commission_rate_multiplier: config.commission_rate_multiplier || 1,
                             bonus_multiplier: config.bonus_multiplier || 1,
@@ -6330,16 +6411,16 @@
                             configured_at: config.configured_at || null,
                             configured_by_name: config.configured_by_name || null
                         };
-                        // 加载团队成员（包含目标）
+                        // 加载团队成员（包含目标，已转换为用户货币单位）
                         if (data.data.team_members) {
                             this.teamMembers = data.data.team_members.map(m => ({
                                 id: m.id,
                                 name: m.real_name || m.username,
-                                annual_target: m.annual_target || 0
+                                annual_target: this.convertTargetAmount(m.annual_target || 0)
                             }));
                         }
-                        // 团队目标从API获取（成员目标合计）
-                        this.teamTarget = data.data.team_target || 0;
+                        // 团队目标从API获取（已转换为用户货币单位）
+                        this.teamTarget = this.convertTargetAmount(data.data.team_target || 0);
                     } else {
                         this.resetUserConfig();
                     }
@@ -6518,12 +6599,22 @@
                     config_notes: this.userConfig.config_notes
                 };
 
-                // 如果使用自定义配置，添加覆盖值
+                // 如果使用自定义配置，添加覆盖值（需要从用户货币转换回系统货币）
                 if (this.userConfig.use_custom_config) {
-                    payload.monthly_base_salary_override = this.userConfig.monthly_base_salary_override;
-                    payload.monthly_performance_base_override = this.userConfig.monthly_performance_base_override;
-                    payload.monthly_management_allowance_override = this.userConfig.monthly_management_allowance_override;
-                    payload.annual_target_override = this.userConfig.annual_target_override;
+                    // 月薪金额：从用户货币转换回系统货币
+                    payload.monthly_base_salary_override = this.userConfig.monthly_base_salary_override
+                        ? this.reverseConvertMonthlyAmount(this.userConfig.monthly_base_salary_override)
+                        : null;
+                    payload.monthly_performance_base_override = this.userConfig.monthly_performance_base_override
+                        ? this.reverseConvertMonthlyAmount(this.userConfig.monthly_performance_base_override)
+                        : null;
+                    payload.monthly_management_allowance_override = this.userConfig.monthly_management_allowance_override
+                        ? this.reverseConvertMonthlyAmount(this.userConfig.monthly_management_allowance_override)
+                        : null;
+                    // 年度目标：从用户货币单位转换回系统货币单位
+                    payload.annual_target_override = this.userConfig.annual_target_override
+                        ? this.reverseConvertTargetAmount(this.userConfig.annual_target_override)
+                        : null;
                     payload.personal_weight_override = this.userConfig.personal_weight_override;
                     payload.commission_rate_multiplier = this.userConfig.commission_rate_multiplier;
                     payload.bonus_multiplier = this.userConfig.bonus_multiplier;

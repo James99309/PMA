@@ -84,10 +84,10 @@
                     noCustomerCheckbox.addEventListener('change', (e) => this.toggleNoCustomerMode(e.target.checked));
                 }
 
-                // 货币变化时更新总额符号
+                // 报销单主货币变化时，重新计算所有明细的汇率
                 const currencySelect = document.getElementById('expense_currency');
                 if (currencySelect) {
-                    currencySelect.addEventListener('change', () => this.updateDetailStats());
+                    currencySelect.addEventListener('change', () => this.recalculateAllExchangeRates());
                 }
 
                 // 点击下拉框外部关闭
@@ -461,9 +461,13 @@
                 row.querySelector('[name="detail_description"]').value = data.description || '';
                 row.querySelector('[name="document_count"]').value = data.document_count || 1;
                 row.querySelector('[name="invoice_amount"]').value = data.invoice_amount || '';
-                row.querySelector('[name="exchange_rate"]').value = data.exchange_rate || 1;
+                // 汇率保持4位小数精度
+                const exchangeRate = parseFloat(data.exchange_rate || 1).toFixed(4);
+                row.querySelector('[name="exchange_rate"]').value = exchangeRate;
 
-                const currentAmount = (data.invoice_amount || 0) * (data.exchange_rate || 1);
+                // 使用4位精度汇率计算金额，保持与后端一致
+                const invoiceAmount = parseFloat(data.invoice_amount) || 0;
+                const currentAmount = invoiceAmount * parseFloat(exchangeRate);
                 row.querySelector('.expense-current-amount').textContent = currentAmount.toFixed(2);
 
                 // 显示现有发票
@@ -566,6 +570,16 @@
         },
 
         /**
+         * 重新计算所有明细行的汇率（当报销单主货币变化时调用）
+         */
+        recalculateAllExchangeRates: function() {
+            const rows = document.querySelectorAll('#expenseModalTableBody tr');
+            rows.forEach(row => {
+                this.fetchExchangeRate(row);
+            });
+        },
+
+        /**
          * 获取汇率
          * @param {HTMLElement} row - 行元素
          */
@@ -575,7 +589,7 @@
             const toCurrency = currencyEl ? currencyEl.value : config.defaultCurrency;
 
             if (fromCurrency === toCurrency) {
-                row.querySelector('[name="exchange_rate"]').value = 1;
+                row.querySelector('[name="exchange_rate"]').value = '1.0000';
                 this.calculateCurrentAmount(row);
                 return;
             }
@@ -584,7 +598,9 @@
                 .then(r => r.json())
                 .then(data => {
                     if (data.success && data.rate) {
-                        row.querySelector('[name="exchange_rate"]').value = data.rate;
+                        // 限制汇率为4位小数
+                        const rate = parseFloat(data.rate).toFixed(4);
+                        row.querySelector('[name="exchange_rate"]').value = rate;
                         this.calculateCurrentAmount(row);
                     }
                 })
@@ -597,8 +613,14 @@
          */
         calculateCurrentAmount: function(row) {
             const invoiceAmount = parseFloat(row.querySelector('[name="invoice_amount"]').value) || 0;
-            const exchangeRate = parseFloat(row.querySelector('[name="exchange_rate"]').value) || 1;
-            row.querySelector('.expense-current-amount').textContent = (invoiceAmount * exchangeRate).toFixed(2);
+            // 获取汇率并限制为4位小数精度，确保与后端计算一致
+            let exchangeRate = parseFloat(row.querySelector('[name="exchange_rate"]').value) || 1;
+            exchangeRate = parseFloat(exchangeRate.toFixed(4));
+            // 更新汇率输入框显示为4位小数
+            row.querySelector('[name="exchange_rate"]').value = exchangeRate.toFixed(4);
+            // 使用4位精度汇率计算金额
+            const currentAmount = invoiceAmount * exchangeRate;
+            row.querySelector('.expense-current-amount').textContent = currentAmount.toFixed(2);
             this.updateDetailStats();
         },
 

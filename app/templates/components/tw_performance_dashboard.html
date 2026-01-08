@@ -770,6 +770,9 @@ function performanceDashboardData(userId, year, dashboardUrl) {
         customerTrend: {},
         customerActivity: [],
         customerValue: [],
+        // 用户货币配置
+        userCurrency: 'CNY',
+        exchangeRate: 1,
 
         // 图表实例
         charts: {},
@@ -829,6 +832,15 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 const result = await response.json();
 
                 if (result.success) {
+                    // 货币配置（用于金额转换）
+                    const currencyConfig = result.data.currency_config || {};
+                    this.userCurrency = currencyConfig.currency || 'CNY';
+                    this.exchangeRate = currencyConfig.exchange_rate || 1;
+                    // 设置 CurrencyHelpers 的汇率
+                    if (typeof CurrencyHelpers !== 'undefined') {
+                        CurrencyHelpers.setExchangeRate(this.exchangeRate);
+                    }
+
                     this.summary = result.data.summary || {};
                     this.teamSummary = result.data.team_summary || null;  // M级管理者的团队目标
                     this.goalAchievement = result.data.goal_achievement || [];
@@ -902,18 +914,31 @@ function performanceDashboardData(userId, year, dashboardUrl) {
         initGoalTrendChart() {
             if (this.goalAchievement.length < 12) return;
 
+            // 货币转换辅助函数
+            const convertAmount = (valueInYuan) => {
+                if (typeof CurrencyHelpers !== 'undefined') {
+                    return CurrencyHelpers.convertFromCNYYuan(valueInYuan, this.userCurrency);
+                }
+                return valueInYuan / 10000;  // 回退逻辑
+            };
+
+            // 获取货币单位
+            const amountUnit = (typeof CurrencyHelpers !== 'undefined')
+                ? CurrencyHelpers.getUnit(this.userCurrency)
+                : PERF_AMOUNT_UNIT;
+
             // 根据选中的指标获取数据和对应颜色
             let personalData, teamData = null, unit, personalColor, teamColor;
             switch (this.selectedMetric) {
                 case 'implant_amount':
-                    personalData = this.goalAchievement.map(r => r.implant_amount.actual / 10000);
-                    unit = PERF_AMOUNT_UNIT;
+                    personalData = this.goalAchievement.map(r => convertAmount(r.implant_amount.actual));
+                    unit = amountUnit;
                     personalColor = '#93c5fd';  // blue-300 (浅)
                     teamColor = '#2563eb';      // blue-600 (深)
                     break;
                 case 'sales_amount':
-                    personalData = this.goalAchievement.map(r => r.sales_amount.actual / 10000);
-                    unit = PERF_AMOUNT_UNIT;
+                    personalData = this.goalAchievement.map(r => convertAmount(r.sales_amount.actual));
+                    unit = amountUnit;
                     personalColor = '#86efac';  // green-300 (浅)
                     teamColor = '#16a34a';      // green-600 (深)
                     break;
@@ -930,8 +955,8 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                     teamColor = '#9333ea';      // purple-600 (深)
                     break;
                 default:
-                    personalData = this.goalAchievement.map(r => r.implant_amount.actual / 10000);
-                    unit = PERF_AMOUNT_UNIT;
+                    personalData = this.goalAchievement.map(r => convertAmount(r.implant_amount.actual));
+                    unit = amountUnit;
                     personalColor = '#93c5fd';
                     teamColor = '#2563eb';
             }
@@ -954,7 +979,8 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                     teamColor: teamColor,
                     personalLabel: '{{ _("个人") }}',
                     teamLabel: '{{ _("团队") }}',
-                    monthLabel: '{{ _("月") }}'
+                    monthLabel: '{{ _("月") }}',
+                    currency: this.userCurrency
                 });
             } else if (typeof window.initSvgLineChart === 'function') {
                 // 无团队数据，使用单线图（使用深色）
@@ -967,7 +993,8 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 window.initSvgLineChart('goalTrendChart', personalData, {
                     unit: unit,
                     color: teamColor,
-                    monthLabel: '{{ _("月") }}'
+                    monthLabel: '{{ _("月") }}',
+                    currency: this.userCurrency
                 });
             }
         },
@@ -989,7 +1016,8 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             window.initSvgLineChart('expenseTrendChart', data, {
                 unit: '{{ _("元") }}',
                 color: '#3b82f6',  // blue-500
-                monthLabel: '{{ _("月") }}'
+                monthLabel: '{{ _("月") }}',
+                currency: this.userCurrency
             });
         },
 
@@ -1671,6 +1699,12 @@ function performanceDashboardData(userId, year, dashboardUrl) {
         },
 
         formatAmount(value) {
+            // 使用统一的货币转换工具
+            // value 是 CNY 元，转换为用户货币显示单位（K/M/万元）
+            if (typeof CurrencyHelpers !== 'undefined') {
+                return CurrencyHelpers.formatFromCNYYuan(value, this.userCurrency, { withSymbol: true });
+            }
+            // 回退逻辑（CurrencyHelpers 未加载时）
             if (!value) return PERF_CURRENCY_SYMBOL + '0';
             if (value >= 10000) {
                 return PERF_CURRENCY_SYMBOL + (value / 10000).toFixed(2) + PERF_AMOUNT_UNIT;
@@ -1733,9 +1767,14 @@ function performanceDashboardData(userId, year, dashboardUrl) {
         formatMetricValue(key, value) {
             // 无值或为0时显示 "-"
             if (!value || value === 0) return '-';
-            // 金额类指标：转换为万元显示
+            // 金额类指标：转换为用户货币显示单位
             if (key.includes('amount')) {
-                return (value / 10000).toFixed(2);  // 不带单位，因为是紧凑格式
+                if (typeof CurrencyHelpers !== 'undefined') {
+                    // 使用智能单位格式化（不带符号，紧凑格式）
+                    const converted = CurrencyHelpers.convertFromCNYYuan(value, this.userCurrency);
+                    return CurrencyHelpers.formatWithSmartUnit(Math.round(converted), this.userCurrency, { withSymbol: false });
+                }
+                return (value / 10000).toFixed(2);  // 回退逻辑
             }
             // 数量类指标：直接显示
             return value;

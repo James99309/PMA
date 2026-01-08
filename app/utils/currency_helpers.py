@@ -135,3 +135,51 @@ def is_sp8d_database():
         bool: 是否为SP8D数据库
     """
     return current_app.config.get('IS_SP8D', False)
+
+
+# ========== 基于货币代码的辅助函数 ==========
+# 注意: get_currency_symbol(currency_code) 已在 app/utils/i18n.py 中定义
+
+
+def get_amount_unit_by_code(currency_code):
+    """
+    根据货币代码获取金额单位
+
+    Args:
+        currency_code: 货币代码
+
+    Returns:
+        str: 金额单位 (CNY='万元', 其他='K')
+    """
+    units = {
+        'CNY': '万元',
+        'USD': 'K',
+        'HKD': 'K',
+        'SGD': 'K',
+        'MYR': 'K',
+        'IDR': 'M',  # 印尼盾用百万
+        'THB': 'K'
+    }
+    return units.get(currency_code, 'K')
+
+
+def get_amount_divisor_by_code(currency_code):
+    """
+    根据货币代码获取金额除数
+
+    Args:
+        currency_code: 货币代码
+
+    Returns:
+        int: 除数 (CNY=10000万, 其他=1000千, IDR=1000000百万)
+    """
+    divisors = {
+        'CNY': 10000,   # 万
+        'USD': 1000,    # K (千)
+        'HKD': 1000,    # K
+        'SGD': 1000,
+        'MYR': 1000,
+        'IDR': 1000000, # M (百万)
+        'THB': 1000
+    }
+    return divisors.get(currency_code, 1000)

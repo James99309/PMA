@@ -945,7 +945,7 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
             },
             api: {
                 edit: {{ url_for("expense.edit_expense", id=expense.id)|tojson }},
-                exchangeRate: '/api/exchange-rate',
+                exchangeRate: '/api/v1/exchange-rate',
                 customerSearch: '/api/export-helpers/customers/search',
                 projectSearch: '/api/v1/search/projects/for-expense',
                 contacts: '/api/customers/{id}/contacts'

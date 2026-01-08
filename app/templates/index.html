@@ -72,6 +72,7 @@
             document.documentElement.classList.add('dark');
         }
     </script>
+    <script src="{{ url_for('static', filename='js/currency-helpers.js') }}"></script>
 </head>
 <body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-200">
     {% call(slot) render_tw_layout(active_page='dashboard', show_search=true) %}
@@ -443,6 +444,11 @@
     // 货币配置（使用用户结算货币）
     const USER_CURRENCY = '{{ user_settlement_currency }}';
     const CURRENCY_SYMBOL = '{{ user_currency_symbol }}';
+    const USER_EXCHANGE_RATE = {{ user_exchange_rate }};
+    // 设置 CurrencyHelpers 汇率
+    if (typeof CurrencyHelpers !== 'undefined') {
+        CurrencyHelpers.setExchangeRate(USER_EXCHANGE_RATE);
+    }
     // 金额单位映射（根据用户结算货币）
     const AMOUNT_UNIT_MAP = {
         'CNY': '{{ _("万元") }}',
@@ -593,13 +599,12 @@
 
             // 格式化指标值（金额用万元，数量用个）
             formatMetricValue(key, value) {
-                if (!value) return '0';
                 if (key === 'implant_amount' || key === 'sales_amount') {
-                    // 金额：元 → 万元
-                    return CURRENCY_SYMBOL + (value / 10000).toFixed(1) + AMOUNT_UNIT;
+                    // 使用 CurrencyHelpers 转换 CNY 元 → 用户货币（包括0值也要显示货币符号）
+                    return CurrencyHelpers.formatFromCNYYuan(value || 0, USER_CURRENCY, { withSymbol: true });
                 }
                 // 数量
-                return value + '{{ _("个") }}';
+                return (value || 0) + '{{ _("个") }}';
             },
 
             // 绩效进度条颜色
@@ -702,7 +707,8 @@
         data_var='monthlyExpenseData',
         unit=user_currency_symbol,
         color='#2979ff',
-        month_label=_('月')
+        month_label=_('月'),
+        currency=user_settlement_currency
     ) }}
     {% endif %}
 

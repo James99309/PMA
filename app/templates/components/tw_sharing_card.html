@@ -19,6 +19,7 @@
   - can_view: 是否可查看（控制整个卡片显示）
   - can_edit: 是否可编辑（控制"+"按钮显示）
   - shared_users: 已共享用户列表 [{id, name}]
+  - share_enabled: 是否启用共享，默认 true。未启用时显示"未启用"标签，头像灰色
   - open_modal_func: 打开模态框的 JS 函数名，默认 'openSharingModal'
   - title: 卡片标题，默认 '共享设置'
   - max_avatars: 最多显示头像数，默认 6
@@ -28,12 +29,20 @@
 
 {% from 'macros/ui_helpers.html' import render_tw_owner_badge with context %}
 
-{% macro tw_sharing_card(can_view, can_edit, shared_users, open_modal_func='openSharingModal', title=None, max_avatars=6, show_expand_button=true) %}
+{% macro tw_sharing_card(can_view, can_edit, shared_users, share_enabled=true, open_modal_func='openSharingModal', title=None, max_avatars=6, show_expand_button=true) %}
 {% if can_view %}
 <div class="bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 p-6"
     x-data="{ expanded: false }">
     <div class="flex justify-between items-center mb-4">
-        <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ title or _('共享设置') }}</h2>
+        <div class="flex items-center gap-2">
+            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ title or _('共享设置') }}</h2>
+            {% if not share_enabled and shared_users %}
+            <!-- 共享未启用提示 -->
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                {{ _('未启用') }}
+            </span>
+            {% endif %}
+        </div>
         {% if show_expand_button %}
         <button @click="expanded = !expanded"
             class="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white">
@@ -46,7 +55,9 @@
     <div class="flex flex-wrap items-center gap-2">
         {% if shared_users %}
         {% for user in shared_users[:max_avatars] %}
-        {{ render_tw_owner_badge(user, size='md') }}
+        <div class="{{ 'opacity-50 grayscale' if not share_enabled else '' }}" title="{{ user.name }}{{ ' (' ~ _('共享未启用') ~ ')' if not share_enabled else '' }}">
+            {{ render_tw_owner_badge(user, size='md') }}
+        </div>
         {% endfor %}
         {% if shared_users|length > max_avatars %}
         <div class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold text-xs">
