@@ -134,6 +134,19 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="col-md-6">
+                            <label for="settlement_currency" class="form-label">{{ _('结算货币') }}</label>
+                            <select class="form-select" id="settlement_currency" name="settlement_currency">
+                                <option value="" {{ 'selected' if not user or not user.settlement_currency else '' }}>{{ _('使用系统默认') }}</option>
+                                <option value="CNY" {{ 'selected' if user and user.settlement_currency == 'CNY' else '' }}>CNY - {{ _('人民币') }} ¥</option>
+                                <option value="USD" {{ 'selected' if user and user.settlement_currency == 'USD' else '' }}>USD - {{ _('美元') }} $</option>
+                                <option value="MYR" {{ 'selected' if user and user.settlement_currency == 'MYR' else '' }}>MYR - {{ _('马来西亚林吉特') }} RM</option>
+                                <option value="SGD" {{ 'selected' if user and user.settlement_currency == 'SGD' else '' }}>SGD - {{ _('新加坡元') }} S$</option>
+                                <option value="IDR" {{ 'selected' if user and user.settlement_currency == 'IDR' else '' }}>IDR - {{ _('印尼盾') }} Rp</option>
+                                <option value="THB" {{ 'selected' if user and user.settlement_currency == 'THB' else '' }}>THB - {{ _('泰铢') }} ฿</option>
+                            </select>
+                            <small class="form-text text-muted">{{ _('用于报销默认货币、预算统计和薪资计算') }}</small>
+                        </div>
                     </div>
 
                     <div class="d-flex justify-content-between mt-4">

@@ -219,6 +219,11 @@
                                 <p class="text-slate-900 dark:text-white font-medium">{{ _('是') if user.is_department_manager else _('否') }}</p>
                             </div>
                             <div>
+                                <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('结算货币') }}</label>
+                                {% set currency_labels = {'CNY': _('人民币'), 'USD': _('美元'), 'HKD': _('港币'), 'TWD': _('台币'), 'SGD': _('新加坡元'), 'MYR': _('马来西亚林吉特'), 'IDR': _('印尼盾'), 'THB': _('泰铢'), 'VND': _('越南盾')} %}
+                                <p class="text-slate-900 dark:text-white font-medium">{{ currency_labels.get(user.settlement_currency or currency_config.currency, user.settlement_currency or '-') }}</p>
+                            </div>
+                            <div>
                                 <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('状态') }}</label>
                                 <div class="mt-1">
                                     {{ render_tw_user_status_badge(user.is_active) }}

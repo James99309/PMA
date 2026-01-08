@@ -39,7 +39,7 @@
             customerSearch: '/api/export-helpers/customers/search',
             projectSearch: '/api/v1/search/projects/for-expense',
             contacts: '/api/customers/{id}/contacts',
-            exchangeRate: '/api/exchange-rate',
+            exchangeRate: '/api/v1/exchange-rate',
             create: '/expense/create',
             edit: '/expense/{id}/edit'
         },

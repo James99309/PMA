@@ -225,6 +225,7 @@ def update_user(user_id):
     is_department_manager = data.get('is_department_manager', user.is_department_manager)
     role = data.get('role')
     is_active = data.get('is_active', user.is_active)
+    settlement_currency = data.get('settlement_currency')
     
     # 验证邮箱是否已被其他用户使用
     if email and email != user.email:
@@ -250,7 +251,11 @@ def update_user(user_id):
     old_role = user.role
     if role:
         user.role = role
-    
+
+    # 处理结算货币（空字符串转为None）
+    if settlement_currency is not None:
+        user.settlement_currency = settlement_currency if settlement_currency else None
+
     user.is_department_manager = is_department_manager
     user.is_active = is_active
     

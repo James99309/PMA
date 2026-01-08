@@ -16,6 +16,8 @@
 =============================================================================
 #}
 
+{% from 'components/tw_announcement_preview.html' import render_announcement_preview_modal, render_announcement_preview_script with context %}
+
 {# 消息图标按钮 #}
 {% macro render_message_button() %}
 <button id="onboarding-message-btn"
@@ -146,11 +148,11 @@
                     </div>
                 </template>
                 <template x-for="item in data.mentions" :key="item.id">
-                    <div @click="markRead([item.id]); (item.can_view_calendar || item.detail_url) && (window.location.href = getMessageUrl(item))"
+                    <div @click="handleMessageClick(item)"
                          class="flex items-start gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800 transition-colors"
                          :class="[
                              !item.is_read ? 'bg-blue-50/50 dark:bg-blue-900/10' : '',
-                             (item.can_view_calendar || item.detail_url) ? 'hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer' : 'cursor-default'
+                             (item.can_view_calendar || item.detail_url || (item.message_type && item.message_type.startsWith('announcement_'))) ? 'hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer' : 'cursor-default'
                          ]">
                         <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
                              :class="getMessageBgColor(item)">
@@ -165,7 +167,7 @@
                             </div>
                             <div class="text-xs text-slate-500 dark:text-slate-400 mt-1 whitespace-pre-wrap" x-text="item.content"></div>
                         </div>
-                        <span x-show="item.can_view_calendar || item.detail_url" class="material-symbols-outlined text-slate-300 flex-shrink-0">chevron_right</span>
+                        <span x-show="item.can_view_calendar || item.detail_url || (item.message_type && item.message_type.startsWith('announcement_'))" class="material-symbols-outlined text-slate-300 flex-shrink-0">chevron_right</span>
                     </div>
                 </template>
             </div>
@@ -180,6 +182,9 @@
         </div>
     </div>
 </div>
+
+<!-- 公告预览模态框 -->
+{{ render_announcement_preview_modal(modal_id='messagePanelAnnouncementModal') }}
 {% endmacro %}
 
 {# 消息面板 JavaScript #}
@@ -520,8 +525,30 @@ function messagePanel() {
             if (diff < 604800000) return Math.floor(diff / 86400000) + '{{ _("天前") }}';
             // 其他
             return date.toLocaleDateString();
+        },
+
+        // 处理消息点击
+        handleMessageClick(item) {
+            // 标记已读
+            this.markRead([item.id]);
+
+            // 公告类型：弹出预览模态框
+            if (item.message_type && item.message_type.startsWith('announcement_')) {
+                if (item.related_object_id) {
+                    openAnnouncementPreview_messagePanelAnnouncementModal(item.related_object_id);
+                }
+                return;
+            }
+
+            // 其他类型：跳转到详情页
+            if (item.can_view_calendar || item.detail_url) {
+                window.location.href = this.getMessageUrl(item);
+            }
         }
     };
 }
 </script>
+
+<!-- 公告预览脚本 -->
+{{ render_announcement_preview_script(modal_id='messagePanelAnnouncementModal') }}
 {% endmacro %}

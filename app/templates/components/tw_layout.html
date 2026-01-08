@@ -105,9 +105,12 @@ Tailwind 统一布局组件
             <!-- 工作日历入口 -->
             <a id="onboarding-calendar-btn"
                href="{{ url_for('worklog.calendar') }}"
-               class="flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+               class="relative flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                title="{{ _('工作日历') }}">
                 <span class="material-symbols-outlined">calendar_today</span>
+                <!-- 待办提示圆点 -->
+                <span id="calendarPendingDot"
+                      class="absolute bottom-1 right-1 w-2 h-2 bg-red-500 rounded-full hidden"></span>
             </a>
 
             <!-- 语言切换 -->
@@ -288,10 +291,31 @@ Tailwind 统一布局组件
         localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
     });
 
+    // ========== 日历待办状态提示 ==========
+    function updateCalendarPendingDot() {
+        const dot = document.getElementById('calendarPendingDot');
+        if (!dot) return;
+
+        fetch('/worklog/api/today-status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.has_pending) {
+                    dot.classList.remove('hidden');
+                } else {
+                    dot.classList.add('hidden');
+                }
+            })
+            .catch(() => dot.classList.add('hidden'));
+    }
+    // 暴露到全局，供其他页面调用
+    window.updateCalendarPendingDot = updateCalendarPendingDot;
+
     // 初始化
     document.addEventListener('DOMContentLoaded', updateLanguageDisplay);
+    document.addEventListener('DOMContentLoaded', updateCalendarPendingDot);
     if (document.readyState !== 'loading') {
         updateLanguageDisplay();
+        updateCalendarPendingDot();
     }
 })();
 </script>

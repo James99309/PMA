@@ -3784,6 +3784,7 @@ def delete_action_reply(reply_id):
     db.session.commit()
     return jsonify({'success': True})
 
+
 @customer.route('/i18n-demo')
 @login_required
 @permission_required('customer', 'view')

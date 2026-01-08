@@ -88,13 +88,16 @@ def index():
             ).first()
             yearly_targets[month] = target
         
-        # 获取用户显示货币设置（从最近的目标记录中获取）
-        display_currency = Config.DEFAULT_CURRENCY
-        recent_target = PerformanceTarget.query.filter_by(
-            user_id=selected_user_id
-        ).order_by(PerformanceTarget.updated_at.desc()).first()
-        if recent_target:
-            display_currency = recent_target.display_currency
+        # 获取用户显示货币设置（优先使用用户结算货币，其次从绩效目标记录获取）
+        # 查看自己时使用自己的结算货币，查看他人时使用对方的结算货币
+        display_currency = selected_user.settlement_currency or Config.DEFAULT_CURRENCY
+        if not selected_user.settlement_currency:
+            # 用户未设置结算货币时，回退到绩效目标记录中的货币设置
+            recent_target = PerformanceTarget.query.filter_by(
+                user_id=selected_user_id
+            ).order_by(PerformanceTarget.updated_at.desc()).first()
+            if recent_target and recent_target.display_currency:
+                display_currency = recent_target.display_currency
         
         # 准备简化的数据（移除图表相关数据）
         chart_data = {

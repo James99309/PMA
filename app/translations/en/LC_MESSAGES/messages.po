@@ -7582,3 +7582,30 @@ msgstr "All Roles"
 
 msgid "全部用户"
 msgstr "All Users"
+
+msgid "客户数"
+msgstr "Customers"
+
+msgid "行动数"
+msgstr "Actions"
+
+msgid "最终用户"
+msgstr "End User"
+
+msgid "集成商"
+msgstr "Integrator"
+
+msgid "设计院"
+msgstr "Designer"
+
+msgid "总包商"
+msgstr "Contractor"
+
+msgid "代理商"
+msgstr "Distributor"
+
+msgid "合作伙伴"
+msgstr "Partner"
+
+msgid "用户"
+msgstr "User"

@@ -18,6 +18,8 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
 {# 货币符号 - 使用完整的货币映射表 #}
 {% set currency_symbols = {'CNY': '¥', 'USD': '$', 'HKD': 'HK$', 'TWD': 'NT$', 'SGD': 'S$', 'MYR': 'RM', 'IDR': 'Rp', 'THB': '฿', 'VND': '₫'} %}
 {% set currency_symbol = currency_symbols.get(expense.currency, currency_config.symbol) %}
+{# 用户结算货币符号 - 用于预算卡片显示 #}
+{% set user_settlement_currency_symbol = currency_symbols.get(expense.owner.settlement_currency, currency_config.symbol) if expense.owner.settlement_currency else currency_config.symbol %}
 
 {# 锁定状态徽章 #}
 {% macro render_tw_lock_badge(is_locked) %}
@@ -390,8 +392,8 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
                     </div>
 
         {% elif detail_slot == 'sidebar' %}
-                    <!-- 费用统计卡片 -->
-                    {{ render_tw_expense_budget_card(expense_budget, currency_symbol) }}
+                    <!-- 费用统计卡片 - 使用用户结算货币 -->
+                    {{ render_tw_expense_budget_card(expense_budget, user_settlement_currency_symbol) }}
 
                     <!-- 元数据卡片 -->
                     {{ tw_metadata_card_simple(

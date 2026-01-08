@@ -4,10 +4,13 @@
 
 提供日历页面渲染和 AJAX API 接口
 """
+import logging
 from datetime import datetime, date, timedelta
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from flask_babel import gettext as _
+
+logger = logging.getLogger(__name__)
 
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -516,6 +519,17 @@ def get_items():
         else:
             result['datesWithUnreadLogs'] = []
             result['datesWithReadLogs'] = []
+    else:
+        # 如果查看自己的日历，返回已提交日志的日期（显示绿点）
+        submitted_logs = WorkLog.query.filter(
+            WorkLog.owner_id == current_user.id,
+            WorkLog.log_date >= start_date,
+            WorkLog.log_date < end_date,
+            WorkLog.status == 'submitted'
+        ).all()
+        result['datesWithSubmittedLogs'] = list(set(
+            log.log_date.isoformat() for log in submitted_logs
+        ))
 
     return jsonify(result)
 
@@ -1028,10 +1042,11 @@ def get_daily_log(log_date):
         is_readonly = True
         target_user_id = owner_id
 
-        # 只查询已存在的日志，不创建新日志
+        # 只查询已提交的日志（草稿不对外展示）
         worklog = WorkLog.query.filter_by(
             owner_id=owner_id,
-            log_date=target_date
+            log_date=target_date,
+            status='submitted'  # 只返回已提交的日志
         ).first()
 
         if not worklog:
@@ -1247,6 +1262,304 @@ def submit_daily_log(log_date):
     })
 
 
+@worklog.route('/api/daily/<log_date>/delete', methods=['DELETE', 'POST'])
+@login_required
+def delete_daily_log(log_date):
+    """删除日志（创建者或管理员可删除）"""
+    try:
+        target_date = datetime.strptime(log_date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'success': False, 'message': _('日期格式无效')}), 400
+
+    # 获取要删除日志的用户ID（管理员可能删除他人日志）
+    data = request.get_json() or {}
+    target_user_id = data.get('user_id', current_user.id)
+
+    worklog = WorkLog.query.filter_by(
+        owner_id=target_user_id,
+        log_date=target_date,
+        log_type='daily'
+    ).first()
+
+    if not worklog:
+        return jsonify({'success': False, 'message': _('日志不存在')}), 404
+
+    # 权限检查：只有创建者或管理员可以删除
+    is_owner = worklog.owner_id == current_user.id
+    is_admin = current_user.role in ['admin', 'ceo']
+
+    if not is_owner and not is_admin:
+        return jsonify({'success': False, 'message': _('无权删除此日志')}), 403
+
+    try:
+        # 先删除云端附件文件
+        attachments = worklog.attachments_list
+        if attachments:
+            from app.utils.supabase_client import get_supabase_client
+            supabase_client = get_supabase_client()
+            for att in attachments:
+                file_url = att.get('url')
+                if file_url:
+                    try:
+                        supabase_client.delete_file_by_url(file_url, bucket_type='invoice')
+                        logger.info(f"已删除附件: {att.get('filename')}")
+                    except Exception as e:
+                        logger.warning(f"删除附件失败: {att.get('filename')} - {e}")
+
+        # 删除关联的阅读记录
+        from sqlalchemy import text
+        db.session.execute(
+            text('DELETE FROM worklog_reads WHERE worklog_id = :wid'),
+            {'wid': worklog.id}
+        )
+
+        # 删除日志
+        db.session.delete(worklog)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': _('日志已删除')
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"删除日志失败: {e}")
+        return jsonify({'success': False, 'message': f'{_("删除失败")}: {str(e)}'}), 500
+
+
+# ============================================================
+# 日志附件上传相关 API
+# ============================================================
+
+@worklog.route('/api/daily/<log_date>/upload-attachment', methods=['POST'])
+@login_required
+def upload_worklog_attachment(log_date):
+    """上传日志附件（图片或PDF）"""
+    from app.utils.supabase_client import get_supabase_client
+    from werkzeug.utils import secure_filename
+    import uuid
+
+    # 解析日期
+    try:
+        target_date = datetime.strptime(log_date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'success': False, 'message': _('日期格式无效')}), 400
+
+    # 获取或创建日志
+    worklog = WorkLog.query.filter_by(
+        owner_id=current_user.id,
+        log_date=target_date,
+        log_type='daily'
+    ).first()
+
+    if not worklog:
+        # 创建新日志
+        worklog = WorkLog(
+            owner_id=current_user.id,
+            log_date=target_date,
+            log_type='daily'
+        )
+        db.session.add(worklog)
+        db.session.flush()
+
+    # 权限检查：只有创建者可以上传附件
+    if worklog.owner_id != current_user.id:
+        return jsonify({'success': False, 'message': _('无权操作此日志')}), 403
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': _('未选择文件')})
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'success': False, 'message': _('未选择文件')})
+
+    # 验证文件类型
+    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif', 'pdf'}
+    if not ('.' in file.filename and file.filename.rsplit('.', 1)[1].lower() in allowed_extensions):
+        return jsonify({'success': False, 'message': _('不支持的文件格式，支持：PNG、JPG、GIF、WEBP、HEIC、PDF')})
+
+    try:
+        # 获取文件大小
+        file.seek(0, 2)
+        file_size = file.tell()
+        file.seek(0)
+
+        # 检查文件大小（5MB 限制）
+        if file_size > 5 * 1024 * 1024:
+            return jsonify({'success': False, 'message': _('文件大小超过5MB限制')})
+
+        # 保留原始文件名（支持中文）
+        original_filename = file.filename
+        ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else 'bin'
+
+        # 检查是否有同名文件，如果有则添加递增后缀
+        existing_names = [att.get('filename') for att in worklog.attachments_list]
+        if original_filename in existing_names:
+            base = original_filename.rsplit('.', 1)[0] if '.' in original_filename else original_filename
+            counter = 1
+            while f"{base}-{counter}.{ext}" in existing_names:
+                counter += 1
+            original_filename = f"{base}-{counter}.{ext}"
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        unique_id = str(uuid.uuid4())[:8]
+        new_filename = f"worklog_{log_date}_{timestamp}_{unique_id}.{ext}"
+
+        # 确定文件类型
+        file_type = 'pdf' if ext == 'pdf' else 'image'
+
+        # 上传到 Supabase
+        supabase_client = get_supabase_client()
+
+        # 重置文件指针（之前已读取过）
+        file.seek(0)
+
+        result = supabase_client.upload_file(
+            object_id=worklog.id,
+            file=file,
+            filename=original_filename,
+            file_type='attachment',  # 使用简洁格式
+            bucket_type='invoice',  # 复用 invoice-images 桶
+            business_type='worklog'  # 工作日志类型
+        )
+
+        logger.info(f"upload_file 返回结果: {result}")
+
+        if result and result.get('url'):
+            # 保存到数据库
+            worklog.add_attachment(
+                filename=original_filename,
+                url=result.get('url'),
+                size=file_size,
+                file_type=file_type
+            )
+            db.session.commit()
+
+            return jsonify({
+                'success': True,
+                'message': _('上传成功'),
+                'data': {
+                    'filename': original_filename,
+                    'url': result.get('url'),
+                    'size': file_size,
+                    'type': file_type,
+                    'index': len(worklog.attachments_list) - 1
+                }
+            })
+        else:
+            return jsonify({'success': False, 'message': _('上传失败')})
+
+    except Exception as e:
+        logger.error(f"上传日志附件失败: {e}")
+        return jsonify({'success': False, 'message': f'{_("上传失败")}: {str(e)}'}), 500
+
+
+@worklog.route('/api/daily/<log_date>/delete-attachment/<int:index>', methods=['DELETE', 'POST'])
+@login_required
+def delete_worklog_attachment(log_date, index):
+    """删除日志附件"""
+    # 解析日期
+    try:
+        target_date = datetime.strptime(log_date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'success': False, 'message': _('日期格式无效')}), 400
+
+    worklog = WorkLog.query.filter_by(
+        owner_id=current_user.id,
+        log_date=target_date,
+        log_type='daily'
+    ).first()
+
+    if not worklog:
+        return jsonify({'success': False, 'message': _('日志不存在')}), 404
+
+    # 权限检查
+    if worklog.owner_id != current_user.id:
+        return jsonify({'success': False, 'message': _('无权操作此日志')}), 403
+
+    # 获取附件信息
+    attachment = worklog.get_attachment(index)
+    if not attachment:
+        return jsonify({'success': False, 'message': _('附件不存在')}), 404
+
+    # 从数据库移除
+    if worklog.remove_attachment(index):
+        db.session.commit()
+        return jsonify({'success': True, 'message': _('删除成功')})
+    else:
+        return jsonify({'success': False, 'message': _('删除失败')}), 500
+
+
+@worklog.route('/api/daily/<log_date>/preview-attachment/<int:index>')
+@login_required
+def preview_worklog_attachment(log_date, index):
+    """预览/下载日志附件"""
+    import requests
+    from flask import Response
+
+    # 解析日期
+    try:
+        target_date = datetime.strptime(log_date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'success': False, 'message': _('日期格式无效')}), 400
+
+    worklog = WorkLog.query.filter_by(
+        owner_id=current_user.id,
+        log_date=target_date,
+        log_type='daily'
+    ).first()
+
+    if not worklog:
+        return jsonify({'success': False, 'message': _('日志不存在')}), 404
+
+    attachment = worklog.get_attachment(index)
+    if not attachment:
+        return jsonify({'success': False, 'message': _('附件不存在')}), 404
+
+    url = attachment.get('url')
+    filename = attachment.get('filename', 'attachment')
+    file_type = attachment.get('type', 'image')
+
+    # 判断是否强制下载
+    force_download = request.args.get('download') == '1'
+
+    try:
+        # 云端文件，代理下载
+        if url and (url.startswith('http://') or url.startswith('https://')):
+            resp = requests.get(url, timeout=30)
+            if resp.status_code == 200:
+                # 确定 MIME 类型
+                if file_type == 'pdf':
+                    mime_type = 'application/pdf'
+                else:
+                    ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'bin'
+                    mime_map = {
+                        'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                        'png': 'image/png', 'gif': 'image/gif',
+                        'webp': 'image/webp', 'heic': 'image/heic'
+                    }
+                    mime_type = mime_map.get(ext, 'application/octet-stream')
+
+                # 对文件名进行 RFC 5987 编码以支持中文
+                from urllib.parse import quote
+                encoded_filename = quote(filename, safe='')
+                disposition_type = 'attachment' if force_download else 'inline'
+
+                headers = {'Content-Type': mime_type}
+                # 使用 filename* 参数支持 UTF-8 编码的文件名
+                headers['Content-Disposition'] = f"{disposition_type}; filename*=UTF-8''{encoded_filename}"
+
+                return Response(resp.content, headers=headers)
+            else:
+                return jsonify({'success': False, 'message': _('文件获取失败')}), 404
+        else:
+            return jsonify({'success': False, 'message': _('无效的文件URL')}), 400
+
+    except Exception as e:
+        logger.error(f"预览日志附件失败: {e}")
+        return jsonify({'success': False, 'message': f'{_("预览失败")}: {str(e)}'}), 500
+
+
 @worklog.route('/api/team/logs', methods=['GET'])
 @login_required
 def get_team_logs():
@@ -1291,4 +1604,50 @@ def get_team_logs():
     return jsonify({
         'success': True,
         'data': [log.to_dict() for log in logs]
+    })
+
+
+@worklog.route('/api/today-status', methods=['GET'])
+@login_required
+def get_today_status():
+    """获取今天的待办状态（用于日历图标提示）"""
+    today = date.today()
+
+    # 检查今天是否有未完成的工作项（状态为 planned 表示未完成）
+    # 条件：今天的单日行程 或 跨天行程包含今天
+    pending_items = WorkItem.query.filter(
+        WorkItem.owner_id == current_user.id,
+        WorkItem.is_deleted == False,
+        WorkItem.status == 'planned',
+        db.or_(
+            # 单日行程：planned_date 是今天
+            db.and_(
+                WorkItem.planned_date == today,
+                db.or_(WorkItem.end_date.is_(None), WorkItem.end_date == today)
+            ),
+            # 跨天行程：今天在 planned_date 和 end_date 之间
+            db.and_(
+                WorkItem.planned_date <= today,
+                WorkItem.end_date >= today
+            )
+        )
+    ).count()
+
+    # 检查今天的日志是否已提交
+    today_log = WorkLog.query.filter_by(
+        owner_id=current_user.id,
+        log_date=today,
+        log_type='daily'
+    ).first()
+
+    log_not_submitted = today_log is None or today_log.status != 'submitted'
+
+    # 有待办事项的条件：有未完成的工作项 或 日志未提交
+    has_pending = pending_items > 0 or log_not_submitted
+
+    return jsonify({
+        'success': True,
+        'has_pending': has_pending,
+        'pending_items': pending_items,
+        'log_submitted': not log_not_submitted
     })

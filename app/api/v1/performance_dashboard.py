@@ -12,6 +12,7 @@ from app.models.user import User
 from app.services.performance_dashboard_service import PerformanceDashboardService
 from app.utils.auth import flexible_auth
 from app.utils.permissions import get_accessible_users
+from app.utils.dictionary_helpers import get_company_type_options, get_industry_options, COMPANY_TYPE_LABELS, INDUSTRY_LABELS
 from app import db
 from datetime import datetime
 import logging
@@ -93,12 +94,35 @@ def get_performance_dashboard(user_id):
         # 获取看板数据
         dashboard_data = PerformanceDashboardService.get_dashboard_data(user_id, year)
 
+        # 获取字典数据（用于前端显示标签）
+        # 合并数据库字典和硬编码字典，确保中文 key 也有映射
+        from app.utils.i18n import get_current_language
+        lang = get_current_language()
+
+        # 从数据库获取
+        company_type_dict = {k: v for k, v in get_company_type_options()}
+        # 合并硬编码字典（用于中文 key 的 fallback）
+        for k, v in COMPANY_TYPE_LABELS.items():
+            if k not in company_type_dict:
+                company_type_dict[k] = v.get(lang, v.get('zh', k))
+
+        # 行业字典直接从硬编码获取（已包含中文别名）
+        industry_dict = {k: v for k, v in get_industry_options()}
+        # 合并中文别名
+        for k, v in INDUSTRY_LABELS.items():
+            if k not in industry_dict:
+                industry_dict[k] = v.get(lang, v.get('zh', k))
+
         return api_response(
             success=True,
             message="获取成功",
             data={
                 'user_id': user_id,
                 'year': year,
+                'dictionaries': {
+                    'company_type': company_type_dict,
+                    'industry': industry_dict
+                },
                 **dashboard_data
             }
         )

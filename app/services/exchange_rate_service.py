@@ -17,11 +17,12 @@ class ExchangeRateService:
     # 支持的货币类型
     SUPPORTED_CURRENCIES = {
         'USD': '美元',
-        'CNY': '人民币', 
+        'CNY': '人民币',
         'SGD': '新加坡元',
         'MYR': '马来西亚林吉特',
         'IDR': '印尼盾',
-        'THB': '泰铢'
+        'THB': '泰铢',
+        'HKD': '港币'
     }
     
     # 免费汇率API - 使用exchangerate-api.com
@@ -168,7 +169,8 @@ class ExchangeRateService:
             'SGD': 0.19,     # 1 CNY = 0.19 SGD
             'MYR': 0.65,     # 1 CNY = 0.65 MYR
             'IDR': 2100.0,   # 1 CNY = 2100 IDR
-            'THB': 5.0       # 1 CNY = 5.0 THB
+            'THB': 5.0,      # 1 CNY = 5.0 THB
+            'HKD': 1.08      # 1 CNY = 1.08 HKD
         }
         
         if base_currency == 'CNY':

@@ -378,10 +378,10 @@
 
                             <!-- 右侧：统计区域（50%宽度） -->
                             <div class="w-1/2 border-l border-slate-200 dark:border-slate-700 pl-6">
-                                <!-- 年度总计 - 使用系统货币 -->
+                                <!-- 年度总计 - 使用用户结算货币 -->
                                 <div class="mb-6">
                                     <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('今年累计') }}</p>
-                                    <p class="text-4xl font-bold text-primary tracking-tight">{{ currency_config.symbol }}{{ "{:,.2f}".format(expense_year_total) }}</p>
+                                    <p class="text-4xl font-bold text-primary tracking-tight">{{ user_currency_symbol }}{{ "{:,.2f}".format(expense_year_total) }}</p>
                                 </div>
                                 <!-- 月度折线图 SVG (使用公共组件) -->
                                 {{ render_tw_line_chart(chart_id='expenseMonthlyChart', color='#2979ff') }}
@@ -440,9 +440,22 @@
         yearsAgo: '{{ _("年前") }}'
     };
 
-    // 货币配置（从全局配置注入）
-    const CURRENCY_SYMBOL = '{{ currency_config.symbol }}';
-    const AMOUNT_UNIT = '{{ currency_config.amount_unit }}';
+    // 货币配置（使用用户结算货币）
+    const USER_CURRENCY = '{{ user_settlement_currency }}';
+    const CURRENCY_SYMBOL = '{{ user_currency_symbol }}';
+    // 金额单位映射（根据用户结算货币）
+    const AMOUNT_UNIT_MAP = {
+        'CNY': '{{ _("万元") }}',
+        'USD': 'K',
+        'HKD': 'K',
+        'TWD': 'K',
+        'SGD': 'K',
+        'MYR': 'K',
+        'IDR': 'K',
+        'THB': 'K',
+        'VND': 'K'
+    };
+    const AMOUNT_UNIT = AMOUNT_UNIT_MAP[USER_CURRENCY] || '{{ currency_config.amount_unit }}';
 
     // 当前用户ID（用于判断回复显示位置）
     window.currentUserId = {{ current_user.id }};
@@ -687,7 +700,7 @@
     {{ render_tw_line_chart_script(
         chart_id='expenseMonthlyChart',
         data_var='monthlyExpenseData',
-        unit='元',
+        unit=user_currency_symbol,
         color='#2979ff',
         month_label=_('月')
     ) }}

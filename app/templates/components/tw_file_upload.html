@@ -1,0 +1,369 @@
+{# 通用文件上传组件 - Tailwind CSS 版本 #}
+{#
+   用途：提供统一的文件上传 UI，支持图片和PDF
+   使用场景：日志附件、报销发票等
+
+   参数说明：
+   - container_id: 容器的唯一ID (必需)
+   - entity_type: 实体类型，如 'action', 'expense' (必需)
+   - entity_id: 实体ID (必需，用于API调用)
+   - files: 已有的文件列表 [{filename, url, size, type}] (可选)
+   - upload_api: 上传API路径 (必需)
+   - delete_api: 删除API路径模板，{index}会被替换 (必需)
+   - preview_api: 预览API路径模板，{index}会被替换 (必需)
+   - accept_types: 接受的文件类型 (可选，默认 'image/*,.pdf')
+   - max_file_size: 最大文件大小，单位字节 (可选，默认 5MB)
+   - max_files: 最大文件数量 (可选，默认 10)
+   - readonly: 是否只读模式 (可选，默认 false)
+   - label: 标签文本 (可选，默认 '附件')
+   - show_label: 是否显示标签 (可选，默认 true)
+#}
+
+{% macro render_file_upload(container_id, entity_type, entity_id, files=[], upload_api='', delete_api='', preview_api='', accept_types='image/*,.pdf', max_file_size=5242880, max_files=10, readonly=false, label='附件', show_label=true) %}
+<div id="{{ container_id }}" class="file-upload-component"
+     data-entity-type="{{ entity_type }}"
+     data-entity-id="{{ entity_id }}"
+     data-upload-api="{{ upload_api }}"
+     data-delete-api="{{ delete_api }}"
+     data-preview-api="{{ preview_api }}"
+     data-accept-types="{{ accept_types }}"
+     data-max-file-size="{{ max_file_size }}"
+     data-max-files="{{ max_files }}"
+     data-readonly="{{ 'true' if readonly else 'false' }}">
+
+    {% if show_label %}
+    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+        {{ label }}
+    </label>
+    {% endif %}
+
+    <div class="flex flex-wrap items-center gap-2">
+        {# 添加按钮 - 虚线边框 28x28px #}
+        {% if not readonly %}
+        <label class="file-upload-add-btn cursor-pointer group" title="{{ _('点击添加附件') }}">
+            <input type="file"
+                   accept="{{ accept_types }}"
+                   multiple
+                   class="hidden file-upload-input">
+            <span class="inline-flex items-center justify-center w-7 h-7 rounded
+                        border border-dashed border-slate-300 dark:border-slate-600
+                        group-hover:border-primary group-hover:text-primary
+                        text-slate-400 dark:text-slate-500
+                        transition-colors duration-200">
+                <span class="material-symbols-outlined" style="font-size: 16px;">attach_file</span>
+            </span>
+        </label>
+        {% endif %}
+
+        {# 文件列表容器 #}
+        <div class="file-list flex flex-wrap items-center gap-2">
+            {% for file in files %}
+            {{ render_file_item(loop.index0, file, readonly, preview_api, delete_api) }}
+            {% endfor %}
+        </div>
+    </div>
+
+    {# 上传进度提示 #}
+    <div class="upload-progress hidden mt-2">
+        <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+            <span class="material-symbols-outlined animate-spin" style="font-size: 16px;">progress_activity</span>
+            <span class="upload-progress-text">{{ _('上传中...') }}</span>
+        </div>
+    </div>
+
+    {# 错误提示 #}
+    <div class="upload-error hidden mt-2">
+        <div class="flex items-center gap-2 text-sm text-red-500 dark:text-red-400">
+            <span class="material-symbols-outlined" style="font-size: 16px;">error</span>
+            <span class="upload-error-text"></span>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 单个文件项渲染 #}
+{% macro render_file_item(index, file, readonly=false, preview_api='', delete_api='') %}
+<div class="file-item inline-flex items-center gap-1 px-2 py-1
+            bg-slate-100 dark:bg-slate-700 rounded text-sm
+            hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+     data-index="{{ index }}"
+     data-filename="{{ file.filename }}"
+     data-type="{{ file.type }}">
+
+    {# 文件图标 - 根据类型显示不同图标 #}
+    <button type="button"
+            class="file-preview-btn inline-flex items-center gap-1 hover:text-primary transition-colors"
+            title="{{ _('点击预览') }}: {{ file.filename }}">
+        {% if file.type and 'pdf' in file.type.lower() %}
+        <span class="material-symbols-outlined text-base text-red-500">picture_as_pdf</span>
+        {% else %}
+        <span class="material-symbols-outlined text-base text-primary">image</span>
+        {% endif %}
+        <span class="truncate max-w-[100px]" title="{{ file.filename }}">{{ file.filename }}</span>
+    </button>
+
+    {# 删除按钮 #}
+    {% if not readonly %}
+    <button type="button"
+            class="file-delete-btn text-slate-400 hover:text-red-500 transition-colors ml-1"
+            title="{{ _('删除') }}">
+        <span class="material-symbols-outlined text-base">close</span>
+    </button>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{# 文件预览模态框 #}
+{% macro render_file_preview_modal(modal_id='filePreviewModal') %}
+<div id="{{ modal_id }}"
+     class="fixed inset-0 z-50 hidden overflow-y-auto"
+     aria-labelledby="filePreviewModalTitle"
+     role="dialog"
+     aria-modal="true">
+
+    {# 背景遮罩 #}
+    <div class="file-preview-backdrop fixed inset-0 bg-black/60 transition-opacity"></div>
+
+    {# 模态框内容 #}
+    <div class="flex min-h-full items-center justify-center p-4">
+        <div class="file-preview-content relative w-full max-w-4xl transform overflow-hidden rounded-xl
+                    bg-white dark:bg-slate-800 shadow-2xl transition-all">
+
+            {# 头部 #}
+            <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                <h3 id="filePreviewModalTitle" class="text-lg font-medium text-slate-900 dark:text-slate-100 truncate pr-4">
+                    {{ _('文件预览') }}
+                </h3>
+                <div class="flex items-center gap-2">
+                    {# 下载按钮 #}
+                    <a href="#"
+                       class="file-download-btn inline-flex items-center gap-1 px-3 py-1.5 rounded-lg
+                              text-sm font-medium text-slate-700 dark:text-slate-300
+                              bg-slate-100 dark:bg-slate-700
+                              hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                       download>
+                        <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+                        <span>{{ _('下载') }}</span>
+                    </a>
+                    {# 关闭按钮 #}
+                    <button type="button"
+                            class="file-preview-close-btn rounded-lg p-1.5
+                                   text-slate-400 hover:text-slate-600 dark:hover:text-slate-300
+                                   hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        <span class="material-symbols-outlined" style="font-size: 24px;">close</span>
+                    </button>
+                </div>
+            </div>
+
+            {# 预览内容区域 #}
+            <div class="file-preview-body p-4 max-h-[70vh] overflow-auto flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+                {# 图片预览 #}
+                <img class="file-preview-image hidden max-w-full max-h-[60vh] object-contain rounded"
+                     src=""
+                     alt="">
+
+                {# PDF预览 (iframe) #}
+                <iframe class="file-preview-pdf hidden w-full h-[60vh] rounded border-0"
+                        src="">
+                </iframe>
+
+                {# 加载中 #}
+                <div class="file-preview-loading flex flex-col items-center gap-3 text-slate-400">
+                    <span class="material-symbols-outlined animate-spin" style="font-size: 48px;">progress_activity</span>
+                    <span>{{ _('加载中...') }}</span>
+                </div>
+
+                {# 错误提示 #}
+                <div class="file-preview-error hidden flex flex-col items-center gap-3 text-red-400">
+                    <span class="material-symbols-outlined" style="font-size: 48px;">error</span>
+                    <span class="file-preview-error-text">{{ _('加载失败') }}</span>
+                </div>
+            </div>
+
+            {# 底部文件信息 #}
+            <div class="flex items-center justify-between px-4 py-2 border-t border-slate-200 dark:border-slate-700
+                        text-xs text-slate-500 dark:text-slate-400">
+                <span class="file-preview-filename truncate"></span>
+                <span class="file-preview-size"></span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 日志列表中的附件显示（紧凑模式） #}
+{% macro render_file_icons(files, preview_api='') %}
+{% if files and files|length > 0 %}
+<div class="file-icons-compact flex items-center gap-1 mt-2">
+    {% for file in files %}
+    <button type="button"
+            class="file-icon-btn inline-flex items-center justify-center w-8 h-8 rounded-full
+                   hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            data-index="{{ loop.index0 }}"
+            data-filename="{{ file.filename }}"
+            data-preview-url="{{ preview_api.replace('{index}', loop.index0|string) if preview_api else '' }}"
+            title="{{ _('点击预览') }}: {{ file.filename }}">
+        {% if file.type and 'pdf' in file.type.lower() %}
+        <span class="material-symbols-outlined text-lg text-red-500">picture_as_pdf</span>
+        {% else %}
+        <span class="material-symbols-outlined text-lg text-primary">image</span>
+        {% endif %}
+    </button>
+    {% endfor %}
+</div>
+{% endif %}
+{% endmacro %}
+
+
+{# 用于新建日志时的附件上传（无entity_id） #}
+{# compact: 紧凑模式，只显示图标不显示文件名，适用于空间有限的场景 #}
+{% macro render_new_file_upload(container_id, entity_type, accept_types='image/*,.pdf', max_file_size=5242880, max_files=10, label='附件', show_label=true, compact=false) %}
+<div id="{{ container_id }}" class="file-upload-component file-upload-new"
+     data-entity-type="{{ entity_type }}"
+     data-entity-id=""
+     data-accept-types="{{ accept_types }}"
+     data-max-file-size="{{ max_file_size }}"
+     data-max-files="{{ max_files }}"
+     data-compact="{{ 'true' if compact else 'false' }}">
+
+    {% if show_label %}
+    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+        {{ label }}
+    </label>
+    {% endif %}
+
+    <div class="flex flex-wrap items-center gap-2">
+        {# 添加按钮 #}
+        <label class="file-upload-add-btn cursor-pointer group" title="{{ _('点击添加附件') }}">
+            <input type="file"
+                   accept="{{ accept_types }}"
+                   multiple
+                   class="hidden file-upload-input">
+            <span class="inline-flex items-center justify-center w-7 h-7 rounded
+                        border border-dashed border-slate-300 dark:border-slate-600
+                        group-hover:border-primary group-hover:text-primary
+                        text-slate-400 dark:text-slate-500
+                        transition-colors duration-200">
+                <span class="material-symbols-outlined" style="font-size: 16px;">attach_file</span>
+            </span>
+        </label>
+
+        {# 待上传文件列表（本地预览）#}
+        <div class="file-list flex flex-wrap items-center gap-2"></div>
+    </div>
+
+    {# 错误提示 #}
+    <div class="upload-error hidden mt-2">
+        <div class="flex items-center gap-2 text-sm text-red-500 dark:text-red-400">
+            <span class="material-symbols-outlined" style="font-size: 16px;">error</span>
+            <span class="upload-error-text"></span>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 渲染待上传的文件项（用于新建模式）#}
+{# compact: 紧凑模式，只显示图标，适合报销单发票风格 #}
+{% macro render_pending_file_item(index, filename, type, size, compact=false) %}
+{% if compact %}
+{# 紧凑模式：圆形图标按钮 #}
+<div class="file-item file-pending inline-flex items-center group"
+     data-index="{{ index }}"
+     data-filename="{{ filename }}"
+     data-type="{{ type }}"
+     data-size="{{ size }}">
+    {# 预览图标按钮 #}
+    <button type="button"
+            class="file-preview-btn inline-flex items-center justify-center w-8 h-8 rounded-full
+                   bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800
+                   hover:bg-blue-100 dark:hover:bg-blue-900/50
+                   transition-all hover:scale-110"
+            title="{{ filename }} ({{ _('待上传') }})">
+        {% if type and 'pdf' in type.lower() %}
+        <span class="material-symbols-outlined text-lg text-red-500">picture_as_pdf</span>
+        {% else %}
+        <span class="material-symbols-outlined text-lg text-primary">image</span>
+        {% endif %}
+    </button>
+    {# 删除按钮 - 悬停时显示 #}
+    <button type="button"
+            class="file-remove-btn -ml-2 opacity-0 group-hover:opacity-100
+                   inline-flex items-center justify-center w-4 h-4 rounded-full
+                   bg-red-500 text-white text-xs
+                   hover:bg-red-600 transition-all"
+            title="{{ _('移除') }}">
+        <span class="material-symbols-outlined" style="font-size: 12px;">close</span>
+    </button>
+</div>
+{% else %}
+{# 完整模式：带文件名 #}
+<div class="file-item file-pending inline-flex items-center gap-1 px-2 py-1
+            bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800
+            rounded text-sm transition-colors"
+     data-index="{{ index }}"
+     data-filename="{{ filename }}"
+     data-type="{{ type }}"
+     data-size="{{ size }}">
+
+    {# 文件图标 #}
+    <span class="inline-flex items-center gap-1">
+        {% if type and 'pdf' in type.lower() %}
+        <span class="material-symbols-outlined text-base text-red-500">picture_as_pdf</span>
+        {% else %}
+        <span class="material-symbols-outlined text-base text-primary">image</span>
+        {% endif %}
+        <span class="truncate max-w-[100px]" title="{{ filename }}">{{ filename }}</span>
+    </span>
+
+    {# 待上传标记 #}
+    <span class="text-xs text-blue-500 dark:text-blue-400 ml-1">({{ _('待上传') }})</span>
+
+    {# 删除按钮 #}
+    <button type="button"
+            class="file-remove-btn text-slate-400 hover:text-red-500 transition-colors ml-1"
+            title="{{ _('移除') }}">
+        <span class="material-symbols-outlined text-base">close</span>
+    </button>
+</div>
+{% endif %}
+{% endmacro %}
+
+
+{# 渲染已上传的文件项（紧凑模式）#}
+{% macro render_uploaded_file_item_compact(index, file, preview_api='', delete_api='', readonly=false) %}
+<div class="file-item file-uploaded inline-flex items-center group"
+     data-index="{{ index }}"
+     data-filename="{{ file.filename }}"
+     data-type="{{ file.type }}">
+    {# 预览图标按钮 #}
+    <button type="button"
+            class="file-preview-btn inline-flex items-center justify-center w-8 h-8 rounded-full
+                   bg-slate-100 dark:bg-slate-700
+                   hover:bg-slate-200 dark:hover:bg-slate-600
+                   transition-all hover:scale-110"
+            data-preview-url="{{ preview_api.replace('{index}', index|string) if preview_api else file.url }}"
+            title="{{ _('点击预览') }}: {{ file.filename }}">
+        {% if file.type and 'pdf' in file.type.lower() %}
+        <span class="material-symbols-outlined text-lg text-red-500">picture_as_pdf</span>
+        {% else %}
+        <span class="material-symbols-outlined text-lg text-primary">image</span>
+        {% endif %}
+    </button>
+    {# 删除按钮 - 悬停时显示 #}
+    {% if not readonly %}
+    <button type="button"
+            class="file-delete-btn -ml-2 opacity-0 group-hover:opacity-100
+                   inline-flex items-center justify-center w-4 h-4 rounded-full
+                   bg-red-500 text-white text-xs
+                   hover:bg-red-600 transition-all"
+            data-delete-url="{{ delete_api.replace('{index}', index|string) if delete_api else '' }}"
+            title="{{ _('删除') }}">
+        <span class="material-symbols-outlined" style="font-size: 12px;">close</span>
+    </button>
+    {% endif %}
+</div>
+{% endmacro %}

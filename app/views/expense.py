@@ -489,6 +489,10 @@ def expense_list():
             }
         }
 
+        # 获取用户结算货币（从数据库直接查询以获取最新值）
+        fresh_user = User.query.get(current_user.id)
+        user_default_currency = (fresh_user.settlement_currency if fresh_user else None) or Config.DEFAULT_CURRENCY
+
         return render_template('expense/tw_list.html',
                               expenses=expenses,
                               sort_field=sort_field,
@@ -506,7 +510,7 @@ def expense_list():
                               list_config=list_config,
                               currency_options=get_currency_type_options(),
                               expense_categories=EXPENSE_CATEGORIES,
-                              default_currency=Config.DEFAULT_CURRENCY)
+                              default_currency=user_default_currency)
 
     except Exception as e:
         logger.error(f"加载报销单列表时出错: {str(e)}", exc_info=True)
@@ -572,6 +576,14 @@ def expense_list():
         }
 
         flash(_('加载报销单失败：%s') % str(e), 'danger')
+
+        # 获取用户结算货币（错误处理分支也需要）
+        try:
+            error_fresh_user = User.query.get(current_user.id)
+            error_default_currency = (error_fresh_user.settlement_currency if error_fresh_user else None) or Config.DEFAULT_CURRENCY
+        except:
+            error_default_currency = Config.DEFAULT_CURRENCY
+
         return render_template('expense/tw_list.html',
                               expenses=[],
                               sort_field='created_at',
@@ -589,7 +601,7 @@ def expense_list():
                               list_config=error_list_config,
                               currency_options=get_currency_type_options(),
                               expense_categories=EXPENSE_CATEGORIES,
-                              default_currency=Config.DEFAULT_CURRENCY)
+                              default_currency=error_default_currency)
 
 @expense.route('/ajax/test')
 def test_ajax():
@@ -1261,22 +1273,31 @@ def create_expense():
                 flash(f'创建报销单失败: {str(e)}', 'error')
     
     # GET请求，显示创建表单
-    # 获取用户最近一次报销的货币作为默认值
-    last_expense_currency = Config.DEFAULT_CURRENCY  # 默认货币
-    try:
-        last_expense = Expense.query.filter_by(owner_id=current_user.id)\
-                                   .order_by(Expense.created_at.desc())\
-                                   .first()
-        if last_expense and last_expense.currency:
-            last_expense_currency = last_expense.currency
-            logger.info(f"用户 {current_user.username} 最近报销货币: {last_expense_currency}")
-    except Exception as e:
-        logger.warning(f"获取最近报销货币失败: {e}")
-    
+    # 获取默认货币，优先级: 用户结算货币 > 最近报销货币 > 系统默认
+    default_currency = Config.DEFAULT_CURRENCY  # 系统默认货币
+
+    # 优先使用用户设置的结算货币
+    # 注意：从数据库直接查询以获取最新值，避免 Flask-Login session 缓存问题
+    fresh_user = User.query.get(current_user.id)
+    if fresh_user and fresh_user.settlement_currency:
+        default_currency = fresh_user.settlement_currency
+        logger.info(f"用户 {current_user.username} 使用结算货币: {default_currency}")
+    else:
+        # 其次使用最近一次报销的货币
+        try:
+            last_expense = Expense.query.filter_by(owner_id=current_user.id)\
+                                       .order_by(Expense.created_at.desc())\
+                                       .first()
+            if last_expense and last_expense.currency:
+                default_currency = last_expense.currency
+                logger.info(f"用户 {current_user.username} 使用最近报销货币: {default_currency}")
+        except Exception as e:
+            logger.warning(f"获取最近报销货币失败: {e}")
+
     return render_template('expense/create_expense.html',
                          currency_options=get_currency_type_options(),
                          expense_categories=EXPENSE_CATEGORIES,
-                         default_currency=last_expense_currency)
+                         default_currency=default_currency)
 
 @expense.route('/<int:id>')
 @login_required

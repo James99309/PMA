@@ -9,8 +9,10 @@ from app.models.quotation import Quotation
 from app.models.customer import Company
 from app.models.action import Action, ActionReply
 from app.models.user import User
-from app.utils.dictionary_helpers import project_type_label
+from app.utils.dictionary_helpers import project_type_label, get_currency_symbol
+from app.services.exchange_rate_service import exchange_rate_service
 from sqlalchemy import and_, or_, extract, func
+from config import Config
 from sqlalchemy.orm import joinedload
 
 logger = logging.getLogger(__name__)
@@ -146,28 +148,49 @@ def index():
                 recent_expenses = []
 
     # 获取当前用户今年各月份报销统计（用于首页图表）
+    # 使用用户的结算货币进行汇率转换
     expense_monthly_stats = []
     expense_year_total = 0
+    # 从数据库直接查询以获取最新值，避免 Flask-Login session 缓存问题
+    fresh_user = User.query.get(current_user.id)
+    user_settlement_currency = (fresh_user.settlement_currency if fresh_user else None) or Config.DEFAULT_CURRENCY
+    user_currency_symbol = get_currency_symbol(user_settlement_currency)
     if current_user.has_permission('expense', 'view'):
         try:
             from app.models.expense import Expense
             current_year = datetime.now().year
-            # 查询今年每月已提交的报销总额（使用created_at作为时间基准）
-            # 包含 pending/approved/paid 状态，排除草稿和已拒绝
-            monthly_query = db.session.query(
+            # 查询今年每笔报销单的月份、金额和货币（用于汇率转换）
+            expense_query = db.session.query(
                 extract('month', Expense.created_at).label('month'),
-                func.sum(Expense.total_amount).label('total')
+                Expense.total_amount,
+                Expense.currency
             ).filter(
                 Expense.owner_id == current_user.id,
                 Expense.is_deleted == False,
                 Expense.status.in_(['pending', 'approved', 'paid']),
                 extract('year', Expense.created_at) == current_year
-            ).group_by(extract('month', Expense.created_at)).all()
+            ).all()
 
-            # 构建1-12月的完整数据
-            monthly_dict = {int(m.month): float(m.total or 0) for m in monthly_query}
-            expense_monthly_stats = [monthly_dict.get(i, 0) for i in range(1, 13)]
-            expense_year_total = sum(expense_monthly_stats)
+            # 按月汇总，同时进行货币转换
+            monthly_dict = {i: 0.0 for i in range(1, 13)}
+            for row in expense_query:
+                month = int(row.month)
+                amount = float(row.total_amount or 0)
+                expense_currency = row.currency or Config.DEFAULT_CURRENCY
+
+                # 如果货币不同，进行汇率转换
+                if expense_currency != user_settlement_currency:
+                    try:
+                        amount = exchange_rate_service.convert_amount(
+                            amount, expense_currency, user_settlement_currency
+                        )
+                    except Exception as conv_err:
+                        logger.warning(f"首页报销统计货币转换失败 {expense_currency} -> {user_settlement_currency}: {conv_err}")
+
+                monthly_dict[month] += amount
+
+            expense_monthly_stats = [round(monthly_dict.get(i, 0), 2) for i in range(1, 13)]
+            expense_year_total = round(sum(expense_monthly_stats), 2)
         except Exception as e:
             logger.warning(f"报销月度统计查询失败: {str(e)}")
             expense_monthly_stats = [0] * 12
@@ -210,6 +233,8 @@ def index():
                          recent_expenses=recent_expenses,
                          expense_monthly_stats=expense_monthly_stats,
                          expense_year_total=expense_year_total,
+                         user_currency_symbol=user_currency_symbol,
+                         user_settlement_currency=user_settlement_currency,
                          current_version_number=version_number,
                          app_version=app_version,
                          last_upgrade_time=last_upgrade_time,

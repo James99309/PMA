@@ -5,6 +5,7 @@
 WorkItem: 工作项/日历事件
 WorkLog: 日志汇总
 """
+import json
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 from sqlalchemy import Column, Integer, String, Text, Date, Time, DateTime, Boolean, Float, ForeignKey, JSON
@@ -294,6 +295,9 @@ class WorkLog(db.Model):
     # 补充内容
     additional_notes = Column(Text)                      # 额外补充
 
+    # 附件（JSON格式存储）
+    attachments = Column(Text, nullable=True)            # JSON: [{filename, url, size, type}]
+
     # 状态
     status = Column(String(20), default='draft')         # draft, submitted
     submitted_at = Column(DateTime)
@@ -343,6 +347,7 @@ class WorkLog(db.Model):
             'summary': self.summary,
             'total_hours': self.total_hours,
             'additional_notes': self.additional_notes,
+            'attachments': self.attachments_list,
             'status': self.status,
             'submitted_at': self.submitted_at.isoformat() if self.submitted_at else None,
             'mentioned_users': self.mentioned_users or [],
@@ -381,3 +386,41 @@ class WorkLog(db.Model):
             db.session.flush()
 
         return worklog
+
+    @property
+    def attachments_list(self):
+        """获取附件列表"""
+        if not self.attachments:
+            return []
+        try:
+            return json.loads(self.attachments)
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    def add_attachment(self, filename, url, size, file_type):
+        """添加附件"""
+        attachments = self.attachments_list
+        attachments.append({
+            'filename': filename,
+            'url': url,
+            'size': size,
+            'type': file_type,
+            'uploaded_at': datetime.now().isoformat()
+        })
+        self.attachments = json.dumps(attachments)
+
+    def remove_attachment(self, index):
+        """移除指定索引的附件"""
+        attachments = self.attachments_list
+        if 0 <= index < len(attachments):
+            attachments.pop(index)
+            self.attachments = json.dumps(attachments) if attachments else None
+            return True
+        return False
+
+    def get_attachment(self, index):
+        """获取指定索引的附件"""
+        attachments = self.attachments_list
+        if 0 <= index < len(attachments):
+            return attachments[index]
+        return None

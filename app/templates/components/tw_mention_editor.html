@@ -34,6 +34,7 @@ Tailwind Mention Editor 组件
 - initial_value: 初始值（存储格式的文本）
 - max_length: 最大字符数
 - min_height: 最小高度
+- max_height: 最大高度（可选，设置后内容超出会滚动）
 - project_search_url: 项目搜索 API 地址
 - quotation_search_url: 报价单搜索 API 地址
 
@@ -49,6 +50,7 @@ Tailwind Mention Editor 组件
     initial_value='',
     max_length=5000,
     min_height='280px',
+    max_height='',
     project_search_url='/api/v1/search/projects',
     quotation_search_url='/api/v1/search/quotations'
 ) %}
@@ -77,7 +79,7 @@ window.__mentionEditorData['{{ editor_id }}'] = {
                 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm
                 focus:ring-2 focus:ring-primary/50 focus:border-primary
                 overflow-y-auto outline-none"
-         style="min-height: {{ min_height }};"
+         style="min-height: {{ min_height }};{% if max_height %} max-height: {{ max_height }};{% endif %}"
          @paste="handlePaste($event)"
          @blur="syncToHidden()"
          :data-placeholder="'{{ placeholder }}'">

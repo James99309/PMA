@@ -448,6 +448,7 @@ REPORT_SOURCE_LABELS = {
 }
 
 COMPANY_TYPE_LABELS = {
+    # 英文 key（标准）
     'user': {'zh': '用户', 'en': 'User'},
     'designer': {'zh': '顾问', 'en': 'Conslt'},
     'contractor': {'zh': '总包', 'en': 'Contrc'},
@@ -456,6 +457,16 @@ COMPANY_TYPE_LABELS = {
     'distributor': {'zh': '分销', 'en': 'Distri'},
     'partner': {'zh': '伙伴', 'en': 'Partner'},
     'other': {'zh': '其他', 'en': 'Other'},
+    # 中文 key 别名（兼容旧数据）
+    '用户': {'zh': '用户', 'en': 'User'},
+    '最终用户': {'zh': '最终用户', 'en': 'User'},
+    '经销商': {'zh': '经销商', 'en': 'Dealer'},
+    '集成商': {'zh': '集成商', 'en': 'Integr'},
+    '设计院': {'zh': '设计院', 'en': 'Conslt'},
+    '总包商': {'zh': '总包商', 'en': 'Contrc'},
+    '代理商': {'zh': '代理商', 'en': 'Distri'},
+    '合作伙伴': {'zh': '合作伙伴', 'en': 'Partner'},
+    '其他': {'zh': '其他', 'en': 'Other'},
 }
 
 # 向后兼容选项（基于硬编码字典）
@@ -481,6 +492,7 @@ INDUSTRY_LABELS = {
     'real_estate': {'zh': '地产', 'en': 'Estate'},
     'hospitality': {'zh': '酒店', 'en': 'Hotel'},
     'finance': {'zh': '金融', 'en': 'Finance'},
+    'retail': {'zh': '零售', 'en': 'Retail'},
     # 公共服务相关
     'government': {'zh': '政府', 'en': 'Govt'},
     'education': {'zh': '教育', 'en': 'Educate'},
@@ -488,12 +500,14 @@ INDUSTRY_LABELS = {
     'health': {'zh': '医疗', 'en': 'Health'},  # 别名兼容
     # 科技相关
     'technology': {'zh': '科技', 'en': 'Tech'},
-    # 其他
+    # 其他/未分类
     'other': {'zh': '其他', 'en': 'Other'},
+    'uncategorized': {'zh': '未分类', 'en': 'N/A'},
+    '未分类': {'zh': '未分类', 'en': 'N/A'},  # 中文别名兼容
 }
 
 # 行业别名集合（仅用于向后兼容显示，不应出现在筛选选项中）
-INDUSTRY_ALIASES = {'transport', 'health'}
+INDUSTRY_ALIASES = {'transport', 'health', '未分类'}
 
 # 行业颜色映射
 INDUSTRY_COLORS = {

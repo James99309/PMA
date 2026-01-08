@@ -10,6 +10,30 @@ logger = logging.getLogger(__name__)
 
 exchange_rate_bp = Blueprint('exchange_rate_api', __name__, url_prefix='/api/v1/exchange-rate')
 
+@exchange_rate_bp.route('', methods=['GET'])
+def get_exchange_rate_simple():
+    """获取两种货币之间的汇率（用于报销单明细自动填充）
+
+    Query params:
+        from: 源货币代码 (默认 CNY)
+        to: 目标货币代码 (默认 CNY)
+
+    Returns:
+        { success: true, rate: float }
+    """
+    try:
+        from_currency = request.args.get('from', 'CNY')
+        to_currency = request.args.get('to', 'CNY')
+
+        if from_currency == to_currency:
+            return jsonify({'success': True, 'rate': 1.0})
+
+        rate = exchange_rate_service.get_exchange_rate(from_currency, to_currency)
+        return jsonify({'success': True, 'rate': rate})
+    except Exception as e:
+        logger.error(f"获取汇率失败: {e}")
+        return jsonify({'success': False, 'rate': 1.0, 'message': str(e)})
+
 @exchange_rate_bp.route('/rates', methods=['GET'])
 def get_exchange_rates():
     """获取汇率数据"""

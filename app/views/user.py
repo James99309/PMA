@@ -15,6 +15,7 @@ from app.utils.dictionary_helpers import (
     get_company_type_options,
     get_status_options,
     get_business_type_options,
+    get_currency_type_options,
     PRODUCT_TYPE_OPTIONS,
     PRODUCT_STATUS_OPTIONS
 )
@@ -784,8 +785,9 @@ def create_user():
         phone = request.form.get('phone')
         department = request.form.get('department')
         role = request.form.get('role')
+        settlement_currency = request.form.get('settlement_currency') or None  # 空字符串转为None
         is_department_manager = 'is_department_manager' in request.form
-        
+
         # 对角色字段进行去空格处理，防止空格问题
         if role:
             role = role.strip()
@@ -813,6 +815,7 @@ def create_user():
             department=department,
             is_department_manager=is_department_manager,
             role=role,
+            settlement_currency=settlement_currency,
             is_active=False  # 新建用户默认未激活
         )
         import secrets
@@ -866,10 +869,11 @@ def edit_user(user_id):
         phone = request.form.get('phone')
         department = request.form.get('department')
         role = request.form.get('role')
+        settlement_currency = request.form.get('settlement_currency') or None  # 空字符串转为None
         password = request.form.get('password')
         is_active = 'is_active' in request.form
         is_department_manager = 'is_department_manager' in request.form
-        
+
         # 对角色字段进行去空格处理，防止空格问题
         if role:
             role = role.strip()
@@ -897,6 +901,7 @@ def edit_user(user_id):
         user.phone = phone
         user.department = department
         user.role = role
+        user.settlement_currency = settlement_currency
         user.is_active = is_active
         user.is_department_manager = is_department_manager
         if password and password.strip():
@@ -2364,23 +2369,25 @@ def profile():
         real_name = request.form.get('real_name')
         email = request.form.get('email')
         phone = request.form.get('phone')
-        
+        settlement_currency = request.form.get('settlement_currency') or None
+
         # 邮箱非空校验
         if not email or not email.strip():
             flash(_('邮箱不能为空'), 'danger')
             return render_template('user/profile.html', user=user)
-        
+
         # 检查邮箱是否已被其他用户使用
         email = email.strip()
         existing_user = User.query.filter(User.email == email, User.id != user.id).first()
         if existing_user:
             flash(_('此邮箱已被其他账户使用'), 'danger')
             return render_template('user/profile.html', user=user)
-            
+
         # 更新用户信息
         user.real_name = real_name
         user.email = email
         user.phone = phone
+        user.settlement_currency = settlement_currency
         
         try:
             db.session.commit()
@@ -2504,4 +2511,5 @@ def profile():
     # 支持TW模板
     template = 'user/tw_profile.html' if request.args.get('tw') == '1' else 'user/profile.html'
     return render_template(template, user=user, permissions=permissions,
-                          affiliations=affiliations, role_dict=ROLE_DICT, modules=MODULES) 
+                          affiliations=affiliations, role_dict=ROLE_DICT, modules=MODULES,
+                          currency_options=get_currency_type_options()) 

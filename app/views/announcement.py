@@ -358,6 +358,56 @@ def api_delete_attachment(attachment_id):
         return jsonify({'success': False, 'message': f'删除失败: {str(e)}'}), 500
 
 
+@announcement_bp.route('/api/preview_attachment/<int:attachment_id>')
+@login_required
+def api_preview_attachment(attachment_id):
+    """代理预览公告附件 - 正确设置 Content-Type 以支持 PDF 等文件预览"""
+    import requests
+    from flask import Response
+    from urllib.parse import quote
+
+    attachment = AnnouncementAttachment.query.get_or_404(attachment_id)
+    url = attachment.file_url
+    filename = attachment.filename
+
+    try:
+        # 从云端存储获取文件
+        resp = requests.get(url, timeout=30)
+        if resp.status_code == 200:
+            # 根据文件扩展名确定 MIME 类型
+            ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'bin'
+            mime_map = {
+                'pdf': 'application/pdf',
+                'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                'png': 'image/png', 'gif': 'image/gif',
+                'webp': 'image/webp', 'bmp': 'image/bmp',
+                'doc': 'application/msword',
+                'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'xls': 'application/vnd.ms-excel',
+                'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'ppt': 'application/vnd.ms-powerpoint',
+                'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                'txt': 'text/plain',
+                'zip': 'application/zip',
+                'rar': 'application/x-rar-compressed'
+            }
+            mime_type = mime_map.get(ext, 'application/octet-stream')
+
+            # 对文件名进行 RFC 5987 编码以支持中文
+            encoded_filename = quote(filename, safe='')
+            headers = {
+                'Content-Type': mime_type,
+                'Content-Disposition': f"inline; filename*=UTF-8''{encoded_filename}"
+            }
+            return Response(resp.content, headers=headers)
+        else:
+            return jsonify({'success': False, 'message': '文件获取失败'}), 404
+
+    except Exception as e:
+        logger.error(f"预览附件失败: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': f'预览失败: {str(e)}'}), 500
+
+
 @announcement_bp.route('/api/read_stats/<int:announcement_id>')
 @login_required
 @permission_required('announcement', 'view')

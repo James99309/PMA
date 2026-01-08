@@ -1,0 +1,103 @@
+{#
+公告模态框表单字段部分模板
+用于 tw_form_modal 组件
+
+包含字段：
+- 公告标题（必填）
+- 公告类型
+- 定时发布时间
+- 发布范围（用户选择）
+- 公告内容（必填）
+- 附件上传
+
+依赖：
+- render_new_file_upload 组件
+#}
+
+{% from 'components/tw_file_upload.html' import render_new_file_upload with context %}
+
+{# 隐藏ID字段 #}
+<input type="hidden" id="announcementId" name="announcement_id" value="">
+
+{# 公告标题 #}
+<div>
+    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ _('公告标题') }} <span class="text-red-500">*</span>
+    </label>
+    <input type="text" id="title" name="title" required
+        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+        placeholder="{{ _('请输入公告标题') }}">
+</div>
+
+{# 公告类型和定时发布 #}
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            {{ _('公告类型') }}
+        </label>
+        <select id="announcement_type" name="announcement_type"
+            class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent">
+            <option value="system">{{ _('系统通知') }}</option>
+            <option value="business">{{ _('业务公告') }}</option>
+            <option value="urgent">{{ _('紧急通知') }}</option>
+        </select>
+    </div>
+    <div>
+        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            {{ _('定时发布') }}
+        </label>
+        <input type="datetime-local" id="scheduled_time" name="scheduled_time"
+            class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent">
+    </div>
+</div>
+
+{# 发布范围 #}
+<div>
+    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+        {{ _('发布范围') }} <span class="text-red-500">*</span>
+    </label>
+    {# 已选用户头像列表 #}
+    <div id="selectedUsersDisplay" class="flex flex-wrap items-center gap-2 min-h-[40px] p-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+        {# 已选用户会通过 JS 动态渲染 #}
+        <span id="noUsersHint" class="text-sm text-slate-400 dark:text-slate-500">
+            {{ _('点击添加按钮选择发布对象') }}
+        </span>
+        {# 添加按钮 #}
+        <button type="button" onclick="openUserSelectorModal()"
+            class="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center text-slate-400 hover:border-primary hover:text-primary transition-colors flex-shrink-0">
+            <span class="material-symbols-outlined text-lg">add</span>
+        </button>
+    </div>
+</div>
+
+{# 公告内容 #}
+<div>
+    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ _('公告内容') }} <span class="text-red-500">*</span>
+    </label>
+    <textarea id="content" name="content" rows="6" required
+        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+        placeholder="{{ _('请输入公告内容') }}"></textarea>
+</div>
+
+{# 附件 - 使用通用文件上传组件 #}
+<div id="attachmentSection">
+    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+        {{ _('附件') }}
+    </label>
+    <div class="flex flex-wrap items-center gap-2">
+        {# 文件上传组件（添加按钮在最左边） #}
+        {{ render_new_file_upload(
+            container_id='announcementAttachmentUpload',
+            entity_type='announcement',
+            accept_types='image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar',
+            max_file_size=10485760,
+            max_files=10,
+            label=_('附件'),
+            show_label=false,
+            compact=true
+        ) }}
+        {# 已上传附件列表（编辑模式显示，在添加按钮右侧） #}
+        <div id="uploadedAttachmentList" class="contents"></div>
+    </div>
+</div>

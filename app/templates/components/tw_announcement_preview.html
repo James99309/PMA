@@ -1,0 +1,218 @@
+{#
+公告预览组件
+用于在任何页面弹出模态框显示公告详情和附件
+
+使用方式：
+1. 导入组件:
+   {% from 'components/tw_announcement_preview.html' import render_announcement_preview_modal, render_announcement_preview_script %}
+
+2. 在模态框区域添加:
+   {{ render_announcement_preview_modal() }}
+
+3. 在脚本区域添加:
+   {{ render_announcement_preview_script() }}
+
+4. 调用预览函数:
+   openAnnouncementPreview(announcementId);
+
+依赖:
+- attachment-display.js (附件图标渲染)
+- tw_file_preview.html (文件预览模态框)
+#}
+
+{% from 'components/tw_file_preview.html' import render_file_preview_modal, render_file_preview_script with context %}
+
+{# 公告预览模态框 #}
+{% macro render_announcement_preview_modal(modal_id='announcementPreviewModal') %}
+<div id="{{ modal_id }}" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+    <!-- 背景遮罩 -->
+    <div class="fixed inset-0 bg-gray-900/30 dark:bg-gray-900/50 transition-opacity"
+         onclick="window['closeAnnouncementPreview_{{ modal_id }}']()"></div>
+
+    <!-- 模态框容器 -->
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-2xl border border-slate-200 dark:border-slate-800 transform transition-all max-h-[90vh] flex flex-col">
+            <!-- 头部区域 -->
+            <div class="p-6 pb-4 flex-shrink-0">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-indigo-600 dark:text-indigo-400">campaign</span>
+                        </div>
+                        <div>
+                            <h3 id="{{ modal_id }}-title" class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('公告') }}</h3>
+                            <p id="{{ modal_id }}-meta" class="text-sm text-slate-500 dark:text-slate-400 mt-0.5"></p>
+                        </div>
+                    </div>
+                    <!-- 关闭按钮 -->
+                    <button type="button" onclick="window['closeAnnouncementPreview_{{ modal_id }}'](); return false;"
+                            class="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 内容区域 -->
+            <div class="px-6 pb-4 flex-1 overflow-y-auto">
+                <!-- 公告内容 -->
+                <div id="{{ modal_id }}-content" class="prose dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
+                    <p class="text-slate-400">{{ _('加载中...') }}</p>
+                </div>
+
+                <!-- 附件区域 -->
+                <div id="{{ modal_id }}-attachments" class="mt-4"></div>
+            </div>
+
+            <!-- 底部操作区 -->
+            <div class="p-6 pt-4 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <button type="button" onclick="window['closeAnnouncementPreview_{{ modal_id }}'](); return false;"
+                        class="w-full py-2.5 px-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors font-medium">
+                    {{ _('关闭') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 文件预览模态框（公告附件只能查看不能下载） -->
+{{ render_file_preview_modal(modal_id=modal_id + 'FileModal', show_download=false) }}
+{% endmacro %}
+
+
+{# 公告预览脚本 #}
+{% macro render_announcement_preview_script(modal_id='announcementPreviewModal') %}
+<!-- 附件显示工具 -->
+<script src="{{ url_for('static', filename='js/common/attachment-display.js') }}"></script>
+<!-- 文件预览脚本 -->
+{{ render_file_preview_script(modal_id=modal_id + 'FileModal') }}
+
+<script>
+(function() {
+    const modalId = '{{ modal_id }}';
+
+    /**
+     * 打开公告预览
+     * @param {number} announcementId - 公告ID
+     */
+    window['openAnnouncementPreview_' + modalId] = async function(announcementId) {
+        const modal = document.getElementById(modalId);
+        if (!modal) {
+            console.error('公告预览模态框不存在');
+            return;
+        }
+
+        // 重置内容
+        const titleEl = document.getElementById(modalId + '-title');
+        const metaEl = document.getElementById(modalId + '-meta');
+        const contentEl = document.getElementById(modalId + '-content');
+        const attachmentsEl = document.getElementById(modalId + '-attachments');
+
+        if (titleEl) titleEl.textContent = '{{ _("加载中...") }}';
+        if (metaEl) metaEl.textContent = '';
+        if (contentEl) contentEl.innerHTML = '<p class="text-slate-400">{{ _("加载中...") }}</p>';
+        if (attachmentsEl) attachmentsEl.innerHTML = '';
+
+        // 显示模态框
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+
+        try {
+            // 获取公告详情
+            const response = await fetch(`/announcement/api/get/${announcementId}`);
+            const result = await response.json();
+
+            if (result.success) {
+                const data = result.data;
+
+                // 渲染标题
+                if (titleEl) titleEl.textContent = data.title;
+
+                // 渲染元信息
+                if (metaEl) {
+                    const publishedAt = data.published_at ? new Date(data.published_at).toLocaleString('zh-CN') : '';
+                    const creatorName = data.creator_name || '';
+                    metaEl.textContent = [creatorName, publishedAt].filter(Boolean).join(' · ');
+                }
+
+                // 渲染内容
+                if (contentEl) {
+                    contentEl.innerHTML = `<p class="whitespace-pre-wrap">${data.content || ''}</p>`;
+                }
+
+                // 渲染附件
+                if (attachmentsEl && data.attachments && data.attachments.length > 0) {
+                    // 转义 JS 字符串
+                    const escapeJs = (str) => String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                    // 预览函数名
+                    const previewFnName = 'previewAnnouncementFile_' + modalId;
+
+                    let attachmentsHtml = `
+                        <div class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('附件') }}</div>
+                        <div class="flex flex-wrap gap-2">
+                    `;
+                    data.attachments.forEach(att => {
+                        const previewUrl = `/announcement/api/preview_attachment/${att.id}`;
+                        attachmentsHtml += renderAttachmentIcon({
+                            filename: att.filename,
+                            url: previewUrl,
+                            onPreview: `${previewFnName}('${escapeJs(previewUrl)}', '${escapeJs(att.filename)}')`
+                        });
+                    });
+                    attachmentsHtml += '</div>';
+                    attachmentsEl.innerHTML = attachmentsHtml;
+                }
+
+                // 标记为已读
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                fetch(`/announcement/api/mark_read/${announcementId}`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken }
+                }).catch(e => console.warn('标记已读失败:', e));
+
+            } else {
+                if (contentEl) {
+                    contentEl.innerHTML = `<p class="text-red-500">{{ _('加载失败') }}: ${result.message || ''}</p>`;
+                }
+            }
+        } catch (error) {
+            console.error('获取公告详情失败:', error);
+            if (contentEl) {
+                contentEl.innerHTML = '<p class="text-red-500">{{ _("加载失败") }}</p>';
+            }
+        }
+    };
+
+    /**
+     * 关闭公告预览
+     */
+    window['closeAnnouncementPreview_' + modalId] = function() {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+    };
+
+    /**
+     * 预览公告附件
+     */
+    window['previewAnnouncementFile_' + modalId] = function(url, filename) {
+        // 使用与 modal_id 关联的文件预览模态框
+        const fileModalId = modalId + 'FileModal';
+        if (window['previewFile_' + fileModalId]) {
+            window['previewFile_' + fileModalId](url, filename, url);
+        }
+    };
+
+    // ESC 关闭
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById(modalId);
+            if (modal && !modal.classList.contains('hidden')) {
+                window['closeAnnouncementPreview_' + modalId]();
+            }
+        }
+    });
+})();
+</script>
+{% endmacro %}

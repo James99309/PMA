@@ -1,0 +1,199 @@
+{#
+    通用文件预览模态框组件
+
+    提供文件（图片/PDF）的预览功能，支持：
+    - 图片预览 (jpg, png, gif, webp等)
+    - PDF 预览 (使用 iframe)
+    - 文件下载
+    - 深色模式
+
+    使用示例:
+    1. 导入组件:
+       from 'components/tw_file_preview.html' import render_file_preview_modal, render_file_preview_script
+
+    2. 在模态框区域添加:
+       render_file_preview_modal(modal_id='attachmentPreviewModal')
+
+    3. 在脚本区域添加:
+       render_file_preview_script(modal_id='attachmentPreviewModal')
+
+    4. 调用预览函数:
+       previewFile_attachmentPreviewModal(url, filename, downloadUrl);
+#}
+
+{# ============================================================
+   文件预览模态框（自包含版本）
+   参数:
+   - modal_id: 模态框ID
+   - title: 标题
+   - show_download: 是否显示下载按钮 (默认 true)
+   ============================================================ #}
+{% macro render_file_preview_modal(modal_id='filePreviewModal', title=none, show_download=true) %}
+{% set modal_title = title or _('文件预览') %}
+<div id="{{ modal_id }}" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+    <!-- 背景遮罩 -->
+    <div class="fixed inset-0 bg-gray-900/30 dark:bg-gray-900/50 transition-opacity"
+         onclick="closeFilePreviewModal_{{ modal_id|replace('-', '_') }}()"></div>
+
+    <!-- 模态框容器 -->
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-4xl border border-slate-200 dark:border-slate-800 transform transition-all">
+            <!-- 头部区域 -->
+            <div class="p-6 pb-4">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-primary">visibility</span>
+                        </div>
+                        <div>
+                            <h3 id="{{ modal_id }}-title" class="text-lg font-semibold text-slate-900 dark:text-white">{{ modal_title }}</h3>
+                            <p id="{{ modal_id }}Filename" class="text-sm text-slate-500 dark:text-slate-400 mt-0.5 truncate max-w-md"></p>
+                        </div>
+                    </div>
+                    <!-- 关闭按钮 -->
+                    <button type="button"
+                            onclick="closeFilePreviewModal_{{ modal_id|replace('-', '_') }}()"
+                            class="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 预览内容区域 -->
+            <div id="{{ modal_id }}Content"
+                 class="px-6 pb-4 flex items-center justify-center min-h-[300px] max-h-[60vh] overflow-auto bg-slate-50 dark:bg-slate-800/50 mx-6 rounded-lg">
+                <span class="text-slate-400">{{ _('加载中...') }}</span>
+            </div>
+
+            <!-- 底部操作区 -->
+            <div class="p-6 pt-4 flex justify-end">
+                {% if show_download %}
+                <button type="button" id="{{ modal_id }}DownloadBtn"
+                        class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                    <span class="material-symbols-outlined text-lg">download</span>
+                    {{ _('下载') }}
+                </button>
+                {% else %}
+                <button type="button" onclick="closeFilePreviewModal_{{ modal_id|replace('-', '_') }}()"
+                        class="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                    {{ _('关闭') }}
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ============================================================
+   文件预览脚本
+   ============================================================ #}
+{% macro render_file_preview_script(modal_id='filePreviewModal') %}
+<script>
+(function() {
+    const modalId = '{{ modal_id }}';
+    const funcSuffix = '{{ modal_id|replace("-", "_") }}';
+    let currentFile = null;
+
+    // 国际化文本
+    const i18nPreview = {
+        loading: {{ _('加载中...')|tojson }},
+        imageLoadFailed: {{ _('图片加载失败')|tojson }},
+        pdfLoadFailed: {{ _('PDF 加载失败')|tojson }}
+    };
+
+    /**
+     * 打开文件预览
+     */
+    window['previewFile_' + funcSuffix] = function(url, filename, downloadUrl) {
+        currentFile = {
+            url: url,
+            filename: filename,
+            downloadUrl: downloadUrl || url
+        };
+
+        const modal = document.getElementById(modalId);
+        const content = document.getElementById(modalId + 'Content');
+        const filenameEl = document.getElementById(modalId + 'Filename');
+
+        if (!modal || !content) return;
+
+        if (filenameEl) filenameEl.textContent = filename || 'file';
+
+        // 判断文件类型
+        const lowerFilename = (filename || '').toLowerCase();
+        const isPdf = lowerFilename.endsWith('.pdf');
+        const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(lowerFilename);
+
+        if (isPdf) {
+            content.innerHTML = `
+                <iframe src="${url}" class="w-full h-[500px] rounded-lg border-0" frameborder="0"></iframe>
+            `;
+        } else if (isImage) {
+            content.innerHTML = `
+                <img src="${url}" alt="${filename}"
+                     class="max-w-full max-h-[500px] object-contain rounded-lg"
+                     onerror="this.parentElement.innerHTML='<span class=\\'text-red-500\\'>${i18nPreview.imageLoadFailed}</span>'">
+            `;
+        } else {
+            // 其他文件类型显示图标和提示
+            content.innerHTML = `
+                <div class="flex flex-col items-center gap-4 p-8">
+                    <span class="material-symbols-outlined text-6xl text-slate-400">description</span>
+                    <span class="text-slate-500 dark:text-slate-400">${filename}</span>
+                </div>
+            `;
+        }
+
+        // 显示模态框
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    };
+
+    /**
+     * 关闭文件预览
+     */
+    window['closeFilePreviewModal_' + funcSuffix] = function() {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+    };
+
+    /**
+     * 下载当前文件
+     */
+    window['downloadCurrentFile_' + funcSuffix] = function() {
+        if (!currentFile) return;
+
+        const link = document.createElement('a');
+        link.href = currentFile.downloadUrl;
+        link.download = currentFile.filename || 'file';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    // 绑定下载按钮和ESC关闭
+    document.addEventListener('DOMContentLoaded', function() {
+        const downloadBtn = document.getElementById(modalId + 'DownloadBtn');
+        if (downloadBtn) {
+            downloadBtn.addEventListener('click', window['downloadCurrentFile_' + funcSuffix]);
+        }
+
+        // ESC 关闭
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById(modalId);
+                if (modal && !modal.classList.contains('hidden')) {
+                    window['closeFilePreviewModal_' + funcSuffix]();
+                }
+            }
+        });
+    });
+})();
+</script>
+{% endmacro %}

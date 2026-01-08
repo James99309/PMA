@@ -5,7 +5,10 @@
 {% from 'components/tw_stat_card.html' import tw_stat_card, tw_stat_cards_grid %}
 {% from 'components/tw_user_selector_modal.html' import tw_user_selector_modal %}
 {% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_status_badge with context %}
-{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script, tw_custom_modal, tw_custom_modal_script %}
+{% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
+{% from 'components/tw_file_upload.html' import render_new_file_upload, render_file_upload, render_file_icons with context %}
+{% from 'components/tw_file_preview.html' import render_file_preview_modal, render_file_preview_script with context %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 
@@ -165,11 +168,14 @@
                         </td>
                         <td class="p-3 text-center">
                             <div class="flex items-center justify-center gap-1">
+                                {% if item.is_readonly %}
+                                {# 已发布的公告：显示预览按钮 #}
                                 <button type="button" onclick="viewAnnouncement({{ item.id }})"
                                     class="p-1.5 text-slate-400 hover:text-primary transition-colors"
                                     title="{{ _('查看') }}">
                                     <span class="material-symbols-outlined text-lg">visibility</span>
                                 </button>
+                                {% endif %}
                                 {% if not item.is_readonly %}
                                 <button type="button" onclick="openEditModal({{ item.id }})"
                                     class="p-1.5 text-slate-400 hover:text-primary transition-colors"
@@ -202,120 +208,30 @@
     {% endif %}
     {% endcall %}
 
-    <!-- 创建/编辑公告模态框 -->
-    <div id="announcementModal" class="fixed inset-0 z-50 hidden">
-        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" onclick="closeModal()"></div>
-        <div class="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[900px] md:max-h-[85vh] bg-white dark:bg-slate-800 rounded-xl shadow-2xl flex flex-col">
-            <!-- 头部 -->
-            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
-                <h3 id="modalTitle" class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('发布公告') }}</h3>
-                <button type="button" onclick="closeModal()" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                    <span class="material-symbols-outlined">close</span>
-                </button>
-            </div>
+    <!-- 创建/编辑公告模态框 - 使用 tw_form_modal 组件 -->
+    {% call tw_form_modal(
+        modal_id='announcementFormModal',
+        title=_('发布公告'),
+        submit_text=_('保存'),
+        cancel_text=_('取消'),
+        size='lg'
+    ) %}
+        {% include 'announcement/partials/_announcement_modal_fields.html' %}
+    {% endcall %}
 
-            <!-- 内容 -->
-            <div class="flex-1 overflow-y-auto p-6">
-                <form id="announcementForm" class="space-y-4">
-                    <input type="hidden" id="announcementId" name="announcement_id" value="">
-
-                    <!-- 公告标题 -->
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('公告标题') }} <span class="text-red-500">*</span></label>
-                        <input type="text" id="title" name="title" required
-                            class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
-                            placeholder="{{ _('请输入公告标题') }}">
-                    </div>
-
-                    <!-- 公告类型 -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('公告类型') }}</label>
-                            <select id="announcement_type" name="announcement_type"
-                                class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                                <option value="system">{{ _('系统通知') }}</option>
-                                <option value="business">{{ _('业务公告') }}</option>
-                                <option value="urgent">{{ _('紧急通知') }}</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('定时发布') }}</label>
-                            <input type="datetime-local" id="scheduled_time" name="scheduled_time"
-                                class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent">
-                        </div>
-                    </div>
-
-                    <!-- 发布范围 -->
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('发布范围') }} <span class="text-red-500">*</span></label>
-                        <!-- 已选用户头像列表 -->
-                        <div id="selectedUsersDisplay" class="flex flex-wrap items-center gap-2 min-h-[40px] p-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                            <!-- 已选用户会通过 JS 动态渲染 -->
-                            <span id="noUsersHint" class="text-sm text-slate-400 dark:text-slate-500">{{ _('点击添加按钮选择发布对象') }}</span>
-                            <!-- 添加按钮 -->
-                            <button type="button" onclick="openUserSelectorModal()"
-                                class="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center text-slate-400 hover:border-primary hover:text-primary transition-colors flex-shrink-0">
-                                <span class="material-symbols-outlined text-lg">add</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 公告内容 -->
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('公告内容') }} <span class="text-red-500">*</span></label>
-                        <textarea id="content" name="content" rows="6" required
-                            class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
-                            placeholder="{{ _('请输入公告内容') }}"></textarea>
-                    </div>
-
-                    <!-- 附件 -->
-                    <div id="attachmentSection" class="hidden">
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('附件') }}</label>
-                        <div id="attachmentList" class="space-y-2 mb-3"></div>
-                        <div class="flex items-center gap-2">
-                            <input type="file" id="attachmentInput" class="hidden" multiple
-                                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.jpg,.jpeg,.png,.gif">
-                            <button type="button" onclick="document.getElementById('attachmentInput').click()"
-                                class="inline-flex items-center gap-2 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                                <span class="material-symbols-outlined text-base">attach_file</span>
-                                {{ _('添加附件') }}
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-
-            <!-- 底部 -->
-            <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
-                <button type="button" onclick="closeModal()"
-                    class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                    {{ _('取消') }}
-                </button>
-                <button type="button" onclick="saveAnnouncement()"
-                    class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
-                    {{ _('保存') }}
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 查看公告模态框 -->
-    <div id="viewModal" class="fixed inset-0 z-50 hidden">
-        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" onclick="closeViewModal()"></div>
-        <div class="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[700px] md:max-h-[80vh] bg-white dark:bg-slate-800 rounded-xl shadow-2xl flex flex-col">
-            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
-                <h3 id="viewModalTitle" class="text-lg font-semibold text-slate-900 dark:text-white"></h3>
-                <button type="button" onclick="closeViewModal()" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                    <span class="material-symbols-outlined">close</span>
-                </button>
-            </div>
-            <div class="flex-1 overflow-y-auto p-6">
-                <div id="viewModalContent" class="prose dark:prose-invert max-w-none"></div>
-                <div id="viewModalAttachments" class="mt-4 space-y-2"></div>
-                <div id="viewModalStats" class="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700"></div>
-            </div>
-        </div>
-    </div>
+    <!-- 查看公告模态框 - 使用 tw_custom_modal 组件 -->
+    {% call tw_custom_modal(
+        modal_id='viewAnnouncementModal',
+        title='',
+        icon='campaign',
+        icon_color='text-primary',
+        show_cancel_btn=false,
+        max_width='max-w-2xl'
+    ) %}
+        <div id="viewModalContent" class="prose dark:prose-invert max-w-none"></div>
+        <div id="viewModalAttachments" class="mt-4 space-y-2"></div>
+        <div id="viewModalStats" class="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700"></div>
+    {% endcall %}
 
     <!-- 用户选择器模态框 -->
     {{ tw_user_selector_modal(
@@ -350,11 +266,23 @@
         variant='danger'
     ) }}
 
+    <!-- 文件预览模态框 -->
+    {{ render_file_preview_modal(modal_id='announcementFilePreviewModal') }}
+
     <!-- 脚本 -->
     {{ render_tw_layout_script() }}
     {{ render_tw_filter_bar_script(form_id='filterForm') }}
     {{ render_tw_data_table_script(table_id='announcementTable') }}
     {{ tw_confirm_modal_script() }}
+    {{ tw_custom_modal_script() }}
+    {{ tw_form_modal_script() }}
+
+    <!-- 文件上传组件 -->
+    <script src="{{ url_for('static', filename='js/file-upload-component.js') }}"></script>
+    <!-- 附件显示工具 -->
+    <script src="{{ url_for('static', filename='js/common/attachment-display.js') }}"></script>
+    <!-- 文件预览脚本 -->
+    {{ render_file_preview_script(modal_id='announcementFilePreviewModal') }}
 
     <script>
     // 全局变量
@@ -439,24 +367,38 @@
         renderSelectedUsers();
     }
 
+    // 文件上传组件实例
+    let fileUploadInstance = null;
+
     // 初始化
     document.addEventListener('DOMContentLoaded', function() {
-        // 附件上传
-        document.getElementById('attachmentInput')?.addEventListener('change', handleFileUpload);
+        // 初始化文件上传组件
+        const uploadContainer = document.getElementById('announcementAttachmentUpload');
+        if (uploadContainer && window.FileUploadComponent) {
+            fileUploadInstance = new FileUploadComponent(uploadContainer, {
+                onPreview: function(url, filename) {
+                    previewFile_announcementFilePreviewModal(url, filename, url);
+                }
+            });
+        }
     });
 
     // 打开创建模态框
     function openCreateModal() {
         currentAnnouncementId = null;
-        document.getElementById('announcementId').value = '';
-        document.getElementById('modalTitle').textContent = '{{ _("发布公告") }}';
-        document.getElementById('announcementForm').reset();
         // 清空用户选择
         selectedUsers = [];
         renderSelectedUsers();
-        document.getElementById('attachmentSection').classList.add('hidden');
-        document.getElementById('attachmentList').innerHTML = '';
-        document.getElementById('announcementModal').classList.remove('hidden');
+        // 清空文件上传组件
+        if (fileUploadInstance) {
+            fileUploadInstance.clearPendingFiles();
+        }
+        document.getElementById('uploadedAttachmentList').innerHTML = '';
+        // 使用 tw_form_modal 组件打开
+        openFormModal('announcementFormModal', {
+            title: '{{ _("发布公告") }}',
+            onSubmit: saveAnnouncement
+        });
     }
 
     // 打开编辑模态框
@@ -469,12 +411,6 @@
 
             if (result.success) {
                 const data = result.data;
-                document.getElementById('announcementId').value = data.id;
-                document.getElementById('modalTitle').textContent = '{{ _("编辑公告") }}';
-                document.getElementById('title').value = data.title;
-                document.getElementById('content').value = data.content;
-                document.getElementById('announcement_type').value = data.announcement_type;
-                document.getElementById('scheduled_time').value = data.scheduled_time ? data.scheduled_time.slice(0, 16) : '';
 
                 // 设置已选用户 - 需要从 target_users (ID数组) 构建用户对象
                 selectedUsers = (data.target_users_info || []).map(u => ({
@@ -484,11 +420,24 @@
                 }));
                 renderSelectedUsers();
 
-                // 显示附件区域
-                document.getElementById('attachmentSection').classList.remove('hidden');
+                // 清空文件上传组件并加载已有附件
+                if (fileUploadInstance) {
+                    fileUploadInstance.clearPendingFiles();
+                }
                 loadAttachments(data.attachments);
 
-                document.getElementById('announcementModal').classList.remove('hidden');
+                // 使用 tw_form_modal 组件打开，通过 data 选项自动填充表单
+                openFormModal('announcementFormModal', {
+                    title: '{{ _("编辑公告") }}',
+                    onSubmit: saveAnnouncement,
+                    data: {
+                        announcement_id: data.id,
+                        title: data.title,
+                        content: data.content,
+                        announcement_type: data.announcement_type,
+                        scheduled_time: data.scheduled_time ? data.scheduled_time.slice(0, 16) : ''
+                    }
+                });
             } else {
                 showToast(result.message, 'error');
             }
@@ -500,7 +449,7 @@
 
     // 关闭模态框
     function closeModal() {
-        document.getElementById('announcementModal').classList.add('hidden');
+        closeFormModal('announcementFormModal');
     }
 
     // 保存公告
@@ -546,6 +495,17 @@
             const result = await response.json();
 
             if (result.success) {
+                // 获取公告ID（新建时从返回值获取，编辑时使用当前ID）
+                const announcementId = (result.data && result.data.id) || currentAnnouncementId;
+
+                // 上传待上传的附件
+                if (fileUploadInstance && announcementId) {
+                    const pendingFiles = fileUploadInstance.getPendingFiles();
+                    if (pendingFiles.length > 0) {
+                        await uploadAttachments(announcementId, pendingFiles);
+                    }
+                }
+
                 closeModal();
                 location.reload();
             } else {
@@ -554,6 +514,26 @@
         } catch (error) {
             console.error('保存失败:', error);
             showToast('{{ _("保存失败") }}', 'error');
+        }
+    }
+
+    // 上传附件
+    async function uploadAttachments(announcementId, files) {
+        for (const file of files) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                await fetch(`/announcement/api/upload_attachment/${announcementId}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: formData
+                });
+            } catch (error) {
+                console.error('上传附件失败:', error);
+            }
         }
     }
 
@@ -621,22 +601,17 @@
 
             if (result.success) {
                 const data = result.data;
-                document.getElementById('viewModalTitle').textContent = data.title;
                 document.getElementById('viewModalContent').innerHTML = `<p class="whitespace-pre-wrap">${data.content}</p>`;
 
-                // 附件
-                let attachmentsHtml = '';
-                if (data.attachments && data.attachments.length > 0) {
-                    attachmentsHtml = '<div class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _("附件") }}</div>';
-                    data.attachments.forEach(att => {
-                        attachmentsHtml += `
-                            <a href="${att.file_url}" target="_blank" class="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-700/50 rounded hover:bg-slate-100 dark:hover:bg-slate-700">
-                                <span class="material-symbols-outlined text-slate-400">description</span>
-                                <span class="text-sm text-slate-700 dark:text-slate-300">${att.filename}</span>
-                            </a>
-                        `;
-                    });
-                }
+                // 附件 - 使用通用组件渲染（将 file_url 替换为代理 API URL）
+                const attachmentsWithProxyUrl = (data.attachments || []).map(att => ({
+                    ...att,
+                    url: `/announcement/api/preview_attachment/${att.id}`
+                }));
+                const attachmentsHtml = renderAttachmentList(attachmentsWithProxyUrl, {
+                    label: '{{ _("附件") }}',
+                    onPreview: "previewAttachment('{url}', '{filename}')"
+                });
                 document.getElementById('viewModalAttachments').innerHTML = attachmentsHtml;
 
                 // 统计
@@ -658,7 +633,10 @@
                 `;
                 document.getElementById('viewModalStats').innerHTML = data.status === 'published' ? statsHtml : '';
 
-                document.getElementById('viewModal').classList.remove('hidden');
+                // 使用 tw_custom_modal 组件打开
+                openCustomModal('viewAnnouncementModal', {
+                    title: data.title
+                });
             }
         } catch (error) {
             console.error('加载失败:', error);
@@ -666,64 +644,40 @@
     }
 
     function closeViewModal() {
-        document.getElementById('viewModal').classList.add('hidden');
+        closeCustomModal('viewAnnouncementModal');
     }
 
-    // 附件相关
+    // 附件相关 - 加载已上传的附件（使用通用组件）
     function loadAttachments(attachments) {
-        const container = document.getElementById('attachmentList');
-        container.innerHTML = attachments.map(att => `
-            <div class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-700/50 rounded">
-                <div class="flex items-center gap-2">
-                    <span class="material-symbols-outlined text-slate-400">description</span>
-                    <a href="${att.file_url}" target="_blank" class="text-sm text-slate-700 dark:text-slate-300 hover:text-primary">${att.filename}</a>
-                </div>
-                <button type="button" onclick="deleteAttachment(${att.id})"
-                    class="p-1 text-slate-400 hover:text-red-500 transition-colors">
-                    <span class="material-symbols-outlined text-base">close</span>
-                </button>
-            </div>
-        `).join('');
-    }
-
-    async function handleFileUpload(e) {
-        if (!currentAnnouncementId) {
-            showToast('{{ _("请先保存公告后再上传附件") }}', 'warning');
+        const container = document.getElementById('uploadedAttachmentList');
+        if (!attachments || attachments.length === 0) {
+            container.innerHTML = '';
             return;
         }
 
-        const files = e.target.files;
-        for (const file of files) {
-            const formData = new FormData();
-            formData.append('file', file);
+        // 转义 JS 字符串中的特殊字符
+        const escapeJs = (str) => String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
-            try {
-                const response = await fetch(`/announcement/api/upload_attachment/${currentAnnouncementId}`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
-                    },
-                    body: formData
-                });
+        // 直接生成图标，不使用容器包裹（因为父级已有 flex 布局）
+        let html = '';
+        attachments.forEach(att => {
+            // 使用代理 API 预览，确保正确的 Content-Type
+            const previewUrl = `/announcement/api/preview_attachment/${att.id}`;
+            html += renderAttachmentIcon({
+                filename: att.filename,
+                url: previewUrl,
+                onPreview: `previewAttachment('${escapeJs(previewUrl)}', '${escapeJs(att.filename)}')`,
+                showDelete: true,
+                onDelete: `deleteAttachment(${att.id})`,
+                id: att.id
+            });
+        });
+        container.innerHTML = html;
+    }
 
-                const result = await response.json();
-                if (result.success) {
-                    showToast('{{ _("上传成功") }}', 'success');
-                    // 刷新附件列表
-                    const getResponse = await fetch(`/announcement/api/get/${currentAnnouncementId}`);
-                    const getData = await getResponse.json();
-                    if (getData.success) {
-                        loadAttachments(getData.data.attachments);
-                    }
-                } else {
-                    showToast(result.message, 'error');
-                }
-            } catch (error) {
-                console.error('上传失败:', error);
-                showToast('{{ _("上传失败") }}', 'error');
-            }
-        }
-        e.target.value = '';
+    // 预览附件
+    function previewAttachment(url, filename) {
+        previewFile_announcementFilePreviewModal(url, filename, url);
     }
 
     async function deleteAttachment(id) {

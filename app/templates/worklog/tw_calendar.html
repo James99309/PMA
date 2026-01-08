@@ -4,6 +4,8 @@
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
 {% from 'components/tw_user_selector_modal.html' import tw_user_selector_modal with context %}
 {% from 'components/tw_mention_editor.html' import tw_mention_editor, tw_mention_editor_script, tw_mention_preview_script with context %}
+{% from 'components/tw_file_upload.html' import render_new_file_upload, render_file_upload, render_file_icons with context %}
+{% from 'components/tw_file_preview.html' import render_file_preview_modal, render_file_preview_script with context %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 
@@ -423,6 +425,10 @@
         }
         .log-indicator-dot.read {
             background-color: #9ca3af;  /* 灰色 - 已读 */
+        }
+        .log-indicator-dot.submitted {
+            background-color: #22c55e;  /* 绿色 - 已提交(自己的日志) */
+            box-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
         }
     </style>
 </head>
@@ -858,9 +864,9 @@
         <div id="dailyLogModal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
             <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" @click="closeLogModal()"></div>
             <div class="fixed inset-0 flex items-center justify-center p-4">
-                <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full" :class="(logData.status === 'submitted' || logPreviewMode || isReadonlyLog) ? 'max-w-3xl' : 'max-w-2xl'">
+                <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-h-[90vh]" :class="(logData.status === 'submitted' || logPreviewMode || isReadonlyLog) ? 'max-w-3xl' : 'max-w-2xl'">
                     <!-- 标题栏 -->
-                    <header class="flex items-center justify-between px-5 py-4">
+                    <header class="flex-shrink-0 flex items-center justify-between px-5 py-4">
                         <div>
                             <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
                                 <span x-text="isReadonlyLog ? logData.owner_display_name : logData.owner_name"></span> <span x-text="formatLogDate(logData.log_date)"></span> {{ _('的日志') }}
@@ -880,9 +886,8 @@
                     </header>
 
                     <!-- ===== 编辑模式：输入界面（仅自己的日志且未提交） ===== -->
-                    <template x-if="logData.status !== 'submitted' && !logPreviewMode && !isReadonlyLog">
-                        <div>
-                            <div class="p-5">
+                    <div x-show="logData.status !== 'submitted' && !logPreviewMode && !isReadonlyLog" class="flex flex-col min-h-0 flex-1">
+                        <div class="flex-1 overflow-y-auto p-5">
                                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('日志内容') }}</label>
                                 <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">{{ _('输入 @ 可以提及用户，输入 # 可以引用项目') }}</p>
                                 {{ tw_mention_editor(
@@ -891,10 +896,24 @@
                                     placeholder=_('描述您的工作日志、进度和成果...'),
                                     initial_value='',
                                     max_length=5000,
-                                    min_height='280px'
+                                    min_height='200px',
+                                    max_height='280px'
                                 ) }}
+                                <!-- 附件上传 -->
+                                <div class="mt-4">
+                                    {{ render_new_file_upload(
+                                        container_id='worklogAttachmentUpload',
+                                        entity_type='worklog',
+                                        accept_types='image/*,.pdf',
+                                        max_file_size=5242880,
+                                        max_files=10,
+                                        label=_('附件'),
+                                        show_label=true,
+                                        compact=true
+                                    ) }}
+                                </div>
                             </div>
-                            <footer class="flex items-center justify-center gap-3 px-5 py-4">
+                            <footer class="flex-shrink-0 flex items-center justify-center gap-3 px-5 py-4">
                                 <button type="button" @click="enterPreviewMode()"
                                         class="h-10 px-8 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary/90 shadow-sm transition-colors">
                                     {{ _('预览') }}
@@ -904,13 +923,11 @@
                                     {{ _('取消') }}
                                 </button>
                             </footer>
-                        </div>
-                    </template>
+                    </div>
 
                     <!-- ===== 预览/已提交/只读模式：汇总报告 ===== -->
-                    <template x-if="logData.status === 'submitted' || logPreviewMode || isReadonlyLog">
-                        <div>
-                            <div class="p-6 max-h-[70vh] overflow-y-auto">
+                    <div x-show="logData.status === 'submitted' || logPreviewMode || isReadonlyLog" class="flex flex-col min-h-0 flex-1">
+                            <div class="flex-1 overflow-y-auto p-6">
                                 <!-- 左右两栏布局 -->
                                 <div class="flex flex-col md:flex-row gap-6">
                                     <!-- 左侧：统计卡片（垂直排列） -->
@@ -1126,34 +1143,74 @@
                                         </div>
                                     </div>
                                 </div>
+
+                                <!-- 附件 -->
+                                <div class="mb-6" x-show="(logData.attachments?.length || 0) > 0 || pendingFilesCount > 0">
+                                    <h4 class="font-medium text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                                        <span class="material-symbols-outlined text-slate-600 text-lg">attach_file</span>
+                                        {{ _('附件') }}
+                                    </h4>
+                                    <div class="flex flex-wrap gap-2">
+                                        <!-- 已上传的附件 -->
+                                        <template x-for="(att, idx) in logData.attachments || []" :key="'att-'+idx">
+                                            <div class="w-8 h-8 rounded bg-slate-100 dark:bg-slate-700 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
+                                                 @click="previewAttachment(att, idx)"
+                                                 :title="att.filename">
+                                                <span class="material-symbols-outlined text-lg"
+                                                      :class="att.type?.includes('pdf') ? 'text-red-500' : 'text-primary'"
+                                                      x-text="att.type?.includes('pdf') ? 'picture_as_pdf' : 'image'"></span>
+                                            </div>
+                                        </template>
+                                        <!-- 待上传的附件 -->
+                                        <template x-for="(file, idx) in pendingFilesData" :key="'pending-'+idx">
+                                            <div class="w-8 h-8 rounded bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 flex items-center justify-center"
+                                                 :title="file.name + ' ({{ _('待上传') }})'">
+                                                <span class="material-symbols-outlined text-lg"
+                                                      :class="file.type?.includes('pdf') ? 'text-red-500' : 'text-primary'"
+                                                      x-text="file.type?.includes('pdf') ? 'picture_as_pdf' : 'image'"></span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
                                     </div><!-- 右侧内容区域结束 -->
                                 </div><!-- 左右两栏布局结束 -->
                             </div>
-                            <footer class="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
-                                <!-- 预览模式按钮（仅自己的日志） -->
-                                <template x-if="logPreviewMode && logData.status !== 'submitted' && !isReadonlyLog">
-                                    <div class="flex items-center gap-3">
-                                        <button type="button" @click="exitPreviewMode()"
-                                                class="h-10 px-6 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-                                            {{ _('返回编辑') }}
-                                        </button>
-                                        <button type="button" @click="submitLog()" :disabled="saving"
-                                                class="h-10 px-8 rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 shadow-sm transition-colors disabled:opacity-50">
-                                            <span x-show="!saving">{{ _('提交') }}</span>
-                                            <span x-show="saving">{{ _('提交中...') }}</span>
-                                        </button>
-                                    </div>
-                                </template>
-                                <!-- 已提交模式或只读模式按钮 -->
-                                <template x-if="logData.status === 'submitted' || isReadonlyLog">
-                                    <button type="button" @click="closeLogModal()"
-                                            class="h-10 px-6 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-                                        {{ _('关闭') }}
+                            <footer class="flex-shrink-0 flex items-center justify-between px-6 py-4">
+                                <!-- 左侧：删除按钮（仅已提交日志，创建者或管理员可见） -->
+                                <div>
+                                    <button type="button" @click="deleteLog()"
+                                            x-show="logData.id && logData.status === 'submitted' && (logData.owner_id === currentUserId || isAdmin)"
+                                            class="h-10 px-4 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                        <span class="material-symbols-outlined text-lg align-middle mr-1">delete</span>
+                                        {{ _('删除') }}
                                     </button>
-                                </template>
+                                </div>
+                                <!-- 右侧：操作按钮 -->
+                                <div class="flex items-center gap-3">
+                                    <!-- 预览模式按钮（仅自己的日志） -->
+                                    <template x-if="logPreviewMode && logData.status !== 'submitted' && !isReadonlyLog">
+                                        <div class="flex items-center gap-3">
+                                            <button type="button" @click="exitPreviewMode()"
+                                                    class="h-10 px-6 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                                                {{ _('返回编辑') }}
+                                            </button>
+                                            <button type="button" @click="submitLog()" :disabled="saving"
+                                                    class="h-10 px-8 rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 shadow-sm transition-colors disabled:opacity-50">
+                                                <span x-show="!saving">{{ _('提交') }}</span>
+                                                <span x-show="saving">{{ _('提交中...') }}</span>
+                                            </button>
+                                        </div>
+                                    </template>
+                                    <!-- 已提交模式或只读模式按钮 -->
+                                    <template x-if="logData.status === 'submitted' || isReadonlyLog">
+                                        <button type="button" @click="closeLogModal()"
+                                                class="h-10 px-6 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                                            {{ _('关闭') }}
+                                        </button>
+                                    </template>
+                                </div>
                             </footer>
-                        </div>
-                    </template>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1165,6 +1222,15 @@
             confirm_text=_('确认提交'),
             cancel_text=_('取消'),
             variant='warning'
+        ) }}
+        <!-- ==================== 删除日志确认模态框 ==================== -->
+        {{ tw_confirm_modal(
+            modal_id='deleteLogConfirmModal',
+            title=_('确认删除'),
+            message=_('删除后无法恢复，确定要删除此日志吗？'),
+            confirm_text=_('确认删除'),
+            cancel_text=_('取消'),
+            variant='danger'
         ) }}
 
         <!-- ==================== 取消工作项确认模态框 ==================== -->
@@ -1213,9 +1279,18 @@
     {% endif %}
 {% endcall %}
 
+<!-- 文件预览模态框 -->
+{{ render_file_preview_modal(modal_id='worklogFilePreviewModal') }}
+
 {{ render_tw_layout_script() }}
 {{ tw_form_modal_script() }}
 {{ tw_confirm_modal_script() }}
+
+<!-- 文件上传组件 -->
+<script src="{{ url_for('static', filename='js/file-upload-component.js') }}"></script>
+
+<!-- 文件预览脚本 -->
+{{ render_file_preview_script(modal_id='worklogFilePreviewModal') }}
 
 <!-- FullCalendar JS -->
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
@@ -1233,6 +1308,8 @@ function onWorkItemUsersSelected(selectedUsers, shareEnabled) {
 
 function workCalendar() {
     return {
+        currentUserId: {{ current_user.id }},
+        isAdmin: {{ 'true' if current_user.role in ['admin', 'ceo'] else 'false' }},
         calendar: null,
         editingItem: null,
         selectedItem: null,
@@ -1242,6 +1319,9 @@ function workCalendar() {
         logData: {},
         logPreviewMode: false,
         isReadonlyLog: false,  // 查看他人日志时为只读模式
+        fileUploadInstance: null,  // 文件上传组件实例
+        pendingFilesCount: 0,      // 待上传文件数量（响应式）
+        pendingFilesData: [],      // 待上传文件数据（响应式）
         saving: false,
         skipNextDateClick: false,  // 防止日期点击重复触发
         startHour: '09', startMinute: '00',
@@ -1249,6 +1329,7 @@ function workCalendar() {
         datesWithItems: new Set(),  // 有工作项的日期集合
         datesWithUnreadLogs: new Set(),  // 有未读日志的日期集合
         datesWithReadLogs: new Set(),    // 有已读日志的日期集合
+        datesWithSubmittedLogs: new Set(),  // 自己已提交日志的日期集合
         contacts: [],  // 当前客户的联系人列表
         // 搜索相关状态
         projectSearchInput: '',
@@ -1344,6 +1425,8 @@ function workCalendar() {
                     // 更新日志已读/未读状态（仅查看他人日历时有数据）
                     self.datesWithUnreadLogs = new Set(response.datesWithUnreadLogs || []);
                     self.datesWithReadLogs = new Set(response.datesWithReadLogs || []);
+                    // 更新自己已提交日志的日期（查看自己日历时有数据）
+                    self.datesWithSubmittedLogs = new Set(response.datesWithSubmittedLogs || []);
                     self.applyDateHighlights();
                     return response.events || [];
                 }
@@ -1368,6 +1451,8 @@ function workCalendar() {
                         // 更新日志已读/未读状态（仅查看他人日历时有数据）
                         self.datesWithUnreadLogs = new Set(response.datesWithUnreadLogs || []);
                         self.datesWithReadLogs = new Set(response.datesWithReadLogs || []);
+                        // 更新自己已提交日志的日期（查看自己日历时有数据）
+                        self.datesWithSubmittedLogs = new Set(response.datesWithSubmittedLogs || []);
                         // 重新应用高亮样式
                         self.applyDateHighlights();
                         // 返回事件数据
@@ -1461,14 +1546,25 @@ function workCalendar() {
                     dayEl.classList.remove('fc-day-has-items');
                 }
                 // 重新应用日志状态指示点
-                if (dateStr && this.selectedAccountId) {
-                    this.addLogIndicator(dayEl, dateStr);
+                if (dateStr) {
+                    if (this.selectedAccountId) {
+                        // 查看他人日历：显示已读/未读指示点
+                        this.addLogIndicator(dayEl, dateStr);
+                    } else if (this.datesWithSubmittedLogs.has(dateStr)) {
+                        // 查看自己日历：显示已提交指示点（绿点）
+                        this.addLogIndicator(dayEl, dateStr, 'submitted');
+                    } else {
+                        // 移除指示点
+                        const existingDot = dayEl.querySelector('.log-indicator-dot');
+                        if (existingDot) existingDot.remove();
+                    }
                 }
             });
         },
 
         // 添加日志状态指示点
-        addLogIndicator(dayEl, dateStr) {
+        // forceStatus: 可选，强制使用指定状态（'submitted', 'unread', 'read'）
+        addLogIndicator(dayEl, dateStr, forceStatus = null) {
             // 移除现有指示点
             const existingDot = dayEl.querySelector('.log-indicator-dot');
             if (existingDot) {
@@ -1476,11 +1572,14 @@ function workCalendar() {
             }
 
             // 根据状态添加指示点
-            let status = null;
-            if (this.datesWithUnreadLogs.has(dateStr)) {
-                status = 'unread';
-            } else if (this.datesWithReadLogs.has(dateStr)) {
-                status = 'read';
+            let status = forceStatus;
+            if (!status) {
+                // 未指定强制状态时，根据数据集合判断
+                if (this.datesWithUnreadLogs.has(dateStr)) {
+                    status = 'unread';
+                } else if (this.datesWithReadLogs.has(dateStr)) {
+                    status = 'read';
+                }
             }
 
             if (status) {
@@ -1959,6 +2058,7 @@ function workCalendar() {
                             window.TwNotification?.show(data.message || '{{ _("已标记完成") }}', 'success');
                             self.calendar.refetchEvents();
                             self.closeWorkItemModal();
+                            window.updateCalendarPendingDot?.();
                         } else { window.TwNotification?.show(data.message || '{{ _("操作失败") }}', 'error'); }
                     } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
                     finally { self.saving = false; }
@@ -1988,6 +2088,7 @@ function workCalendar() {
                     window.TwNotification?.show(data.message || '{{ _("删除成功") }}', 'success');
                     this.calendar.refetchEvents();
                     this.closeWorkItemModal();
+                    window.updateCalendarPendingDot?.();
                 } else { window.TwNotification?.show(data.message || '{{ _("删除失败") }}', 'error'); }
             } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
             finally { this.saving = false; }
@@ -2017,6 +2118,7 @@ function workCalendar() {
                     window.TwNotification?.show(data.message || '{{ _("保存成功") }}', 'success');
                     this.calendar.refetchEvents();
                     this.closeWorkItemModal();
+                    window.updateCalendarPendingDot?.();
                 } else { window.TwNotification?.show(data.message || '{{ _("保存失败") }}', 'error'); }
             } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
             finally { this.saving = false; }
@@ -2061,6 +2163,7 @@ function workCalendar() {
                     window.TwNotification?.show(data.message || '{{ _("已标记完成") }}', 'success');
                     this.calendar.refetchEvents();
                     this.closeCompleteModal();
+                    window.updateCalendarPendingDot?.();
                 } else { window.TwNotification?.show(data.message || '{{ _("操作失败") }}', 'error'); }
             } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
             finally { this.saving = false; }
@@ -2083,6 +2186,7 @@ function workCalendar() {
                             window.TwNotification?.show(data.message || '{{ _("已取消") }}', 'success');
                             self.calendar.refetchEvents();
                             self.closeCompleteModal();
+                            window.updateCalendarPendingDot?.();
                         } else { window.TwNotification?.show(data.message || '{{ _("操作失败") }}', 'error'); }
                     } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
                     finally { self.saving = false; }
@@ -2152,9 +2256,14 @@ function workCalendar() {
                     const logInfo = data.data.log || {};
                     this.isReadonlyLog = data.data.is_readonly || false;
                     this.logData = {
-                        ...logInfo, log_date: logInfo.log_date || dateStr, status: logInfo.status || 'draft',
-                        additional_notes: logInfo.additional_notes || '', completed_items: data.data.completed_items || [],
-                        pending_items: data.data.pending_items || [], cancelled_items: data.data.cancelled_items || [],
+                        ...logInfo,
+                        log_date: logInfo.log_date || dateStr,
+                        status: logInfo.status || 'draft',
+                        additional_notes: logInfo.additional_notes || '',
+                        attachments: logInfo.attachments || [],  // 显式确保 attachments 存在
+                        completed_items: data.data.completed_items || [],
+                        pending_items: data.data.pending_items || [],
+                        cancelled_items: data.data.cancelled_items || [],
                         statistics: data.data.statistics || {},
                         activities: data.data.activities || {},
                         mentioned_users: logInfo.mentioned_users || [],
@@ -2164,7 +2273,7 @@ function workCalendar() {
                     document.getElementById('dailyLogModal').classList.remove('hidden');
                     document.body.style.overflow = 'hidden';
 
-                    // 初始化 mention 编辑器内容（仅非只读模式）
+                    // 初始化 mention 编辑器内容和文件上传组件（仅非只读模式）
                     if (!this.isReadonlyLog) {
                         this.$nextTick(() => {
                             const editorContainer = document.getElementById('logMentionEditor-container');
@@ -2172,6 +2281,16 @@ function workCalendar() {
                                 const editorData = editorContainer._x_dataStack[0];
                                 if (editorData && editorData.setValue) {
                                     editorData.setValue(this.logData.additional_notes || '');
+                                }
+                            }
+
+                            // 初始化文件上传组件
+                            const uploadContainer = document.getElementById('worklogAttachmentUpload');
+                            if (uploadContainer && window.FileUploadComponent) {
+                                if (this.fileUploadInstance) {
+                                    this.fileUploadInstance.clearPendingFiles();
+                                } else {
+                                    this.fileUploadInstance = new FileUploadComponent(uploadContainer);
                                 }
                             }
                         });
@@ -2191,6 +2310,13 @@ function workCalendar() {
             this.logData = {};
             this.logPreviewMode = false;
             this.isReadonlyLog = false;
+            // 清理待上传文件数据
+            this.pendingFilesCount = 0;
+            this.pendingFilesData = [];
+            // 清理文件上传组件
+            if (this.fileUploadInstance) {
+                this.fileUploadInstance.clearPendingFiles();
+            }
         },
 
         // 进入预览模式前，先同步编辑器内容和 mention 数据
@@ -2210,6 +2336,21 @@ function workCalendar() {
                     }
                 }
             }
+
+            // 保存待上传文件数据到响应式属性（用于预览显示）
+            if (this.fileUploadInstance) {
+                const pendingFiles = this.fileUploadInstance.getPendingFiles();
+                this.pendingFilesCount = pendingFiles.length;
+                this.pendingFilesData = pendingFiles.map(f => ({
+                    name: f.name,
+                    type: f.type,
+                    size: f.size
+                }));
+            } else {
+                this.pendingFilesCount = 0;
+                this.pendingFilesData = [];
+            }
+
             this.logPreviewMode = true;
         },
 
@@ -2225,6 +2366,24 @@ function workCalendar() {
                     }
                 }
             });
+        },
+
+        // 获取待上传文件数量
+        getPendingFilesCount() {
+            return this.fileUploadInstance ? this.fileUploadInstance.getPendingFiles().length : 0;
+        },
+
+        // 获取待上传文件列表（用于预览显示）
+        getPendingFilesForPreview() {
+            return this.fileUploadInstance ? this.fileUploadInstance.getPendingFiles() : [];
+        },
+
+        // 预览已上传的附件
+        previewAttachment(att, index) {
+            const previewUrl = `/worklog/api/daily/${this.logData.log_date}/preview-attachment/${index}`;
+            if (window.previewFile_worklogFilePreviewModal) {
+                window.previewFile_worklogFilePreviewModal(previewUrl, att.filename, previewUrl);
+            }
         },
 
         formatLogDate(dateStr) {
@@ -2305,6 +2464,15 @@ function workCalendar() {
                         // 同步到 logData
                         self.logData.additional_notes = additionalNotes;
 
+                        // 如果有待上传的附件，先上传
+                        if (self.fileUploadInstance) {
+                            const pendingFiles = self.fileUploadInstance.getPendingFiles();
+                            if (pendingFiles.length > 0) {
+                                const uploadApi = `/worklog/api/daily/${self.logData.log_date}/upload-attachment`;
+                                await self.fileUploadInstance.uploadPendingFiles(uploadApi);
+                            }
+                        }
+
                         const response = await fetch(`/worklog/api/daily/${self.logData.log_date}/submit`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' },
@@ -2315,10 +2483,44 @@ function workCalendar() {
                             })
                         });
                         const data = await response.json();
-                        if (data.success) { window.TwNotification?.show(data.message || '{{ _("日志已提交") }}', 'success'); self.logData.status = 'submitted'; }
+                        if (data.success) { window.TwNotification?.show(data.message || '{{ _("日志已提交") }}', 'success'); self.logData.status = 'submitted'; window.updateCalendarPendingDot?.(); }
                         else { window.TwNotification?.show(data.message || '{{ _("提交失败") }}', 'error'); }
                     } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
                     finally { self.saving = false; }
+                }
+            });
+        },
+
+        deleteLog() {
+            const self = this;
+            openConfirmModal('deleteLogConfirmModal', {
+                onConfirm: async function() {
+                    try {
+                        const response = await fetch(`/worklog/api/daily/${self.logData.log_date}/delete`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                            },
+                            body: JSON.stringify({
+                                user_id: self.logData.owner_id
+                            })
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            window.TwNotification?.show(data.message || '{{ _("日志已删除") }}', 'success');
+                            self.closeLogModal();
+                            // 刷新日历显示
+                            if (self.calendar) {
+                                self.calendar.refetchEvents();
+                            }
+                        } else {
+                            window.TwNotification?.show(data.message || '{{ _("删除失败") }}', 'error');
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        window.TwNotification?.show('{{ _("网络错误") }}', 'error');
+                    }
                 }
             });
         }

@@ -153,11 +153,11 @@ class PerformanceDashboardService:
             user = User.query.get(user_id)
             expense_scopes = PerformanceDashboardService._get_expense_scopes(user, year)
 
-            # 为每个范围获取费用预算数据
+            # 为每个范围获取费用预算数据（使用目标用户的结算货币）
             expense_budgets = []
             current_month = datetime.now().month
             for scope_user_ids, scope_type, scope_name in expense_scopes:
-                budget_data = PerformanceDashboardService.get_expense_budget_data(user_id, year, scope_user_ids)
+                budget_data = PerformanceDashboardService.get_expense_budget_data(user_id, year, scope_user_ids, target_user=user)
                 budget_data['scope_type'] = scope_type
                 budget_data['scope_name'] = scope_name
                 budget_data['current_month'] = current_month
@@ -234,46 +234,81 @@ class PerformanceDashboardService:
             }
 
     @staticmethod
-    def get_expense_budget_data(user_id, year, scope_user_ids=None):
+    def get_expense_budget_data(user_id, year, scope_user_ids=None, target_user=None):
         """获取报销预算数据
 
         Args:
             user_id: 用户ID
             year: 年份
             scope_user_ids: 可选，范围内的用户ID列表（用于团队/部门/公司汇总）
+            target_user: 可选，目标用户对象（用于确定结算货币）
+                        - 查看自己时：使用自己的结算货币
+                        - 查看他人时：使用对方的结算货币
 
         Returns:
-            dict: 报销预算数据
+            dict: 报销预算数据（包含 currency 字段表示使用的货币）
         """
         try:
             # 确定目标用户ID列表
             target_user_ids = scope_user_ids or [user_id]
             is_multi_user = len(target_user_ids) > 1
 
-            # 汇总所有目标用户的预算
+            # 确定目标货币：使用目标用户的结算货币，或系统默认货币
+            if target_user:
+                target_currency = target_user.settlement_currency or Config.DEFAULT_CURRENCY
+            elif not is_multi_user:
+                # 单用户模式，获取该用户的结算货币
+                user = User.query.get(user_id)
+                target_currency = (user.settlement_currency if user else None) or Config.DEFAULT_CURRENCY
+            else:
+                # 多用户模式，使用系统默认货币
+                target_currency = Config.DEFAULT_CURRENCY
+
+            # 汇总所有目标用户的预算（支持多货币转换）
             budget_total = 0
             has_any_budget = False
 
             for uid in target_user_ids:
+                # 获取该用户的结算货币
+                member_user = User.query.get(uid)
+                member_currency = (member_user.settlement_currency if member_user else None) or Config.DEFAULT_CURRENCY
+
                 # 获取个人预算
                 user_budget = ExpenseBudget.query.filter_by(user_id=uid, year=year).first()
                 if user_budget:
-                    budget_total += float(user_budget.total_budget or 0)
+                    budget_amount = float(user_budget.total_budget or 0)
+                    # 如果成员货币与目标货币不同，进行汇率转换
+                    if member_currency != target_currency and budget_amount > 0:
+                        try:
+                            budget_amount = exchange_rate_service.convert_amount(
+                                budget_amount, member_currency, target_currency
+                            )
+                        except Exception as conv_err:
+                            logger.warning(f"用户 {uid} 预算货币转换失败 {member_currency} -> {target_currency}: {conv_err}")
+                    budget_total += budget_amount
                     has_any_budget = True
                 else:
-                    # 回退到角色默认预算
-                    user = User.query.get(uid)
-                    if user and user.role:
+                    # 回退到角色默认预算（角色预算使用系统默认货币）
+                    if member_user and member_user.role:
                         role_budget = RoleExpenseBudget.query.filter_by(
-                            role_code=user.role, year=year
+                            role_code=member_user.role, year=year
                         ).first()
                         if role_budget:
-                            budget_total += float(role_budget.total_budget or 0)
+                            budget_amount = float(role_budget.total_budget or 0)
+                            # 角色预算是系统默认货币，需要转换为目标货币
+                            if Config.DEFAULT_CURRENCY != target_currency and budget_amount > 0:
+                                try:
+                                    budget_amount = exchange_rate_service.convert_amount(
+                                        budget_amount, Config.DEFAULT_CURRENCY, target_currency
+                                    )
+                                except Exception as conv_err:
+                                    logger.warning(f"角色预算货币转换失败 {Config.DEFAULT_CURRENCY} -> {target_currency}: {conv_err}")
+                            budget_total += budget_amount
                             has_any_budget = True
 
             # 获取已报销金额（已审批通过的，包括待支付和已支付）
-            # 支持多货币转换：将所有报销单金额转换为系统基准货币后汇总
-            base_currency = Config.DEFAULT_CURRENCY  # 系统基准货币（CNY）
+            # 支持多货币转换：将所有报销单金额转换为目标用户的结算货币后汇总
+            base_currency = target_currency  # 使用目标用户的结算货币
 
             expenses = Expense.query.filter(
                 Expense.owner_id.in_(target_user_ids),
@@ -296,31 +331,47 @@ class PerformanceDashboardService:
                         # 转换失败时保持原值
                 expense_total += amount
 
-            # 按科目统计实际报销
-            by_category = PerformanceDashboardService._get_expense_by_category(target_user_ids, year)
+            # 按科目统计实际报销（使用目标货币）
+            by_category = PerformanceDashboardService._get_expense_by_category(target_user_ids, year, target_currency)
 
-            # 计算月度趋势
-            monthly_trend = PerformanceDashboardService._get_expense_monthly_trend(target_user_ids, year)
+            # 计算月度趋势（使用目标货币）
+            monthly_trend = PerformanceDashboardService._get_expense_monthly_trend(target_user_ids, year, target_currency)
 
             # 计算使用率和剩余
             remaining = budget_total - expense_total
             usage_rate = (expense_total / budget_total * 100) if budget_total > 0 else 0
 
-            # 按科目预算对比（多用户模式下汇总所有用户的分类预算）
+            # 按科目预算对比（多用户模式下汇总所有用户的分类预算，支持多货币转换）
             category_comparison = {}
             category_budgets_total = {}  # 汇总各分类预算
 
             for uid in target_user_ids:
+                # 获取该用户的结算货币
+                member_user = User.query.get(uid)
+                member_currency = (member_user.settlement_currency if member_user else None) or Config.DEFAULT_CURRENCY
+                is_role_budget = False
+
                 user_budget = ExpenseBudget.query.filter_by(user_id=uid, year=year).first()
                 effective = user_budget
                 if not effective:
-                    u = User.query.get(uid)
-                    if u and u.role:
-                        effective = RoleExpenseBudget.query.filter_by(role_code=u.role, year=year).first()
+                    if member_user and member_user.role:
+                        effective = RoleExpenseBudget.query.filter_by(role_code=member_user.role, year=year).first()
+                        is_role_budget = True  # 标记为角色预算（使用系统默认货币）
 
                 if effective:
                     cat_budgets = effective.get_category_budgets()
+                    # 确定源货币：个人预算用用户结算货币，角色预算用系统默认货币
+                    source_currency = Config.DEFAULT_CURRENCY if is_role_budget else member_currency
+
                     for cat_key, amount in cat_budgets.items():
+                        # 如果源货币与目标货币不同，进行汇率转换
+                        if source_currency != target_currency and amount > 0:
+                            try:
+                                amount = exchange_rate_service.convert_amount(
+                                    amount, source_currency, target_currency
+                                )
+                            except Exception as conv_err:
+                                logger.warning(f"分类预算货币转换失败 {source_currency} -> {target_currency}: {conv_err}")
                         category_budgets_total[cat_key] = category_budgets_total.get(cat_key, 0) + amount
 
             # 生成分类对比数据
@@ -343,7 +394,8 @@ class PerformanceDashboardService:
                 'category_comparison': category_comparison,
                 'monthly_trend': monthly_trend,
                 'has_budget': has_any_budget,
-                'is_multi_user': is_multi_user
+                'is_multi_user': is_multi_user,
+                'currency': target_currency  # 返回使用的货币代码
             }
 
         except Exception as e:
@@ -351,19 +403,20 @@ class PerformanceDashboardService:
             return PerformanceDashboardService._empty_expense_budget()
 
     @staticmethod
-    def _get_expense_by_category(user_ids, year):
+    def _get_expense_by_category(user_ids, year, target_currency=None):
         """按科目统计实际报销金额（支持多货币转换）
 
         Args:
             user_ids: 用户ID或用户ID列表
             year: 年份
+            target_currency: 目标货币（转换后的货币），默认为系统默认货币
         """
         try:
             # 兼容单个ID和列表
             if not isinstance(user_ids, (list, tuple)):
                 user_ids = [user_ids]
 
-            base_currency = Config.DEFAULT_CURRENCY  # 系统基准货币（CNY）
+            base_currency = target_currency or Config.DEFAULT_CURRENCY  # 使用目标货币或系统默认货币
 
             # 查询已审批的报销明细，同时获取报销单货币
             query = db.session.query(
@@ -408,19 +461,20 @@ class PerformanceDashboardService:
             return {}
 
     @staticmethod
-    def _get_expense_monthly_trend(user_ids, year):
+    def _get_expense_monthly_trend(user_ids, year, target_currency=None):
         """获取月度报销趋势（支持多货币转换）
 
         Args:
             user_ids: 用户ID或用户ID列表
             year: 年份
+            target_currency: 目标货币（转换后的货币），默认为系统默认货币
         """
         try:
             # 兼容单个ID和列表
             if not isinstance(user_ids, (list, tuple)):
                 user_ids = [user_ids]
 
-            base_currency = Config.DEFAULT_CURRENCY  # 系统基准货币（CNY）
+            base_currency = target_currency or Config.DEFAULT_CURRENCY  # 使用目标货币或系统默认货币
 
             # 查询每笔报销单的月份、金额和货币
             query = db.session.query(
@@ -761,26 +815,31 @@ class PerformanceDashboardService:
         """
         try:
             from app.models.pricing_order import PricingOrder
+            from app.models.project_customer_association import ProjectCustomerAssociation
 
-            # 子查询：每个客户关联的项目数
+            # 子查询：每个客户关联的项目数（通过 ProjectCustomerAssociation 关联）
             project_subquery = db.session.query(
-                Project.company_id,
-                func.count(Project.id).label('project_count')
+                ProjectCustomerAssociation.company_id,
+                func.count(func.distinct(Project.id)).label('project_count')
+            ).join(
+                Project, ProjectCustomerAssociation.project_id == Project.id
             ).filter(
                 Project.owner_id == user_id
-            ).group_by(Project.company_id).subquery()
+            ).group_by(ProjectCustomerAssociation.company_id).subquery()
 
             # 子查询：每个客户关联的已审批批价单金额
             # 批价单通过项目关联到客户
             amount_subquery = db.session.query(
-                Project.company_id,
+                ProjectCustomerAssociation.company_id,
                 func.coalesce(func.sum(PricingOrder.pricing_total_amount), 0).label('total_amount')
+            ).join(
+                Project, ProjectCustomerAssociation.project_id == Project.id
             ).join(
                 PricingOrder, Project.id == PricingOrder.project_id
             ).filter(
                 Project.owner_id == user_id,
                 PricingOrder.status == 'approved'
-            ).group_by(Project.company_id).subquery()
+            ).group_by(ProjectCustomerAssociation.company_id).subquery()
 
             # 主查询：获取客户信息和统计数据
             query = db.session.query(
@@ -1037,7 +1096,8 @@ class PerformanceDashboardService:
             'scope_type': 'personal',
             'scope_name': '个人',
             'current_month': datetime.now().month,
-            'current_year': datetime.now().year
+            'current_year': datetime.now().year,
+            'currency': Config.DEFAULT_CURRENCY  # 默认使用系统货币
         }
 
     @staticmethod

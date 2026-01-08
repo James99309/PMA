@@ -20,8 +20,10 @@ from app.models.salary_config import (
     SalaryFormulaConfig, SalesTeamConfig, EmployeeSalaryConfig
 )
 from app.permissions import permission_required
-from app.utils.dictionary_helpers import get_role_display_name_from_dict
+from app.utils.dictionary_helpers import get_role_display_name_from_dict, get_currency_type_options, get_currency_symbol
 from app.utils.sharing import get_shareable_users_tree
+from app.services.exchange_rate_service import exchange_rate_service
+from config import Config
 import logging
 
 logger = logging.getLogger(__name__)
@@ -232,7 +234,8 @@ def index():
                              modules=modules,
                              current_year=current_year,
                              users_tree=users_tree,
-                             can_edit=can_edit)
+                             can_edit=can_edit,
+                             currency_options=get_currency_type_options())
     except Exception as e:
         logger.error(f"加载配置管理页面失败: {e}", exc_info=True)
         flash(f'页面加载失败: {str(e)}', 'error')
@@ -1086,6 +1089,13 @@ def api_batch_user_budget():
             effective_budget = {}
             personal_config_flags = []  # 记录每个用户是否有个人配置
 
+            # 单用户时获取用户的结算货币（用于角色默认预算的货币转换）
+            user_currency = None
+            if len(user_ids) == 1:
+                user = user_dict.get(user_ids[0])
+                if user:
+                    user_currency = user.settlement_currency or Config.DEFAULT_CURRENCY
+
             for field in budget_fields:
                 values = []
                 for user_id in user_ids:
@@ -1100,13 +1110,18 @@ def api_batch_user_budget():
                     if field == 'total':
                         personal_config_flags.append(user_budget is not None)
 
-                    # 优先用户值，其次角色值
+                    # 优先用户值（已按用户货币存储），其次角色值（需要货币转换）
                     if user_budget:
                         field_name = f'{field}_budget' if field != 'total' else 'total_budget'
                         value = getattr(user_budget, field_name, 0)
                     elif role_budget:
                         field_name = f'{field}_budget' if field != 'total' else 'total_budget'
                         value = getattr(role_budget, field_name, 0)
+                        # 角色默认预算使用系统货币，转换为用户结算货币
+                        if user_currency and user_currency != Config.DEFAULT_CURRENCY and value:
+                            value = exchange_rate_service.convert_amount(
+                                float(value), Config.DEFAULT_CURRENCY, user_currency
+                            )
                     else:
                         value = 0
 
@@ -1136,7 +1151,8 @@ def api_batch_user_budget():
                     'user_count': len(user_ids),
                     'year': year,
                     'budget': effective_budget,
-                    'has_personal_config': has_personal_config
+                    'has_personal_config': has_personal_config,
+                    'user_currency': user_currency  # 返回用户的结算货币
                 }
             })
 
@@ -1555,7 +1571,8 @@ def api_get_vendor_users():
                 'team_name': team_name,
                 'is_active': u.is_active,
                 'is_department_manager': u.is_department_manager or False,
-                'is_team_leader': u.id in team_leader_ids
+                'is_team_leader': u.id in team_leader_ids,
+                'settlement_currency': u.settlement_currency
             })
 
         return jsonify({
@@ -2244,6 +2261,7 @@ def get_user_basic_info(user_id):
                     'company_name': user.company_name,
                     'department': user.department,
                     'role': user.role,
+                    'settlement_currency': user.settlement_currency,
                     'is_active': user.is_active,
                     'is_department_manager': user.is_department_manager
                 },

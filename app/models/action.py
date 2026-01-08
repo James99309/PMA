@@ -29,7 +29,7 @@ class Action(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     is_shared = db.Column(db.Boolean, default=True, nullable=False)  # 是否共享，默认为True
-    
+
     # 关联关系
     contact = db.relationship('Contact', backref=db.backref('actions', lazy=True))
     company = db.relationship('Company', backref=db.backref('actions', lazy=True))

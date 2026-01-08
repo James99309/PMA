@@ -46,6 +46,8 @@
 | user-sort-utils.js | 用户排序工具 | 按部门分组排序用户列表（负责人优先） | 1 | ✅ 已文档化 🆕 |
 | common/tw-badge.js | 用户徽章生成器 | JS动态渲染用户徽章（与Jinja2宏一致） | 1 | ✅ 已文档化 🆕 |
 | common/tw-notification.js | 通知提示组件 | 显示成功/错误/警告通知 | 5+ | 📋 待补充文档 |
+| file-upload-component.js | 通用文件上传组件 | 图片/PDF附件上传、预览、删除 | 2 | ✅ 已文档化 🆕 |
+| common/attachment-display.js | 附件图标显示组件 | 统一的附件图标方块渲染（预览、删除） | 1 | ✅ 已文档化 🆕 |
 
 > **说明**:
 > - ✅ 已文档化 - 有完整的API文档和使用示例
@@ -2845,6 +2847,240 @@ function sortUsersByDepartment(users)
 
 ---
 
-**版本**: 2.7.0
-**最后更新**: 2026-01-02
+### 📁 文件处理类
+
+#### file-upload-component.js
+
+**基本信息**
+- **文件路径**: `app/static/js/file-upload-component.js`
+- **配套模板**: `app/templates/components/tw_file_upload.html`
+- **功能描述**: 通用文件上传组件，支持图片和PDF的上传、预览、删除
+- **依赖库**: 无外部依赖
+- **创建日期**: 2026-01-07
+
+**已使用页面**
+1. `app/templates/components/tw_action_modal.html` - 日志添加模态框（附件上传）
+2. `app/templates/components/tw_action_list.html` - 日志列表（附件预览）
+
+**核心特性**
+- 支持图片（PNG、JPG、GIF、WEBP、HEIC）和PDF文件
+- 两种模式：新建模式（待上传）和编辑模式（即时上传）
+- 文件大小限制和数量限制
+- 预览模态框：图片全屏预览，PDF使用iframe
+- 与 Supabase 云存储完美集成
+
+**Jinja2 宏**
+
+```jinja2
+{% from 'components/tw_file_upload.html' import render_file_upload, render_new_file_upload, render_file_icons, render_file_preview_modal with context %}
+
+{# 编辑模式：已有实体，即时上传 #}
+{{ render_file_upload(
+    container_id='actionAttachments',
+    entity_type='action',
+    entity_id=action.id,
+    files=action.attachments_list,
+    upload_api='/customer/api/action/' ~ action.id ~ '/upload-attachment',
+    delete_api='/customer/api/action/' ~ action.id ~ '/delete-attachment/{index}',
+    preview_api='/customer/api/action/' ~ action.id ~ '/preview-attachment/{index}',
+    accept_types='image/*,.pdf',
+    max_file_size=5242880,
+    max_files=10,
+    readonly=false,
+    label='附件'
+) }}
+
+{# 新建模式：待上传文件，保存后批量上传 #}
+{{ render_new_file_upload(
+    container_id='newActionAttachments',
+    entity_type='action',
+    accept_types='image/*,.pdf',
+    max_file_size=5242880,
+    max_files=10,
+    label='附件'
+) }}
+
+{# 紧凑图标模式：用于列表显示 #}
+{{ render_file_icons(
+    files=action.attachments_list,
+    preview_api='/customer/api/action/' ~ action.id ~ '/preview-attachment/{index}'
+) }}
+```
+
+**JavaScript API**
+
+```javascript
+// 初始化单个组件
+const uploader = new FileUploadComponent('containerId', {
+    entityType: 'action',
+    entityId: 123,
+    uploadApi: '/api/upload',
+    deleteApi: '/api/delete/{index}',
+    previewApi: '/api/preview/{index}',
+    maxFileSize: 5242880,  // 5MB
+    maxFiles: 10,
+    onUploadSuccess: (data) => console.log('上传成功', data),
+    onFilesChange: (files) => console.log('文件变更', files)
+});
+
+// 新建模式：获取待上传文件
+const pendingFiles = uploader.getPendingFiles();
+
+// 新建模式：批量上传待上传文件
+await uploader.uploadPendingFiles('/api/upload');
+
+// 静态方法：显示预览模态框
+FileUploadComponent.showPreviewModal(url, filename, fileType);
+```
+
+**与 Alpine.js 集成示例**
+
+```javascript
+function myModal() {
+    return {
+        fileUploadInstance: null,
+
+        openModal() {
+            this.$nextTick(() => {
+                const container = document.getElementById('attachmentUpload');
+                if (container && window.FileUploadComponent) {
+                    this.fileUploadInstance = new FileUploadComponent(container);
+                }
+            });
+        },
+
+        async submitForm() {
+            // 1. 保存主表单
+            const response = await fetch('/api/save', { ... });
+            const data = await response.json();
+
+            // 2. 上传附件
+            if (data.success && this.fileUploadInstance) {
+                const uploadApi = `/api/entity/${data.data.id}/upload`;
+                await this.fileUploadInstance.uploadPendingFiles(uploadApi);
+            }
+        }
+    };
+}
+```
+
+**重构记录**
+
+| 日期 | 版本 | 变更说明 |
+|------|------|---------|
+| 2026-01-07 | 1.0.0 | 创建通用文件上传组件，从报销单发票上传功能提取 |
+
+---
+
+#### common/attachment-display.js
+
+**基本信息**
+- **文件路径**: `app/static/js/common/attachment-display.js`
+- **功能描述**: 附件图标显示组件，生成统一的 8x8 图标方块样式
+- **依赖库**: 无外部依赖（需要 Material Symbols 图标字体）
+- **创建日期**: 2026-01-08
+
+**已使用页面**
+1. `app/templates/announcement/tw_list.html` - 公告附件显示
+
+**核心特性**
+- 8x8 图标方块，悬停放大效果
+- 根据文件类型显示不同图标和颜色
+- 悬停显示文件名（title 属性）
+- 可选删除按钮（悬停显示）
+- 支持图片、PDF、Office文档、压缩包等多种类型
+
+**JavaScript API**
+
+```javascript
+// 获取文件类型图标
+const { icon, colorClass } = getFileTypeIcon('document.pdf');
+// 返回: { icon: 'picture_as_pdf', colorClass: 'text-red-500' }
+
+// 渲染单个附件图标
+const html = renderAttachmentIcon({
+    filename: 'image.jpg',
+    url: '/api/preview/123',
+    onPreview: "previewFile('/api/preview/123', 'image.jpg')",
+    showDelete: true,
+    onDelete: "deleteAttachment(123)",
+    id: 123
+});
+
+// 渲染附件列表
+const listHtml = renderAttachmentList(attachments, {
+    label: '附件',                                    // 可选标题
+    onPreview: "previewFile('{url}', '{filename}')", // 预览事件模板
+    showDelete: true,                                 // 显示删除按钮
+    onDelete: "deleteItem({id})"                     // 删除事件模板
+});
+```
+
+**参数说明**
+
+| 参数 | 类型 | 必填 | 说明 |
+|-----|------|-----|------|
+| filename | string | ✅ | 文件名，用于显示图标和 title |
+| url | string | ✅ | 文件 URL |
+| onPreview | string | ✅ | 预览点击事件（JS 代码字符串） |
+| showDelete | boolean | ❌ | 是否显示删除按钮，默认 false |
+| onDelete | string | ❌ | 删除点击事件（JS 代码字符串） |
+| id | any | ❌ | 附件 ID，用于 data-id 属性 |
+
+**事件模板占位符**
+
+| 占位符 | 说明 |
+|-------|------|
+| `{url}` | 替换为附件 URL |
+| `{filename}` | 替换为文件名 |
+| `{id}` | 替换为附件 ID |
+| `{index}` | 替换为附件索引 |
+
+**支持的文件类型图标**
+
+| 文件类型 | 图标 | 颜色 |
+|---------|------|------|
+| 图片 (jpg, png, gif, webp, bmp, svg) | image | primary |
+| PDF | picture_as_pdf | red-500 |
+| Word (doc, docx) | description | blue-500 |
+| Excel (xls, xlsx) | table_chart | green-500 |
+| PowerPoint (ppt, pptx) | slideshow | orange-500 |
+| 压缩包 (zip, rar, 7z) | folder_zip | amber-500 |
+| 文本 (txt, md, json, xml, csv) | article | slate-500 |
+| 其他 | attach_file | slate-400 |
+
+**使用示例**
+
+```html
+<!-- 引入脚本 -->
+<script src="{{ url_for('static', filename='js/common/attachment-display.js') }}"></script>
+
+<script>
+// 查看模式 - 只预览，无删除
+function renderViewAttachments(attachments) {
+    return renderAttachmentList(attachments, {
+        label: '附件',
+        onPreview: "previewFile('{url}', '{filename}')"
+    });
+}
+
+// 编辑模式 - 可预览和删除
+function renderEditAttachments(attachments) {
+    return renderAttachmentList(attachments, {
+        onPreview: "previewFile('{url}', '{filename}')",
+        showDelete: true,
+        onDelete: "deleteAttachment({id})"
+    });
+}
+</script>
+```
+
+**与日志模块样式一致**
+
+本组件的设计参考了日志模块（tw_calendar.html）的附件显示样式，确保整个系统的附件显示风格统一。
+
+---
+
+**版本**: 2.9.0
+**最后更新**: 2026-01-08
 **维护者**: Claude AI

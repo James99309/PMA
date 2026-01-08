@@ -281,10 +281,11 @@ def apply_content_filters(query, model_class, module_name, user):
                     query = query.filter(
                         or_(
                             attr.in_(allowed_values),
-                            attr.is_(None)
+                            attr.is_(None),
+                            attr == ''  # 同时允许空字符串（数据库中可能存在空字符串而非NULL）
                         )
                     )
-                    logger.debug(f"应用 {module_name}.{filter_key} 过滤: {allowed_values} (含NULL)")
+                    logger.debug(f"应用 {module_name}.{filter_key} 过滤: {allowed_values} (含NULL和空字符串)")
                 else:
                     logger.warning(f"模型 {model_class.__name__} 没有属性 {model_attr}，跳过过滤")
 

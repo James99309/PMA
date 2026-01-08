@@ -844,6 +844,8 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                     this.customerTrend = result.data.customer_trend || {};
                     this.customerActivity = result.data.customer_activity || [];
                     this.customerValue = result.data.customer_value || [];
+                    // 字典数据（用于标签显示）
+                    this.dictionaries = result.data.dictionaries || {};
 
                     this.$nextTick(() => {
                         this.initCharts();
@@ -1007,6 +1009,9 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 this.charts.activityRadar.dispose();
             }
 
+            // 检测当前是否为深色模式
+            const isDark = document.documentElement.classList.contains('dark');
+
             this.charts.activityRadar = echarts.init(chartDom);
 
             const metricLabels = {
@@ -1025,7 +1030,14 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             const values = Object.values(this.activityScore.breakdown).map(item => item.score);
 
             const option = {
-                radar: { indicator: indicators },
+                radar: {
+                    indicator: indicators,
+                    name: {
+                        textStyle: {
+                            color: isDark ? '#e2e8f0' : '#334155'
+                        }
+                    }
+                },
                 series: [{
                     type: 'radar',
                     data: [{ value: values, name: '{{ _("活跃度") }}' }]
@@ -1154,6 +1166,9 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 this.charts.industryPie.dispose();
             }
 
+            // 检测当前是否为深色模式
+            const isDark = document.documentElement.classList.contains('dark');
+
             this.charts.industryPie = echarts.init(chartDom);
 
             const option = {
@@ -1162,7 +1177,11 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                     type: 'pie',
                     radius: '60%',
                     data: data,
-                    label: { show: true, formatter: '{b}: {c}' }
+                    label: {
+                        show: true,
+                        formatter: '{b}: {c}',
+                        color: isDark ? '#e2e8f0' : '#334155'
+                    }
                 }]
             };
 
@@ -1214,14 +1233,16 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             });
 
             monthKeys.forEach(monthKey => {
-                // 生成月份标签
+                // 生成月份标签（使用国际化函数）
+                let monthNum;
                 if (!isNaN(monthKey)) {
-                    months.push(monthKey + '{{ _("月") }}');
+                    monthNum = parseInt(monthKey);
                 } else {
-                    // 'YYYY-MM' 格式，显示为 'MM月'
+                    // 'YYYY-MM' 格式
                     const parts = monthKey.split('-');
-                    months.push(parts[1] + '{{ _("月") }}');
+                    monthNum = parseInt(parts[1]);
                 }
+                months.push(this.getMonthLabel(monthNum));
 
                 const monthData = this.industryTrend[monthKey] || {};
                 industryList.forEach(ind => {
@@ -1296,9 +1317,12 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 this.charts.customerTypePie.dispose();
             }
 
+            // 检测当前是否为深色模式
+            const isDark = document.documentElement.classList.contains('dark');
+
             this.charts.customerTypePie = echarts.init(chartDom);
 
-            // 客户类型颜色
+            // 客户类型颜色 - 使用小写键匹配
             const typeColors = {
                 'user': '#3b82f6',       // 最终用户 - 蓝色
                 'dealer': '#10b981',      // 经销商 - 绿色
@@ -1307,17 +1331,24 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 'contractor': '#ef4444',  // 总包商 - 红色
                 'distributor': '#06b6d4', // 代理商 - 青色
                 'partner': '#ec4899',     // 合作伙伴 - 粉色
-                'other': '#94a3b8'        // 其他 - 灰色
+                'other': '#eab308'        // 其他 - 金黄色(深色模式可见)
             };
+
+            // 获取颜色时转换为小写匹配
+            const getTypeColor = (type) => typeColors[type.toLowerCase()] || '#eab308';
 
             const option = {
                 tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-                color: Object.keys(this.customerTypeStats).map(type => typeColors[type] || '#94a3b8'),
+                color: Object.keys(this.customerTypeStats).map(type => getTypeColor(type)),
                 series: [{
                     type: 'pie',
                     radius: '60%',
                     data: data,
-                    label: { show: true, formatter: '{b}: {c}' }
+                    label: {
+                        show: true,
+                        formatter: '{b}: {c}',
+                        color: isDark ? '#e2e8f0' : '#334155'
+                    }
                 }]
             };
 
@@ -1337,6 +1368,9 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 this.charts.customerTrend.dispose();
             }
 
+            // 检测当前是否为深色模式
+            const isDark = document.documentElement.classList.contains('dark');
+
             this.charts.customerTrend = echarts.init(chartDom);
 
             // 获取月份数据
@@ -1346,9 +1380,14 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             });
 
             const months = monthKeys.map(monthKey => {
-                if (!isNaN(monthKey)) return monthKey + '{{ _("月") }}';
-                const parts = monthKey.split('-');
-                return parts[1] + '{{ _("月") }}';
+                let monthNum;
+                if (!isNaN(monthKey)) {
+                    monthNum = parseInt(monthKey);
+                } else {
+                    const parts = monthKey.split('-');
+                    monthNum = parseInt(parts[1]);
+                }
+                return this.getMonthLabel(monthNum);
             });
 
             // 收集所有客户类型
@@ -1371,19 +1410,20 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 });
             });
 
-            // 客户类型颜色
+            // 客户类型颜色 - 使用小写键匹配
             const typeColors = {
                 'user': '#3b82f6', 'dealer': '#10b981', 'integrator': '#8b5cf6',
                 'designer': '#f59e0b', 'contractor': '#ef4444', 'distributor': '#06b6d4',
-                'partner': '#ec4899', 'other': '#94a3b8'
+                'partner': '#ec4899', 'other': '#eab308'
             };
+            const getTypeColor = (type) => typeColors[type.toLowerCase()] || '#eab308';
 
             const series = typeList.map(t => ({
                 name: this.getCustomerTypeLabel(t),
                 type: 'bar',
                 stack: 'total',
                 data: seriesData[t],
-                itemStyle: { color: typeColors[t] || '#94a3b8' }
+                itemStyle: { color: getTypeColor(t) }
             }));
 
             const option = {
@@ -1391,21 +1431,21 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 legend: {
                     data: typeList.map(t => this.getCustomerTypeLabel(t)),
                     bottom: 0,
-                    textStyle: { color: '#94a3b8', fontSize: 10 },
+                    textStyle: { color: isDark ? '#e2e8f0' : '#64748b', fontSize: 10 },
                     type: 'scroll'
                 },
                 grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
                 xAxis: {
                     type: 'category',
                     data: months,
-                    axisLine: { lineStyle: { color: '#cbd5e1' } },
-                    axisLabel: { color: '#64748b' }
+                    axisLine: { lineStyle: { color: isDark ? '#475569' : '#cbd5e1' } },
+                    axisLabel: { color: isDark ? '#94a3b8' : '#64748b' }
                 },
                 yAxis: {
                     type: 'value',
                     axisLine: { show: false },
-                    axisLabel: { color: '#64748b' },
-                    splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } }
+                    axisLabel: { color: isDark ? '#94a3b8' : '#64748b' },
+                    splitLine: { lineStyle: { color: isDark ? '#334155' : '#e2e8f0', type: 'dashed' } }
                 },
                 series: series
             };
@@ -1429,9 +1469,14 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             this.charts.customerActivity = echarts.init(chartDom);
 
             const months = this.customerActivity.map(d => {
-                if (typeof d.month === 'number') return d.month + '{{ _("月") }}';
-                const parts = d.month.split('-');
-                return parts[1] + '{{ _("月") }}';
+                let monthNum;
+                if (typeof d.month === 'number') {
+                    monthNum = d.month;
+                } else {
+                    const parts = d.month.split('-');
+                    monthNum = parseInt(parts[1]);
+                }
+                return this.getMonthLabel(monthNum);
             });
 
             const activeCustomers = this.customerActivity.map(d => d.active_customers);
@@ -1716,19 +1761,13 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             return 'text-red-600 dark:text-red-400';
         },
 
-        // 客户类型标签
+        // 客户类型标签（使用字典数据）
         getCustomerTypeLabel(type) {
-            const labels = {
-                'user': '{{ _("最终用户") }}',
-                'dealer': '{{ _("经销商") }}',
-                'integrator': '{{ _("集成商") }}',
-                'designer': '{{ _("设计院") }}',
-                'contractor': '{{ _("总包商") }}',
-                'distributor': '{{ _("代理商") }}',
-                'partner': '{{ _("合作伙伴") }}',
-                'other': '{{ _("其他") }}'
-            };
-            return labels[type] || type;
+            // 优先使用 API 返回的字典数据
+            if (this.dictionaries && this.dictionaries.company_type && this.dictionaries.company_type[type]) {
+                return this.dictionaries.company_type[type];
+            }
+            return type;
         },
 
         // 客户类型徽章样式类
@@ -1746,9 +1785,13 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             return classes[type] || classes['other'];
         },
 
-        // 行业标签翻译（从全局字典获取）
+        // 行业标签（使用字典数据）
         getIndustryLabel(industry) {
-            // 优先使用全局字典
+            // 优先使用 API 返回的字典数据
+            if (this.dictionaries && this.dictionaries.industry && this.dictionaries.industry[industry]) {
+                return this.dictionaries.industry[industry];
+            }
+            // 回退到全局字典
             if (typeof window.getDictLabel === 'function') {
                 return window.getDictLabel('industry', industry) || industry;
             }
