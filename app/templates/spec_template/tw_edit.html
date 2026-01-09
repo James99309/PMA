@@ -1,6 +1,7 @@
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
 {% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
 {% from 'components/tw_form_fields.html' import tw_form_field, tw_form_textarea with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 <head>
@@ -49,7 +50,7 @@
 
         /* 选择框样式 */
         .spec-item-checkbox {
-            transition: all 0.15s ease;
+            transition: background-color 0.15s ease, border-color 0.15s ease;
         }
         .spec-item-checkbox.selected {
             background-color: rgba(19, 127, 236, 0.08);
@@ -61,6 +62,12 @@
         /* 深色模式下规格项名称强制白色 */
         .dark .spec-item-checkbox .spec-item-name {
             color: #fff;
+        }
+        /* FLIP 移动动画 */
+        .spec-item-animating {
+            transition: transform 0.3s ease-out !important;
+            position: relative;
+            z-index: 10;
         }
     </style>
 </head>
@@ -91,13 +98,21 @@
             </div>
             <!-- 右侧：操作按钮 -->
             <div class="flex items-center gap-3">
-                <a href="{{ url_for('spec_template.list_templates') }}"
+                <button type="button" @click="handleBack()"
                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors">
                     <span class="material-symbols-outlined text-lg">arrow_back</span>
                     {{ _('返回') }}
-                </a>
-                <button type="button" onclick="saveTemplate()" id="saveBtn"
-                   class="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
+                </button>
+                <button type="button" @click="resetToInitial()"
+                   x-show="isDirty"
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                    <span class="material-symbols-outlined text-lg">restart_alt</span>
+                    {{ _('恢复') }}
+                </button>
+                <button type="button" @click="saveTemplate()" id="saveBtn"
+                   :disabled="!isDirty"
+                   :class="isDirty ? 'bg-primary hover:bg-primary/90' : 'bg-slate-300 dark:bg-slate-600 cursor-not-allowed'"
+                   class="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-white rounded-lg transition-colors">
                     <span class="material-symbols-outlined text-lg">save</span>
                     {{ _('保存') }}
                 </button>
@@ -114,7 +129,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('产品分类') }}</label>
                                 <select x-model="templateData.category_id"
-                                        @change="onCategoryChange()"
+                                        @change="onCategoryChange(); checkDirty()"
                                         class="form-select w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm">
                                     <option value="">{{ _('选择分类') }}</option>
                                     {% for cat in product_categories %}
@@ -126,6 +141,7 @@
                                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('产品名称') }}</label>
                                 <select x-model="templateData.subcategory_id"
                                         :disabled="!templateData.category_id"
+                                        @change="checkDirty()"
                                         class="form-select w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm disabled:opacity-50">
                                     <option value="">{{ _('选择产品名称') }}</option>
                                     <template x-for="subcat in getSubcategories()" :key="subcat.id">
@@ -138,12 +154,14 @@
                                     {{ _('产品型号') }} <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" x-model="templateData.model"
+                                       @input="checkDirty()"
                                        class="form-input w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
                                        placeholder="{{ _('如：DRFT-BDA410/M') }}">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('模板名称') }}</label>
                                 <input type="text" x-model="templateData.name"
+                                       @input="checkDirty()"
                                        class="form-input w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
                                        placeholder="{{ _('可选：模板描述') }}">
                             </div>
@@ -167,8 +185,8 @@
                                :class="activeCategory === {{ category.id }} ? 'bg-primary/10 text-primary border-l-2 border-primary' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'">
                                 <span class="truncate">{{ category.name }}</span>
                                 <span class="text-xs px-1.5 py-0.5 rounded-full"
-                                      :class="getSelectedCount({{ category.id }}) > 0 ? 'bg-primary/20 text-primary' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'"
-                                      x-text="getSelectedCount({{ category.id }})"></span>
+                                      :class="getSelectedCountInCategory({{ category.id }}) > 0 ? 'bg-primary/20 text-primary' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'"
+                                      x-text="getSelectedCountInCategory({{ category.id }})"></span>
                             </button>
                             {% endfor %}
                         </nav>
@@ -210,14 +228,14 @@
 
                             <!-- 规格项动态列表 -->
                             <template x-for="def in getSortedDefinitions({{ category.id }})" :key="def.id">
-                                <div class="spec-item-checkbox bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-4 cursor-pointer"
-                                     :class="{ 'selected': isSelected(def.id) }"
-                                     @click="toggleSelection(def.id)">
+                                <div class="spec-item-checkbox bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-4"
+                                     :id="'spec-item-' + def.id"
+                                     :class="{ 'selected': isSelected(def.id) }">
                                     <div class="flex items-start gap-3">
-                                        <!-- 复选框 -->
-                                        <div class="flex-shrink-0 mt-0.5">
+                                        <!-- 复选框 - 只有点击这里才触发选中/取消 -->
+                                        <div class="flex-shrink-0 mt-0.5 cursor-pointer" @click="toggleSelection(def.id)">
                                             <div class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors"
-                                                 :class="isSelected(def.id) ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'">
+                                                 :class="isSelected(def.id) ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600 hover:border-primary'">
                                                 <span x-show="isSelected(def.id)" class="material-symbols-outlined text-white" style="font-size: 14px;">check</span>
                                             </div>
                                         </div>
@@ -225,10 +243,23 @@
                                         <!-- 规格信息 -->
                                         <div class="flex-1 min-w-0">
                                             <div class="flex items-center gap-2 mb-1">
-                                                <!-- 选中时显示序号 -->
-                                                <span x-show="isSelected(def.id)"
-                                                      class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-primary rounded-full"
-                                                      x-text="selectedItems[def.id]?.display_order || ''"></span>
+                                                <!-- 选中时显示序号和上下按钮 -->
+                                                <div x-show="isSelected(def.id)" class="flex items-center gap-1">
+                                                    <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-primary rounded-full"
+                                                          x-text="selectedItems[def.id]?.display_order || ''"></span>
+                                                    <button type="button" @click.stop="moveItemUp(def.id)"
+                                                            class="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+                                                            :disabled="getItemValue(def.id, 'display_order') <= 1"
+                                                            :class="{'opacity-30 cursor-not-allowed': getItemValue(def.id, 'display_order') <= 1}">
+                                                        <span class="material-symbols-outlined" style="font-size: 16px;">keyboard_arrow_up</span>
+                                                    </button>
+                                                    <button type="button" @click.stop="moveItemDown(def.id)"
+                                                            class="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+                                                            :disabled="getItemValue(def.id, 'display_order') >= getSelectedCount()"
+                                                            :class="{'opacity-30 cursor-not-allowed': getItemValue(def.id, 'display_order') >= getSelectedCount()}">
+                                                        <span class="material-symbols-outlined" style="font-size: 16px;">keyboard_arrow_down</span>
+                                                    </button>
+                                                </div>
                                                 <span class="spec-item-name font-medium text-slate-900 dark:text-white" x-text="def.name"></span>
                                                 <span x-show="def.name_en" class="text-xs text-slate-500 dark:text-slate-400" x-text="'(' + (def.name_en || '') + ')'"></span>
                                                 <span x-show="def.unit" class="text-xs px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded" x-text="def.unit"></span>
@@ -279,15 +310,6 @@
                                                             <option value="{{ method.id }}">{{ method.name }}</option>
                                                             {% endfor %}
                                                         </select>
-                                                    </div>
-                                                    <div>
-                                                        <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{{ _('显示排序') }}</label>
-                                                        <input type="number"
-                                                               :value="getItemValue(def.id, 'display_order')"
-                                                               @input="setDisplayOrder(def.id, $event.target.value)"
-                                                               class="form-input w-full text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
-                                                               min="1"
-                                                               placeholder="1">
                                                     </div>
                                                 </div>
                                                 <!-- 选项行：必填 + 编码设置 -->
@@ -403,6 +425,10 @@
                 {% endfor %}
             },
 
+            // 修改追踪
+            isDirty: false,
+            initialState: null,
+
             getCategoryName(categoryId) {
                 return this.categoryNames[categoryId] || '';
             },
@@ -430,13 +456,70 @@
                         this.templateData.subcategory_id = '';
                         this.$nextTick(() => {
                             this.templateData.subcategory_id = savedSubcategoryId;
+                            // 保存初始状态（等子分类设置完成后）
+                            this.saveInitialState();
                         });
                     });
+                } else {
+                    // 保存初始状态
+                    this.saveInitialState();
                 }
 
                 // 初始化已选中项的排序（确保序号连续从1开始）
                 if (Object.keys(this.selectedItems).length > 0) {
                     this.reorderSelectedItems();
+                }
+            },
+
+            // 保存初始状态
+            saveInitialState() {
+                this.initialState = {
+                    templateData: JSON.parse(JSON.stringify(this.templateData)),
+                    selectedItems: JSON.parse(JSON.stringify(this.selectedItems))
+                };
+                this.isDirty = false;
+            },
+
+            // 检查是否有修改
+            checkDirty() {
+                if (!this.initialState) return false;
+                const currentTemplateData = JSON.stringify(this.templateData);
+                const currentSelectedItems = JSON.stringify(this.selectedItems);
+                const initialTemplateData = JSON.stringify(this.initialState.templateData);
+                const initialSelectedItems = JSON.stringify(this.initialState.selectedItems);
+                this.isDirty = currentTemplateData !== initialTemplateData || currentSelectedItems !== initialSelectedItems;
+                return this.isDirty;
+            },
+
+            // 恢复到初始状态
+            resetToInitial() {
+                if (!this.initialState) return;
+                this.templateData = JSON.parse(JSON.stringify(this.initialState.templateData));
+                this.selectedItems = JSON.parse(JSON.stringify(this.initialState.selectedItems));
+                this.isDirty = false;
+            },
+
+            // 处理返回按钮点击
+            handleBack() {
+                const listUrl = '{{ url_for("spec_template.list_templates") }}';
+                if (this.isDirty) {
+                    // 有未保存的修改，显示确认对话框
+                    openConfirmModal('unsavedModal', {
+                        onConfirm: async () => {
+                            // 保存并返回
+                            await this.saveTemplate();
+                            if (!this.isDirty) {
+                                window.location.href = listUrl;
+                            }
+                        },
+                        onCancel: () => {
+                            // 不保存，直接返回
+                            window.location.href = listUrl;
+                        }
+                    });
+                } else {
+                    // 没有修改，直接返回
+                    window.location.href = listUrl;
                 }
             },
 
@@ -463,6 +546,7 @@
                         display_order: maxOrder + 1
                     };
                 }
+                this.checkDirty();
             },
 
             // 重新排序选中项（按当前 display_order 排序后重新分配 1, 2, 3...）
@@ -483,7 +567,105 @@
                 }
             },
 
-            getSelectedCount(categoryId) {
+            // 获取所有选中项数量
+            getSelectedCount() {
+                return Object.keys(this.selectedItems).length;
+            },
+
+            // 上移规格项 (先动画后更新数据)
+            moveItemUp(defId) {
+                const currentOrder = this.selectedItems[defId]?.display_order;
+                if (!currentOrder || currentOrder <= 1) return;
+
+                // 找到上一个项
+                const prevItemEntry = Object.entries(this.selectedItems).find(
+                    ([id, item]) => item.display_order === currentOrder - 1
+                );
+                if (!prevItemEntry) return;
+                const [prevDefId, prevItem] = prevItemEntry;
+
+                const currentEl = document.getElementById('spec-item-' + defId);
+                const prevEl = document.getElementById('spec-item-' + prevDefId);
+                if (!currentEl || !prevEl) return;
+
+                // 计算移动距离
+                const currentRect = currentEl.getBoundingClientRect();
+                const prevRect = prevEl.getBoundingClientRect();
+                const deltaY = currentRect.top - prevRect.top;
+
+                // 添加动画类并立即开始动画
+                currentEl.classList.add('spec-item-animating');
+                prevEl.classList.add('spec-item-animating');
+
+                // 当前卡片向上移动，上一个卡片向下移动
+                requestAnimationFrame(() => {
+                    currentEl.style.transform = `translateY(-${deltaY}px)`;
+                    prevEl.style.transform = `translateY(${deltaY}px)`;
+                });
+
+                // 动画完成后更新数据
+                setTimeout(() => {
+                    // 先移除动画效果
+                    currentEl.style.transform = '';
+                    prevEl.style.transform = '';
+                    currentEl.classList.remove('spec-item-animating');
+                    prevEl.classList.remove('spec-item-animating');
+
+                    // 更新数据（Alpine 会重新渲染到正确位置）
+                    prevItem.display_order = currentOrder;
+                    this.selectedItems[defId].display_order = currentOrder - 1;
+                    this.checkDirty();
+                }, 300);
+            },
+
+            // 下移规格项 (先动画后更新数据)
+            moveItemDown(defId) {
+                const currentOrder = this.selectedItems[defId]?.display_order;
+                const maxOrder = this.getSelectedCount();
+                if (!currentOrder || currentOrder >= maxOrder) return;
+
+                // 找到下一个项
+                const nextItemEntry = Object.entries(this.selectedItems).find(
+                    ([id, item]) => item.display_order === currentOrder + 1
+                );
+                if (!nextItemEntry) return;
+                const [nextDefId, nextItem] = nextItemEntry;
+
+                const currentEl = document.getElementById('spec-item-' + defId);
+                const nextEl = document.getElementById('spec-item-' + nextDefId);
+                if (!currentEl || !nextEl) return;
+
+                // 计算移动距离
+                const currentRect = currentEl.getBoundingClientRect();
+                const nextRect = nextEl.getBoundingClientRect();
+                const deltaY = nextRect.top - currentRect.top;
+
+                // 添加动画类并立即开始动画
+                currentEl.classList.add('spec-item-animating');
+                nextEl.classList.add('spec-item-animating');
+
+                // 当前卡片向下移动，下一个卡片向上移动
+                requestAnimationFrame(() => {
+                    currentEl.style.transform = `translateY(${deltaY}px)`;
+                    nextEl.style.transform = `translateY(-${deltaY}px)`;
+                });
+
+                // 动画完成后更新数据
+                setTimeout(() => {
+                    // 先移除动画效果
+                    currentEl.style.transform = '';
+                    nextEl.style.transform = '';
+                    currentEl.classList.remove('spec-item-animating');
+                    nextEl.classList.remove('spec-item-animating');
+
+                    // 更新数据（Alpine 会重新渲染到正确位置）
+                    nextItem.display_order = currentOrder;
+                    this.selectedItems[defId].display_order = currentOrder + 1;
+                    this.checkDirty();
+                }, 300);
+            },
+
+            getSelectedCountInCategory(categoryId) {
                 const definitions = this.definitionsByCategory[categoryId] || [];
                 return definitions.filter(id => this.isSelected(id)).length;
             },
@@ -516,6 +698,7 @@
                     this.selectedItems[definitionId] = { definition_id: definitionId };
                 }
                 this.selectedItems[definitionId][field] = value;
+                this.checkDirty();
             },
 
             // 获取规格项的预设选项（支持字符串和数组格式）
@@ -589,6 +772,7 @@
                         };
                     }
                 });
+                this.checkDirty();
             },
 
             deselectAllInCategory() {
@@ -598,6 +782,7 @@
                 });
                 // 取消后重新排序剩余项
                 this.reorderSelectedItems();
+                this.checkDirty();
             },
 
             async saveTemplate() {
@@ -695,6 +880,8 @@
                                         }
                                     }
                                 }
+                                // 重置脏状态
+                                this.saveInitialState();
                             } else {
                                 this.showToast(retryResult.message || '{{ _("保存失败") }}', 'error');
                             }
@@ -718,6 +905,8 @@
                             // 更新 URL 不刷新页面
                             window.history.replaceState({}, '', `/dev-product/spec-templates/${result.data.id}/edit`);
                         }
+                        // 重置脏状态
+                        this.saveInitialState();
                     } else {
                         this.showToast(result.message || '{{ _("保存失败") }}', 'error');
                     }
@@ -823,5 +1012,18 @@
         return instance;
     }
     </script>
+
+    <!-- 未保存确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='unsavedModal',
+        title=_('有未保存的修改'),
+        message=_('您有未保存的修改，是否保存？'),
+        confirm_text=_('保存'),
+        cancel_text=_('不保存'),
+        stay_text=_('取消'),
+        variant='warning'
+    ) }}
+
+    {{ tw_confirm_modal_script() }}
 </body>
 </html>
