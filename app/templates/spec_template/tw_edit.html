@@ -267,9 +267,12 @@
                                             <p x-show="def.description" class="text-xs text-slate-500 dark:text-slate-400 mb-2" x-text="def.description"></p>
 
                                             <!-- 设置区域（仅选中时显示） -->
-                                            <div x-show="isSelected(def.id)" x-collapse @click.stop class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
-                                                <div class="grid grid-cols-2 gap-3">
-                                                    <div>
+                                            <div x-show="isSelected(def.id)" x-collapse @click.stop class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700"
+                                                 x-data="{ showTestOptions: false }">
+                                                <!-- 第一行：通用值 + 编码设置 -->
+                                                <div class="flex items-start gap-4">
+                                                    <!-- 左侧：通用值 -->
+                                                    <div class="flex-1">
                                                         <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
                                                             {{ _('通用值 (General)') }}
                                                             <span x-show="hasOptions(def.id)" class="text-slate-400 font-normal ml-1">({{ _('可选择或输入') }})</span>
@@ -280,7 +283,6 @@
                                                                :list="hasOptions(def.id) ? 'options_' + def.id : null"
                                                                class="form-input w-full text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
                                                                placeholder="{{ _('输入通用规格值') }}">
-                                                        <!-- 预设选项 datalist（动态生成） -->
                                                         <template x-if="hasOptions(def.id)">
                                                             <datalist :id="'options_' + def.id">
                                                                 <template x-for="opt in getDefinitionOptions(def.id)" :key="opt">
@@ -289,59 +291,68 @@
                                                             </datalist>
                                                         </template>
                                                     </div>
-                                                    <div>
-                                                        <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{{ _('测试条件') }}</label>
-                                                        <select :value="getItemValue(def.id, 'test_condition_id')"
-                                                                @change="setItemValue(def.id, 'test_condition_id', $event.target.value)"
-                                                                class="form-select w-full text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700">
-                                                            <option value="">{{ _('选择测试条件') }}</option>
-                                                            {% for condition in test_conditions %}
-                                                            <option value="{{ condition.id }}">{{ condition.name }}</option>
-                                                            {% endfor %}
-                                                        </select>
-                                                    </div>
-                                                    <div>
-                                                        <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{{ _('测试方法') }}</label>
-                                                        <select :value="getItemValue(def.id, 'test_method_id')"
-                                                                @change="setItemValue(def.id, 'test_method_id', $event.target.value)"
-                                                                class="form-select w-full text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700">
-                                                            <option value="">{{ _('选择测试方法') }}</option>
-                                                            {% for method in test_methods %}
-                                                            <option value="{{ method.id }}">{{ method.name }}</option>
-                                                            {% endfor %}
-                                                        </select>
+                                                    <!-- 右侧：编码设置 -->
+                                                    <div class="flex items-center gap-4 pt-5">
+                                                        <label class="flex items-center gap-1.5 cursor-pointer">
+                                                            <input type="checkbox"
+                                                                   :checked="getItemValue(def.id, 'is_required')"
+                                                                   @change="setItemValue(def.id, 'is_required', $event.target.checked)"
+                                                                   class="form-checkbox rounded text-primary w-4 h-4">
+                                                            <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('必填') }}</span>
+                                                        </label>
+                                                        <label class="flex items-center gap-1.5 cursor-pointer">
+                                                            <input type="checkbox"
+                                                                   :checked="getItemValue(def.id, 'use_in_code')"
+                                                                   @change="setItemValue(def.id, 'use_in_code', $event.target.checked)"
+                                                                   class="form-checkbox rounded text-primary w-4 h-4">
+                                                            <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('参与编码') }}</span>
+                                                        </label>
+                                                        <div class="flex items-center gap-1.5" x-show="getItemValue(def.id, 'use_in_code')">
+                                                            <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('位数') }}:</span>
+                                                            <select :value="getItemValue(def.id, 'code_length') || 1"
+                                                                    @change="setItemValue(def.id, 'code_length', parseInt($event.target.value))"
+                                                                    class="form-select text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 py-1 px-2 w-14">
+                                                                <option value="1">1</option>
+                                                                <option value="2">2</option>
+                                                            </select>
+                                                        </div>
+                                                        <div x-show="getItemValue(def.id, 'use_in_code') && getCodeDisplay(def.id)"
+                                                             class="flex items-center gap-1 px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-xs">
+                                                            <span class="text-slate-500 dark:text-slate-400">{{ _('映射') }}:</span>
+                                                            <span class="font-mono text-slate-700 dark:text-slate-300" x-text="getCodeDisplay(def.id)"></span>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <!-- 选项行：必填 + 编码设置 -->
-                                                <div class="flex items-center gap-6 mt-3">
-                                                    <label class="flex items-center gap-2 cursor-pointer">
-                                                        <input type="checkbox"
-                                                               :checked="getItemValue(def.id, 'is_required')"
-                                                               @change="setItemValue(def.id, 'is_required', $event.target.checked)"
-                                                               class="form-checkbox rounded text-primary">
-                                                        <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('必填') }}</span>
-                                                    </label>
-                                                    <label class="flex items-center gap-2 cursor-pointer">
-                                                        <input type="checkbox"
-                                                               :checked="getItemValue(def.id, 'use_in_code')"
-                                                               @change="setItemValue(def.id, 'use_in_code', $event.target.checked)"
-                                                               class="form-checkbox rounded text-primary">
-                                                        <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('参与编码') }}</span>
-                                                    </label>
-                                                    <div class="flex items-center gap-2" x-show="getItemValue(def.id, 'use_in_code')">
-                                                        <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('编码长度') }}:</span>
-                                                        <select :value="getItemValue(def.id, 'code_length') || 1"
-                                                                @change="setItemValue(def.id, 'code_length', parseInt($event.target.value))"
-                                                                class="form-select text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 py-1 px-3 w-16">
-                                                            <option value="1">1</option>
-                                                            <option value="2">2</option>
-                                                        </select>
-                                                    </div>
-                                                    <!-- 编码映射只读显示 -->
-                                                    <div x-show="getItemValue(def.id, 'use_in_code') && getCodeDisplay(def.id)"
-                                                         class="flex items-center gap-1 ml-4 px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-xs">
-                                                        <span class="text-slate-500 dark:text-slate-400">{{ _('映射') }}:</span>
-                                                        <span class="font-mono text-slate-700 dark:text-slate-300" x-text="getCodeDisplay(def.id)"></span>
+                                                <!-- 第二行：测试条件/方法（可折叠） -->
+                                                <div class="mt-3">
+                                                    <button type="button" @click="showTestOptions = !showTestOptions"
+                                                            class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
+                                                        <span class="material-symbols-outlined text-base transition-transform" :class="showTestOptions ? 'rotate-180' : ''">expand_more</span>
+                                                        <span>{{ _('测试条件/方法') }}</span>
+                                                    </button>
+                                                    <div x-show="showTestOptions" x-collapse class="mt-2 grid grid-cols-2 gap-3">
+                                                        <div>
+                                                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{{ _('测试条件') }}</label>
+                                                            <select :value="getItemValue(def.id, 'test_condition_id')"
+                                                                    @change="setItemValue(def.id, 'test_condition_id', $event.target.value)"
+                                                                    class="form-select w-full text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700">
+                                                                <option value="">{{ _('选择测试条件') }}</option>
+                                                                {% for condition in test_conditions %}
+                                                                <option value="{{ condition.id }}">{{ condition.name }}</option>
+                                                                {% endfor %}
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{{ _('测试方法') }}</label>
+                                                            <select :value="getItemValue(def.id, 'test_method_id')"
+                                                                    @change="setItemValue(def.id, 'test_method_id', $event.target.value)"
+                                                                    class="form-select w-full text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700">
+                                                                <option value="">{{ _('选择测试方法') }}</option>
+                                                                {% for method in test_methods %}
+                                                                <option value="{{ method.id }}">{{ method.name }}</option>
+                                                                {% endfor %}
+                                                            </select>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
