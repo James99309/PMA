@@ -6,16 +6,19 @@
  *
  * 使用示例:
  *   DetailCardSync.init('rightSidebarColumn', ['basicInfoColumn', 'changeHistoryCard']);
+ *   // 或多次调用不同配置
+ *   DetailCardSync.init('rightSidebarColumn', ['changeHistoryCard']);
+ *   DetailCardSync.init('rightSidebarColumn', ['basicInfoColumn'], { targetSelector: '> div' });
  */
 
 (function() {
     'use strict';
 
-    const DetailCardSync = {
-        referenceId: null,
-        targetIds: [],
-        initialized: false,
+    // 存储所有同步配置
+    const syncConfigs = [];
+    let resizeListenerAdded = false;
 
+    const DetailCardSync = {
         /**
          * 初始化高度同步
          * @param {string} referenceId - 参考元素的ID（高度基准）
@@ -25,50 +28,53 @@
          * @param {boolean} options.syncOnResize - 是否在窗口大小变化时同步，默认true
          * @param {string} options.targetSelector - 目标元素内部的选择器，如 '> div' 选择直接子元素
          */
-        init: function(referenceId, targetIds, options = {}) {
-            this.referenceId = referenceId;
-            this.targetIds = Array.isArray(targetIds) ? targetIds : [targetIds];
-            this.options = Object.assign({
-                delay: 100,
-                syncOnResize: true,
-                targetSelector: null
-            }, options);
+        init: function(referenceId, targetIds, options) {
+            options = options || {};
+            const config = {
+                referenceId: referenceId,
+                targetIds: Array.isArray(targetIds) ? targetIds : [targetIds],
+                options: {
+                    delay: options.delay !== undefined ? options.delay : 100,
+                    syncOnResize: options.syncOnResize !== undefined ? options.syncOnResize : true,
+                    targetSelector: options.targetSelector || null
+                }
+            };
 
-            if (this.initialized) {
-                this.sync();
-                return;
-            }
-
-            const self = this;
+            syncConfigs.push(config);
 
             // 页面加载完成后同步
             if (document.readyState === 'complete') {
-                setTimeout(function() { self.sync(); }, this.options.delay);
+                setTimeout(function() {
+                    DetailCardSync.syncConfig(config);
+                }, config.options.delay);
             } else {
                 document.addEventListener('DOMContentLoaded', function() {
-                    setTimeout(function() { self.sync(); }, self.options.delay);
+                    setTimeout(function() {
+                        DetailCardSync.syncConfig(config);
+                    }, config.options.delay);
                 });
             }
 
-            // 窗口大小变化时同步
-            if (this.options.syncOnResize) {
+            // 添加窗口大小变化监听（只添加一次）
+            if (!resizeListenerAdded && config.options.syncOnResize) {
                 let resizeTimeout;
                 window.addEventListener('resize', function() {
                     clearTimeout(resizeTimeout);
-                    resizeTimeout = setTimeout(function() { self.sync(); }, 50);
+                    resizeTimeout = setTimeout(function() {
+                        DetailCardSync.syncAll();
+                    }, 50);
                 });
+                resizeListenerAdded = true;
             }
-
-            this.initialized = true;
         },
 
         /**
-         * 执行高度同步
+         * 执行单个配置的高度同步
          */
-        sync: function() {
-            const reference = document.getElementById(this.referenceId);
+        syncConfig: function(config) {
+            const reference = document.getElementById(config.referenceId);
             if (!reference) {
-                console.warn('[DetailCardSync] 参考元素未找到:', this.referenceId);
+                console.warn('[DetailCardSync] 参考元素未找到:', config.referenceId);
                 return;
             }
 
@@ -78,13 +84,17 @@
                 return;
             }
 
-            const self = this;
-            this.targetIds.forEach(function(targetId) {
+            config.targetIds.forEach(function(targetId) {
                 let target = document.getElementById(targetId);
 
                 // 如果指定了内部选择器，获取内部元素
-                if (target && self.options.targetSelector) {
-                    target = target.querySelector(self.options.targetSelector);
+                if (target && config.options.targetSelector) {
+                    // 使用 :scope 前缀支持 '> div' 这样的子选择器
+                    var selector = config.options.targetSelector;
+                    if (selector.startsWith('>')) {
+                        selector = ':scope ' + selector;
+                    }
+                    target = target.querySelector(selector);
                 }
 
                 if (target) {
@@ -94,21 +104,50 @@
         },
 
         /**
-         * 重置高度（移除固定高度）
+         * 同步所有配置
+         */
+        syncAll: function() {
+            var self = this;
+            syncConfigs.forEach(function(config) {
+                self.syncConfig(config);
+            });
+        },
+
+        /**
+         * 手动触发同步（可用于AJAX加载后）
+         */
+        sync: function() {
+            this.syncAll();
+        },
+
+        /**
+         * 重置所有高度（移除固定高度）
          */
         reset: function() {
-            const self = this;
-            this.targetIds.forEach(function(targetId) {
-                let target = document.getElementById(targetId);
+            syncConfigs.forEach(function(config) {
+                config.targetIds.forEach(function(targetId) {
+                    let target = document.getElementById(targetId);
 
-                if (target && self.options.targetSelector) {
-                    target = target.querySelector(self.options.targetSelector);
-                }
+                    if (target && config.options.targetSelector) {
+                        var selector = config.options.targetSelector;
+                        if (selector.startsWith('>')) {
+                            selector = ':scope ' + selector;
+                        }
+                        target = target.querySelector(selector);
+                    }
 
-                if (target) {
-                    target.style.height = '';
-                }
+                    if (target) {
+                        target.style.height = '';
+                    }
+                });
             });
+        },
+
+        /**
+         * 清除所有配置
+         */
+        clear: function() {
+            syncConfigs.length = 0;
         }
     };
 

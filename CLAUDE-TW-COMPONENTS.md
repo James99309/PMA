@@ -24,6 +24,7 @@
 14. [审批流程组件](#-tailwind-审批流程组件)
 15. [标签页组件](#-tailwind-标签页组件)
 16. [Mention 编辑器组件](#-tailwind-mention-编辑器组件)
+17. [详情页卡片高度同步工具](#-详情页卡片高度同步工具)
 
 ---
 
@@ -2332,8 +2333,117 @@ worklog.mentioned_projects = mentioned_projects if mentioned_projects else None
 
 ---
 
+## 📐 详情页卡片高度同步工具
+
+### **文件位置**
+`app/static/js/detail-card-sync.js`
+
+### **功能描述**
+用于将多个卡片的高度同步到参考列的高度，实现详情页多列布局的底部对齐效果。适用于 Tailwind 详情页的多列布局场景。
+
+### **使用场景**
+- 详情页三列或四列布局
+- 左侧信息卡片需要与右侧边栏底部对齐
+- 中间列（如变更历史）需要固定高度并支持内部滚动
+
+### **HTML 结构要求**
+
+```html
+<!-- 多列布局容器 -->
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+    <!-- 基本信息列 - 需要同步高度 -->
+    <div id="basicInfoColumn" class="lg:col-span-2">
+        <div class="...">卡片内容</div>
+    </div>
+
+    <!-- 变更历史列 - 需要同步高度 -->
+    <div class="lg:col-span-1">
+        <div id="changeHistoryCard" class="... flex flex-col">
+            <div class="flex-shrink-0">标题区</div>
+            <div class="flex-1 overflow-y-auto">内容区（可滚动）</div>
+        </div>
+    </div>
+
+    <!-- 右侧边栏 - 作为高度参考基准 -->
+    <div id="rightSidebarColumn" class="lg:col-span-1 space-y-4">
+        <div>关联卡片</div>
+        <div>元数据卡片</div>
+    </div>
+</div>
+```
+
+### **API 文档**
+
+```javascript
+DetailCardSync.init(referenceId, targetIds, options)
+```
+
+**参数说明**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|-----|------|-----|--------|------|
+| `referenceId` | string | 是 | - | 参考元素的ID（高度基准） |
+| `targetIds` | string/string[] | 是 | - | 需要同步高度的目标元素ID数组 |
+| `options.delay` | number | 否 | 100 | 初始化延迟时间（毫秒） |
+| `options.syncOnResize` | boolean | 否 | true | 是否在窗口大小变化时同步 |
+| `options.targetSelector` | string | 否 | null | 目标元素内部的选择器 |
+
+**方法**
+
+| 方法 | 说明 |
+|-----|------|
+| `DetailCardSync.init()` | 初始化高度同步 |
+| `DetailCardSync.sync()` | 手动执行一次高度同步 |
+| `DetailCardSync.reset()` | 重置高度（移除固定高度） |
+
+### **使用示例**
+
+**基础用法**
+```html
+<script src="{{ url_for('static', filename='js/detail-card-sync.js') }}"></script>
+<script>
+// 以右侧列为基准，同步变更历史卡片高度
+DetailCardSync.init('rightSidebarColumn', ['changeHistoryCard']);
+</script>
+```
+
+**同步多个卡片**
+```html
+<script>
+// 同步变更历史卡片（直接设置高度）
+DetailCardSync.init('rightSidebarColumn', ['changeHistoryCard'], {
+    delay: 150
+});
+
+// 同步基本信息卡片（需要选择内部子元素）
+DetailCardSync.init('rightSidebarColumn', ['basicInfoColumn'], {
+    delay: 150,
+    targetSelector: '> div'  // 选择直接子元素
+});
+</script>
+```
+
+**手动同步**
+```javascript
+// 在某些操作后手动同步高度
+DetailCardSync.sync();
+```
+
+### **注意事项**
+
+1. **Grid 布局**: 使用 `items-start` 而非 `items-stretch`，让每列保持自然高度
+2. **内部滚动**: 需要同步高度的卡片内容区域应添加 `flex-1 overflow-y-auto`
+3. **延迟执行**: 默认延迟 100ms 执行，确保 DOM 渲染完成
+4. **响应式**: 默认在窗口大小变化时自动重新同步
+
+### **已使用页面**
+- `app/templates/quotation/tw_quotation_detail.html` - 报价单详情页
+
+---
+
 ## 📝 更新日志
 
+- **2026-01-09**: 新增详情页卡片高度同步工具（`detail-card-sync.js`），支持多列布局底部对齐
 - **2026-01-03**: 新增 Mention 编辑器组件（`tw_mention_editor.html`），支持 @ 用户和 # 项目引用
 - **2025-12-27**: 新增 SVG 折线图组件（`tw_line_chart.html`），从首页仪表盘提取，支持静态和 Alpine.js 动态初始化
 - **2025-12-27**: 新增 Tailwind 标签页组件文档（`tw_tabs.html`）
