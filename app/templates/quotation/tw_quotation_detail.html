@@ -138,11 +138,14 @@
             {'show': can_show_pricing and not active_pricing_order, 'label': _('生成批价单'), 'onclick': 'createPricingOrder()', 'icon': 'add_circle', 'color': 'success'},
             {'show': true, 'label': _('导出'), 'onclick': 'showExportInfoModal("quotationExportModal")', 'icon': 'download', 'color': 'slate'}
         ],
-        has_sidebar=true,
-        content_gap='8'
+        has_sidebar=false,
+        content_gap='6'
     ) %}
-        {% if detail_slot == 'main' %}
-                    <!-- 2.1 基本信息卡片 -->
+        {% if detail_slot == 'content' %}
+            <!-- 4列布局：基本信息(2/4) | 变更历史(1/4) | 关联+元数据(1/4) -->
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+                <!-- 基本信息 2/4 -->
+                <div id="basicInfoColumn" class="lg:col-span-2">
                     {{ tw_info_card(
                         title=_('基本信息'),
                         columns=2,
@@ -159,8 +162,29 @@
                             {'label': _('负责人'), 'badge': render_tw_owner_badge(quotation.owner) if quotation.owner else none}
                         ]
                     ) }}
+                </div>
 
-        {% elif detail_slot == 'sidebar' %}
+                <!-- 变更历史 1/4 - 使用JS动态匹配右侧列高度 -->
+                <div class="lg:col-span-1">
+                    <div id="changeHistoryCard" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col" style="height: auto;">
+                        <div class="px-4 py-3 flex items-center justify-between flex-shrink-0">
+                            <h3 class="text-sm font-medium text-slate-900 dark:text-white flex items-center">
+                                <span class="material-symbols-outlined text-base mr-2 text-slate-400">history</span>
+                                {{ _('变更历史') }}
+                            </h3>
+                            <span id="historyCount" class="text-xs text-slate-500"></span>
+                        </div>
+                        <div id="changeHistoryContent" class="flex-1 overflow-y-auto">
+                            <div class="p-4 text-center text-slate-400 text-sm">
+                                <span class="material-symbols-outlined text-2xl mb-1">hourglass_empty</span>
+                                <div>{{ _('加载中...') }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 关联+元数据 1/4 - 卡片保持自然尺寸 -->
+                <div id="rightSidebarColumn" class="lg:col-span-1 space-y-4">
                     <!-- 关联报价单卡片 -->
                     {% if related_quotations %}
                     {% call tw_item_list_card(
@@ -192,8 +216,10 @@
                         created_at=quotation.created_at,
                         updated_at=quotation.updated_at
                     ) }}
+                </div>
+            </div>
 
-        {% elif detail_slot == 'full_width_after' %}
+            <!-- 产品明细表格（全宽） -->
             <!-- 3. 产品明细 -->
             {# 列配置：只有产品名称/型号/规格需要特别指定宽度，金额列右对齐，序号/数量/单位居中 #}
             {% set product_columns = [
@@ -982,6 +1008,75 @@
         });
     })();
     {% endif %}
+
+    // 变更历史相关功能
+    async function loadChangeHistory() {
+        try {
+            const response = await fetch('/quotation/{{ quotation.id }}/api/history');
+            const result = await response.json();
+            const container = document.getElementById('changeHistoryContent');
+            const countEl = document.getElementById('historyCount');
+
+            if (result.success && result.data.length > 0) {
+                countEl.textContent = result.data.length + ' {{ _("条记录") }}';
+                renderHistory(result.data);
+            } else {
+                countEl.textContent = '';
+                container.innerHTML = `
+                    <div class="p-6 text-center text-gray-400 text-sm">
+                        <span class="material-symbols-outlined text-3xl mb-2">fact_check</span>
+                        <div>{{ _('暂无变更记录') }}</div>
+                    </div>
+                `;
+            }
+        } catch (e) {
+            console.error('加载变更历史失败', e);
+            document.getElementById('changeHistoryContent').innerHTML = `
+                <div class="p-4 text-center text-red-400 text-sm">
+                    <span class="material-symbols-outlined text-2xl mb-1">error</span>
+                    <div>{{ _('加载失败') }}</div>
+                </div>
+            `;
+        }
+    }
+
+    function renderHistory(data) {
+        const container = document.getElementById('changeHistoryContent');
+        container.innerHTML = data.map((item, index) => `
+            <div class="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 ${index < data.length - 1 ? 'border-b border-slate-100 dark:border-slate-800' : ''}">
+                <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+                    <span>${item.user_name || '-'}</span>
+                    <span>${item.created_at || '-'}</span>
+                </div>
+                <div class="text-sm text-slate-900 dark:text-white">
+                    ${item.description || item.field_name || '-'}
+                </div>
+                <div class="text-xs text-slate-500 mt-1">
+                    <span class="line-through">${item.old_value || '-'}</span>
+                    <span class="mx-1">→</span>
+                    <span class="text-green-600 dark:text-green-400">${item.new_value || '-'}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // 页面加载完成后加载变更历史
+    document.addEventListener('DOMContentLoaded', loadChangeHistory);
+    </script>
+
+    <!-- 详情页卡片高度同步工具 -->
+    <script src="{{ url_for('static', filename='js/detail-card-sync.js') }}"></script>
+    <script>
+    // 初始化卡片高度同步：以右侧列为基准，同步基本信息和变更历史卡片
+    DetailCardSync.init('rightSidebarColumn', ['changeHistoryCard'], {
+        delay: 150,
+        targetSelector: null
+    });
+    // 基本信息需要选择内部的卡片元素
+    DetailCardSync.init('rightSidebarColumn', ['basicInfoColumn'], {
+        delay: 150,
+        targetSelector: '> div'
+    });
     </script>
 </body>
 </html>

@@ -15,7 +15,7 @@ from app import db
 from flask_login import login_required, current_user
 from app.decorators import permission_required, permission_required_with_approval_context  # 添加权限装饰器导入
 from app.extensions import csrf
-from app.utils.access_control import get_viewable_data, can_edit_data, can_view_project, can_change_quotation_owner
+from app.utils.access_control import get_viewable_data, can_edit_data, can_view_project, can_change_quotation_owner, can_view_quotation
 import logging
 from decimal import Decimal
 import json
@@ -3143,7 +3143,6 @@ def increment_temp_product_usage(product_id):
 @login_required
 @permission_required_with_approval_context('quotation', 'view')
 def view_quotation(id):
-    from app.utils.access_control import can_view_quotation
     try:
         quotation = Quotation.query.get_or_404(id)
         if not can_view_quotation(current_user, quotation):
@@ -3408,6 +3407,59 @@ def get_quotation_details(id):
         current_app.logger.error(f"获取报价单明细时出错: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@quotation.route('/<int:id>/api/history')
+@login_required
+def get_quotation_history(id):
+    """获取报价单变更历史"""
+    try:
+        quotation = Quotation.query.get_or_404(id)
+
+        # 权限检查
+        if not can_view_quotation(current_user, quotation):
+            return jsonify({'success': False, 'message': '无权访问此报价单'}), 403
+
+        from app.models.change_log import ChangeLog
+
+        # 允许的字段（新键名 + 兼容旧中文数据）
+        ALLOWED_FIELDS = {'amount', 'details_count', '报价金额', '明细数量'}
+
+        # 键名到中文msgid的映射（用于_()翻译）
+        FIELD_LABEL = {
+            'amount': '报价金额',
+            'details_count': '明细数量',
+        }
+        DESC_LABEL = {
+            'amount_changed': '修改了报价金额',
+            'details_count_changed': '修改了产品明细',
+        }
+
+        history = ChangeLog.get_record_history('quotation', 'quotations', id)
+
+        # 过滤 + 翻译
+        filtered_data = []
+        for h in history:
+            if h.field_name in ALLOWED_FIELDS:
+                # 获取中文msgid，然后用_()翻译
+                field_label = FIELD_LABEL.get(h.field_name, h.field_name)
+                desc_label = DESC_LABEL.get(h.description, h.description) if h.description else field_label
+
+                filtered_data.append({
+                    'id': h.id,
+                    'field_name': _(field_label),
+                    'old_value': h.old_value,
+                    'new_value': h.new_value,
+                    'user_name': h.user_name,
+                    'created_at': h.created_at.strftime('%m-%d %H:%M') if h.created_at else '',
+                    'description': _(desc_label)
+                })
+
+        return jsonify({'success': True, 'data': filtered_data})
+    except Exception as e:
+        current_app.logger.error(f"获取报价单变更历史时出错: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @quotation.route('/<int:id>/save', methods=['POST'])
 @login_required
 # 注意：不使用 @permission_required 装饰器 - 创建者可以保存自己的报价单
@@ -3433,7 +3485,11 @@ def save_quotation(id):
         # 捕获修改前的值
         from app.utils.change_tracker import ChangeTracker
         old_values = ChangeTracker.capture_old_values(quotation)
-        
+
+        # 专门捕获关键字段用于变更历史显示
+        old_amount = quotation.amount or 0
+        old_details_count = len(quotation.details) if quotation.details else 0
+
         # 捕获修改前的产品明细签名，用于检测变化
         old_product_signature = quotation.calculate_product_signature()
         
@@ -3637,10 +3693,46 @@ def save_quotation(id):
             except Exception as restore_error:
                 current_app.logger.error(f"恢复事件监听器时出错: {str(restore_error)}")
         
-        # 记录变更历史
+        # 记录变更历史（使用专门的格式化记录）
         try:
-            new_values = ChangeTracker.get_new_values(quotation, old_values.keys())
-            ChangeTracker.log_update(quotation, old_values, new_values)
+            from app.models.change_log import ChangeLog
+
+            new_amount = quotation.amount or 0
+            new_details_count = len(quotation.details) if quotation.details else 0
+            user_name = current_user.real_name or current_user.username
+
+            # 记录金额变更（使用键名，读取时翻译）
+            if abs(old_amount - new_amount) > 0.01:  # 允许小数点误差
+                ChangeLog.log_update(
+                    module_name='quotation',
+                    table_name='quotations',
+                    record_id=quotation.id,
+                    field_name='amount',
+                    old_value=f'{old_amount:,.2f}',
+                    new_value=f'{new_amount:,.2f}',
+                    user_id=current_user.id,
+                    user_name=user_name,
+                    description='amount_changed',
+                    ip_address=request.remote_addr
+                )
+
+            # 记录明细数量变更（使用键名，读取时翻译）
+            if old_details_count != new_details_count:
+                ChangeLog.log_update(
+                    module_name='quotation',
+                    table_name='quotations',
+                    record_id=quotation.id,
+                    field_name='details_count',
+                    old_value=str(old_details_count),
+                    new_value=str(new_details_count),
+                    user_id=current_user.id,
+                    user_name=user_name,
+                    description='details_count_changed',
+                    ip_address=request.remote_addr
+                )
+
+            db.session.commit()
+            current_app.logger.info(f"报价单 {quotation.id} 变更历史已记录")
         except Exception as track_err:
             current_app.logger.warning(f"记录报价单变更历史失败: {str(track_err)}")
         
@@ -3747,65 +3839,9 @@ def change_quotation_owner(id):
     flash(_('报价单拥有人已更新'), 'success')
     return redirect(url_for('quotation.view_quotation', id=id))
 
-def can_view_quotation(user, quotation):
-    """
-    判断用户是否有权查看该报价单：
-    1. 归属人
-    2. 厂商负责人（项目的厂商负责人可以查看项目相关的报价单）
-    3. 归属链
-    4. 基于四级权限系统的访问控制
-    5. 特殊角色权限
-    暂不考虑共享
-    """
-    if user.role == 'admin':
-        return True
-    if user.id == quotation.owner_id:
-        return True
-    
-    # 厂商负责人可以查看项目相关的报价单
-    if (hasattr(quotation, 'project') and quotation.project and 
-        hasattr(quotation.project, 'vendor_sales_manager_id') and 
-        quotation.project.vendor_sales_manager_id == user.id):
-        return True
-    
-    # 使用四级权限系统进行权限判断
-    # 注：各角色的报价单查看权限通过权限配置系统控制：
-    # - 配置 quotation 模块的 system/company/department 级权限
-    # - 使用 content_filters 字段限制可见的 project_type
-    # 例如：财务总监配置 system 级权限可查看所有报价单
-    #       营销总监配置 content_filters = {"project_type": ["sales_focus", "channel_follow"]}
-    #       渠道经理配置 content_filters = {"project_type": ["channel_follow"]}
-    if user.has_permission('quotation', 'view'):
-        permission_level = user.get_permission_level('quotation')
 
-        if permission_level == 'system':
-            # 系统级权限：可以查看所有报价单
-            return True
-        elif permission_level == 'company' and user.company_name:
-            # 企业级权限：可以查看企业下所有报价单
-            if hasattr(quotation, 'project') and quotation.project:
-                from app.models.user import User
-                project_owner = User.query.get(quotation.project.owner_id)
-                if project_owner and project_owner.company_name == user.company_name:
-                    return True
-        elif permission_level == 'department' and user.department and user.company_name:
-            # 部门级权限：可以查看部门下所有报价单
-            if hasattr(quotation, 'project') and quotation.project:
-                from app.models.user import User
-                project_owner = User.query.get(quotation.project.owner_id)
-                if (project_owner and
-                    project_owner.company_name == user.company_name and
-                    project_owner.department == user.department):
-                    return True
-        # 四级权限系统检查失败时，继续检查归属链
-
-    # 归属链检查 - 数据归属
-    from app.models.user import Affiliation
-    affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
-    if quotation.owner_id in affiliation_owner_ids:
-        return True
-
-    return False
+# 注意：can_view_quotation 函数已移至 app/utils/access_control.py
+# 通过顶部 import 引入，确保全局使用统一的权限检查逻辑
 @quotation.route('/detail/<int:detail_id>/toggle_confirmation', methods=['POST'])
 @login_required
 def toggle_detail_confirmation(detail_id):

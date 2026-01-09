@@ -988,16 +988,12 @@ def can_edit_data(model_obj, user):
             # 检查是否有项目编辑权限
             return user.has_permission('project', 'edit') and model_obj.owner_id == user.id
         elif model_name == 'Quotation':
-            # 检查是否有报价单编辑权限，如果有权限则可以编辑企业内所有报价单
-            if user.has_permission('quotation', 'edit') and user.company_name:
-                # 检查报价单是否属于同企业
-                if hasattr(model_obj, 'project') and model_obj.project:
-                    project_owner = User.query.get(model_obj.project.owner_id)
-                    return project_owner and project_owner.company_name == user.company_name
-                return False
-            return False
-        # 其他数据按默认规则
-        return model_obj.owner_id == user.id
+            # 解决方案经理如果有报价单编辑权限，可以编辑权限范围内的所有报价单
+            # 不限于同企业，让后续的通用报价单处理逻辑来判断权限级别
+            pass  # 不在此处返回，让代码继续执行到报价单通用处理逻辑
+        else:
+            # 其他数据按默认规则
+            return model_obj.owner_id == user.id
     
     # 项目特殊处理：基于权限级别的编辑权限控制
     if model_name == 'Project':
@@ -1073,11 +1069,8 @@ def can_edit_data(model_obj, user):
             model_obj.project.vendor_sales_manager_id == user.id):
             return True
 
-        # 解决方案经理可以编辑所有报价单（特殊角色权限）
-        if user_role in ['solution_manager', 'solution']:
-            return True
-
         # 检查用户是否有报价单模块的编辑权限（用于编辑他人数据）
+        # 注：解决方案经理的编辑权限通过权限级别控制，而非直接授权所有报价单
         if not user.has_permission('quotation', 'edit'):
             return False
 
