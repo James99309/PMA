@@ -199,13 +199,22 @@
                                 <h3 class="text-base font-semibold text-slate-900 dark:text-white" x-text="currentCategoryName || '{{ _("请选择分类") }}'"></h3>
                                 <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5" x-show="currentCategoryNameEn" x-text="currentCategoryNameEn"></p>
                             </div>
-                            {% if has_permission('rd_product', 'create') %}
-                            <button type="button" @click="openAddModal()" x-show="currentCategoryId"
-                                class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
-                                <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
-                                <span>{{ _('添加规格项') }}</span>
-                            </button>
-                            {% endif %}
+                            <div class="flex items-center gap-3" x-show="currentCategoryId">
+                                <!-- 显示已禁用开关 -->
+                                <label class="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
+                                    <input type="checkbox" x-model="showDisabled" @change="fetchDefinitions(currentCategoryId)"
+                                        class="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary">
+                                    <span>{{ _('显示已禁用') }}</span>
+                                    <span x-show="disabledCount > 0" class="px-1.5 py-0.5 text-xs bg-slate-200 dark:bg-slate-700 rounded" x-text="disabledCount"></span>
+                                </label>
+                                {% if has_permission('rd_product', 'create') %}
+                                <button type="button" @click="openAddModal()"
+                                    class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
+                                    <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+                                    <span>{{ _('添加规格项') }}</span>
+                                </button>
+                                {% endif %}
+                            </div>
                         </div>
 
                         <!-- 加载状态 -->
@@ -255,6 +264,13 @@
                                             <td class="px-4 py-3 whitespace-nowrap text-right">
                                                 <div class="flex items-center justify-end gap-1">
                                                     {% if has_permission('rd_product', 'edit') %}
+                                                    <!-- 启用/禁用切换按钮 -->
+                                                    <button type="button" @click="toggleDefinition(def.id, def.name, def.is_active)"
+                                                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
+                                                        :class="def.is_active ? 'text-green-500 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20' : 'text-slate-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20'"
+                                                        :title="def.is_active ? '{{ _('禁用') }}' : '{{ _('启用') }}'">
+                                                        <span class="material-symbols-outlined" style="font-size: 18px;" x-text="def.is_active ? 'toggle_on' : 'toggle_off'"></span>
+                                                    </button>
                                                     <button type="button" @click="openEditModal(def.id)"
                                                         class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                                                         title="{{ _('编辑') }}">
@@ -419,6 +435,10 @@
             currentCategoryNameEn: {{ ("'" + current_category.name_en + "'")|safe if current_category else 'null' }},
             currentCategoryCode: {{ ("'" + current_category.code + "'")|safe if current_category else 'null' }},
 
+            // 显示已禁用开关
+            showDisabled: false,
+            disabledCount: 0,
+
             // 值类型映射
             typeLabels: { 'text': '{{ _("文本") }}', 'number': '{{ _("数字") }}', 'select': '{{ _("选择") }}', 'boolean': '{{ _("是/否") }}' },
             typeClasses: {
@@ -488,11 +508,22 @@
             async fetchDefinitions(categoryId) {
                 this.loading = true;
                 try {
+                    // 获取启用的规格项
                     const response = await fetch(`${this.API_BASE}/list?category_id=${categoryId}`);
                     const result = await response.json();
 
+                    // 获取已禁用的规格项数量
+                    const disabledResponse = await fetch(`${this.API_BASE}/disabled?category_id=${categoryId}`);
+                    const disabledResult = await disabledResponse.json();
+                    this.disabledCount = disabledResult.success ? disabledResult.data.length : 0;
+
                     if (result.success) {
-                        this.definitions = result.data;
+                        if (this.showDisabled && disabledResult.success) {
+                            // 合并启用和禁用的规格项
+                            this.definitions = [...result.data, ...disabledResult.data];
+                        } else {
+                            this.definitions = result.data;
+                        }
                         // 重新初始化拖拽排序
                         const self = this;
                         this.$nextTick(() => {
@@ -640,6 +671,28 @@
                         }
                     }
                 });
+            },
+
+            // 切换启用/禁用状态
+            async toggleDefinition(id, name, isActive) {
+                try {
+                    const response = await fetch(`${this.API_BASE}/${id}/toggle`, {
+                        method: 'PUT'
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        this.showToast(result.message);
+                        // 重新加载数据
+                        await this.fetchDefinitions(this.currentCategoryId);
+                    } else {
+                        this.showToast(result.message || '{{ _("操作失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    this.showToast('{{ _("操作失败") }}', 'error');
+                }
             },
 
             // 初始化规格项拖拽排序

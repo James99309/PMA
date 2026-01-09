@@ -194,6 +194,45 @@ def api_delete_definition(definition_id):
     })
 
 
+@spec_definition_bp.route('/api/<int:definition_id>/toggle', methods=['PUT'])
+@login_required
+@permission_required('rd_product', 'edit')
+def api_toggle_definition(definition_id):
+    """API: 切换规格项启用/禁用状态"""
+    definition = SpecDefinition.query.get_or_404(definition_id)
+
+    # 切换状态
+    definition.is_active = not definition.is_active
+    db.session.commit()
+
+    status_text = _('已启用') if definition.is_active else _('已禁用')
+
+    return jsonify({
+        'success': True,
+        'message': f'{definition.name} {status_text}',
+        'data': definition.to_dict()
+    })
+
+
+@spec_definition_bp.route('/api/disabled')
+@login_required
+@permission_required('rd_product', 'view')
+def api_list_disabled_definitions():
+    """API: 获取已禁用的规格项列表"""
+    category_id = request.args.get('category_id', type=int)
+
+    query = SpecDefinition.query.filter_by(is_active=False)
+    if category_id:
+        query = query.filter_by(category_id=category_id)
+
+    definitions = query.order_by(SpecDefinition.display_order).all()
+
+    return jsonify({
+        'success': True,
+        'data': [d.to_dict() for d in definitions]
+    })
+
+
 @spec_definition_bp.route('/api/reorder', methods=['POST'])
 @login_required
 @permission_required('rd_product', 'edit')
@@ -341,6 +380,26 @@ def api_delete_category(category_id):
     return jsonify({
         'success': True,
         'message': _('规格分类删除成功')
+    })
+
+
+@spec_definition_bp.route('/api/categories/<int:category_id>/toggle', methods=['PUT'])
+@login_required
+@permission_required('rd_product', 'edit')
+def api_toggle_category(category_id):
+    """API: 切换规格分类启用/禁用状态"""
+    category = SpecCategory.query.get_or_404(category_id)
+
+    # 切换状态
+    category.is_active = not category.is_active
+    db.session.commit()
+
+    status_text = _('已启用') if category.is_active else _('已禁用')
+
+    return jsonify({
+        'success': True,
+        'message': f'{category.name} {status_text}',
+        'data': category.to_dict()
     })
 
 
