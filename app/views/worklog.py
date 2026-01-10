@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from app import db
-from app.models.worklog import WorkItem, WorkLog
+from app.models.worklog import WorkItem, WorkLog, WorkLogReaction
 from app.models.user import User, Affiliation
 from app.models.project import Project
 from app.models.customer import Company, Contact
@@ -1159,6 +1159,25 @@ def get_daily_log(log_date):
         if owner:
             log_data['owner_display_name'] = owner.real_name or owner.username
 
+    # 获取反馈数据（匿名点赞/点踩）
+    user_reaction = None
+    if worklog.id:
+        # 查询当前用户是否已反馈
+        existing_reaction = WorkLogReaction.query.filter_by(
+            worklog_id=worklog.id,
+            user_id=current_user.id
+        ).first()
+        if existing_reaction:
+            user_reaction = existing_reaction.reaction_type
+
+    reactions_data = {
+        'thumbs_up': worklog.thumbs_up_count or 0,
+        'thumbs_down': worklog.thumbs_down_count or 0,
+        'user_reaction': user_reaction,
+        # 是否可以反馈：已提交的日志 且 不是自己的日志
+        'can_react': worklog.status == 'submitted' and worklog.owner_id != current_user.id
+    }
+
     return jsonify({
         'success': True,
         'data': {
@@ -1168,7 +1187,8 @@ def get_daily_log(log_date):
             'cancelled_items': cancelled_items,
             'statistics': stats,
             'activities': activities,
-            'is_readonly': is_readonly
+            'is_readonly': is_readonly,
+            'reactions': reactions_data
         }
     })
 
@@ -1901,4 +1921,127 @@ def delete_worklog_comment(comment_id):
     return jsonify({
         'success': True,
         'message': _('删除成功')
+    })
+
+
+# ===== 日志反馈 API（匿名点赞/点踩）=====
+
+@worklog.route('/api/daily/<log_date>/react', methods=['POST'])
+@login_required
+def react_to_worklog(log_date):
+    """对日志进行反馈（大拇指/小拇指）
+
+    请求体: {"type": "up"} 或 {"type": "down"}
+
+    业务逻辑：
+    - 已提交的日志才能被反馈
+    - 不能给自己的日志反馈
+    - 点一次添加，再点同一个取消
+    - 点不同的自动切换（大拇指→小拇指 或 反之）
+    - 匿名：不记录谁点的到返回数据中
+    """
+    try:
+        target_date = datetime.strptime(log_date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'success': False, 'message': _('日期格式无效')}), 400
+
+    # 获取日志所有者ID
+    owner_id = request.args.get('owner_id', type=int)
+    if not owner_id:
+        return jsonify({'success': False, 'message': _('缺少 owner_id 参数')}), 400
+
+    # 查找日志
+    worklog_obj = WorkLog.query.filter_by(
+        owner_id=owner_id,
+        log_date=target_date
+    ).first()
+
+    if not worklog_obj:
+        return jsonify({'success': False, 'message': _('日志不存在')}), 404
+
+    # 权限检查：只能给已提交的日志反馈
+    if worklog_obj.status != 'submitted':
+        return jsonify({'success': False, 'message': _('只能对已提交的日志进行反馈')}), 400
+
+    # 权限检查：不能给自己的日志反馈
+    if worklog_obj.owner_id == current_user.id:
+        return jsonify({'success': False, 'message': _('不能给自己的日志点赞')}), 400
+
+    # 获取反馈类型
+    data = request.get_json()
+    if not data or 'type' not in data:
+        return jsonify({'success': False, 'message': _('缺少反馈类型')}), 400
+
+    reaction_type = data['type']
+    if reaction_type not in ['up', 'down']:
+        return jsonify({'success': False, 'message': _('无效的反馈类型')}), 400
+
+    # 查找现有反馈
+    existing_reaction = WorkLogReaction.query.filter_by(
+        worklog_id=worklog_obj.id,
+        user_id=current_user.id
+    ).first()
+
+    action = None  # 记录操作类型
+    from sqlalchemy import text
+
+    if existing_reaction:
+        # 立即提取需要的信息，然后从 session 中移除，防止 SQLAlchemy 自动同步
+        reaction_id = existing_reaction.id
+        old_reaction_type = existing_reaction.reaction_type
+        db.session.expunge(existing_reaction)
+
+        if old_reaction_type == reaction_type:
+            # 相同类型：取消反馈
+            if reaction_type == 'up':
+                worklog_obj.thumbs_up_count = max(0, (worklog_obj.thumbs_up_count or 0) - 1)
+            else:
+                worklog_obj.thumbs_down_count = max(0, (worklog_obj.thumbs_down_count or 0) - 1)
+            # 使用原生 SQL 删除
+            db.session.execute(
+                text('DELETE FROM worklog_reactions WHERE id = :id'),
+                {'id': reaction_id}
+            )
+            action = 'removed'
+            user_reaction = None
+        else:
+            # 不同类型：切换反馈
+            if old_reaction_type == 'up':
+                worklog_obj.thumbs_up_count = max(0, (worklog_obj.thumbs_up_count or 0) - 1)
+                worklog_obj.thumbs_down_count = (worklog_obj.thumbs_down_count or 0) + 1
+            else:
+                worklog_obj.thumbs_down_count = max(0, (worklog_obj.thumbs_down_count or 0) - 1)
+                worklog_obj.thumbs_up_count = (worklog_obj.thumbs_up_count or 0) + 1
+            # 使用原生 SQL 更新
+            db.session.execute(
+                text('UPDATE worklog_reactions SET reaction_type = :type, created_at = :time WHERE id = :id'),
+                {'type': reaction_type, 'time': get_local_time(), 'id': reaction_id}
+            )
+            action = 'switched'
+            user_reaction = reaction_type
+    else:
+        # 新增反馈
+        new_reaction = WorkLogReaction(
+            worklog_id=worklog_obj.id,
+            user_id=current_user.id,
+            reaction_type=reaction_type
+        )
+        db.session.add(new_reaction)
+        if reaction_type == 'up':
+            worklog_obj.thumbs_up_count = (worklog_obj.thumbs_up_count or 0) + 1
+        else:
+            worklog_obj.thumbs_down_count = (worklog_obj.thumbs_down_count or 0) + 1
+        action = 'added'
+        user_reaction = reaction_type
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'action': action,
+        'reactions': {
+            'thumbs_up': worklog_obj.thumbs_up_count or 0,
+            'thumbs_down': worklog_obj.thumbs_down_count or 0,
+            'user_reaction': user_reaction
+        }
     })

@@ -7,6 +7,7 @@
 {% from 'components/tw_file_upload.html' import render_new_file_upload, render_file_upload, render_file_icons with context %}
 {% from 'components/tw_file_preview.html' import render_file_preview_modal, render_file_preview_script with context %}
 {% from 'components/tw_grouped_select.html' import tw_grouped_select_input with context %}
+{% from 'components/tw_worklog_reactions.html' import render_worklog_reactions_script with context %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 
@@ -997,6 +998,9 @@
                                                 <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ _('未完成') }}</div>
                                             </div>
                                         </div>
+                                        <!-- 点赞按钮（统计区域下方） -->
+                                        <div id="calendar-log-reactions" class="flex items-center justify-center gap-3 mt-3"
+                                             x-show="logData.status === 'submitted' || isReadonlyLog"></div>
                                     </div>
 
                                     <!-- 右侧：内容区域 -->
@@ -2524,7 +2528,8 @@ function workCalendar() {
                         activities: data.data.activities || {},
                         mentioned_users: logInfo.mentioned_users || [],
                         mentioned_projects: logInfo.mentioned_projects || [],
-                        owner_display_name: logInfo.owner_display_name || ''
+                        owner_display_name: logInfo.owner_display_name || '',
+                        reactions: data.data.reactions || {}
                     };
                     document.getElementById('dailyLogModal').classList.remove('hidden');
                     document.body.style.overflow = 'hidden';
@@ -2563,6 +2568,23 @@ function workCalendar() {
                             this.loadComments();
                         });
                     }
+
+                    // 渲染点赞按钮（已提交或只读模式）
+                    if (this.logData.status === 'submitted' || this.isReadonlyLog) {
+                        this.$nextTick(() => {
+                            const ownerId = this.selectedAccountId || {{ current_user.id }};
+                            WorklogReactions.render('calendar-log-reactions', this.logData.reactions, {
+                                logDate: this.logData.log_date,
+                                ownerId: ownerId
+                            });
+                            // 设置配置以便更新时同步 logData
+                            WorklogReactions.setConfig('calendar-log-reactions', {
+                                onUpdate: (newReactions) => {
+                                    this.logData.reactions = newReactions;
+                                }
+                            });
+                        });
+                    }
                 } else { window.TwNotification?.show(data.message || '{{ _("加载失败") }}', 'error'); }
             } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
         },
@@ -2583,6 +2605,9 @@ function workCalendar() {
             // 清理评论数据
             this.comments = [];
             this.newComment = '';
+            // 清理点赞容器
+            const reactionsContainer = document.getElementById('calendar-log-reactions');
+            if (reactionsContainer) reactionsContainer.innerHTML = '';
             this.loadingComments = false;
             this.submittingComment = false;
         },
@@ -2926,6 +2951,7 @@ function workCalendar() {
 }
 </script>
 
+{{ render_worklog_reactions_script() }}
 {{ tw_mention_editor_script() }}
 </body>
 </html>

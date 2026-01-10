@@ -306,6 +306,10 @@ class WorkLog(db.Model):
     mentioned_users = Column(JSON, default=list)         # 被 @ 的用户ID列表
     mentioned_projects = Column(JSON, default=list)      # 被 # 引用的项目ID列表
 
+    # 匿名反馈计数（大拇指/小拇指）
+    thumbs_up_count = Column(Integer, default=0)         # 大拇指（鼓励）数量
+    thumbs_down_count = Column(Integer, default=0)       # 小拇指（否定）数量
+
     # 工作项关联
     work_items = relationship('WorkItem', back_populates='worklog')
 
@@ -568,3 +572,36 @@ class WorkLogComment(db.Model):
             'created_at': self.created_at.strftime('%Y-%m-%dT%H:%M:%SZ') if self.created_at else None,
             'can_delete': False  # 由 API 动态设置
         }
+
+
+class WorkLogReaction(db.Model):
+    """日志反馈记录（匿名点赞/点踩）
+
+    记录用户对日志的反馈，用于：
+    1. 判断当前用户是否已反馈及反馈类型
+    2. 防止重复反馈
+
+    注意：前端只显示计数，不显示谁点的（匿名）
+    """
+    __tablename__ = 'worklog_reactions'
+
+    id = Column(Integer, primary_key=True)
+
+    # 关联的日志（级联删除：删除日志时自动删除关联的反馈）
+    worklog_id = Column(Integer, ForeignKey('worklogs.id', ondelete='CASCADE'), nullable=False, index=True)
+    worklog = relationship('WorkLog', backref=db.backref('reactions', lazy='dynamic', cascade='all, delete-orphan', passive_deletes=True))
+
+    # 反馈用户
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    user = relationship('User', backref='worklog_reactions')
+
+    # 反馈类型：'up'（大拇指/鼓励）或 'down'（小拇指/否定）
+    reaction_type = Column(String(10), nullable=False)
+
+    # 时间戳
+    created_at = Column(DateTime, default=get_local_time)
+
+    # 唯一约束：每个用户对每个日志只能有一条反馈记录
+    __table_args__ = (
+        db.UniqueConstraint('worklog_id', 'user_id', name='uq_worklog_user_reaction'),
+    )

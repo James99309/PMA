@@ -1,0 +1,171 @@
+{#
+=============================================================================
+日志点赞/点踩组件
+=============================================================================
+提供可复用的点赞功能，用于日志预览弹窗和日历预览
+
+使用方式：
+1. 导入组件:
+   {% from 'components/tw_worklog_reactions.html' import render_worklog_reactions_script %}
+
+2. 在脚本区域添加:
+   {{ render_worklog_reactions_script() }}
+
+3. 在 HTML 中添加容器:
+   <div id="my-reactions-container"></div>
+
+4. 调用渲染函数:
+   WorklogReactions.render('my-reactions-container', reactions, {
+       logDate: '2026-01-10',
+       ownerId: 123,
+       canReact: true
+   });
+=============================================================================
+#}
+
+{# 点赞组件脚本 #}
+{% macro render_worklog_reactions_script() %}
+<script>
+window.WorklogReactions = (function() {
+    /**
+     * 渲染点赞按钮到指定容器
+     * @param {string} containerId - 容器元素 ID
+     * @param {object} reactions - 反馈数据 { thumbs_up, thumbs_down, user_reaction, can_react }
+     * @param {object} options - 配置选项 { logDate, ownerId, onUpdate }
+     */
+    function render(containerId, reactions, options) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        reactions = reactions || {};
+        options = options || {};
+
+        const canReact = reactions.can_react;
+        const upActive = reactions.user_reaction === 'up';
+        const downActive = reactions.user_reaction === 'down';
+        const thumbsUp = reactions.thumbs_up || 0;
+        const thumbsDown = reactions.thumbs_down || 0;
+
+        // 如果不能反馈且没有任何反馈，清空容器
+        if (!canReact && thumbsUp === 0 && thumbsDown === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const logDate = options.logDate;
+        const ownerId = options.ownerId;
+
+        if (canReact && logDate && ownerId) {
+            // 可以反馈：显示可点击的按钮
+            container.innerHTML = `
+                <!-- 大拇指 -->
+                <button type="button" onclick="WorklogReactions.react('${containerId}', '${logDate}', ${ownerId}, 'up')"
+                        class="relative p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95"
+                        title="{{ _('鼓励') }}">
+                    <span class="material-symbols-outlined text-xl transition-colors
+                                 ${upActive ? 'text-blue-500' : 'text-slate-400 dark:text-slate-500 hover:text-blue-400'}"
+                          style="font-variation-settings: 'FILL' ${upActive ? 1 : 0}, 'wght' 400">thumb_up</span>
+                    ${thumbsUp > 0 ? `
+                    <span class="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-bold rounded-full
+                                 ${upActive ? 'bg-blue-500 text-white' : 'bg-slate-500 text-white'}
+                                 ring-1 ring-white dark:ring-slate-900">${thumbsUp}</span>
+                    ` : ''}
+                </button>
+                <!-- 小拇指 -->
+                <button type="button" onclick="WorklogReactions.react('${containerId}', '${logDate}', ${ownerId}, 'down')"
+                        class="relative p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95"
+                        title="{{ _('否定') }}">
+                    <span class="material-symbols-outlined text-xl transition-colors
+                                 ${downActive ? 'text-red-500' : 'text-slate-400 dark:text-slate-500 hover:text-red-400'}"
+                          style="font-variation-settings: 'FILL' ${downActive ? 1 : 0}, 'wght' 400">thumb_down</span>
+                    ${thumbsDown > 0 ? `
+                    <span class="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-bold rounded-full
+                                 ${downActive ? 'bg-red-500 text-white' : 'bg-slate-500 text-white'}
+                                 ring-1 ring-white dark:ring-slate-900">${thumbsDown}</span>
+                    ` : ''}
+                </button>
+            `;
+        } else {
+            // 自己的日志或只读模式，保持彩色样式（不可点击）
+            container.innerHTML = `
+                <!-- 大拇指 -->
+                <div class="relative p-1">
+                    <span class="material-symbols-outlined text-xl ${thumbsUp > 0 ? 'text-blue-500' : 'text-blue-300 dark:text-blue-400'}"
+                          style="font-variation-settings: 'FILL' ${thumbsUp > 0 ? 1 : 0}, 'wght' 400">thumb_up</span>
+                    ${thumbsUp > 0 ? `
+                    <span class="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-bold rounded-full bg-blue-500 text-white ring-1 ring-white dark:ring-slate-900">${thumbsUp}</span>
+                    ` : ''}
+                </div>
+                <!-- 小拇指 -->
+                <div class="relative p-1">
+                    <span class="material-symbols-outlined text-xl ${thumbsDown > 0 ? 'text-red-500' : 'text-red-300 dark:text-red-400'}"
+                          style="font-variation-settings: 'FILL' ${thumbsDown > 0 ? 1 : 0}, 'wght' 400">thumb_down</span>
+                    ${thumbsDown > 0 ? `
+                    <span class="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-bold rounded-full bg-red-500 text-white ring-1 ring-white dark:ring-slate-900">${thumbsDown}</span>
+                    ` : ''}
+                </div>
+            `;
+        }
+    }
+
+    // 存储每个容器的配置和回调
+    const containerConfigs = {};
+
+    /**
+     * 设置容器配置（用于回调更新）
+     */
+    function setConfig(containerId, config) {
+        containerConfigs[containerId] = config;
+    }
+
+    /**
+     * 执行点赞操作
+     */
+    async function react(containerId, logDate, ownerId, reactionType) {
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            const response = await fetch(`/worklog/api/daily/${logDate}/react?owner_id=${ownerId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ type: reactionType })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                // 更新 UI
+                const newReactions = {
+                    ...data.reactions,
+                    can_react: true
+                };
+                render(containerId, newReactions, { logDate, ownerId });
+
+                // 触发回调
+                const config = containerConfigs[containerId];
+                if (config && config.onUpdate) {
+                    config.onUpdate(newReactions);
+                }
+
+                // 触发自定义事件（供 Alpine.js 监听）
+                window.dispatchEvent(new CustomEvent('worklog-reaction-updated', {
+                    detail: { containerId, reactions: newReactions, logDate, ownerId }
+                }));
+            } else {
+                window.TwNotification?.show(data.message || '{{ _("操作失败") }}', 'error');
+            }
+        } catch (e) {
+            console.error('反馈操作失败:', e);
+            window.TwNotification?.show('{{ _("网络错误") }}', 'error');
+        }
+    }
+
+    return {
+        render,
+        react,
+        setConfig
+    };
+})();
+</script>
+{% endmacro %}
