@@ -17,6 +17,7 @@
 #}
 
 {% from 'components/tw_announcement_preview.html' import render_announcement_preview_modal, render_announcement_preview_script with context %}
+{% from 'components/tw_worklog_preview.html' import render_worklog_preview_modal, render_worklog_preview_script with context %}
 
 {# 消息图标按钮 #}
 {% macro render_message_button() %}
@@ -185,6 +186,9 @@
 
 <!-- 公告预览模态框 -->
 {{ render_announcement_preview_modal(modal_id='messagePanelAnnouncementModal') }}
+
+<!-- 日志预览模态框 -->
+{{ render_worklog_preview_modal(modal_id='messagePanelWorklogModal') }}
 {% endmacro %}
 
 {# 消息面板 JavaScript #}
@@ -260,6 +264,31 @@ function messagePanel() {
                     Alpine.store('message').checkAndShowPanel();
                 }
             });
+
+            // 监听日志预览关闭事件，移除对应消息
+            window.addEventListener('worklog-preview-closed', (e) => {
+                if (e.detail && e.detail.messageId) {
+                    this.removeMessage(e.detail.messageId);
+                }
+            });
+        },
+
+        // 从消息列表中移除指定消息
+        removeMessage(messageId) {
+            if (this.data && this.data.mentions) {
+                const index = this.data.mentions.findIndex(m => m.id === messageId);
+                if (index > -1) {
+                    this.data.mentions.splice(index, 1);
+                    // 更新未读计数
+                    if (this.data.counts) {
+                        this.data.counts.mentions = Math.max(0, (this.data.counts.mentions || 0) - 1);
+                        this.data.counts.total = Math.max(0, (this.data.counts.total || 0) - 1);
+                    }
+                    if (Alpine.store('message')) {
+                        Alpine.store('message').unreadCount = this.data.counts?.total || 0;
+                    }
+                }
+            }
         },
 
         toggle() {
@@ -552,8 +581,22 @@ function messagePanel() {
                 return;
             }
 
+            // 日志类型：弹出日志预览模态框
+            if (item.related_object_type === 'worklog') {
+                if (item.metadata && item.metadata.log_date) {
+                    // 优先使用 metadata.owner_id
+                    // 兼容旧数据：worklog_comment 的日志所有者是 recipient_id（当前用户），其他类型是 sender_id
+                    let ownerId = item.metadata.owner_id;
+                    if (!ownerId) {
+                        ownerId = (item.message_type === 'worklog_comment') ? item.recipient_id : item.sender_id;
+                    }
+                    openWorklogPreview_messagePanelWorklogModal(item.metadata.log_date, ownerId, item.id);
+                }
+                return;
+            }
+
             // 其他类型：跳转到详情页
-            const clickableTypes = ['workitem', 'worklog', 'quotation', 'project', 'expense'];
+            const clickableTypes = ['workitem', 'quotation', 'project', 'expense'];
             if (item.can_view_calendar || item.detail_url || clickableTypes.includes(item.related_object_type)) {
                 window.location.href = this.getMessageUrl(item);
             }
@@ -564,4 +607,7 @@ function messagePanel() {
 
 <!-- 公告预览脚本 -->
 {{ render_announcement_preview_script(modal_id='messagePanelAnnouncementModal') }}
+
+<!-- 日志预览脚本 -->
+{{ render_worklog_preview_script(modal_id='messagePanelWorklogModal') }}
 {% endmacro %}

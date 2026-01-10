@@ -545,14 +545,33 @@ def test_page():
     '''
 
 @main.route('/api/available_accounts')
-@login_required  
+@login_required
 def get_available_accounts():
     """
     获取当前用户有权限查看的账户列表
+    排序规则：有未读消息的排在前面，按最新消息时间倒序
     """
     try:
         accounts = []
-        
+
+        # 获取有未读日志消息的发送者信息（包含最新消息时间）
+        from app.models.message import Message
+        from sqlalchemy import func
+
+        # 查询每个发送者的最新未读消息时间
+        unread_info = db.session.query(
+            Message.sender_id,
+            func.max(Message.created_at).label('latest_time')
+        ).filter(
+            Message.recipient_id == current_user.id,
+            Message.is_read == False,
+            Message.related_object_type == 'worklog'
+        ).group_by(Message.sender_id).all()
+
+        # 构建字典：sender_id -> 最新消息时间
+        unread_sender_times = {info[0]: info[1] for info in unread_info}
+        unread_sender_ids = set(unread_sender_times.keys())
+
         from app.permissions import is_admin_or_ceo
         if is_admin_or_ceo():
             # 管理员和CEO可以查看所有活跃用户
@@ -564,7 +583,9 @@ def get_available_accounts():
                 accounts.append({
                     'id': user.id,
                     'name': user.real_name or user.username,
-                    'role': user.role
+                    'role': user.role,
+                    'has_unread': user.id in unread_sender_ids,
+                    'latest_time': unread_sender_times.get(user.id)
                 })
         else:
             # 使用权限配置系统判断可见账户
@@ -590,9 +611,22 @@ def get_available_accounts():
                     accounts.append({
                         'id': user.id,
                         'name': user.real_name or user.username,
-                        'role': user.role
+                        'role': user.role,
+                        'has_unread': user.id in unread_sender_ids,
+                        'latest_time': unread_sender_times.get(user.id)
                     })
-        
+
+        # 排序：有未读的排前面，按最新消息时间倒序
+        from datetime import datetime
+        accounts.sort(key=lambda x: (
+            not x['has_unread'],  # False (有未读) 排前面
+            -(x['latest_time'].timestamp() if x['latest_time'] else 0)  # 时间倒序
+        ))
+
+        # 移除 latest_time 字段（前端不需要）
+        for acc in accounts:
+            del acc['latest_time']
+
         return jsonify({
             'success': True,
             'data': accounts

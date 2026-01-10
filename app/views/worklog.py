@@ -1722,6 +1722,12 @@ def can_view_worklog(user, worklog):
     if user.role in ['admin', 'ceo']:
         return True
 
+    # 被@提及的用户可以查看
+    # 注意：mentioned_users 存储的是字符串ID，需要同时检查整数和字符串
+    if worklog.mentioned_users:
+        if user.id in worklog.mentioned_users or str(user.id) in worklog.mentioned_users:
+            return True
+
     # 部门负责人可以查看本部门成员日志
     if user.is_department_manager:
         log_owner = User.query.get(worklog.owner_id)
@@ -1731,6 +1737,20 @@ def can_view_worklog(user, worklog):
     # 可以查看下属的日志
     subordinate_ids = get_subordinate_user_ids(user)
     if worklog.owner_id in subordinate_ids:
+        return True
+
+    # 收到过该日志相关消息的用户可以查看（如日志提交通知）
+    # 通过 sender_id（日志作者）和 log_date（存储在 extra_data 中）匹配
+    from app.models.message import Message
+    from sqlalchemy import String
+    log_date_str = worklog.log_date.isoformat() if worklog.log_date else None
+    has_notification = Message.query.filter(
+        Message.recipient_id == user.id,
+        Message.sender_id == worklog.owner_id,
+        Message.related_object_type == 'worklog',
+        cast(Message.extra_data['log_date'], String) == f'"{log_date_str}"'
+    ).first()
+    if has_notification:
         return True
 
     return False
@@ -1764,11 +1784,19 @@ def get_worklog_comments(log_date):
         return jsonify({'success': False, 'message': _('无权查看此日志评论')}), 403
 
     # 获取评论（排除已删除的）
+    # 查询该日期+该作者的所有日志的评论（包括历史日志，防止日志重建后丢失评论）
     from app.models.worklog import WorkLogComment
+    all_worklogs = WorkLog.query.filter_by(
+        owner_id=target_user_id,
+        log_date=target_date,
+        log_type='daily'
+    ).all()
+    all_worklog_ids = [w.id for w in all_worklogs]
+
     comments = WorkLogComment.query.filter(
-        WorkLogComment.worklog_id == worklog_obj.id,
+        WorkLogComment.worklog_id.in_(all_worklog_ids),
         WorkLogComment.is_deleted == False
-    ).order_by(WorkLogComment.created_at.asc()).all()
+    ).order_by(WorkLogComment.created_at.desc()).all()
 
     # 转换为字典并设置 can_delete 权限
     result = []

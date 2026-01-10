@@ -131,7 +131,8 @@ class Message(db.Model):
             related_object_id=worklog.id,
             extra_data={
                 'log_date': worklog.log_date.isoformat() if worklog.log_date else None,
-                'log_type': worklog.log_type
+                'log_type': worklog.log_type,
+                'owner_id': worklog.owner_id  # 日志所有者ID
             }
         )
 
@@ -395,7 +396,8 @@ class Message(db.Model):
             related_object_id=worklog.id,
             extra_data={
                 'log_date': worklog.log_date.isoformat() if worklog.log_date else None,
-                'log_type': worklog.log_type
+                'log_type': worklog.log_type,
+                'owner_id': worklog.owner_id  # 日志所有者ID
             }
         )
 
@@ -601,6 +603,7 @@ class Message(db.Model):
             related_object_id=worklog.id,
             extra_data={
                 'log_date': worklog.log_date.isoformat() if worklog.log_date else None,
-                'log_type': worklog.log_type
+                'log_type': worklog.log_type,
+                'owner_id': worklog.owner_id  # 日志所有者ID，用于前端正确显示日志
             }
         )

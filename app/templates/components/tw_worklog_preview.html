@@ -1,0 +1,756 @@
+{#
+=============================================================================
+日志只读预览组件
+=============================================================================
+用于在消息面板等场景中预览他人的日志（只读模式，支持评论）
+
+使用方式：
+1. 导入组件:
+   {% from 'components/tw_worklog_preview.html' import render_worklog_preview_modal, render_worklog_preview_script %}
+
+2. 在模态框区域添加:
+   {{ render_worklog_preview_modal(modal_id='worklogPreviewModal') }}
+
+3. 在脚本区域添加:
+   {{ render_worklog_preview_script(modal_id='worklogPreviewModal') }}
+
+4. 调用预览函数:
+   openWorklogPreview_worklogPreviewModal(logDate, ownerId);
+
+依赖:
+- tw_file_preview.html (文件预览模态框)
+- tw_confirm_modal.html (确认删除评论)
+- tw_mention_editor.html (渲染@提及内容)
+=============================================================================
+#}
+
+{% from 'components/tw_file_preview.html' import render_file_preview_modal, render_file_preview_script with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal with context %}
+
+{# 日志预览模态框 #}
+{% macro render_worklog_preview_modal(modal_id='worklogPreviewModal') %}
+<div id="{{ modal_id }}" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+    <!-- 背景遮罩 -->
+    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+         onclick="window['closeWorklogPreview_{{ modal_id }}']()"></div>
+
+    <!-- 模态框容器 -->
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col transform transition-all">
+            <!-- 标题栏 -->
+            <header class="flex-shrink-0 flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                <div>
+                    <h3 id="{{ modal_id }}-title" class="text-lg font-semibold text-slate-900 dark:text-white">
+                        {{ _('加载中...') }}
+                    </h3>
+                    <div class="flex items-center gap-2 mt-1">
+                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                            {{ _('只读') }}
+                        </span>
+                        <span id="{{ modal_id }}-status" class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hidden">
+                            {{ _('已提交') }}
+                        </span>
+                    </div>
+                </div>
+                <!-- 关闭按钮 -->
+                <button type="button" onclick="window['closeWorklogPreview_{{ modal_id }}'](); return false;"
+                        class="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </header>
+
+            <!-- 内容区域 -->
+            <div id="{{ modal_id }}-content" class="flex-1 overflow-y-auto p-6">
+                <!-- 加载中占位 -->
+                <div class="flex items-center justify-center py-12">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+            </div>
+
+            <!-- 底部操作区 -->
+            <footer class="flex-shrink-0 flex items-center justify-end px-6 py-4 border-t border-slate-200 dark:border-slate-700">
+                <button type="button" onclick="window['closeWorklogPreview_{{ modal_id }}'](); return false;"
+                        class="h-10 px-6 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                    {{ _('关闭') }}
+                </button>
+            </footer>
+        </div>
+    </div>
+</div>
+
+<!-- 文件预览模态框 -->
+{{ render_file_preview_modal(modal_id=modal_id + 'FileModal') }}
+
+<!-- 删除评论确认模态框 -->
+{{ tw_confirm_modal(
+    modal_id=modal_id + 'DeleteCommentModal',
+    title=_('确认删除'),
+    message=_('确定要删除这条评论吗？'),
+    confirm_text=_('删除'),
+    cancel_text=_('取消'),
+    variant='danger'
+) }}
+{% endmacro %}
+
+
+{# 日志预览脚本 #}
+{% macro render_worklog_preview_script(modal_id='worklogPreviewModal') %}
+<!-- 文件预览脚本 -->
+{{ render_file_preview_script(modal_id=modal_id + 'FileModal') }}
+
+<script>
+(function() {
+    const modalId = '{{ modal_id }}';
+
+    // 工作类型标签映射
+    const workTypeLabels = {
+        'customer_visit': '{{ _("客户拜访") }}',
+        'customer_call': '{{ _("客户电话") }}',
+        'customer_meeting': '{{ _("客户会议") }}',
+        'internal_meeting': '{{ _("内部会议") }}',
+        'document_work': '{{ _("文档工作") }}',
+        'development': '{{ _("开发工作") }}',
+        'research': '{{ _("调研分析") }}',
+        'training': '{{ _("培训学习") }}',
+        'other': '{{ _("其他") }}'
+    };
+
+    // 当前日志数据
+    let currentLogData = null;
+    let currentOwnerId = null;
+    let currentMessageId = null;  // 关联的消息ID
+    let comments = [];
+    let loadingComments = false;
+    let submittingComment = false;
+    let deletingCommentId = null;
+
+    /**
+     * 打开日志预览
+     * @param {string} logDate - 日志日期 (YYYY-MM-DD)
+     * @param {number|string} ownerId - 日志所有者ID
+     * @param {number|string} messageId - 关联的消息ID（可选，用于关闭时移除消息）
+     */
+    window['openWorklogPreview_' + modalId] = async function(logDate, ownerId, messageId) {
+        const modal = document.getElementById(modalId);
+        if (!modal) {
+            console.error('日志预览模态框不存在');
+            return;
+        }
+
+        currentOwnerId = ownerId;
+        currentMessageId = messageId || null;
+        comments = [];
+
+        // 重置内容
+        const titleEl = document.getElementById(modalId + '-title');
+        const statusEl = document.getElementById(modalId + '-status');
+        const contentEl = document.getElementById(modalId + '-content');
+
+        if (titleEl) titleEl.textContent = '{{ _("加载中...") }}';
+        if (statusEl) statusEl.classList.add('hidden');
+        if (contentEl) {
+            contentEl.innerHTML = `
+                <div class="flex items-center justify-center py-12">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+            `;
+        }
+
+        // 显示模态框
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+
+        try {
+            // 获取日志详情
+            const response = await fetch(`/worklog/api/daily/${logDate}?owner_id=${ownerId}`);
+            const result = await response.json();
+
+            if (result.success) {
+                const data = result.data;
+
+                // 检查是否无日志
+                if (data.no_log) {
+                    if (contentEl) {
+                        contentEl.innerHTML = `
+                            <div class="text-center py-12 text-slate-400 dark:text-slate-500">
+                                <span class="material-symbols-outlined text-4xl mb-2">event_busy</span>
+                                <p>{{ _('该日期没有日志') }}</p>
+                            </div>
+                        `;
+                    }
+                    return;
+                }
+
+                const logInfo = data.log || {};
+                currentLogData = {
+                    ...logInfo,
+                    log_date: logInfo.log_date || logDate,
+                    status: logInfo.status || 'draft',
+                    additional_notes: logInfo.additional_notes || '',
+                    attachments: logInfo.attachments || [],
+                    completed_items: data.completed_items || [],
+                    pending_items: data.pending_items || [],
+                    statistics: data.statistics || {},
+                    activities: data.activities || {},
+                    owner_display_name: logInfo.owner_display_name || ''
+                };
+
+                // 渲染标题
+                if (titleEl) {
+                    const dateStr = formatLogDate(currentLogData.log_date);
+                    titleEl.textContent = `${currentLogData.owner_display_name} ${dateStr} {{ _('的日志') }}`;
+                }
+
+                // 渲染状态
+                if (statusEl && currentLogData.status === 'submitted') {
+                    statusEl.classList.remove('hidden');
+                }
+
+                // 渲染内容
+                if (contentEl) {
+                    contentEl.innerHTML = renderLogContent(currentLogData);
+
+                    // 如果是已提交的日志，加载评论
+                    if (currentLogData.status === 'submitted') {
+                        await loadComments(currentLogData.log_date, ownerId);
+                        renderComments();
+                    }
+                }
+
+                // 标记日志为已读
+                markLogAsRead(logDate, ownerId);
+
+            } else {
+                if (contentEl) {
+                    contentEl.innerHTML = `
+                        <div class="text-center py-12 text-red-500">
+                            <span class="material-symbols-outlined text-4xl mb-2">error</span>
+                            <p>{{ _('加载失败') }}: ${result.message || ''}</p>
+                        </div>
+                    `;
+                }
+            }
+        } catch (error) {
+            console.error('获取日志详情失败:', error);
+            if (contentEl) {
+                contentEl.innerHTML = `
+                    <div class="text-center py-12 text-red-500">
+                        <span class="material-symbols-outlined text-4xl mb-2">error</span>
+                        <p>{{ _('网络错误') }}</p>
+                    </div>
+                `;
+            }
+        }
+    };
+
+    /**
+     * 关闭日志预览
+     */
+    window['closeWorklogPreview_' + modalId] = function() {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        // 触发关闭事件，通知消息面板移除对应消息
+        if (currentMessageId) {
+            window.dispatchEvent(new CustomEvent('worklog-preview-closed', {
+                detail: { messageId: currentMessageId }
+            }));
+        }
+
+        currentLogData = null;
+        currentOwnerId = null;
+        currentMessageId = null;
+        comments = [];
+    };
+
+    /**
+     * 格式化日期
+     */
+    function formatLogDate(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        const lang = '{{ session.get("language", "zh") }}';
+        return date.toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            weekday: 'long'
+        });
+    }
+
+    /**
+     * 格式化相对时间
+     */
+    function formatRelativeTime(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffSec = Math.floor(diffMs / 1000);
+        const diffMin = Math.floor(diffSec / 60);
+        const diffHour = Math.floor(diffMin / 60);
+        const diffDay = Math.floor(diffHour / 24);
+
+        if (diffSec < 60) return '{{ _("刚刚") }}';
+        if (diffMin < 60) return `${diffMin}{{ _("分钟前") }}`;
+        if (diffHour < 24) return `${diffHour}{{ _("小时前") }}`;
+        if (diffDay < 30) return `${diffDay}{{ _("天前") }}`;
+        return date.toLocaleDateString();
+    }
+
+    /**
+     * 渲染日志内容
+     */
+    function renderLogContent(data) {
+        let html = `
+            <!-- 左右两栏布局 -->
+            <div class="flex flex-col md:flex-row gap-6">
+                <!-- 左侧：统计卡片 -->
+                <div class="md:w-28 flex-shrink-0">
+                    <div class="flex flex-row md:flex-col gap-3">
+                        <div class="flex-1 md:flex-none bg-slate-50 dark:bg-slate-800 rounded-lg p-3 text-center">
+                            <div class="text-2xl font-bold text-primary">${data.statistics?.total_items || 0}</div>
+                            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ _('计划工作项') }}</div>
+                        </div>
+                        <div class="flex-1 md:flex-none bg-slate-50 dark:bg-slate-800 rounded-lg p-3 text-center">
+                            <div class="text-2xl font-bold text-green-600">${data.statistics?.completed_items || 0}</div>
+                            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ _('已完成') }}</div>
+                        </div>
+                        <div class="flex-1 md:flex-none bg-slate-50 dark:bg-slate-800 rounded-lg p-3 text-center">
+                            <div class="text-2xl font-bold text-blue-600">${(data.statistics?.total_hours || 0)}h</div>
+                            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ _('总工时') }}</div>
+                        </div>
+                        <div class="flex-1 md:flex-none bg-slate-50 dark:bg-slate-800 rounded-lg p-3 text-center">
+                            <div class="text-2xl font-bold text-amber-600">${data.statistics?.pending_items || 0}</div>
+                            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ _('未完成') }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧：内容区域 -->
+                <div class="flex-1 min-w-0 flex flex-col">
+        `;
+
+        // 日志内容
+        if (data.additional_notes) {
+            html += `
+                <div class="mb-6">
+                    <h4 class="font-medium text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-blue-600 text-lg">description</span>
+                        {{ _('日志内容') }}
+                    </h4>
+                    <div class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 text-sm text-slate-700 dark:text-slate-300">
+                        ${renderMentionContent(data.additional_notes)}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 已完成工作
+        if (data.completed_items && data.completed_items.length > 0) {
+            html += `
+                <div class="mb-6">
+                    <h4 class="font-medium text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-green-600 text-lg">check_circle</span>
+                        {{ _('已完成工作') }}
+                    </h4>
+                    <div class="space-y-2">
+                        ${data.completed_items.map(item => renderWorkItem(item, 'green')).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 未完成工作
+        if (data.pending_items && data.pending_items.length > 0) {
+            html += `
+                <div class="mb-6">
+                    <h4 class="font-medium text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-amber-600 text-lg">pending</span>
+                        {{ _('未完成工作') }}
+                    </h4>
+                    <div class="space-y-2">
+                        ${data.pending_items.map(item => renderWorkItem(item, 'amber')).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 行动记录
+        const activities = data.activities || {};
+        const totalActivities = (activities.summary?.total_created || 0) + (activities.summary?.total_updated || 0);
+        if (totalActivities > 0) {
+            html += renderActivities(activities);
+        }
+
+        // 附件
+        if (data.attachments && data.attachments.length > 0) {
+            html += `
+                <div class="mb-6">
+                    <h4 class="font-medium text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-slate-600 text-lg">attach_file</span>
+                        {{ _('附件') }}
+                    </h4>
+                    <div class="flex flex-wrap gap-2">
+                        ${data.attachments.map((att, idx) => `
+                            <div class="w-8 h-8 rounded bg-slate-100 dark:bg-slate-700 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
+                                 onclick="window['previewWorklogFile_${modalId}']('${data.log_date}', ${idx}, '${escapeHtml(att.filename)}')"
+                                 title="${escapeHtml(att.filename)}">
+                                <span class="material-symbols-outlined text-lg ${att.type?.includes('pdf') ? 'text-red-500' : 'text-primary'}">
+                                    ${att.type?.includes('pdf') ? 'picture_as_pdf' : 'image'}
+                                </span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 评论区（仅已提交日志显示）
+        if (data.status === 'submitted') {
+            html += `
+                <div class="flex-1 flex flex-col">
+                    <h4 class="font-medium text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-blue-600 text-lg">chat</span>
+                        {{ _('评论') }}
+                        <span id="${modalId}-comment-count" class="text-sm text-slate-400"></span>
+                    </h4>
+
+                    <!-- 评论列表 -->
+                    <div id="${modalId}-comments-list" class="space-y-2 flex-1 max-h-48 overflow-y-auto">
+                        <div class="text-center py-4">
+                            <div class="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                        </div>
+                    </div>
+
+                    <!-- 评论输入框 -->
+                    <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                        <textarea id="${modalId}-comment-input"
+                                  class="form-input w-full resize rounded-lg text-slate-800 dark:text-slate-200 focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-primary/80 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm font-normal leading-normal p-3"
+                                  placeholder="{{ _('输入评论...') }}"
+                                  rows="2"
+                                  onkeydown="if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); window['submitWorklogComment_${modalId}'](); }"></textarea>
+                        <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">{{ _('按 Enter 发送，Shift+Enter 换行') }}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        html += `
+                </div><!-- 右侧内容区域结束 -->
+            </div><!-- 左右两栏布局结束 -->
+        `;
+
+        return html;
+    }
+
+    /**
+     * 渲染工作项
+     */
+    function renderWorkItem(item, colorName) {
+        const color = item.color || (colorName === 'green' ? '#22c55e' : '#f59e0b');
+        const typeLabel = workTypeLabels[item.work_type] || item.work_type;
+        const opacity = item.is_invalidated ? 'opacity-50' : '';
+        const lineThrough = item.is_invalidated ? 'line-through' : '';
+
+        return `
+            <div class="border-l-2 border-${colorName}-500 pl-3 py-2 bg-${colorName}-50/50 dark:bg-${colorName}-900/10 rounded-r-lg ${opacity}">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-xs px-2 py-0.5 rounded font-medium" style="background-color: ${color}20; color: ${color}">
+                        ${escapeHtml(typeLabel)}
+                    </span>
+                    <span class="font-medium text-slate-900 dark:text-white ${lineThrough}">
+                        ${escapeHtml(item.title)}
+                    </span>
+                    ${item.actual_hours ? `<span class="text-sm text-slate-500">${parseFloat(item.actual_hours).toFixed(1)}h</span>` : ''}
+                    ${item.estimated_hours && !item.actual_hours ? `<span class="text-sm text-slate-500">{{ _('预计') }} ${item.estimated_hours}h</span>` : ''}
+                </div>
+                ${item.description ? `<p class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">${escapeHtml(item.description)}</p>` : ''}
+            </div>
+        `;
+    }
+
+    /**
+     * 渲染行动记录
+     */
+    function renderActivities(activities) {
+        let html = `
+            <div class="mb-6">
+                <h4 class="font-medium text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-purple-600 text-lg">history</span>
+                    {{ _('行动记录') }}
+                </h4>
+                <div class="space-y-2">
+        `;
+
+        // 客户
+        if ((activities.customers?.created?.length || 0) + (activities.customers?.updated?.length || 0) > 0) {
+            html += renderActivityModule('business', '{{ _("客户") }}', 'blue', activities.customers);
+        }
+
+        // 联系人
+        if ((activities.contacts?.created?.length || 0) + (activities.contacts?.updated?.length || 0) > 0) {
+            html += renderActivityModule('person', '{{ _("联系人") }}', 'cyan', activities.contacts);
+        }
+
+        // 项目
+        if ((activities.projects?.created?.length || 0) + (activities.projects?.updated?.length || 0) > 0) {
+            html += renderActivityModule('folder', '{{ _("项目") }}', 'purple', activities.projects);
+        }
+
+        // 报价单
+        if ((activities.quotations?.created?.length || 0) + (activities.quotations?.updated?.length || 0) > 0) {
+            html += renderActivityModule('request_quote', '{{ _("报价单") }}', 'amber', activities.quotations);
+        }
+
+        // 批价单
+        if ((activities.orders?.created?.length || 0) + (activities.orders?.updated?.length || 0) > 0) {
+            html += renderActivityModule('shopping_cart', '{{ _("批价单") }}', 'green', activities.orders);
+        }
+
+        html += `
+                </div>
+            </div>
+        `;
+
+        return html;
+    }
+
+    /**
+     * 渲染单个行动模块
+     */
+    function renderActivityModule(icon, label, colorName, data) {
+        const created = data?.created || [];
+        const updated = data?.updated || [];
+
+        let items = '';
+        created.forEach(item => {
+            items += `<span class="inline-flex items-center gap-1 px-2 py-1 bg-${colorName}-100 dark:bg-${colorName}-900/30 text-${colorName}-700 dark:text-${colorName}-300 rounded text-xs">${escapeHtml(item.name)}</span>`;
+        });
+        updated.forEach(item => {
+            items += `<span class="inline-flex items-center gap-1 px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded text-xs">${escapeHtml(item.name)}</span>`;
+        });
+
+        return `
+            <div class="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                <div class="flex items-center gap-2 w-20 flex-shrink-0">
+                    <span class="material-symbols-outlined text-${colorName}-600 text-lg">${icon}</span>
+                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">${label}</span>
+                </div>
+                <div class="flex flex-wrap gap-2 flex-1">${items}</div>
+            </div>
+        `;
+    }
+
+    /**
+     * 渲染@提及内容
+     */
+    function renderMentionContent(content) {
+        if (!content) return '';
+        // 简单的HTML转义和换行处理
+        let html = escapeHtml(content);
+        html = html.replace(/\n/g, '<br>');
+        // 处理@提及（如果有renderMentionPreview函数）
+        if (typeof renderMentionPreview === 'function') {
+            return renderMentionPreview(content, '/user/detail/{id}', '/project/{id}', '/quotation/{id}');
+        }
+        return html;
+    }
+
+    /**
+     * HTML转义
+     */
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    /**
+     * 加载评论
+     */
+    async function loadComments(logDate, ownerId) {
+        loadingComments = true;
+        try {
+            const url = `/worklog/api/daily/${logDate}/comments?owner_id=${ownerId}`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.success) {
+                comments = data.data || [];
+            } else {
+                console.error('评论加载失败:', data.message);
+            }
+        } catch (e) {
+            console.error('加载评论失败:', e);
+        } finally {
+            loadingComments = false;
+        }
+    }
+
+    /**
+     * 渲染评论列表
+     */
+    function renderComments() {
+        const listEl = document.getElementById(modalId + '-comments-list');
+        const countEl = document.getElementById(modalId + '-comment-count');
+
+        if (countEl) {
+            countEl.textContent = comments.length > 0 ? `(${comments.length})` : '';
+        }
+
+        if (!listEl) return;
+
+        if (comments.length === 0) {
+            listEl.innerHTML = `
+                <div class="text-center py-4 text-sm text-slate-400 dark:text-slate-500">
+                    {{ _('暂无评论') }}
+                </div>
+            `;
+            return;
+        }
+
+        listEl.innerHTML = comments.map(comment => `
+            <div class="py-2 border-b border-slate-100 dark:border-slate-700 last:border-0">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs font-medium text-slate-600 dark:text-slate-300">${escapeHtml(comment.owner_name)}</span>
+                    <span class="text-xs text-slate-400 dark:text-slate-500">${formatRelativeTime(comment.created_at)}</span>
+                    ${comment.can_delete ? `
+                        <button onclick="window['confirmDeleteComment_${modalId}'](${comment.id})"
+                                class="text-slate-400 hover:text-red-500 ml-auto transition-colors"
+                                title="{{ _('删除') }}">
+                            <span class="material-symbols-outlined text-base">delete</span>
+                        </button>
+                    ` : ''}
+                </div>
+                <p class="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words">${escapeHtml(comment.content)}</p>
+            </div>
+        `).join('');
+    }
+
+    /**
+     * 提交评论
+     */
+    window['submitWorklogComment_' + modalId] = async function() {
+        const inputEl = document.getElementById(modalId + '-comment-input');
+        if (!inputEl) return;
+
+        const content = inputEl.value.trim();
+        if (!content || submittingComment || !currentLogData) return;
+
+        submittingComment = true;
+        inputEl.disabled = true;
+
+        try {
+            const response = await fetch(`/worklog/api/daily/${currentLogData.log_date}/comments`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                },
+                body: JSON.stringify({
+                    content,
+                    owner_id: currentOwnerId
+                })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                inputEl.value = '';
+                comments.unshift(data.data);  // 新评论添加到开头（最新的在顶部）
+                renderComments();
+                window.TwNotification?.show('{{ _("评论成功") }}', 'success');
+            } else {
+                window.TwNotification?.show(data.message || '{{ _("评论失败") }}', 'error');
+            }
+        } catch (e) {
+            console.error('提交评论失败:', e);
+            window.TwNotification?.show('{{ _("网络错误") }}', 'error');
+        } finally {
+            submittingComment = false;
+            inputEl.disabled = false;
+        }
+    };
+
+    /**
+     * 确认删除评论
+     */
+    window['confirmDeleteComment_' + modalId] = function(commentId) {
+        deletingCommentId = commentId;
+        if (typeof openConfirmModal === 'function') {
+            openConfirmModal(modalId + 'DeleteCommentModal', {
+                onConfirm: function() {
+                    window['deleteWorklogComment_' + modalId](deletingCommentId);
+                }
+            });
+        }
+    };
+
+    /**
+     * 删除评论
+     */
+    window['deleteWorklogComment_' + modalId] = async function(commentId) {
+        try {
+            const response = await fetch(`/worklog/api/comments/${commentId}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                }
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                comments = comments.filter(c => c.id !== commentId);
+                renderComments();
+                window.TwNotification?.show('{{ _("删除成功") }}', 'success');
+            } else {
+                window.TwNotification?.show(data.message || '{{ _("删除失败") }}', 'error');
+            }
+        } catch (e) {
+            console.error('删除评论失败:', e);
+            window.TwNotification?.show('{{ _("网络错误") }}', 'error');
+        }
+    };
+
+    /**
+     * 预览附件
+     */
+    window['previewWorklogFile_' + modalId] = function(logDate, index, filename) {
+        const previewUrl = `/worklog/api/daily/${logDate}/preview-attachment/${index}`;
+        const fileModalId = modalId + 'FileModal';
+        if (window['previewFile_' + fileModalId]) {
+            window['previewFile_' + fileModalId](previewUrl, filename, previewUrl);
+        }
+    };
+
+    /**
+     * 标记日志为已读
+     */
+    async function markLogAsRead(logDate, ownerId) {
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            await fetch(`/worklog/api/daily/${logDate}/mark-read?owner_id=${ownerId}`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+        } catch (e) {
+            console.warn('标记已读失败:', e);
+        }
+    }
+
+    // ESC 关闭
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById(modalId);
+            if (modal && !modal.classList.contains('hidden')) {
+                window['closeWorklogPreview_' + modalId]();
+            }
+        }
+    });
+})();
+</script>
+{% endmacro %}

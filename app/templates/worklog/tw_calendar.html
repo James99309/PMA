@@ -447,14 +447,41 @@
             <div class="flex items-center gap-2">
                 <!-- 账户选择器（管理员/CEO/部门负责人显示） -->
                 {% if current_user.role in ['admin', 'ceo'] or current_user.is_department_manager %}
-                <select x-model="selectedAccountId" @change="onAccountChange()"
-                        x-show="availableAccounts.length > 0" x-cloak
-                        class="h-10 px-3 pr-8 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
-                    <option value="">{{ _('我的日历') }}</option>
-                    <template x-for="account in availableAccounts" :key="account.id">
-                        <option :value="account.id" x-text="account.name"></option>
-                    </template>
-                </select>
+                <!-- 自定义账户选择器 -->
+                <div class="relative" x-data="{ showAccountMenu: false }" x-show="availableAccounts.length > 0" x-cloak>
+                    <!-- 触发按钮 -->
+                    <button type="button" @click="showAccountMenu = !showAccountMenu"
+                            class="flex items-center gap-2 h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                        <span class="text-slate-900 dark:text-white"
+                              x-text="selectedAccountId ? availableAccounts.find(a => a.id == selectedAccountId)?.name : '{{ _('我的日历') }}'">
+                        </span>
+                        <span class="material-symbols-outlined text-sm text-slate-400 transition-transform"
+                              :class="showAccountMenu ? 'rotate-180' : ''">expand_more</span>
+                    </button>
+
+                    <!-- 下拉菜单 -->
+                    <div x-show="showAccountMenu" x-transition
+                         @click.away="showAccountMenu = false"
+                         class="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 py-1 z-50 max-h-64 overflow-y-auto">
+                        <!-- 我的日历选项 -->
+                        <button type="button" @click="selectedAccountId = ''; onAccountChange(); showAccountMenu = false"
+                                class="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700"
+                                :class="selectedAccountId === '' ? 'text-primary font-medium' : 'text-slate-900 dark:text-white'">
+                            {{ _('我的日历') }}
+                        </button>
+                        <!-- 账户列表 -->
+                        <template x-for="account in availableAccounts" :key="account.id">
+                            <button type="button"
+                                    @click="selectedAccountId = String(account.id); onAccountChange(); showAccountMenu = false"
+                                    class="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700"
+                                    :class="account.has_unread
+                                        ? 'text-slate-900 dark:text-white font-medium'
+                                        : 'text-slate-400 dark:text-slate-500'"
+                                    x-text="account.name">
+                            </button>
+                        </template>
+                    </div>
+                </div>
                 {% endif %}
                 <button type="button" @click="openCreateModal()"
                         :disabled="selectedAccountId !== ''"
@@ -2726,8 +2753,8 @@ function workCalendar() {
 
                 if (data.success) {
                     this.newComment = '';
-                    // 添加新评论到列表
-                    this.comments.push(data.data);
+                    // 添加新评论到列表顶部（最新的在前）
+                    this.comments.unshift(data.data);
                     window.TwNotification?.show('{{ _("评论成功") }}', 'success');
                 } else {
                     window.TwNotification?.show(data.message || '{{ _("评论失败") }}', 'error');

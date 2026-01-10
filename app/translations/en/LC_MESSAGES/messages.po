@@ -6476,6 +6476,12 @@ msgstr "Yes/No"
 msgid "映射"
 msgstr "Mapping"
 
+msgid "编码映射"
+msgstr "Code Mapping"
+
+msgid "查看编码映射"
+msgstr "View Code Mapping"
+
 msgid "可选择或输入"
 msgstr "Select or enter"
 
