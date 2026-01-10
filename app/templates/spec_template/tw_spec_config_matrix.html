@@ -96,14 +96,8 @@
             position: sticky;
             left: 0;
             z-index: 10;
-            white-space: nowrap;
         }
         .sticky-col-2 {
-            position: sticky;
-            z-index: 10;
-            white-space: nowrap;
-        }
-        .sticky-col-3 {
             position: sticky;
             z-index: 10;
             white-space: nowrap;
@@ -326,14 +320,11 @@
                         <table class="matrix-table">
                             <thead class="bg-slate-50 dark:bg-slate-800/80">
                                 <tr>
-                                    <th class="sticky-col bg-slate-50 dark:bg-slate-800/80 px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                    <th class="sticky-col bg-slate-50 dark:bg-slate-800/80 px-3 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">
                                         {{ _('规格名称') }}
                                     </th>
-                                    <th class="sticky-col-2 bg-slate-50 dark:bg-slate-800/80 px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                    <th class="sticky-col-2 bg-slate-50 dark:bg-slate-800/80 px-2 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">
                                         {{ _('单位') }}
-                                    </th>
-                                    <th class="sticky-col-3 bg-slate-50 dark:bg-slate-800/80 px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                        {{ _('通用值') }}
                                     </th>
                                     {% for config in configurations %}
                                     <th id="config-col-{{ config.id }}"
@@ -370,7 +361,7 @@
                                 <!-- 分类标题行 -->
                                 <tr x-show="activeCategory === 'all' || activeCategory === {{ category.id }}"
                                     class="bg-slate-100 dark:bg-slate-700/50">
-                                    <td colspan="3" class="sticky-category-title px-4 py-2">
+                                    <td colspan="2" class="sticky-category-title px-3 py-2">
                                         <span class="text-sm font-semibold text-slate-700 dark:text-slate-300">{{ category.name }}</span>
                                         {% if category.name_en %}
                                         <span class="text-xs text-slate-500 dark:text-slate-400 ml-2">{{ category.name_en }}</span>
@@ -384,7 +375,7 @@
                                 {% for item in cat_items %}
                                 <tr x-show="activeCategory === 'all' || activeCategory === {{ category.id }}"
                                     class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                                    <td class="sticky-col bg-white dark:bg-slate-800 px-4 py-2">
+                                    <td class="sticky-col bg-white dark:bg-slate-800 px-3 py-2">
                                         <div class="flex items-start gap-2">
                                             <div class="flex-1">
                                                 <p class="text-sm font-medium text-slate-900 dark:text-white">{{ item.definition.name }}</p>
@@ -401,23 +392,8 @@
                                             {% endif %}
                                         </div>
                                     </td>
-                                    <td class="sticky-col-2 bg-white dark:bg-slate-800 px-4 py-2 text-sm text-slate-600 dark:text-slate-300">
+                                    <td class="sticky-col-2 bg-white dark:bg-slate-800 px-2 py-2 text-sm text-slate-600 dark:text-slate-300">
                                         {{ item.definition.unit or '-' }}
-                                    </td>
-                                    <td class="sticky-col-3 bg-white dark:bg-slate-800 px-4 py-2 text-sm text-slate-900 dark:text-white">
-                                        <div class="flex items-center gap-1">
-                                            <span class="flex-1">{{ item.general_value or '-' }}</span>
-                                            {% if item.definition.allow_attachment %}
-                                            <button type="button"
-                                                    class="attachment-btn inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
-                                                    data-item-id="{{ item.id }}"
-                                                    data-type="template"
-                                                    @click="openAttachmentModal({{ item.id }}, null, '{{ item.definition.name }}')"
-                                                    title="{{ _('管理附件') }}">
-                                                <span class="material-symbols-outlined text-base text-slate-400 attachment-icon" data-item-id="{{ item.id }}" data-type="template">attach_file</span>
-                                            </button>
-                                            {% endif %}
-                                        </div>
                                     </td>
                                     {% for config in configurations %}
                                     <td class="px-1 py-1">
@@ -741,21 +717,39 @@
     // ============================================
     // 固定列宽度计算（页面加载时执行一次）
     // ============================================
-    function initStickyColumnWidths() {
-        let maxCol1 = 0, maxCol2 = 0, maxCol3 = 0;
 
-        // 只计算没有 colspan 的单元格
-        document.querySelectorAll('.sticky-col:not([colspan])').forEach(el => {
-            maxCol1 = Math.max(maxCol1, el.offsetWidth);
+    // 使用 canvas 测量文本实际宽度
+    function measureTextWidth(text, font) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.font = font;
+        return ctx.measureText(text).width;
+    }
+
+    function initStickyColumnWidths() {
+        let maxCol1 = 0, maxCol2 = 0;
+
+        // 规格名称列：使用 canvas 测量每个 <p> 的文本实际宽度
+        const pElements = document.querySelectorAll('.sticky-col:not([colspan]) p');
+        pElements.forEach(p => {
+            const text = p.textContent.trim();
+            const style = window.getComputedStyle(p);
+            const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+            const textWidth = measureTextWidth(text, font);
+            if (textWidth > maxCol1) {
+                maxCol1 = textWidth;
+            }
         });
+
+        // 加上 padding(px-3=12px*2) + gap(gap-2=8px) + 徽章(约24px) + 安全边距(4px)
+        maxCol1 = Math.ceil(maxCol1) + 60;
+
+        // 单位列保持原逻辑（offsetWidth）
         document.querySelectorAll('.sticky-col-2:not([colspan])').forEach(el => {
             maxCol2 = Math.max(maxCol2, el.offsetWidth);
         });
-        document.querySelectorAll('.sticky-col-3:not([colspan])').forEach(el => {
-            maxCol3 = Math.max(maxCol3, el.offsetWidth);
-        });
 
-        // 设置固定宽度 + left 位置
+        // 设置固定宽度 + left 位置（同时设置 width/minWidth/maxWidth 强制固定）
         document.querySelectorAll('.sticky-col').forEach(el => {
             if (!el.hasAttribute('colspan')) {
                 el.style.width = maxCol1 + 'px';
@@ -769,15 +763,9 @@
             el.style.maxWidth = maxCol2 + 'px';
             el.style.left = maxCol1 + 'px';
         });
-        document.querySelectorAll('.sticky-col-3').forEach(el => {
-            el.style.width = maxCol3 + 'px';
-            el.style.minWidth = maxCol3 + 'px';
-            el.style.maxWidth = maxCol3 + 'px';
-            el.style.left = (maxCol1 + maxCol2) + 'px';
-        });
 
-        // 分类标题行（colspan=3）限制宽度，防止撑开列
-        const totalWidth = maxCol1 + maxCol2 + maxCol3;
+        // 分类标题行（colspan=2）限制宽度，防止撑开列
+        const totalWidth = maxCol1 + maxCol2;
         document.querySelectorAll('.sticky-category-title').forEach(el => {
             el.style.width = totalWidth + 'px';
             el.style.minWidth = totalWidth + 'px';

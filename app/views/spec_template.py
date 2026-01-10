@@ -1087,7 +1087,7 @@ def api_list_configurations(template_id):
     configurations = ProductConfiguration.query.filter_by(
         template_id=template_id,
         is_active=True
-    ).order_by(ProductConfiguration.created_at.desc()).all()
+    ).order_by(ProductConfiguration.display_order.asc()).all()
 
     return jsonify({
         'success': True,
@@ -1325,18 +1325,8 @@ def api_copy_configuration(config_id):
     db.session.add(new_config)
     db.session.flush()
 
-    # 复制规格值
-    for cv in config.config_values:
-        new_cv = ProductConfigValue(
-            configuration_id=new_config.id,
-            template_item_id=cv.template_item_id,
-            value=cv.value,
-            notes=cv.notes
-        )
-        db.session.add(new_cv)
-
-    # 生成 MN 编码
-    new_config.mn_code = generate_mn_code(new_config)
+    # 不复制规格值：新配置的所有规格项都显示默认值（灰色），用户修改后保存（黑色）
+    # MN编码保持为空，等待用户编辑时生成
 
     db.session.commit()
 
@@ -1344,6 +1334,31 @@ def api_copy_configuration(config_id):
         'success': True,
         'message': _('配置版本复制成功'),
         'data': new_config.to_dict()
+    })
+
+
+@spec_template_bp.route('/api/<int:template_id>/configurations/order', methods=['PUT'])
+@login_required
+@permission_required('rd_product', 'edit')
+def api_update_configurations_order(template_id):
+    """API: 更新配置版本排序"""
+    data = request.get_json() or {}
+    order_list = data.get('order', [])  # [id1, id2, id3...]
+
+    if not order_list:
+        return jsonify({'success': False, 'message': _('排序数据不能为空')}), 400
+
+    # 批量更新排序
+    for index, config_id in enumerate(order_list):
+        config = ProductConfiguration.query.get(config_id)
+        if config and config.template_id == template_id:
+            config.display_order = index
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': _('排序已保存')
     })
 
 

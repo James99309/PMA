@@ -533,3 +533,38 @@ class WorkLog(db.Model):
         if 0 <= index < len(attachments):
             return attachments[index]
         return None
+
+
+class WorkLogComment(db.Model):
+    """工作日志评论模型"""
+    __tablename__ = 'worklog_comments'
+
+    id = Column(Integer, primary_key=True)
+
+    # 关联的日志
+    worklog_id = Column(Integer, ForeignKey('worklogs.id'), nullable=False, index=True)
+    worklog = relationship('WorkLog', backref='comments')
+
+    # 评论内容
+    content = Column(Text, nullable=False)
+
+    # 评论者
+    owner_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    owner = relationship('User', backref='worklog_comments')
+
+    # 系统字段
+    created_at = Column(DateTime, default=get_local_time, index=True)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
+    is_deleted = Column(Boolean, default=False)
+
+    def to_dict(self):
+        """转换为字典"""
+        return {
+            'id': self.id,
+            'worklog_id': self.worklog_id,
+            'content': self.content,
+            'owner_id': self.owner_id,
+            'owner_name': self.owner.real_name or self.owner.username if self.owner else None,
+            'created_at': self.created_at.strftime('%Y-%m-%dT%H:%M:%SZ') if self.created_at else None,
+            'can_delete': False  # 由 API 动态设置
+        }

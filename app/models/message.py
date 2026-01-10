@@ -568,3 +568,39 @@ class Message(db.Model):
                 'amount': float(quotation.amount) if quotation.amount else 0
             }
         )
+
+    # ========== 日志评论通知相关方法 ==========
+
+    @classmethod
+    def create_worklog_comment(cls, sender_id, recipient_id, worklog, comment_content):
+        """创建日志评论通知
+
+        Args:
+            sender_id: 发送者用户ID（评论者）
+            recipient_id: 接收者用户ID（日志作者）
+            worklog: WorkLog 对象
+            comment_content: 评论内容（用于预览）
+
+        Returns:
+            Message: 创建的消息对象（未提交到数据库）
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+
+        # 截取评论内容预览（最多100字符）
+        content_preview = comment_content[:100] + ('...' if len(comment_content) > 100 else '')
+
+        return cls(
+            message_type='worklog_comment',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 评论了你的日志',
+            content=content_preview,
+            related_object_type='worklog',
+            related_object_id=worklog.id,
+            extra_data={
+                'log_date': worklog.log_date.isoformat() if worklog.log_date else None,
+                'log_type': worklog.log_type
+            }
+        )

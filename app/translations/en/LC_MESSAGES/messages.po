@@ -7611,3 +7611,82 @@ msgstr "Partner"
 
 msgid "用户"
 msgstr "User"
+
+# 日志评论相关翻译
+msgid "评论"
+msgstr "Comments"
+
+msgid "暂无评论"
+msgstr "No comments yet"
+
+msgid "输入评论..."
+msgstr "Enter comment..."
+
+msgid "发送"
+msgstr "Send"
+
+msgid "发送中..."
+msgstr "Sending..."
+
+msgid "评论成功"
+msgstr "Comment added"
+
+msgid "评论失败"
+msgstr "Failed to add comment"
+
+msgid "删除成功"
+msgstr "Deleted"
+
+msgid "删除失败"
+msgstr "Failed to delete"
+
+msgid "确定要删除这条评论吗？"
+msgstr "Are you sure you want to delete this comment?"
+
+msgid "评论内容不能为空"
+msgstr "Comment content cannot be empty"
+
+msgid "日志不存在或未提交"
+msgstr "Log does not exist or is not submitted"
+
+msgid "无权评论此日志"
+msgstr "No permission to comment on this log"
+
+msgid "无权查看此日志评论"
+msgstr "No permission to view comments"
+
+msgid "无权删除此评论"
+msgstr "No permission to delete this comment"
+
+msgid "评论不存在"
+msgstr "Comment not found"
+
+msgid "加载评论失败"
+msgstr "Failed to load comments"
+
+msgid "提交评论失败"
+msgstr "Failed to submit comment"
+
+msgid "删除评论失败"
+msgstr "Failed to delete comment"
+
+msgid "刚刚"
+msgstr "Just now"
+
+msgid "分钟前"
+msgstr " minutes ago"
+
+msgid "小时前"
+msgstr " hours ago"
+
+msgid "天前"
+msgstr " days ago"
+
+msgid "个月前"
+msgstr " months ago"
+
+msgid "年前"
+msgstr " years ago"
+
+msgid "按 Enter 发送，Shift+Enter 换行"
+msgstr "Press Enter to send, Shift+Enter for new line"

@@ -1708,3 +1708,169 @@ def get_today_status():
         'pending_items': pending_items,
         'log_submitted': not log_not_submitted
     })
+
+
+# ===== 日志评论 API =====
+
+def can_view_worklog(user, worklog):
+    """检查用户是否可以查看日志"""
+    # 自己的日志
+    if worklog.owner_id == user.id:
+        return True
+
+    # 管理员/CEO 可以查看所有
+    if user.role in ['admin', 'ceo']:
+        return True
+
+    # 部门负责人可以查看本部门成员日志
+    if user.is_department_manager:
+        log_owner = User.query.get(worklog.owner_id)
+        if log_owner and log_owner.department == user.department and log_owner.company_name == user.company_name:
+            return True
+
+    # 可以查看下属的日志
+    subordinate_ids = get_subordinate_user_ids(user)
+    if worklog.owner_id in subordinate_ids:
+        return True
+
+    return False
+
+
+@worklog.route('/api/daily/<log_date>/comments', methods=['GET'])
+@login_required
+def get_worklog_comments(log_date):
+    """获取日志评论列表"""
+    try:
+        target_date = datetime.strptime(log_date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'success': False, 'message': _('日期格式无效')}), 400
+
+    # 获取 owner_id 参数（查看他人日志时使用）
+    owner_id = request.args.get('owner_id', type=int)
+    target_user_id = owner_id if owner_id else current_user.id
+
+    # 查找日志
+    worklog_obj = WorkLog.query.filter_by(
+        owner_id=target_user_id,
+        log_date=target_date,
+        log_type='daily'
+    ).first()
+
+    if not worklog_obj:
+        return jsonify({'success': True, 'data': []})
+
+    # 权限检查：只有能查看日志的人才能看评论
+    if not can_view_worklog(current_user, worklog_obj):
+        return jsonify({'success': False, 'message': _('无权查看此日志评论')}), 403
+
+    # 获取评论（排除已删除的）
+    from app.models.worklog import WorkLogComment
+    comments = WorkLogComment.query.filter(
+        WorkLogComment.worklog_id == worklog_obj.id,
+        WorkLogComment.is_deleted == False
+    ).order_by(WorkLogComment.created_at.asc()).all()
+
+    # 转换为字典并设置 can_delete 权限
+    result = []
+    for comment in comments:
+        data = comment.to_dict()
+        data['can_delete'] = (
+            current_user.id == comment.owner_id or
+            current_user.role in ['admin', 'ceo']
+        )
+        result.append(data)
+
+    return jsonify({
+        'success': True,
+        'data': result
+    })
+
+
+@worklog.route('/api/daily/<log_date>/comments', methods=['POST'])
+@login_required
+def add_worklog_comment(log_date):
+    """添加日志评论"""
+    try:
+        target_date = datetime.strptime(log_date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'success': False, 'message': _('日期格式无效')}), 400
+
+    data = request.get_json() or {}
+    content = data.get('content', '').strip()
+
+    if not content:
+        return jsonify({'success': False, 'message': _('评论内容不能为空')}), 400
+
+    # 获取 owner_id 参数
+    owner_id = data.get('owner_id') or request.args.get('owner_id', type=int)
+    target_user_id = owner_id if owner_id else current_user.id
+
+    # 查找日志（必须是已提交的日志才能评论）
+    worklog_obj = WorkLog.query.filter_by(
+        owner_id=target_user_id,
+        log_date=target_date,
+        log_type='daily',
+        status='submitted'
+    ).first()
+
+    if not worklog_obj:
+        return jsonify({'success': False, 'message': _('日志不存在或未提交')}), 404
+
+    # 权限检查：只有能查看日志的人才能评论
+    if not can_view_worklog(current_user, worklog_obj):
+        return jsonify({'success': False, 'message': _('无权评论此日志')}), 403
+
+    # 创建评论
+    from app.models.worklog import WorkLogComment
+    comment = WorkLogComment(
+        worklog_id=worklog_obj.id,
+        content=content,
+        owner_id=current_user.id
+    )
+    db.session.add(comment)
+
+    # 发送消息通知给日志作者（如果评论者不是作者本人）
+    if current_user.id != worklog_obj.owner_id:
+        from app.models.message import Message
+        msg = Message.create_worklog_comment(
+            sender_id=current_user.id,
+            recipient_id=worklog_obj.owner_id,
+            worklog=worklog_obj,
+            comment_content=content
+        )
+        db.session.add(msg)
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': _('评论成功'),
+        'data': {
+            **comment.to_dict(),
+            'can_delete': True  # 刚创建的评论自己可以删除
+        }
+    })
+
+
+@worklog.route('/api/comments/<int:comment_id>', methods=['DELETE', 'POST'])
+@login_required
+def delete_worklog_comment(comment_id):
+    """删除日志评论"""
+    from app.models.worklog import WorkLogComment
+    comment = WorkLogComment.query.get(comment_id)
+
+    if not comment or comment.is_deleted:
+        return jsonify({'success': False, 'message': _('评论不存在')}), 404
+
+    # 权限检查：评论者本人或管理员可删除
+    if comment.owner_id != current_user.id and current_user.role not in ['admin', 'ceo']:
+        return jsonify({'success': False, 'message': _('无权删除此评论')}), 403
+
+    # 软删除
+    comment.is_deleted = True
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': _('删除成功')
+    })

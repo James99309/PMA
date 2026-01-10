@@ -18,6 +18,7 @@
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script>
         tailwind.config = {
             darkMode: "class",
@@ -94,20 +95,22 @@
         {% if page_slot == 'content' %}
             <div x-data="configManager()">
                 <!-- 配置版本列表 -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                <div id="configurationsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                     {% for config in template.configurations if config.is_active %}
-                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-lg transition-shadow">
+                    <div data-config-id="{{ config.id }}" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-lg transition-shadow group">
                         <a href="{{ url_for('spec_template.spec_config_matrix_page', template_id=template.id) }}?config_id={{ config.id }}" class="block p-5 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                             <!-- 头部 -->
                             <div class="flex items-start justify-between mb-4">
                                 <div>
                                     <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ config.config_code }}</h3>
-                                    {% if config.region %}
-                                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                                    <p class="text-sm mt-0.5 {% if config.region %}text-slate-500 dark:text-slate-400{% else %}text-slate-400 dark:text-slate-500{% endif %}">
                                         <span class="material-symbols-outlined align-middle mr-1" style="font-size: 14px;">location_on</span>
+                                        {% if config.region %}
                                         {% for r in region_options %}{% if r.value == config.region %}{{ r.label }}{% endif %}{% endfor %}
+                                        {% else %}
+                                        <span class="italic">{{ _('未设置区域') }}</span>
+                                        {% endif %}
                                     </p>
-                                    {% endif %}
                                 </div>
                                 {% set is_chinese = session.get('language', 'zh') == 'zh' %}
                                 {% set status_badges = {
@@ -125,9 +128,10 @@
 
                             <!-- 信息 -->
                             <div class="space-y-2 mb-4">
-                                {% if config.mn_code %}
-                                <div class="flex items-center text-sm {% if config.mn_locked %}text-amber-600 dark:text-amber-400{% else %}text-slate-600 dark:text-slate-400{% endif %}">
+                                <!-- MN编码行始终显示 -->
+                                <div class="flex items-center text-sm {% if config.mn_locked %}text-amber-600 dark:text-amber-400{% elif config.mn_code %}text-slate-600 dark:text-slate-400{% else %}text-slate-400 dark:text-slate-500{% endif %}">
                                     <span class="material-symbols-outlined mr-2" style="font-size: 18px;">qr_code</span>
+                                    {% if config.mn_code %}
                                     <span>MN: {{ config.mn_code }}</span>
                                     {% if config.mn_locked %}
                                     <span class="ml-1" title="{{ _('MN编码已锁定（可生产/停产状态）') }}">
@@ -136,8 +140,10 @@
                                         </svg>
                                     </span>
                                     {% endif %}
+                                    {% else %}
+                                    <span class="italic">MN: {{ _('待生成') }}</span>
+                                    {% endif %}
                                 </div>
-                                {% endif %}
                                 {% if config.power_spec %}
                                 <div class="flex items-center text-sm text-slate-600 dark:text-slate-400">
                                     <span class="material-symbols-outlined mr-2" style="font-size: 18px;">bolt</span>
@@ -160,7 +166,16 @@
                         </a>
 
                         <!-- 操作栏 -->
-                        <div class="px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end gap-2">
+                        <div class="px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                            <!-- 拖动把手 -->
+                            {% if has_permission('rd_product', 'edit') %}
+                            <div class="drag-handle cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span class="material-symbols-outlined text-slate-400 hover:text-slate-600 dark:hover:text-slate-300" style="font-size: 20px;">drag_indicator</span>
+                            </div>
+                            {% else %}
+                            <div></div>
+                            {% endif %}
+                            <div class="flex items-center gap-2">
                             {% if has_permission('rd_product', 'edit') %}
                             <button type="button" onclick="openEditConfigModal({{ config.id }})"
                                class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
@@ -182,6 +197,7 @@
                                 <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
                             </button>
                             {% endif %}
+                            </div>
                         </div>
                     </div>
                     {% else %}
@@ -457,6 +473,7 @@
     <script>
     const TEMPLATE_ID = {{ template.id }};
     const API_BASE = '{{ url_for("spec_template.list_templates") }}api';
+    const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
 
     function configManager() {
         return {
@@ -806,6 +823,45 @@
             submitBtn.textContent = '{{ _("导入") }}';
         }
     }
+
+    // 初始化拖动排序
+    document.addEventListener('DOMContentLoaded', function() {
+        const grid = document.getElementById('configurationsGrid');
+        if (grid && typeof Sortable !== 'undefined') {
+            new Sortable(grid, {
+                animation: 150,
+                ghostClass: 'opacity-50',
+                handle: '.drag-handle',
+                onEnd: async function(evt) {
+                    // 获取新顺序
+                    const cards = grid.querySelectorAll('[data-config-id]');
+                    const order = Array.from(cards).map(card => parseInt(card.dataset.configId));
+
+                    // 保存到服务器
+                    try {
+                        const response = await fetch(`${API_BASE}/${TEMPLATE_ID}/configurations/order`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': CSRF_TOKEN
+                            },
+                            body: JSON.stringify({ order })
+                        });
+
+                        const result = await response.json();
+                        if (result.success) {
+                            showToast(result.message || '{{ _("排序已保存") }}');
+                        } else {
+                            showToast(result.message || '{{ _("保存排序失败") }}', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error saving order:', error);
+                        showToast('{{ _("保存排序失败") }}', 'error');
+                    }
+                }
+            });
+        }
+    });
     </script>
 </body>
 </html>

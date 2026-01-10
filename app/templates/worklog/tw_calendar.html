@@ -903,7 +903,7 @@
                                     </div>
 
                                     <!-- 右侧：内容区域 -->
-                                    <div class="flex-1 min-w-0">
+                                    <div class="flex-1 min-w-0 flex flex-col">
                                 <!-- 日志内容 -->
                                 <div class="mb-6" x-show="logData.additional_notes">
                                     <h4 class="font-medium text-slate-900 dark:text-white mb-3 flex items-center gap-2">
@@ -1122,6 +1122,57 @@
                                         </template>
                                     </div>
                                 </div>
+
+                                <!-- 评论区（仅已提交日志显示） -->
+                                <div class="flex-1 flex flex-col" x-show="logData.status === 'submitted'">
+                                    <h4 class="font-medium text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                                        <span class="material-symbols-outlined text-blue-600 text-lg">chat</span>
+                                        {{ _('评论') }}
+                                        <span class="text-sm text-slate-400" x-show="comments.length > 0" x-text="'(' + comments.length + ')'"></span>
+                                    </h4>
+
+                                    <!-- 评论列表 -->
+                                    <div class="space-y-2 flex-1 max-h-48 overflow-y-auto" id="worklogCommentsContainer">
+                                        <!-- 加载中状态 -->
+                                        <div x-show="loadingComments" class="text-center py-4">
+                                            <div class="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                                        </div>
+
+                                        <!-- 评论项（简约样式） -->
+                                        <template x-for="comment in comments" :key="comment.id">
+                                            <div class="py-2 border-b border-slate-100 dark:border-slate-700 last:border-0">
+                                                <div class="flex items-center gap-2 mb-1">
+                                                    <span class="text-xs font-medium text-slate-600 dark:text-slate-300" x-text="comment.owner_name"></span>
+                                                    <span class="text-xs text-slate-400 dark:text-slate-500" x-text="formatRelativeTime(comment.created_at)"></span>
+                                                    <button x-show="comment.can_delete"
+                                                            @click="confirmDeleteComment(comment.id)"
+                                                            class="text-slate-400 hover:text-red-500 ml-auto transition-colors"
+                                                            :title="'{{ _('删除') }}'">
+                                                        <span class="material-symbols-outlined text-base">delete</span>
+                                                    </button>
+                                                </div>
+                                                <p class="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words" x-text="comment.content"></p>
+                                            </div>
+                                        </template>
+
+                                        <!-- 无评论提示 -->
+                                        <div x-show="!loadingComments && comments.length === 0"
+                                             class="text-center py-4 text-sm text-slate-400 dark:text-slate-500">
+                                            {{ _('暂无评论') }}
+                                        </div>
+                                    </div>
+
+                                    <!-- 评论输入框 -->
+                                    <div class="mt-3 pt-3" :class="comments.length > 0 ? 'border-t border-slate-200 dark:border-slate-700' : ''">
+                                        <textarea x-model="newComment"
+                                                  class="form-input w-full resize rounded-lg text-slate-800 dark:text-slate-200 focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-primary/80 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm font-normal leading-normal p-3"
+                                                  :placeholder="'{{ _('输入评论...') }}'"
+                                                  rows="2"
+                                                  @keydown.enter.prevent="if (!$event.shiftKey && newComment.trim()) submitComment()"
+                                                  :disabled="submittingComment"></textarea>
+                                        <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">{{ _('按 Enter 发送，Shift+Enter 换行') }}</p>
+                                    </div>
+                                </div>
                                     </div><!-- 右侧内容区域结束 -->
                                 </div><!-- 左右两栏布局结束 -->
                             </div>
@@ -1211,6 +1262,16 @@
             confirm_text=_('确认'),
             cancel_text=_('取消'),
             variant='success'
+        ) }}
+
+        <!-- ==================== 删除评论确认模态框 ==================== -->
+        {{ tw_confirm_modal(
+            modal_id='deleteCommentConfirmModal',
+            title=_('确认删除'),
+            message=_('确定要删除这条评论吗？'),
+            confirm_text=_('删除'),
+            cancel_text=_('取消'),
+            variant='danger'
         ) }}
 
         <!-- ==================== 共享用户选择器模态框 ==================== -->
@@ -1311,6 +1372,12 @@ function workCalendar() {
         availableAccounts: [],    // 可见账户列表
         // 工作类型标签映射（使用后端传递的已翻译数据）
         workTypeLabels: {{ work_type_labels_json | tojson | safe }},
+        // 评论相关状态
+        comments: [],
+        newComment: '',
+        loadingComments: false,
+        submittingComment: false,
+        currentUserInitials: '{{ current_user.real_name[:2] if current_user.real_name else current_user.username[:1].upper() }}',
 
         init() {
             this.initCalendar();
@@ -2340,6 +2407,13 @@ function workCalendar() {
                     if (this.selectedAccountId && this.datesWithUnreadLogs.has(dateStr)) {
                         this.markLogAsRead(dateStr);
                     }
+
+                    // 如果是已提交的日志，加载评论
+                    if (this.logData.status === 'submitted') {
+                        this.$nextTick(() => {
+                            this.loadComments();
+                        });
+                    }
                 } else { window.TwNotification?.show(data.message || '{{ _("加载失败") }}', 'error'); }
             } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
         },
@@ -2357,6 +2431,11 @@ function workCalendar() {
             if (this.fileUploadInstance) {
                 this.fileUploadInstance.clearPendingFiles();
             }
+            // 清理评论数据
+            this.comments = [];
+            this.newComment = '';
+            this.loadingComments = false;
+            this.submittingComment = false;
         },
 
         // 进入预览模式前，先同步编辑器内容和 mention 数据
@@ -2563,6 +2642,136 @@ function workCalendar() {
                     }
                 }
             });
+        },
+
+        // ===== 评论相关方法 =====
+
+        // 获取姓名缩写
+        getInitials(name) {
+            if (!name) return '?';
+            if (/[\u4e00-\u9fff]/.test(name)) {
+                return name.substring(0, 2);
+            }
+            return name.charAt(0).toUpperCase();
+        },
+
+        // 格式化相对时间（复用 tw_action_replies 暴露的全局函数，如果不存在则本地实现）
+        formatRelativeTime(dateStr) {
+            if (window.formatRelativeTime) {
+                return window.formatRelativeTime(dateStr);
+            }
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffSec = Math.floor(diffMs / 1000);
+            const diffMin = Math.floor(diffSec / 60);
+            const diffHour = Math.floor(diffMin / 60);
+            const diffDay = Math.floor(diffHour / 24);
+            const diffMonth = Math.floor(diffDay / 30);
+            const diffYear = Math.floor(diffDay / 365);
+
+            if (diffSec < 60) return '{{ _("刚刚") }}';
+            if (diffMin < 60) return `${diffMin}{{ _("分钟前") }}`;
+            if (diffHour < 24) return `${diffHour}{{ _("小时前") }}`;
+            if (diffDay < 30) return `${diffDay}{{ _("天前") }}`;
+            if (diffMonth < 12) return `${diffMonth}{{ _("个月前") }}`;
+            return `${diffYear}{{ _("年前") }}`;
+        },
+
+        // 加载评论列表
+        async loadComments() {
+            if (!this.logData.log_date || this.logData.status !== 'submitted') {
+                this.comments = [];
+                return;
+            }
+
+            this.loadingComments = true;
+            try {
+                const ownerId = this.isReadonlyLog ? this.logData.owner_id : '';
+                const url = `/worklog/api/daily/${this.logData.log_date}/comments${ownerId ? '?owner_id=' + ownerId : ''}`;
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.success) {
+                    this.comments = data.data || [];
+                }
+            } catch (e) {
+                console.error('{{ _("加载评论失败") }}:', e);
+            } finally {
+                this.loadingComments = false;
+            }
+        },
+
+        // 提交评论
+        async submitComment() {
+            const content = this.newComment.trim();
+            if (!content || this.submittingComment) return;
+
+            this.submittingComment = true;
+            try {
+                const ownerId = this.isReadonlyLog ? this.logData.owner_id : null;
+                const response = await fetch(`/worklog/api/daily/${this.logData.log_date}/comments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    },
+                    body: JSON.stringify({
+                        content,
+                        owner_id: ownerId
+                    })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    this.newComment = '';
+                    // 添加新评论到列表
+                    this.comments.push(data.data);
+                    window.TwNotification?.show('{{ _("评论成功") }}', 'success');
+                } else {
+                    window.TwNotification?.show(data.message || '{{ _("评论失败") }}', 'error');
+                }
+            } catch (e) {
+                console.error('{{ _("提交评论失败") }}:', e);
+                window.TwNotification?.show('{{ _("网络错误") }}', 'error');
+            } finally {
+                this.submittingComment = false;
+            }
+        },
+
+        // 确认删除评论
+        confirmDeleteComment(commentId) {
+            const self = this;
+            openConfirmModal('deleteCommentConfirmModal', {
+                onConfirm: function() {
+                    self.deleteComment(commentId);
+                }
+            });
+        },
+
+        // 删除评论
+        async deleteComment(commentId) {
+            try {
+                const response = await fetch(`/worklog/api/comments/${commentId}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    }
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    // 从列表中移除
+                    this.comments = this.comments.filter(c => c.id !== commentId);
+                    window.TwNotification?.show('{{ _("删除成功") }}', 'success');
+                } else {
+                    window.TwNotification?.show(data.message || '{{ _("删除失败") }}', 'error');
+                }
+            } catch (e) {
+                console.error('{{ _("删除评论失败") }}:', e);
+                window.TwNotification?.show('{{ _("网络错误") }}', 'error');
+            }
         }
     };
 }

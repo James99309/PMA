@@ -174,7 +174,8 @@ class SpecTemplate(db.Model):
     subcategory = relationship("ProductSubcategory", foreign_keys=[subcategory_id])
     items = relationship("SpecTemplateItem", back_populates="template", cascade="all, delete-orphan",
                           order_by="SpecTemplateItem.display_order")
-    configurations = relationship("ProductConfiguration", back_populates="template", cascade="all, delete-orphan")
+    configurations = relationship("ProductConfiguration", back_populates="template", cascade="all, delete-orphan",
+                                   order_by="ProductConfiguration.display_order")
 
     def __repr__(self):
         return f"<SpecTemplate {self.model}>"
@@ -303,6 +304,7 @@ class ProductConfiguration(db.Model):
     power_cord_type = Column(String(50))  # 电源线类型
     notes = Column(Text)  # 备注
     is_active = Column(Boolean, default=True)
+    display_order = Column(Integer, default=0)  # 显示顺序，用于拖动排序
     created_by = Column(Integer, ForeignKey('users.id'))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -369,6 +371,7 @@ class ProductConfiguration(db.Model):
             'power_cord_type': self.power_cord_type,
             'notes': self.notes,
             'is_active': self.is_active,
+            'display_order': self.display_order,
             'created_by': self.created_by,
             'creator_name': self.creator.real_name if self.creator else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
