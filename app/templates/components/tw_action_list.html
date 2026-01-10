@@ -129,9 +129,9 @@ Tailwind 行动记录列表组件
 
 {% if layout == 'table' %}
 {# ===================== 表格布局（客户详情页风格） ===================== #}
-<div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm {{ container_class }}">
+<div class="p-4 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm {{ container_class }}">
     <div class="flex items-center justify-between">
-        <h1 class="text-xl font-bold text-slate-800 dark:text-slate-200">{{ display_title }}</h1>
+        <h1 class="text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-200">{{ display_title }}</h1>
         {% if add_button %}
             {% if add_button.onclick %}
             <button type="button" onclick="{{ add_button.onclick }}" class="text-primary text-sm font-medium hover:underline">{{ _('添加记录') }}</button>
@@ -152,9 +152,31 @@ Tailwind 行动记录列表组件
 
                 <!-- 行动记录行 -->
                 <div class="action-record-row" id="action-row-{{ action.id }}">
-                    <div class="py-4 {% if enable_replies %}cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50{% endif %} -mx-4 px-4 action-row-header"
+                    <div class="py-3 sm:py-4 {% if enable_replies %}cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50{% endif %} -mx-4 px-4 action-row-header"
                          data-action-id="{{ action.id }}" data-container-id="{{ container_id }}">
-                        <div class="grid grid-cols-[150px_1fr_100px_auto] gap-x-4 items-center">
+                        <!-- 移动端布局 -->
+                        <div class="sm:hidden">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="flex items-center gap-2 min-w-0 flex-1">
+                                    {{ render_tw_owner_badge(action.owner, size='sm') }}
+                                    <div class="font-semibold text-slate-800 dark:text-slate-200 text-sm truncate">{{ contact_name }}</div>
+                                </div>
+                                <div class="flex items-center gap-1 flex-shrink-0">
+                                    <div class="text-xs text-slate-400 dark:text-slate-500 relative-time" data-timestamp="{{ action.created_at.isoformat() if action.created_at else '' }}"></div>
+                                    {% if enable_replies %}
+                                    {% if reply_count > 0 %}
+                                    <span class="flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full">{{ reply_count }}</span>
+                                    {% endif %}
+                                    <span class="material-symbols-outlined text-slate-400 dark:text-slate-500 text-base expand-icon transition-transform duration-200">expand_more</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="text-slate-500 dark:text-slate-400 text-xs mt-1 line-clamp-2">
+                                {% if project_name %}<span class="text-slate-700 dark:text-slate-300">{{ project_name }}: </span>{% endif %}{{ action.communication|truncate(80) }}
+                            </div>
+                        </div>
+                        <!-- 桌面端布局 -->
+                        <div class="hidden sm:grid grid-cols-[150px_1fr_100px_auto] gap-x-4 items-center">
                             <!-- 头像 + 联系人 -->
                             <div class="flex items-center gap-2 truncate">
                                 {{ render_tw_owner_badge(action.owner, size='md') }}
@@ -185,12 +207,22 @@ Tailwind 行动记录列表组件
 
                     {% if enable_replies %}
                     <!-- 展开的回复面板 -->
-                    <div class="hidden py-4 -mx-4 px-4 bg-slate-50 dark:bg-slate-800/50 action-reply-panel" id="action-panel-{{ action.id }}">
+                    <div class="hidden py-3 sm:py-4 -mx-4 px-4 bg-slate-50 dark:bg-slate-800/50 action-reply-panel" id="action-panel-{{ action.id }}">
                         <!-- 左侧竖线边框的回复区域 -->
-                        <div class="pl-6 border-l-2 border-slate-200 dark:border-slate-700">
+                        <div class="pl-3 sm:pl-6 border-l-2 border-slate-200 dark:border-slate-700">
                             <!-- 完整的行动记录内容 -->
                             <div class="mb-4">
-                                <div class="grid grid-cols-[150px_1fr_100px] gap-x-4 items-start">
+                                <!-- 移动端布局 -->
+                                <div class="sm:hidden">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        {{ render_tw_owner_badge(action.owner, size='sm') }}
+                                        <div class="font-semibold text-slate-800 dark:text-slate-200 text-sm truncate flex-1">{{ contact_name }}</div>
+                                        <div class="text-xs text-slate-400 dark:text-slate-500 relative-time" data-timestamp="{{ action.created_at.isoformat() if action.created_at else '' }}"></div>
+                                    </div>
+                                    <div class="text-slate-600 dark:text-slate-400 text-sm whitespace-pre-wrap">{{ action.communication }}</div>
+                                </div>
+                                <!-- 桌面端布局 -->
+                                <div class="hidden sm:grid grid-cols-[150px_1fr_100px] gap-x-4 items-start">
                                     <div class="flex items-center gap-2 truncate">
                                         {{ render_tw_owner_badge(action.owner, size='md') }}
                                         <div class="font-semibold text-slate-800 dark:text-slate-200 truncate">{{ contact_name }}</div>
@@ -286,9 +318,9 @@ Tailwind 行动记录列表组件
 {% else %}
 {# ===================== 卡片布局（原有样式） ===================== #}
 <div class="lg:col-span-1 {{ container_class }}">
-    <div class="lg:sticky lg:top-4 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 p-6 flex flex-col" style="max-height: calc(100vh - 80px); min-height: {{ min_height }};">
-        <div class="flex justify-between items-center mb-6 flex-shrink-0">
-            <h2 class="text-lg font-semibold text-slate-800 dark:text-white">{{ display_title }}</h2>
+    <div class="lg:sticky lg:top-4 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 p-4 sm:p-6 flex flex-col" style="max-height: calc(100vh - 80px); min-height: {{ min_height }};">
+        <div class="flex justify-between items-center mb-4 sm:mb-6 flex-shrink-0">
+            <h2 class="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">{{ display_title }}</h2>
             {% if add_button %}
                 {% if add_button.onclick %}
                 <button type="button" onclick="{{ add_button.onclick }}" class="text-primary text-sm font-medium hover:underline">{{ _('添加记录') }}</button>

@@ -819,6 +819,84 @@ Tailwind 工作记录组件
         // 实际项目中可以通过返回值更新
     }
 
+    // ========== 移动端滚动方向锁定 ==========
+    function initScrollLock() {
+        const tableWrapper = elements.tableWrapper();
+        if (!tableWrapper) return;
+
+        let startX = 0;
+        let startY = 0;
+        let startScrollLeft = 0;
+        let startScrollTop = 0;
+        let scrollDirection = null; // 'horizontal' or 'vertical'
+        let isScrolling = false;
+
+        tableWrapper.addEventListener('touchstart', function(e) {
+            startX = e.touches[0].pageX;
+            startY = e.touches[0].pageY;
+            startScrollLeft = tableWrapper.scrollLeft;
+            startScrollTop = tableWrapper.scrollTop;
+            scrollDirection = null;
+            isScrolling = true;
+            // 重置为双向滚动
+            tableWrapper.style.overflowX = 'auto';
+            tableWrapper.style.overflowY = 'auto';
+        }, { passive: true });
+
+        tableWrapper.addEventListener('touchmove', function(e) {
+            if (!isScrolling) return;
+
+            const currentX = e.touches[0].pageX;
+            const currentY = e.touches[0].pageY;
+            const deltaX = Math.abs(currentX - startX);
+            const deltaY = Math.abs(currentY - startY);
+
+            // 首次确定方向（需要移动超过5px）
+            if (!scrollDirection && (deltaX > 5 || deltaY > 5)) {
+                if (deltaX > deltaY * 1.5) {
+                    scrollDirection = 'horizontal';
+                    tableWrapper.style.overflowY = 'hidden';
+                    // 锁定垂直位置
+                    tableWrapper.scrollTop = startScrollTop;
+                } else if (deltaY > deltaX * 1.5) {
+                    scrollDirection = 'vertical';
+                    tableWrapper.style.overflowX = 'hidden';
+                    // 锁定水平位置
+                    tableWrapper.scrollLeft = startScrollLeft;
+                } else {
+                    // 方向不明确时，默认垂直滚动
+                    scrollDirection = 'vertical';
+                    tableWrapper.style.overflowX = 'hidden';
+                    tableWrapper.scrollLeft = startScrollLeft;
+                }
+            }
+
+            // 持续锁定位置
+            if (scrollDirection === 'horizontal') {
+                tableWrapper.scrollTop = startScrollTop;
+            } else if (scrollDirection === 'vertical') {
+                tableWrapper.scrollLeft = startScrollLeft;
+            }
+        }, { passive: true });
+
+        tableWrapper.addEventListener('touchend', function() {
+            isScrolling = false;
+            // 延迟恢复双向滚动，避免惯性滚动问题
+            setTimeout(function() {
+                tableWrapper.style.overflowX = 'auto';
+                tableWrapper.style.overflowY = 'auto';
+                scrollDirection = null;
+            }, 100);
+        }, { passive: true });
+
+        tableWrapper.addEventListener('touchcancel', function() {
+            isScrolling = false;
+            tableWrapper.style.overflowX = 'auto';
+            tableWrapper.style.overflowY = 'auto';
+            scrollDirection = null;
+        }, { passive: true });
+    }
+
     // ========== 列宽拖拽调整功能 ==========
     // 计算表头文字的实际渲染宽度
     function getTextWidth(text, font) {
@@ -890,6 +968,7 @@ Tailwind 工作记录组件
     function fullInit() {
         init();
         initColumnResizers();
+        initScrollLock();
     }
 
     if (document.readyState === 'loading') {

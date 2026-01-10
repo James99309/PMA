@@ -105,7 +105,7 @@ Tailwind 用户选择器模态框组件
 
     <!-- 模态框内容 -->
     <div class="flex min-h-full items-center justify-center p-4">
-        <div class="relative bg-white dark:bg-slate-900 rounded-lg shadow-2xl w-full {{ 'max-w-3xl' if mode == 'multi' else 'max-w-lg' }} transform transition-all"
+        <div class="relative bg-white dark:bg-slate-900 rounded-lg shadow-2xl w-full max-w-[95vw] {{ 'sm:max-w-3xl' if mode == 'multi' else 'sm:max-w-lg' }} max-h-[90vh] overflow-hidden flex flex-col transform transition-all"
              x-show="open"
              x-transition:enter="ease-out duration-300"
              x-transition:enter-start="opacity-0 scale-95"
@@ -116,8 +116,8 @@ Tailwind 用户选择器模态框组件
              @click.stop>
 
             <!-- 头部 -->
-            <div class="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
-                <h3 class="text-xl font-semibold text-slate-800 dark:text-white">{{ title }}</h3>
+            <div class="flex items-center justify-between p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <h3 class="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white">{{ title }}</h3>
                 <button @click="open = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                     <span class="material-symbols-outlined">close</span>
                 </button>
@@ -125,7 +125,7 @@ Tailwind 用户选择器模态框组件
 
             {% if mode == 'multi' %}
             {# ==================== 多选模式 ==================== #}
-            <div class="p-6">
+            <div class="p-4 sm:p-6 flex-1 overflow-y-auto">
                 {% if show_share_toggle %}
                 <!-- 启用共享复选框 -->
                 <div class="mb-6">
@@ -139,8 +139,8 @@ Tailwind 用户选择器模态框组件
                 </div>
                 {% endif %}
 
-                <!-- 两列布局 -->
-                <div {{ 'x-show="shareEnabled" x-transition' if show_share_toggle else '' }} class="grid grid-cols-2 gap-6">
+                <!-- 两列布局（移动端单列） -->
+                <div {{ 'x-show="shareEnabled" x-transition' if show_share_toggle else '' }} class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                     <!-- 左列：用户选择树 -->
                     <div>
                         <p class="text-sm text-slate-600 dark:text-slate-400 mb-2">{{ _('选择用户') }}:</p>
@@ -156,7 +156,7 @@ Tailwind 用户选择器模态框组件
                         {% endif %}
 
                         <!-- 搜索结果（扁平化显示） -->
-                        <div x-show="isSearchMode" class="border border-slate-200 dark:border-slate-700 rounded-md h-80 overflow-y-auto">
+                        <div x-show="isSearchMode" class="border border-slate-200 dark:border-slate-700 rounded-md h-48 sm:h-80 overflow-y-auto">
                             <ul class="text-sm text-slate-800 dark:text-slate-200">
                                 <template x-for="user in flatFilteredUsers" :key="'flat-' + user.id">
                                     <li class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 last:border-b-0">
@@ -182,7 +182,7 @@ Tailwind 用户选择器模态框组件
                         </div>
 
                         <!-- 树形结构（非搜索模式） -->
-                        <div x-show="!isSearchMode" class="border border-slate-200 dark:border-slate-700 rounded-md h-80 overflow-y-auto">
+                        <div x-show="!isSearchMode" class="border border-slate-200 dark:border-slate-700 rounded-md h-48 sm:h-80 overflow-y-auto">
                             <ul class="text-sm text-slate-800 dark:text-slate-200">
                                 <template x-for="company in filteredUsersTree" :key="company.id">
                                     <li class="border-b border-slate-200 dark:border-slate-700 last:border-b-0"
@@ -285,7 +285,7 @@ Tailwind 用户选择器模态框组件
                     <!-- 右列：已选用户（紧凑徽章样式） -->
                     <div>
                         <p class="text-sm text-slate-600 dark:text-slate-400 mb-2">{{ _('已选择') }}:</p>
-                        <div class="min-h-[10rem] max-h-80 overflow-y-auto bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md p-3 flex flex-wrap gap-2 content-start">
+                        <div class="min-h-[6rem] sm:min-h-[10rem] max-h-48 sm:max-h-80 overflow-y-auto bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md p-3 flex flex-wrap gap-2 content-start">
                             {% if locked_users %}
                             <!-- 锁定用户（部门默认，带锁图标） -->
                             <template x-for="user in lockedUsers" :key="'locked-' + user.id">
@@ -326,7 +326,7 @@ Tailwind 用户选择器模态框组件
             </div>
 
             <!-- 底部按钮 -->
-            <div class="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-b-lg flex justify-end space-x-4">
+            <div class="p-4 sm:p-6 bg-slate-50 dark:bg-slate-800/50 rounded-b-lg flex justify-end space-x-3 sm:space-x-4 flex-shrink-0">
                 <button @click="open = false"
                         class="bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">
                     {{ _('取消') }}
@@ -344,9 +344,9 @@ Tailwind 用户选择器模态框组件
 
             {% else %}
             {# ==================== 单选模式 ==================== #}
-            <form method="post" action="{{ form_action }}" @submit="submitting = true">
+            <form method="post" action="{{ form_action }}" @submit="submitting = true" class="flex-1 flex flex-col overflow-hidden">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="p-6">
+                <div class="p-4 sm:p-6 flex-1 overflow-y-auto">
                     {% if searchable %}
                     <!-- 搜索框 -->
                     <div class="mb-4">
@@ -360,7 +360,7 @@ Tailwind 用户选择器模态框组件
                     <input type="hidden" name="{{ field_name }}" :value="selectedUserId">
 
                     <!-- 搜索结果（扁平化显示） -->
-                    <div x-show="isSearchMode" class="border border-slate-200 dark:border-slate-700 rounded-md h-80 overflow-y-auto">
+                    <div x-show="isSearchMode" class="border border-slate-200 dark:border-slate-700 rounded-md h-60 sm:h-80 overflow-y-auto">
                         <ul class="text-sm text-slate-800 dark:text-slate-200">
                             <template x-for="user in flatFilteredUsers" :key="'flat-single-' + user.id">
                                 <li class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-200 dark:border-slate-700 last:border-b-0"
@@ -386,7 +386,7 @@ Tailwind 用户选择器模态框组件
                     </div>
 
                     <!-- 用户树形列表（非搜索模式） -->
-                    <div x-show="!isSearchMode" class="border border-slate-200 dark:border-slate-700 rounded-md h-80 overflow-y-auto">
+                    <div x-show="!isSearchMode" class="border border-slate-200 dark:border-slate-700 rounded-md h-60 sm:h-80 overflow-y-auto">
                         <ul class="text-sm text-slate-800 dark:text-slate-200">
                             <template x-for="company in filteredUsersTree" :key="company.id">
                                 <li class="border-b border-slate-200 dark:border-slate-700 last:border-b-0"
@@ -475,7 +475,7 @@ Tailwind 用户选择器模态框组件
                 </div>
 
                 <!-- 底部按钮 -->
-                <div class="flex justify-end gap-3 p-6 border-t border-slate-200 dark:border-slate-700">
+                <div class="flex justify-end gap-3 p-4 sm:p-6 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
                     <button type="button" @click="open = false"
                             class="px-4 py-2 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors">
                         {{ _('取消') }}

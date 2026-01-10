@@ -153,14 +153,14 @@ Slot 说明（v3.0简化）：
                     </div>
                     {% endif %}
                     <!-- 页面标题 -->
-                    <h1 class="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{{ title }}</h1>
+                    <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{{ title }}</h1>
                     {% if subtitle %}
-                    <p class="text-lg text-slate-500 dark:text-slate-400 mt-1">{{ subtitle }}</p>
+                    <p class="text-sm sm:text-lg text-slate-500 dark:text-slate-400 mt-1">{{ subtitle }}</p>
                     {% endif %}
                 </div>
 
                 <!-- 右侧按钮区域 -->
-                <div class="flex items-center gap-3 flex-shrink-0">
+                <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0 flex-wrap">
                     <!-- 1. 前后导航按钮（只显示有效方向，无边框） -->
                     {{ render_tw_prev_next_buttons(prev_url, next_url, _prev_title, _next_title) }}
 
@@ -170,7 +170,7 @@ Slot 说明（v3.0简化）：
                     {% if status_badges %}
                     <div class="flex items-center gap-2">
                         {% if show_status_label %}
-                        <span class="text-slate-600 dark:text-slate-400 text-sm">{{ _('状态') }}:</span>
+                        <span class="text-slate-600 dark:text-slate-400 text-sm hidden sm:inline">{{ _('状态') }}:</span>
                         {% endif %}
                         {{ status_badges|safe }}
                     </div>
@@ -198,14 +198,14 @@ Slot 说明（v3.0简化）：
                                 {% if action.id %}id="{{ action.id }}"{% endif %}
                                 class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors">
                                 {% if action.icon %}<span class="material-symbols-outlined text-lg">{{ action.icon }}</span>{% endif %}
-                                {{ action.label }}
+                                <span class="hidden sm:inline">{{ action.label }}</span>
                             </button>
                             {% elif btn_color == 'primary' %}
                             <button onclick="{{ action.onclick }}"
                                 {% if action.id %}id="{{ action.id }}"{% endif %}
                                 class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
                                 {% if action.icon %}<span class="material-symbols-outlined text-lg">{{ action.icon }}</span>{% endif %}
-                                {{ action.label }}
+                                <span class="hidden sm:inline">{{ action.label }}</span>
                             </button>
                             {% else %}
                             {{ tw_btn_outline(action.label, onclick=action.onclick, icon=action.icon, size='sm', color=btn_color, id=action.id) }}
@@ -338,14 +338,14 @@ Slot 说明（v3.0简化）：
                 </div>
                 {% endif %}
                 <!-- 页面标题 -->
-                <h1 class="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{{ title }}</h1>
+                <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{{ title }}</h1>
                 {% if subtitle %}
-                <p class="text-lg text-slate-500 dark:text-slate-400 mt-1">{{ subtitle }}</p>
+                <p class="text-sm sm:text-lg text-slate-500 dark:text-slate-400 mt-1">{{ subtitle }}</p>
                 {% endif %}
             </div>
 
             <!-- 右侧按钮区域 -->
-            <div class="flex items-center gap-3 flex-shrink-0">
+            <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0 flex-wrap">
                 <!-- 1. 前后导航按钮（只显示有效方向，无边框） -->
                 {{ render_tw_prev_next_buttons(prev_url, next_url, _prev_title, _next_title) }}
 
@@ -353,7 +353,7 @@ Slot 说明（v3.0简化）：
                 {% if status_badges %}
                 <div class="flex items-center gap-2">
                     {% if show_status_label %}
-                    <span class="text-slate-600 dark:text-slate-400 text-sm">{{ _('状态') }}:</span>
+                    <span class="text-slate-600 dark:text-slate-400 text-sm hidden sm:inline">{{ _('状态') }}:</span>
                     {% endif %}
                     {{ status_badges|safe }}
                 </div>
@@ -381,14 +381,14 @@ Slot 说明（v3.0简化）：
                             {% if action.id %}id="{{ action.id }}"{% endif %}
                             class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors">
                             {% if action.icon %}<span class="material-symbols-outlined text-lg">{{ action.icon }}</span>{% endif %}
-                            {{ action.label }}
+                            <span class="hidden sm:inline">{{ action.label }}</span>
                         </button>
                         {% elif btn_color == 'primary' %}
                         <button onclick="{{ action.onclick }}"
                             {% if action.id %}id="{{ action.id }}"{% endif %}
                             class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
                             {% if action.icon %}<span class="material-symbols-outlined text-lg">{{ action.icon }}</span>{% endif %}
-                            {{ action.label }}
+                            <span class="hidden sm:inline">{{ action.label }}</span>
                         </button>
                         {% else %}
                         {{ tw_btn_outline(action.label, onclick=action.onclick, icon=action.icon, size='sm', color=btn_color, id=action.id) }}

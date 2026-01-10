@@ -46,30 +46,35 @@ Tailwind 统一布局组件
      class="h-screen flex flex-col">
 
     <!-- 顶部固定区域 -->
-    <header class="h-16 flex items-center px-4 lg:px-6 bg-background-light dark:bg-black flex-shrink-0">
-        <!-- 左侧：Logo + 切换按钮 -->
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
+    <header class="fixed top-0 left-0 right-0 h-16 flex items-center px-4 lg:px-6 bg-background-light dark:bg-black z-30">
+        <!-- 左侧：Logo/菜单 + 切换按钮 -->
+        <div class="flex items-center gap-2 sm:gap-3">
+            <!-- 移动端：汉堡菜单按钮 -->
+            <button @click="sidebarCollapsed = !sidebarCollapsed"
+                    class="sm:hidden flex items-center justify-center w-10 h-10 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    :title="sidebarCollapsed ? '{{ _('展开侧边栏') }}' : '{{ _('收起侧边栏') }}'">
+                <span class="material-symbols-outlined text-2xl">menu</span>
+            </button>
+            <!-- 桌面端：Logo -->
+            <div class="hidden sm:flex w-10 h-10 bg-primary rounded-full items-center justify-center flex-shrink-0">
                 <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                 </svg>
             </div>
-            <h1 class="text-slate-900 dark:text-white text-base font-medium leading-normal whitespace-nowrap">PMA System</h1>
-            <!-- 收缩按钮 -->
+            <h1 class="text-slate-900 dark:text-white text-base font-medium leading-normal whitespace-nowrap">PMA<span class="hidden sm:inline"> System</span></h1>
+            <!-- 桌面端：收缩按钮 -->
             <button id="sidebarToggleBtn"
                     @click="sidebarCollapsed = !sidebarCollapsed"
-                    class="flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
+                    class="hidden sm:flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     :title="sidebarCollapsed ? '{{ _('展开侧边栏') }}' : '{{ _('收起侧边栏') }}'">
-                <!-- 展开状态：显示收起图标 -->
                 <span x-show="!sidebarCollapsed" class="material-symbols-outlined text-xl">left_panel_close</span>
-                <!-- 收起状态：显示展开图标 -->
                 <span x-show="sidebarCollapsed" class="material-symbols-outlined text-xl">left_panel_open</span>
             </button>
         </div>
 
         <!-- 中间：搜索框或占位符 -->
         {% if show_search %}
-        <div class="flex-1 flex justify-center px-4 lg:px-8">
+        <div class="flex-1 hidden sm:flex justify-center px-4 lg:px-8">
             <div class="flex flex-col w-full max-w-md h-10">
                 <div class="flex w-full flex-1 items-stretch rounded-lg h-full relative">
                     <div class="text-slate-500 dark:text-slate-400 flex border-none bg-white dark:bg-slate-800 items-center justify-center pl-4 rounded-l-lg">
@@ -88,13 +93,15 @@ Tailwind 统一布局组件
                 </div>
             </div>
         </div>
+        <!-- 移动端占位符 -->
+        <div class="flex-1 sm:hidden"></div>
         {% else %}
         <!-- 无搜索框时的占位符，确保右侧控件靠右 -->
         <div class="flex-1"></div>
         {% endif %}
 
         <!-- 右侧：语言、深色模式、其他按钮 -->
-        <div class="flex items-center gap-2 lg:gap-4">
+        <div class="flex items-center gap-1 sm:gap-2 lg:gap-4">
             <!-- 帮助/引导按钮 -->
             <button onclick="window.startOnboardingManually && window.startOnboardingManually()"
                     class="flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
@@ -115,10 +122,10 @@ Tailwind 统一布局组件
 
             <!-- 语言切换 -->
             <div class="relative" x-data="{ open: false }">
-                <button @click="open = !open" class="flex items-center gap-2 rounded-lg h-10 px-3 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
-                    <span class="material-symbols-outlined text-base">language</span>
+                <button @click="open = !open" class="flex items-center justify-center w-10 h-10 sm:w-auto sm:h-10 gap-1 sm:gap-2 rounded-lg sm:px-3 text-sm text-slate-500 dark:text-slate-400 sm:text-slate-600 sm:dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <span class="material-symbols-outlined text-xl sm:text-base">language</span>
                     <span id="currentLanguageText" class="hidden sm:inline">{{ _('简体中文') }}</span>
-                    <span :class="{'rotate-180': open}" class="material-symbols-outlined text-base transition-transform">expand_more</span>
+                    <span :class="{'rotate-180': open}" class="material-symbols-outlined text-base transition-transform hidden sm:inline">expand_more</span>
                 </button>
                 <div class="absolute top-full right-0 mt-2 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-2 z-50" x-show="open" x-transition x-cloak @click.away="open = false">
                     <a href="#" class="flex items-center justify-between px-3 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-sm language-option" data-lang="zh">
@@ -147,14 +154,27 @@ Tailwind 统一布局组件
     </header>
 
     <!-- 下方内容区域 -->
-    <div class="flex-1 flex overflow-hidden">
+    <div class="flex-1 flex overflow-hidden relative pt-16">
+        <!-- 移动端遮罩层 -->
+        <div x-show="!sidebarCollapsed"
+             @click="sidebarCollapsed = true"
+             class="fixed inset-0 bg-black/50 z-40 sm:hidden"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             x-cloak></div>
+
         <!-- 侧边栏 -->
-        <aside :class="sidebarCollapsed ? 'w-0' : 'w-64'"
-               class="overflow-hidden flex-shrink-0"
-               style="transition: width 350ms cubic-bezier(0.4, 0, 0.2, 1);">
-            <div class="w-64 h-full flex flex-col bg-background-light dark:bg-black">
+        <aside :class="sidebarCollapsed ? '-translate-x-full sm:translate-x-0 sm:w-0' : 'translate-x-0 sm:w-64'"
+               class="fixed sm:relative inset-y-0 left-0 w-64 z-50 sm:z-auto overflow-hidden flex-shrink-0 transform sm:transform-none"
+               style="transition: transform 300ms ease-in-out, width 350ms cubic-bezier(0.4, 0, 0.2, 1);">
+            <div class="w-64 h-full flex flex-col bg-background-light dark:bg-black border-r border-slate-200 dark:border-slate-800 sm:border-r-0">
                 <!-- 菜单区域 -->
-                <nav class="flex-1 p-4 overflow-y-auto flex flex-col gap-1">
+                <nav class="flex-1 p-4 overflow-y-auto flex flex-col gap-1"
+                     @click.capture="window.innerWidth < 640 && $event.target.closest('a[href]') && localStorage.setItem('sidebarCollapsed', 'true')">
                     {{ render_tw_nav_menu(active_page) }}
                 </nav>
 

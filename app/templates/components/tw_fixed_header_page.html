@@ -106,13 +106,13 @@ main.flex-1.overflow-y-auto {
 {% endcall %}
 #}
 {% macro render_tw_fixed_page(
-    header_padding='px-6 lg:px-8 pt-6 lg:pt-8 pb-4',
-    content_padding='px-6 lg:px-8 pb-6'
+    header_padding='px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 lg:pt-8 pb-3 sm:pb-4',
+    content_padding='px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6'
 ) %}
 <div class="flex-1 flex flex-col h-full overflow-hidden">
     <!-- 固定头部区域 -->
     <div class="flex-shrink-0 {{ header_padding }} bg-background-light dark:bg-black">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             {{ caller('header') }}
         </div>
     </div>

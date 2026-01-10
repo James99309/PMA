@@ -79,11 +79,11 @@ Tailwind 信息卡片组件
     footer=none
 ) %}
 {% set default_empty = empty_text or _('未指定') %}
-<div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 {{ card_class }}">
+<div class="p-4 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 {{ card_class }}">
     {% if title or (show_action and action_btn) %}
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center justify-between mb-3 sm:mb-4">
         {% if title %}
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ title }}</h3>
+        <h3 class="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">{{ title }}</h3>
         {% endif %}
         {% if show_action and action_btn %}
         {% if action_btn.href %}
@@ -211,11 +211,11 @@ Tailwind 信息卡片组件
     card_class=''
 ) %}
 {% set default_empty = empty_text or _('未指定') %}
-<div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 {{ card_class }}">
+<div class="p-4 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 {{ card_class }}">
     {% if title or (show_action and action_btn) %}
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center justify-between mb-3 sm:mb-4">
         {% if title %}
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ title }}</h3>
+        <h3 class="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">{{ title }}</h3>
         {% endif %}
         {% if show_action and action_btn %}
         {% if action_btn.href %}

@@ -42,6 +42,30 @@
         }
     </script>
     <style>
+        /* 禁用移动端橡皮筋效果/过度滚动 */
+        html, body {
+            overscroll-behavior: none;
+            overflow-x: hidden;  /* 禁用水平滚动 */
+            -webkit-overflow-scrolling: touch;
+        }
+        @media (max-width: 768px) {
+            html {
+                position: fixed;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+            }
+            body {
+                height: 100%;
+                overflow-y: auto;
+                overflow-x: hidden;
+            }
+            /* 日历区域允许JS处理滑动 */
+            #calendar {
+                touch-action: pan-y;
+            }
+        }
+
         /* ========================================
            日历事件颜色系统 - 9个大类颜色
            ======================================== */
@@ -431,6 +455,70 @@
             background-color: #22c55e;  /* 绿色 - 已提交(自己的日志) */
             box-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
         }
+
+        /* 移动端日历优化 */
+        @media (max-width: 768px) {
+            .fc .fc-daygrid-day {
+                min-height: 80px;  /* 移动端减小高度 */
+            }
+            .fc .fc-daygrid-day-frame {
+                padding: 0.25rem;
+            }
+            .fc .fc-toolbar {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                padding: 0.5rem 0;
+            }
+            .fc .fc-toolbar-chunk {
+                display: flex;
+                justify-content: center;
+            }
+            .fc .fc-toolbar-title {
+                font-size: 1rem;
+                font-weight: 600;
+            }
+            .fc .fc-button {
+                padding: 0.4rem 0.75rem;
+                font-size: 0.8rem;
+            }
+            /* 3天时间线视图优化 */
+            .fc .fc-timegrid-slot {
+                height: 2.5rem;  /* 时间槽高度 */
+            }
+            .fc .fc-timegrid-slot-label {
+                font-size: 0.7rem;
+            }
+            .fc .fc-col-header-cell {
+                padding: 0.5rem 0;
+                cursor: pointer;
+                transition: background-color 0.15s;
+            }
+            .fc .fc-col-header-cell:hover {
+                background-color: rgba(59, 130, 246, 0.1);
+            }
+            .fc .fc-col-header-cell:active {
+                background-color: rgba(59, 130, 246, 0.2);
+            }
+            .fc .fc-col-header-cell-cushion {
+                font-size: 0.85rem;
+                font-weight: 500;
+            }
+            .fc .fc-timegrid-event {
+                font-size: 0.75rem;
+                border-radius: 4px;
+            }
+            .fc .fc-timegrid-event .fc-event-title {
+                font-weight: 500;
+            }
+            /* 当前时间指示线 */
+            .fc .fc-timegrid-now-indicator-line {
+                border-color: #ef4444;
+                border-width: 2px;
+            }
+            .fc .fc-timegrid-now-indicator-arrow {
+                border-color: #ef4444;
+            }
+        }
     </style>
 </head>
 
@@ -501,9 +589,9 @@
         <!-- ==================== 工作项创建/编辑模态框 ==================== -->
         <div id="workItemModal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
             <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" @click="closeWorkItemModal()"></div>
-            <div class="fixed inset-0 flex items-center justify-center p-4">
-                <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh]">
-                    <header class="flex-shrink-0 flex items-center justify-between p-5">
+            <div class="fixed inset-0 flex items-center justify-center p-0 sm:p-4">
+                <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl sm:rounded-xl shadow-2xl w-full max-w-full sm:max-w-lg md:max-w-2xl max-h-full sm:max-h-[90vh]">
+                    <header class="flex-shrink-0 flex items-center justify-between p-4 sm:p-5">
                         <h3 class="text-xl font-semibold text-slate-900 dark:text-white" x-text="editingItem ? '{{ _('编辑工作项') }}' : '{{ _('创建工作项') }}'"></h3>
                     </header>
                     <div class="flex-1 overflow-y-auto p-6">
@@ -542,34 +630,16 @@
                                         <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('出差') }}</span>
                                     </label>
                                 </div>
-                                <div class="grid grid-cols-2 gap-4" x-show="!formData.is_all_day" x-transition>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" x-show="!formData.is_all_day" x-transition>
                                     <div>
                                         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('开始时间') }}</label>
-                                        <div class="flex items-center gap-1">
-                                            <select x-model="startHour" @change="formData.start_time = startHour + ':' + startMinute; calculateDuration()"
-                                                    class="flex-1 h-10 px-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
-                                                {% for h in range(24) %}<option value="{{ '%02d'|format(h) }}">{{ '%02d'|format(h) }}</option>{% endfor %}
-                                            </select>
-                                            <span class="text-slate-500 dark:text-slate-400 font-medium">:</span>
-                                            <select x-model="startMinute" @change="formData.start_time = startHour + ':' + startMinute; calculateDuration()"
-                                                    class="flex-1 h-10 px-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
-                                                <option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option>
-                                            </select>
-                                        </div>
+                                        <input type="time" x-model="formData.start_time" @change="calculateDuration()"
+                                               class="w-full h-11 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
                                     </div>
                                     <div>
                                         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('结束时间') }}</label>
-                                        <div class="flex items-center gap-1">
-                                            <select x-model="endHour" @change="formData.end_time = endHour + ':' + endMinute; calculateDuration()"
-                                                    class="flex-1 h-10 px-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
-                                                {% for h in range(24) %}<option value="{{ '%02d'|format(h) }}">{{ '%02d'|format(h) }}</option>{% endfor %}
-                                            </select>
-                                            <span class="text-slate-500 dark:text-slate-400 font-medium">:</span>
-                                            <select x-model="endMinute" @change="formData.end_time = endHour + ':' + endMinute; calculateDuration()"
-                                                    class="flex-1 h-10 px-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
-                                                <option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option>
-                                            </select>
-                                        </div>
+                                        <input type="time" x-model="formData.end_time" @change="calculateDuration()"
+                                               class="w-full h-11 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
                                     </div>
                                 </div>
                             </div>
@@ -722,9 +792,9 @@
         <!-- ==================== 工作项完成模态框 ==================== -->
         <div id="completeItemModal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
             <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" @click="closeCompleteModal()"></div>
-            <div class="fixed inset-0 flex items-center justify-center p-4">
-                <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh]">
-                    <header class="flex-shrink-0 flex items-center justify-between p-5">
+            <div class="fixed inset-0 flex items-center justify-center p-0 sm:p-4">
+                <div class="flex flex-col bg-white dark:bg-slate-900 rounded-none sm:rounded-xl shadow-2xl w-full max-w-full sm:max-w-lg max-h-full sm:max-h-[90vh]">
+                    <header class="flex-shrink-0 flex items-center justify-between p-4 sm:p-5">
                         <h3 class="text-xl font-semibold text-slate-900 dark:text-white">{{ _('完成工作项') }}</h3>
                     </header>
                     <div class="flex-1 overflow-y-auto p-6">
@@ -775,9 +845,9 @@
         <!-- ==================== 工作项查看模态框（只读） ==================== -->
         <div id="viewItemModal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
             <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" @click="closeViewModal()"></div>
-            <div class="fixed inset-0 flex items-center justify-center p-4">
-                <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh]">
-                    <header class="flex-shrink-0 flex items-center justify-between p-5">
+            <div class="fixed inset-0 flex items-center justify-center p-0 sm:p-4">
+                <div class="flex flex-col bg-white dark:bg-slate-900 rounded-none sm:rounded-xl shadow-2xl w-full max-w-full sm:max-w-lg max-h-full sm:max-h-[90vh]">
+                    <header class="flex-shrink-0 flex items-center justify-between p-4 sm:p-5">
                         <div class="flex items-center gap-3">
                             <h3 class="text-xl font-semibold text-slate-900 dark:text-white">
                                 <span x-show="!viewIsShared">{{ _('工作项详情') }}</span>
@@ -840,10 +910,10 @@
         <!-- ==================== 日志模态框 ==================== -->
         <div id="dailyLogModal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
             <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" @click="closeLogModal()"></div>
-            <div class="fixed inset-0 flex items-center justify-center p-4">
-                <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-h-[90vh]" :class="(logData.status === 'submitted' || logPreviewMode || isReadonlyLog) ? 'max-w-3xl' : 'max-w-2xl'">
+            <div class="fixed inset-0 flex items-center justify-center p-0 sm:p-4">
+                <div class="flex flex-col bg-white dark:bg-slate-900 rounded-none sm:rounded-xl shadow-2xl w-full max-h-full sm:max-h-[90vh]" :class="(logData.status === 'submitted' || logPreviewMode || isReadonlyLog) ? 'max-w-full sm:max-w-3xl' : 'max-w-full sm:max-w-2xl'">
                     <!-- 标题栏 -->
-                    <header class="flex-shrink-0 flex items-center justify-between px-5 py-4">
+                    <header class="flex-shrink-0 flex items-center justify-between px-4 sm:px-5 py-4">
                         <div>
                             <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
                                 <span x-text="isReadonlyLog ? logData.owner_display_name : logData.owner_name"></span> <span x-text="formatLogDate(logData.log_date)"></span> {{ _('的日志') }}
@@ -1362,8 +1432,6 @@ function workCalendar() {
         pendingFilesData: [],      // 待上传文件数据（响应式）
         saving: false,
         skipNextDateClick: false,  // 防止日期点击重复触发
-        startHour: '09', startMinute: '00',
-        endHour: '10', endMinute: '00',
         datesWithItems: new Set(),  // 有工作项的日期集合
         datesWithUnreadLogs: new Set(),  // 有未读日志的日期集合
         datesWithReadLogs: new Set(),    // 有已读日志的日期集合
@@ -1490,11 +1558,33 @@ function workCalendar() {
             const self = this;
             const currentLocale = '{{ session.get("language", "zh") }}' === 'zh' ? 'zh-cn' : 'en';
 
+            // 移动端使用3天时间线视图，类似飞书/钉钉体验
+            const isMobile = window.innerWidth < 768;
+            const defaultView = isMobile ? 'timeGridThreeDay' : 'dayGridMonth';
+
             this.calendar = new FullCalendar.Calendar(calendarEl, {
-                initialView: 'dayGridMonth',
+                initialView: defaultView,
                 locale: currentLocale,
-                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
+                // 自定义视图：3天时间线
+                views: {
+                    timeGridThreeDay: {
+                        type: 'timeGrid',
+                        duration: { days: 3 },
+                        buttonText: '{{ _("3天") }}'
+                    }
+                },
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: isMobile ? 'timeGridThreeDay' : 'dayGridMonth,timeGridWeek,timeGridDay'
+                },
                 buttonText: { today: '{{ _("今天") }}', month: '{{ _("月") }}', week: '{{ _("周") }}', day: '{{ _("日") }}' },
+                // 时间线视图配置
+                nowIndicator: true,  // 显示当前时间指示线
+                scrollTime: '08:00:00',  // 默认滚动到8点
+                slotMinTime: '06:00:00',  // 最早显示6点
+                slotMaxTime: '24:00:00',  // 最晚显示24点
+                slotDuration: isMobile ? '00:30:00' : '00:30:00',  // 时间槽间隔
                 eventSources: [{
                     url: '{{ url_for("worklog.get_items") }}',
                     success: function(response) {
@@ -1514,7 +1604,8 @@ function workCalendar() {
                 editable: true,
                 selectable: true,
                 selectMirror: true,
-                dayMaxEvents: 5,  // 每天最多显示5个事件
+                dayMaxEvents: isMobile ? 3 : 5,  // 移动端显示较少事件
+                height: isMobile ? 'calc(100vh - 180px)' : null,  // 移动端适配屏幕高度
                 dateClick: function(info) {
                     if (self.skipNextDateClick) {
                         self.skipNextDateClick = false;
@@ -1592,9 +1683,49 @@ function workCalendar() {
                         self.addLogIndicator(info.el, dateStr);
                     }
                     // 注：点击日期数字打开日志的逻辑已移至 dateClick 回调中
+                },
+                // 日期头部点击事件（用于3天时间线视图打开日志）
+                dayHeaderDidMount: function(info) {
+                    info.el.style.cursor = 'pointer';
+                    info.el.addEventListener('click', function(e) {
+                        // 阻止冒泡，避免触发其他点击事件
+                        e.stopPropagation();
+                        // 使用本地时间格式化日期
+                        const d = info.date;
+                        const dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                        self.openLogModal(dateStr);
+                    });
                 }
             });
             this.calendar.render();
+
+            // 移动端添加左右滑动切换日期功能
+            if (isMobile) {
+                let touchStartX = 0;
+                let touchStartY = 0;
+                const calendarEl = document.getElementById('calendar');
+
+                calendarEl.addEventListener('touchstart', (e) => {
+                    touchStartX = e.changedTouches[0].screenX;
+                    touchStartY = e.changedTouches[0].screenY;
+                }, { passive: true });
+
+                calendarEl.addEventListener('touchend', (e) => {
+                    const touchEndX = e.changedTouches[0].screenX;
+                    const touchEndY = e.changedTouches[0].screenY;
+                    const diffX = touchStartX - touchEndX;
+                    const diffY = touchStartY - touchEndY;
+
+                    // 确保是水平滑动（水平距离大于垂直距离）
+                    if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
+                        if (diffX > 0) {
+                            self.calendar.next();  // 左滑，下一页
+                        } else {
+                            self.calendar.prev();  // 右滑，上一页
+                        }
+                    }
+                }, { passive: true });
+            }
         },
 
         // 应用日期高亮样式
@@ -1689,8 +1820,6 @@ function workCalendar() {
         },
 
         resetFormData() {
-            this.startHour = '09'; this.startMinute = '00';
-            this.endHour = '10'; this.endMinute = '00';
             this.contacts = [];
             // 清空搜索状态
             this.projectSearchInput = '';
@@ -1940,9 +2069,11 @@ function workCalendar() {
             const WORK_END = 17 * 60 + 30;  // 17:30 = 1050分钟
             const DAILY_HOURS = 8.5;        // 每天有效工时
 
-            // 确保使用10进制解析（避免 parseInt('09') 问题）
-            const startMin = parseInt(this.startHour, 10) * 60 + parseInt(this.startMinute, 10);
-            const endMin = parseInt(this.endHour, 10) * 60 + parseInt(this.endMinute, 10);
+            // 从 formData.start_time/end_time 解析时间（格式 "HH:MM"）
+            const startParts = (this.formData.start_time || '09:00').split(':');
+            const endParts = (this.formData.end_time || '10:00').split(':');
+            const startMin = parseInt(startParts[0], 10) * 60 + parseInt(startParts[1], 10);
+            const endMin = parseInt(endParts[0], 10) * 60 + parseInt(endParts[1], 10);
 
             // 跨天任务
             if (this.formData.end_date && this.formData.planned_date && this.formData.end_date !== this.formData.planned_date) {
@@ -1976,12 +2107,13 @@ function workCalendar() {
         updateEndTime() {
             const hours = parseFloat(this.formData.estimated_hours);
             if (!isNaN(hours) && hours > 0) {
-                const start = parseInt(this.startHour, 10) * 60 + parseInt(this.startMinute, 10);
+                const startParts = (this.formData.start_time || '09:00').split(':');
+                const start = parseInt(startParts[0], 10) * 60 + parseInt(startParts[1], 10);
                 let end = start + hours * 60;
                 if (end > 1440) end = 1440;  // 不超过24:00
-                this.endHour = String(Math.floor(end / 60)).padStart(2, '0');
-                this.endMinute = String(Math.round(end % 60)).padStart(2, '0');
-                this.formData.end_time = this.endHour + ':' + this.endMinute;
+                const endHour = String(Math.floor(end / 60)).padStart(2, '0');
+                const endMinute = String(Math.round(end % 60)).padStart(2, '0');
+                this.formData.end_time = endHour + ':' + endMinute;
             }
         },
 
@@ -1997,15 +2129,13 @@ function workCalendar() {
 
             // 设置当前整点为起始时间，结束时间+1小时
             const currentHour = now.getHours();
-            this.startHour = String(currentHour).padStart(2, '0');
-            this.startMinute = '00';
-            this.endHour = String(Math.min(currentHour + 1, 23)).padStart(2, '0');
-            this.endMinute = '00';
-            this.formData.start_time = this.startHour + ':' + this.startMinute;
-            this.formData.end_time = this.endHour + ':' + this.endMinute;
+            const startHour = String(currentHour).padStart(2, '0');
+            const endHour = String(Math.min(currentHour + 1, 23)).padStart(2, '0');
+            this.formData.start_time = startHour + ':00';
+            this.formData.end_time = endHour + ':00';
 
-            // 确保初始时长为空（由用户触发计算或手动输入）
-            this.formData.estimated_hours = '';
+            // 计算初始时长（结束时间 - 发起时间 = 1小时）
+            this.formData.estimated_hours = '1.0';
             // 组合输入框组件已在 resetFormData 中初始化
             document.getElementById('workItemModal').classList.remove('hidden');
             document.body.style.overflow = 'hidden';
@@ -2030,15 +2160,7 @@ function workCalendar() {
                     this.sharedUsers = [];
                 }
 
-                // 解析时间字符串到小时/分钟
-                if (item.start_time) {
-                    const [sh, sm] = item.start_time.split(':');
-                    this.startHour = sh || '09'; this.startMinute = sm || '00';
-                } else { this.startHour = '09'; this.startMinute = '00'; }
-                if (item.end_time) {
-                    const [eh, em] = item.end_time.split(':');
-                    this.endHour = eh || '10'; this.endMinute = em || '00';
-                } else { this.endHour = '10'; this.endMinute = '00'; }
+                // 直接使用时间字符串（原生time选择器）
                 this.formData = {
                     planned_date: item.planned_date || '', end_date: item.end_date || '',
                     work_type: item.work_type || 'other', is_all_day: item.is_all_day !== false,

@@ -78,12 +78,12 @@
     {% call(slot) render_tw_layout(active_page='dashboard', show_search=true) %}
     {% if slot == 'content' %}
         <!-- 主内容 -->
-        <div class="p-6 lg:p-10">
-                <div class="flex flex-col gap-8">
+        <div class="p-4 sm:p-6 lg:p-10">
+                <div class="flex flex-col gap-6 sm:gap-8">
                     <!-- 欢迎区域 -->
                     <div class="flex flex-wrap justify-between gap-3">
-                        <div class="flex min-w-72 flex-col gap-2">
-                            <p class="text-slate-900 dark:text-white tracking-tight text-[32px] font-bold leading-tight">
+                        <div class="flex min-w-0 sm:min-w-72 flex-col gap-2">
+                            <p class="text-slate-900 dark:text-white tracking-tight text-2xl sm:text-[32px] font-bold leading-tight">
                                 {{ _('欢迎回来') }}, {{ current_user.real_name or current_user.username }}!
                             </p>
                             <p class="text-slate-500 dark:text-slate-400 text-sm font-normal">
@@ -130,9 +130,9 @@
                     </div>
 
                     <!-- 工作记录 + 数据状态 并排布局 -->
-                    <div class="flex gap-6">
+                    <div class="flex flex-col lg:flex-row gap-6">
                         <!-- 工作记录 3/4 -->
-                        <div class="w-3/4">
+                        <div class="w-full lg:w-3/4">
                             {{ render_tw_work_records(
                                 container_id='workRecords',
                                 show_account_filter=true,
@@ -141,7 +141,7 @@
                             ) }}
                         </div>
                         <!-- 数据状态 1/4 -->
-                        <div class="w-1/4">
+                        <div class="w-full lg:w-1/4">
                             {% call tw_card_shell(title=_('数据状态')) %}
                             <div x-data="statusCardData()" x-init="loadData()" class="space-y-5">
                                 <!-- 加载状态 -->
@@ -218,22 +218,22 @@
                         'lost': 50,
                         'paused': 50
                     } %}
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
                         <!-- 最近项目 -->
                         {% if has_permission('project', 'view') %}
-                        <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                        <div class="p-4 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                             <div class="flex items-center justify-between mb-4">
                                 <h3 class="text-slate-900 dark:text-white text-base font-medium leading-normal">{{ _('最近项目') }}</h3>
                                 <a class="text-primary text-sm font-medium hover:underline" href="{{ url_for('project.list_projects') }}">{{ _('查看全部') }}</a>
                             </div>
                             {% if recent_projects and recent_projects|length > 0 %}
                             <div class="overflow-x-auto">
-                                <table class="w-full text-left text-sm">
+                                <table class="w-full text-left text-sm table-fixed">
                                     <thead>
                                         <tr>
-                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs">{{ _('项目名称') }}</th>
-                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs">{{ _('状态') }}</th>
-                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs text-right">{{ _('进度') }}</th>
+                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs w-1/2">{{ _('项目名称') }}</th>
+                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs w-1/4">{{ _('状态') }}</th>
+                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs text-right w-1/4">{{ _('进度') }}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -241,9 +241,9 @@
                                         {% set current_stage = project.current_stage or 'discover' %}
                                         {% set progress = stage_progress.get(current_stage, 0) %}
                                         <tr>
-                                            <td class="py-2 font-medium text-slate-800 dark:text-slate-200 text-sm">
-                                                <a href="{{ url_for('project.view_project', project_id=project.id, tw=1) }}" class="hover:text-primary">
-                                                    {{ project.project_name[:12] }}{% if project.project_name|length > 12 %}...{% endif %}
+                                            <td class="py-2 font-medium text-slate-800 dark:text-slate-200 text-sm max-w-0">
+                                                <a href="{{ url_for('project.view_project', project_id=project.id, tw=1) }}" class="hover:text-primary block truncate" title="{{ project.project_name }}">
+                                                    {{ project.project_name }}
                                                 </a>
                                             </td>
                                             <td class="py-2">
@@ -271,33 +271,35 @@
 
                         <!-- 最近报价 -->
                         {% if has_permission('quotation', 'view') %}
-                        <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                        <div class="p-4 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                             <div class="flex items-center justify-between mb-4">
                                 <h3 class="text-slate-900 dark:text-white text-base font-medium leading-normal">{{ _('最近报价') }}</h3>
                                 <a class="text-primary text-sm font-medium hover:underline" href="{{ url_for('quotation.list_quotations') }}">{{ _('查看全部') }}</a>
                             </div>
                             {% if recent_quotations and recent_quotations|length > 0 %}
                             <div class="overflow-x-auto">
-                                <table class="w-full text-left text-sm">
+                                <table class="w-full text-left text-sm table-fixed">
                                     <thead>
                                         <tr>
-                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs">{{ _('报价单号') }}</th>
-                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs">{{ _('客户') }}</th>
-                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs text-right">{{ _('金额') }}</th>
+                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs w-2/5">{{ _('报价单号') }}</th>
+                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs w-2/5">{{ _('客户') }}</th>
+                                            <th class="pb-2 text-slate-500 dark:text-slate-400 font-medium text-xs text-right w-1/5">{{ _('金额') }}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {% for quotation in recent_quotations %}
                                         <tr>
-                                            <td class="py-2 font-medium text-slate-800 dark:text-slate-200 text-sm">
-                                                <a href="{{ url_for('quotation.view_quotation', id=quotation.id, tw=1) }}" class="hover:text-primary">
+                                            <td class="py-2 font-medium text-slate-800 dark:text-slate-200 text-sm max-w-0">
+                                                <a href="{{ url_for('quotation.view_quotation', id=quotation.id, tw=1) }}" class="hover:text-primary block truncate" title="{{ quotation.quotation_number }}">
                                                     {{ quotation.quotation_number }}
                                                 </a>
                                             </td>
-                                            <td class="py-2 text-slate-600 dark:text-slate-300 text-sm">
-                                                {{ quotation.customer.company_name[:10] if quotation.customer else '-' }}{% if quotation.customer and quotation.customer.company_name|length > 10 %}...{% endif %}
+                                            <td class="py-2 text-slate-600 dark:text-slate-300 text-sm max-w-0">
+                                                <span class="block truncate" title="{{ quotation.customer.company_name if quotation.customer else '-' }}">
+                                                    {{ quotation.customer.company_name if quotation.customer else '-' }}
+                                                </span>
                                             </td>
-                                            <td class="py-2 text-slate-800 dark:text-slate-200 font-medium text-sm text-right">
+                                            <td class="py-2 text-slate-800 dark:text-slate-200 font-medium text-sm text-right whitespace-nowrap">
                                                 {{ quotation.currency_symbol }}{{ "{:,.2f}".format(quotation.amount) if quotation.amount else '0.00' }}
                                             </td>
                                         </tr>
@@ -315,7 +317,7 @@
 
                     <!-- 报销模块 - 左右分栏 -->
                     {% if has_permission('expense', 'view') %}
-                    <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                    <div class="p-4 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                         <!-- 标题栏 -->
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="text-slate-900 dark:text-white text-base font-medium">{{ _('最近报销') }}</h3>
@@ -331,16 +333,16 @@
                         </div>
 
                         <!-- 左右分栏区域 -->
-                        <div class="flex gap-6">
+                        <div class="flex flex-col sm:flex-row gap-6">
                             <!-- 左侧：报销列表（50%宽度，独立滚动） -->
-                            <div class="w-1/2 max-h-64 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600">
+                            <div class="w-full sm:w-1/2 max-h-64 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600">
                                 <div class="flex flex-col gap-4">
                                     {# 货币符号映射 #}
                                     {% set expense_currency_symbols = {'CNY': '¥', 'USD': '$', 'HKD': 'HK$', 'TWD': 'NT$', 'SGD': 'S$', 'MYR': 'RM', 'IDR': 'Rp', 'THB': '฿', 'VND': '₫'} %}
                                     {% if recent_expenses and recent_expenses|length > 0 %}
                                         {% for expense in recent_expenses %}
-                                        <div class="flex items-center justify-between">
-                                            <div class="flex items-center gap-3">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <div class="flex items-center gap-2 sm:gap-3 min-w-0" style="max-width: 65%;">
                                                 <div class="flex h-8 w-8 items-center justify-center rounded-full flex-shrink-0
                                                     {% if expense.approval_status == 'pending' %}bg-yellow-100 dark:bg-yellow-900/50{% endif %}
                                                     {% if expense.approval_status == 'approved' %}bg-green-100 dark:bg-green-900/50{% endif %}
@@ -356,9 +358,9 @@
                                                     <span class="material-symbols-outlined text-slate-600 dark:text-slate-400 text-base">draft</span>
                                                     {% endif %}
                                                 </div>
-                                                <div class="min-w-0">
-                                                    <a href="{{ url_for('expense.expense_detail', id=expense.id) }}" class="text-slate-800 dark:text-slate-200 text-sm font-medium hover:text-primary block truncate">
-                                                        {{ expense.title[:20] if expense.title else expense.expense_number }}{% if expense.title and expense.title|length > 20 %}...{% endif %}
+                                                <div class="min-w-0 flex-1">
+                                                    <a href="{{ url_for('expense.expense_detail', id=expense.id) }}" class="text-slate-800 dark:text-slate-200 text-sm font-medium hover:text-primary block truncate" title="{{ expense.title or expense.expense_number }}">
+                                                        {{ expense.title or expense.expense_number }}
                                                     </a>
                                                     <p class="text-slate-500 dark:text-slate-400 text-xs">
                                                         {% if expense.approval_status == 'pending' %}{{ _('待审批') }}{% endif %}
@@ -368,7 +370,7 @@
                                                     </p>
                                                 </div>
                                             </div>
-                                            <p class="text-sm font-medium text-slate-800 dark:text-slate-200 flex-shrink-0 ml-2">{{ expense_currency_symbols.get(expense.currency, currency_config.symbol) }}{{ "%.2f"|format(expense.total_amount) if expense.total_amount else '0.00' }}</p>
+                                            <p class="text-sm font-medium text-slate-800 dark:text-slate-200 flex-shrink-0 ml-2 whitespace-nowrap">{{ expense_currency_symbols.get(expense.currency, currency_config.symbol) }}{{ "%.2f"|format(expense.total_amount) if expense.total_amount else '0.00' }}</p>
                                         </div>
                                         {% endfor %}
                                     {% else %}
@@ -378,11 +380,11 @@
                             </div>
 
                             <!-- 右侧：统计区域（50%宽度） -->
-                            <div class="w-1/2 border-l border-slate-200 dark:border-slate-700 pl-6">
+                            <div class="w-full sm:w-1/2 sm:border-l border-t sm:border-t-0 border-slate-200 dark:border-slate-700 pt-6 sm:pt-0 sm:pl-6">
                                 <!-- 年度总计 - 使用用户结算货币 -->
                                 <div class="mb-6">
                                     <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('今年累计') }}</p>
-                                    <p class="text-4xl font-bold text-primary tracking-tight">{{ user_currency_symbol }}{{ "{:,.2f}".format(expense_year_total) }}</p>
+                                    <p class="text-2xl sm:text-4xl font-bold text-primary tracking-tight">{{ user_currency_symbol }}{{ "{:,.2f}".format(expense_year_total) }}</p>
                                 </div>
                                 <!-- 月度折线图 SVG (使用公共组件) -->
                                 {{ render_tw_line_chart(chart_id='expenseMonthlyChart', color='#2979ff') }}

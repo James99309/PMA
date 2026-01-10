@@ -72,20 +72,20 @@ render_tw_source_badge, render_tw_customer_status_badge with context %}
     <!-- 主内容 - 使用固定标题页面组件 -->
     {% call(page_slot) render_tw_fixed_page() %}
     {% if page_slot == 'header' %}
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('客户管理') }}</h1>
+        <h1 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{{ _('客户管理') }}</h1>
         <div class="flex flex-wrap items-center gap-2">
             {% if current_user.role in ['admin', 'business_admin'] and has_permission('customer', 'edit') %}
             <a href="{{ url_for('customer.customer_merge_tool') }}"
-                class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium transition-colors">
-                <span class="material-symbols-outlined" style="font-size: 20px;">merge</span>
-                <span>{{ _('智能合并') }}</span>
+                class="inline-flex items-center justify-center gap-1 sm:gap-2 h-9 sm:h-10 px-3 sm:px-4 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs sm:text-sm font-medium transition-colors">
+                <span class="material-symbols-outlined" style="font-size: 18px;">merge</span>
+                <span class="hidden sm:inline">{{ _('智能合并') }}</span>
             </a>
             {% endif %}
             {% if has_permission('customer', 'create') %}
             <button type="button" onclick="openAddCustomerModal()"
-                class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
-                <span class="material-symbols-outlined" style="font-size: 20px;">add</span>
-                <span>{{ _('添加客户') }}</span>
+                class="inline-flex items-center justify-center gap-1 sm:gap-2 h-9 sm:h-10 px-3 sm:px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-xs sm:text-sm font-medium transition-colors">
+                <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+                <span class="hidden sm:inline">{{ _('添加客户') }}</span>
             </button>
             {% endif %}
         </div>
@@ -117,10 +117,10 @@ render_tw_source_badge, render_tw_customer_status_badge with context %}
         ) }}
 
         <!-- 表格标题栏 (sticky) -->
-        <div class="sticky top-0 z-20 -mx-6 lg:-mx-8 px-6 lg:px-8">
-            <div class="flex items-center gap-4 bg-white dark:bg-slate-800 rounded-t-xl border border-b-0 border-slate-200 dark:border-slate-700 p-4">
-                <h3 class="text-slate-900 dark:text-white text-base font-medium">{{ _('企业列表') }}</h3>
-                <span class="text-slate-500 dark:text-slate-400 text-sm ml-auto">
+        <div class="sticky top-0 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center gap-2 sm:gap-4 bg-white dark:bg-slate-800 rounded-t-xl border border-b-0 border-slate-200 dark:border-slate-700 p-3 sm:p-4">
+                <h3 class="text-slate-900 dark:text-white text-sm sm:text-base font-medium">{{ _('企业列表') }}</h3>
+                <span class="text-slate-500 dark:text-slate-400 text-xs sm:text-sm ml-auto">
                     <span id="companyTableCount">{{ total_count }}</span> {{ _('条记录') }}
                 </span>
             </div>

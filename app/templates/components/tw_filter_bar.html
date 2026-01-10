@@ -43,14 +43,14 @@ Tailwind 筛选栏组件
     search_param='search',
     cols=5
 ) %}
-<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-6">
-    <div class="p-4 lg:p-5">
+<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-4 sm:mb-6">
+    <div class="p-3 sm:p-4 lg:p-5">
         <form id="{{ form_id }}" method="GET" action="{{ action_url }}">
             <!-- 隐藏的搜索字段（保持筛选时的搜索参数） -->
             <input type="hidden" name="{{ search_param }}" value="{{ search_value }}">
 
             <!-- 筛选下拉框 -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-{{ cols }} gap-3">
+            <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-{{ cols }} gap-2 sm:gap-3">
                 {% for field in filter_fields %}
                 <div>
                     <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{{ field.label }}</label>

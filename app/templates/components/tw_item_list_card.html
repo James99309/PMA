@@ -5,10 +5,10 @@
 
 {# 卡片容器宏 #}
 {% macro tw_item_list_card(title, view_all_url='', view_all_text='', action_btn=none, empty_text='') %}
-<div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+<div class="p-4 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
     {# 卡片头部 #}
-    <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ title }}</h3>
+    <div class="flex items-center justify-between mb-3 sm:mb-4">
+        <h3 class="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">{{ title }}</h3>
         {% if action_btn and action_btn.onclick %}
         <button type="button" onclick="{{ action_btn.onclick }}" class="text-primary text-sm font-medium hover:underline">{{ action_btn.label or _('添加') }}</button>
         {% elif action_btn and action_btn.href %}

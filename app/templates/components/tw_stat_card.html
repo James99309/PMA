@@ -61,22 +61,22 @@ Tailwind 统计卡片组件
 {% set v = variants[variant] or variants['default'] %}
 
 {% if href %}
-<a href="{{ href }}" class="block p-5 rounded-xl shadow-sm border {{ v.bg }} {{ v.border }} hover:shadow-md transition-shadow">
+<a href="{{ href }}" class="block p-3 sm:p-5 rounded-xl shadow-sm border {{ v.bg }} {{ v.border }} hover:shadow-md transition-shadow">
 {% else %}
-<div class="p-5 rounded-xl shadow-sm border {{ v.bg }} {{ v.border }}">
+<div class="p-3 sm:p-5 rounded-xl shadow-sm border {{ v.bg }} {{ v.border }}">
 {% endif %}
-    <div class="flex items-center gap-3 mb-3">
+    <div class="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
         {% if icon %}
-        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ v.icon_bg }}">
-            <span class="material-symbols-outlined {{ v.icon_color }}">{{ icon }}</span>
+        <div class="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg {{ v.icon_bg }}">
+            <span class="material-symbols-outlined text-lg sm:text-2xl {{ v.icon_color }}">{{ icon }}</span>
         </div>
         {% endif %}
-        <h3 class="text-sm font-medium text-slate-600 dark:text-slate-400">{{ title }}</h3>
+        <h3 class="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 line-clamp-1">{{ title }}</h3>
     </div>
-    <p class="text-3xl font-bold text-slate-900 dark:text-white">
+    <p class="text-xl sm:text-3xl font-bold text-slate-900 dark:text-white">
         {{ value }}
         {% if unit %}
-        <span class="text-base font-normal text-slate-500 dark:text-slate-400 ml-1">{{ unit }}</span>
+        <span class="text-xs sm:text-base font-normal text-slate-500 dark:text-slate-400 ml-1">{{ unit }}</span>
         {% endif %}
     </p>
 {% if href %}
@@ -89,7 +89,7 @@ Tailwind 统计卡片组件
 
 {# 统计卡片网格容器 #}
 {% macro tw_stat_cards_grid(cols=4) %}
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-{{ cols }} gap-4 mb-6">
+<div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-{{ cols }} gap-2 sm:gap-4 mb-4 sm:mb-6">
     {{ caller() }}
 </div>
 {% endmacro %}
