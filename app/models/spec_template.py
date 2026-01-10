@@ -111,6 +111,7 @@ class SpecDefinition(db.Model):
     unit = Column(String(30))  # 单位
     description = Column(Text)  # 规格说明
     value_type = Column(String(20), default='text')  # 值类型：text/number/select/boolean
+    allow_attachment = Column(Boolean, default=False)  # 是否允许上传附件
     default_test_condition_id = Column(Integer, ForeignKey('test_condition_dictionary.id'))
     default_test_method_id = Column(Integer, ForeignKey('test_method_dictionary.id'))
     display_order = Column(Integer, default=0)
@@ -137,6 +138,7 @@ class SpecDefinition(db.Model):
             'unit': self.unit,
             'description': self.description,
             'value_type': self.value_type,
+            'allow_attachment': self.allow_attachment,
             'display_order': self.display_order,
             'is_active': self.is_active,
             # 测试条件和方法

@@ -97,7 +97,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                     {% for config in template.configurations if config.is_active %}
                     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-lg transition-shadow">
-                        <div class="p-5">
+                        <a href="{{ url_for('spec_template.spec_config_matrix_page', template_id=template.id) }}?config_id={{ config.id }}" class="block p-5 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                             <!-- 头部 -->
                             <div class="flex items-start justify-between mb-4">
                                 <div>
@@ -157,15 +157,10 @@
                                 <span>{{ config.creator.real_name or config.creator.username }}</span>
                                 {% endif %}
                             </div>
-                        </div>
+                        </a>
 
                         <!-- 操作栏 -->
                         <div class="px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end gap-2">
-                            <a href="{{ url_for('spec_template.spec_config_matrix_page', template_id=template.id) }}?config_id={{ config.id }}"
-                               class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                               title="{{ _('编辑规格值') }}">
-                                <span class="material-symbols-outlined" style="font-size: 18px;">tune</span>
-                            </a>
                             {% if has_permission('rd_product', 'edit') %}
                             <button type="button" onclick="openEditConfigModal({{ config.id }})"
                                class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"

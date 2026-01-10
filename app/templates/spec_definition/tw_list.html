@@ -333,6 +333,15 @@
         ], value='text') }}
     {% endcall %}
 
+    <!-- 允许附件复选框 -->
+    <div class="mb-4">
+        <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" id="allow_attachment" name="allow_attachment"
+                class="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('允许附件') }}</span>
+        </label>
+    </div>
+
     {% set condition_options = [{'value': '', 'label': _('请选择')}] %}
     {% for c in test_conditions %}
         {% set _ = condition_options.append({'value': c.id|string, 'label': c.name}) %}
@@ -595,6 +604,8 @@
                 document.getElementById('definitionId').value = '';
                 document.getElementById('definitionFormModal-form').reset();
                 document.getElementById('categoryId').value = this.currentCategoryId;
+                // 重置 allow_attachment 复选框
+                document.getElementById('allow_attachment').checked = false;
 
                 const self = this;
                 openFormModal('definitionFormModal', {
@@ -616,6 +627,9 @@
                         document.getElementById('categoryId').value = data.category_id;
 
                         const self = this;
+                        // 设置 allow_attachment 复选框状态
+                        document.getElementById('allow_attachment').checked = data.allow_attachment || false;
+
                         openFormModal('definitionFormModal', {
                             title: '{{ _("编辑规格项") }}',
                             submitText: '{{ _("保存") }}',
@@ -652,6 +666,7 @@
                     name_en: data.name_en || null,
                     unit: data.unit || null,
                     value_type: data.value_type || 'text',
+                    allow_attachment: document.getElementById('allow_attachment').checked,
                     default_test_condition_id: data.default_test_condition_id ? parseInt(data.default_test_condition_id) : null,
                     default_test_method_id: data.default_test_method_id ? parseInt(data.default_test_method_id) : null,
                     description: data.description || null

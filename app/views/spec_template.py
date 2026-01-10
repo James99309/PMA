@@ -15,7 +15,7 @@ from datetime import datetime
 from app.models.spec_template import (
     SpecCategory, SpecDefinition, SpecTemplate, SpecTemplateItem,
     TestMethodDictionary, TestConditionDictionary,
-    ProductConfiguration, ProductConfigValue,
+    ProductConfiguration, ProductConfigValue, SpecAttachment,
     CONFIG_STATUS, REGIONS,
     SAFE_CHARS, calculate_check_digit, generate_safe_code_char,
     CODE_RULE_VERSION
@@ -1592,3 +1592,431 @@ def api_import_configurations(template_id):
         return jsonify(result)
     else:
         return jsonify(result), 400
+
+
+# ============================================================
+# 规格附件管理 API
+# ============================================================
+
+ALLOWED_ATTACHMENT_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'}
+MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024  # 10MB
+
+
+def validate_attachment_file(file):
+    """验证附件文件"""
+    if not file or file.filename == '':
+        return False, _('请选择要上传的文件')
+
+    # 检查文件类型
+    file_type = file.content_type
+    if file_type not in ALLOWED_ATTACHMENT_TYPES:
+        return False, _('不支持的文件类型，仅支持图片和PDF')
+
+    # 检查文件大小
+    file.seek(0, 2)
+    file_size = file.tell()
+    file.seek(0)
+
+    if file_size > MAX_ATTACHMENT_SIZE:
+        return False, _('文件大小超过限制（最大10MB）')
+
+    return True, None
+
+
+@spec_template_bp.route('/api/item/<int:item_id>/attachments', methods=['GET'])
+@login_required
+@permission_required('rd_product', 'view')
+def api_get_item_attachments(item_id):
+    """获取模板规格项的附件列表（默认附件）"""
+    item = SpecTemplateItem.query.get_or_404(item_id)
+
+    attachments = SpecAttachment.query.filter_by(
+        template_item_id=item_id
+    ).order_by(SpecAttachment.display_order, SpecAttachment.created_at).all()
+
+    return jsonify({
+        'success': True,
+        'attachments': [att.to_dict() for att in attachments],
+        'is_fallback': False
+    })
+
+
+@spec_template_bp.route('/api/item/<int:item_id>/attachments', methods=['POST'])
+@login_required
+@permission_required('rd_product', 'edit')
+def api_upload_item_attachment(item_id):
+    """上传模板规格项附件（默认附件）"""
+    from app.utils.supabase_client import get_supabase_client
+
+    item = SpecTemplateItem.query.get_or_404(item_id)
+
+    # 检查该规格是否允许附件
+    if not item.definition or not item.definition.allow_attachment:
+        return jsonify({
+            'success': False,
+            'message': _('该规格项不允许上传附件')
+        }), 400
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': _('请选择要上传的文件')}), 400
+
+    file = request.files['file']
+    valid, error_msg = validate_attachment_file(file)
+    if not valid:
+        return jsonify({'success': False, 'message': error_msg}), 400
+
+    try:
+        # 获取文件信息
+        original_filename = file.filename
+        file_type = file.content_type
+        file.seek(0, 2)
+        file_size = file.tell()
+        file.seek(0)
+
+        # 上传到 Supabase
+        supabase_client = get_supabase_client()
+        result = supabase_client.upload_file(
+            object_id=item.template_id,
+            file=file,
+            filename=original_filename,
+            file_type='spec_attachment',
+            bucket_type='invoice',  # 复用现有桶
+            business_type=f'spec_template/item_{item_id}'
+        )
+
+        if not result or not result.get('url'):
+            return jsonify({'success': False, 'message': _('上传失败')}), 500
+
+        # 获取当前最大排序号
+        max_order = db.session.query(db.func.max(SpecAttachment.display_order)).filter_by(
+            template_item_id=item_id
+        ).scalar() or 0
+
+        # 创建附件记录
+        attachment = SpecAttachment(
+            template_item_id=item_id,
+            file_name=original_filename,
+            file_path=result.get('url'),
+            file_type=file_type,
+            file_size=file_size,
+            display_order=max_order + 1,
+            uploaded_by=current_user.id
+        )
+        db.session.add(attachment)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': _('上传成功'),
+            'data': attachment.to_dict()
+        })
+
+    except Exception as e:
+        logger.error(f"上传规格附件失败: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'{_("上传失败")}: {str(e)}'}), 500
+
+
+@spec_template_bp.route('/api/attachment/<int:attachment_id>', methods=['DELETE'])
+@login_required
+@permission_required('rd_product', 'edit')
+def api_delete_attachment(attachment_id):
+    """删除规格附件"""
+    from app.utils.supabase_client import get_supabase_client
+
+    attachment = SpecAttachment.query.get_or_404(attachment_id)
+
+    try:
+        # 删除云端文件
+        if attachment.file_path:
+            supabase_client = get_supabase_client()
+            supabase_client.delete_file_by_url(attachment.file_path, bucket_type='invoice')
+
+        # 删除数据库记录
+        db.session.delete(attachment)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': _('删除成功')
+        })
+
+    except Exception as e:
+        logger.error(f"删除规格附件失败: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'{_("删除失败")}: {str(e)}'}), 500
+
+
+@spec_template_bp.route('/api/attachment/<int:attachment_id>/preview')
+@login_required
+@permission_required('rd_product', 'view')
+def api_preview_attachment(attachment_id):
+    """预览/下载规格附件"""
+    import requests
+
+    attachment = SpecAttachment.query.get_or_404(attachment_id)
+
+    url = attachment.file_path
+    filename = attachment.file_name
+    file_type = attachment.file_type or 'application/octet-stream'
+
+    force_download = request.args.get('download') == '1'
+
+    try:
+        response = requests.get(url, timeout=30)
+        if response.status_code == 200:
+            encoded_filename = quote(filename, safe='')
+            disposition_type = 'attachment' if force_download else 'inline'
+
+            headers = {
+                'Content-Type': file_type,
+                'Content-Disposition': f"{disposition_type}; filename*=UTF-8''{encoded_filename}"
+            }
+
+            return Response(response.content, headers=headers)
+        else:
+            return jsonify({'success': False, 'message': _('文件获取失败')}), 404
+
+    except Exception as e:
+        logger.error(f"预览规格附件失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@spec_template_bp.route('/api/config/<int:config_id>/item/<int:item_id>/attachments', methods=['GET'])
+@login_required
+@permission_required('rd_product', 'view')
+def api_get_config_attachments(config_id, item_id):
+    """获取配置版本的规格附件（带回退逻辑）"""
+    config = ProductConfiguration.query.get_or_404(config_id)
+    item = SpecTemplateItem.query.get_or_404(item_id)
+
+    # 1. 先查找配置级附件
+    config_value = ProductConfigValue.query.filter_by(
+        configuration_id=config_id,
+        template_item_id=item_id
+    ).first()
+
+    config_attachments = []
+    if config_value:
+        config_attachments = SpecAttachment.query.filter_by(
+            config_value_id=config_value.id
+        ).order_by(SpecAttachment.display_order, SpecAttachment.created_at).all()
+
+    # 2. 查找模板级（默认）附件
+    template_attachments = SpecAttachment.query.filter_by(
+        template_item_id=item_id
+    ).order_by(SpecAttachment.display_order, SpecAttachment.created_at).all()
+
+    # 3. 确定使用哪些附件
+    is_fallback = len(config_attachments) == 0 and len(template_attachments) > 0
+
+    if config_attachments:
+        # 有配置级附件，使用配置附件
+        attachments = [att.to_dict() for att in config_attachments]
+    else:
+        # 回退到模板默认附件，并标记
+        attachments = []
+        for att in template_attachments:
+            att_dict = att.to_dict()
+            att_dict['is_fallback'] = True
+            attachments.append(att_dict)
+
+    return jsonify({
+        'success': True,
+        'attachments': attachments,
+        'is_fallback': is_fallback
+    })
+
+
+@spec_template_bp.route('/api/config/<int:config_id>/item/<int:item_id>/attachments', methods=['POST'])
+@login_required
+@permission_required('rd_product', 'edit')
+def api_upload_config_attachment(config_id, item_id):
+    """上传配置版本的规格附件"""
+    from app.utils.supabase_client import get_supabase_client
+
+    config = ProductConfiguration.query.get_or_404(config_id)
+    item = SpecTemplateItem.query.get_or_404(item_id)
+
+    # 检查配置是否锁定
+    if config.mn_locked:
+        return jsonify({
+            'success': False,
+            'message': _('该配置版本已锁定，无法修改')
+        }), 400
+
+    # 检查该规格是否允许附件
+    if not item.definition or not item.definition.allow_attachment:
+        return jsonify({
+            'success': False,
+            'message': _('该规格项不允许上传附件')
+        }), 400
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': _('请选择要上传的文件')}), 400
+
+    file = request.files['file']
+    valid, error_msg = validate_attachment_file(file)
+    if not valid:
+        return jsonify({'success': False, 'message': error_msg}), 400
+
+    try:
+        # 确保有 ProductConfigValue 记录
+        config_value = ProductConfigValue.query.filter_by(
+            configuration_id=config_id,
+            template_item_id=item_id
+        ).first()
+
+        if not config_value:
+            # 创建配置值记录（使用通用值作为初始值）
+            config_value = ProductConfigValue(
+                configuration_id=config_id,
+                template_item_id=item_id,
+                value=item.general_value
+            )
+            db.session.add(config_value)
+            db.session.flush()  # 获取 ID
+
+        # 获取文件信息
+        original_filename = file.filename
+        file_type = file.content_type
+        file.seek(0, 2)
+        file_size = file.tell()
+        file.seek(0)
+
+        # 上传到 Supabase
+        supabase_client = get_supabase_client()
+        result = supabase_client.upload_file(
+            object_id=config_id,
+            file=file,
+            filename=original_filename,
+            file_type='spec_attachment',
+            bucket_type='invoice',
+            business_type=f'spec_config/item_{item_id}'
+        )
+
+        if not result or not result.get('url'):
+            return jsonify({'success': False, 'message': _('上传失败')}), 500
+
+        # 获取当前最大排序号
+        max_order = db.session.query(db.func.max(SpecAttachment.display_order)).filter_by(
+            config_value_id=config_value.id
+        ).scalar() or 0
+
+        # 创建附件记录
+        attachment = SpecAttachment(
+            config_value_id=config_value.id,
+            file_name=original_filename,
+            file_path=result.get('url'),
+            file_type=file_type,
+            file_size=file_size,
+            display_order=max_order + 1,
+            uploaded_by=current_user.id
+        )
+        db.session.add(attachment)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': _('上传成功'),
+            'data': attachment.to_dict()
+        })
+
+    except Exception as e:
+        logger.error(f"上传配置附件失败: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'{_("上传失败")}: {str(e)}'}), 500
+
+
+@spec_template_bp.route('/api/attachments/count', methods=['POST'])
+@login_required
+@permission_required('rd_product', 'view')
+def api_get_attachments_count():
+    """批量获取附件数量（用于矩阵显示）
+
+    请求格式: { items: [{ item_id: int, config_id: int|null }, ...] }
+    返回格式: { success: true, counts: { "itemId_configId": { count: int, is_fallback: bool }, ... } }
+    """
+    data = request.get_json()
+    items = data.get('items', [])
+
+    if not items:
+        return jsonify({'success': True, 'counts': {}})
+
+    # 收集所有需要查询的 item_id
+    item_ids = set()
+    config_ids = set()
+    for item in items:
+        item_ids.add(item.get('item_id'))
+        if item.get('config_id'):
+            config_ids.add(item.get('config_id'))
+
+    # 1. 查询所有模板级附件数量
+    template_counts = {}
+    if item_ids:
+        counts = db.session.query(
+            SpecAttachment.template_item_id,
+            db.func.count(SpecAttachment.id)
+        ).filter(
+            SpecAttachment.template_item_id.in_(item_ids)
+        ).group_by(SpecAttachment.template_item_id).all()
+
+        for item_id, count in counts:
+            template_counts[item_id] = count
+
+    # 2. 查询所有配置级附件数量
+    config_counts = {}  # {(config_id, item_id): count}
+    if config_ids and item_ids:
+        # 获取相关的 config_value_id
+        config_values = db.session.query(
+            ProductConfigValue.id,
+            ProductConfigValue.configuration_id,
+            ProductConfigValue.template_item_id
+        ).filter(
+            ProductConfigValue.configuration_id.in_(config_ids),
+            ProductConfigValue.template_item_id.in_(item_ids)
+        ).all()
+
+        cv_map = {}  # {cv_id: (config_id, item_id)}
+        for cv_id, config_id, item_id in config_values:
+            cv_map[cv_id] = (config_id, item_id)
+
+        if cv_map:
+            counts = db.session.query(
+                SpecAttachment.config_value_id,
+                db.func.count(SpecAttachment.id)
+            ).filter(
+                SpecAttachment.config_value_id.in_(cv_map.keys())
+            ).group_by(SpecAttachment.config_value_id).all()
+
+            for cv_id, count in counts:
+                key = cv_map[cv_id]
+                config_counts[key] = count
+
+    # 3. 构建返回结果
+    result = {}
+    for item in items:
+        item_id = item.get('item_id')
+        config_id = item.get('config_id')
+
+        if config_id:
+            # 配置级：检查是否有配置附件，否则回退到模板附件
+            key = f"{item_id}_{config_id}"
+            config_count = config_counts.get((config_id, item_id), 0)
+            template_count = template_counts.get(item_id, 0)
+
+            if config_count > 0:
+                result[key] = {'count': config_count, 'is_fallback': False}
+            elif template_count > 0:
+                result[key] = {'count': template_count, 'is_fallback': True}
+            else:
+                result[key] = {'count': 0, 'is_fallback': False}
+        else:
+            # 模板级
+            key = f"{item_id}_template"
+            result[key] = {'count': template_counts.get(item_id, 0), 'is_fallback': False}
+
+    return jsonify({
+        'success': True,
+        'counts': result
+    })

@@ -2,6 +2,7 @@
 {% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
 {% from 'components/tw_form_fields.html' import tw_form_field, tw_form_textarea with context %}
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
+{% from 'components/tw_file_preview.html' import render_file_preview_modal, render_file_preview_script with context %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 <head>
@@ -138,12 +139,12 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('产品名称') }}</label>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('产品子类') }}</label>
                                 <select x-model="templateData.subcategory_id"
                                         :disabled="!templateData.category_id"
                                         @change="checkDirty()"
                                         class="form-select w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm disabled:opacity-50">
-                                    <option value="">{{ _('选择产品名称') }}</option>
+                                    <option value="">{{ _('选择产品子类') }}</option>
                                     <template x-for="subcat in getSubcategories()" :key="subcat.id">
                                         <option :value="String(subcat.id)" x-text="subcat.name + ' (' + subcat.code_letter + ')'"></option>
                                     </template>
@@ -175,7 +176,7 @@
 
                     <!-- 分类导航 -->
                     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                        <div class="p-4 border-b border-slate-200 dark:border-slate-700">
+                        <div class="p-4">
                             <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('规格分类') }}</h3>
                         </div>
                         <nav class="py-2">
@@ -193,10 +194,10 @@
                     </div>
                 </div>
 
-                <!-- 右侧：规格项列表（内部可滚动） -->
-                <div class="flex-1 min-w-0 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col max-h-[calc(100vh-200px)]">
+                <!-- 右侧：规格项列表（sticky固定，内部可滚动） -->
+                <div class="flex-1 min-w-0 sticky top-0 self-start bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col max-h-[calc(100vh-120px)]">
                     <!-- 头部 -->
-                    <div class="flex-shrink-0 flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+                    <div class="flex-shrink-0 flex items-center justify-between p-4">
                         <div>
                             <h3 class="text-base font-semibold text-slate-900 dark:text-white" x-text="getCategoryName(activeCategory)"></h3>
                             <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{{ _('勾选需要的规格项，并设置通用值') }}</p>
@@ -271,28 +272,76 @@
                                                  x-data="{ showTestOptions: false }">
                                                 <!-- 第一行：通用值 + 编码设置 -->
                                                 <div class="flex items-start gap-4">
-                                                    <!-- 左侧：通用值 -->
-                                                    <div class="flex-1">
-                                                        <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                                                            {{ _('通用值 (General)') }}
-                                                            <span x-show="hasOptions(def.id)" class="text-slate-400 font-normal ml-1">({{ _('可选择或输入') }})</span>
-                                                        </label>
-                                                        <input type="text"
-                                                               :value="getItemValue(def.id, 'general_value')"
-                                                               @input="setItemValue(def.id, 'general_value', $event.target.value)"
-                                                               :list="hasOptions(def.id) ? 'options_' + def.id : null"
-                                                               class="form-input w-full text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
-                                                               placeholder="{{ _('输入通用规格值') }}">
-                                                        <template x-if="hasOptions(def.id)">
-                                                            <datalist :id="'options_' + def.id">
-                                                                <template x-for="opt in getDefinitionOptions(def.id)" :key="opt">
-                                                                    <option :value="opt"></option>
+                                                    <!-- 左侧：通用值（固定40%宽度）-->
+                                                    <div class="w-2/5 flex-shrink-0">
+                                                        <!-- 通用值输入 -->
+                                                        <div>
+                                                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                                                                {{ _('通用值 (General)') }}
+                                                                <span x-show="hasOptions(def.id)" class="text-slate-400 font-normal ml-1">({{ _('可选择或输入') }})</span>
+                                                            </label>
+                                                            <input type="text"
+                                                                   :value="getItemValue(def.id, 'general_value')"
+                                                                   @input="setItemValue(def.id, 'general_value', $event.target.value)"
+                                                                   :list="hasOptions(def.id) ? 'options_' + def.id : null"
+                                                                   class="form-input w-full text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                                                                   placeholder="{{ _('输入通用规格值') }}">
+                                                            <template x-if="hasOptions(def.id)">
+                                                                <datalist :id="'options_' + def.id">
+                                                                    <template x-for="opt in getDefinitionOptions(def.id)" :key="opt">
+                                                                        <option :value="opt"></option>
+                                                                    </template>
+                                                                </datalist>
+                                                            </template>
+                                                        </div>
+                                                        <!-- 附件区域（allow_attachment 为 true 时显示，独立一行）-->
+                                                        <div x-show="def.allow_attachment" class="mt-2">
+                                                            <div class="flex flex-wrap items-center gap-2">
+                                                                <!-- 添加按钮（已保存的项目）-->
+                                                                <label x-show="selectedItems[def.id]?.id"
+                                                                       class="cursor-pointer group" :title="'{{ _('添加附件') }}'">
+                                                                    <input type="file" accept="image/*,.pdf" multiple class="hidden"
+                                                                           @change="handleFileUpload($event, selectedItems[def.id].id)">
+                                                                    <span class="inline-flex items-center justify-center w-7 h-7 rounded-full
+                                                                                border border-dashed border-slate-300 dark:border-slate-600
+                                                                                group-hover:border-primary group-hover:text-primary
+                                                                                text-slate-400 dark:text-slate-500 transition-colors">
+                                                                        <span class="material-symbols-outlined" style="font-size: 16px;">add</span>
+                                                                    </span>
+                                                                </label>
+                                                                <!-- 禁用的添加按钮（未保存的项目）-->
+                                                                <span x-show="!selectedItems[def.id]?.id"
+                                                                      class="inline-flex items-center justify-center w-7 h-7 rounded-full
+                                                                             border border-dashed border-slate-200 dark:border-slate-700
+                                                                             text-slate-300 dark:text-slate-600 cursor-not-allowed"
+                                                                      :title="'{{ _('请先保存模板') }}'">
+                                                                    <span class="material-symbols-outlined" style="font-size: 16px;">add</span>
+                                                                </span>
+                                                                <!-- 已上传的附件图标 -->
+                                                                <template x-for="att in (attachmentFiles[selectedItems[def.id]?.id] || [])" :key="att.id">
+                                                                    <div class="group relative">
+                                                                        <button type="button" @click.stop="previewAttachment(att)"
+                                                                                class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700
+                                                                                       flex items-center justify-center
+                                                                                       hover:scale-110 transition-transform cursor-pointer"
+                                                                                :title="att.filename">
+                                                                            <span class="material-symbols-outlined text-lg"
+                                                                                  :class="att.content_type?.includes('pdf') ? 'text-red-500' : 'text-primary'"
+                                                                                  x-text="att.content_type?.includes('pdf') ? 'picture_as_pdf' : 'image'"></span>
+                                                                        </button>
+                                                                        <button type="button" @click.stop="deleteAttachment(att.id, selectedItems[def.id].id)"
+                                                                                class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white
+                                                                                       opacity-0 group-hover:opacity-100 transition-opacity
+                                                                                       flex items-center justify-center">
+                                                                            <span class="material-symbols-outlined" style="font-size: 12px;">close</span>
+                                                                        </button>
+                                                                    </div>
                                                                 </template>
-                                                            </datalist>
-                                                        </template>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <!-- 右侧：编码设置 -->
-                                                    <div class="flex items-center gap-4 pt-5">
+                                                    <!-- 右侧：编码设置（占剩余空间）-->
+                                                    <div class="flex-1 flex items-center justify-end gap-4 pt-5">
                                                         <label class="flex items-center gap-1.5 cursor-pointer">
                                                             <input type="checkbox"
                                                                    :checked="getItemValue(def.id, 'is_required')"
@@ -403,6 +452,10 @@
             subcategoriesData: {{ subcategories_by_category|default({})|tojson }},
             activeCategory: {{ categories[0].id if categories else 'null' }},
             selectedItems: {{ selected_items|default({})|tojson }},
+            // 附件文件缓存 {item_id: [attachments]}
+            attachmentFiles: {},
+            // 待删除的附件信息
+            pendingDeleteAttachment: null,
             // 规格定义完整数据（按分类ID组织，供前端动态排序使用）
             definitionsData: {{ definitions_data|default({})|tojson }},
 
@@ -480,6 +533,130 @@
                 if (Object.keys(this.selectedItems).length > 0) {
                     this.reorderSelectedItems();
                 }
+
+                // 初始化附件文件（编辑模式）
+                this.initAttachmentFiles();
+            },
+
+            // 初始化附件文件列表
+            async initAttachmentFiles() {
+                // 收集所有有 id 的规格项（已保存的）
+                const itemIds = [];
+                for (const [defId, item] of Object.entries(this.selectedItems)) {
+                    if (item.id) {
+                        itemIds.push(item.id);
+                    }
+                }
+                if (itemIds.length === 0) return;
+
+                // 为每个规格项加载附件列表
+                for (const itemId of itemIds) {
+                    await this.loadItemAttachments(itemId);
+                }
+            },
+
+            // 加载单个规格项的附件列表
+            async loadItemAttachments(itemId) {
+                try {
+                    const response = await fetch(`{{ url_for("spec_template.list_templates") }}api/item/${itemId}/attachments`);
+                    const data = await response.json();
+                    if (data.attachments) {
+                        // 转换格式以匹配模板中使用的字段名
+                        this.attachmentFiles[itemId] = data.attachments.map(att => ({
+                            id: att.id,
+                            filename: att.file_name,
+                            content_type: att.file_type
+                        }));
+                    }
+                } catch (error) {
+                    console.error('加载附件失败:', error);
+                }
+            },
+
+            // 上传附件
+            async handleFileUpload(event, itemId) {
+                const files = event.target.files;
+                if (!files || files.length === 0) return;
+
+                for (const file of files) {
+                    if (file.size > 10 * 1024 * 1024) {
+                        this.showToast(`${file.name}: {{ _('文件过大') }}`, 'error');
+                        continue;
+                    }
+
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    try {
+                        const response = await fetch(`{{ url_for("spec_template.list_templates") }}api/item/${itemId}/attachments`, {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                            },
+                            body: formData
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            // 重新加载该规格项的附件列表
+                            await this.loadItemAttachments(itemId);
+                        } else {
+                            this.showToast(data.message || '{{ _("上传失败") }}', 'error');
+                        }
+                    } catch (error) {
+                        console.error('上传附件失败:', error);
+                        this.showToast('{{ _("上传失败") }}', 'error');
+                    }
+                }
+                // 清空文件输入框
+                event.target.value = '';
+            },
+
+            // 预览附件
+            previewAttachment(att) {
+                const previewUrl = `{{ url_for("spec_template.list_templates") }}api/attachment/${att.id}/preview`;
+                previewFile_specAttachmentPreview(previewUrl, att.filename, previewUrl);
+            },
+
+            // 删除附件（显示确认对话框）
+            deleteAttachment(attachmentId, itemId) {
+                this.pendingDeleteAttachment = { attachmentId, itemId };
+                openConfirmModal('deleteAttachmentModal', {
+                    onConfirm: () => this.confirmDeleteAttachment()
+                });
+            },
+
+            // 确认删除附件
+            async confirmDeleteAttachment() {
+                if (!this.pendingDeleteAttachment) return;
+                const { attachmentId, itemId } = this.pendingDeleteAttachment;
+
+                try {
+                    const response = await fetch(`{{ url_for("spec_template.list_templates") }}api/attachment/${attachmentId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                        }
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        // 从本地列表中移除
+                        if (this.attachmentFiles[itemId]) {
+                            this.attachmentFiles[itemId] = this.attachmentFiles[itemId].filter(a => a.id !== attachmentId);
+                        }
+                    } else {
+                        this.showToast(data.message || '{{ _("删除失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('删除附件失败:', error);
+                    this.showToast('{{ _("删除失败") }}', 'error');
+                } finally {
+                    this.pendingDeleteAttachment = null;
+                }
+            },
+
+            // 打开附件管理模态框（保留，可能在其他地方使用）
+            openAttachmentModal(itemId, itemName) {
+                window.openSpecAttachmentModal(itemId, itemName);
             },
 
             // 保存初始状态
@@ -729,6 +906,13 @@
             hasOptions(definitionId) {
                 const options = this.getDefinitionOptions(definitionId);
                 return options && options.length > 0;
+            },
+
+            // 检查是否可以显示附件按钮（仅编辑模式且 allow_attachment 为 true 且已保存时）
+            canShowAttachment(def) {
+                if (!def) return false;
+                const itemData = this.selectedItems[def.id];
+                return def.allow_attachment && itemData && itemData.id;
             },
 
             // 格式化编码选项为字符串显示 {"400-470": "A"} => "400-470:A"
@@ -1035,6 +1219,126 @@
         variant='warning'
     ) }}
 
+    {{ tw_confirm_modal(
+        modal_id='deleteAttachmentModal',
+        title=_('删除附件'),
+        message=_('确定要删除此附件吗？'),
+        confirm_text=_('删除'),
+        cancel_text=_('取消'),
+        variant='danger'
+    ) }}
+
     {{ tw_confirm_modal_script() }}
+
+    <!-- 附件管理模态框 -->
+    <div id="specAttachmentModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50" onclick="if(event.target===this) closeSpecAttachmentModal()">
+        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg mx-4 overflow-hidden">
+            <div class="p-4 border-b border-slate-200 dark:border-slate-700">
+                <div class="flex items-center justify-between">
+                    <h3 id="specAttachmentModalTitle" class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ _('附件管理') }}</h3>
+                    <button type="button" onclick="closeSpecAttachmentModal()" class="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+            </div>
+            <div class="p-4">
+                <!-- 使用文件上传组件容器 -->
+                <div id="specAttachmentUploadContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    {{ render_file_preview_modal('specAttachmentPreview') }}
+
+    {{ render_file_preview_script('specAttachmentPreview') }}
+
+    <script>
+    const SPEC_API_BASE = '{{ url_for("spec_template.list_templates") }}api';
+    let currentItemId = null;
+
+    function openSpecAttachmentModal(itemId, itemName) {
+        currentItemId = itemId;
+        document.getElementById('specAttachmentModalTitle').textContent = `{{ _('附件管理') }} - ${itemName}`;
+        document.getElementById('specAttachmentModal').classList.remove('hidden');
+        document.getElementById('specAttachmentModal').classList.add('flex');
+        loadAttachments(itemId);
+    }
+
+    function closeSpecAttachmentModal() {
+        document.getElementById('specAttachmentModal').classList.add('hidden');
+        document.getElementById('specAttachmentModal').classList.remove('flex');
+        if (currentItemId && specTemplateEditorInstance) updateAttachmentCount(currentItemId);
+        currentItemId = null;
+    }
+
+    async function loadAttachments(itemId) {
+        const container = document.getElementById('specAttachmentUploadContainer');
+        container.innerHTML = '<div class="text-center py-4 text-slate-400"><span class="material-symbols-outlined animate-spin">progress_activity</span></div>';
+
+        const res = await fetch(`${SPEC_API_BASE}/item/${itemId}/attachments`);
+        const data = await res.json();
+        const files = data.attachments || [];
+
+        container.innerHTML = `
+            <div class="flex flex-wrap items-center gap-2 mb-3">
+                <label class="cursor-pointer group">
+                    <input type="file" accept="image/*,.pdf" multiple class="hidden" onchange="uploadFiles(this.files)">
+                    <span class="inline-flex items-center justify-center w-10 h-10 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 group-hover:border-primary text-slate-400 group-hover:text-primary">
+                        <span class="material-symbols-outlined">add</span>
+                    </span>
+                </label>
+                <div id="fileList" class="flex flex-wrap items-center gap-2"></div>
+            </div>
+            <div id="uploadProgress" class="hidden text-sm text-primary"><span class="material-symbols-outlined animate-spin align-middle">progress_activity</span> {{ _('上传中...') }}</div>
+        `;
+
+        const fileList = document.getElementById('fileList');
+        files.forEach(f => fileList.appendChild(createFileEl(f)));
+        if (!files.length) fileList.innerHTML = '<span class="text-sm text-slate-400">{{ _("暂无附件") }}</span>';
+    }
+
+    function createFileEl(f) {
+        const isPdf = f.file_type?.includes('pdf');
+        const div = document.createElement('div');
+        div.className = 'inline-flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-sm group';
+        div.innerHTML = `
+            <button type="button" onclick="previewFile_specAttachmentPreview('${SPEC_API_BASE}/attachment/${f.id}/preview','${f.file_name.replace(/'/g,"\\'")}','${SPEC_API_BASE}/attachment/${f.id}/preview')" class="inline-flex items-center gap-1 hover:text-primary">
+                <span class="material-symbols-outlined text-base ${isPdf?'text-red-500':'text-primary'}">${isPdf?'picture_as_pdf':'image'}</span>
+                <span class="truncate max-w-[80px]">${f.file_name}</span>
+            </button>
+            <button type="button" onclick="deleteFile(${f.id},this)" class="text-slate-400 hover:text-red-500"><span class="material-symbols-outlined text-base">close</span></button>
+        `;
+        return div;
+    }
+
+    async function uploadFiles(files) {
+        if (!files.length) return;
+        document.getElementById('uploadProgress').classList.remove('hidden');
+        for (const file of files) {
+            if (file.size > 10*1024*1024) { showToast(`${file.name}: {{ _('文件过大') }}`, 'error'); continue; }
+            const fd = new FormData(); fd.append('file', file);
+            await fetch(`${SPEC_API_BASE}/item/${currentItemId}/attachments`, {
+                method: 'POST', headers: {'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content}, body: fd
+            });
+        }
+        document.getElementById('uploadProgress').classList.add('hidden');
+        loadAttachments(currentItemId);
+    }
+
+    async function deleteFile(id, btn) {
+        if (!confirm('{{ _("确定删除？") }}')) return;
+        await fetch(`${SPEC_API_BASE}/attachment/${id}`, { method: 'DELETE', headers: {'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content} });
+        btn.closest('div').remove();
+        const fileList = document.getElementById('fileList');
+        if (!fileList.querySelector('div')) fileList.innerHTML = '<span class="text-sm text-slate-400">{{ _("暂无附件") }}</span>';
+    }
+
+    async function updateAttachmentCount(itemId) {
+        // 重新加载附件列表
+        if (specTemplateEditorInstance) {
+            await specTemplateEditorInstance.loadItemAttachments(itemId);
+        }
+    }
+    </script>
 </body>
 </html>

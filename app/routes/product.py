@@ -68,25 +68,27 @@ bp = Blueprint('product', __name__)
 # MN编号重复检查函数 (从已废弃的product_management.py迁移 2025-12-26)
 # ============================================================================
 
-def check_mn_code_duplicate(mn_code, exclude_dev_product_id=None, exclude_product_id=None):
+def check_mn_code_duplicate(mn_code, exclude_dev_product_id=None, exclude_product_id=None, exclude_config_id=None):
     """
-    检查MN编号全局唯一性（跨研发产品库和标准产品库）
+    检查MN编号全局唯一性（跨研发产品库、标准产品库和规格配置版本）
 
     Args:
         mn_code: 要检查的MN编号
         exclude_dev_product_id: 排除的研发产品ID（研发库编辑时使用）
         exclude_product_id: 排除的产品ID（产品库编辑时使用）
+        exclude_config_id: 排除的配置版本ID（规格配置编辑时使用）
 
     Returns:
         dict: {
             'is_duplicate': bool,
             'dev_products': [{...}],  # 研发库重复产品列表
             'standard_products': [{...}],  # 产品库重复产品列表
+            'config_versions': [{...}],  # 规格配置版本重复列表
             'total_duplicates': int
         }
     """
     if not mn_code:
-        return {'is_duplicate': False, 'dev_products': [], 'standard_products': []}
+        return {'is_duplicate': False, 'dev_products': [], 'standard_products': [], 'config_versions': []}
 
     try:
         from app.models.dev_product import DevProduct
@@ -138,21 +140,45 @@ def check_mn_code_duplicate(mn_code, exclude_dev_product_id=None, exclude_produc
                 'source': '标准产品库'
             })
 
-        is_duplicate = len(duplicate_dev_products) > 0 or len(duplicate_standard_products) > 0
+        # 检查规格配置版本
+        from app.models.spec_template import ProductConfiguration
+        duplicate_config_versions = []
+
+        config_query = ProductConfiguration.query.filter(ProductConfiguration.mn_code == mn_code)
+        if exclude_config_id:
+            config_query = config_query.filter(ProductConfiguration.id != exclude_config_id)
+
+        config_duplicates = config_query.all()
+
+        for config in config_duplicates:
+            duplicate_config_versions.append({
+                'id': config.id,
+                'config_code': config.config_code,
+                'template_name': config.template.name if config.template else '未知',
+                'region': config.region_name or config.region or '未知',
+                'status': config.status,
+                'mn_code': config.mn_code,
+                'created_at': config.created_at.strftime('%Y-%m-%d %H:%M:%S') if config.created_at else '未知',
+                'creator': config.creator.username if config.creator else '未知',
+                'source': '规格配置版本'
+            })
+
+        is_duplicate = len(duplicate_dev_products) > 0 or len(duplicate_standard_products) > 0 or len(duplicate_config_versions) > 0
 
         if is_duplicate:
-            logger.warning(f"检测到MN编号 {mn_code} 重复，研发产品: {len(duplicate_dev_products)}个, 标准产品: {len(duplicate_standard_products)}个")
+            logger.warning(f"检测到MN编号 {mn_code} 重复，研发产品: {len(duplicate_dev_products)}个, 标准产品: {len(duplicate_standard_products)}个, 规格配置: {len(duplicate_config_versions)}个")
 
         return {
             'is_duplicate': is_duplicate,
             'dev_products': duplicate_dev_products,
             'standard_products': duplicate_standard_products,
-            'total_duplicates': len(duplicate_dev_products) + len(duplicate_standard_products)
+            'config_versions': duplicate_config_versions,
+            'total_duplicates': len(duplicate_dev_products) + len(duplicate_standard_products) + len(duplicate_config_versions)
         }
 
     except Exception as e:
         logger.error(f"检查MN编号重复时出错: {str(e)}")
-        return {'is_duplicate': False, 'dev_products': [], 'standard_products': [], 'error': str(e)}
+        return {'is_duplicate': False, 'dev_products': [], 'standard_products': [], 'config_versions': [], 'error': str(e)}
 
 
 # ============================================================

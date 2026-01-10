@@ -2,6 +2,7 @@
 {% from 'components/tw_detail_layout.html' import tw_detail_layout with context %}
 {% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles with context %}
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
+{% from 'components/tw_file_preview.html' import render_file_preview_modal, render_file_preview_script with context %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 <head>
@@ -52,6 +53,7 @@
         .matrix-table {
             border-collapse: separate;
             border-spacing: 0;
+            width: max-content;
         }
         .matrix-table th,
         .matrix-table td {
@@ -89,7 +91,7 @@
             border-bottom-right-radius: 0.5rem;
         }
 
-        /* 固定列 */
+        /* 固定列 - JS 动态计算宽度和 left 值 */
         .sticky-col {
             position: sticky;
             left: 0;
@@ -120,6 +122,9 @@
             left: 0;
             z-index: 10;
             background: inherit;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         /* 配置列等宽 */
@@ -289,8 +294,8 @@
 
                 {% if configurations %}
                 <!-- 分类标签页 -->
-                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden mb-4">
-                    <nav class="flex overflow-x-auto px-4 border-b border-slate-200 dark:border-slate-700" aria-label="Tabs">
+                <div class="mb-4">
+                    <nav class="flex overflow-x-auto px-4" aria-label="Tabs">
                         <button type="button"
                                 @click="activeCategory = 'all'"
                                 :class="activeCategory === 'all' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-300'"
@@ -318,7 +323,7 @@
                 <!-- 矩阵表格 -->
                 <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                     <div class="overflow-x-auto">
-                        <table class="matrix-table min-w-full">
+                        <table class="matrix-table">
                             <thead class="bg-slate-50 dark:bg-slate-800/80">
                                 <tr>
                                     <th class="sticky-col bg-slate-50 dark:bg-slate-800/80 px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
@@ -400,27 +405,66 @@
                                         {{ item.definition.unit or '-' }}
                                     </td>
                                     <td class="sticky-col-3 bg-white dark:bg-slate-800 px-4 py-2 text-sm text-slate-900 dark:text-white">
-                                        {{ item.general_value or '-' }}
+                                        <div class="flex items-center gap-1">
+                                            <span class="flex-1">{{ item.general_value or '-' }}</span>
+                                            {% if item.definition.allow_attachment %}
+                                            <button type="button"
+                                                    class="attachment-btn inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
+                                                    data-item-id="{{ item.id }}"
+                                                    data-type="template"
+                                                    @click="openAttachmentModal({{ item.id }}, null, '{{ item.definition.name }}')"
+                                                    title="{{ _('管理附件') }}">
+                                                <span class="material-symbols-outlined text-base text-slate-400 attachment-icon" data-item-id="{{ item.id }}" data-type="template">attach_file</span>
+                                            </button>
+                                            {% endif %}
+                                        </div>
                                     </td>
                                     {% for config in configurations %}
                                     <td class="px-1 py-1">
                                         {% set saved_value = config_values_matrix.get(config.id, {}).get(item.id, '') %}
                                         {% if config.mn_locked %}
                                         {# 锁定配置：只显示文本，不显示输入框 #}
-                                        <div class="text-sm text-center py-1.5 text-slate-700 dark:text-slate-300"
-                                             title="{{ _('MN编码已锁定，不可编辑') }}">
-                                            {{ saved_value or '-' }}
+                                        <div class="flex items-center gap-1">
+                                            <span class="flex-1 text-sm text-center py-1.5 text-slate-700 dark:text-slate-300"
+                                                 title="{{ _('MN编码已锁定，不可编辑') }}">
+                                                {{ saved_value or '-' }}
+                                            </span>
+                                            {% if item.definition.allow_attachment %}
+                                            <button type="button"
+                                                    class="attachment-btn inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
+                                                    data-item-id="{{ item.id }}"
+                                                    data-config-id="{{ config.id }}"
+                                                    data-type="config"
+                                                    data-locked="true"
+                                                    @click="openAttachmentModal({{ item.id }}, {{ config.id }}, '{{ item.definition.name }}', true)"
+                                                    title="{{ _('查看附件') }}">
+                                                <span class="material-symbols-outlined text-base text-slate-400 attachment-icon" data-item-id="{{ item.id }}" data-config-id="{{ config.id }}" data-type="config">attach_file</span>
+                                            </button>
+                                            {% endif %}
                                         </div>
                                         {% else %}
                                         {# 未锁定配置：显示可编辑输入框 #}
-                                        <input type="text"
-                                               data-config-id="{{ config.id }}"
-                                               data-item-id="{{ item.id }}"
-                                               data-original="{{ saved_value }}"
-                                               value="{{ saved_value }}"
-                                               @input="markModified($event.target)"
-                                               placeholder="{{ item.general_value or '-' }}"
-                                               class="matrix-input rounded">
+                                        <div class="flex items-center gap-1">
+                                            <input type="text"
+                                                   data-config-id="{{ config.id }}"
+                                                   data-item-id="{{ item.id }}"
+                                                   data-original="{{ saved_value }}"
+                                                   value="{{ saved_value }}"
+                                                   @input="markModified($event.target)"
+                                                   placeholder="{{ item.general_value or '-' }}"
+                                                   class="matrix-input rounded flex-1">
+                                            {% if item.definition.allow_attachment %}
+                                            <button type="button"
+                                                    class="attachment-btn inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex-shrink-0"
+                                                    data-item-id="{{ item.id }}"
+                                                    data-config-id="{{ config.id }}"
+                                                    data-type="config"
+                                                    @click="openAttachmentModal({{ item.id }}, {{ config.id }}, '{{ item.definition.name }}')"
+                                                    title="{{ _('管理附件') }}">
+                                                <span class="material-symbols-outlined text-base text-slate-400 attachment-icon" data-item-id="{{ item.id }}" data-config-id="{{ config.id }}" data-type="config">attach_file</span>
+                                            </button>
+                                            {% endif %}
+                                        </div>
                                         {% endif %}
                                     </td>
                                     {% endfor %}
@@ -558,6 +602,66 @@
         variant='info'
     ) }}
 
+    <!-- 附件管理模态框 -->
+    <div id="attachmentModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50" onclick="if(event.target===this) closeAttachmentModal()">
+        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg mx-4 overflow-hidden">
+            <div class="p-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                        <span id="attachmentModalTitle">{{ _('附件管理') }}</span>
+                    </h3>
+                    <button type="button" onclick="closeAttachmentModal()"
+                            class="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+            </div>
+            <div class="p-4">
+                <!-- 附件来源标签 -->
+                <div id="attachmentSourceLabel" class="hidden mb-3 px-2 py-1 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg">
+                    <div class="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
+                        <span class="material-symbols-outlined text-base">info</span>
+                        <span>{{ _('当前显示默认附件，上传后将使用配置特定附件') }}</span>
+                    </div>
+                </div>
+
+                <!-- 附件列表 -->
+                <div id="attachmentList" class="min-h-[100px] flex flex-wrap gap-3 mb-4">
+                    <!-- 动态加载附件 -->
+                    <div id="attachmentLoading" class="w-full flex items-center justify-center py-8 text-slate-400">
+                        <span class="material-symbols-outlined animate-spin mr-2">progress_activity</span>
+                        <span>{{ _('加载中...') }}</span>
+                    </div>
+                    <div id="attachmentEmpty" class="hidden w-full flex flex-col items-center justify-center py-8 text-slate-400">
+                        <span class="material-symbols-outlined text-4xl mb-2">attachment</span>
+                        <span class="text-sm">{{ _('暂无附件') }}</span>
+                    </div>
+                </div>
+
+                <!-- 上传区域 -->
+                <div id="attachmentUploadArea" class="pt-4">
+                    <label class="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:border-primary hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                        <input type="file" id="attachmentFileInput" accept="image/*,.pdf" multiple class="hidden">
+                        <span class="material-symbols-outlined text-slate-400">cloud_upload</span>
+                        <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('点击或拖拽上传附件') }}</span>
+                    </label>
+                    <p class="text-xs text-slate-400 dark:text-slate-500 mt-2 text-center">{{ _('支持 PDF、JPG、PNG 格式，单个文件最大 10MB') }}</p>
+                </div>
+
+                <!-- 上传进度 -->
+                <div id="attachmentUploadProgress" class="hidden mt-3">
+                    <div class="flex items-center gap-2 text-sm text-primary">
+                        <span class="material-symbols-outlined animate-spin">progress_activity</span>
+                        <span id="attachmentUploadText">{{ _('上传中...') }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 文件预览模态框 -->
+    {{ render_file_preview_modal('specAttachmentPreviewModal') }}
+
     <!-- 导入配置模态框 -->
     <div id="importConfigModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50" onclick="if(event.target===this) closeImportModal()">
         <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg mx-4 overflow-hidden">
@@ -627,11 +731,415 @@
     <!-- 布局脚本 -->
     {{ render_tw_layout_script() }}
     {{ tw_confirm_modal_script() }}
+    {{ render_file_preview_script('specAttachmentPreviewModal') }}
 
     <!-- 页面逻辑 -->
     <script>
     const TEMPLATE_ID = {{ template.id }};
     const API_BASE = '{{ url_for("spec_template.list_templates") }}api';
+
+    // ============================================
+    // 固定列宽度计算（页面加载时执行一次）
+    // ============================================
+    function initStickyColumnWidths() {
+        let maxCol1 = 0, maxCol2 = 0, maxCol3 = 0;
+
+        // 只计算没有 colspan 的单元格
+        document.querySelectorAll('.sticky-col:not([colspan])').forEach(el => {
+            maxCol1 = Math.max(maxCol1, el.offsetWidth);
+        });
+        document.querySelectorAll('.sticky-col-2:not([colspan])').forEach(el => {
+            maxCol2 = Math.max(maxCol2, el.offsetWidth);
+        });
+        document.querySelectorAll('.sticky-col-3:not([colspan])').forEach(el => {
+            maxCol3 = Math.max(maxCol3, el.offsetWidth);
+        });
+
+        // 设置固定宽度 + left 位置
+        document.querySelectorAll('.sticky-col').forEach(el => {
+            if (!el.hasAttribute('colspan')) {
+                el.style.width = maxCol1 + 'px';
+                el.style.minWidth = maxCol1 + 'px';
+                el.style.maxWidth = maxCol1 + 'px';
+            }
+        });
+        document.querySelectorAll('.sticky-col-2').forEach(el => {
+            el.style.width = maxCol2 + 'px';
+            el.style.minWidth = maxCol2 + 'px';
+            el.style.maxWidth = maxCol2 + 'px';
+            el.style.left = maxCol1 + 'px';
+        });
+        document.querySelectorAll('.sticky-col-3').forEach(el => {
+            el.style.width = maxCol3 + 'px';
+            el.style.minWidth = maxCol3 + 'px';
+            el.style.maxWidth = maxCol3 + 'px';
+            el.style.left = (maxCol1 + maxCol2) + 'px';
+        });
+
+        // 分类标题行（colspan=3）限制宽度，防止撑开列
+        const totalWidth = maxCol1 + maxCol2 + maxCol3;
+        document.querySelectorAll('.sticky-category-title').forEach(el => {
+            el.style.width = totalWidth + 'px';
+            el.style.minWidth = totalWidth + 'px';
+            el.style.maxWidth = totalWidth + 'px';
+        });
+    }
+
+    // 页面加载后执行一次
+    document.addEventListener('DOMContentLoaded', initStickyColumnWidths);
+
+    // ============================================
+    // 附件管理相关
+    // ============================================
+    let currentAttachmentContext = {
+        itemId: null,
+        configId: null,
+        itemName: '',
+        isLocked: false
+    };
+
+    /**
+     * 打开附件管理模态框
+     */
+    function openAttachmentModal(itemId, configId, itemName, isLocked = false) {
+        currentAttachmentContext = { itemId, configId, itemName, isLocked };
+
+        // 更新模态框标题
+        const title = document.getElementById('attachmentModalTitle');
+        title.textContent = `{{ _('附件管理') }} - ${itemName}`;
+
+        // 显示/隐藏上传区域：锁定或通用附件都不能上传
+        const uploadArea = document.getElementById('attachmentUploadArea');
+        const isReadOnly = isLocked || !configId;  // 通用附件也是只读
+        uploadArea.style.display = isReadOnly ? 'none' : 'block';
+
+        // 显示模态框
+        const modal = document.getElementById('attachmentModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        // 加载附件
+        loadAttachments();
+    }
+
+    /**
+     * 关闭附件管理模态框
+     */
+    function closeAttachmentModal() {
+        const modal = document.getElementById('attachmentModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        currentAttachmentContext = { itemId: null, configId: null, itemName: '', isLocked: false };
+    }
+
+    /**
+     * 加载附件列表
+     */
+    async function loadAttachments() {
+        const { itemId, configId } = currentAttachmentContext;
+        const listEl = document.getElementById('attachmentList');
+        const loadingEl = document.getElementById('attachmentLoading');
+        const emptyEl = document.getElementById('attachmentEmpty');
+        const sourceLabel = document.getElementById('attachmentSourceLabel');
+
+        // 显示加载状态
+        loadingEl.classList.remove('hidden');
+        emptyEl.classList.add('hidden');
+        sourceLabel.classList.add('hidden');
+
+        // 清除之前的附件
+        listEl.querySelectorAll('.attachment-item').forEach(el => el.remove());
+
+        try {
+            // 根据是模板级还是配置级调用不同 API
+            let url;
+            if (configId) {
+                url = `${API_BASE}/config/${configId}/item/${itemId}/attachments`;
+            } else {
+                url = `${API_BASE}/item/${itemId}/attachments`;
+            }
+
+            const response = await fetch(url);
+            const data = await response.json();
+
+            loadingEl.classList.add('hidden');
+
+            if (data.success && data.attachments && data.attachments.length > 0) {
+                // 显示来源标签（如果是配置级但使用了默认附件）
+                if (configId && data.is_fallback) {
+                    sourceLabel.classList.remove('hidden');
+                }
+
+                // 渲染附件
+                data.attachments.forEach(att => {
+                    const el = createAttachmentElement(att);
+                    listEl.appendChild(el);
+                });
+            } else {
+                emptyEl.classList.remove('hidden');
+            }
+        } catch (error) {
+            console.error('加载附件失败:', error);
+            loadingEl.classList.add('hidden');
+            emptyEl.classList.remove('hidden');
+        }
+    }
+
+    /**
+     * 创建附件元素
+     */
+    function createAttachmentElement(attachment) {
+        const isPdf = attachment.file_type && attachment.file_type.includes('pdf');
+        const isImage = attachment.file_type && attachment.file_type.startsWith('image/');
+        // 通用附件（configId 为 null）不能删除
+        const canDelete = !currentAttachmentContext.isLocked &&
+                          !attachment.is_fallback &&
+                          currentAttachmentContext.configId !== null;
+
+        const div = document.createElement('div');
+        div.className = 'attachment-item relative group';
+        div.dataset.id = attachment.id;
+
+        div.innerHTML = `
+            <button type="button"
+                    class="inline-flex items-center justify-center w-16 h-16 rounded-lg border
+                           ${attachment.is_fallback ? 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/30' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-700'}
+                           hover:border-primary hover:bg-primary/5 transition-colors"
+                    onclick="previewAttachment(${attachment.id}, '${attachment.file_name}', '${attachment.file_type}')"
+                    title="${attachment.file_name}">
+                ${isPdf ? '<span class="material-symbols-outlined text-2xl text-red-500">picture_as_pdf</span>' : ''}
+                ${isImage ? '<span class="material-symbols-outlined text-2xl text-primary">image</span>' : ''}
+                ${!isPdf && !isImage ? '<span class="material-symbols-outlined text-2xl text-slate-400">draft</span>' : ''}
+            </button>
+            ${canDelete ? `
+            <button type="button"
+                    class="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white
+                           opacity-0 group-hover:opacity-100 transition-opacity
+                           flex items-center justify-center"
+                    onclick="deleteAttachment(${attachment.id})"
+                    title="{{ _('删除') }}">
+                <span class="material-symbols-outlined" style="font-size: 14px;">close</span>
+            </button>
+            ` : ''}
+            <p class="text-xs text-center mt-1 truncate max-w-[64px] text-slate-600 dark:text-slate-400" title="${attachment.file_name}">
+                ${attachment.file_name.length > 8 ? attachment.file_name.substring(0, 6) + '...' : attachment.file_name}
+            </p>
+        `;
+
+        return div;
+    }
+
+    /**
+     * 预览附件
+     */
+    function previewAttachment(attachmentId, fileName, fileType) {
+        const previewUrl = `${API_BASE}/attachment/${attachmentId}/preview`;
+
+        // 使用文件预览组件
+        if (typeof previewFile_specAttachmentPreviewModal === 'function') {
+            previewFile_specAttachmentPreviewModal(previewUrl, fileName, previewUrl);
+        } else {
+            // 回退：直接打开新窗口
+            window.open(previewUrl, '_blank');
+        }
+    }
+
+    /**
+     * 删除附件
+     */
+    async function deleteAttachment(attachmentId) {
+        if (!confirm('{{ _("确定要删除此附件吗？") }}')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE}/attachment/${attachmentId}`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('{{ _("删除成功") }}');
+                loadAttachments(); // 重新加载
+                updateAttachmentIcon(currentAttachmentContext.itemId, currentAttachmentContext.configId);
+            } else {
+                showToast(data.message || '{{ _("删除失败") }}', 'error');
+            }
+        } catch (error) {
+            console.error('删除附件失败:', error);
+            showToast('{{ _("删除失败") }}', 'error');
+        }
+    }
+
+    /**
+     * 更新附件图标状态
+     */
+    function updateAttachmentIcon(itemId, configId) {
+        const selector = configId
+            ? `.attachment-icon[data-item-id="${itemId}"][data-config-id="${configId}"]`
+            : `.attachment-icon[data-item-id="${itemId}"][data-type="template"]`;
+
+        const icon = document.querySelector(selector);
+        if (!icon) return;
+
+        // 重新获取附件数量
+        fetch(`${API_BASE}/attachments/count`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({
+                items: [{ item_id: itemId, config_id: configId }]
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.counts) {
+                const key = configId ? `${itemId}_${configId}` : `${itemId}_template`;
+                const countInfo = data.counts[key];
+                if (countInfo && countInfo.count > 0) {
+                    icon.classList.remove('text-slate-400');
+                    icon.classList.add(countInfo.is_fallback ? 'text-amber-500' : 'text-primary');
+                } else {
+                    icon.classList.remove('text-primary', 'text-amber-500');
+                    icon.classList.add('text-slate-400');
+                }
+            }
+        })
+        .catch(err => console.error('更新图标状态失败:', err));
+    }
+
+    // 初始化附件上传
+    document.addEventListener('DOMContentLoaded', function() {
+        const fileInput = document.getElementById('attachmentFileInput');
+        if (fileInput) {
+            fileInput.addEventListener('change', handleAttachmentUpload);
+        }
+
+        // 初始化所有附件图标状态
+        initAttachmentIcons();
+    });
+
+    /**
+     * 处理附件上传
+     */
+    async function handleAttachmentUpload(e) {
+        const files = Array.from(e.target.files);
+        if (!files.length) return;
+
+        const { itemId, configId } = currentAttachmentContext;
+        const progressEl = document.getElementById('attachmentUploadProgress');
+        const progressText = document.getElementById('attachmentUploadText');
+
+        progressEl.classList.remove('hidden');
+
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (const file of files) {
+            // 验证文件
+            if (file.size > 10 * 1024 * 1024) {
+                showToast(`${file.name}: {{ _('文件大小超过 10MB') }}`, 'error');
+                errorCount++;
+                continue;
+            }
+
+            progressText.textContent = `{{ _('上传中') }}: ${file.name}`;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                let url;
+                if (configId) {
+                    url = `${API_BASE}/config/${configId}/item/${itemId}/attachments`;
+                } else {
+                    url = `${API_BASE}/item/${itemId}/attachments`;
+                }
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    successCount++;
+                } else {
+                    showToast(`${file.name}: ${data.message || '{{ _("上传失败") }}'}`, 'error');
+                    errorCount++;
+                }
+            } catch (error) {
+                console.error('上传失败:', error);
+                errorCount++;
+            }
+        }
+
+        progressEl.classList.add('hidden');
+        e.target.value = ''; // 清空文件选择
+
+        if (successCount > 0) {
+            showToast(`{{ _('成功上传') }} ${successCount} {{ _('个文件') }}`);
+            loadAttachments();
+            updateAttachmentIcon(itemId, configId);
+        }
+    }
+
+    /**
+     * 初始化所有附件图标状态
+     */
+    async function initAttachmentIcons() {
+        const icons = document.querySelectorAll('.attachment-icon');
+        if (!icons.length) return;
+
+        // 收集所有需要检查的项
+        const items = [];
+        icons.forEach(icon => {
+            const itemId = parseInt(icon.dataset.itemId);
+            const configId = icon.dataset.configId ? parseInt(icon.dataset.configId) : null;
+            items.push({ item_id: itemId, config_id: configId });
+        });
+
+        if (!items.length) return;
+
+        try {
+            const response = await fetch(`${API_BASE}/attachments/count`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({ items })
+            });
+
+            const data = await response.json();
+
+            if (data.success && data.counts) {
+                icons.forEach(icon => {
+                    const itemId = icon.dataset.itemId;
+                    const configId = icon.dataset.configId;
+                    const key = configId ? `${itemId}_${configId}` : `${itemId}_template`;
+                    const countInfo = data.counts[key];
+
+                    if (countInfo && countInfo.count > 0) {
+                        icon.classList.remove('text-slate-400');
+                        icon.classList.add(countInfo.is_fallback ? 'text-amber-500' : 'text-primary');
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('初始化附件图标失败:', error);
+        }
+    }
 
     // ============================================
     // MN 编码生成相关
@@ -1101,7 +1609,10 @@
             try {
                 const response = await fetch(`${API_BASE}/configurations/${configId}/values`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    },
                     body: JSON.stringify({ values: values })
                 });
 

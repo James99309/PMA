@@ -105,6 +105,7 @@ def api_create_definition():
         unit=data.get('unit'),
         description=data.get('description'),
         value_type=data.get('value_type', 'text'),
+        allow_attachment=data.get('allow_attachment', False),
         default_test_condition_id=data.get('default_test_condition_id'),
         default_test_method_id=data.get('default_test_method_id'),
         display_order=max_order + 1
@@ -159,6 +160,7 @@ def api_update_definition(definition_id):
     definition.unit = data.get('unit')
     definition.description = data.get('description')
     definition.value_type = data.get('value_type', 'text')
+    definition.allow_attachment = data.get('allow_attachment', False)
     definition.default_test_condition_id = data.get('default_test_condition_id')
     definition.default_test_method_id = data.get('default_test_method_id')
 
