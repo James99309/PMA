@@ -108,9 +108,7 @@
                                 <span class="material-symbols-outlined mr-2" style="font-size: 18px;">inventory_2</span>
                                 <span>{{ template.configurations|length }} {{ _('个配置版本') }}</span>
                             </div>
-                            {% if template.description %}
-                            <p class="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{{ template.description }}</p>
-                            {% endif %}
+                            <p class="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 min-h-[1.25rem]">{% if template.description and template.description != 'None' %}{{ template.description }}{% endif %}</p>
                         </div>
 
                         <!-- 底部信息 -->
