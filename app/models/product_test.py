@@ -17,7 +17,7 @@ class ProductTest(db.Model):
 
     # ========== 关联信息 ==========
     purchase_order_id = Column(Integer, ForeignKey('purchase_orders.id'), nullable=False)
-    approval_step_id = Column(Integer, ForeignKey('approval_steps.id'), nullable=True)  # 关联审批步骤
+    approval_step_id = Column(Integer, ForeignKey('approval_step.id'), nullable=True)  # 关联审批步骤
 
     # ========== 测试分类 ==========
     test_category = Column(String(20), nullable=False)  # factory: 工厂测试, verification: FAT验证测试
