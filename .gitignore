@@ -169,3 +169,4 @@ supplement_*.py
 
 # 但保留必要的备份服务文件
 !app/services/supabase_backup_service.py
+\!app/models/product_test.py
