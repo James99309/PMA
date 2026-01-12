@@ -29,7 +29,7 @@ echo -e "\n${YELLOW}[2/5] 切换到部署目录...${NC}"
 cd deploy/synology
 
 echo -e "\n${YELLOW}[3/5] 重新构建镜像...${NC}"
-docker-compose build --no-cache pma
+docker-compose build pma
 
 echo -e "\n${YELLOW}[4/5] 重启服务...${NC}"
 docker-compose up -d
