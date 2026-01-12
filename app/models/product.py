@@ -8,6 +8,7 @@ class Product(db.Model):
     type = db.Column(db.String(50))  # 产品类型
     category = db.Column(db.String(50))  # 产品类别(如"基站")
     product_mn = db.Column(db.String(50), unique=True)  # 产品型号编码(MN)
+    serial_code = db.Column(db.String(10), unique=True, nullable=True)  # 序列号编码(5字符)，用于产品序列号生成
     product_name = db.Column(db.String(100))  # 产品名称
     model = db.Column(db.String(100))  # 具体型号
     specification = db.Column(db.Text)  # 规格说明

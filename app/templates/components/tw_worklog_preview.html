@@ -53,11 +53,15 @@
                         </span>
                     </div>
                 </div>
-                <!-- 关闭按钮 -->
-                <button type="button" onclick="window['closeWorklogPreview_{{ modal_id }}'](); return false;"
-                        class="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <span class="material-symbols-outlined">close</span>
-                </button>
+                <div class="flex items-center gap-3">
+                    <!-- 评分徽章（可点击展开建议） -->
+                    <div id="{{ modal_id }}-score-badge" class="hidden"></div>
+                    <!-- 关闭按钮 -->
+                    <button type="button" onclick="window['closeWorklogPreview_{{ modal_id }}'](); return false;"
+                            class="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
             </header>
 
             <!-- 内容区域 -->
@@ -197,7 +201,8 @@
                     statistics: data.statistics || {},
                     activities: data.activities || {},
                     reactions: data.reactions || {},
-                    owner_display_name: logInfo.owner_display_name || ''
+                    owner_display_name: logInfo.owner_display_name || '',
+                    quality_score: data.quality_score || null
                 };
 
                 // 渲染标题
@@ -229,6 +234,9 @@
                         ownerId: ownerId
                     });
                 }
+
+                // 渲染评分徽章（标题栏右侧）
+                renderScoreBadge(currentLogData.quality_score);
 
                 // 标记日志为已读
                 markLogAsRead(logDate, ownerId);
@@ -583,6 +591,170 @@
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    }
+
+    // 评分徽章展开状态
+    let scorePanelExpanded = false;
+
+    /**
+     * 渲染评分徽章
+     */
+    function renderScoreBadge(scoreData) {
+        const badgeContainer = document.getElementById(modalId + '-score-badge');
+        if (!badgeContainer) return;
+
+        if (!scoreData) {
+            badgeContainer.classList.add('hidden');
+            badgeContainer.innerHTML = '';
+            return;
+        }
+
+        // 徽章颜色映射
+        const colorMap = {
+            'tw-badge-green': { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400', icon: 'text-green-500' },
+            'tw-badge-blue': { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400', icon: 'text-blue-500' },
+            'tw-badge-amber': { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-600 dark:text-amber-400', icon: 'text-amber-500' },
+            'tw-badge-gray': { bg: 'bg-slate-100 dark:bg-slate-700', text: 'text-slate-600 dark:text-slate-400', icon: 'text-slate-400' }
+        };
+
+        const colors = colorMap[scoreData.badge_class] || colorMap['tw-badge-gray'];
+        const hasIssues = scoreData.issues && scoreData.issues.length > 0;
+
+        badgeContainer.innerHTML = `
+            <button type="button" onclick="window['toggleScoreSuggestions_${modalId}'](); event.stopPropagation();"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-full ${colors.bg} transition-all hover:scale-105 cursor-pointer"
+                    title="{{ _('点击查看详情') }}">
+                <span class="material-symbols-outlined text-xl ${colors.icon}"
+                      style="font-variation-settings: 'FILL' 1, 'wght' 400">${scoreData.icon}</span>
+                <span class="text-sm font-bold ${colors.text}">${scoreData.total}</span>
+                ${hasIssues ? `<span class="material-symbols-outlined text-sm ${colors.text} transition-transform" id="${modalId}-expand-icon">expand_more</span>` : ''}
+            </button>
+        `;
+        badgeContainer.classList.remove('hidden');
+        scorePanelExpanded = false;
+    }
+
+    /**
+     * 切换建议面板
+     */
+    window['toggleScoreSuggestions_' + modalId] = function() {
+        if (!currentLogData || !currentLogData.quality_score) return;
+
+        const scoreData = currentLogData.quality_score;
+        const contentEl = document.getElementById(modalId + '-content');
+        const expandIcon = document.getElementById(modalId + '-expand-icon');
+        let panelEl = document.getElementById(modalId + '-suggestions-panel');
+
+        if (scorePanelExpanded) {
+            // 收起面板
+            if (panelEl) {
+                panelEl.remove();
+            }
+            if (expandIcon) {
+                expandIcon.style.transform = 'rotate(0deg)';
+            }
+            scorePanelExpanded = false;
+        } else {
+            // 展开面板
+            if (!panelEl) {
+                panelEl = document.createElement('div');
+                panelEl.id = modalId + '-suggestions-panel';
+                panelEl.className = 'mb-6 p-4 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700';
+                // 插入到内容区域开头
+                if (contentEl) {
+                    contentEl.insertBefore(panelEl, contentEl.firstChild);
+                }
+            }
+
+            // 渲染面板内容
+            panelEl.innerHTML = renderSuggestionsContent(scoreData);
+
+            if (expandIcon) {
+                expandIcon.style.transform = 'rotate(180deg)';
+            }
+            scorePanelExpanded = true;
+        }
+    };
+
+    /**
+     * 渲染建议面板内容
+     */
+    function renderSuggestionsContent(scoreData) {
+        const { total, breakdown, issues, suggestions, level } = scoreData;
+
+        // 分数条颜色
+        const barColor = level === 'excellent' ? 'bg-green-500' :
+                        level === 'good' ? 'bg-blue-500' :
+                        level === 'fair' ? 'bg-amber-500' : 'bg-slate-400';
+
+        let html = `
+            <!-- 分数概览 -->
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl font-bold text-slate-900 dark:text-white">${total}</span>
+                    <span class="text-sm text-slate-500 dark:text-slate-400">/ 90+</span>
+                </div>
+                <div class="flex gap-1 text-xs text-slate-500 dark:text-slate-400">
+                    <span>{{ _('基础') }}${breakdown.base}</span>
+                    <span>+</span>
+                    <span>{{ _('工作项') }}${breakdown.items}</span>
+                    <span>+</span>
+                    <span>{{ _('质量') }}${breakdown.quality}</span>
+                    <span>+</span>
+                    <span>{{ _('及时') }}${breakdown.timeliness}</span>
+                    ${breakdown.interaction > 0 ? `<span>+</span><span>{{ _('互动') }}${breakdown.interaction}</span>` : ''}
+                </div>
+            </div>
+
+            <!-- 分数进度条 -->
+            <div class="h-2 bg-slate-200 dark:bg-slate-600 rounded-full mb-4 overflow-hidden">
+                <div class="${barColor} h-full rounded-full transition-all" style="width: ${Math.min(total, 100)}%"></div>
+            </div>
+        `;
+
+        if (issues && issues.length > 0 && suggestions) {
+            // 有改进建议
+            html += `
+                <div class="space-y-3">
+                    <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-amber-500 text-lg">tips_and_updates</span>
+                        {{ _('改进建议') }} (${issues.length})
+                    </h4>
+            `;
+
+            for (const issueKey of issues) {
+                const suggestion = suggestions[issueKey];
+                if (suggestion) {
+                    html += `
+                        <div class="pl-4 border-l-2 border-amber-400 dark:border-amber-500">
+                            <p class="text-sm font-medium text-slate-700 dark:text-slate-300">${escapeHtml(suggestion.issue)}</p>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                <span class="text-amber-600 dark:text-amber-400">💡</span> ${escapeHtml(suggestion.suggestion)}
+                            </p>
+                            <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 italic">
+                                ${escapeHtml(suggestion.example)}
+                            </p>
+                        </div>
+                    `;
+                }
+            }
+
+            html += '</div>';
+        } else {
+            // 无问题，显示鼓励
+            const encourageText = level === 'excellent' ?
+                '{{ _("太棒了！日志内容完整、原创，继续保持！") }}' :
+                '{{ _("做得不错！继续努力，争取更高分！") }}';
+
+            html += `
+                <div class="text-center py-2">
+                    <span class="material-symbols-outlined text-3xl text-green-500 mb-2">celebration</span>
+                    <p class="text-sm text-slate-600 dark:text-slate-400">${encourageText}</p>
+                </div>
+            `;
+        }
+
+        return html;
     }
 
     /**

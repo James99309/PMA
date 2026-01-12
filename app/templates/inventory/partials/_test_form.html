@@ -1,0 +1,495 @@
+{#
+=============================================================================
+产品测试表单 (工厂测试/FAT共用)
+=============================================================================
+此表单用于工厂测试和FAT验证测试，支持全部测试和采样测试两种模式。
+
+使用场景：
+1. 工厂测试 (test_category='factory')
+2. FAT验证测试 (test_category='verification')
+   - site_fat: 现场FAT
+   - incoming: 到货测试
+
+表单流程：
+1. 选择测试模式（全部/采样）
+2. 如果采样，系统随机抽取序列号
+3. 逐个上传测试报告
+4. 全部完成后签名提交
+
+参数说明：
+- test: ProductTest 对象
+- serial_numbers: 待测试的序列号列表
+- readonly: 是否只读模式
+=============================================================================
+#}
+
+{% macro render_test_form(test, serial_numbers, readonly=false) %}
+<div id="testFormContainer" class="space-y-6">
+    {# 测试信息头部 #}
+    <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+                {% if test.test_category == 'factory' %}
+                    {{ _('工厂测试') }}
+                {% else %}
+                    {{ _('FAT验证测试') }}
+                    {% if test.test_type == 'site_fat' %}
+                        <span class="text-sm font-normal text-slate-500">({{ _('现场FAT') }})</span>
+                    {% elif test.test_type == 'incoming' %}
+                        <span class="text-sm font-normal text-slate-500">({{ _('到货测试') }})</span>
+                    {% endif %}
+                {% endif %}
+            </h3>
+            <span class="px-3 py-1 text-sm rounded-full
+                {% if test.status == 'passed' %}
+                    bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300
+                {% elif test.status == 'failed' %}
+                    bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300
+                {% elif test.status == 'in_progress' %}
+                    bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300
+                {% else %}
+                    bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300
+                {% endif %}">
+                {{ test.status_label }}
+            </span>
+        </div>
+
+        {# 测试模式信息 #}
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+                <span class="text-slate-500 dark:text-slate-400">{{ _('测试模式') }}:</span>
+                <span class="ml-1 font-medium text-slate-900 dark:text-white">{{ test.test_mode_label }}</span>
+            </div>
+            <div>
+                <span class="text-slate-500 dark:text-slate-400">{{ _('总数量') }}:</span>
+                <span class="ml-1 font-medium text-slate-900 dark:text-white">{{ test.total_quantity }}</span>
+            </div>
+            {% if test.test_mode == 'sampling' %}
+            <div>
+                <span class="text-slate-500 dark:text-slate-400">{{ _('采样数') }}:</span>
+                <span class="ml-1 font-medium text-slate-900 dark:text-white">{{ test.sample_quantity }}</span>
+            </div>
+            {% endif %}
+            <div>
+                <span class="text-slate-500 dark:text-slate-400">{{ _('进度') }}:</span>
+                <span class="ml-1 font-medium text-slate-900 dark:text-white">
+                    {{ test.passed_count + test.failed_count }}/{{ test.sample_quantity or test.total_quantity }}
+                </span>
+            </div>
+        </div>
+
+        {# 进度条 #}
+        <div class="mt-4">
+            <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                <div class="h-2 rounded-full transition-all duration-300
+                    {% if test.status == 'passed' %}bg-green-500
+                    {% elif test.status == 'failed' %}bg-red-500
+                    {% else %}bg-blue-500{% endif %}"
+                    style="width: {{ test.progress_percentage }}%">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# 测试列表 #}
+    <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+        <div class="p-4 border-b border-slate-200 dark:border-slate-700">
+            <h4 class="font-medium text-slate-900 dark:text-white">{{ _('测试明细') }}</h4>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-slate-50 dark:bg-slate-700/50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            #
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            {{ _('序列号') }}
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            {{ _('产品') }}
+                        </th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            {{ _('结果') }}
+                        </th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            {{ _('报告') }}
+                        </th>
+                        {% if not readonly %}
+                        <th class="px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            {{ _('操作') }}
+                        </th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+                    {% for detail in test.details %}
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                        id="testDetail_{{ detail.id }}"
+                        data-detail-id="{{ detail.id }}">
+                        <td class="px-4 py-3 text-sm text-slate-900 dark:text-white">
+                            {{ detail.sequence }}
+                        </td>
+                        <td class="px-4 py-3 text-sm font-mono text-slate-900 dark:text-white">
+                            {{ detail.serial_number.serial_number }}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+                            {{ detail.serial_number.product.name if detail.serial_number.product else '-' }}
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            {% if detail.result == 'passed' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300">
+                                <span class="material-symbols-outlined text-sm mr-1">check_circle</span>
+                                {{ _('通过') }}
+                            </span>
+                            {% elif detail.result == 'failed' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">
+                                <span class="material-symbols-outlined text-sm mr-1">cancel</span>
+                                {{ _('不通过') }}
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">
+                                <span class="material-symbols-outlined text-sm mr-1">schedule</span>
+                                {{ _('待测') }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            {% if detail.report_file_url %}
+                            <a href="{{ detail.report_file_url }}" target="_blank"
+                               class="inline-flex items-center text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                                <span class="material-symbols-outlined text-sm mr-1">description</span>
+                                {{ _('查看') }}
+                            </a>
+                            {% else %}
+                            <span class="text-slate-400">-</span>
+                            {% endif %}
+                        </td>
+                        {% if not readonly %}
+                        <td class="px-4 py-3 text-center">
+                            {% if not detail.result %}
+                            <button type="button"
+                                    onclick="openTestDetailModal({{ detail.id }})"
+                                    class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+                                <span class="material-symbols-outlined text-sm mr-1">edit</span>
+                                {{ _('录入') }}
+                            </button>
+                            {% else %}
+                            <button type="button"
+                                    onclick="openTestDetailModal({{ detail.id }})"
+                                    class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200">
+                                <span class="material-symbols-outlined text-sm mr-1">visibility</span>
+                                {{ _('查看') }}
+                            </button>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# 签名提交区域（仅当全部测试完成时显示）#}
+    {% if not readonly and (test.passed_count + test.failed_count) == (test.sample_quantity or test.total_quantity) %}
+    <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+        <h4 class="font-medium text-slate-900 dark:text-white mb-4">{{ _('测试人员签名') }}</h4>
+
+        {# 测试汇总 #}
+        <div class="flex items-center gap-6 mb-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+            <div class="flex items-center">
+                <span class="material-symbols-outlined text-green-500 mr-1">check_circle</span>
+                <span class="text-sm text-slate-600 dark:text-slate-300">
+                    {{ _('通过') }}: <strong class="text-green-600">{{ test.passed_count }}</strong> {{ _('台') }}
+                </span>
+            </div>
+            <div class="flex items-center">
+                <span class="material-symbols-outlined text-red-500 mr-1">cancel</span>
+                <span class="text-sm text-slate-600 dark:text-slate-300">
+                    {{ _('不通过') }}: <strong class="text-red-600">{{ test.failed_count }}</strong> {{ _('台') }}
+                </span>
+            </div>
+        </div>
+
+        {# 测试日期和人员 #}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    {{ _('测试日期') }} <span class="text-red-500">*</span>
+                </label>
+                <input type="date" id="testDate" name="test_date"
+                       value="{{ test.test_date.strftime('%Y-%m-%d') if test.test_date else '' }}"
+                       class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    {{ _('测试人员') }} <span class="text-red-500">*</span>
+                </label>
+                <input type="text" id="testerName" name="tester_name"
+                       value="{{ test.tester_name or '' }}"
+                       placeholder="{{ _('请输入测试人员姓名') }}"
+                       class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+        </div>
+
+        {# 签名板 #}
+        {% from 'components/tw_signature_pad.html' import tw_signature_pad %}
+        {{ tw_signature_pad(
+            container_id='testSignature',
+            label='测试人员签名',
+            required=true,
+            readonly=false,
+            existing_signature=test.signature_url
+        ) }}
+
+        {# 提交按钮 #}
+        <div class="flex justify-end mt-4">
+            <button type="button"
+                    onclick="submitTestResult()"
+                    class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                <span class="material-symbols-outlined text-sm mr-2">send</span>
+                {{ _('提交测试结果') }}
+            </button>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{# 测试详情录入模态框 #}
+<div id="testDetailModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+        <div class="fixed inset-0 bg-slate-900/75 transition-opacity" onclick="closeTestDetailModal()"></div>
+        <div class="relative bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-lg w-full mx-auto">
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('录入测试结果') }}</h3>
+                <button type="button" onclick="closeTestDetailModal()"
+                        class="absolute top-4 right-4 text-slate-400 hover:text-slate-500">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <input type="hidden" id="currentDetailId">
+
+                {# 序列号信息 #}
+                <div class="mb-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                    <div class="text-sm text-slate-500 dark:text-slate-400">{{ _('序列号') }}</div>
+                    <div class="text-lg font-mono font-medium text-slate-900 dark:text-white" id="modalSerialNumber">-</div>
+                </div>
+
+                {# 测试结果 #}
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        {{ _('测试结果') }} <span class="text-red-500">*</span>
+                    </label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="test_result" value="passed"
+                                   class="w-4 h-4 text-green-600 focus:ring-green-500">
+                            <span class="ml-2 text-slate-700 dark:text-slate-300">{{ _('通过') }}</span>
+                        </label>
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="test_result" value="failed"
+                                   class="w-4 h-4 text-red-600 focus:ring-red-500">
+                            <span class="ml-2 text-slate-700 dark:text-slate-300">{{ _('不通过') }}</span>
+                        </label>
+                    </div>
+                </div>
+
+                {# 测试报告 #}
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        {{ _('测试报告') }} <span class="text-red-500">*</span>
+                    </label>
+                    <div class="flex items-center justify-center w-full">
+                        <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                            <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                                <span class="material-symbols-outlined text-3xl text-slate-400 mb-2">upload_file</span>
+                                <p class="text-sm text-slate-500 dark:text-slate-400">
+                                    <span class="font-medium text-blue-600">{{ _('点击上传') }}</span> {{ _('或拖放文件') }}
+                                </p>
+                                <p class="text-xs text-slate-400 mt-1">PDF, PNG, JPG ({{ _('最大') }} 10MB)</p>
+                            </div>
+                            <input type="file" id="reportFile" name="report_file" class="hidden"
+                                   accept=".pdf,.png,.jpg,.jpeg">
+                        </label>
+                    </div>
+                    <div id="uploadedFileName" class="mt-2 text-sm text-slate-600 dark:text-slate-400 hidden">
+                        <span class="material-symbols-outlined text-sm align-middle mr-1">description</span>
+                        <span id="fileNameDisplay"></span>
+                    </div>
+                </div>
+
+                {# 备注 #}
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        {{ _('备注') }}
+                    </label>
+                    <textarea id="testNotes" name="notes" rows="2"
+                              placeholder="{{ _('如有异常情况请在此说明') }}"
+                              class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+                <button type="button" onclick="closeTestDetailModal()"
+                        class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">
+                    {{ _('取消') }}
+                </button>
+                <button type="button" onclick="saveTestDetail()"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+                    {{ _('保存') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 测试表单脚本 #}
+{% macro render_test_form_script(test_id, api_base_url) %}
+<script>
+(function() {
+    const testId = {{ test_id }};
+    const apiBaseUrl = '{{ api_base_url }}';
+
+    // 打开测试详情模态框
+    window.openTestDetailModal = function(detailId) {
+        document.getElementById('currentDetailId').value = detailId;
+        document.getElementById('testDetailModal').classList.remove('hidden');
+
+        // 加载详情数据
+        fetch(`${apiBaseUrl}/test-detail/${detailId}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('modalSerialNumber').textContent = data.serial_number;
+                    if (data.result) {
+                        document.querySelector(`input[name="test_result"][value="${data.result}"]`).checked = true;
+                    }
+                    if (data.notes) {
+                        document.getElementById('testNotes').value = data.notes;
+                    }
+                    if (data.report_file_name) {
+                        document.getElementById('fileNameDisplay').textContent = data.report_file_name;
+                        document.getElementById('uploadedFileName').classList.remove('hidden');
+                    }
+                }
+            });
+    };
+
+    // 关闭测试详情模态框
+    window.closeTestDetailModal = function() {
+        document.getElementById('testDetailModal').classList.add('hidden');
+        // 重置表单
+        document.getElementById('currentDetailId').value = '';
+        document.querySelectorAll('input[name="test_result"]').forEach(r => r.checked = false);
+        document.getElementById('reportFile').value = '';
+        document.getElementById('testNotes').value = '';
+        document.getElementById('uploadedFileName').classList.add('hidden');
+    };
+
+    // 保存测试详情
+    window.saveTestDetail = function() {
+        const detailId = document.getElementById('currentDetailId').value;
+        const result = document.querySelector('input[name="test_result"]:checked')?.value;
+        const reportFile = document.getElementById('reportFile').files[0];
+        const notes = document.getElementById('testNotes').value;
+
+        if (!result) {
+            alert('{{ _("请选择测试结果") }}');
+            return;
+        }
+
+        if (!reportFile && !document.getElementById('uploadedFileName').classList.contains('hidden') === false) {
+            alert('{{ _("请上传测试报告") }}');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('result', result);
+        formData.append('notes', notes);
+        if (reportFile) {
+            formData.append('report_file', reportFile);
+        }
+
+        fetch(`${apiBaseUrl}/test-detail/${detailId}`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeTestDetailModal();
+                location.reload();
+            } else {
+                alert(data.message || '{{ _("保存失败") }}');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('{{ _("网络错误，请重试") }}');
+        });
+    };
+
+    // 提交测试结果
+    window.submitTestResult = function() {
+        const testDate = document.getElementById('testDate').value;
+        const testerName = document.getElementById('testerName').value;
+
+        if (!testDate) {
+            alert('{{ _("请选择测试日期") }}');
+            return;
+        }
+
+        if (!testerName) {
+            alert('{{ _("请输入测试人员姓名") }}');
+            return;
+        }
+
+        // 获取签名
+        const signaturePad = window.SignaturePadManager?.get('testSignature');
+        if (!signaturePad || signaturePad.isEmpty()) {
+            alert('{{ _("请签名") }}');
+            return;
+        }
+
+        const signatureData = signaturePad.toDataURL();
+
+        fetch(`${apiBaseUrl}/test/${testId}/submit`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                test_date: testDate,
+                tester_name: testerName,
+                signature: signatureData
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('{{ _("测试结果已提交") }}');
+                location.reload();
+            } else {
+                alert(data.message || '{{ _("提交失败") }}');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('{{ _("网络错误，请重试") }}');
+        });
+    };
+
+    // 文件选择预览
+    document.getElementById('reportFile')?.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            document.getElementById('fileNameDisplay').textContent = file.name;
+            document.getElementById('uploadedFileName').classList.remove('hidden');
+        }
+    });
+})();
+</script>
+{% endmacro %}

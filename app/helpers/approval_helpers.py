@@ -363,16 +363,31 @@ def get_next_level_approver(user):
     
     # 如果用户有部门且不是部门负责人，上一级是同企业同部门的部门负责人
     if user.department and user.company_name and not user.is_department_manager:
+        # 方式1：查找 is_department_manager=True 的用户（主归属该部门的负责人）
         dept_manager = User.query.filter_by(
             department=user.department,
             company_name=user.company_name,
             is_department_manager=True
         ).filter(User.id != user.id).first()
-        
+
         if dept_manager:
             current_app.logger.debug(f"找到部门负责人: {dept_manager.username}")
             return dept_manager
-    
+
+        # 方式2：查找 Department 表中该部门的 manager_id（分管人）
+        # 适用于：用户主归属一个部门，但分管其他部门的情况
+        from app.models.expense import Department
+        dept = Department.query.filter_by(
+            name=user.department,
+            company_name=user.company_name
+        ).first()
+
+        if dept and dept.manager_id:
+            manager = User.query.get(dept.manager_id)
+            if manager and manager.id != user.id:
+                current_app.logger.debug(f"找到部门分管人: {manager.username}")
+                return manager
+
     # 如果是部门负责人或没有找到部门负责人，上一级是总经理
     # 优先查找同企业的总经理
     if user.company_name:
@@ -447,6 +462,7 @@ def get_step_actual_approver(step, approval_instance):
         # 从模板快照中获取
         approver_type = step.get('approver_type', 'user')
         approver_user_id = step.get('approver_user_id')
+        approver_role = step.get('approver_role')  # 角色类型审批人
         action_type = step.get('action_type')
         step_id = step.get('id', 'unknown')
         step_name = step.get('step_name', 'unknown')
@@ -454,6 +470,7 @@ def get_step_actual_approver(step, approval_instance):
         # 从ApprovalStep对象获取
         approver_type = step.approver_type or 'user'
         approver_user_id = step.approver_user_id
+        approver_role = getattr(step, 'approver_role', None)  # 角色类型审批人
         action_type = step.action_type
         step_id = step.id
         step_name = step.step_name
@@ -483,12 +500,16 @@ def get_step_actual_approver(step, approval_instance):
         # 固定用户
         result = User.query.get(approver_user_id)
         return result
+    elif approver_type == 'role' and approver_role:
+        # 按角色确定审批人（查找第一个具有该角色且活跃的用户）
+        result = User.query.filter_by(role=approver_role, is_active=True).first()
+        return result
     elif approver_type == 'branch':
         # 分支决策：根据条件确定审批人
         result = get_branch_approver(step, approval_instance)
         return result
-    
-    current_app.logger.warning(f"无法确定步骤审批人: approver_type={approver_type}, approver_user_id={approver_user_id}")
+
+    current_app.logger.warning(f"无法确定步骤审批人: approver_type={approver_type}, approver_user_id={approver_user_id}, approver_role={approver_role}")
     return None
 
 # 对象类型到模型类的映射配置
@@ -5133,13 +5154,28 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                     if instance.status == ApprovalStatus.APPROVED:
                         # 流程完全通过
                         order.status = 'approved'
+
+                        # 自动生成序列号
+                        try:
+                            from app.services.serial_number_service import generate_serial_numbers_for_order
+                            result = generate_serial_numbers_for_order(order, user_id)
+                            if result['success']:
+                                current_app.logger.info(f"订单 {order.order_number} 自动生成 {len(result['serial_numbers'])} 个序列号")
+                            else:
+                                current_app.logger.warning(f"订单 {order.order_number} 序列号生成失败: {result['message']}")
+                                # 记录详细错误但不阻断审批流程
+                                for error in result.get('errors', []):
+                                    current_app.logger.warning(f"  - {error}")
+                        except Exception as e:
+                            current_app.logger.error(f"序列号生成异常: {str(e)}")
+                            # 不抛出异常，避免影响审批流程
                     else:
                         # 还在审批中
                         order.status = 'pending'
                 elif action == ApprovalAction.REJECT:
                     # 审批拒绝
                     order.status = 'rejected'
-                
+
                 current_app.logger.info(f"订单 {order.order_number} 状态已更新为: {order.status}")
                 
         elif instance.object_type == 'expense':

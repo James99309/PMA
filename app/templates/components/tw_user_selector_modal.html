@@ -63,6 +63,7 @@ Tailwind 用户选择器模态框组件
 - vendor_only: 是否只显示厂商公司，默认 false
 - searchable: 是否显示搜索框，默认 true
 - empty_text: 空状态文本
+- reset_event_name: 可选，监听此事件来重置选中状态（多选模式），如 'reset-workitem-user-selector'
 =============================================================================
 #}
 
@@ -83,13 +84,15 @@ Tailwind 用户选择器模态框组件
     locked_users=none,
     vendor_only=false,
     searchable=true,
-    empty_text=none
+    empty_text=none,
+    reset_event_name=none
 ) %}
 <div id="{{ modal_id }}"
      x-data="{{ modal_id }}Data()"
      x-show="open"
      x-cloak
      @{{ event_name }}.window="open = true"
+     {% if reset_event_name %}@{{ reset_event_name }}.window="resetSelection()"{% endif %}
      class="fixed inset-0 z-50 overflow-y-auto">
     <!-- 背景遮罩 -->
     <div class="fixed inset-0 bg-black/30 dark:bg-black/50 transition-opacity"
@@ -773,6 +776,13 @@ function {{ modal_id }}Data() {
                 alert('{{ _("保存失败，请重试") }}');
                 this.saving = false;
             }
+        },
+
+        // 重置选中状态（供外部事件调用）
+        resetSelection() {
+            this.selectedUsers = [];
+            this.searchKeyword = '';
+            this.expandedNodes = [];
         }
         {% endif %}
     };

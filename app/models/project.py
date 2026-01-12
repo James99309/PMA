@@ -59,7 +59,13 @@ class Project(SharingMixin, db.Model):
     
     # 行业字段
     industry = Column(String(50), nullable=True)  # 项目所属行业
-    
+
+    # 地址相关字段
+    address = Column(String(500), nullable=True)  # 详细地址
+    country = Column(String(10), nullable=True)   # 国家代码
+    region = Column(String(100), nullable=True)   # 省/州
+    city = Column(String(100), nullable=True)     # 城市
+
     # 通用共享字段
     shared_with_users = Column(JSON, default=list, nullable=True)  # 共享给的用户ID列表
     share_enabled = Column(Boolean, default=False, nullable=False)  # 是否启用共享
@@ -207,7 +213,7 @@ def project_after_update(mapper, connection, target):
         try:
             from app.models.projectpm_stage_history import ProjectStageHistory
             ProjectStageHistory.add_history_record(
-                project_id=target.id, 
+                project_id=target.id,
                 from_stage=target._current_stage_previous,
                 to_stage=target.current_stage,
                 change_date=datetime.now(),
@@ -216,20 +222,6 @@ def project_after_update(mapper, connection, target):
             )
         except Exception as e:
             import logging
-        target._skip_history_recording = False
-        return
-        
-    if hasattr(target, '_current_stage_previous') and target.current_stage != target._current_stage_previous:
-        # 如果阶段发生变化，记录到历史表
-        try:
-            from app.models.projectpm_stage_history import ProjectStageHistory
-            ProjectStageHistory.add_history_record(
-                project_id=target.id, 
-                from_stage=target._current_stage_previous,
-                to_stage=target.current_stage,
-                change_date=datetime.now(),
-                remarks=f"自动记录: {target._current_stage_previous or '未设置'} → {target.current_stage or '未设置'}",
-                commit=False  # 在事务中不要提交，让外层事务统一提交
-            )
-        except Exception as e:
-            import logging
+            logging.getLogger(__name__).error(f"记录项目阶段变更历史失败: {e}")
+        finally:
+            target._skip_history_recording = False

@@ -43,6 +43,15 @@
         }
     </script>
     <style>
+        /* 评分徽章边框闪烁动画 */
+        @keyframes ring-glow {
+            0%, 100% { box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.7); }
+            50% { box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.4), 0 0 6px rgba(234, 179, 8, 0.2); }
+        }
+        .score-ring-glow {
+            animation: ring-glow 1.5s ease-in-out infinite;
+        }
+
         /* 禁用移动端橡皮筋效果/过度滚动 */
         html, body {
             overscroll-behavior: none;
@@ -896,6 +905,77 @@
                                 <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('执行备注') }}</div>
                                 <p class="text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 rounded-lg p-3" x-text="viewData.execution_notes"></p>
                             </div>
+
+                            <!-- 会议专属区域 -->
+                            <template x-if="viewData.work_type === 'meeting'">
+                                <div class="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4 space-y-4">
+                                    <!-- 参与者列表 -->
+                                    <div x-show="viewData.shared_with_users && viewData.shared_with_users.length > 0">
+                                        <div class="text-sm text-slate-500 dark:text-slate-400 mb-2">{{ _('参与者') }}</div>
+                                        <div class="flex flex-wrap gap-2">
+                                            <template x-for="user in viewData.shared_with_users" :key="user.id">
+                                                <span class="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-sm text-slate-700 dark:text-slate-300"
+                                                      x-text="user.real_name || user.username"></span>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    <!-- 录音区域 -->
+                                    <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                        <div class="flex items-center gap-2 mb-3">
+                                            <span class="material-symbols-outlined text-slate-600 dark:text-slate-400">mic</span>
+                                            <span class="font-medium text-slate-900 dark:text-white">{{ _('会议录音') }}</span>
+                                        </div>
+
+                                        <!-- 无录音状态 -->
+                                        <template x-if="!viewData.has_recording && !viewMeetingRecording">
+                                            <div class="text-center py-4">
+                                                <p class="text-slate-400 dark:text-slate-500 mb-3">{{ _('暂无录音') }}</p>
+                                                <button @click="openRecordingModeModal(viewData.id)"
+                                                        class="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors">
+                                                    <span class="material-symbols-outlined text-lg">mic</span>
+                                                    {{ _('开始录音') }}
+                                                </button>
+                                            </div>
+                                        </template>
+
+                                        <!-- 有录音状态 -->
+                                        <template x-if="viewData.has_recording || viewMeetingRecording">
+                                            <div class="space-y-3">
+                                                <!-- 录音列表 -->
+                                                <template x-for="rec in (viewMeetingRecordings || [])" :key="rec.id">
+                                                    <div class="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
+                                                        <div class="flex items-center gap-3">
+                                                            <span class="material-symbols-outlined text-slate-400">audio_file</span>
+                                                            <div>
+                                                                <div class="text-sm font-medium text-slate-900 dark:text-white" x-text="rec.duration_display || '00:00'"></div>
+                                                                <div class="text-xs text-slate-500 dark:text-slate-400" x-text="rec.created_at_display"></div>
+                                                            </div>
+                                                        </div>
+                                                        <span class="text-xs px-2 py-1 rounded"
+                                                              :class="getMeetingRecordingStatusClass(rec.status)"
+                                                              x-text="getMeetingRecordingStatusText(rec.status)"></span>
+                                                    </div>
+                                                </template>
+
+                                                <!-- 操作按钮 -->
+                                                <div class="flex gap-2 mt-3">
+                                                    <button @click="openRecordingModeModal(viewData.id)"
+                                                            class="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                                                        <span class="material-symbols-outlined text-lg">mic</span>
+                                                        {{ _('继续录音') }}
+                                                    </button>
+                                                    <a :href="'/meeting/minutes/' + viewData.id"
+                                                       class="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors">
+                                                        <span class="material-symbols-outlined text-lg">description</span>
+                                                        {{ _('查看纪要') }}
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
                         </div>
                     </div>
                     <footer class="flex-shrink-0 flex items-center justify-end px-6 py-4 bg-slate-50/50 dark:bg-slate-800/30">
@@ -904,6 +984,65 @@
                             {{ _('关闭') }}
                         </button>
                     </footer>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 录音模式选择弹窗 ==================== -->
+        <div x-show="showRecordingModeModal" x-cloak
+             class="fixed inset-0 z-50 flex items-center justify-center p-4"
+             @keydown.escape.window="showRecordingModeModal = false">
+            <!-- 遮罩 -->
+            <div class="absolute inset-0 bg-black/50" @click="showRecordingModeModal = false"></div>
+
+            <!-- 弹窗内容 -->
+            <div class="relative bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md">
+                <!-- 头部 -->
+                <div class="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('选择录音模式') }}</h3>
+                    <button @click="showRecordingModeModal = false"
+                            class="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+
+                <!-- 内容 -->
+                <div class="p-6 space-y-4">
+                    <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('选择适合当前会议场景的录音模式') }}</p>
+
+                    <!-- 仅麦克风 -->
+                    <button @click="startMeetingRecording('microphone')"
+                            class="w-full flex items-start gap-4 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-primary dark:hover:border-primary transition-colors text-left">
+                        <span class="material-symbols-outlined text-2xl text-primary">mic</span>
+                        <div class="flex-1">
+                            <h4 class="font-medium text-slate-900 dark:text-white">{{ _('仅麦克风') }}</h4>
+                            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ _('适用于线下会议、面对面沟通') }}</p>
+                        </div>
+                        <span class="material-symbols-outlined text-slate-400">chevron_right</span>
+                    </button>
+
+                    <!-- 麦克风+系统音频 -->
+                    <button @click="startMeetingRecording('microphone_system')"
+                            class="w-full flex items-start gap-4 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-primary dark:hover:border-primary transition-colors text-left">
+                        <span class="material-symbols-outlined text-2xl text-primary">desktop_windows</span>
+                        <div class="flex-1">
+                            <h4 class="font-medium text-slate-900 dark:text-white">{{ _('麦克风 + 系统音频') }}</h4>
+                            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ _('适用于在线会议（腾讯会议、Zoom等）') }}</p>
+                            <p class="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm">warning</span>
+                                {{ _('需要选择共享屏幕以获取系统音频') }}
+                            </p>
+                        </div>
+                        <span class="material-symbols-outlined text-slate-400">chevron_right</span>
+                    </button>
+                </div>
+
+                <!-- 底部 -->
+                <div class="flex justify-end p-6 border-t border-slate-200 dark:border-slate-800">
+                    <button @click="showRecordingModeModal = false"
+                            class="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
+                        {{ _('取消') }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -929,6 +1068,106 @@
                                 <span x-show="logData.status === 'submitted'" class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
                                     {{ _('已提交') }}
                                 </span>
+                            </div>
+                        </div>
+                        <!-- 评分徽章（已提交日志显示，悬浮显示雷达图） -->
+                        <div x-show="logData.quality_score" class="flex items-center relative group/score"
+                             @mouseenter="markScoreViewed(logData.id)">
+                            <template x-if="logData.quality_score">
+                                <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full cursor-default transition-all"
+                                     :class="{
+                                         'score-ring-glow': !isScoreViewed(logData.id),
+                                         'bg-green-100 dark:bg-green-900/30': logData.quality_score.badge_class === 'tw-badge-green',
+                                         'bg-blue-100 dark:bg-blue-900/30': logData.quality_score.badge_class === 'tw-badge-blue',
+                                         'bg-amber-100 dark:bg-amber-900/30': logData.quality_score.badge_class === 'tw-badge-amber',
+                                         'bg-slate-100 dark:bg-slate-700': logData.quality_score.badge_class === 'tw-badge-gray'
+                                     }">
+                                    <span class="material-symbols-outlined text-xl"
+                                          :class="{
+                                              'text-green-500': logData.quality_score.badge_class === 'tw-badge-green',
+                                              'text-blue-500': logData.quality_score.badge_class === 'tw-badge-blue',
+                                              'text-amber-500': logData.quality_score.badge_class === 'tw-badge-amber',
+                                              'text-slate-400': logData.quality_score.badge_class === 'tw-badge-gray'
+                                          }"
+                                          style="font-variation-settings: 'FILL' 1, 'wght' 400"
+                                          x-text="logData.quality_score.icon"></span>
+                                    <span class="text-sm font-bold"
+                                          :class="{
+                                              'text-green-600 dark:text-green-400': logData.quality_score.badge_class === 'tw-badge-green',
+                                              'text-blue-600 dark:text-blue-400': logData.quality_score.badge_class === 'tw-badge-blue',
+                                              'text-amber-600 dark:text-amber-400': logData.quality_score.badge_class === 'tw-badge-amber',
+                                              'text-slate-600 dark:text-slate-400': logData.quality_score.badge_class === 'tw-badge-gray'
+                                          }"
+                                          x-text="logData.quality_score.total"></span>
+                                </div>
+                            </template>
+
+                            <!-- 悬浮提示框：雷达图 + 建议 -->
+                            <div class="absolute right-0 top-full mt-2 p-3 rounded-lg bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700 opacity-0 invisible group-hover/score:opacity-100 group-hover/score:visible transition-all duration-200 z-50"
+                                 style="width: 280px;">
+                                <template x-if="logData.quality_score">
+                                    <div>
+                                        <!-- 雷达图（5维度：数量、质量、多样、及时、行为） -->
+                                        <div class="flex justify-center mb-1">
+                                            <svg width="180" height="160" viewBox="0 0 180 160">
+                                                <!-- 背景网格（五边形，3层） -->
+                                                <polygon points="90,20 128,48 114,95 66,95 52,48" fill="none" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="1"/>
+                                                <polygon points="90,35 116,55 106,90 74,90 64,55" fill="none" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
+                                                <polygon points="90,50 104,62 98,85 82,85 76,62" fill="none" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.6"/>
+                                                <!-- 轴线（5条） -->
+                                                <line x1="90" y1="65" x2="90" y2="20" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
+                                                <line x1="90" y1="65" x2="128" y2="48" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
+                                                <line x1="90" y1="65" x2="114" y2="95" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
+                                                <line x1="90" y1="65" x2="66" y2="95" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
+                                                <line x1="90" y1="65" x2="52" y2="48" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
+                                                <!-- 数据多边形 -->
+                                                <polygon
+                                                    :points="`90,${65 - 45 * (logData.quality_score.breakdown?.count || 0) / 15} ${90 + 38 * (logData.quality_score.breakdown?.quality || 0) / 25},${65 - 17 * (logData.quality_score.breakdown?.quality || 0) / 25} ${90 + 24 * (logData.quality_score.breakdown?.diversity || 0) / 15},${65 + 30 * (logData.quality_score.breakdown?.diversity || 0) / 15} ${90 - 24 * (logData.quality_score.breakdown?.timeliness || 0) / 10},${65 + 30 * (logData.quality_score.breakdown?.timeliness || 0) / 10} ${90 - 38 * (logData.quality_score.breakdown?.activity || 0) / 15},${65 - 17 * (logData.quality_score.breakdown?.activity || 0) / 15}`"
+                                                    :class="{
+                                                        'fill-green-500/30 stroke-green-500': logData.quality_score.level === 'excellent',
+                                                        'fill-blue-500/30 stroke-blue-500': logData.quality_score.level === 'good',
+                                                        'fill-amber-500/30 stroke-amber-500': logData.quality_score.level === 'fair',
+                                                        'fill-slate-400/30 stroke-slate-400': logData.quality_score.level === 'poor'
+                                                    }"
+                                                    stroke-width="1.5"/>
+                                                <!-- 维度标签 -->
+                                                <text x="90" y="12" text-anchor="middle" class="fill-slate-900 dark:fill-slate-200" style="font-size:10px">{{ _('数量') }} <tspan x-text="logData.quality_score.breakdown?.count || 0"></tspan></text>
+                                                <text x="140" y="42" text-anchor="start" class="fill-slate-900 dark:fill-slate-200" style="font-size:10px">{{ _('质量') }} <tspan x-text="logData.quality_score.breakdown?.quality || 0"></tspan></text>
+                                                <text x="125" y="108" text-anchor="start" class="fill-slate-900 dark:fill-slate-200" style="font-size:10px">{{ _('多样') }} <tspan x-text="logData.quality_score.breakdown?.diversity || 0"></tspan></text>
+                                                <text x="55" y="108" text-anchor="end" class="fill-slate-900 dark:fill-slate-200" style="font-size:10px">{{ _('及时') }} <tspan x-text="logData.quality_score.breakdown?.timeliness || 0"></tspan></text>
+                                                <text x="40" y="42" text-anchor="end" class="fill-slate-900 dark:fill-slate-200" style="font-size:10px">{{ _('行为') }} <tspan x-text="logData.quality_score.breakdown?.activity || 0"></tspan></text>
+                                            </svg>
+                                        </div>
+
+                                        <!-- 互动加分（如有） -->
+                                        <template x-if="logData.quality_score.breakdown?.interaction > 0">
+                                            <div class="text-center text-xs text-slate-500 dark:text-slate-400 mb-3">
+                                                +<span x-text="logData.quality_score.breakdown?.interaction"></span> {{ _('互动加分') }}
+                                            </div>
+                                        </template>
+
+                                        <!-- 改进建议（有问题时显示全部） -->
+                                        <template x-if="logData.quality_score.issues && logData.quality_score.issues.length > 0">
+                                            <div class="space-y-1.5">
+                                                <template x-for="issueKey in logData.quality_score.issues" :key="issueKey">
+                                                    <div x-show="logData.quality_score.suggestions && logData.quality_score.suggestions[issueKey]"
+                                                         class="text-xs">
+                                                        <div class="text-slate-900 dark:text-slate-200 font-medium" x-text="logData.quality_score.suggestions[issueKey]?.issue"></div>
+                                                        <div class="text-slate-500 dark:text-slate-400 mt-0.5" x-text="logData.quality_score.suggestions[issueKey]?.suggestion"></div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+
+                                        <!-- 鼓励语（仅 excellent/good 等级且无问题时显示） -->
+                                        <template x-if="(!logData.quality_score.issues || logData.quality_score.issues.length === 0) && (logData.quality_score.level === 'excellent' || logData.quality_score.level === 'good')">
+                                            <div class="text-center">
+                                                <p class="text-xs text-green-600 dark:text-green-400 font-medium"
+                                                   x-text="logData.quality_score.level === 'excellent' ? '{{ _("太棒了！继续保持！") }}' : '{{ _("做得不错！保持下去！") }}'"></p>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
                             </div>
                         </div>
                     </header>
@@ -1385,7 +1624,8 @@
             selected_users=[],
             save_callback='onWorkItemUsersSelected',
             searchable=true,
-            empty_text=_('暂无可共享的用户')
+            empty_text=_('暂无可共享的用户'),
+            reset_event_name='reset-workitem-user-selector'
         ) }}
     </div>
     {% endif %}
@@ -1428,6 +1668,11 @@ function workCalendar() {
         viewData: {},
         viewIsShared: false,   // 查看的是否是共享行程
         viewOwnerName: '',     // 共享行程的发起者姓名
+        // 会议录音相关
+        showRecordingModeModal: false,
+        recordingWorkItemId: null,
+        viewMeetingRecording: false,
+        viewMeetingRecordings: [],
         logData: {},
         logPreviewMode: false,
         isReadonlyLog: false,  // 查看他人日志时为只读模式
@@ -1477,6 +1722,8 @@ function workCalendar() {
         loadingComments: false,
         submittingComment: false,
         currentUserInitials: '{{ current_user.real_name[:2] if current_user.real_name else current_user.username[:1].upper() }}',
+        // 评分已查看记录（localStorage 持久化）
+        viewedScores: JSON.parse(localStorage.getItem('pma_viewedScores') || '[]'),
 
         init() {
             this.initCalendar();
@@ -2213,6 +2460,8 @@ function workCalendar() {
             document.body.style.overflow = '';
             this.editingItem = null;
             this.resetFormData();
+            // 通知共享用户选择器模态框重置状态
+            window.dispatchEvent(new CustomEvent('reset-workitem-user-selector'));
         },
 
         openViewModal(itemId, props) {
@@ -2227,6 +2476,11 @@ function workCalendar() {
                         this.viewData = data.data;
                         document.getElementById('viewItemModal').classList.remove('hidden');
                         document.body.style.overflow = 'hidden';
+
+                        // 如果是会议类型，加载录音列表
+                        if (data.data.work_type === 'meeting') {
+                            this.loadMeetingRecordings(itemId);
+                        }
                     }
                 });
         },
@@ -2237,27 +2491,99 @@ function workCalendar() {
             this.viewData = {};
             this.viewIsShared = false;
             this.viewOwnerName = '';
+            this.viewMeetingRecording = false;
+            this.viewMeetingRecordings = [];
         },
 
-        // 检查当前时间是否已到达结束时间（可以标记完成）
+        // ==================== 会议录音相关方法 ====================
+        openRecordingModeModal(workItemId) {
+            this.recordingWorkItemId = workItemId;
+            this.showRecordingModeModal = true;
+        },
+
+        async startMeetingRecording(mode) {
+            try {
+                const response = await fetch('/meeting/api/recordings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        work_item_id: this.recordingWorkItemId,
+                        recording_mode: mode
+                    })
+                });
+                const data = await response.json();
+
+                if (data.success && data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    window.TwNotification?.show(data.message || '{{ _("创建录音失败") }}', 'error');
+                }
+            } catch (error) {
+                console.error('创建录音失败:', error);
+                window.TwNotification?.show('{{ _("创建录音失败") }}', 'error');
+            }
+        },
+
+        async loadMeetingRecordings(workItemId) {
+            try {
+                const response = await fetch(`/meeting/api/recordings?work_item_id=${workItemId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    this.viewMeetingRecordings = data.recordings || [];
+                    this.viewMeetingRecording = this.viewMeetingRecordings.length > 0;
+                }
+            } catch (error) {
+                console.error('加载录音列表失败:', error);
+            }
+        },
+
+        getMeetingRecordingStatusClass(status) {
+            const classes = {
+                'recording': 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
+                'transcribing': 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+                'completed': 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+                'failed': 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+            };
+            return classes[status] || 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400';
+        },
+
+        getMeetingRecordingStatusText(status) {
+            const texts = {
+                'recording': '{{ _("录音中") }}',
+                'transcribing': '{{ _("转录中") }}',
+                'completed': '{{ _("已完成") }}',
+                'failed': '{{ _("失败") }}'
+            };
+            return texts[status] || '{{ _("已上传") }}';
+        },
+
+        // 检查评分是否已查看
+        isScoreViewed(logId) {
+            return this.viewedScores.includes(logId);
+        },
+
+        // 标记评分已查看
+        markScoreViewed(logId) {
+            if (logId && !this.viewedScores.includes(logId)) {
+                this.viewedScores.push(logId);
+                localStorage.setItem('pma_viewedScores', JSON.stringify(this.viewedScores));
+            }
+        },
+
+        // 检查是否可以标记完成
         canComplete() {
             if (!this.editingItem) return false;
 
-            const now = new Date();
-            // 获取结束日期（优先使用 end_date，否则用 planned_date）
+            // 获取计划日期
             const endDateStr = this.formData.end_date || this.formData.planned_date;
             if (!endDateStr) return false;
 
-            if (this.formData.is_all_day) {
-                // 全天事件：结束日期当天即可完成
-                const endDate = new Date(endDateStr + 'T23:59:59');
-                return now >= new Date(endDateStr + 'T00:00:00');
-            } else {
-                // 非全天事件：需要结束时间到达
-                const endTime = this.endHour + ':' + this.endMinute + ':00';
-                const endDateTime = new Date(endDateStr + 'T' + endTime);
-                return now >= endDateTime;
-            }
+            // 允许在计划日期当天或之后标记完成（不再限制具体时间）
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);  // 只比较日期
+            const plannedDate = new Date(endDateStr + 'T00:00:00');
+            return now >= plannedDate;
         },
 
         quickCompleteItem() {
@@ -2276,8 +2602,10 @@ function workCalendar() {
             let hours = this.formData.estimated_hours;
             if (!hours) {
                 // 尝试根据时间计算
-                const startMin = parseInt(this.startHour, 10) * 60 + parseInt(this.startMinute, 10);
-                const endMin = parseInt(this.endHour, 10) * 60 + parseInt(this.endMinute, 10);
+                const [startH, startM] = (this.formData.start_time || '09:00').split(':');
+                const [endH, endM] = (this.formData.end_time || '10:00').split(':');
+                const startMin = parseInt(startH, 10) * 60 + parseInt(startM, 10);
+                const endMin = parseInt(endH, 10) * 60 + parseInt(endM, 10);
                 if (endMin > startMin) {
                     hours = ((endMin - startMin) / 60).toFixed(1);
                 } else {
@@ -2529,7 +2857,8 @@ function workCalendar() {
                         mentioned_users: logInfo.mentioned_users || [],
                         mentioned_projects: logInfo.mentioned_projects || [],
                         owner_display_name: logInfo.owner_display_name || '',
-                        reactions: data.data.reactions || {}
+                        reactions: data.data.reactions || {},
+                        quality_score: data.data.quality_score || null
                     };
                     document.getElementById('dailyLogModal').classList.remove('hidden');
                     document.body.style.overflow = 'hidden';
@@ -2776,8 +3105,20 @@ function workCalendar() {
                             })
                         });
                         const data = await response.json();
-                        if (data.success) { window.TwNotification?.show(data.message || '{{ _("日志已提交") }}', 'success'); self.logData.status = 'submitted'; window.updateCalendarPendingDot?.(); }
-                        else { window.TwNotification?.show(data.message || '{{ _("提交失败") }}', 'error'); }
+                        if (data.success) {
+                            window.TwNotification?.show(data.message || '{{ _("日志已提交") }}', 'success');
+                            self.logData.status = 'submitted';
+                            // 添加绿点（轻量方案，不刷新整个日历）
+                            self.datesWithSubmittedLogs.add(self.logData.log_date);
+                            const dayEl = document.querySelector(`[data-date="${self.logData.log_date}"]`);
+                            if (dayEl) {
+                                self.addLogIndicator(dayEl, self.logData.log_date, 'submitted');
+                            }
+                            window.updateCalendarPendingDot?.();
+                            self.closeLogModal();
+                        } else {
+                            window.TwNotification?.show(data.message || '{{ _("提交失败") }}', 'error');
+                        }
                     } catch (e) { console.error(e); window.TwNotification?.show('{{ _("网络错误") }}', 'error'); }
                     finally { self.saving = false; }
                 }

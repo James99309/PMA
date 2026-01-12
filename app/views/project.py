@@ -4569,6 +4569,11 @@ def api_create_project():
             delivery_forecast=delivery_forecast,
             report_source=data.get('report_source'),
             product_situation=data.get('product_situation', ''),
+            # 地址相关字段
+            address=data.get('address', ''),
+            country=data.get('country', ''),
+            region=data.get('region', ''),
+            city=data.get('city', ''),
             owner_id=current_user.id,
             vendor_sales_manager_id=None,
             authorization_code=data.get('authorization_code', ''),
@@ -4625,7 +4630,8 @@ def api_update_project(project_id):
         
         # 允许更新的字段
         allowed_fields = ['project_name', 'project_type', 'industry', 'report_source',
-                         'product_situation', 'authorization_code', 'stage_description']
+                         'product_situation', 'authorization_code', 'stage_description',
+                         'address', 'country', 'region', 'city']
         
         for field in allowed_fields:
             if field in data:
@@ -4694,7 +4700,11 @@ def api_get_project_data(project_id):
                 'owner_id': str(proj.owner_id) if proj.owner_id else '',
                 'vendor_sales_manager_id': str(proj.vendor_sales_manager_id) if proj.vendor_sales_manager_id else '',
                 'authorization_code': proj.authorization_code or '',
-                'stage_description': proj.stage_description or ''
+                'stage_description': proj.stage_description or '',
+                'address': proj.address or '',
+                'country': proj.country or '',
+                'region': proj.region or '',
+                'city': proj.city or ''
             }
         })
     except Exception as e:

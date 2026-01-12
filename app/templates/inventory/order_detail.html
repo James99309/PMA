@@ -178,10 +178,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     {% if order.status == 'draft' %}
                     {{ render_button('编辑订单', href=url_for('inventory.edit_order', id=order.id), color='warning', icon='fas fa-edit') }}
                     {% endif %}
+                    {% if order.status in ['confirmed', 'producing', 'tested'] %}
+                    {{ render_button('确认发货', type='button', onclick='showShipModal()', color='primary', icon='fas fa-shipping-fast') }}
+                    {% endif %}
+                    {% if order.status in ['shipped', 'tested'] %}
+                    {{ render_button('验收入库', type='button', onclick='showAcceptModal()', color='success', icon='fas fa-clipboard-check') }}
+                    {% endif %}
                     {% if order.status in ['approved', 'confirmed'] and order.inventory_status != 'fully_received' %}
                     {{ render_button('全部入库', type='button', onclick='batchReceiveAll()', color='success', icon='fas fa-check-double', extra_class='batch-receive-btn') }}
                     {% endif %}
-                    {% if order.status in ['approved', 'confirmed', 'shipped', 'completed'] %}
+                    {% if order.status in ['approved', 'confirmed', 'shipped', 'stored', 'completed'] %}
                     {{ render_button('导出订单', href=url_for('inventory.export_order_pdf', order_id=order.id), color='info', icon='fas fa-file-pdf', extra_class='export-order-btn') }}
                     {% endif %}
                 </div>
@@ -265,6 +271,285 @@ document.addEventListener('DOMContentLoaded', function() {
             {% endif %}
         </div>
     </div>
+
+    <!-- PO扩展信息（如果有数据才显示） -->
+    {% if order.revision or order.incoterms or order.order_category or order.verification_test_type
+       or order.required_date or order.shipping_method or order.freight_terms or order.ship_to %}
+    <div class="card order-card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-file-contract me-2"></i>PO扩展信息
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% if order.revision %}
+                <div class="col-md-2">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">版本号</label>
+                        <div class="h6 mb-0">{{ order.revision }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if order.incoterms %}
+                <div class="col-md-2">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">贸易术语</label>
+                        <div class="h6 mb-0">{{ order.incoterms }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if order.order_category %}
+                <div class="col-md-2">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">订单类别</label>
+                        <div class="h6 mb-0">
+                            {% if order.order_category == 'channel' %}渠道订单
+                            {% elif order.order_category == 'direct' %}直销订单
+                            {% else %}{{ order.order_category }}{% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if order.verification_test_type %}
+                <div class="col-md-2">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">验证测试方式</label>
+                        <div class="h6 mb-0">
+                            {% if order.verification_test_type == 'site_fat' %}现场FAT
+                            {% elif order.verification_test_type == 'incoming' %}到货测试
+                            {% else %}{{ order.verification_test_type }}{% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if order.shipping_method %}
+                <div class="col-md-2">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">运输方式</label>
+                        <div class="h6 mb-0">
+                            {% if order.shipping_method == 'truck' %}汽运
+                            {% elif order.shipping_method == 'air' %}空运
+                            {% elif order.shipping_method == 'express' %}快递
+                            {% elif order.shipping_method == 'self_pickup' %}自提
+                            {% elif order.shipping_method == 'sea' %}海运
+                            {% else %}{{ order.shipping_method }}{% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if order.freight_terms %}
+                <div class="col-md-2">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">运费承担</label>
+                        <div class="h6 mb-0">
+                            {% if order.freight_terms == 'supplier' %}供应商承担
+                            {% elif order.freight_terms == 'buyer' %}采购方承担
+                            {% else %}{{ order.freight_terms }}{% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% if order.required_date or order.confirmed_date %}
+            <div class="row">
+                {% if order.required_date %}
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">需求日期</label>
+                        <div class="h6 mb-0">{{ order.required_date.strftime('%Y-%m-%d') if order.required_date else '-' }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if order.confirmed_date %}
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">确认交货日期</label>
+                        <div class="h6 mb-0">{{ order.confirmed_date.strftime('%Y-%m-%d') if order.confirmed_date else '-' }}</div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% if order.ship_to %}
+            <div class="row">
+                <div class="col-12">
+                    <div class="mb-0">
+                        <label class="form-label text-muted">交货地点</label>
+                        <div class="h6 mb-0">{{ order.ship_to }}</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 生产进度与测试状态 -->
+    {% if order.status in ['confirmed', 'producing', 'tested', 'shipped', 'stored', 'completed'] %}
+    <div class="row mb-4">
+        <!-- 生产进度 -->
+        <div class="col-md-6">
+            <div class="card order-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-industry me-2"></i>生产进度
+                    </h5>
+                    {% if order.status == 'confirmed' or order.status == 'producing' %}
+                    <button class="btn btn-sm btn-outline-primary" onclick="showProgressModal()">
+                        <i class="fas fa-edit"></i> 更新
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">当前阶段</span>
+                            <span class="fw-bold">
+                                {% if order.production_status == 'not_started' %}未开始
+                                {% elif order.production_status == 'preparing' %}备料中
+                                {% elif order.production_status == 'producing' %}生产中
+                                {% elif order.production_status == 'testing' %}测试中
+                                {% elif order.production_status == 'packaging' %}包装中
+                                {% elif order.production_status == 'ready' %}待发货
+                                {% else %}{{ order.production_status or '未开始' }}{% endif %}
+                            </span>
+                        </div>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar bg-primary" role="progressbar"
+                                 style="width: {{ order.production_progress or 0 }}%"
+                                 aria-valuenow="{{ order.production_progress or 0 }}"
+                                 aria-valuemin="0" aria-valuemax="100">
+                                {{ order.production_progress or 0 }}%
+                            </div>
+                        </div>
+                    </div>
+                    {% if order.estimated_completion_date %}
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">预计完成</span>
+                        <span>{{ order.estimated_completion_date.strftime('%Y-%m-%d') }}</span>
+                    </div>
+                    {% endif %}
+                    {% if order.production_notes %}
+                    <div class="mt-2">
+                        <small class="text-muted">{{ order.production_notes }}</small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 测试状态 -->
+        <div class="col-md-6">
+            <div class="card order-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-flask me-2"></i>测试状态
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="showTestModal()">
+                        <i class="fas fa-upload"></i> 上传报告
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="text-center p-3 border rounded">
+                                <div class="mb-2">
+                                    {% if order.factory_test_status == 'passed' %}
+                                    <i class="fas fa-check-circle text-success fa-2x"></i>
+                                    {% elif order.factory_test_status == 'failed' %}
+                                    <i class="fas fa-times-circle text-danger fa-2x"></i>
+                                    {% else %}
+                                    <i class="fas fa-clock text-warning fa-2x"></i>
+                                    {% endif %}
+                                </div>
+                                <div class="fw-bold">工厂测试</div>
+                                <small class="text-muted">
+                                    {% if order.factory_test_status == 'passed' %}已通过
+                                    {% elif order.factory_test_status == 'failed' %}未通过
+                                    {% else %}待测试{% endif %}
+                                </small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-center p-3 border rounded">
+                                <div class="mb-2">
+                                    {% if order.verification_test_status == 'passed' %}
+                                    <i class="fas fa-check-circle text-success fa-2x"></i>
+                                    {% elif order.verification_test_status == 'failed' %}
+                                    <i class="fas fa-times-circle text-danger fa-2x"></i>
+                                    {% elif order.verification_test_status == 'not_required' %}
+                                    <i class="fas fa-minus-circle text-secondary fa-2x"></i>
+                                    {% else %}
+                                    <i class="fas fa-clock text-warning fa-2x"></i>
+                                    {% endif %}
+                                </div>
+                                <div class="fw-bold">
+                                    {% if order.verification_test_type == 'site_fat' %}现场FAT
+                                    {% elif order.verification_test_type == 'incoming' %}到货测试
+                                    {% else %}验证测试{% endif %}
+                                </div>
+                                <small class="text-muted">
+                                    {% if order.verification_test_status == 'passed' %}已通过
+                                    {% elif order.verification_test_status == 'failed' %}未通过
+                                    {% elif order.verification_test_status == 'not_required' %}不需要
+                                    {% else %}待测试{% endif %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 物流信息（如果有数据） -->
+    {% if order.carrier or order.tracking_number or order.ship_date %}
+    <div class="card order-card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-shipping-fast me-2"></i>物流信息
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% if order.carrier %}
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">承运商</label>
+                        <div class="h6 mb-0">{{ order.carrier }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if order.tracking_number %}
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">运单号</label>
+                        <div class="h6 mb-0">{{ order.tracking_number }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if order.ship_date %}
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">发货日期</label>
+                        <div class="h6 mb-0">{{ order.ship_date.strftime('%Y-%m-%d') }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if order.arrival_date %}
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">预计到达</label>
+                        <div class="h6 mb-0">{{ order.arrival_date.strftime('%Y-%m-%d') }}</div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- 订单明细列表 -->
     <div class="card order-card">
@@ -404,7 +689,390 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 </div>
 
+<!-- 生产进度更新模态框 -->
+<div class="modal fade" id="progressModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-industry me-2"></i>更新生产进度</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="progressForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="production_status" class="form-label">当前阶段</label>
+                        <select class="form-select" id="production_status" name="production_status" required>
+                            <option value="not_started" {% if order.production_status == 'not_started' %}selected{% endif %}>未开始</option>
+                            <option value="preparing" {% if order.production_status == 'preparing' %}selected{% endif %}>备料中</option>
+                            <option value="producing" {% if order.production_status == 'producing' %}selected{% endif %}>生产中</option>
+                            <option value="testing" {% if order.production_status == 'testing' %}selected{% endif %}>测试中</option>
+                            <option value="packaging" {% if order.production_status == 'packaging' %}selected{% endif %}>包装中</option>
+                            <option value="ready" {% if order.production_status == 'ready' %}selected{% endif %}>待发货</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="production_progress" class="form-label">进度百分比: <span id="progressValue">{{ order.production_progress or 0 }}</span>%</label>
+                        <input type="range" class="form-range" id="production_progress" name="production_progress"
+                               min="0" max="100" step="5" value="{{ order.production_progress or 0 }}"
+                               oninput="document.getElementById('progressValue').textContent = this.value">
+                    </div>
+                    <div class="mb-3">
+                        <label for="estimated_completion_date" class="form-label">预计完成日期</label>
+                        <input type="date" class="form-control" id="estimated_completion_date" name="estimated_completion_date"
+                               value="{{ order.estimated_completion_date.strftime('%Y-%m-%d') if order.estimated_completion_date else '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="production_notes" class="form-label">备注</label>
+                        <textarea class="form-control" id="production_notes" name="production_notes" rows="2"
+                                  placeholder="可选的进度备注信息">{{ order.production_notes or '' }}</textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveProgress()">
+                    <i class="fas fa-save me-1"></i>保存
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 测试报告上传模态框 -->
+<div class="modal fade" id="testModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-flask me-2"></i>上传测试报告</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="testForm" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="test_category" class="form-label">测试类型 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="test_category" name="test_category" required>
+                            <option value="">请选择测试类型</option>
+                            <option value="factory">工厂测试</option>
+                            {% if order.verification_test_type == 'site_fat' %}
+                            <option value="site_fat">现场FAT测试</option>
+                            {% elif order.verification_test_type == 'incoming' %}
+                            <option value="incoming">到货测试</option>
+                            {% else %}
+                            <option value="site_fat">现场FAT测试</option>
+                            <option value="incoming">到货测试</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="test_result" class="form-label">测试结果 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="test_result" name="test_result" required>
+                            <option value="">请选择测试结果</option>
+                            <option value="passed">通过</option>
+                            <option value="failed">未通过</option>
+                            <option value="conditional">有条件通过</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="test_date" class="form-label">测试日期</label>
+                        <input type="date" class="form-control" id="test_date" name="test_date" value="{{ now().strftime('%Y-%m-%d') if now else '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="test_report" class="form-label">测试报告文件</label>
+                        <input type="file" class="form-control" id="test_report" name="test_report" accept=".pdf,.doc,.docx,.xls,.xlsx">
+                        <small class="form-text text-muted">支持 PDF、Word、Excel 格式</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="test_notes" class="form-label">测试备注</label>
+                        <textarea class="form-control" id="test_notes" name="test_notes" rows="2"
+                                  placeholder="可选的测试备注信息"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveTest()">
+                    <i class="fas fa-upload me-1"></i>提交
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 发货确认模态框 -->
+<div class="modal fade" id="shipModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-shipping-fast me-2"></i>确认发货</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="shipForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="carrier" class="form-label">承运商</label>
+                        <input type="text" class="form-control" id="carrier" name="carrier" placeholder="如：顺丰速运">
+                    </div>
+                    <div class="mb-3">
+                        <label for="tracking_number" class="form-label">运单号</label>
+                        <input type="text" class="form-control" id="tracking_number" name="tracking_number" placeholder="快递单号">
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label for="ship_date" class="form-label">发货日期</label>
+                            <input type="date" class="form-control" id="ship_date" name="ship_date" value="{{ now().strftime('%Y-%m-%d') if now else '' }}">
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label for="arrival_date" class="form-label">预计到达</label>
+                            <input type="date" class="form-control" id="arrival_date" name="arrival_date">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveShip()">
+                    <i class="fas fa-check me-1"></i>确认发货
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 验收入库模态框 -->
+<div class="modal fade" id="acceptModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-clipboard-check me-2"></i>验收入库</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="acceptForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="acceptance_status" class="form-label">验收结果 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="acceptance_status" name="acceptance_status" required>
+                                <option value="">请选择</option>
+                                <option value="passed">验收通过</option>
+                                <option value="conditional">有条件通过</option>
+                                <option value="failed">验收不通过</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">验收日期</label>
+                            <input type="text" class="form-control" value="{{ now().strftime('%Y-%m-%d') if now else '' }}" readonly>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="acceptance_notes" class="form-label">验收备注</label>
+                        <textarea class="form-control" id="acceptance_notes" name="acceptance_notes" rows="2"
+                                  placeholder="可选的验收说明"></textarea>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="fas fa-barcode me-1"></i>序列号录入（可选）
+                        </label>
+                        <div class="input-group mb-2">
+                            <input type="text" class="form-control" id="serialNumberInput" placeholder="输入序列号，按回车添加">
+                            <button class="btn btn-outline-primary" type="button" onclick="addSerialNumber()">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                        <div id="serialNumberList" class="d-flex flex-wrap gap-2">
+                            <!-- 序列号标签将在这里显示 -->
+                        </div>
+                        <input type="hidden" id="serial_numbers" name="serial_numbers" value="[]">
+                        <small class="form-text text-muted">录入的序列号将自动关联到此订单并标记为在库状态</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" onclick="saveAcceptance()">
+                    <i class="fas fa-check me-1"></i>确认验收
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+// 序列号列表
+let serialNumbers = [];
+
+// 添加序列号
+function addSerialNumber() {
+    const input = document.getElementById('serialNumberInput');
+    const sn = input.value.trim();
+    if (sn && !serialNumbers.includes(sn)) {
+        serialNumbers.push(sn);
+        updateSerialNumberDisplay();
+        input.value = '';
+    }
+    input.focus();
+}
+
+// 移除序列号
+function removeSerialNumber(sn) {
+    serialNumbers = serialNumbers.filter(s => s !== sn);
+    updateSerialNumberDisplay();
+}
+
+// 更新序列号显示
+function updateSerialNumberDisplay() {
+    const list = document.getElementById('serialNumberList');
+    list.innerHTML = serialNumbers.map(sn => `
+        <span class="badge bg-primary d-flex align-items-center">
+            ${sn}
+            <button type="button" class="btn-close btn-close-white ms-2" style="font-size: 0.6rem;"
+                    onclick="removeSerialNumber('${sn}')"></button>
+        </span>
+    `).join('');
+    document.getElementById('serial_numbers').value = JSON.stringify(serialNumbers);
+}
+
+// 监听回车键添加序列号
+document.addEventListener('DOMContentLoaded', function() {
+    const snInput = document.getElementById('serialNumberInput');
+    if (snInput) {
+        snInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addSerialNumber();
+            }
+        });
+    }
+});
+
+// 显示发货模态框
+function showShipModal() {
+    const modal = new bootstrap.Modal(document.getElementById('shipModal'));
+    modal.show();
+}
+
+// 保存发货信息
+function saveShip() {
+    const form = document.getElementById('shipForm');
+    const formData = new FormData(form);
+
+    fetch('{{ url_for("inventory.confirm_order_ship", order_id=order.id) }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('shipModal')).hide();
+            location.reload();
+        } else {
+            alert('确认失败: ' + (data.message || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('网络错误，请重试');
+    });
+}
+
+// 显示验收模态框
+function showAcceptModal() {
+    serialNumbers = [];
+    updateSerialNumberDisplay();
+    const modal = new bootstrap.Modal(document.getElementById('acceptModal'));
+    modal.show();
+}
+
+// 保存验收信息
+function saveAcceptance() {
+    const form = document.getElementById('acceptForm');
+    const formData = new FormData(form);
+
+    fetch('{{ url_for("inventory.accept_order", order_id=order.id) }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('acceptModal')).hide();
+            location.reload();
+        } else {
+            alert('验收失败: ' + (data.message || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('网络错误，请重试');
+    });
+}
+
+// 显示生产进度模态框
+function showProgressModal() {
+    const modal = new bootstrap.Modal(document.getElementById('progressModal'));
+    modal.show();
+}
+
+// 保存生产进度
+function saveProgress() {
+    const form = document.getElementById('progressForm');
+    const formData = new FormData(form);
+
+    fetch('{{ url_for("inventory.update_order_progress", order_id=order.id) }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 关闭模态框并刷新页面
+            bootstrap.Modal.getInstance(document.getElementById('progressModal')).hide();
+            location.reload();
+        } else {
+            alert('更新失败: ' + (data.message || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('网络错误，请重试');
+    });
+}
+
+// 显示测试模态框
+function showTestModal() {
+    const modal = new bootstrap.Modal(document.getElementById('testModal'));
+    modal.show();
+}
+
+// 保存测试记录
+function saveTest() {
+    const form = document.getElementById('testForm');
+    const formData = new FormData(form);
+
+    fetch('{{ url_for("inventory.upload_order_test", order_id=order.id) }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 关闭模态框并刷新页面
+            bootstrap.Modal.getInstance(document.getElementById('testModal')).hide();
+            location.reload();
+        } else {
+            alert('提交失败: ' + (data.message || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('网络错误，请重试');
+    });
+}
+
 // 页面加载完成后获取库存信息
 document.addEventListener('DOMContentLoaded', function() {
     // 获取当前库存信息

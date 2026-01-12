@@ -1,0 +1,82 @@
+{#
+=============================================================================
+通用地址输入组件
+=============================================================================
+带地图定位功能的地址输入框，返回结构化数据（国家、省份、城市、详细地址）
+
+使用方式：
+{% from 'components/tw_address_input.html' import tw_address_input %}
+{{ tw_address_input(field_id='address', label=_('详细地址')) }}
+
+依赖：
+- components/tw_map_picker.html - 地图弹窗
+- static/js/map-picker.js - 地图选择器
+- static/js/address-picker.js - 地址填充逻辑
+
+参数：
+- field_id: 字段ID前缀，默认 'address'
+- label: 标签文本
+- required: 是否必填
+- placeholder: 占位文本
+- value: 初始值（格式化地址）
+- country_value: 国家代码初始值
+- region_value: 省/州初始值
+- city_value: 城市初始值
+- country_field: 国家隐藏字段名，默认 field_id + '_country'
+- region_field: 省/州隐藏字段名，默认 field_id + '_region'
+- city_field: 城市隐藏字段名，默认 field_id + '_city'
+=============================================================================
+#}
+
+{% macro tw_address_input(
+    field_id='address',
+    label='地址',
+    required=false,
+    placeholder='',
+    value='',
+    country_value='',
+    region_value='',
+    city_value='',
+    country_field='',
+    region_field='',
+    city_field=''
+) %}
+{# 计算实际字段名 #}
+{% set actual_country_field = country_field or (field_id + '_country') %}
+{% set actual_region_field = region_field or (field_id + '_region') %}
+{% set actual_city_field = city_field or (field_id + '_city') %}
+<div>
+    <label for="{{ field_id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ label }}{% if required %}<span class="text-red-500">*</span>{% endif %}
+    </label>
+    <div class="relative flex gap-2">
+        <input type="text" id="{{ field_id }}" name="{{ field_id }}"
+               data-field-code="{{ field_id }}"
+               class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm"
+               placeholder="{{ placeholder or _('点击定位或输入地址') }}"
+               value="{{ value }}"
+               {% if required %}required{% endif %}>
+        <!-- 定位按钮 -->
+        <button type="button" id="{{ field_id }}_location_btn"
+                onclick="AddressPicker.open('{{ field_id }}')"
+                class="flex-shrink-0 inline-flex items-center justify-center px-3 py-2 text-slate-400 dark:text-slate-500 hover:text-primary dark:hover:text-primary transition-colors"
+                title="{{ _('地图定位') }}">
+            <svg id="{{ field_id }}_location_icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <!-- 加载中图标 -->
+            <svg id="{{ field_id }}_location_loading" class="hidden w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </button>
+    </div>
+    <!-- 定位状态提示 -->
+    <p id="{{ field_id }}_status" class="hidden mt-1 text-xs text-slate-500 dark:text-slate-400"></p>
+    <!-- 隐藏字段存储结构化数据 -->
+    <input type="hidden" id="{{ field_id }}_country" name="{{ actual_country_field }}" value="{{ country_value }}">
+    <input type="hidden" id="{{ field_id }}_region" name="{{ actual_region_field }}" value="{{ region_value }}">
+    <input type="hidden" id="{{ field_id }}_city" name="{{ actual_city_field }}" value="{{ city_value }}">
+</div>
+{% endmacro %}

@@ -1,0 +1,105 @@
+# PMA 群晖 NAS Docker 部署配置
+# 适用于 DS920+ (4GB 内存)
+
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: pma-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pma
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pma_secure_password_2025}
+      POSTGRES_DB: pma
+      # 内存优化配置（适合 4GB 内存的群晖）
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # 内存限制
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pma -d pma"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pma-network
+
+  # PMA 应用
+  pma:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: pma-app:latest
+    container_name: pma-app
+    restart: unless-stopped
+    ports:
+      - "${PMA_PORT:-5001}:5000"
+    environment:
+      # 数据库连接
+      DATABASE_URL: postgresql://pma:${POSTGRES_PASSWORD:-pma_secure_password_2025}@postgres:5432/pma
+
+      # Flask 配置
+      FLASK_ENV: production
+      SECRET_KEY: ${SECRET_KEY:-your-super-secret-key-change-this}
+
+      # 时区
+      TZ: Asia/Singapore
+
+      # 群晖 WebDAV 存储（会议录音）
+      MEETING_STORAGE_TYPE: synology
+      SYNOLOGY_WEBDAV_URL: ${SYNOLOGY_WEBDAV_URL:-https://192.168.1.2:5006}
+      SYNOLOGY_WEBDAV_USER: ${SYNOLOGY_WEBDAV_USER:-pma-storage}
+      SYNOLOGY_WEBDAV_PASSWORD: ${SYNOLOGY_WEBDAV_PASSWORD}
+      SYNOLOGY_WEBDAV_PATH: ${SYNOLOGY_WEBDAV_PATH:-/pma-files}
+      SYNOLOGY_WEBDAV_VERIFY_SSL: "false"
+
+      # AI 服务（会议纪要功能）
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+      # Supabase（发票/产品图片存储，可选）
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_KEY: ${SUPABASE_KEY:-}
+
+      # 本地存储路径
+      LOCAL_STORAGE_ROOT: /app/storage
+
+    volumes:
+      # 本地存储挂载
+      - pma_storage:/app/storage
+      # 日志挂载
+      - pma_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # 内存限制
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 384M
+    networks:
+      - pma-network
+
+# 数据卷
+volumes:
+  postgres_data:
+    driver: local
+  pma_storage:
+    driver: local
+  pma_logs:
+    driver: local
+
+# 网络
+networks:
+  pma-network:
+    driver: bridge

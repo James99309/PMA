@@ -16,6 +16,7 @@ render_tw_source_badge, render_tw_customer_status_badge with context %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="google-maps-api-key" content="{{ config.GOOGLE_MAPS_API_KEY }}">
     <title>{{ _('客户管理') }}</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
@@ -209,6 +210,10 @@ render_tw_source_badge, render_tw_customer_status_badge with context %}
     {% include 'customer/partials/_company_form_fields.html' %}
     {% endcall %}
 
+    <!-- 地图选择器弹窗 -->
+    {% from 'components/tw_map_picker.html' import render_map_picker_modal %}
+    {{ render_map_picker_modal() }}
+
     <!-- 表单模态框脚本 -->
     {{ tw_form_modal_script() }}
 
@@ -252,6 +257,11 @@ render_tw_source_badge, render_tw_customer_status_badge with context %}
 
     <!-- 客户表单公共模块 -->
     <script src="{{ url_for('static', filename='js/customer-form.js') }}"></script>
+
+    <!-- 地图选择器 -->
+    <script src="{{ url_for('static', filename='js/map-picker.js') }}"></script>
+    <!-- 通用地址选择器 -->
+    <script src="{{ url_for('static', filename='js/address-picker.js') }}"></script>
 
     <!-- 新建客户模态框脚本 -->
     <script>

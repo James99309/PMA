@@ -13,6 +13,7 @@
 =============================================================================
 #}
 {% from 'components/tw_form_fields.html' import tw_form_field, tw_form_textarea, tw_form_row %}
+{% from 'components/tw_address_input.html' import tw_address_input %}
 
 {# 编辑模式时的隐藏字段 #}
 {% if company_id %}
@@ -35,42 +36,16 @@
     <div id="companySuggestions" class="hidden absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto"></div>
 </div>
 
-<!-- 国家/地区 和 省/州 -->
-{% call tw_form_row(cols=2) %}
-    <div>
-        <label for="country" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            {{ _('国家/地区') }}<span class="text-red-500">*</span>
-        </label>
-        <select id="country" name="country"
-                data-field-code="country"
-                class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm"
-                required>
-            <option value="">{{ _('请选择国家') }}</option>
-        </select>
-    </div>
-    <div>
-        <label for="region" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            {{ _('省/州') }}<span class="text-red-500">*</span>
-        </label>
-        <select id="region" name="region"
-                data-field-code="region"
-                class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm"
-                required>
-            <option value="">{{ _('请选择省/州') }}</option>
-        </select>
-    </div>
-{% endcall %}
-
-<!-- 详细地址 -->
-<div>
-    <label for="address" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-        {{ _('详细地址') }}
-    </label>
-    <input type="text" id="address" name="address"
-           data-field-code="address"
-           class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm"
-           placeholder="{{ _('示例：中国 北京市 朝阳区xx路') }}">
-</div>
+<!-- 地址（含定位功能，自动填充国家、省/州） -->
+{{ tw_address_input(
+    field_id='address',
+    label=_('地址'),
+    required=true,
+    placeholder=_('点击定位或输入地址'),
+    country_field='country',
+    region_field='region',
+    city_field='city'
+) }}
 
 <!-- 行业 和 企业类型 -->
 {% call tw_form_row(cols=2) %}

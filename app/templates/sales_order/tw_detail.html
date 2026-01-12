@@ -1,0 +1,464 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_detail_layout.html' import render_tw_detail_layout with context %}
+{% from 'components/tw_info_card.html' import tw_info_card, tw_info_row with context %}
+{% from 'components/tw_table_card.html' import tw_table_card with context %}
+{% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ order.order_number }} - {{ _('客户订单') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark">
+    {% call(slot) render_tw_layout(active_page='sales_order') %}
+    {% if slot == 'content' %}
+        <div class="p-6 lg:p-8">
+            <!-- 面包屑 + 标题 -->
+            <div class="mb-6">
+                <nav class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-2">
+                    <a href="{{ url_for('sales_order.list_view') }}" class="hover:text-primary transition-colors">{{ _('客户订单') }}</a>
+                    <span class="material-symbols-outlined text-lg">chevron_right</span>
+                    <span class="text-slate-700 dark:text-slate-300">{{ order.order_number }}</span>
+                </nav>
+                <div class="flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ order.order_number }}</h1>
+                        {% set status_config = {
+                            'draft': {'label': '草稿', 'color': 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'},
+                            'confirmed': {'label': '已确认', 'color': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'},
+                            'preparing': {'label': '备货中', 'color': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'},
+                            'shipped': {'label': '已发货', 'color': 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400'},
+                            'delivered': {'label': '已送达', 'color': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'},
+                            'completed': {'label': '已完成', 'color': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'},
+                            'cancelled': {'label': '已取消', 'color': 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}
+                        } %}
+                        {% set cfg = status_config.get(order.status, {'label': order.status, 'color': 'bg-slate-100 text-slate-600'}) %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {{ cfg.color }}">
+                            {{ _(cfg.label) }}
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        {% if order.status == 'draft' %}
+                        <button onclick="confirmOrder()" class="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
+                            <span class="material-symbols-outlined text-lg">check_circle</span>
+                            {{ _('确认订单') }}
+                        </button>
+                        <button onclick="showCancelModal()" class="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-colors">
+                            <span class="material-symbols-outlined text-lg">cancel</span>
+                            {{ _('取消订单') }}
+                        </button>
+                        {% endif %}
+                        {% if order.status in ['confirmed', 'preparing'] %}
+                        <button onclick="showCreateShipmentModal()" class="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
+                            <span class="material-symbols-outlined text-lg">local_shipping</span>
+                            {{ _('创建发货单') }}
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 主内容区 -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- 左侧主内容 -->
+                <div class="lg:col-span-2 space-y-6">
+                    <!-- 订单信息 -->
+                    {% call tw_info_card(title=_('订单信息'), icon='receipt_long') %}
+                        {{ tw_info_row(_('订单号'), order.order_number) }}
+                        {{ tw_info_row(_('客户'), order.customer.company_name if order.customer else '-') }}
+                        {{ tw_info_row(_('来源批价单'), order.pricing_order.order_number if order.pricing_order else '-') }}
+                        {{ tw_info_row(_('关联项目'), order.project.project_name if order.project else '-') }}
+                        {{ tw_info_row(_('订单总额'), '¥' ~ "%.2f"|format(order.total_amount or 0)) }}
+                        {{ tw_info_row(_('总数量'), order.total_quantity ~ ' 件') }}
+                    {% endcall %}
+
+                    <!-- 交付信息 -->
+                    {% call tw_info_card(title=_('交付信息'), icon='local_shipping') %}
+                        {{ tw_info_row(_('期望交付日期'), order.formatted_delivery_date or '-') }}
+                        {{ tw_info_row(_('交付地址'), order.delivery_address or '-') }}
+                        {{ tw_info_row(_('收货联系人'), order.delivery_contact or '-') }}
+                        {{ tw_info_row(_('联系电话'), order.delivery_phone or '-') }}
+                        {{ tw_info_row(_('运输方式'), {
+                            'truck': '陆运',
+                            'air': '空运',
+                            'express': '快递',
+                            'self_pickup': '自提'
+                        }.get(order.shipping_method, order.shipping_method or '-')) }}
+                        {{ tw_info_row(_('运费承担'), {'seller': '卖方承担', 'buyer': '买方承担'}.get(order.freight_terms, order.freight_terms or '-')) }}
+                    {% endcall %}
+
+                    <!-- 订单明细 -->
+                    {% call tw_table_card(title=_('订单明细'), icon='inventory_2', count=order.details|length) %}
+                    <table class="w-full">
+                        <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+                            <tr>
+                                <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('产品') }}</th>
+                                <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('数量') }}</th>
+                                <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('已发') }}</th>
+                                <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('已收') }}</th>
+                                <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('单价') }}</th>
+                                <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('金额') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+                            {% for detail in order.details %}
+                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                                <td class="p-3">
+                                    <div class="font-medium text-slate-900 dark:text-white">{{ detail.product_name }}</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-400">{{ detail.product_model or '' }}</div>
+                                </td>
+                                <td class="p-3 text-right text-slate-700 dark:text-slate-300">{{ detail.quantity }} {{ detail.unit or '' }}</td>
+                                <td class="p-3 text-right">
+                                    <span class="{% if detail.shipped_quantity >= detail.quantity %}text-green-600 dark:text-green-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">
+                                        {{ detail.shipped_quantity or 0 }}
+                                    </span>
+                                </td>
+                                <td class="p-3 text-right">
+                                    <span class="{% if detail.received_quantity >= detail.quantity %}text-green-600 dark:text-green-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">
+                                        {{ detail.received_quantity or 0 }}
+                                    </span>
+                                </td>
+                                <td class="p-3 text-right text-slate-700 dark:text-slate-300">¥{{ "%.2f"|format(detail.unit_price or 0) }}</td>
+                                <td class="p-3 text-right font-medium text-slate-900 dark:text-white">¥{{ "%.2f"|format(detail.total_price or 0) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="p-8 text-center text-slate-500 dark:text-slate-400">{{ _('暂无明细') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="bg-slate-50 dark:bg-slate-700/50 border-t border-slate-200 dark:border-slate-700">
+                            <tr>
+                                <td colspan="5" class="p-3 text-right font-medium text-slate-700 dark:text-slate-300">{{ _('合计') }}</td>
+                                <td class="p-3 text-right font-bold text-slate-900 dark:text-white">¥{{ "%.2f"|format(order.total_amount or 0) }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    {% endcall %}
+                </div>
+
+                <!-- 右侧边栏 -->
+                <div class="space-y-6">
+                    <!-- 交付进度 -->
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                        <h3 class="text-base font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">timeline</span>
+                            {{ _('交付进度') }}
+                        </h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-slate-500 dark:text-slate-400">{{ _('已发货') }}</span>
+                                <span class="font-medium text-slate-900 dark:text-white">{{ order.shipped_quantity }} / {{ order.total_quantity }}</span>
+                            </div>
+                            <div class="w-full h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+                                {% set ship_percent = (order.shipped_quantity / order.total_quantity * 100) if order.total_quantity > 0 else 0 %}
+                                <div class="h-full bg-cyan-500 rounded-full" style="width: {{ ship_percent }}%"></div>
+                            </div>
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-slate-500 dark:text-slate-400">{{ _('已签收') }}</span>
+                                <span class="font-medium text-slate-900 dark:text-white">{{ order.received_quantity }} / {{ order.total_quantity }}</span>
+                            </div>
+                            <div class="w-full h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+                                {% set recv_percent = (order.received_quantity / order.total_quantity * 100) if order.total_quantity > 0 else 0 %}
+                                <div class="h-full bg-green-500 rounded-full" style="width: {{ recv_percent }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 发货记录 -->
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                        <h3 class="text-base font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">local_shipping</span>
+                            {{ _('发货记录') }}
+                        </h3>
+                        {% if order.shipments %}
+                        <div class="space-y-3">
+                            {% for shipment in order.shipments %}
+                            <a href="{{ url_for('shipment.detail_view', shipment_id=shipment.id) }}"
+                               class="block p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-sm font-medium text-primary">{{ shipment.shipment_number }}</span>
+                                    <span class="text-xs px-2 py-0.5 rounded-full {{ 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' if shipment.status == 'received' else 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400' }}">
+                                        {{ shipment.status_label }}
+                                    </span>
+                                </div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400">
+                                    {{ shipment.carrier or '-' }} · {{ shipment.tracking_number or '-' }}
+                                </div>
+                            </a>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-center py-6 text-slate-400 dark:text-slate-500">
+                            <span class="material-symbols-outlined text-3xl mb-2 block">inventory_2</span>
+                            <span class="text-sm">{{ _('暂无发货记录') }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- 元数据 -->
+                    {{ tw_metadata_card_simple(
+                        created_by=order.created_by,
+                        created_at=order.created_at,
+                        updated_at=order.updated_at
+                    ) }}
+                </div>
+            </div>
+        </div>
+    {% endif %}
+    {% endcall %}
+
+    <!-- 确认取消模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='cancelModal',
+        title=_('取消订单'),
+        message=_('确定要取消此订单吗？此操作不可恢复。'),
+        confirm_text=_('确认取消'),
+        cancel_text=_('返回'),
+        confirm_style='danger'
+    ) }}
+
+    <!-- 创建发货单模态框 -->
+    <div id="shipmentModal" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/50" onclick="closeShipmentModal()"></div>
+        <div class="absolute inset-4 md:inset-10 lg:inset-20 bg-white dark:bg-slate-800 rounded-xl shadow-xl overflow-hidden flex flex-col">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('创建发货单') }}</h3>
+                <button onclick="closeShipmentModal()" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4">
+                <form id="shipmentForm" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('承运商') }}</label>
+                            <input type="text" name="carrier" class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('运单号') }}</label>
+                            <input type="text" name="tracking_number" class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('发货日期') }}</label>
+                            <input type="date" name="ship_date" class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('预计到达') }}</label>
+                            <input type="date" name="expected_arrival" class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('收货地址') }}</label>
+                        <input type="text" name="ship_to" value="{{ order.delivery_address or '' }}" class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('收货人') }}</label>
+                            <input type="text" name="contact_name" value="{{ order.delivery_contact or '' }}" class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('联系电话') }}</label>
+                            <input type="text" name="contact_phone" value="{{ order.delivery_phone or '' }}" class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
+                        </div>
+                    </div>
+
+                    <!-- 发货明细 -->
+                    <div>
+                        <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('发货明细') }}</h4>
+                        <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                            <table class="w-full text-sm">
+                                <thead class="bg-slate-50 dark:bg-slate-700/50">
+                                    <tr>
+                                        <th class="p-2 text-left">{{ _('产品') }}</th>
+                                        <th class="p-2 text-right">{{ _('可发数量') }}</th>
+                                        <th class="p-2 text-right">{{ _('发货数量') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shipmentDetails">
+                                    {% for detail in order.details %}
+                                    {% if detail.remaining_to_ship > 0 %}
+                                    <tr class="border-t border-slate-200 dark:border-slate-700">
+                                        <td class="p-2">
+                                            <div class="font-medium text-slate-900 dark:text-white">{{ detail.product_name }}</div>
+                                            <div class="text-xs text-slate-500">{{ detail.product_model or '' }}</div>
+                                            <input type="hidden" name="details[{{ loop.index0 }}][sales_order_detail_id]" value="{{ detail.id }}">
+                                        </td>
+                                        <td class="p-2 text-right text-slate-500">{{ detail.remaining_to_ship }}</td>
+                                        <td class="p-2">
+                                            <input type="number" name="details[{{ loop.index0 }}][quantity]"
+                                                   value="{{ detail.remaining_to_ship }}" min="0" max="{{ detail.remaining_to_ship }}"
+                                                   class="w-20 h-8 px-2 text-right rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="flex items-center justify-end gap-3 p-4 border-t border-slate-200 dark:border-slate-700">
+                <button onclick="closeShipmentModal()" class="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium transition-colors">
+                    {{ _('取消') }}
+                </button>
+                <button onclick="createShipment()" class="h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
+                    {{ _('创建发货单') }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {{ render_tw_layout_script() }}
+    {{ tw_confirm_modal_script() }}
+
+    <script>
+    const orderId = {{ order.id }};
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+    // 确认订单
+    function confirmOrder() {
+        if (!confirm('确定要确认此订单吗？')) return;
+
+        fetch(`/sales-order/api/${orderId}/confirm`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.message || '操作失败');
+            }
+        })
+        .catch(err => alert('操作失败: ' + err));
+    }
+
+    // 取消订单
+    function showCancelModal() {
+        ConfirmModal.show('cancelModal', function() {
+            fetch(`/sales-order/api/${orderId}/cancel`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.message || '操作失败');
+                }
+            })
+            .catch(err => alert('操作失败: ' + err));
+        });
+    }
+
+    // 创建发货单模态框
+    function showCreateShipmentModal() {
+        document.getElementById('shipmentModal').classList.remove('hidden');
+    }
+
+    function closeShipmentModal() {
+        document.getElementById('shipmentModal').classList.add('hidden');
+    }
+
+    // 创建发货单
+    function createShipment() {
+        const form = document.getElementById('shipmentForm');
+        const formData = new FormData(form);
+
+        // 构建请求数据
+        const data = {
+            sales_order_id: orderId,
+            carrier: formData.get('carrier'),
+            tracking_number: formData.get('tracking_number'),
+            ship_date: formData.get('ship_date'),
+            expected_arrival: formData.get('expected_arrival'),
+            ship_to: formData.get('ship_to'),
+            contact_name: formData.get('contact_name'),
+            contact_phone: formData.get('contact_phone'),
+            details: []
+        };
+
+        // 收集发货明细
+        const detailRows = document.querySelectorAll('#shipmentDetails tr');
+        detailRows.forEach((row, index) => {
+            const detailIdInput = row.querySelector(`input[name="details[${index}][sales_order_detail_id]"]`);
+            const quantityInput = row.querySelector(`input[name="details[${index}][quantity]"]`);
+            if (detailIdInput && quantityInput) {
+                const qty = parseInt(quantityInput.value) || 0;
+                if (qty > 0) {
+                    data.details.push({
+                        sales_order_detail_id: parseInt(detailIdInput.value),
+                        quantity: qty
+                    });
+                }
+            }
+        });
+
+        if (data.details.length === 0) {
+            alert('请至少选择一个产品进行发货');
+            return;
+        }
+
+        fetch('/shipment/api/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(data)
+        })
+        .then(r => r.json())
+        .then(result => {
+            if (result.success) {
+                if (result.redirect_url) {
+                    window.location.href = result.redirect_url;
+                } else {
+                    location.reload();
+                }
+            } else {
+                alert(result.message || '创建失败');
+            }
+        })
+        .catch(err => alert('创建失败: ' + err));
+    }
+    </script>
+</body>
+</html>

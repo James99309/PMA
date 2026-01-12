@@ -1,0 +1,406 @@
+{#
+=============================================================================
+验收入库表单
+=============================================================================
+验收内容仅包括数量核对和包装检查，不含技术测试
+
+验收检查项：
+- 数量核对：发货数 vs 实收数
+- 外包装检查：完好/破损
+- 内包装检查：完好/破损
+- 配件检查：齐全/缺失
+- 标签检查：清晰/模糊
+
+参数说明：
+- order: PurchaseOrder 对象
+- readonly: 是否只读模式
+=============================================================================
+#}
+
+{% macro render_acceptance_form(order, readonly=false) %}
+<div id="acceptanceFormContainer" class="space-y-6">
+    {# 前置条件检查 #}
+    <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+        <h4 class="font-medium text-slate-900 dark:text-white mb-4">{{ _('前置条件') }}</h4>
+        <div class="flex flex-wrap gap-4">
+            {# 工厂测试 #}
+            <div class="flex items-center">
+                {% if order.factory_test_status == 'passed' %}
+                <span class="material-symbols-outlined text-green-500 mr-2">check_circle</span>
+                <span class="text-sm text-slate-600 dark:text-slate-300">{{ _('工厂测试通过') }}</span>
+                {% else %}
+                <span class="material-symbols-outlined text-slate-400 mr-2">radio_button_unchecked</span>
+                <span class="text-sm text-slate-400">{{ _('工厂测试') }}</span>
+                {% endif %}
+            </div>
+
+            {# FAT测试 #}
+            <div class="flex items-center">
+                {% if order.verification_test_status == 'passed' %}
+                <span class="material-symbols-outlined text-green-500 mr-2">check_circle</span>
+                <span class="text-sm text-slate-600 dark:text-slate-300">{{ _('FAT测试通过') }}</span>
+                {% elif order.verification_test_status == 'not_required' %}
+                <span class="material-symbols-outlined text-slate-400 mr-2">remove_circle_outline</span>
+                <span class="text-sm text-slate-400">{{ _('FAT测试（不适用）') }}</span>
+                {% else %}
+                <span class="material-symbols-outlined text-slate-400 mr-2">radio_button_unchecked</span>
+                <span class="text-sm text-slate-400">{{ _('FAT测试') }}</span>
+                {% endif %}
+            </div>
+
+            {# 已到货 #}
+            <div class="flex items-center">
+                {% if order.status in ['shipped', 'stored', 'completed'] %}
+                <span class="material-symbols-outlined text-green-500 mr-2">check_circle</span>
+                <span class="text-sm text-slate-600 dark:text-slate-300">{{ _('已到货') }}</span>
+                {% else %}
+                <span class="material-symbols-outlined text-slate-400 mr-2">radio_button_unchecked</span>
+                <span class="text-sm text-slate-400">{{ _('到货') }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# 验收表单 #}
+    <form id="acceptanceForm" class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+        {# 数量核对 #}
+        <div class="mb-6">
+            <h4 class="font-medium text-slate-900 dark:text-white mb-4">
+                <span class="material-symbols-outlined text-sm align-middle mr-1">inventory_2</span>
+                {{ _('数量核对') }}
+            </h4>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 dark:bg-slate-700/50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{{ _('产品') }}</th>
+                            <th class="px-4 py-2 text-center text-xs font-medium text-slate-500 dark:text-slate-400">{{ _('发货数') }}</th>
+                            <th class="px-4 py-2 text-center text-xs font-medium text-slate-500 dark:text-slate-400">{{ _('实收数') }}</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{{ _('差异说明') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+                        {% for detail in order.details %}
+                        <tr>
+                            <td class="px-4 py-3 text-slate-900 dark:text-white">
+                                {{ detail.product_name }}
+                                {% if detail.product_model %}
+                                <span class="text-slate-500 text-xs">({{ detail.product_model }})</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-center text-slate-600 dark:text-slate-300">
+                                {{ detail.quantity }}
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <input type="number" name="received_qty_{{ detail.id }}"
+                                       value="{{ detail.received_quantity or detail.quantity }}"
+                                       min="0" max="{{ detail.quantity }}"
+                                       {% if readonly %}disabled{% endif %}
+                                       class="w-20 px-2 py-1 text-center border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 dark:disabled:bg-slate-600">
+                            </td>
+                            <td class="px-4 py-3">
+                                <input type="text" name="diff_note_{{ detail.id }}"
+                                       placeholder="{{ _('如有差异请说明') }}"
+                                       {% if readonly %}disabled{% endif %}
+                                       class="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 dark:disabled:bg-slate-600">
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {# 包装检查 #}
+        <div class="mb-6">
+            <h4 class="font-medium text-slate-900 dark:text-white mb-4">
+                <span class="material-symbols-outlined text-sm align-middle mr-1">checklist</span>
+                {{ _('包装检查') }}
+            </h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {# 外包装 #}
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        {{ _('外包装完好') }} <span class="text-red-500">*</span>
+                    </label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="outer_package" value="good" checked
+                                   {% if readonly %}disabled{% endif %}
+                                   class="w-4 h-4 text-green-600 focus:ring-green-500">
+                            <span class="ml-2 text-slate-700 dark:text-slate-300">{{ _('完好') }}</span>
+                        </label>
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="outer_package" value="damaged"
+                                   {% if readonly %}disabled{% endif %}
+                                   class="w-4 h-4 text-red-600 focus:ring-red-500">
+                            <span class="ml-2 text-slate-700 dark:text-slate-300">{{ _('有破损') }}</span>
+                        </label>
+                    </div>
+                </div>
+
+                {# 内包装 #}
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        {{ _('内包装完好') }} <span class="text-red-500">*</span>
+                    </label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="inner_package" value="good" checked
+                                   {% if readonly %}disabled{% endif %}
+                                   class="w-4 h-4 text-green-600 focus:ring-green-500">
+                            <span class="ml-2 text-slate-700 dark:text-slate-300">{{ _('完好') }}</span>
+                        </label>
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="inner_package" value="damaged"
+                                   {% if readonly %}disabled{% endif %}
+                                   class="w-4 h-4 text-red-600 focus:ring-red-500">
+                            <span class="ml-2 text-slate-700 dark:text-slate-300">{{ _('有破损') }}</span>
+                        </label>
+                    </div>
+                </div>
+
+                {# 配件 #}
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        {{ _('配件齐全') }} <span class="text-red-500">*</span>
+                    </label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="accessories" value="complete" checked
+                                   {% if readonly %}disabled{% endif %}
+                                   class="w-4 h-4 text-green-600 focus:ring-green-500">
+                            <span class="ml-2 text-slate-700 dark:text-slate-300">{{ _('齐全') }}</span>
+                        </label>
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="accessories" value="missing"
+                                   {% if readonly %}disabled{% endif %}
+                                   class="w-4 h-4 text-red-600 focus:ring-red-500">
+                            <span class="ml-2 text-slate-700 dark:text-slate-300">{{ _('缺失') }}</span>
+                        </label>
+                    </div>
+                </div>
+
+                {# 标签 #}
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        {{ _('标签清晰') }} <span class="text-red-500">*</span>
+                    </label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="labels" value="clear" checked
+                                   {% if readonly %}disabled{% endif %}
+                                   class="w-4 h-4 text-green-600 focus:ring-green-500">
+                            <span class="ml-2 text-slate-700 dark:text-slate-300">{{ _('清晰') }}</span>
+                        </label>
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="labels" value="unclear"
+                                   {% if readonly %}disabled{% endif %}
+                                   class="w-4 h-4 text-red-600 focus:ring-red-500">
+                            <span class="ml-2 text-slate-700 dark:text-slate-300">{{ _('模糊/缺失') }}</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            {# 问题说明 #}
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    {{ _('问题说明') }}
+                </label>
+                <textarea id="issueNotes" name="issue_notes" rows="2"
+                          placeholder="{{ _('如有问题请在此说明') }}"
+                          {% if readonly %}disabled{% endif %}
+                          class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 dark:disabled:bg-slate-600"></textarea>
+            </div>
+        </div>
+
+        {# 入库信息 #}
+        <div class="mb-6">
+            <h4 class="font-medium text-slate-900 dark:text-white mb-4">
+                <span class="material-symbols-outlined text-sm align-middle mr-1">warehouse</span>
+                {{ _('入库信息') }}
+            </h4>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        {{ _('验收日期') }} <span class="text-red-500">*</span>
+                    </label>
+                    <input type="date" id="acceptanceDate" name="acceptance_date"
+                           value="{{ order.acceptance_date.strftime('%Y-%m-%d') if order.acceptance_date else '' }}"
+                           {% if readonly %}disabled{% endif %}
+                           class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 dark:disabled:bg-slate-600">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        {{ _('验收人') }}
+                    </label>
+                    <input type="text" id="acceptedBy" name="accepted_by"
+                           value="{{ current_user.real_name or current_user.username }}"
+                           disabled
+                           class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-100 dark:bg-slate-600 text-slate-900 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        {{ _('入库仓位') }}
+                    </label>
+                    <input type="text" id="warehouseLocation" name="warehouse_location"
+                           placeholder="{{ _('如：A区-货架3') }}"
+                           {% if readonly %}disabled{% endif %}
+                           class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 dark:disabled:bg-slate-600">
+                </div>
+            </div>
+        </div>
+
+        {# 验收单据上传 #}
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                {{ _('验收单据') }} <span class="text-slate-400">({{ _('可选') }})</span>
+            </label>
+            <div class="flex items-center justify-center w-full">
+                <label class="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors {% if readonly %}pointer-events-none opacity-50{% endif %}">
+                    <div class="flex flex-col items-center justify-center pt-3 pb-3">
+                        <span class="material-symbols-outlined text-2xl text-slate-400 mb-1">upload_file</span>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">
+                            {{ _('上传送货单、装箱单等') }}
+                        </p>
+                    </div>
+                    <input type="file" id="acceptanceDocuments" name="documents" class="hidden"
+                           accept=".pdf,.png,.jpg,.jpeg" multiple {% if readonly %}disabled{% endif %}>
+                </label>
+            </div>
+        </div>
+
+        {# 验收人签名 #}
+        {% if not readonly %}
+        <div class="mb-6">
+            {% from 'components/tw_signature_pad.html' import tw_signature_pad %}
+            {{ tw_signature_pad(
+                container_id='acceptanceSignature',
+                label='验收人签名',
+                required=true,
+                readonly=false
+            ) }}
+        </div>
+        {% endif %}
+
+        {# 验收结论 #}
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                {{ _('验收结论') }} <span class="text-red-500">*</span>
+            </label>
+            <div class="flex gap-4">
+                <label class="flex items-center cursor-pointer">
+                    <input type="radio" name="acceptance_result" value="passed" checked
+                           {% if readonly %}disabled{% endif %}
+                           class="w-4 h-4 text-green-600 focus:ring-green-500">
+                    <span class="ml-2 text-slate-700 dark:text-slate-300">{{ _('合格入库') }}</span>
+                </label>
+                <label class="flex items-center cursor-pointer">
+                    <input type="radio" name="acceptance_result" value="conditional"
+                           {% if readonly %}disabled{% endif %}
+                           class="w-4 h-4 text-amber-600 focus:ring-amber-500">
+                    <span class="ml-2 text-slate-700 dark:text-slate-300">{{ _('部分合格') }}</span>
+                </label>
+                <label class="flex items-center cursor-pointer">
+                    <input type="radio" name="acceptance_result" value="rejected"
+                           {% if readonly %}disabled{% endif %}
+                           class="w-4 h-4 text-red-600 focus:ring-red-500">
+                    <span class="ml-2 text-slate-700 dark:text-slate-300">{{ _('拒收') }}</span>
+                </label>
+            </div>
+        </div>
+
+        {% if not readonly %}
+        {# 提交按钮 #}
+        <div class="flex justify-end">
+            <button type="button" onclick="submitAcceptance()"
+                    class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                <span class="material-symbols-outlined text-sm mr-2">task_alt</span>
+                {{ _('确认验收入库') }}
+            </button>
+        </div>
+        {% endif %}
+    </form>
+</div>
+{% endmacro %}
+
+
+{# 验收表单脚本 #}
+{% macro render_acceptance_form_script(order_id, api_base_url) %}
+<script>
+(function() {
+    const orderId = {{ order_id }};
+    const apiBaseUrl = '{{ api_base_url }}';
+
+    window.submitAcceptance = function() {
+        const acceptanceDate = document.getElementById('acceptanceDate').value;
+        const acceptanceResult = document.querySelector('input[name="acceptance_result"]:checked')?.value;
+
+        if (!acceptanceDate) {
+            alert('{{ _("请选择验收日期") }}');
+            return;
+        }
+
+        // 获取签名
+        const signaturePad = window.SignaturePadManager?.get('acceptanceSignature');
+        if (!signaturePad || signaturePad.isEmpty()) {
+            alert('{{ _("请签名") }}');
+            return;
+        }
+
+        // 收集数量数据
+        const quantities = {};
+        const diffNotes = {};
+        document.querySelectorAll('input[name^="received_qty_"]').forEach(input => {
+            const detailId = input.name.replace('received_qty_', '');
+            quantities[detailId] = parseInt(input.value) || 0;
+        });
+        document.querySelectorAll('input[name^="diff_note_"]').forEach(input => {
+            const detailId = input.name.replace('diff_note_', '');
+            diffNotes[detailId] = input.value;
+        });
+
+        // 收集包装检查数据
+        const packageCheck = {
+            outer_package: document.querySelector('input[name="outer_package"]:checked')?.value,
+            inner_package: document.querySelector('input[name="inner_package"]:checked')?.value,
+            accessories: document.querySelector('input[name="accessories"]:checked')?.value,
+            labels: document.querySelector('input[name="labels"]:checked')?.value,
+            issue_notes: document.getElementById('issueNotes').value
+        };
+
+        const formData = {
+            acceptance_date: acceptanceDate,
+            acceptance_result: acceptanceResult,
+            warehouse_location: document.getElementById('warehouseLocation').value,
+            quantities: quantities,
+            diff_notes: diffNotes,
+            package_check: packageCheck,
+            signature: signaturePad.toDataURL()
+        };
+
+        fetch(`${apiBaseUrl}/${orderId}/accept`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('{{ _("验收入库已完成") }}');
+                location.reload();
+            } else {
+                alert(data.message || '{{ _("提交失败") }}');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('{{ _("网络错误，请重试") }}');
+        });
+    };
+})();
+</script>
+{% endmacro %}

@@ -1194,6 +1194,14 @@ def view_company(company_id):
     )
     expenses = viewable_expenses_query.order_by(Expense.created_at.desc()).limit(10).all()
 
+    # 如果是供应商类型，查询相关采购订单
+    purchase_orders = []
+    if company.company_type == 'supplier':
+        from app.models.inventory import PurchaseOrder
+        purchase_orders = PurchaseOrder.query.filter(
+            PurchaseOrder.company_id == company_id
+        ).order_by(PurchaseOrder.order_date.desc()).limit(10).all()
+
     # 计算该客户的累计报销费用（计算已审批和已支付的报销单）
     total_expense_amount = get_viewable_data(Expense, current_user).filter(
         Expense.customer_id == company_id,
@@ -1225,6 +1233,7 @@ def view_company(company_id):
                           projects=projects,
                           viewable_projects=viewable_projects,
                           quotations=quotations,  # 报价单列表
+                          purchase_orders=purchase_orders,  # 采购订单列表（供应商）
                           expenses=expenses,  # 报销单列表
                           total_expense_amount=total_expense_amount,  # 累计报销费用
                           currency_options=get_currency_type_options(),  # 报销单货币选项
@@ -2292,6 +2301,13 @@ def api_create_company():
             status='active',
             owner_id=current_user.id
         )
+
+        # 如果是供应商类型，自动生成供应商编码
+        if data.get('company_type') == 'supplier':
+            from app.utils.supplier_code_generator import generate_supplier_code, get_existing_supplier_codes
+            existing_codes = get_existing_supplier_codes()
+            company.supplier_code = generate_supplier_code(data.get('company_name'), existing_codes)
+
         db.session.add(company)
         db.session.commit()
 
@@ -2345,6 +2361,12 @@ def api_update_company(company_id):
         for field in allowed_fields:
             if field in data:
                 setattr(company, field, data[field])
+
+        # 如果类型变为供应商且没有供应商编码，自动生成
+        if company.company_type == 'supplier' and not company.supplier_code:
+            from app.utils.supplier_code_generator import generate_supplier_code, get_existing_supplier_codes
+            existing_codes = get_existing_supplier_codes()
+            company.supplier_code = generate_supplier_code(company.company_name, existing_codes)
 
         db.session.commit()
 
@@ -4602,5 +4624,204 @@ def find_similar_companies(target_company, all_companies):
     
     # 按匹配度降序排序
     similar_companies.sort(key=lambda x: x['similarity'], reverse=True)
-    
+
     return similar_companies
+
+
+# ============================================================
+# 地理位置服务 API
+# ============================================================
+
+@customer.route('/api/geocode/reverse', methods=['POST'])
+@login_required
+def reverse_geocode():
+    """
+    反向地理编码 - 将经纬度转换为地址
+
+    请求参数:
+    - latitude: 纬度
+    - longitude: 经度
+    - language: 语言（可选，默认根据用户设置）
+
+    返回:
+    - country: 国家代码
+    - country_name: 国家名称
+    - region: 省/州
+    - city: 城市
+    - district: 区/县
+    - address: 详细地址
+    - formatted_address: 格式化的完整地址
+    """
+    import requests
+    from app.utils.i18n import get_current_language
+
+    try:
+        data = request.get_json()
+        latitude = data.get('latitude')
+        longitude = data.get('longitude')
+
+        if latitude is None or longitude is None:
+            return jsonify({
+                'success': False,
+                'message': '缺少经纬度参数'
+            }), 400
+
+        # 获取 Google Maps API Key
+        api_key = current_app.config.get('GOOGLE_MAPS_API_KEY')
+        if not api_key:
+            return jsonify({
+                'success': False,
+                'message': '未配置地图服务'
+            }), 500
+
+        # 获取用户语言设置
+        lang = data.get('language') or get_current_language()
+        google_lang = 'zh-CN' if lang == 'zh' else 'en'
+
+        # 调用 Google Maps Geocoding API
+        url = 'https://maps.googleapis.com/maps/api/geocode/json'
+        params = {
+            'latlng': f'{latitude},{longitude}',
+            'key': api_key,
+            'language': google_lang,
+            'result_type': 'street_address|route|locality|administrative_area_level_1|country'
+        }
+
+        response = requests.get(url, params=params, timeout=10)
+        result = response.json()
+
+        if result.get('status') != 'OK':
+            error_msg = result.get('error_message', result.get('status', '未知错误'))
+            current_app.logger.warning(f"Google Geocoding API 错误: {error_msg}")
+            return jsonify({
+                'success': False,
+                'message': f'地理编码失败: {error_msg}'
+            }), 400
+
+        # 解析地址组件
+        address_data = parse_google_geocode_result(result, lang)
+
+        current_app.logger.info(f"反向地理编码成功: ({latitude}, {longitude}) -> {address_data.get('formatted_address')}")
+
+        return jsonify({
+            'success': True,
+            'data': address_data
+        })
+
+    except requests.exceptions.Timeout:
+        current_app.logger.error("Google Geocoding API 请求超时")
+        return jsonify({
+            'success': False,
+            'message': '地理编码服务超时，请重试'
+        }), 504
+    except Exception as e:
+        current_app.logger.error(f"反向地理编码失败: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'地理编码失败: {str(e)}'
+        }), 500
+
+
+def parse_google_geocode_result(result, lang='zh'):
+    """
+    解析 Google Geocoding API 返回的结果
+
+    Args:
+        result: Google API 返回的 JSON 结果
+        lang: 语言代码 ('zh' 或 'en')
+
+    Returns:
+        dict: 解析后的地址数据
+    """
+    address_data = {
+        'country': '',
+        'country_name': '',
+        'region': '',
+        'city': '',
+        'district': '',
+        'address': '',
+        'formatted_address': ''
+    }
+
+    if not result.get('results'):
+        return address_data
+
+    # 使用第一个结果
+    first_result = result['results'][0]
+    address_data['formatted_address'] = first_result.get('formatted_address', '')
+
+    # 国家代码映射（Google 返回的国家代码到系统使用的代码）
+    country_code_map = {
+        'CN': 'CN', 'US': 'US', 'JP': 'JP', 'KR': 'KR',
+        'MY': 'MY', 'SG': 'SG', 'TH': 'TH', 'VN': 'VN',
+        'ID': 'ID', 'PH': 'PH', 'IN': 'IN', 'AU': 'AU',
+        'GB': 'GB', 'DE': 'DE', 'FR': 'FR', 'IT': 'IT',
+        'ES': 'ES', 'NL': 'NL', 'CA': 'CA', 'BR': 'BR',
+        'RU': 'RU', 'AE': 'AE', 'SA': 'SA', 'TW': 'TW',
+        'HK': 'HK', 'MO': 'MO'
+    }
+
+    # 解析地址组件
+    components = first_result.get('address_components', [])
+
+    street_number = ''
+    route = ''
+    sublocality = ''
+
+    for component in components:
+        types = component.get('types', [])
+        long_name = component.get('long_name', '')
+        short_name = component.get('short_name', '')
+
+        # 国家
+        if 'country' in types:
+            address_data['country'] = country_code_map.get(short_name, short_name)
+            address_data['country_name'] = long_name
+
+        # 省/州/行政区
+        elif 'administrative_area_level_1' in types:
+            address_data['region'] = long_name
+
+        # 城市
+        elif 'locality' in types or 'administrative_area_level_2' in types:
+            if not address_data['city']:
+                address_data['city'] = long_name
+
+        # 区/县
+        elif 'sublocality_level_1' in types or 'sublocality' in types:
+            sublocality = long_name
+            if not address_data['district']:
+                address_data['district'] = long_name
+
+        # 街道
+        elif 'route' in types:
+            route = long_name
+
+        # 门牌号
+        elif 'street_number' in types:
+            street_number = long_name
+
+    # 组合详细地址
+    address_parts = []
+    if address_data['district'] and address_data['district'] != sublocality:
+        address_parts.append(address_data['district'])
+    if sublocality:
+        address_parts.append(sublocality)
+    if route:
+        if street_number:
+            address_parts.append(f"{route}{street_number}号" if lang == 'zh' else f"{street_number} {route}")
+        else:
+            address_parts.append(route)
+
+    address_data['address'] = ' '.join(address_parts) if address_parts else ''
+
+    # 如果详细地址为空，使用格式化地址的一部分
+    if not address_data['address'] and address_data['formatted_address']:
+        # 从格式化地址中去除国家、省、市，保留剩余部分
+        formatted = address_data['formatted_address']
+        for part in [address_data['country_name'], address_data['region'], address_data['city']]:
+            if part:
+                formatted = formatted.replace(part, '').strip(' ,，')
+        address_data['address'] = formatted.strip(' ,，')
+
+    return address_data

@@ -86,3 +86,8 @@ storage3==0.12.1
 # Word模板处理
 docxtpl>=0.16.0
 python-docx>=1.1.0
+
+# AI服务（会议纪要功能）
+openai>=1.0.0
+anthropic>=0.18.0
+pypinyin

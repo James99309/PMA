@@ -17,6 +17,7 @@ with context %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="google-maps-api-key" content="{{ config.GOOGLE_MAPS_API_KEY }}">
     <title>{{ _('项目管理') }}</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
@@ -278,8 +279,17 @@ with context %}
     {% include 'project/partials/_project_form_fields.html' %}
     {% endcall %}
 
+    <!-- 地图选择器弹窗 -->
+    {% from 'components/tw_map_picker.html' import render_map_picker_modal %}
+    {{ render_map_picker_modal() }}
+
     <!-- 项目表单JS -->
     <script src="{{ url_for('static', filename='js/project-form.js') }}"></script>
+
+    <!-- 地图选择器 -->
+    <script src="{{ url_for('static', filename='js/map-picker.js') }}"></script>
+    <!-- 通用地址选择器 -->
+    <script src="{{ url_for('static', filename='js/address-picker.js') }}"></script>
 
     <!-- 项目创建逻辑 -->
     <script>

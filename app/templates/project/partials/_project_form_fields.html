@@ -1,5 +1,6 @@
 {# 项目表单字段组件 - 用于创建和编辑项目 #}
 {% from 'components/tw_form_fields.html' import tw_form_field, tw_form_select, tw_form_textarea, tw_form_row %}
+{% from 'components/tw_address_input.html' import tw_address_input %}
 
 {# 项目名称 - 必填，带查重 #}
 <div class="relative">
@@ -44,6 +45,17 @@
     </select>
 </div>
 {% endcall %}
+
+{# 项目地址（含定位功能） #}
+{{ tw_address_input(
+    field_id='address',
+    label=_('项目地址'),
+    required=false,
+    placeholder=_('点击定位或输入地址'),
+    country_field='country',
+    region_field='region',
+    city_field='city'
+) }}
 
 {# 两列布局：报备时间 + 预测出货时间 #}
 {% call tw_form_row(cols=2) %}

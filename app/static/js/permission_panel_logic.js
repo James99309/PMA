@@ -625,8 +625,32 @@ const PermissionPanel = (function() {
                 console.log(`✅ 模块 ${moduleId} ${level}级别 - 所有权限可自由选择`);
             }
         } else {
-            // 个人权限模式：不应用保底规则，保持权限可编辑状态
-            console.log(`✅ 模块 ${moduleId} ${level}级别 - 个人权限模式，保持可编辑`);
+            // 个人权限模式的联动逻辑
+            //
+            // 设计原则：
+            // - 个人级(personal)：只操作自己的数据，应该有完整 CRUD 权限
+            // - 部门/公司/系统级：扩大数据可见范围
+            //   - view/create：保留（创建新数据不涉及"他人数据"）
+            //   - edit/delete：取消（对他人数据默认不给编辑/删除权限）
+            //   - 注：edit/delete 有"基本权限保障"，用户仍可编辑/删除自己的数据
+            //
+            if (level === 'personal') {
+                // 个人级别：自动勾选所有基础权限
+                if (viewCheckbox) viewCheckbox.checked = true;
+                if (createCheckbox) createCheckbox.checked = true;
+                if (editCheckbox) editCheckbox.checked = true;
+                if (deleteCheckbox) deleteCheckbox.checked = true;
+                console.log(`✅ 模块 ${moduleId} 个人级别 - 已自动勾选全部权限`);
+            } else {
+                // 部门/公司/系统级别：保留查看和创建，取消编辑/删除
+                // - create：创建新数据不涉及"他人数据"，应该保留
+                // - edit/delete：有基本保障，用户仍可操作自己的数据
+                if (viewCheckbox) viewCheckbox.checked = true;
+                if (createCheckbox) createCheckbox.checked = true;
+                if (editCheckbox) editCheckbox.checked = false;
+                if (deleteCheckbox) deleteCheckbox.checked = false;
+                console.log(`✅ 模块 ${moduleId} ${level}级别 - 保留查看/创建，取消编辑/删除他人数据`);
+            }
         }
 
         // 更新全选框状态

@@ -1,0 +1,205 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_stat_card.html' import tw_stat_card, tw_stat_cards_grid with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('客户订单') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        [x-cloak] { display: none !important; }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark">
+    {% call(slot) render_tw_layout(active_page='sales_order', show_search=true, search_value=search) %}
+    {% if slot == 'content' %}
+        {% call(page_slot) render_tw_fixed_page() %}
+        {% if page_slot == 'header' %}
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('客户订单') }}</h1>
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-sm text-slate-500 dark:text-slate-400">
+                    {{ _('共') }} {{ pagination.total }} {{ _('条记录') }}
+                </span>
+            </div>
+        {% elif page_slot == 'content' %}
+            <!-- 统计卡片 -->
+            {% call tw_stat_cards_grid(cols=5) %}
+                {{ tw_stat_card(title=_('全部'), value=stats.total, icon='list_alt', variant='default',
+                    onclick="filterByStatus('')", active=(current_status == '')) }}
+                {{ tw_stat_card(title=_('草稿'), value=stats.draft, icon='edit_note', variant='default',
+                    onclick="filterByStatus('draft')", active=(current_status == 'draft')) }}
+                {{ tw_stat_card(title=_('已确认'), value=stats.confirmed, icon='check_circle', variant='info',
+                    onclick="filterByStatus('confirmed')", active=(current_status == 'confirmed')) }}
+                {{ tw_stat_card(title=_('已发货'), value=stats.shipped, icon='local_shipping', variant='warning',
+                    onclick="filterByStatus('shipped')", active=(current_status == 'shipped')) }}
+                {{ tw_stat_card(title=_('已完成'), value=stats.completed, icon='task_alt', variant='success',
+                    onclick="filterByStatus('completed')", active=(current_status == 'completed')) }}
+            {% endcall %}
+
+            <!-- 筛选区域 -->
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 mb-4">
+                <form id="filterForm" method="GET" class="flex flex-wrap items-center gap-4">
+                    <div class="flex-1 min-w-[200px]">
+                        <input type="text" name="search" value="{{ search }}"
+                               placeholder="{{ _('搜索订单号...') }}"
+                               class="w-full h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                    <div class="w-48">
+                        <select name="customer_id" onchange="this.form.submit()"
+                                class="w-full h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+                            <option value="">{{ _('全部客户') }}</option>
+                            {% for c in customers %}
+                            <option value="{{ c.id }}" {{ 'selected' if current_customer_id == c.id|string }}>{{ c.company_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <input type="hidden" name="status" value="{{ current_status }}">
+                    <button type="submit" class="h-10 px-4 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors">
+                        <span class="material-symbols-outlined text-lg align-middle">search</span>
+                        {{ _('搜索') }}
+                    </button>
+                    {% if search or current_status or current_customer_id %}
+                    <a href="{{ url_for('sales_order.list_view') }}" class="h-10 px-4 bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 text-slate-700 dark:text-white rounded-lg text-sm font-medium transition-colors inline-flex items-center">
+                        {{ _('重置') }}
+                    </a>
+                    {% endif %}
+                </form>
+            </div>
+
+            <!-- 数据表格 -->
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+                            <tr>
+                                <th class="p-4 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('订单号') }}</th>
+                                <th class="p-4 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('客户') }}</th>
+                                <th class="p-4 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('金额') }}</th>
+                                <th class="p-4 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('进度') }}</th>
+                                <th class="p-4 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('状态') }}</th>
+                                <th class="p-4 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('创建时间') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+                            {% for order in orders %}
+                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer"
+                                onclick="window.location='{{ url_for('sales_order.detail_view', order_id=order.id) }}'">
+                                <td class="p-4">
+                                    <span class="text-sm font-medium text-primary">{{ order.order_number }}</span>
+                                </td>
+                                <td class="p-4">
+                                    <span class="text-sm text-slate-700 dark:text-slate-300">
+                                        {{ order.customer.company_name if order.customer else '-' }}
+                                    </span>
+                                </td>
+                                <td class="p-4 text-right">
+                                    <span class="text-sm font-medium text-slate-900 dark:text-white">
+                                        ¥{{ "%.2f"|format(order.total_amount or 0) }}
+                                    </span>
+                                </td>
+                                <td class="p-4">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <div class="w-24 h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+                                            <div class="h-full bg-primary rounded-full" style="width: {{ order.delivery_progress }}%"></div>
+                                        </div>
+                                        <span class="text-xs text-slate-500 dark:text-slate-400">{{ order.delivery_progress }}%</span>
+                                    </div>
+                                </td>
+                                <td class="p-4 text-center">
+                                    {% set status_config = {
+                                        'draft': {'label': '草稿', 'color': 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'},
+                                        'confirmed': {'label': '已确认', 'color': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'},
+                                        'preparing': {'label': '备货中', 'color': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'},
+                                        'shipped': {'label': '已发货', 'color': 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400'},
+                                        'delivered': {'label': '已送达', 'color': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'},
+                                        'completed': {'label': '已完成', 'color': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'},
+                                        'cancelled': {'label': '已取消', 'color': 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}
+                                    } %}
+                                    {% set cfg = status_config.get(order.status, {'label': order.status, 'color': 'bg-slate-100 text-slate-600'}) %}
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {{ cfg.color }}">
+                                        {{ _(cfg.label) }}
+                                    </span>
+                                </td>
+                                <td class="p-4">
+                                    <span class="text-sm text-slate-500 dark:text-slate-400">
+                                        {{ order.created_at.strftime('%Y-%m-%d') if order.created_at else '-' }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="p-8 text-center">
+                                    <div class="flex flex-col items-center gap-2">
+                                        <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">inbox</span>
+                                        <span class="text-slate-500 dark:text-slate-400">{{ _('暂无数据') }}</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 分页 -->
+                {% if pagination.pages > 1 %}
+                <div class="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <div class="text-sm text-slate-500 dark:text-slate-400">
+                        {{ _('第') }} {{ pagination.page }} {{ _('页，共') }} {{ pagination.pages }} {{ _('页') }}
+                    </div>
+                    <div class="flex items-center gap-1">
+                        {% if pagination.has_prev %}
+                        <a href="{{ url_for('sales_order.list_view', page=pagination.prev_num, status=current_status, customer_id=current_customer_id, search=search) }}"
+                           class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400">
+                            <span class="material-symbols-outlined">chevron_left</span>
+                        </a>
+                        {% endif %}
+                        {% if pagination.has_next %}
+                        <a href="{{ url_for('sales_order.list_view', page=pagination.next_num, status=current_status, customer_id=current_customer_id, search=search) }}"
+                           class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400">
+                            <span class="material-symbols-outlined">chevron_right</span>
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        {% endif %}
+        {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    {{ render_tw_layout_script() }}
+    <script>
+    function filterByStatus(status) {
+        const form = document.getElementById('filterForm');
+        form.querySelector('input[name="status"]').value = status;
+        form.submit();
+    }
+    </script>
+</body>
+</html>

@@ -301,10 +301,22 @@ def create_app(config_class=Config):
 
     # 导入批价单蓝图
     from app.routes.pricing_order_routes import pricing_order_bp
-    
+
+    # 导入客户订单蓝图
+    from app.routes.sales_order_routes import sales_order_bp
+
+    # 导入发货管理蓝图
+    from app.routes.shipment_routes import shipment_bp
+
+    # 导入序列号管理蓝图
+    from app.routes.product_sn_routes import product_sn_bp
+
     # 导入库存管理蓝图
     from app.routes.inventory import inventory
-    
+
+    # 导入采购订单蓝图（Tailwind风格）
+    from app.routes.purchase_order_routes import purchase_order_bp
+
     # 导入报销管理蓝图
     from app.views.expense import expense
 
@@ -335,7 +347,15 @@ def create_app(config_class=Config):
     app.register_blueprint(performance_config_bp)
     app.register_blueprint(pricing_order_bp, url_prefix='/pricing_order')  # 添加URL前缀
     csrf.exempt(pricing_order_bp)  # 豁免批价单蓝图的CSRF保护
+    app.register_blueprint(sales_order_bp, url_prefix='/sales-order')  # 注册客户订单蓝图
+    csrf.exempt(sales_order_bp)  # 豁免客户订单蓝图的CSRF保护
+    app.register_blueprint(shipment_bp, url_prefix='/shipment')  # 注册发货管理蓝图
+    csrf.exempt(shipment_bp)  # 豁免发货管理蓝图的CSRF保护
+    app.register_blueprint(product_sn_bp, url_prefix='/product-sn')  # 注册序列号管理蓝图
+    csrf.exempt(product_sn_bp)  # 豁免序列号管理蓝图的CSRF保护
     app.register_blueprint(inventory, url_prefix='/inventory')  # 注册库存管理蓝图
+    app.register_blueprint(purchase_order_bp)  # 注册采购订单蓝图（Tailwind风格）
+    csrf.exempt(purchase_order_bp)  # 豁免采购订单蓝图的CSRF保护
     app.register_blueprint(expense, url_prefix='/expense')  # 注册报销管理蓝图
     app.register_blueprint(config_management_bp)  # 注册配置管理蓝图
     csrf.exempt(config_management_bp)  # 豁免配置管理蓝图的CSRF保护
@@ -343,6 +363,11 @@ def create_app(config_class=Config):
     # 注册工作日历蓝图
     app.register_blueprint(worklog)
     csrf.exempt(worklog)  # 豁免工作日历蓝图的CSRF保护
+
+    # 注册会议录音纪要蓝图
+    from app.views.meeting import meeting
+    app.register_blueprint(meeting)
+    csrf.exempt(meeting)  # 豁免会议蓝图的CSRF保护（用于录音上传）
 
     # 注册规格字典管理蓝图（全局规格定义管理）
     from app.views.spec_definition import spec_definition_bp

@@ -575,6 +575,110 @@
     variant='success'
 ) }}
 
+<!-- 创建客户订单模态框 -->
+<div id="createSalesOrderModal" class="fixed inset-0 z-[60] hidden">
+    <div class="fixed inset-0 bg-black/50" onclick="PricingOrderModal.closeCreateSalesOrderModal()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+             onclick="event.stopPropagation()">
+            <!-- 头部 -->
+            <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('创建客户订单') }}</h3>
+                <button onclick="PricingOrderModal.closeCreateSalesOrderModal()"
+                    class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <!-- 表单内容 -->
+            <div class="p-4 space-y-4">
+                <!-- 交付日期 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                        {{ _('期望交付日期') }}
+                    </label>
+                    <input type="date" id="soDeliveryDate"
+                        class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent">
+                </div>
+                <!-- 收货地址 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                        {{ _('收货地址') }} <span class="text-red-500">*</span>
+                    </label>
+                    <textarea id="soDeliveryAddress" rows="2"
+                        class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                        placeholder="{{ _('请输入详细收货地址') }}"></textarea>
+                </div>
+                <!-- 联系人 -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            {{ _('联系人') }} <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" id="soDeliveryContact"
+                            class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+                            placeholder="{{ _('联系人姓名') }}">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            {{ _('联系电话') }} <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" id="soDeliveryPhone"
+                            class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+                            placeholder="{{ _('联系电话') }}">
+                    </div>
+                </div>
+                <!-- 配送方式 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                        {{ _('配送方式') }}
+                    </label>
+                    <select id="soShippingMethod"
+                        class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent">
+                        <option value="">{{ _('请选择') }}</option>
+                        <option value="express">{{ _('快递') }}</option>
+                        <option value="logistics">{{ _('物流') }}</option>
+                        <option value="self_pickup">{{ _('自提') }}</option>
+                        <option value="delivery">{{ _('送货上门') }}</option>
+                    </select>
+                </div>
+                <!-- 运费条款 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                        {{ _('运费条款') }}
+                    </label>
+                    <select id="soFreightTerms"
+                        class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent">
+                        <option value="">{{ _('请选择') }}</option>
+                        <option value="prepaid">{{ _('运费预付') }}</option>
+                        <option value="collect">{{ _('运费到付') }}</option>
+                        <option value="included">{{ _('含运费') }}</option>
+                    </select>
+                </div>
+                <!-- 备注 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                        {{ _('备注') }}
+                    </label>
+                    <textarea id="soNotes" rows="2"
+                        class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                        placeholder="{{ _('订单备注信息') }}"></textarea>
+                </div>
+            </div>
+            <!-- 底部按钮 -->
+            <div class="flex items-center justify-end gap-3 p-4 border-t border-slate-200 dark:border-slate-700">
+                <button onclick="PricingOrderModal.closeCreateSalesOrderModal()"
+                    class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors">
+                    {{ _('取消') }}
+                </button>
+                <button onclick="PricingOrderModal.createSalesOrder()"
+                    class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
+                    {{ _('创建订单') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {# 引入确认模态框脚本（包含 openConfirmModal 函数） #}
 {{ tw_confirm_modal_script() }}
 {% endmacro %}
@@ -1924,6 +2028,17 @@ window.PricingOrderModal = (function() {
             `;
         }
 
+        // 创建客户订单按钮（仅审批通过后显示）
+        if (po.status === 'approved') {
+            buttons += `
+                <button onclick="PricingOrderModal.showCreateSalesOrderModal()"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
+                    <span class="material-symbols-outlined text-lg">shopping_cart</span>
+                    {{ _('创建客户订单') }}
+                </button>
+            `;
+        }
+
         container.innerHTML = buttons;
     }
 
@@ -2235,6 +2350,93 @@ window.PricingOrderModal = (function() {
         }
     }
 
+    /**
+     * 显示创建客户订单模态框
+     */
+    function showCreateSalesOrderModal() {
+        const modal = document.getElementById('createSalesOrderModal');
+        if (modal) {
+            // 重置表单
+            document.getElementById('soDeliveryDate').value = '';
+            document.getElementById('soDeliveryAddress').value = '';
+            document.getElementById('soDeliveryContact').value = '';
+            document.getElementById('soDeliveryPhone').value = '';
+            document.getElementById('soShippingMethod').value = '';
+            document.getElementById('soFreightTerms').value = '';
+            document.getElementById('soNotes').value = '';
+            modal.classList.remove('hidden');
+        }
+    }
+
+    /**
+     * 关闭创建客户订单模态框
+     */
+    function closeCreateSalesOrderModal() {
+        const modal = document.getElementById('createSalesOrderModal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    }
+
+    /**
+     * 创建客户订单
+     */
+    async function createSalesOrder() {
+        // 验证必填字段
+        const deliveryAddress = document.getElementById('soDeliveryAddress').value.trim();
+        const deliveryContact = document.getElementById('soDeliveryContact').value.trim();
+        const deliveryPhone = document.getElementById('soDeliveryPhone').value.trim();
+
+        if (!deliveryAddress) {
+            showToast('{{ _("请填写收货地址") }}', 'warning');
+            return;
+        }
+        if (!deliveryContact) {
+            showToast('{{ _("请填写联系人") }}', 'warning');
+            return;
+        }
+        if (!deliveryPhone) {
+            showToast('{{ _("请填写联系电话") }}', 'warning');
+            return;
+        }
+
+        const data = {
+            pricing_order_id: state.pricingOrderId,
+            delivery_date: document.getElementById('soDeliveryDate').value,
+            delivery_address: deliveryAddress,
+            delivery_contact: deliveryContact,
+            delivery_phone: deliveryPhone,
+            shipping_method: document.getElementById('soShippingMethod').value,
+            freight_terms: document.getElementById('soFreightTerms').value,
+            notes: document.getElementById('soNotes').value.trim()
+        };
+
+        try {
+            const response = await fetch('/sales-order/api/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                showToast(result.message, 'success');
+                closeCreateSalesOrderModal();
+                // 跳转到新创建的客户订单
+                if (result.redirect_url) {
+                    window.location.href = result.redirect_url;
+                }
+            } else {
+                showToast(result.message || '{{ _("创建失败") }}', 'error');
+            }
+        } catch (error) {
+            console.error('创建客户订单失败:', error);
+            showToast('{{ _("创建失败") }}', 'error');
+        }
+    }
+
     // 公开接口
     return {
         open,
@@ -2264,7 +2466,11 @@ window.PricingOrderModal = (function() {
         clearCollapseTimer,
         startExpandTimer,
         clearExpandTimer,
-        onDetailScroll
+        onDetailScroll,
+        // 创建客户订单
+        showCreateSalesOrderModal,
+        closeCreateSalesOrderModal,
+        createSalesOrder
     };
 })();
 

@@ -1,0 +1,499 @@
+{# 采购订单表单模态框组件 #}
+{# 支持创建和编辑两种模式，包含基本信息和产品明细 #}
+
+{% from 'components/tw_editable_table.html' import tw_editable_table, tw_editable_table_styles, tw_editable_table_script with context %}
+{% from 'components/tw_product_spec_modal.html' import tw_product_spec_modal, tw_product_spec_modal_script with context %}
+
+{# 产品明细列配置 #}
+{% set po_detail_columns = [
+    {'key': 'product_name', 'label': _('产品名称'), 'type': 'product-selector', 'required': true, 'width': '180px'},
+    {'key': 'product_model', 'label': _('型号'), 'type': 'text', 'readonly': true, 'width': '120px'},
+    {'key': 'product_desc', 'label': _('规格描述'), 'type': 'text', 'readonly': true, 'width': '300px'},
+    {'key': 'quantity', 'label': _('数量'), 'type': 'number', 'required': true, 'width': '80px', 'align': 'right', 'default': 1},
+    {'key': 'unit', 'label': _('单位'), 'type': 'text', 'readonly': true, 'width': '60px'},
+    {'key': 'unit_price', 'label': _('单价'), 'type': 'currency', 'width': '120px', 'align': 'right', 'default': 0},
+    {'key': 'total_price', 'label': _('金额'), 'type': 'currency', 'readonly': true, 'width': '120px', 'align': 'right'}
+] %}
+
+{% macro tw_purchase_order_form_modal(modal_id='purchaseOrderFormModal', mode='create', order=none, suppliers=[], currency_options=[]) %}
+{#
+    参数说明:
+    - modal_id: 模态框ID
+    - mode: 'create' 创建模式 | 'edit' 编辑模式
+    - order: 编辑模式时传入的订单对象
+    - suppliers: 供应商列表
+    - currency_options: 货币选项列表
+#}
+{% set is_edit = mode == 'edit' %}
+{% set modal_title = _('编辑采购订单') if is_edit else _('新建采购订单') %}
+{% set submit_label = _('保存修改') if is_edit else _('创建采购订单') %}
+{% set default_currency = order.currency if is_edit and order else 'CNY' %}
+{% set currency_symbol = '$' if default_currency == 'USD' else '¥' %}
+
+<div id="{{ modal_id }}" class="fixed inset-0 z-50 hidden">
+    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" onclick="POFormModal.close()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col"
+             onclick="event.stopPropagation()">
+            <!-- 头部 -->
+            <div class="flex items-center p-4 flex-shrink-0">
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">inventory_2</span>
+                    {{ modal_title }}
+                </h3>
+            </div>
+
+            <!-- 可滚动的表单内容区域 -->
+            <div class="flex-1 overflow-y-auto p-6">
+                <div class="space-y-6">
+                    <!-- 基本信息区域 -->
+                    <div class="space-y-4">
+
+                        <!-- 第一行：供应商 | 订单类别 | 需求日期 -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    {{ _('供应商') }} <span class="text-red-500">*</span>
+                                </label>
+                                {% if is_edit %}
+                                <div class="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 text-sm flex items-center">
+                                    {{ order.company.company_name if order and order.company else '-' }}
+                                </div>
+                                <input type="hidden" id="{{ modal_id }}_supplierId" value="{{ order.company_id if order else '' }}">
+                                {% else %}
+                                <select id="{{ modal_id }}_supplierId" required
+                                    class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent">
+                                    <option value="">{{ _('请选择供应商') }}</option>
+                                    {% for s in suppliers %}
+                                    <option value="{{ s.id }}">{{ s.company_name }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    {{ _('订单类别') }}
+                                </label>
+                                <select id="{{ modal_id }}_orderCategory"
+                                    class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+                                    <option value="channel" {{ 'selected' if is_edit and order and order.order_category == 'channel' }}>{{ _('渠道订单') }}</option>
+                                    <option value="direct" {{ 'selected' if is_edit and order and order.order_category == 'direct' }}>{{ _('直销订单') }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    {{ _('需求日期') }} <span class="text-red-500">*</span>
+                                </label>
+                                <input type="date" id="{{ modal_id }}_requiredDate" required
+                                    value="{{ order.required_date.strftime('%Y-%m-%d') if is_edit and order and order.required_date else '' }}"
+                                    class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent">
+                            </div>
+                        </div>
+
+                        <!-- 第二行：贸易术语 | 运输方式 | 运费承担 | 验证测试 -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    {{ _('贸易术语') }}
+                                </label>
+                                <select id="{{ modal_id }}_incoterms"
+                                    class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+                                    <option value="">{{ _('请选择') }}</option>
+                                    <option value="DDP" {{ 'selected' if is_edit and order and order.incoterms == 'DDP' }}>DDP</option>
+                                    <option value="FOB" {{ 'selected' if is_edit and order and order.incoterms == 'FOB' }}>FOB</option>
+                                    <option value="CIF" {{ 'selected' if is_edit and order and order.incoterms == 'CIF' }}>CIF</option>
+                                    <option value="EXW" {{ 'selected' if is_edit and order and order.incoterms == 'EXW' }}>EXW</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    {{ _('运输方式') }}
+                                </label>
+                                <select id="{{ modal_id }}_shippingMethod"
+                                    class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+                                    <option value="">{{ _('请选择') }}</option>
+                                    <option value="truck" {{ 'selected' if is_edit and order and order.shipping_method == 'truck' }}>{{ _('汽运') }}</option>
+                                    <option value="air" {{ 'selected' if is_edit and order and order.shipping_method == 'air' }}>{{ _('空运') }}</option>
+                                    <option value="express" {{ 'selected' if is_edit and order and order.shipping_method == 'express' }}>{{ _('快递') }}</option>
+                                    <option value="self_pickup" {{ 'selected' if is_edit and order and order.shipping_method == 'self_pickup' }}>{{ _('自提') }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    {{ _('运费承担') }}
+                                </label>
+                                <select id="{{ modal_id }}_freightTerms"
+                                    class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+                                    <option value="buyer" {{ 'selected' if not is_edit or (is_edit and order and order.freight_terms != 'supplier') }}>{{ _('采购方') }}</option>
+                                    <option value="supplier" {{ 'selected' if is_edit and order and order.freight_terms == 'supplier' }}>{{ _('供应商') }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    {{ _('验证测试') }}
+                                </label>
+                                <select id="{{ modal_id }}_verificationTestType"
+                                    class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+                                    <option value="incoming" {{ 'selected' if not is_edit or (is_edit and order and order.verification_test_type != 'site_fat') }}>{{ _('到货测试') }}</option>
+                                    <option value="site_fat" {{ 'selected' if is_edit and order and order.verification_test_type == 'site_fat' }}>{{ _('现场FAT') }}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 第三行：交货地点 | 付款条件 -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    {{ _('交货地点') }}
+                                </label>
+                                <input type="text" id="{{ modal_id }}_shipTo"
+                                    value="{{ order.ship_to if is_edit and order else '' }}"
+                                    class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+                                    placeholder="{{ _('请输入交货地址') }}">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    {{ _('付款条件') }}
+                                </label>
+                                <input type="text" id="{{ modal_id }}_paymentTerms"
+                                    value="{{ order.payment_terms if is_edit and order else '' }}"
+                                    class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+                                    placeholder="{{ _('例如：50%预付，发货后45天付清') }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 备注 -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            {{ _('备注') }}
+                        </label>
+                        <textarea id="{{ modal_id }}_notes" rows="2"
+                            class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                            placeholder="{{ _('订单备注信息') }}">{{ order.description if is_edit and order else '' }}</textarea>
+                    </div>
+
+                    <!-- 产品明细区域 -->
+                    <div class="space-y-4">
+                        <!-- 可编辑表格 -->
+                        {{ tw_editable_table(
+                            table_id='poProductTable',
+                            columns=po_detail_columns,
+                            data=[],
+                            show_add_btn=false,
+                            show_delete_btn=true,
+                            currency=default_currency
+                        ) }}
+
+                        <!-- 底部操作区：添加按钮（左） + 货币和总计（右） -->
+                        <div class="flex items-center justify-between">
+                            <button type="button" class="inline-flex items-center gap-2 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                onclick="window.EditableTable.addRow('poProductTable')">
+                                <span class="material-symbols-outlined text-base">add</span>
+                                {{ _('添加产品') }}
+                            </button>
+                            <div class="flex items-center gap-4">
+                                <div class="flex items-center gap-2">
+                                    <label class="text-sm text-slate-600 dark:text-slate-400">{{ _('货币') }}:</label>
+                                    <select id="{{ modal_id }}_currency"
+                                        class="h-9 px-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                                        onchange="POFormModal.onCurrencyChange(this.value)">
+                                        <option value="CNY" {{ 'selected' if default_currency == 'CNY' }}>CNY (¥)</option>
+                                        <option value="USD" {{ 'selected' if default_currency == 'USD' }}>USD ($)</option>
+                                    </select>
+                                </div>
+                                <span class="text-sm text-slate-600 dark:text-slate-400">
+                                    {{ _('合计金额') }}:
+                                    <span class="font-bold text-lg text-slate-900 dark:text-white ml-1">
+                                        <span id="{{ modal_id }}_currencySymbol">{{ currency_symbol }}</span><span id="grandTotal">0.00</span>
+                                    </span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部按钮 -->
+            <div class="flex items-center justify-end gap-3 p-4 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+                <button onclick="POFormModal.close()"
+                    class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors">
+                    {{ _('取消') }}
+                </button>
+                <button onclick="POFormModal.submit()"
+                    id="{{ modal_id }}_submitBtn"
+                    class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors inline-flex items-center gap-2">
+                    <span class="material-symbols-outlined text-lg">save</span>
+                    {{ submit_label }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{% macro tw_purchase_order_form_styles() %}
+{{ tw_editable_table_styles() }}
+<style>
+/* 产品选择器样式 */
+.product-selector-trigger {
+    cursor: pointer;
+    padding: 0.375rem 0.5rem;
+    border-radius: 0.375rem;
+    transition: all 0.15s;
+}
+.product-selector-trigger:hover {
+    background: #f3f4f6;
+}
+.dark .product-selector-trigger:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* 配置产品行图标样式 */
+.config-link-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    font-size: 0.75rem;
+    color: #6b7280;
+    cursor: pointer;
+    margin-right: 0.25rem;
+    user-select: none;
+}
+.config-link-icon .link-unlink { display: none; }
+.config-link-icon:hover .link-normal { display: none; }
+.config-link-icon:hover .link-unlink { display: inline; color: #ef4444; }
+</style>
+{# 产品规格选择模态框 #}
+{{ tw_product_spec_modal() }}
+{% endmacro %}
+
+
+{% macro tw_purchase_order_form_script(modal_id='purchaseOrderFormModal', mode='create', order=none, create_api_url='', update_api_url_template='', redirect_on_create=true) %}
+<!-- 产品选择器 -->
+<script src="{{ url_for('static', filename='js/product-selector.js') }}"></script>
+<!-- 产品规格选择模态框脚本 -->
+{{ tw_product_spec_modal_script() }}
+
+<!-- 可编辑表格脚本 -->
+{{ tw_editable_table_script(
+    table_id='poProductTable',
+    config={
+        'columns': po_detail_columns,
+        'currency': order.currency if order else 'CNY',
+        'currency_symbol': '$' if (order and order.currency == 'USD') else '¥',
+        'skipConfigModal': true,
+        'api_endpoints': {
+            'categories': '/api/products/categories',
+            'productsByCategory': '/api/products/by-category',
+            'subcategories': '/api/products/subcategories',
+            'productModels': '/api/products/models',
+            'productSpecs': '/api/products/specs'
+        }
+    }
+) }}
+
+<script>
+// 采购订单表单模态框管理
+window.POFormModal = {
+    modalId: '{{ modal_id }}',
+    mode: '{{ mode }}',
+    orderId: {{ order.id if order else 'null' }},
+    createUrl: '{{ create_api_url }}',
+    updateUrlTemplate: '{{ update_api_url_template }}',
+    redirectOnCreate: {{ 'true' if redirect_on_create else 'false' }},
+
+    // 打开模态框
+    open: function() {
+        document.getElementById(this.modalId).classList.remove('hidden');
+        this.initProductTable();
+        this.initProductSelector();
+    },
+
+    // 关闭模态框
+    close: function() {
+        document.getElementById(this.modalId).classList.add('hidden');
+    },
+
+    // 初始化产品表格
+    initProductTable: function() {
+        {% if mode == 'edit' and order and order.details %}
+        // 编辑模式：加载现有明细
+        const existingDetails = [
+            {% for d in order.details %}
+            {
+                'id': {{ d.id }},
+                'item_id': {{ d.id }},
+                'product_id': {{ d.product_id or 'null' }},
+                'product_name': {{ d.product_name | tojson }},
+                'product_model': {{ (d.product_model or '') | tojson }},
+                'product_desc': {{ (d.product_desc or '') | tojson }},
+                'brand': {{ (d.brand or '') | tojson }},
+                'unit': {{ (d.unit or '') | tojson }},
+                'quantity': {{ d.quantity or 1 }},
+                'unit_price': {{ d.unit_price or 0 }},
+                'discount': {{ d.discount or 1 }},
+                'total_price': {{ d.total_price or 0 }}
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ];
+        if (existingDetails.length > 0) {
+            window.EditableTable.setData('poProductTable', existingDetails);
+        } else {
+            window.EditableTable.addRow('poProductTable');
+        }
+        {% else %}
+        // 创建模式：添加一个空行
+        const tbody = document.getElementById('poProductTableBody');
+        if (tbody) tbody.innerHTML = '';
+        const instance = window.EditableTable.instances['poProductTable'];
+        if (instance) {
+            instance.rows = [];
+            instance.rowCounter = 0;
+            window.EditableTable.addRow('poProductTable');
+        }
+        {% endif %}
+    },
+
+    // 初始化产品选择器
+    initProductSelector: function() {
+        if (typeof ProductSelector !== 'undefined' && !window.productSelectorModal) {
+            window.productSelectorModal = new ProductSelector({
+                apiEndpoints: {
+                    categories: '/api/products/categories',
+                    productsByCategory: '/api/products/by-category',
+                    subcategories: '/api/products/subcategories',
+                    productModels: '/api/products/models',
+                    productSpecs: '/api/products/specs'
+                },
+                manual_input: {
+                    enabled: false
+                },
+                onSelect: function(product) {
+                    // 产品选择回调由 EditableTable 处理
+                }
+            });
+        }
+    },
+
+    // 货币变更
+    onCurrencyChange: function(currency) {
+        const symbol = currency === 'USD' ? '$' : '¥';
+        const symbolEl = document.getElementById(this.modalId + '_currencySymbol');
+        if (symbolEl) symbolEl.textContent = symbol;
+    },
+
+    // 收集表单数据
+    collectFormData: function() {
+        const prefix = this.modalId + '_';
+
+        // 基本信息
+        const data = {
+            supplier_id: parseInt(document.getElementById(prefix + 'supplierId')?.value || 0),
+            order_category: document.getElementById(prefix + 'orderCategory')?.value || 'channel',
+            required_date: document.getElementById(prefix + 'requiredDate')?.value || '',
+            incoterms: document.getElementById(prefix + 'incoterms')?.value || '',
+            shipping_method: document.getElementById(prefix + 'shippingMethod')?.value || '',
+            freight_terms: document.getElementById(prefix + 'freightTerms')?.value || 'buyer',
+            verification_test_type: document.getElementById(prefix + 'verificationTestType')?.value || 'incoming',
+            ship_to: document.getElementById(prefix + 'shipTo')?.value || '',
+            payment_terms: document.getElementById(prefix + 'paymentTerms')?.value || '',
+            currency: document.getElementById(prefix + 'currency')?.value || 'CNY',
+            notes: document.getElementById(prefix + 'notes')?.value || ''
+        };
+
+        // 产品明细
+        const tableData = window.EditableTable.getData('poProductTable');
+        data.details = tableData.filter(row => row.product_name && row.product_name.trim());
+
+        // 计算总金额
+        data.total_amount = data.details.reduce((sum, row) => {
+            return sum + (parseFloat(row.total_price) || 0);
+        }, 0);
+
+        return data;
+    },
+
+    // 验证表单
+    validate: function() {
+        const data = this.collectFormData();
+
+        if (!data.supplier_id) {
+            alert('{{ _("请选择供应商") }}');
+            return false;
+        }
+        if (!data.required_date) {
+            alert('{{ _("请选择需求日期") }}');
+            return false;
+        }
+        if (!data.details || data.details.length === 0) {
+            alert('{{ _("请至少添加一个产品") }}');
+            return false;
+        }
+
+        return true;
+    },
+
+    // 提交表单
+    submit: async function() {
+        if (!this.validate()) return;
+
+        const submitBtn = document.getElementById(this.modalId + '_submitBtn');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="material-symbols-outlined text-lg animate-spin">progress_activity</span> {{ _("保存中...") }}';
+
+        try {
+            const data = this.collectFormData();
+            const url = this.mode === 'create'
+                ? this.createUrl
+                : this.updateUrlTemplate.replace('{id}', this.orderId);
+
+            const response = await fetch(url, {
+                method: this.mode === 'create' ? 'POST' : 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                if (this.mode === 'create' && this.redirectOnCreate && result.redirect_url) {
+                    window.location.href = result.redirect_url;
+                } else {
+                    location.reload();
+                }
+            } else {
+                alert(result.message || '{{ _("操作失败") }}');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('{{ _("网络错误，请重试") }}');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    }
+};
+
+// 兼容旧的函数调用
+function openPurchaseOrderFormModal(modalId) {
+    POFormModal.modalId = modalId || POFormModal.modalId;
+    POFormModal.open();
+}
+
+function closePurchaseOrderFormModal(modalId) {
+    POFormModal.close();
+}
+
+// 页面加载时初始化产品选择器
+document.addEventListener('DOMContentLoaded', function() {
+    POFormModal.initProductSelector();
+});
+</script>
+{% endmacro %}

@@ -604,7 +604,9 @@ def manage_role_permissions():
                     can_view=bool(perm.get('can_view', False)),
                     can_create=bool(perm.get('can_create', False)),
                     can_edit=bool(perm.get('can_edit', False)),
-                    can_delete=bool(perm.get('can_delete', False))
+                    can_delete=bool(perm.get('can_delete', False)),
+                    can_change_owner=bool(perm.get('can_change_owner', False)),
+                    permission_level=perm.get('permission_level', 'personal')
                 )
                 db.session.add(rp)
             db.session.commit()

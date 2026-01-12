@@ -736,7 +736,7 @@
                                                                                     :class="{ 'opacity-50': !isModuleEnabled(module.id), 'opacity-60 pointer-events-none': !isEditing }"
                                                                                     :data-module="module.id"
                                                                                     :disabled="!isEditing || !isModuleEnabled(module.id)"
-                                                                                    @change="markChanged()">
+                                                                                    @change="onPermissionLevelChange(module.id, $event.target.value)">
                                                                                 <option value="personal" :selected="getPermission(module.id).permission_level === 'personal'">{{ _('个人级') }}</option>
                                                                                 <option value="department" :selected="getPermission(module.id).permission_level === 'department'">{{ _('部门级') }}</option>
                                                                                 <option value="company" :selected="getPermission(module.id).permission_level === 'company'">{{ _('企业级') }}</option>
@@ -3323,6 +3323,59 @@
 
             markChanged() {
                 this.hasChanges = true;
+            },
+
+            // 权限级别变化时的联动逻辑
+            //
+            // 设计原则：
+            // - 个人级(personal)：只操作自己的数据，应该有完整 CRUD 权限
+            // - 部门/公司/系统级：扩大数据可见范围
+            //   - view/create：保留（创建新数据不涉及"他人数据"）
+            //   - edit/delete：取消（对他人数据默认不给编辑/删除权限）
+            //   - 注：edit/delete 有"基本权限保障"，用户仍可编辑/删除自己的数据
+            //
+            onPermissionLevelChange(moduleId, level) {
+                if (!this.permissions[moduleId]) {
+                    this.permissions[moduleId] = {};
+                }
+
+                // 找到模块容器（div），同时更新 Alpine 数据和 DOM
+                // 使用 div 选择器确保选中容器而非 input/select
+                const container = document.querySelector(`div[data-module="${moduleId}"]`);
+                // 只选择基础权限区域的 checkbox（不影响内容筛选区域）
+                const viewCb = container?.querySelector('.perm-view');
+                const createCb = container?.querySelector('.perm-create');
+                const editCb = container?.querySelector('.perm-edit');
+                const deleteCb = container?.querySelector('.perm-delete');
+
+                if (level === 'personal') {
+                    // 个人级别：自动勾选所有基础权限
+                    this.permissions[moduleId].can_view = true;
+                    this.permissions[moduleId].can_create = true;
+                    this.permissions[moduleId].can_edit = true;
+                    this.permissions[moduleId].can_delete = true;
+                    // 同步更新 DOM（保存时从 DOM 读取）
+                    if (viewCb) viewCb.checked = true;
+                    if (createCb) createCb.checked = true;
+                    if (editCb) editCb.checked = true;
+                    if (deleteCb) deleteCb.checked = true;
+                    console.log(`✅ 模块 ${moduleId} 个人级别 - 已自动勾选全部权限`);
+                } else {
+                    // 部门/公司/系统级别：保留查看和创建，取消编辑/删除
+                    this.permissions[moduleId].can_view = true;
+                    this.permissions[moduleId].can_create = true;
+                    this.permissions[moduleId].can_edit = false;
+                    this.permissions[moduleId].can_delete = false;
+                    // 同步更新 DOM（保存时从 DOM 读取）
+                    if (viewCb) viewCb.checked = true;
+                    if (createCb) createCb.checked = true;
+                    if (editCb) editCb.checked = false;
+                    if (deleteCb) deleteCb.checked = false;
+                    console.log(`✅ 模块 ${moduleId} ${level}级别 - 保留查看/创建，取消编辑/删除他人数据`);
+                }
+
+                this.permissions[moduleId].permission_level = level;
+                this.markChanged();
             },
 
             // 内容筛选辅助方法

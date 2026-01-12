@@ -32,12 +32,14 @@ class User(db.Model, UserMixin):
     _is_active = db.Column(db.Boolean, default=False, name="is_active")  # 账号是否激活，使用不同名称避免与属性冲突
     language_preference = db.Column(db.String(10), default='zh')  # 语言偏好设置，默认简体中文
     settlement_currency = db.Column(db.String(10), default=None)  # 结算货币，NULL则使用系统默认
+    linked_company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=True)  # 关联外部用户到Company表(供应商/代理商/客户)
     created_at = db.Column(db.Float, default=time.time)
     updated_at = db.Column(db.Float, default=time.time, onupdate=time.time)
     last_login = db.Column(db.Float)  # 最后登录时间
     
     # 关系
     permissions = db.relationship('Permission', backref='user', lazy='dynamic', cascade='all, delete-orphan')
+    linked_company = db.relationship('Company', foreign_keys=[linked_company_id], backref=db.backref('linked_users', lazy='dynamic'))  # 关联的公司(供应商/代理商/客户)
 
     def __init__(self, **kwargs):
         super(User, self).__init__(**kwargs)
@@ -112,6 +114,7 @@ class User(db.Model, UserMixin):
             'is_active': self.is_active,
             'is_profile_complete': self.is_profile_complete,
             'role': self.role,
+            'linked_company_id': self.linked_company_id,
             'created_at': self.created_at,
             'updated_at': self.updated_at,
             'last_login': self.last_login
@@ -618,19 +621,6 @@ def transfer_member_affiliations_on_department_change(user, old_department, old_
     当员工部门或公司变更时，自动将其从原部门所有负责人的归属关系中移除，并添加到新部门所有负责人的归属关系中。
     """
     from app import db
-    # 1. 移除原部门所有负责人对该员工的归属
-    if old_department and old_company:
-        old_managers = User.query.filter_by(department=old_department, company_name=old_company, is_department_manager=True).all()
-        for manager in old_managers:
-            db.session.query(Affiliation).filter_by(owner_id=user.id, viewer_id=manager.id).delete()
-    # 2. 添加到新部门所有负责人的归属
-    if user.department and user.company_name:
-        new_managers = User.query.filter_by(department=user.department, company_name=user.company_name, is_department_manager=True).all()
-        for manager in new_managers:
-            exists = Affiliation.query.filter_by(owner_id=user.id, viewer_id=manager.id).first()
-            if not exists and manager.id != user.id:
-                db.session.add(Affiliation(owner_id=user.id, viewer_id=manager.id))
-    db.session.commit() 
     # 1. 移除原部门所有负责人对该员工的归属
     if old_department and old_company:
         old_managers = User.query.filter_by(department=old_department, company_name=old_company, is_department_manager=True).all()

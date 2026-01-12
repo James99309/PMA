@@ -481,6 +481,7 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
         currency: '{{ config.currency | default(currency_config.currency) }}',
         currencySymbol: '{{ config.currency_symbol | default(currency_config.symbol) }}',
         apiEndpoints: {{ config.api_endpoints | default({}) | tojson | safe }},
+        skipConfigModal: {{ 'true' if config.skipConfigModal else 'false' }},
         // 实时保存模式回调（v1.1新增）
         onRowChange: {{ (("'" ~ config.onRowChange ~ "'") | safe) if config.onRowChange else 'null' }},
         onRowDelete: {{ (("'" ~ config.onRowDelete ~ "'") | safe) if config.onRowDelete else 'null' }},
@@ -1005,6 +1006,7 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
         if (!selector && typeof ProductSelector !== 'undefined') {
             selector = new ProductSelector({
                 apiEndpoints: instance.config.apiEndpoints,
+                skipConfigModal: instance.config.skipConfigModal || false,
                 manual_input: {
                     enabled: true,
                     option_text: instance.config.i18n.manualInput || '手动输入',
@@ -1040,6 +1042,9 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
         // 存储当前行信息到触发器
         trigger.dataset.tableId = tableId;
         trigger.dataset.rowId = rowId;
+
+        // 动态设置 skipConfigModal（根据当前表格配置）
+        selector.config.skipConfigModal = instance.config.skipConfigModal || false;
 
         // 设置回调
         const self = this;

@@ -1178,6 +1178,32 @@ def get_daily_log(log_date):
         'can_react': worklog.status == 'submitted' and worklog.owner_id != current_user.id
     }
 
+    # 获取质量评分（仅已提交日志）
+    quality_score = None
+    if worklog.status == 'submitted' and worklog.id:
+        # 获取系统行为数据
+        daily_activities = get_daily_activities(target_user_id, target_date)
+        summary = daily_activities.get('summary', {})
+        system_activities = {
+            'new_customers': summary.get('customers_created', 0),
+            'updated_customers': summary.get('customers_updated', 0),
+            'new_contacts': summary.get('contacts_created', 0),
+            'new_projects': summary.get('projects_created', 0),
+            'updated_projects': summary.get('projects_updated', 0),
+            'new_actions': summary.get('actions_created', 0),
+            'new_quotations': summary.get('quotations_created', 0)
+        }
+
+        # 每次都用最新模型计算评分（确保与当前评分规则一致）
+        quality_score = worklog.calculate_quality_score(system_activities=system_activities)
+        # 更新数据库中的评分（如果有变化）
+        if worklog.quality_score != quality_score['total'] or worklog.quality_issues != quality_score['issues']:
+            worklog.quality_score = quality_score['total']
+            worklog.quality_issues = quality_score['issues']
+            db.session.commit()
+        # 添加改进建议配置供前端使用
+        quality_score['suggestions'] = WorkLog.IMPROVEMENT_SUGGESTIONS
+
     return jsonify({
         'success': True,
         'data': {
@@ -1188,7 +1214,8 @@ def get_daily_log(log_date):
             'statistics': stats,
             'activities': activities,
             'is_readonly': is_readonly,
-            'reactions': reactions_data
+            'reactions': reactions_data,
+            'quality_score': quality_score
         }
     })
 
@@ -1316,6 +1343,22 @@ def submit_daily_log(log_date):
         cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{current_user.id}]'::jsonb"))
     ).all()
     worklog.total_hours = worklog.calculate_smart_hours(extra_items=shared_items)
+
+    # 计算并保存质量评分
+    daily_activities = get_daily_activities(current_user.id, target_date)
+    summary = daily_activities.get('summary', {})
+    system_activities = {
+        'new_customers': summary.get('customers_created', 0),
+        'updated_customers': summary.get('customers_updated', 0),
+        'new_contacts': summary.get('contacts_created', 0),
+        'new_projects': summary.get('projects_created', 0),
+        'updated_projects': summary.get('projects_updated', 0),
+        'new_actions': summary.get('actions_created', 0),
+        'new_quotations': summary.get('quotations_created', 0)
+    }
+    score_result = worklog.calculate_quality_score(system_activities=system_activities)
+    worklog.quality_score = score_result['total']
+    worklog.quality_issues = score_result['issues']
 
     db.session.commit()
 

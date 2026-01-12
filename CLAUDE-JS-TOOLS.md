@@ -50,6 +50,8 @@
 | common/attachment-display.js | 附件图标显示组件 | 统一的附件图标方块渲染（预览、删除） | 1 | ✅ 已文档化 🆕 |
 | currency-helpers.js | 货币转换辅助工具 | 货币符号、单位、除数映射及格式化 | 2+ | ✅ 已文档化 🆕 |
 | tw-grouped-select.js | 树形分组下拉选择器 | 分组下拉选择+输入框组合（类型选择器） | 1 | ✅ 已文档化 🆕 |
+| map-picker.js | 地图位置选择器 | 弹窗地图选点、地址搜索（Google Maps） | 2 | ✅ 已文档化 🆕 |
+| address-picker.js | 通用地址选择器 | 地址输入框+地图定位，自动填充结构化数据 | 2 | ✅ 已文档化 🆕 |
 
 > **说明**:
 > - ✅ 已文档化 - 有完整的API文档和使用示例
@@ -3386,6 +3388,152 @@ function renderEditAttachments(attachments) {
 
 ---
 
-**版本**: 2.9.0
-**最后更新**: 2026-01-08
+### 🗺️ 地图定位类
+
+#### map-picker.js
+
+**基本信息**
+- **文件路径**: `app/static/js/map-picker.js`
+- **功能描述**: 地图位置选择器，支持 Google Maps，提供弹窗地图选点、拖拽标记、地址搜索功能
+- **依赖库**: Google Maps JavaScript SDK（动态加载）
+- **配套组件**: `app/templates/components/tw_map_picker.html`
+- **创建日期**: 2026-01-11
+
+**已使用页面**
+1. `app/templates/customer/tw_list.html` - 客户列表（新建客户）
+2. `app/templates/customer/tw_view.html` - 客户详情（编辑客户）
+
+**核心特性**
+- 动态加载 Google Maps SDK（带超时检测）
+- 可拖拽标记选点
+- Places Autocomplete 地址搜索
+- 反向地理编码（通过后端 API）
+- SDK 加载失败时降级到简单定位
+
+**API文档**
+
+```javascript
+// 打开地图选择器
+MapPicker.open({
+    initialLocation: { lat: 31.2304, lng: 121.4737 },  // 可选，默认获取当前位置
+    onConfirm: function(locationData) {
+        // locationData: {
+        //     lat, lng,              // 经纬度
+        //     country,               // 国家代码 (CN, US...)
+        //     country_name,          // 国家名称
+        //     region,                // 省/州
+        //     city,                  // 城市
+        //     district,              // 区/县
+        //     address,               // 详细地址
+        //     formatted_address      // 格式化完整地址
+        // }
+    },
+    onCancel: function() {}
+});
+
+// 关闭地图选择器
+MapPicker.close();
+
+// 确认选择
+MapPicker.confirm();
+
+// 定位到当前位置
+MapPicker.locateCurrent();
+```
+
+**后端依赖**
+- `/customer/api/geocode/reverse` - 反向地理编码 API
+
+---
+
+#### address-picker.js
+
+**基本信息**
+- **文件路径**: `app/static/js/address-picker.js`
+- **功能描述**: 通用地址选择器模块，配合 tw_address_input.html 组件使用
+- **依赖库**: map-picker.js
+- **配套组件**: `app/templates/components/tw_address_input.html`
+- **创建日期**: 2026-01-11
+
+**已使用页面**
+1. `app/templates/customer/tw_list.html` - 客户列表（新建客户）
+2. `app/templates/customer/tw_view.html` - 客户详情（编辑客户）
+
+**核心特性**
+- 打开地图选择器并自动填充地址
+- 结构化数据存储（国家、省/州、城市分开存储）
+- 支持任意字段ID前缀
+- 加载状态和成功提示
+
+**API文档**
+
+```javascript
+// 打开地图选择器
+AddressPicker.open('address', {
+    initialLocation: { lat, lng },  // 可选
+    onConfirm: function(locationData) {},  // 可选回调
+    onCancel: function() {}  // 可选回调
+});
+
+// 填充地址数据
+AddressPicker.fillAddress('address', locationData);
+
+// 获取地址数据（包含隐藏字段）
+const data = AddressPicker.getAddressData('address');
+// 返回: { address, country, region, city }
+
+// 设置地址数据
+AddressPicker.setAddressData('address', {
+    address: '浦东新区xxx路',
+    country: 'CN',
+    region: '上海市',
+    city: ''
+});
+
+// 清空地址
+AddressPicker.clearAddress('address');
+```
+
+**使用示例**
+
+模板中使用 tw_address_input 组件：
+
+```jinja2
+{% from 'components/tw_address_input.html' import tw_address_input %}
+
+{# 基本用法 #}
+{{ tw_address_input(
+    field_id='address',
+    label=_('地址'),
+    placeholder=_('点击定位或输入地址')
+) }}
+
+{# 自定义隐藏字段名（兼容现有表单） #}
+{{ tw_address_input(
+    field_id='address',
+    label=_('地址'),
+    required=true,
+    country_field='country',      # 隐藏字段 name="country"
+    region_field='region',        # 隐藏字段 name="region"
+    city_field='city'             # 隐藏字段 name="city"
+) }}
+```
+
+页面引入脚本：
+
+```html
+<!-- 地图选择器 -->
+<script src="{{ url_for('static', filename='js/map-picker.js') }}"></script>
+<!-- 通用地址选择器 -->
+<script src="{{ url_for('static', filename='js/address-picker.js') }}"></script>
+
+<!-- 需要包含地图弹窗组件 -->
+{% from 'components/tw_map_picker.html' import render_map_picker_modal %}
+{{ render_map_picker_modal() }}
+```
+
+---
+
+**版本**: 3.0.0
+**最后更新**: 2026-01-11
 **维护者**: Claude AI

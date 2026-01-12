@@ -1867,7 +1867,13 @@ def can_view_in_approval_context(user, object_type, object_id):
     # 检查订单审批系统
     if object_type == 'purchase_order':
         from app.models.inventory import PurchaseOrder
+        from app.helpers.approval_helpers import get_step_actual_approver
+        import logging
+        debug_logger = logging.getLogger(__name__)
+
         purchase_order = PurchaseOrder.query.get(object_id)
+        debug_logger.info(f"[审批权限调试] purchase_order={purchase_order}, object_id={object_id}")
+
         if purchase_order:
             # 查询订单的审批实例
             order_approval_instance = ApprovalInstance.query.filter_by(
@@ -1875,15 +1881,54 @@ def can_view_in_approval_context(user, object_type, object_id):
                 object_id=purchase_order.id,
                 status=ApprovalStatus.PENDING
             ).first()
-            
+            debug_logger.info(f"[审批权限调试] approval_instance={order_approval_instance}")
+
             if order_approval_instance:
-                # 🔥 修复：current_step存储的是step_id，不是step_order
-                current_step = ApprovalStep.query.filter_by(
+                debug_logger.info(f"[审批权限调试] current_step={order_approval_instance.current_step}, template_snapshot类型={type(order_approval_instance.template_snapshot)}")
+
+                # 先查询 ApprovalStep 获取 step_order
+                current_approval_step = ApprovalStep.query.filter_by(
                     id=order_approval_instance.current_step
                 ).first()
-                
-                if current_step and current_step.approver_user_id == user.id:
-                    return True
+                current_step_order = current_approval_step.step_order if current_approval_step else None
+                debug_logger.info(f"[审批权限调试] ApprovalStep id={order_approval_instance.current_step} -> step_order={current_step_order}")
+
+                # 使用模板快照获取当前步骤信息
+                current_step_info = None
+                if order_approval_instance.template_snapshot:
+                    import json
+                    try:
+                        snapshot = json.loads(order_approval_instance.template_snapshot) if isinstance(order_approval_instance.template_snapshot, str) else order_approval_instance.template_snapshot
+                        steps = snapshot.get('steps', [])
+                        debug_logger.info(f"[审批权限调试] 快照步骤数={len(steps)}, current_step_order={current_step_order}")
+                        for i, step in enumerate(steps):
+                            debug_logger.info(f"[审批权限调试] 步骤{i}: id={step.get('id')}, step_order={step.get('step_order')}, approver_type={step.get('approver_type')}, approver_role={step.get('approver_role')}, approver_user_id={step.get('approver_user_id')}")
+                            # 使用 step_order 匹配而不是 id（因为 template_snapshot 中的 id 可能为 None）
+                            if step.get('step_order') == current_step_order:
+                                current_step_info = step
+                                debug_logger.info(f"[审批权限调试] 找到当前步骤: {step}")
+                                break
+                    except Exception as e:
+                        debug_logger.error(f"[审批权限调试] 解析快照失败: {e}")
+
+                if current_step_info:
+                    # 使用动态审批人获取函数
+                    actual_approver = get_step_actual_approver(current_step_info, order_approval_instance)
+                    debug_logger.info(f"[审批权限调试] actual_approver={actual_approver}, actual_approver.id={actual_approver.id if actual_approver else None}, user.id={user.id}")
+                    if actual_approver and actual_approver.id == user.id:
+                        debug_logger.info(f"[审批权限调试] 审批权限通过!")
+                        return True
+                    else:
+                        debug_logger.info(f"[审批权限调试] 审批人不匹配: actual_approver.id={actual_approver.id if actual_approver else None} != user.id={user.id}")
+                else:
+                    debug_logger.info(f"[审批权限调试] 未找到当前步骤信息，回退检查")
+                    # 回退：直接检查 ApprovalStep
+                    current_step = ApprovalStep.query.filter_by(
+                        id=order_approval_instance.current_step
+                    ).first()
+                    debug_logger.info(f"[审批权限调试] 回退检查 current_step={current_step}, approver_user_id={current_step.approver_user_id if current_step else None}")
+                    if current_step and current_step.approver_user_id == user.id:
+                        return True
     
     # 如果不是审批人，则检查常规权限
     # 这里可以调用现有的权限检查函数

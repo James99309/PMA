@@ -98,6 +98,108 @@
             </div>
         </div>
 
+        <!-- PO扩展信息（可折叠） -->
+        <div class="card mb-4">
+            <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#poExtendedInfo">
+                <h5 class="mb-0 d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-file-contract me-2"></i>PO扩展信息（可选）</span>
+                    <i class="fas fa-chevron-down"></i>
+                </h5>
+            </div>
+            <div id="poExtendedInfo" class="collapse">
+                <div class="card-body">
+                    <!-- PO模板信息 -->
+                    <h6 class="text-muted mb-3"><i class="fas fa-tag me-1"></i>PO模板信息</h6>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label for="revision" class="form-label">版本号</label>
+                            <input type="text" class="form-control" id="revision" name="revision" placeholder="如：Rev.01">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="incoterms" class="form-label">贸易术语</label>
+                            <select class="form-select" id="incoterms" name="incoterms">
+                                <option value="">请选择</option>
+                                <option value="DDP">DDP - 完税后交货</option>
+                                <option value="FOB">FOB - 离岸价</option>
+                                <option value="CIF">CIF - 到岸价</option>
+                                <option value="EXW">EXW - 工厂交货</option>
+                                <option value="DAP">DAP - 目的地交货</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="order_category" class="form-label">订单类别</label>
+                            <select class="form-select" id="order_category" name="order_category">
+                                <option value="">请选择</option>
+                                <option value="channel">渠道订单</option>
+                                <option value="direct">直销订单</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="verification_test_type" class="form-label">验证测试方式</label>
+                            <select class="form-select" id="verification_test_type" name="verification_test_type">
+                                <option value="">请选择</option>
+                                <option value="site_fat">现场FAT测试</option>
+                                <option value="incoming">到货测试</option>
+                            </select>
+                            <small class="form-text text-muted">工厂测试为必选，验证测试二选一</small>
+                        </div>
+                    </div>
+
+                    <hr class="my-3">
+
+                    <!-- 交货信息 -->
+                    <h6 class="text-muted mb-3"><i class="fas fa-truck me-1"></i>交货信息</h6>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label for="required_date" class="form-label">需求日期</label>
+                            <input type="date" class="form-control" id="required_date" name="required_date">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="confirmed_date" class="form-label">确认交货日期</label>
+                            <input type="date" class="form-control" id="confirmed_date" name="confirmed_date">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="shipping_method" class="form-label">运输方式</label>
+                            <select class="form-select" id="shipping_method" name="shipping_method">
+                                <option value="">请选择</option>
+                                <option value="truck">汽运</option>
+                                <option value="air">空运</option>
+                                <option value="express">快递</option>
+                                <option value="self_pickup">自提</option>
+                                <option value="sea">海运</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="freight_terms" class="form-label">运费承担</label>
+                            <select class="form-select" id="freight_terms" name="freight_terms">
+                                <option value="">请选择</option>
+                                <option value="supplier">供应商承担</option>
+                                <option value="buyer">采购方承担</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="payment_terms" class="form-label">付款条件</label>
+                            <input type="text" class="form-control" id="payment_terms" name="payment_terms" placeholder="如：50%预付，发货后45天付清">
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label for="currency" class="form-label">币种</label>
+                            <select class="form-select" id="currency" name="currency">
+                                <option value="CNY" selected>人民币 (CNY)</option>
+                                <option value="USD">美元 (USD)</option>
+                                <option value="EUR">欧元 (EUR)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="ship_to" class="form-label">交货地点</label>
+                            <input type="text" class="form-control" id="ship_to" name="ship_to" placeholder="详细的交货地址，包含联系人和电话">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 产品明细 - 使用统一组件 -->
         {% set product_config = {
             "table_id": "orderProductTable",

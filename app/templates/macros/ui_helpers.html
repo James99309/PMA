@@ -233,7 +233,7 @@
 {% endmacro %}
 
 {% macro render_currency_with_symbol(amount, currency=none) %}
-  {% set currency = currency or currency_config.default_currency %}
+  {% set currency = currency or (currency_config.default_currency if currency_config is defined else 'CNY') %}
   {% if amount is not none %}
     {% set currency_symbols = {
       'CNY': '¥',
@@ -2083,7 +2083,8 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
                             {% set numeric_amount = card.amount | float if card.amount is string else (card.amount | default(0)) %}
                             {% set converted_amount = numeric_amount / (unit_config.divisor | default(10000)) %}
                             {% set formatted_amount = '{:,.{}f}'.format(converted_amount, unit_config.decimal_places | default(2)) %}
-                            <span class="fs-5" id="{{ card.id }}Amount">{{ currency_symbol | default(currency_config.symbol) }}{{ formatted_amount }}</span>
+                            {% set safe_currency_symbol = currency_symbol if currency_symbol is defined else (currency_config.symbol if currency_config is defined else '¥') %}
+                            <span class="fs-5" id="{{ card.id }}Amount">{{ safe_currency_symbol }}{{ formatted_amount }}</span>
                             <span class="text-muted ms-1" id="{{ card.id }}Unit" 
                                   data-unit-config='{{ unit_config | tojson }}'>{{ unit_config.unit }}</span>
                         {% else %}
@@ -9154,6 +9155,28 @@ document.addEventListener('DOMContentLoaded', function() {
     } -%}
     {%- set badge_class = type_config.get(object_type, 'tw-badge-indigo') -%}
     <span class="tw-badge {{ badge_class }} font-mono">{{ code }}</span>
+{% endmacro %}
+
+{# 采购订单状态徽章 - Tailwind 风格 #}
+{% macro render_tw_purchase_order_status_badge(status) %}
+    {%- set status_config = {
+        'draft': {'class': 'tw-badge-slate', 'zh': '草稿', 'en': 'DRAFT'},
+        'pending': {'class': 'tw-badge-amber', 'zh': '待审批', 'en': 'PENDING'},
+        'approved': {'class': 'tw-badge-blue', 'zh': '已审批', 'en': 'APPROVED'},
+        'rejected': {'class': 'tw-badge-red', 'zh': '已拒绝', 'en': 'REJECTED'},
+        'recalled': {'class': 'tw-badge-orange', 'zh': '已召回', 'en': 'RECALLED'},
+        'confirmed': {'class': 'tw-badge-blue', 'zh': '已确认', 'en': 'CONFIRMED'},
+        'producing': {'class': 'tw-badge-yellow', 'zh': '生产中', 'en': 'PRODUCING'},
+        'tested': {'class': 'tw-badge-cyan', 'zh': '已测试', 'en': 'TESTED'},
+        'shipped': {'class': 'tw-badge-purple', 'zh': '已发货', 'en': 'SHIPPED'},
+        'stored': {'class': 'tw-badge-green', 'zh': '已入库', 'en': 'STORED'},
+        'completed': {'class': 'tw-badge-green', 'zh': '已完成', 'en': 'COMPLETED'},
+        'cancelled': {'class': 'tw-badge-gray', 'zh': '已取消', 'en': 'CANCELLED'}
+    } -%}
+    {%- set config = status_config.get(status, {'class': 'tw-badge-gray', 'zh': status or '未知', 'en': status or 'UNKNOWN'}) -%}
+    {%- set lang = session.get('language', 'zh') -%}
+    {%- set display_text = config.zh if lang == 'zh' else config.en -%}
+    <span class="tw-badge {{ config.class }}">{{ display_text }}</span>
 {% endmacro %}
 
 {# ============================================================================= #}

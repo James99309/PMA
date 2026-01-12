@@ -132,8 +132,9 @@ class SupabaseStorageClient:
         # 本地存储桶映射（目录名）
         self.local_bucket_config = {
             'invoice': 'invoices',
-            'product': 'products', 
+            'product': 'products',
             'rd_product': 'rd_products',
+            'meeting': 'meetings',  # 会议录音存储
             'default': 'invoices'
         }
         
@@ -158,6 +159,7 @@ class SupabaseStorageClient:
             'invoice': os.getenv('SUPABASE_BUCKET_INVOICE', 'invoice-images'),
             'product': os.getenv('SUPABASE_BUCKET_PRODUCT', 'product-images'),
             'rd_product': os.getenv('SUPABASE_BUCKET_RD_PRODUCT', 'rd-product-images'),
+            'meeting': os.getenv('SUPABASE_BUCKET_MEETING', 'meeting-recordings'),  # 会议录音
             'default': os.getenv('SUPABASE_BUCKET', 'invoice-images')
         }
         

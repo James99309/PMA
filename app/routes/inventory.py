@@ -3441,6 +3441,29 @@ def create_order():
             # 生成订单号
             order_number = generate_order_number()
             
+            # ===== PO模板扩展字段 =====
+            revision = request.form.get('revision', '').strip() or None
+            incoterms = request.form.get('incoterms', '').strip() or None
+            order_category = request.form.get('order_category', '').strip() or None
+            verification_test_type = request.form.get('verification_test_type', '').strip() or None
+
+            # ===== 交货信息 =====
+            required_date_str = request.form.get('required_date')
+            required_date_obj = None
+            if required_date_str:
+                required_date_obj = datetime.strptime(required_date_str, '%Y-%m-%d').date()
+
+            confirmed_date_str = request.form.get('confirmed_date')
+            confirmed_date_obj = None
+            if confirmed_date_str:
+                confirmed_date_obj = datetime.strptime(confirmed_date_str, '%Y-%m-%d').date()
+
+            shipping_method = request.form.get('shipping_method', '').strip() or None
+            freight_terms = request.form.get('freight_terms', '').strip() or None
+            ship_to = request.form.get('ship_to', '').strip() or None
+            payment_terms = request.form.get('payment_terms', '').strip() or None
+            currency = request.form.get('currency', 'CNY').strip()
+
             # 创建订单（默认为采购订单）
             order = PurchaseOrder(
                 order_number=order_number,
@@ -3448,7 +3471,19 @@ def create_order():
                 order_type='purchase',  # 默认为采购订单
                 expected_date=expected_date_obj,
                 description=description,
-                created_by_id=current_user.id
+                created_by_id=current_user.id,
+                # 新增字段
+                revision=revision,
+                incoterms=incoterms,
+                order_category=order_category,
+                verification_test_type=verification_test_type,
+                required_date=required_date_obj,
+                confirmed_date=confirmed_date_obj,
+                shipping_method=shipping_method,
+                freight_terms=freight_terms,
+                ship_to=ship_to,
+                payment_terms=payment_terms,
+                currency=currency
             )
             db.session.add(order)
             db.session.flush()
@@ -3596,7 +3631,30 @@ def edit_order(id):
             order.delivery_address = request.form.get('delivery_address', '').strip()
             order.description = request.form.get('description', '').strip()
             order.currency = request.form.get('currency', Config.DEFAULT_CURRENCY)
-            
+
+            # ===== PO模板扩展字段 =====
+            order.revision = request.form.get('revision', '').strip() or None
+            order.incoterms = request.form.get('incoterms', '').strip() or None
+            order.order_category = request.form.get('order_category', '').strip() or None
+            order.verification_test_type = request.form.get('verification_test_type', '').strip() or None
+
+            # ===== 交货信息 =====
+            required_date_str = request.form.get('required_date')
+            if required_date_str:
+                order.required_date = datetime.strptime(required_date_str, '%Y-%m-%d').date()
+            else:
+                order.required_date = None
+
+            confirmed_date_str = request.form.get('confirmed_date')
+            if confirmed_date_str:
+                order.confirmed_date = datetime.strptime(confirmed_date_str, '%Y-%m-%d').date()
+            else:
+                order.confirmed_date = None
+
+            order.shipping_method = request.form.get('shipping_method', '').strip() or None
+            order.freight_terms = request.form.get('freight_terms', '').strip() or None
+            order.ship_to = request.form.get('ship_to', '').strip() or None
+
             # 删除原有的订单明细
             PurchaseOrderDetail.query.filter_by(order_id=order.id).delete()
             
@@ -5449,4 +5507,335 @@ def get_order_approval_control_info(object_id):
         
     except Exception as e:
         logger.error(f"获取订单审批控制信息失败：{str(e)}")
-        return jsonify({'success': False, 'message': f'获取失败：{str(e)}'}) 
+        return jsonify({'success': False, 'message': f'获取失败：{str(e)}'})
+
+
+# ========== Phase 2: 采购端扩展功能 ==========
+
+@inventory.route('/orders/<int:order_id>/progress', methods=['POST'])
+@login_required
+@permission_required('order', 'edit')
+def update_order_progress(order_id):
+    """更新订单生产进度"""
+    try:
+        from app.utils.access_control import get_viewable_data
+        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
+        order = viewable_orders.filter(PurchaseOrder.id == order_id).first_or_404()
+
+        # 只允许特定状态的订单更新进度
+        if order.status not in ['confirmed', 'producing', 'tested']:
+            return jsonify({'success': False, 'message': '当前订单状态不允许更新生产进度'})
+
+        # 获取表单数据
+        production_status = request.form.get('production_status', '').strip()
+        production_progress = request.form.get('production_progress', 0)
+        estimated_completion_date_str = request.form.get('estimated_completion_date', '')
+        production_notes = request.form.get('production_notes', '').strip()
+
+        # 验证生产状态
+        valid_statuses = ['not_started', 'preparing', 'producing', 'testing', 'packaging', 'ready']
+        if production_status and production_status not in valid_statuses:
+            return jsonify({'success': False, 'message': '无效的生产状态'})
+
+        # 更新订单
+        if production_status:
+            order.production_status = production_status
+            # 如果进入生产中，更新订单状态
+            if production_status in ['preparing', 'producing', 'testing', 'packaging'] and order.status == 'confirmed':
+                order.status = 'producing'
+
+        try:
+            order.production_progress = int(production_progress)
+        except (ValueError, TypeError):
+            order.production_progress = 0
+
+        if estimated_completion_date_str:
+            order.estimated_completion_date = datetime.strptime(estimated_completion_date_str, '%Y-%m-%d').date()
+        else:
+            order.estimated_completion_date = None
+
+        order.production_notes = production_notes or None
+
+        db.session.commit()
+        logger.info(f"用户 {current_user.username} 更新订单 {order.order_number} 生产进度: {production_status} {production_progress}%")
+
+        return jsonify({
+            'success': True,
+            'message': '生产进度已更新',
+            'data': {
+                'production_status': order.production_status,
+                'production_progress': order.production_progress,
+                'status': order.status
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"更新订单生产进度失败：{str(e)}")
+        return jsonify({'success': False, 'message': f'更新失败：{str(e)}'})
+
+
+@inventory.route('/orders/<int:order_id>/test', methods=['POST'])
+@login_required
+@permission_required('order', 'edit')
+def upload_order_test(order_id):
+    """上传测试报告"""
+    try:
+        from app.utils.access_control import get_viewable_data
+        from app.models.product_test import ProductTest
+
+        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
+        order = viewable_orders.filter(PurchaseOrder.id == order_id).first_or_404()
+
+        # 获取表单数据
+        test_category = request.form.get('test_category', '').strip()
+        test_result = request.form.get('test_result', '').strip()
+        test_date_str = request.form.get('test_date', '')
+        test_notes = request.form.get('test_notes', '').strip()
+
+        # 验证必填字段
+        if not test_category:
+            return jsonify({'success': False, 'message': '请选择测试类型'})
+        if not test_result:
+            return jsonify({'success': False, 'message': '请选择测试结果'})
+
+        # 验证测试类型
+        valid_categories = ['factory', 'site_fat', 'incoming']
+        if test_category not in valid_categories:
+            return jsonify({'success': False, 'message': '无效的测试类型'})
+
+        # 验证测试结果
+        valid_results = ['passed', 'failed', 'conditional']
+        if test_result not in valid_results:
+            return jsonify({'success': False, 'message': '无效的测试结果'})
+
+        # 解析日期
+        test_date = None
+        if test_date_str:
+            test_date = datetime.strptime(test_date_str, '%Y-%m-%d').date()
+
+        # 处理文件上传
+        report_file_path = None
+        if 'test_report' in request.files:
+            file = request.files['test_report']
+            if file and file.filename:
+                # 保存文件（这里简化处理，实际需要使用存储服务）
+                import os
+                from werkzeug.utils import secure_filename
+                filename = secure_filename(file.filename)
+                # 生成唯一文件名
+                unique_filename = f"test_{order_id}_{test_category}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+                upload_dir = os.path.join('app', 'static', 'uploads', 'tests')
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, unique_filename)
+                file.save(file_path)
+                report_file_path = f"/static/uploads/tests/{unique_filename}"
+
+        # 确定test_type
+        if test_category == 'factory':
+            test_type = 'factory_self'
+        else:
+            test_type = test_category  # site_fat or incoming
+
+        # 创建测试记录
+        test_record = ProductTest(
+            purchase_order_id=order_id,
+            test_category='factory' if test_category == 'factory' else 'verification',
+            test_type=test_type,
+            test_date=test_date,
+            result=test_result,
+            notes=test_notes,
+            report_file=report_file_path,
+            created_by_id=current_user.id
+        )
+        db.session.add(test_record)
+
+        # 更新订单测试状态
+        if test_category == 'factory':
+            order.factory_test_status = test_result
+        else:  # site_fat or incoming
+            order.verification_test_status = test_result
+
+        # 如果两个测试都通过，更新订单状态
+        if order.factory_test_status == 'passed':
+            if order.verification_test_status == 'passed' or order.verification_test_status == 'not_required':
+                order.status = 'tested'
+
+        db.session.commit()
+        logger.info(f"用户 {current_user.username} 上传订单 {order.order_number} 测试报告: {test_category} - {test_result}")
+
+        return jsonify({
+            'success': True,
+            'message': '测试报告已提交',
+            'data': {
+                'test_id': test_record.id,
+                'factory_test_status': order.factory_test_status,
+                'verification_test_status': order.verification_test_status,
+                'status': order.status
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"上传测试报告失败：{str(e)}")
+        return jsonify({'success': False, 'message': f'提交失败：{str(e)}'})
+
+
+@inventory.route('/orders/<int:order_id>/accept', methods=['POST'])
+@login_required
+@permission_required('order', 'edit')
+def accept_order(order_id):
+    """订单验收确认"""
+    try:
+        from app.utils.access_control import get_viewable_data
+        from app.models.product_serial_number import ProductSerialNumber, SerialNumberHistory
+
+        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
+        order = viewable_orders.filter(PurchaseOrder.id == order_id).first_or_404()
+
+        # 只允许特定状态的订单进行验收
+        if order.status not in ['shipped', 'tested']:
+            return jsonify({'success': False, 'message': '当前订单状态不允许验收操作'})
+
+        # 获取表单数据
+        acceptance_status = request.form.get('acceptance_status', '').strip()
+        acceptance_notes = request.form.get('acceptance_notes', '').strip()
+        serial_numbers_json = request.form.get('serial_numbers', '[]')
+
+        # 验证验收状态
+        valid_statuses = ['passed', 'failed', 'conditional']
+        if not acceptance_status or acceptance_status not in valid_statuses:
+            return jsonify({'success': False, 'message': '请选择有效的验收结果'})
+
+        # 解析序列号
+        import json
+        try:
+            serial_numbers = json.loads(serial_numbers_json)
+        except json.JSONDecodeError:
+            serial_numbers = []
+
+        # 更新订单验收信息
+        order.acceptance_status = acceptance_status
+        order.acceptance_date = datetime.now()
+        order.acceptance_by_id = current_user.id
+        order.acceptance_notes = acceptance_notes or None
+
+        # 如果验收通过，更新订单状态为已入库
+        if acceptance_status == 'passed':
+            order.status = 'stored'
+            order.actual_arrival_date = datetime.now()
+
+            # 创建序列号记录
+            created_sns = []
+            for sn_data in serial_numbers:
+                if isinstance(sn_data, str):
+                    sn_number = sn_data.strip()
+                    product_id = None
+                elif isinstance(sn_data, dict):
+                    sn_number = sn_data.get('serial_number', '').strip()
+                    product_id = sn_data.get('product_id')
+                else:
+                    continue
+
+                if not sn_number:
+                    continue
+
+                # 检查序列号是否已存在
+                existing_sn = ProductSerialNumber.query.filter_by(serial_number=sn_number).first()
+                if existing_sn:
+                    continue
+
+                # 创建新序列号记录
+                new_sn = ProductSerialNumber(
+                    serial_number=sn_number,
+                    product_id=product_id,
+                    purchase_order_id=order_id,
+                    status='in_stock',
+                    warehouse_in_date=datetime.now(),
+                    created_by_id=current_user.id
+                )
+                db.session.add(new_sn)
+                db.session.flush()
+
+                # 创建历史记录
+                history = SerialNumberHistory(
+                    serial_number_id=new_sn.id,
+                    action='stock_in',
+                    operator_id=current_user.id,
+                    notes=f'订单 {order.order_number} 验收入库'
+                )
+                db.session.add(history)
+                created_sns.append(sn_number)
+
+        db.session.commit()
+        logger.info(f"用户 {current_user.username} 验收订单 {order.order_number}: {acceptance_status}")
+
+        return jsonify({
+            'success': True,
+            'message': '验收已完成' if acceptance_status == 'passed' else '验收记录已保存',
+            'data': {
+                'acceptance_status': order.acceptance_status,
+                'status': order.status,
+                'serial_numbers_created': len(created_sns) if acceptance_status == 'passed' else 0
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"订单验收失败：{str(e)}")
+        return jsonify({'success': False, 'message': f'验收失败：{str(e)}'})
+
+
+@inventory.route('/orders/<int:order_id>/ship', methods=['POST'])
+@login_required
+@permission_required('order', 'edit')
+def confirm_order_ship(order_id):
+    """确认订单发货"""
+    try:
+        from app.utils.access_control import get_viewable_data
+
+        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
+        order = viewable_orders.filter(PurchaseOrder.id == order_id).first_or_404()
+
+        # 只允许特定状态的订单确认发货
+        if order.status not in ['confirmed', 'producing', 'tested']:
+            return jsonify({'success': False, 'message': '当前订单状态不允许确认发货'})
+
+        # 获取表单数据
+        carrier = request.form.get('carrier', '').strip()
+        tracking_number = request.form.get('tracking_number', '').strip()
+        ship_date_str = request.form.get('ship_date', '')
+        arrival_date_str = request.form.get('arrival_date', '')
+
+        # 更新物流信息
+        order.carrier = carrier or None
+        order.tracking_number = tracking_number or None
+
+        if ship_date_str:
+            order.ship_date = datetime.strptime(ship_date_str, '%Y-%m-%d').date()
+        else:
+            order.ship_date = datetime.now()
+
+        if arrival_date_str:
+            order.arrival_date = datetime.strptime(arrival_date_str, '%Y-%m-%d').date()
+
+        # 更新订单状态为已发货
+        order.status = 'shipped'
+
+        db.session.commit()
+        logger.info(f"用户 {current_user.username} 确认订单 {order.order_number} 发货")
+
+        return jsonify({
+            'success': True,
+            'message': '发货已确认',
+            'data': {
+                'status': order.status,
+                'carrier': order.carrier,
+                'tracking_number': order.tracking_number
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"确认发货失败：{str(e)}")
+        return jsonify({'success': False, 'message': f'确认失败：{str(e)}'})

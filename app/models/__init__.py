@@ -14,7 +14,7 @@ from app.models.spec_template import (
     SpecTemplate, SpecTemplateItem, ProductConfiguration, ProductConfigValue, SpecAttachment
 )
 from app.models.dictionary import Dictionary
-from app.models.approval import ApprovalProcessTemplate, ApprovalStep, ApprovalInstance, ApprovalRecord, ApprovalStatus, ApprovalAction
+from app.models.approval import ApprovalProcessTemplate, ApprovalStep, ApprovalInstance, ApprovalRecord, ApprovalStatus, ApprovalAction, ApprovalExternalToken
 from app.models.pricing_order import PricingOrder, PricingOrderDetail, SettlementOrderDetail, PricingOrderApprovalRecord
 from app.models.performance import PerformanceTarget, PerformanceStatistics, FiveStarProjectBaseline
 from app.models.performance_config import (
@@ -37,6 +37,16 @@ from app.models.worklog import WorkItem, WorkLog
 from app.models.worklog_read import WorklogRead
 from app.models.message import Message
 from app.models.announcement import Announcement, AnnouncementRead, AnnouncementAttachment
+# 订单模块
+from app.models.product_test import ProductTest, ProductTestDetail, ProductTestSampling
+from app.models.sales_order import SalesOrder, SalesOrderDetail
+from app.models.shipment import Shipment, ShipmentDetail
+from app.models.product_serial_number import ProductSerialNumber, SerialNumberHistory
+# 会议录音纪要模块
+from app.models.meeting import (
+    MeetingRecording, MeetingTranscript, MeetingSpeaker,
+    MeetingMinutes, MeetingActionItem
+)
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
            'ProductCategory', 'ProductSubcategory', 'ProductRegion', 'ProductCodeField',
@@ -47,7 +57,7 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'SpecTemplate', 'SpecTemplateItem', 'ProductConfiguration', 'ProductConfigValue', 'SpecAttachment',
            'Dictionary',
            'ApprovalProcessTemplate', 'ApprovalStep', 'ApprovalInstance', 'ApprovalRecord',
-           'ApprovalStatus', 'ApprovalAction', 'PricingOrder', 'PricingOrderDetail',
+           'ApprovalStatus', 'ApprovalAction', 'ApprovalExternalToken', 'PricingOrder', 'PricingOrderDetail',
            'SettlementOrderDetail', 'PricingOrderApprovalRecord', 'PerformanceTarget',
            'PerformanceStatistics', 'FiveStarProjectBaseline',
            'RolePerformanceConfig', 'RolePerformanceItem', 'PerformanceMetricsDefinition',
@@ -60,4 +70,9 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'PermissionModule', 'PermissionModuleFeature', 'RoleFeaturePermission',
            'AIAnalysisCache', 'UserDailyLoginRecord',
            'WorkItem', 'WorkLog', 'WorklogRead', 'Message',
-           'Announcement', 'AnnouncementRead', 'AnnouncementAttachment'] 
+           'Announcement', 'AnnouncementRead', 'AnnouncementAttachment',
+           'ProductTest', 'ProductTestDetail', 'ProductTestSampling',
+           'SalesOrder', 'SalesOrderDetail',
+           'Shipment', 'ShipmentDetail', 'ProductSerialNumber', 'SerialNumberHistory',
+           'MeetingRecording', 'MeetingTranscript', 'MeetingSpeaker',
+           'MeetingMinutes', 'MeetingActionItem'] 

@@ -1,0 +1,332 @@
+{#
+=============================================================================
+Tailwind 签字板组件
+=============================================================================
+可复用的手写签名组件，支持鼠标和触摸屏输入
+
+使用方式：
+{% from 'components/tw_signature_pad.html' import tw_signature_pad, tw_signature_pad_script %}
+
+{{ tw_signature_pad(container_id='mySignature', label='签名', required=true) }}
+{{ tw_signature_pad_script() }}
+
+参数说明：
+- container_id: 容器ID（必须唯一）
+- label: 标签文本
+- required: 是否必填
+- readonly: 只读模式（仅显示已有签名）
+- existing_signature: 已有签名URL（只读模式用）
+- height: 画布高度（默认150）
+
+JavaScript API：
+- SignaturePadManager.get(containerId) - 获取实例
+- pad.isEmpty() - 检查是否为空
+- pad.toDataURL() - 导出为 base64
+- pad.clear() - 清除签名
+
+已使用页面：
+1. inventory/tw_purchase_order_detail.html - 供应商确认签名
+=============================================================================
+#}
+
+{# 签字板HTML组件 #}
+{% macro tw_signature_pad(
+    container_id='signaturePad',
+    label='签名',
+    required=false,
+    readonly=false,
+    existing_signature='',
+    height=150
+) %}
+<div id="{{ container_id }}" class="signature-pad-container" data-readonly="{{ 'true' if readonly else 'false' }}">
+    <!-- 标签 -->
+    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+        {{ _(label) }}
+        {% if required and not readonly %}
+        <span class="text-red-500">*</span>
+        {% endif %}
+    </label>
+
+    {% if readonly and existing_signature %}
+    <!-- 只读模式：显示已有签名 -->
+    <div class="border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 p-2">
+        <img src="{{ existing_signature }}" alt="{{ _('签名') }}" class="max-h-32 mx-auto">
+    </div>
+    {% elif readonly %}
+    <!-- 只读模式但无签名 -->
+    <div class="border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-700 p-4 text-center text-slate-400">
+        {{ _('暂无签名') }}
+    </div>
+    {% else %}
+    <!-- 编辑模式：签名画布 -->
+    <div class="relative">
+        <canvas id="{{ container_id }}_canvas"
+                class="w-full border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 cursor-crosshair touch-none"
+                style="height: {{ height }}px;">
+        </canvas>
+        <!-- 提示文字（无签名时显示） -->
+        <div id="{{ container_id }}_placeholder"
+             class="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-400 dark:text-slate-500 text-sm">
+            <span class="material-symbols-outlined mr-2">draw</span>
+            {{ _('在此处签名') }}
+        </div>
+    </div>
+    <!-- 清除按钮 -->
+    <div class="flex justify-end mt-2">
+        <button type="button" onclick="SignaturePadManager.get('{{ container_id }}').clear()"
+                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors">
+            <span class="material-symbols-outlined text-sm">refresh</span>
+            {{ _('清除') }}
+        </button>
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{# 签字板脚本 - 页面底部只需调用一次 #}
+{% macro tw_signature_pad_script() %}
+<script>
+(function() {
+    // 避免重复初始化
+    if (window.SignaturePadManager) return;
+
+    /**
+     * SignaturePad 类 - 处理画布签名
+     */
+    class SignaturePad {
+        constructor(canvas, options = {}) {
+            this.canvas = canvas;
+            this.ctx = canvas.getContext('2d');
+            this.isDrawing = false;
+            this.lastX = 0;
+            this.lastY = 0;
+            this.hasSignature = false;
+
+            // 配置
+            this.lineWidth = options.lineWidth || 2;
+            this.strokeColor = options.strokeColor || '#1e293b';
+            this.placeholder = options.placeholder;
+
+            // 深色模式检测
+            if (document.documentElement.classList.contains('dark')) {
+                this.strokeColor = '#e2e8f0';
+            }
+
+            this.setupCanvas();
+            this.bindEvents();
+        }
+
+        setupCanvas() {
+            // 设置画布实际尺寸（高分辨率支持）
+            const rect = this.canvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+
+            this.canvas.width = rect.width * dpr;
+            this.canvas.height = rect.height * dpr;
+
+            this.ctx.scale(dpr, dpr);
+            this.ctx.lineCap = 'round';
+            this.ctx.lineJoin = 'round';
+            this.ctx.lineWidth = this.lineWidth;
+            this.ctx.strokeStyle = this.strokeColor;
+        }
+
+        bindEvents() {
+            // 鼠标事件
+            this.canvas.addEventListener('mousedown', (e) => this.startDrawing(e));
+            this.canvas.addEventListener('mousemove', (e) => this.draw(e));
+            this.canvas.addEventListener('mouseup', () => this.stopDrawing());
+            this.canvas.addEventListener('mouseout', () => this.stopDrawing());
+
+            // 触摸事件
+            this.canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                this.startDrawing(e.touches[0]);
+            }, { passive: false });
+
+            this.canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                this.draw(e.touches[0]);
+            }, { passive: false });
+
+            this.canvas.addEventListener('touchend', () => this.stopDrawing());
+
+            // 窗口大小变化时重置
+            window.addEventListener('resize', () => {
+                // 保存当前内容
+                const imageData = this.canvas.toDataURL();
+                this.setupCanvas();
+                // 恢复内容
+                if (this.hasSignature) {
+                    this.fromDataURL(imageData);
+                }
+            });
+        }
+
+        getPosition(e) {
+            const rect = this.canvas.getBoundingClientRect();
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+
+        startDrawing(e) {
+            this.isDrawing = true;
+            const pos = this.getPosition(e);
+            this.lastX = pos.x;
+            this.lastY = pos.y;
+
+            // 开始绘制时隐藏占位符
+            if (this.placeholder) {
+                this.placeholder.classList.add('hidden');
+            }
+        }
+
+        draw(e) {
+            if (!this.isDrawing) return;
+
+            const pos = this.getPosition(e);
+
+            this.ctx.beginPath();
+            this.ctx.moveTo(this.lastX, this.lastY);
+            this.ctx.lineTo(pos.x, pos.y);
+            this.ctx.stroke();
+
+            this.lastX = pos.x;
+            this.lastY = pos.y;
+            this.hasSignature = true;
+        }
+
+        stopDrawing() {
+            this.isDrawing = false;
+        }
+
+        clear() {
+            const rect = this.canvas.getBoundingClientRect();
+            this.ctx.clearRect(0, 0, rect.width, rect.height);
+            this.hasSignature = false;
+
+            // 显示占位符
+            if (this.placeholder) {
+                this.placeholder.classList.remove('hidden');
+            }
+        }
+
+        isEmpty() {
+            return !this.hasSignature;
+        }
+
+        toDataURL(type = 'image/png') {
+            if (this.isEmpty()) return null;
+
+            // 创建临时画布，用白色背景
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = this.canvas.width;
+            tempCanvas.height = this.canvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            // 填充白色背景
+            tempCtx.fillStyle = '#ffffff';
+            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+            // 绘制签名
+            tempCtx.drawImage(this.canvas, 0, 0);
+
+            return tempCanvas.toDataURL(type);
+        }
+
+        fromDataURL(dataUrl) {
+            if (!dataUrl) return;
+
+            const img = new Image();
+            img.onload = () => {
+                const rect = this.canvas.getBoundingClientRect();
+                this.ctx.drawImage(img, 0, 0, rect.width, rect.height);
+                this.hasSignature = true;
+
+                if (this.placeholder) {
+                    this.placeholder.classList.add('hidden');
+                }
+            };
+            img.src = dataUrl;
+        }
+    }
+
+    /**
+     * SignaturePadManager - 全局管理器
+     */
+    window.SignaturePadManager = {
+        instances: {},
+
+        init(containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) {
+                console.warn(`SignaturePad: 容器 ${containerId} 不存在`);
+                return null;
+            }
+
+            // 只读模式不初始化
+            if (container.dataset.readonly === 'true') {
+                return null;
+            }
+
+            const canvas = document.getElementById(`${containerId}_canvas`);
+            const placeholder = document.getElementById(`${containerId}_placeholder`);
+
+            if (!canvas) {
+                console.warn(`SignaturePad: 画布 ${containerId}_canvas 不存在`);
+                return null;
+            }
+
+            const pad = new SignaturePad(canvas, { placeholder });
+            this.instances[containerId] = pad;
+
+            return pad;
+        },
+
+        get(containerId) {
+            if (!this.instances[containerId]) {
+                return this.init(containerId);
+            }
+            return this.instances[containerId];
+        },
+
+        reinit(containerId) {
+            // 重新初始化（用于模态框等隐藏容器显示后）
+            const pad = this.instances[containerId];
+            if (pad) {
+                pad.setupCanvas();
+            } else {
+                this.init(containerId);
+            }
+        },
+
+        clear(containerId) {
+            const pad = this.get(containerId);
+            if (pad) pad.clear();
+        },
+
+        isEmpty(containerId) {
+            const pad = this.get(containerId);
+            return pad ? pad.isEmpty() : true;
+        },
+
+        toDataURL(containerId) {
+            const pad = this.get(containerId);
+            return pad ? pad.toDataURL() : null;
+        }
+    };
+
+    // 页面加载后自动初始化所有签字板
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.signature-pad-container').forEach(container => {
+            if (container.dataset.readonly !== 'true') {
+                SignaturePadManager.init(container.id);
+            }
+        });
+    });
+})();
+</script>
+{% endmacro %}

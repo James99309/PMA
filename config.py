@@ -213,6 +213,9 @@ class Config:
     BACKUP_RETENTION_DAYS = 30
     BACKUP_LOCATION = os.path.join(basedir, 'backups')
 
+    # Google Maps API 配置（用于地理编码服务）
+    GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY') or 'AIzaSyD7Ipf3-0l0XYN5rvKpT1gL-PFKVEdzZmc'
+
 # 🔒 安全别名配置
 LocalConfig = Config
 DevelopmentConfig = Config

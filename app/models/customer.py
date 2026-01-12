@@ -48,6 +48,7 @@ class Company(SharingMixin, db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     company_code = db.Column(db.String(20), unique=True, nullable=False)  # 企业代码
+    supplier_code = db.Column(db.String(10), unique=True, nullable=True)  # 供应商编码(3-4字符)，用于产品序列号生成
     company_name = db.Column(db.String(100), nullable=False)  # 企业名称
     country = db.Column(db.String(50))  # 国家/地区
     region = db.Column(db.String(50))  # 省/州
@@ -71,7 +72,7 @@ class Company(SharingMixin, db.Model):
     
     # 所有者字段（关联到用户表）
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    owner = db.relationship('User', backref=db.backref('companies', lazy='dynamic'))
+    owner = db.relationship('User', foreign_keys=[owner_id], backref=db.backref('companies', lazy='dynamic'))
     
     # 关联联系人
     contacts = db.relationship('Contact', backref='company', lazy=True, cascade='all, delete-orphan')

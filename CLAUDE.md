@@ -892,6 +892,29 @@ from app import create_app, db
 - **脚本管理** → 查阅 [CLAUDE-SCRIPTS.md](./CLAUDE-SCRIPTS.md)
 - **代码质量** → 查阅 [CLAUDE-CODE-QUALITY.md](./CLAUDE-CODE-QUALITY.md)
 
+### **⚠️ 本地命令执行规范（Claude AI 必读）**
+
+**重要**：在本地 macOS 环境执行任何涉及 Flask 应用的 Python 命令时，**必须**先设置 WeasyPrint 所需的动态库路径。
+
+**原因**：WeasyPrint（PDF生成库）依赖 Homebrew 安装的系统库（GLib/Pango/Cairo），但默认库搜索路径不包含 `/opt/homebrew/lib`。
+
+**强制规范**：
+```bash
+# ✅ 正确方式 - 所有 Flask/Python 命令前必须设置环境变量
+export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib && flask db upgrade
+export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib && python3 run.py
+export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib && python3 some_script.py
+
+# ❌ 错误方式 - 直接执行会因 WeasyPrint 导入失败
+flask db upgrade
+python3 run.py
+```
+
+**适用场景**：
+- 数据库迁移：`flask db upgrade`, `flask db migrate`
+- 运行脚本：任何需要导入 Flask 应用的 Python 脚本
+- 启动应用：`python run.py`（推荐使用 `./start.sh`）
+
 ### **常用命令**
 ```bash
 # 编译翻译文件

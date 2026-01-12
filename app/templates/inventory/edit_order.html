@@ -313,6 +313,101 @@ input[type="number"].discount-rate {
             </div>
         </div>
 
+        <!-- PO模板信息 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-file-contract me-2"></i>PO模板信息
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label for="revision" class="form-label">版本号</label>
+                        <input type="text" class="form-control" id="revision" name="revision"
+                               placeholder="如：Rev.01" value="{{ order.revision or '' }}">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="incoterms" class="form-label">贸易术语</label>
+                        <select class="form-select" id="incoterms" name="incoterms">
+                            <option value="">请选择</option>
+                            <option value="DDP" {% if order.incoterms == 'DDP' %}selected{% endif %}>DDP - 完税后交货</option>
+                            <option value="FOB" {% if order.incoterms == 'FOB' %}selected{% endif %}>FOB - 离岸价</option>
+                            <option value="CIF" {% if order.incoterms == 'CIF' %}selected{% endif %}>CIF - 到岸价</option>
+                            <option value="EXW" {% if order.incoterms == 'EXW' %}selected{% endif %}>EXW - 工厂交货</option>
+                            <option value="DAP" {% if order.incoterms == 'DAP' %}selected{% endif %}>DAP - 目的地交货</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="order_category" class="form-label">订单类别</label>
+                        <select class="form-select" id="order_category" name="order_category">
+                            <option value="">请选择</option>
+                            <option value="channel" {% if order.order_category == 'channel' %}selected{% endif %}>渠道订单</option>
+                            <option value="direct" {% if order.order_category == 'direct' %}selected{% endif %}>直销订单</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="verification_test_type" class="form-label">验证测试方式</label>
+                        <select class="form-select" id="verification_test_type" name="verification_test_type">
+                            <option value="">请选择</option>
+                            <option value="site_fat" {% if order.verification_test_type == 'site_fat' %}selected{% endif %}>现场FAT测试</option>
+                            <option value="incoming" {% if order.verification_test_type == 'incoming' %}selected{% endif %}>到货测试</option>
+                        </select>
+                        <small class="form-text text-muted">工厂测试为必选，验证测试二选一</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 交货信息 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-truck me-2"></i>交货信息
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label for="required_date" class="form-label">需求日期</label>
+                        <input type="date" class="form-control" id="required_date" name="required_date"
+                               value="{{ order.required_date.strftime('%Y-%m-%d') if order.required_date else '' }}">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="confirmed_date" class="form-label">确认交货日期</label>
+                        <input type="date" class="form-control" id="confirmed_date" name="confirmed_date"
+                               value="{{ order.confirmed_date.strftime('%Y-%m-%d') if order.confirmed_date else '' }}">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="shipping_method" class="form-label">运输方式</label>
+                        <select class="form-select" id="shipping_method" name="shipping_method">
+                            <option value="">请选择</option>
+                            <option value="truck" {% if order.shipping_method == 'truck' %}selected{% endif %}>汽运</option>
+                            <option value="air" {% if order.shipping_method == 'air' %}selected{% endif %}>空运</option>
+                            <option value="express" {% if order.shipping_method == 'express' %}selected{% endif %}>快递</option>
+                            <option value="self_pickup" {% if order.shipping_method == 'self_pickup' %}selected{% endif %}>自提</option>
+                            <option value="sea" {% if order.shipping_method == 'sea' %}selected{% endif %}>海运</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="freight_terms" class="form-label">运费承担</label>
+                        <select class="form-select" id="freight_terms" name="freight_terms">
+                            <option value="">请选择</option>
+                            <option value="supplier" {% if order.freight_terms == 'supplier' %}selected{% endif %}>供应商承担</option>
+                            <option value="buyer" {% if order.freight_terms == 'buyer' %}selected{% endif %}>采购方承担</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <label for="ship_to" class="form-label">交货地点</label>
+                        <textarea class="form-control" id="ship_to" name="ship_to" rows="2"
+                                  placeholder="详细的交货地址，包含联系人和电话">{{ order.ship_to or '' }}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 产品明细 -->
         <div class="card mb-4">
             <div class="card-header">

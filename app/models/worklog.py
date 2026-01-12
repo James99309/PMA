@@ -310,6 +310,10 @@ class WorkLog(db.Model):
     thumbs_up_count = Column(Integer, default=0)         # 大拇指（鼓励）数量
     thumbs_down_count = Column(Integer, default=0)       # 小拇指（否定）数量
 
+    # 质量评分（持久化保存）
+    quality_score = Column(Integer, nullable=True)       # 总分
+    quality_issues = Column(JSON, nullable=True)         # 问题列表 ['desc_equals_action', 'bad_title']
+
     # 工作项关联
     work_items = relationship('WorkItem', back_populates='worklog')
 
@@ -537,6 +541,226 @@ class WorkLog(db.Model):
         if 0 <= index < len(attachments):
             return attachments[index]
         return None
+
+    # 评分等级配置（字典模式，与项目其他徽章一致）
+    SCORE_LEVELS = {
+        'excellent': {'min': 75, 'icon': 'sentiment_very_satisfied', 'class': 'tw-badge-green', 'label': '优秀'},
+        'good': {'min': 55, 'icon': 'sentiment_satisfied', 'class': 'tw-badge-blue', 'label': '良好'},
+        'fair': {'min': 35, 'icon': 'sentiment_neutral', 'class': 'tw-badge-amber', 'label': '继续努力'},
+        'poor': {'min': 0, 'icon': 'sentiment_dissatisfied', 'class': 'tw-badge-gray', 'label': '需改进'}
+    }
+
+    # 改进建议配置（新版：加分制）
+    IMPROVEMENT_SUGGESTIONS = {
+        'few_items': {
+            'issue': '工作项数量较少',
+            'suggestion': '增加工作项数量，详细记录每项工作内容'
+        },
+        'no_completion': {
+            'issue': '没有完成的工作项',
+            'suggestion': '完成工作后及时更新状态为已完成'
+        },
+        'no_customer': {
+            'issue': '工作项未关联客户',
+            'suggestion': '关联相关客户，便于追踪和统计'
+        },
+        'no_project': {
+            'issue': '工作项未关联项目',
+            'suggestion': '关联相关项目，便于项目进度追踪'
+        },
+        'short_desc': {
+            'issue': '工作描述过于简单',
+            'suggestion': '详细描述工作内容、目的和预期成果'
+        },
+        'no_notes': {
+            'issue': '缺少执行备注',
+            'suggestion': '补充执行备注说明实际工作成果'
+        },
+        'single_type': {
+            'issue': '工作类型单一',
+            'suggestion': '尝试安排多样化的工作内容'
+        },
+        'no_system_activity': {
+            'issue': '当天无系统操作记录',
+            'suggestion': '在系统中及时录入客户、项目、跟进等信息'
+        },
+        'late_submit': {
+            'issue': '日志提交不够及时',
+            'suggestion': '尽量当天完成日志提交'
+        }
+    }
+
+    def calculate_quality_score(self, actions=None, system_activities=None):
+        """计算日志质量评分（加分制）
+
+        参数:
+            actions: 当天的跟进记录列表
+            system_activities: 当天的系统操作统计 {'customers': n, 'contacts': n, 'projects': n, 'actions': n, 'quotations': n}
+
+        返回: {
+            'total': 总分,
+            'level': 等级key,
+            'icon': 图标名称,
+            'badge_class': 徽章CSS类,
+            'label': 等级标签,
+            'breakdown': {
+                'base': 基础分(10),
+                'count': 工作项数量分(15),
+                'quality': 工作项质量分(25),
+                'diversity': 多样性分(15),
+                'timeliness': 及时分(10),
+                'activity': 系统行为分(15),
+                'interaction': 互动加分
+            },
+            'issues': ['issue_key1', ...]
+        }
+        """
+        score = {
+            'base': 0,
+            'count': 0,
+            'quality': 0,
+            'diversity': 0,
+            'timeliness': 0,
+            'activity': 0,
+            'interaction': 0
+        }
+        issues = []
+
+        # 获取工作项
+        work_items = [i for i in self.work_items if not i.is_deleted and not i.is_invalidated]
+
+        # === 基础分: 10分（提交即得）===
+        score['base'] = 10
+
+        # === 工作项数量: 满分15（每个+3，封顶5个）===
+        item_count = len(work_items)
+        score['count'] = min(item_count * 3, 15)
+        if item_count < 2:
+            issues.append('few_items')
+
+        # === 工作项质量: 满分25 ===
+        quality_score = 0
+        has_completion = False
+        has_customer = False
+        has_project = False
+        has_good_desc = False
+        has_notes = False
+
+        for item in work_items:
+            # 完成+3
+            if item.status == 'completed':
+                quality_score += 3
+                has_completion = True
+            # 关联客户+2
+            if item.customer_id:
+                quality_score += 2
+                has_customer = True
+            # 关联项目+2
+            if item.project_id:
+                quality_score += 2
+                has_project = True
+            # 描述>30字+3
+            if item.description and len(item.description) > 30:
+                quality_score += 3
+                has_good_desc = True
+            # 有备注+2
+            if item.execution_notes:
+                quality_score += 2
+                has_notes = True
+            # 有工时+1
+            if item.start_time and item.end_time:
+                quality_score += 1
+
+        score['quality'] = min(quality_score, 25)
+
+        # 质量相关建议
+        if item_count > 0:
+            if not has_completion:
+                issues.append('no_completion')
+            if not has_customer:
+                issues.append('no_customer')
+            if not has_project:
+                issues.append('no_project')
+            if not has_good_desc:
+                issues.append('short_desc')
+            if not has_notes:
+                issues.append('no_notes')
+
+        # === 行程多样性: 满分15 ===
+        work_types = set(item.work_type for item in work_items if item.work_type)
+        type_count = len(work_types)
+        if type_count >= 4:
+            score['diversity'] = 15
+        elif type_count == 3:
+            score['diversity'] = 10
+        elif type_count == 2:
+            score['diversity'] = 5
+        else:
+            score['diversity'] = 0
+            if item_count > 0:
+                issues.append('single_type')
+
+        # === 及时性: 满分10 ===
+        if self.submitted_at and self.log_date:
+            log_dt = datetime.combine(self.log_date, datetime.min.time())
+            diff_days = (self.submitted_at - log_dt).days
+            if diff_days <= 0:
+                score['timeliness'] = 10  # 当天提交
+            elif diff_days == 1:
+                score['timeliness'] = 7   # 次日提交
+            elif diff_days == 2:
+                score['timeliness'] = 4   # 第三天提交
+            else:
+                score['timeliness'] = 1   # 更晚提交
+                issues.append('late_submit')
+
+        # === 系统行为: 满分15 ===
+        activity_score = 0
+        if system_activities:
+            # 创建客户+3, 更新客户+1
+            activity_score += system_activities.get('new_customers', 0) * 3
+            activity_score += system_activities.get('updated_customers', 0) * 1
+            # 创建联系人+2
+            activity_score += system_activities.get('new_contacts', 0) * 2
+            # 创建项目+3, 更新项目+1
+            activity_score += system_activities.get('new_projects', 0) * 3
+            activity_score += system_activities.get('updated_projects', 0) * 1
+            # 创建跟进+2
+            activity_score += system_activities.get('new_actions', 0) * 2
+            # 创建报价+3
+            activity_score += system_activities.get('new_quotations', 0) * 3
+
+        score['activity'] = min(activity_score, 15)
+        if activity_score == 0:
+            issues.append('no_system_activity')
+
+        # === 互动加分: 无上限 ===
+        comments_count = len([c for c in self.comments if not c.is_deleted]) if self.comments else 0
+        score['interaction'] = (self.thumbs_up_count or 0) * 3 + comments_count * 2
+
+        # 计算总分（不含互动加分的基础满分是90）
+        total = (score['base'] + score['count'] + score['quality'] +
+                score['diversity'] + score['timeliness'] + score['activity'] +
+                score['interaction'])
+
+        # 确定等级
+        level = 'poor'
+        for level_key in ['excellent', 'good', 'fair', 'poor']:
+            if total >= self.SCORE_LEVELS[level_key]['min']:
+                level = level_key
+                break
+
+        level_config = self.SCORE_LEVELS[level]
+
+        return {
+            'total': total,
+            'level': level,
+            'icon': level_config['icon'],
+            'badge_class': level_config['class'],
+            'label': level_config['label'],
+            'breakdown': score,
+            'issues': issues
+        }
 
 
 class WorkLogComment(db.Model):

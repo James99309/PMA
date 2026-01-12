@@ -57,6 +57,9 @@ class ApprovalActionType:
     # 新增：产品入库动作
     PRODUCT_WAREHOUSING = "product_warehousing"  # 研发产品入库
 
+    # 新增：表单确认动作（采购流程中的供应商确认、测试、发货、验收等）
+    FORM_CONFIRM = "form_confirm"  # 表单确认动作
+
     # 动作类型标签
     ACTION_TYPE_LABELS = {
         'authorization': {'zh': '授权审批', 'en': 'Authorization'},
@@ -69,7 +72,8 @@ class ApprovalActionType:
         'customer_service_authorization': {'zh': '客服授权', 'en': 'Customer Service Authorization'},
         'branch_decision': {'zh': '分支决策', 'en': 'Branch Decision'},
         'pricing_settlement_approval': {'zh': '批结算审批', 'en': 'Pricing Settlement Approval'},
-        'product_warehousing': {'zh': '产品入库', 'en': 'Product Warehousing'}
+        'product_warehousing': {'zh': '产品入库', 'en': 'Product Warehousing'},
+        'form_confirm': {'zh': '表单确认', 'en': 'Form Confirm'}
     }
     
     @classmethod
@@ -984,4 +988,156 @@ class ApprovalRecord(db.Model):
     approver = db.relationship("User", backref="approval_records")
 
     def __repr__(self):
-        return f"<ApprovalRecord {self.id} - {self.action}>" 
+        return f"<ApprovalRecord {self.id} - {self.action}>"
+
+
+class ApprovalExternalToken(db.Model):
+    """
+    审批外部访问令牌
+
+    用于允许外部人员（无需登录）访问特定的审批步骤表单。
+    适用场景：
+    - 供应商的工厂测试人员访问测试表单
+    - 外部验收人员访问验收表单
+
+    访问链接格式: /approval/external/{token}
+    """
+    __tablename__ = "approval_external_tokens"
+
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True, comment="访问令牌（32字符hex）")
+
+    # 关联信息
+    step_id = db.Column(db.Integer, db.ForeignKey("approval_step.id"), nullable=True, comment="关联审批步骤模板ID")
+    instance_id = db.Column(db.Integer, db.ForeignKey("approval_instance.id"), nullable=True, comment="关联审批实例ID")
+    object_type = db.Column(db.String(50), nullable=False, comment="对象类型（purchase_order等）")
+    object_id = db.Column(db.Integer, nullable=False, comment="对象ID")
+
+    # 表单信息
+    form_id = db.Column(db.String(50), nullable=True, comment="表单模板ID（factory_test_form等）")
+
+    # 有效期控制
+    expires_at = db.Column(db.DateTime, nullable=False, comment="过期时间")
+    max_uses = db.Column(db.Integer, default=1, comment="最大使用次数（0=无限制）")
+    use_count = db.Column(db.Integer, default=0, comment="已使用次数")
+
+    # 使用记录
+    used_at = db.Column(db.DateTime, nullable=True, comment="最后使用时间")
+    used_ip = db.Column(db.String(50), nullable=True, comment="最后使用IP")
+    submitted_at = db.Column(db.DateTime, nullable=True, comment="表单提交时间")
+
+    # 提交人信息（外部人员无账号，记录姓名）
+    submitted_by_name = db.Column(db.String(100), nullable=True, comment="提交人姓名")
+
+    # 元数据
+    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, comment="创建人ID")
+    created_at = db.Column(db.DateTime, default=get_local_time, comment="创建时间")
+    notes = db.Column(db.Text, nullable=True, comment="备注说明")
+
+    # 关系
+    step = db.relationship("ApprovalStep", backref="external_tokens")
+    instance = db.relationship("ApprovalInstance", backref="external_tokens")
+    created_by = db.relationship("User", backref="created_external_tokens")
+
+    def __repr__(self):
+        return f"<ApprovalExternalToken {self.token[:8]}...>"
+
+    @property
+    def is_valid(self):
+        """检查令牌是否有效"""
+        from datetime import datetime
+        now = datetime.now()
+
+        # 检查是否过期
+        if self.expires_at and now > self.expires_at:
+            return False
+
+        # 检查使用次数
+        if self.max_uses > 0 and self.use_count >= self.max_uses:
+            return False
+
+        # 检查是否已提交
+        if self.submitted_at:
+            return False
+
+        return True
+
+    @property
+    def status(self):
+        """获取令牌状态"""
+        if self.submitted_at:
+            return 'submitted'
+        if not self.is_valid:
+            return 'expired'
+        return 'active'
+
+    @property
+    def status_label(self):
+        """状态标签"""
+        labels = {
+            'active': '有效',
+            'expired': '已过期',
+            'submitted': '已提交'
+        }
+        return labels.get(self.status, self.status)
+
+    @classmethod
+    def generate_token(cls):
+        """生成随机令牌"""
+        import secrets
+        return secrets.token_hex(16)  # 32字符的hex字符串
+
+    @classmethod
+    def create_token(cls, object_type, object_id, form_id, created_by_id,
+                     step_id=None, instance_id=None, expires_hours=72, max_uses=1, notes=None):
+        """
+        创建外部访问令牌
+
+        Args:
+            object_type: 对象类型
+            object_id: 对象ID
+            form_id: 表单模板ID
+            created_by_id: 创建人ID
+            step_id: 审批步骤ID（可选）
+            instance_id: 审批实例ID（可选）
+            expires_hours: 有效期小时数（默认72小时）
+            max_uses: 最大使用次数（默认1次）
+            notes: 备注说明
+
+        Returns:
+            ApprovalExternalToken: 创建的令牌对象
+        """
+        from datetime import datetime, timedelta
+
+        token = cls(
+            token=cls.generate_token(),
+            object_type=object_type,
+            object_id=object_id,
+            form_id=form_id,
+            step_id=step_id,
+            instance_id=instance_id,
+            expires_at=datetime.now() + timedelta(hours=expires_hours),
+            max_uses=max_uses,
+            created_by_id=created_by_id,
+            notes=notes
+        )
+
+        db.session.add(token)
+        db.session.flush()
+
+        return token
+
+    def record_access(self, ip_address=None):
+        """记录访问"""
+        from datetime import datetime
+        self.use_count += 1
+        self.used_at = datetime.now()
+        if ip_address:
+            self.used_ip = ip_address
+
+    def mark_submitted(self, submitter_name=None):
+        """标记为已提交"""
+        from datetime import datetime
+        self.submitted_at = datetime.now()
+        if submitter_name:
+            self.submitted_by_name = submitter_name

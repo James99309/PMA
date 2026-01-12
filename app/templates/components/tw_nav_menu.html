@@ -20,6 +20,14 @@ Tailwind 共享导航菜单组件
     <span class="{% if active_page == 'dashboard' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm font-medium">{{ _('仪表盘') }}</span>
 </a>
 
+<!-- 会议纪要（开发中，仅管理员可见） -->
+{% if current_user.role == 'admin' %}
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'meeting_minutes' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('meeting.minutes_list') }}">
+    <span class="material-symbols-outlined {% if active_page == 'meeting_minutes' %}fill text-primary{% else %}text-slate-600 dark:text-slate-400{% endif %}">description</span>
+    <span class="{% if active_page == 'meeting_minutes' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm font-medium">{{ _('会议纪要') }}</span>
+</a>
+{% endif %}
+
 <!-- 业务管理组 -->
 {% if has_permission('customer', 'view') or has_permission('project', 'view') or has_permission('quotation', 'view') or has_permission('expense', 'view') %}
 <div x-data="{ open: {{ 'true' if active_page in ['customer', 'project', 'quotation', 'product_analysis', 'expense'] else 'false' }} }">
@@ -59,6 +67,52 @@ Tailwind 共享导航菜单组件
         <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'product_analysis' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('product_analysis.analysis') }}">
             <span class="material-symbols-outlined text-base {% if active_page == 'product_analysis' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">analytics</span>
             <span class="{% if active_page == 'product_analysis' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('植入分析') }}</span>
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- 销售管理组 -->
+{% if has_permission('order', 'view') or has_permission('settlement', 'view') or has_permission('sales_order', 'view') or has_permission('shipment', 'view') or has_permission('pricing_order', 'view') %}
+<div x-data="{ open: {{ 'true' if active_page in ['order', 'settlement', 'sales_order', 'shipment', 'pricing_order'] else 'false' }} }">
+    <button @click="open = !open" class="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+        <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-slate-600 dark:text-slate-400">storefront</span>
+            <span class="text-slate-600 dark:text-slate-300 text-sm font-medium">{{ _('销售管理') }}</span>
+        </div>
+        <span class="material-symbols-outlined text-slate-400 text-base transition-transform" :class="{ 'rotate-180': open }">expand_more</span>
+    </button>
+    <div x-show="open" x-collapse class="pl-4 mt-1 flex flex-col gap-1">
+        {% if has_permission('pricing_order', 'view') %}
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'pricing_order' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('pricing_order.list_pricing_orders') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'pricing_order' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">request_quote</span>
+            <span class="{% if active_page == 'pricing_order' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('批价单') }}</span>
+        </a>
+        {% endif %}
+        {% if has_permission('sales_order', 'view') %}
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'sales_order' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('sales_order.list_view') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'sales_order' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">shopping_cart</span>
+            <span class="{% if active_page == 'sales_order' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('客户订单') }}</span>
+        </a>
+        {% endif %}
+        {% if has_permission('shipment', 'view') %}
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'shipment' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('shipment.list_view') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'shipment' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">local_shipping</span>
+            <span class="{% if active_page == 'shipment' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('发货管理') }}</span>
+        </a>
+        {% endif %}
+        <div class="my-1 mx-3 h-px bg-slate-200 dark:bg-slate-700"></div>
+        {% if has_permission('order', 'view') %}
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'order' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('inventory.order_list') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'order' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">list_alt</span>
+            <span class="{% if active_page == 'order' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('订单管理') }}</span>
+        </a>
+        {% endif %}
+        {% if has_permission('settlement', 'view') %}
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'settlement' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('inventory.settlement_order_list') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'settlement' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">payments</span>
+            <span class="{% if active_page == 'settlement' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('结算管理') }}</span>
         </a>
         {% endif %}
     </div>
@@ -105,34 +159,33 @@ Tailwind 共享导航菜单组件
 </div>
 {% endif %}
 
-<!-- 订单结算组 -->
-{% if has_permission('order', 'view') or has_permission('settlement', 'view') or has_permission('inventory', 'view') %}
-<div x-data="{ open: {{ 'true' if active_page in ['order', 'settlement', 'inventory'] else 'false' }} }">
+<!-- 采购仓储组 -->
+{% if has_permission('inventory', 'view') or has_permission('order', 'view') %}
+<div x-data="{ open: {{ 'true' if active_page in ['inventory', 'serial_number', 'purchase_order'] else 'false' }} }">
     <button @click="open = !open" class="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
         <div class="flex items-center gap-3">
-            <span class="material-symbols-outlined text-slate-600 dark:text-slate-400">shopping_cart</span>
-            <span class="text-slate-600 dark:text-slate-300 text-sm font-medium">{{ _('订单结算') }}</span>
+            <span class="material-symbols-outlined text-slate-600 dark:text-slate-400">inventory</span>
+            <span class="text-slate-600 dark:text-slate-300 text-sm font-medium">{{ _('采购仓储') }}</span>
         </div>
         <span class="material-symbols-outlined text-slate-400 text-base transition-transform" :class="{ 'rotate-180': open }">expand_more</span>
     </button>
     <div x-show="open" x-collapse class="pl-4 mt-1 flex flex-col gap-1">
         {% if has_permission('order', 'view') %}
-        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'order' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('inventory.order_list') }}">
-            <span class="material-symbols-outlined text-base {% if active_page == 'order' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">list_alt</span>
-            <span class="{% if active_page == 'order' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('订单管理') }}</span>
-        </a>
-        {% endif %}
-        {% if has_permission('settlement', 'view') %}
-        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'settlement' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('inventory.settlement_order_list') }}">
-            <span class="material-symbols-outlined text-base {% if active_page == 'settlement' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">payments</span>
-            <span class="{% if active_page == 'settlement' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('结算管理') }}</span>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'purchase_order' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('purchase_order.list_view') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'purchase_order' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">assignment</span>
+            <span class="{% if active_page == 'purchase_order' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('采购订单') }}</span>
         </a>
         {% endif %}
         {% if has_permission('inventory', 'view') %}
-        <div class="my-1 mx-3 h-px bg-slate-200 dark:bg-slate-700"></div>
         <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'inventory' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('inventory.stock_list') }}">
             <span class="material-symbols-outlined text-base {% if active_page == 'inventory' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">warehouse</span>
             <span class="{% if active_page == 'inventory' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('库存管理') }}</span>
+        </a>
+        {% endif %}
+        {% if has_permission('inventory', 'view') %}
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'serial_number' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('product_sn.list_view') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'serial_number' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">qr_code_2</span>
+            <span class="{% if active_page == 'serial_number' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('序列号管理') }}</span>
         </a>
         {% endif %}
     </div>

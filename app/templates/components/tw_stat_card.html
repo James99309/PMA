@@ -22,10 +22,12 @@ Tailwind 统计卡片组件
 - icon: Material Symbols 图标名称
 - variant: 颜色变体 'default' | 'success' | 'info' | 'warning' | 'danger'
 - href: 可选的链接地址
+- onclick: 可选的点击事件处理函数（提供此参数时渲染为 button）
+- active: 是否为激活状态（默认 false，激活时显示高亮边框）
 =============================================================================
 #}
 
-{% macro tw_stat_card(title, value, unit='', icon='', variant='default', href='') %}
+{% macro tw_stat_card(title, value, unit='', icon='', variant='default', href='', onclick='', active=false) %}
 {% set variants = {
     'default': {
         'bg': 'bg-white dark:bg-slate-800',
@@ -59,11 +61,15 @@ Tailwind 统计卡片组件
     }
 } %}
 {% set v = variants[variant] or variants['default'] %}
+{% set active_class = 'ring-2 ring-primary' if active else '' %}
+{% set base_class = 'p-3 sm:p-5 rounded-xl shadow-sm border ' ~ v.bg ~ ' ' ~ v.border ~ ' ' ~ active_class %}
 
 {% if href %}
-<a href="{{ href }}" class="block p-3 sm:p-5 rounded-xl shadow-sm border {{ v.bg }} {{ v.border }} hover:shadow-md transition-shadow">
+<a href="{{ href }}" class="block {{ base_class }} hover:shadow-md transition-shadow">
+{% elif onclick %}
+<button type="button" onclick="{{ onclick }}" class="w-full text-left {{ base_class }} hover:shadow-md transition-all cursor-pointer">
 {% else %}
-<div class="p-3 sm:p-5 rounded-xl shadow-sm border {{ v.bg }} {{ v.border }}">
+<div class="{{ base_class }}">
 {% endif %}
     <div class="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
         {% if icon %}
@@ -81,6 +87,8 @@ Tailwind 统计卡片组件
     </p>
 {% if href %}
 </a>
+{% elif onclick %}
+</button>
 {% else %}
 </div>
 {% endif %}
@@ -89,7 +97,7 @@ Tailwind 统计卡片组件
 
 {# 统计卡片网格容器 #}
 {% macro tw_stat_cards_grid(cols=4) %}
-<div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-{{ cols }} gap-2 sm:gap-4 mb-4 sm:mb-6">
+<div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-{{ cols }} gap-2 sm:gap-4 mt-2 mb-4 sm:mb-6">
     {{ caller() }}
 </div>
 {% endmacro %}

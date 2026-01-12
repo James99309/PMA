@@ -25,6 +25,7 @@
 15. [标签页组件](#-tailwind-标签页组件)
 16. [Mention 编辑器组件](#-tailwind-mention-编辑器组件)
 17. [详情页卡片高度同步工具](#-详情页卡片高度同步工具)
+18. [签字板组件](#️-tailwind-签字板组件)
 
 ---
 
@@ -2441,8 +2442,120 @@ DetailCardSync.sync();
 
 ---
 
+## ✍️ Tailwind 签字板组件
+
+可复用的手写签名组件，支持鼠标和触摸屏输入，用于供应商确认、合同签署等场景。
+
+**文件位置**: `app/templates/components/tw_signature_pad.html`
+
+### **导入方式**
+```jinja2
+{% from 'components/tw_signature_pad.html' import tw_signature_pad, tw_signature_pad_script with context %}
+```
+
+### **可用宏**
+
+#### tw_signature_pad()
+签字板 HTML 组件
+
+| 参数 | 类型 | 默认值 | 说明 |
+|-----|------|-------|------|
+| container_id | string | 'signaturePad' | 容器ID（必须唯一） |
+| label | string | '签名' | 标签文本 |
+| required | boolean | false | 是否必填 |
+| readonly | boolean | false | 只读模式（仅显示已有签名） |
+| existing_signature | string | '' | 已有签名URL（只读模式用） |
+| height | int | 150 | 画布高度（像素） |
+
+#### tw_signature_pad_script()
+签字板 JavaScript 脚本，页面底部只需调用一次
+
+### **JavaScript API**
+
+```javascript
+// 初始化（通常自动完成）
+SignaturePadManager.init('containerId');
+
+// 获取签字板实例
+const pad = SignaturePadManager.get('containerId');
+
+// 检查是否为空
+if (pad.isEmpty()) {
+    alert('请签名');
+    return;
+}
+
+// 获取签名 base64 数据
+const signatureData = pad.toDataURL();
+
+// 清除签名
+pad.clear();
+```
+
+### **使用示例**
+
+**基本使用**
+```jinja2
+{% from 'components/tw_signature_pad.html' import tw_signature_pad, tw_signature_pad_script with context %}
+
+<!-- 签字板 -->
+{{ tw_signature_pad(
+    container_id='mySignature',
+    label=_('确认签名'),
+    required=true,
+    height=120
+) }}
+
+<!-- 脚本（页面底部，只需一次） -->
+{{ tw_signature_pad_script() }}
+```
+
+**只读模式（显示已有签名）**
+```jinja2
+{{ tw_signature_pad(
+    container_id='viewSignature',
+    label=_('签名'),
+    readonly=true,
+    existing_signature=order.supplier_signature_url
+) }}
+```
+
+**表单提交时获取签名**
+```javascript
+// 验证签名
+const signaturePad = SignaturePadManager.get('mySignature');
+if (!signaturePad || signaturePad.isEmpty()) {
+    alert('请签名确认');
+    return;
+}
+
+// 获取 base64 数据
+const signatureData = signaturePad.toDataURL();
+
+// 添加到 FormData
+const formData = new FormData();
+formData.append('signature', signatureData);
+```
+
+### **功能特性**
+- ✅ 支持鼠标和触摸屏绘制
+- ✅ 高分辨率支持（devicePixelRatio）
+- ✅ 深色模式自动适配
+- ✅ 导出为 PNG base64
+- ✅ 只读模式显示已有签名
+- ✅ 窗口大小变化时自动重绘
+
+### **已使用页面**
+1. `app/templates/inventory/tw_purchase_order_detail.html` - 采购订单供应商确认签名
+
+### **创建日期**
+2026-01-11
+
+---
+
 ## 📝 更新日志
 
+- **2026-01-11**: 新增签字板组件（`tw_signature_pad.html`），支持手写签名、触摸屏、导出 base64
 - **2026-01-09**: 新增详情页卡片高度同步工具（`detail-card-sync.js`），支持多列布局底部对齐
 - **2026-01-03**: 新增 Mention 编辑器组件（`tw_mention_editor.html`），支持 @ 用户和 # 项目引用
 - **2025-12-27**: 新增 SVG 折线图组件（`tw_line_chart.html`），从首页仪表盘提取，支持静态和 Alpine.js 动态初始化

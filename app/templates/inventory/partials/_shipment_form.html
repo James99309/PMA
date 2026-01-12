@@ -1,0 +1,225 @@
+{#
+=============================================================================
+发货确认表单
+=============================================================================
+供应商填写发货信息，包括物流信息、发货日期等
+
+参数说明：
+- order: PurchaseOrder 对象
+- readonly: 是否只读模式
+=============================================================================
+#}
+
+{% macro render_shipment_form(order, readonly=false) %}
+<div id="shipmentFormContainer" class="space-y-6">
+    {# 订单信息 #}
+    <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+        <h4 class="font-medium text-slate-900 dark:text-white mb-4">{{ _('订单信息') }}</h4>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+                <span class="text-slate-500 dark:text-slate-400">{{ _('订单号') }}:</span>
+                <span class="ml-1 font-medium text-slate-900 dark:text-white">{{ order.order_number }}</span>
+            </div>
+            <div>
+                <span class="text-slate-500 dark:text-slate-400">{{ _('供应商') }}:</span>
+                <span class="ml-1 font-medium text-slate-900 dark:text-white">{{ order.company.company_name if order.company else '-' }}</span>
+            </div>
+            <div>
+                <span class="text-slate-500 dark:text-slate-400">{{ _('总数量') }}:</span>
+                <span class="ml-1 font-medium text-slate-900 dark:text-white">{{ order.total_quantity }}</span>
+            </div>
+            <div>
+                <span class="text-slate-500 dark:text-slate-400">{{ _('交货地点') }}:</span>
+                <span class="ml-1 font-medium text-slate-900 dark:text-white">{{ order.ship_to or '-' }}</span>
+            </div>
+        </div>
+    </div>
+
+    {# 发货表单 #}
+    <form id="shipmentForm" class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+        <h4 class="font-medium text-slate-900 dark:text-white mb-4">{{ _('发货信息') }}</h4>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {# 发货日期 #}
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    {{ _('发货日期') }} <span class="text-red-500">*</span>
+                </label>
+                <input type="date" id="shipDate" name="ship_date"
+                       value="{{ order.ship_date.strftime('%Y-%m-%d') if order.ship_date else '' }}"
+                       {% if readonly %}disabled{% endif %}
+                       class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 dark:disabled:bg-slate-600">
+            </div>
+
+            {# 预计到达日期 #}
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    {{ _('预计到达日期') }}
+                </label>
+                <input type="date" id="arrivalDate" name="arrival_date"
+                       value="{{ order.arrival_date.strftime('%Y-%m-%d') if order.arrival_date else '' }}"
+                       {% if readonly %}disabled{% endif %}
+                       class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 dark:disabled:bg-slate-600">
+            </div>
+
+            {# 承运商 #}
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    {{ _('承运商') }} <span class="text-red-500">*</span>
+                </label>
+                <input type="text" id="carrier" name="carrier"
+                       value="{{ order.carrier or '' }}"
+                       placeholder="{{ _('如：顺丰速运、德邦物流') }}"
+                       {% if readonly %}disabled{% endif %}
+                       class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 dark:disabled:bg-slate-600">
+            </div>
+
+            {# 运单号 #}
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    {{ _('运单号') }} <span class="text-red-500">*</span>
+                </label>
+                <input type="text" id="trackingNumber" name="tracking_number"
+                       value="{{ order.tracking_number or '' }}"
+                       placeholder="{{ _('物流运单号') }}"
+                       {% if readonly %}disabled{% endif %}
+                       class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 dark:disabled:bg-slate-600">
+            </div>
+
+            {# 运输方式 #}
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    {{ _('运输方式') }}
+                </label>
+                <select id="shippingMethod" name="shipping_method"
+                        {% if readonly %}disabled{% endif %}
+                        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 dark:disabled:bg-slate-600">
+                    <option value="">{{ _('请选择') }}</option>
+                    <option value="truck" {% if order.shipping_method == 'truck' %}selected{% endif %}>{{ _('陆运') }}</option>
+                    <option value="air" {% if order.shipping_method == 'air' %}selected{% endif %}>{{ _('空运') }}</option>
+                    <option value="express" {% if order.shipping_method == 'express' %}selected{% endif %}>{{ _('快递') }}</option>
+                    <option value="self_pickup" {% if order.shipping_method == 'self_pickup' %}selected{% endif %}>{{ _('自提') }}</option>
+                </select>
+            </div>
+        </div>
+
+        {# 发货清单 #}
+        <div class="mt-6">
+            <h5 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">{{ _('发货清单') }}</h5>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 dark:bg-slate-700/50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{{ _('产品') }}</th>
+                            <th class="px-4 py-2 text-center text-xs font-medium text-slate-500 dark:text-slate-400">{{ _('订购数量') }}</th>
+                            <th class="px-4 py-2 text-center text-xs font-medium text-slate-500 dark:text-slate-400">{{ _('本次发货') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+                        {% for detail in order.details %}
+                        <tr>
+                            <td class="px-4 py-3 text-slate-900 dark:text-white">
+                                {{ detail.product_name }}
+                                {% if detail.product_model %}
+                                <span class="text-slate-500 text-xs">({{ detail.product_model }})</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-center text-slate-600 dark:text-slate-300">
+                                {{ detail.quantity }}
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <span class="font-medium text-slate-900 dark:text-white">{{ detail.quantity }}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {# 备注 #}
+        <div class="mt-4">
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('发货备注') }}
+            </label>
+            <textarea id="shipmentNotes" name="notes" rows="2"
+                      placeholder="{{ _('如有特殊说明请在此填写') }}"
+                      {% if readonly %}disabled{% endif %}
+                      class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 dark:disabled:bg-slate-600"></textarea>
+        </div>
+
+        {% if not readonly %}
+        {# 提交按钮 #}
+        <div class="flex justify-end mt-6">
+            <button type="button" onclick="submitShipment()"
+                    class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                <span class="material-symbols-outlined text-sm mr-2">local_shipping</span>
+                {{ _('确认发货') }}
+            </button>
+        </div>
+        {% endif %}
+    </form>
+</div>
+{% endmacro %}
+
+
+{# 发货表单脚本 #}
+{% macro render_shipment_form_script(order_id, api_base_url) %}
+<script>
+(function() {
+    const orderId = {{ order_id }};
+    const apiBaseUrl = '{{ api_base_url }}';
+
+    window.submitShipment = function() {
+        const shipDate = document.getElementById('shipDate').value;
+        const carrier = document.getElementById('carrier').value;
+        const trackingNumber = document.getElementById('trackingNumber').value;
+
+        if (!shipDate) {
+            alert('{{ _("请选择发货日期") }}');
+            return;
+        }
+
+        if (!carrier) {
+            alert('{{ _("请填写承运商") }}');
+            return;
+        }
+
+        if (!trackingNumber) {
+            alert('{{ _("请填写运单号") }}');
+            return;
+        }
+
+        const formData = {
+            ship_date: shipDate,
+            arrival_date: document.getElementById('arrivalDate').value,
+            carrier: carrier,
+            tracking_number: trackingNumber,
+            shipping_method: document.getElementById('shippingMethod').value,
+            notes: document.getElementById('shipmentNotes').value
+        };
+
+        fetch(`${apiBaseUrl}/${orderId}/ship`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('{{ _("发货信息已提交") }}');
+                location.reload();
+            } else {
+                alert(data.message || '{{ _("提交失败") }}');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('{{ _("网络错误，请重试") }}');
+        });
+    };
+})();
+</script>
+{% endmacro %}

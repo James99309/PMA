@@ -165,16 +165,21 @@ def generate_order_pdf(order):
         order_info_data = [
             ['订单编号:', order.order_number or ''],
             ['采购商:', order.company.company_name if order.company else ''],
+            ['版本号:', order.revision or '-'],
             ['创建时间:', order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else ''],
             ['订单状态:', get_status_text(order.status)],
             ['创建人:', order.created_by.real_name or order.created_by.username if order.created_by else ''],
             ['订单总额:', f'{Config.CURRENCY_SYMBOL}{order.total_amount:.2f}' if order.total_amount else f'{Config.CURRENCY_SYMBOL}0.00'],
         ]
-        
+
+        # 贸易术语
+        if order.incoterms:
+            order_info_data.append(['贸易术语:', get_incoterms_text(order.incoterms)])
+
         # 如果有备注
         if order.description:
             order_info_data.append(['备注:', order.description])
-        
+
         # 创建订单信息表格
         order_info_table = Table(order_info_data, colWidths=[2*inch, 4*inch])
         order_info_table.setStyle(TableStyle([
@@ -185,9 +190,120 @@ def generate_order_pdf(order):
             ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ]))
-        
+
         story.append(order_info_table)
-        story.append(Spacer(1, 20))
+        story.append(Spacer(1, 15))
+
+        # 交货信息段（如果有交货相关数据）
+        has_delivery_info = order.required_date or order.confirmed_date or order.ship_to or order.shipping_method
+        if has_delivery_info:
+            delivery_title = Paragraph("交货信息", ParagraphStyle(
+                'DeliveryTitle',
+                parent=styles['Heading2'],
+                fontName=chinese_font_name,
+                fontSize=12,
+                spaceAfter=8
+            ))
+            story.append(delivery_title)
+
+            delivery_data = []
+            if order.required_date:
+                delivery_data.append(['需求日期:', order.required_date.strftime('%Y-%m-%d')])
+            if order.confirmed_date:
+                delivery_data.append(['确认交期:', order.confirmed_date.strftime('%Y-%m-%d')])
+            if order.shipping_method:
+                delivery_data.append(['运输方式:', get_shipping_method_text(order.shipping_method)])
+            if order.freight_terms:
+                delivery_data.append(['运费承担:', get_freight_terms_text(order.freight_terms)])
+            if order.ship_to:
+                delivery_data.append(['交货地点:', order.ship_to])
+
+            if delivery_data:
+                delivery_table = Table(delivery_data, colWidths=[2*inch, 4*inch])
+                delivery_table.setStyle(TableStyle([
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, -1), chinese_font_name),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                    ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ]))
+                story.append(delivery_table)
+            story.append(Spacer(1, 15))
+
+        # 生产与测试状态（仅在确认后显示）
+        if order.status in ['confirmed', 'producing', 'tested', 'shipped', 'stored', 'completed']:
+            progress_title = Paragraph("生产与测试状态", ParagraphStyle(
+                'ProgressTitle',
+                parent=styles['Heading2'],
+                fontName=chinese_font_name,
+                fontSize=12,
+                spaceAfter=8
+            ))
+            story.append(progress_title)
+
+            progress_data = [
+                ['生产状态:', get_production_status_text(order.production_status)],
+                ['生产进度:', f'{order.production_progress or 0}%'],
+                ['工厂测试:', get_test_status_text(order.factory_test_status)],
+            ]
+            if order.verification_test_type:
+                test_type_text = '现场FAT' if order.verification_test_type == 'site_fat' else '到货测试'
+                progress_data.append(['验证测试:', f'{test_type_text} - {get_test_status_text(order.verification_test_status)}'])
+            if order.estimated_completion_date:
+                progress_data.append(['预计完成:', order.estimated_completion_date.strftime('%Y-%m-%d')])
+            if order.production_notes:
+                progress_data.append(['生产备注:', order.production_notes])
+
+            progress_table = Table(progress_data, colWidths=[2*inch, 4*inch])
+            progress_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, -1), chinese_font_name),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ]))
+            story.append(progress_table)
+            story.append(Spacer(1, 15))
+
+        # 物流信息（如果已发货）
+        if order.status in ['shipped', 'stored', 'completed'] and (order.carrier or order.tracking_number or order.ship_date):
+            logistics_title = Paragraph("物流信息", ParagraphStyle(
+                'LogisticsTitle',
+                parent=styles['Heading2'],
+                fontName=chinese_font_name,
+                fontSize=12,
+                spaceAfter=8
+            ))
+            story.append(logistics_title)
+
+            logistics_data = []
+            if order.carrier:
+                logistics_data.append(['承运商:', order.carrier])
+            if order.tracking_number:
+                logistics_data.append(['运单号:', order.tracking_number])
+            if order.ship_date:
+                logistics_data.append(['发货日期:', order.ship_date.strftime('%Y-%m-%d')])
+            if order.arrival_date:
+                logistics_data.append(['预计到达:', order.arrival_date.strftime('%Y-%m-%d')])
+            if order.actual_arrival_date:
+                logistics_data.append(['实际到达:', order.actual_arrival_date.strftime('%Y-%m-%d')])
+
+            if logistics_data:
+                logistics_table = Table(logistics_data, colWidths=[2*inch, 4*inch])
+                logistics_table.setStyle(TableStyle([
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, -1), chinese_font_name),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                    ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ]))
+                story.append(logistics_table)
+            story.append(Spacer(1, 15))
+
+        story.append(Spacer(1, 5))
         
         # 订单明细标题
         details_title_style = ParagraphStyle(
@@ -290,6 +406,62 @@ def get_status_text(status):
         'rejected': '已拒绝',
         'shipped': '已发货',
         'completed': '已完成',
-        'cancelled': '已取消'
+        'cancelled': '已取消',
+        'producing': '生产中',
+        'tested': '已测试',
+        'stored': '已入库'
     }
     return status_map.get(status, status)
+
+def get_production_status_text(status):
+    """获取生产状态的中文显示文本"""
+    status_map = {
+        'not_started': '未开始',
+        'preparing': '备料中',
+        'producing': '生产中',
+        'testing': '测试中',
+        'packaging': '包装中',
+        'ready': '已完成'
+    }
+    return status_map.get(status, status or '未开始')
+
+def get_test_status_text(status):
+    """获取测试状态的中文显示文本"""
+    status_map = {
+        'pending': '待测试',
+        'passed': '已通过',
+        'failed': '未通过',
+        'not_required': '无需测试'
+    }
+    return status_map.get(status, status or '待测试')
+
+def get_incoterms_text(incoterm):
+    """获取贸易术语的显示文本"""
+    incoterms_map = {
+        'DDP': 'DDP (完税后交货)',
+        'FOB': 'FOB (装运港船上交货)',
+        'CIF': 'CIF (成本加运费保险费)',
+        'EXW': 'EXW (工厂交货)',
+        'CFR': 'CFR (成本加运费)',
+        'DAP': 'DAP (目的地交货)'
+    }
+    return incoterms_map.get(incoterm, incoterm or '-')
+
+def get_shipping_method_text(method):
+    """获取运输方式的中文显示文本"""
+    method_map = {
+        'truck': '陆运',
+        'air': '空运',
+        'express': '快递',
+        'self_pickup': '自提',
+        'sea': '海运'
+    }
+    return method_map.get(method, method or '-')
+
+def get_freight_terms_text(terms):
+    """获取运费承担方式的中文显示文本"""
+    terms_map = {
+        'supplier': '供应商承担',
+        'buyer': '采购方承担'
+    }
+    return terms_map.get(terms, terms or '-')

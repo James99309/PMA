@@ -624,6 +624,265 @@ window.CustomerForm = (function() {
         currentEditingCompanyId = companyId;
     }
 
+    // ============================================================
+    // 地理位置功能
+    // ============================================================
+
+    // 地理位置 API
+    const GEO_API = {
+        reverseGeocode: '/customer/api/geocode/reverse'
+    };
+
+    // 定位状态
+    let isGettingLocation = false;
+
+    /**
+     * 显示定位状态
+     * @param {string} message - 状态消息
+     * @param {string} type - 状态类型: 'info', 'success', 'error'
+     */
+    function showLocationStatus(message, type) {
+        var statusEl = document.getElementById('locationStatus');
+        if (!statusEl) return;
+
+        statusEl.textContent = message;
+        statusEl.classList.remove('hidden', 'text-slate-500', 'text-green-500', 'text-red-500');
+
+        if (type === 'success') {
+            statusEl.classList.add('text-green-500');
+        } else if (type === 'error') {
+            statusEl.classList.add('text-red-500');
+        } else {
+            statusEl.classList.add('text-slate-500');
+        }
+    }
+
+    /**
+     * 隐藏定位状态
+     */
+    function hideLocationStatus() {
+        var statusEl = document.getElementById('locationStatus');
+        if (statusEl) {
+            statusEl.classList.add('hidden');
+        }
+    }
+
+    /**
+     * 设置定位按钮加载状态
+     * @param {boolean} loading - 是否加载中
+     */
+    function setLocationLoading(loading) {
+        var btn = document.getElementById('locationBtn');
+        var icon = document.getElementById('locationIcon');
+        var loadingIcon = document.getElementById('locationLoading');
+
+        if (btn) {
+            btn.disabled = loading;
+            if (loading) {
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        if (icon && loadingIcon) {
+            if (loading) {
+                icon.classList.add('hidden');
+                loadingIcon.classList.remove('hidden');
+            } else {
+                icon.classList.remove('hidden');
+                loadingIcon.classList.add('hidden');
+            }
+        }
+    }
+
+    /**
+     * 获取当前位置并填充地址
+     */
+    async function getLocation() {
+        if (isGettingLocation) return;
+
+        // 检查浏览器是否支持定位
+        if (!navigator.geolocation) {
+            showLocationStatus('您的浏览器不支持定位功能', 'error');
+            return;
+        }
+
+        isGettingLocation = true;
+        setLocationLoading(true);
+        showLocationStatus('正在获取位置...', 'info');
+
+        try {
+            // 获取浏览器定位
+            const position = await new Promise(function(resolve, reject) {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 60000
+                });
+            });
+
+            const latitude = position.coords.latitude;
+            const longitude = position.coords.longitude;
+
+            showLocationStatus('正在解析地址...', 'info');
+
+            // 调用后端 API 进行反向地理编码
+            const csrfToken = document.querySelector('meta[name="csrf-token"]');
+            const response = await fetch(GEO_API.reverseGeocode, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken ? csrfToken.getAttribute('content') : ''
+                },
+                body: JSON.stringify({
+                    latitude: latitude,
+                    longitude: longitude
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success && result.data) {
+                // 自动填充表单
+                fillAddressFromLocation(result.data);
+                showLocationStatus('✓ 定位成功：' + result.data.formatted_address, 'success');
+
+                // 3秒后隐藏状态提示
+                setTimeout(function() {
+                    hideLocationStatus();
+                }, 3000);
+            } else {
+                showLocationStatus(result.message || '地址解析失败', 'error');
+            }
+
+        } catch (error) {
+            console.error('定位失败:', error);
+
+            var errorMessage = '定位失败';
+            if (error.code === 1) {
+                errorMessage = '您拒绝了位置授权，请在浏览器设置中允许访问位置';
+            } else if (error.code === 2) {
+                errorMessage = '无法获取位置信息，请检查网络连接';
+            } else if (error.code === 3) {
+                errorMessage = '获取位置超时，请重试';
+            }
+
+            showLocationStatus(errorMessage, 'error');
+        } finally {
+            isGettingLocation = false;
+            setLocationLoading(false);
+        }
+    }
+
+    /**
+     * 根据定位结果填充地址表单
+     * @param {Object} locationData - 定位数据
+     */
+    function fillAddressFromLocation(locationData) {
+        console.log('[fillAddressFromLocation] 收到数据:', locationData);
+
+        // 填充国家
+        var countrySelect = document.getElementById('country');
+        if (countrySelect && locationData.country) {
+            countrySelect.value = locationData.country;
+            console.log('[fillAddressFromLocation] 设置国家:', locationData.country, '当前值:', countrySelect.value);
+            // 触发 change 事件以更新省/州下拉框
+            countrySelect.dispatchEvent(new Event('change'));
+        }
+
+        // 等待省/州下拉框更新后填充 - 增加延迟到 300ms
+        setTimeout(function() {
+            // 填充省/州
+            var regionSelect = document.getElementById('region');
+            console.log('[fillAddressFromLocation] region 下拉框选项数:', regionSelect ? regionSelect.options.length : 0);
+
+            if (regionSelect && locationData.region) {
+                console.log('[fillAddressFromLocation] 尝试匹配 region:', locationData.region);
+
+                // 尝试精确匹配
+                var found = false;
+                for (var i = 0; i < regionSelect.options.length; i++) {
+                    var option = regionSelect.options[i];
+                    // 跳过空值选项（占位符）
+                    if (!option.value) continue;
+
+                    if (option.value === locationData.region ||
+                        option.textContent === locationData.region ||
+                        locationData.region.includes(option.value) ||
+                        option.value.includes(locationData.region)) {
+                        regionSelect.value = option.value;
+                        found = true;
+                        console.log('[fillAddressFromLocation] 精确匹配成功:', option.value);
+                        break;
+                    }
+                }
+
+                // 如果没找到精确匹配，尝试模糊匹配
+                if (!found) {
+                    var regionName = locationData.region.replace(/省|市|自治区|特别行政区/g, '');
+                    for (var j = 0; j < regionSelect.options.length; j++) {
+                        var opt = regionSelect.options[j];
+                        var optName = opt.textContent.replace(/省|市|自治区|特别行政区/g, '');
+                        if (optName.includes(regionName) || regionName.includes(optName)) {
+                            regionSelect.value = opt.value;
+                            console.log('[fillAddressFromLocation] 模糊匹配成功:', opt.value);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 填充详细地址 - 优先使用 formatted_address
+            var addressInput = document.getElementById('address');
+            if (addressInput) {
+                var detailAddress = '';
+
+                // 优先从 formatted_address 提取详细地址
+                if (locationData.formatted_address) {
+                    detailAddress = locationData.formatted_address;
+                    // 去除国家名称
+                    if (locationData.country_name) {
+                        detailAddress = detailAddress.replace(locationData.country_name, '').trim();
+                    }
+                    // 去除省/州名称
+                    if (locationData.region) {
+                        detailAddress = detailAddress.replace(locationData.region, '').trim();
+                    }
+                    // 清理前导逗号和空格
+                    detailAddress = detailAddress.replace(/^[,\s，]+/, '').trim();
+                }
+
+                // 如果 formatted_address 处理后为空，回退到组合逻辑
+                if (!detailAddress) {
+                    var addressParts = [];
+                    if (locationData.city) {
+                        addressParts.push(locationData.city);
+                    }
+                    if (locationData.district) {
+                        addressParts.push(locationData.district);
+                    }
+                    if (locationData.address) {
+                        addressParts.push(locationData.address);
+                    }
+
+                    // 去重并组合
+                    var uniqueParts = [];
+                    addressParts.forEach(function(part) {
+                        if (part && !uniqueParts.some(function(p) { return p.includes(part) || part.includes(p); })) {
+                            uniqueParts.push(part);
+                        }
+                    });
+
+                    detailAddress = uniqueParts.join(' ');
+                }
+
+                addressInput.value = detailAddress;
+                console.log('[fillAddressFromLocation] 填充详细地址:', detailAddress);
+            }
+        }, 300);  // 从 100ms 增加到 300ms
+    }
+
     // 公开 API
     return {
         init: initForm,
@@ -641,6 +900,9 @@ window.CustomerForm = (function() {
         setEditingCompanyId: setEditingCompanyId,
         validateName: validateCompanyName,
         hideSuggestions: hideSuggestions,
-        clearNameError: clearNameError
+        clearNameError: clearNameError,
+        // 地理位置功能
+        getLocation: getLocation,
+        fillAddressFromLocation: fillAddressFromLocation
     };
 })();

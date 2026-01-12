@@ -54,8 +54,23 @@ else:
 
 def get_metadata():
     if target_db is None:
-        # 独立模式 - 返回None，迁移将基于现有数据库结构
-        return None
+        # 独立模式 - 尝试从app导入模型元数据
+        try:
+            import sys
+            # 确保项目根目录在路径中
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if project_root not in sys.path:
+                sys.path.insert(0, project_root)
+
+            from app import db
+            # 导入所有模型以确保它们被注册
+            from app import models  # noqa: F401
+            if hasattr(db, 'metadatas'):
+                return db.metadatas[None]
+            return db.metadata
+        except Exception as e:
+            logger.warning(f"独立模式下无法获取元数据: {e}")
+            return None
     if hasattr(target_db, 'metadatas'):
         return target_db.metadatas[None]
     return target_db.metadata

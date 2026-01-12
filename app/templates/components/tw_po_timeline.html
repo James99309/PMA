@@ -1,0 +1,466 @@
+{#
+    采购订单统一流程时间线组件
+
+    使用审批流程组件的视觉风格，整合：
+    - 审批阶段（支持审批操作）
+    - 生产进度（可点击推进）
+    - 验收入库
+
+    用法:
+    {% from 'components/tw_po_timeline.html' import render_po_timeline, render_po_timeline_script %}
+
+    {{ render_po_timeline(order, today, has_permission('order', 'edit')) }}
+    {{ render_po_timeline_script(order) }}
+#}
+
+{% from 'components/tw_card_shell.html' import tw_card_shell with context %}
+
+{# ========================================
+   主时间线组件
+   ======================================== #}
+{% macro render_po_timeline(order, today, can_edit=false, current_user_id=none) %}
+<div class="bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <!-- 卡片头部 -->
+    <div class="flex justify-between items-center p-4">
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('订单流程') }}</h3>
+    </div>
+
+    <!-- 时间线内容 -->
+    <div class="p-4">
+        {% if order.status in ['draft', 'recalled'] %}
+        {# 草稿或召回状态：显示尚未提交提示 #}
+        <div class="text-center py-8">
+            <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">edit_note</span>
+            <p class="mt-2 text-slate-500 dark:text-slate-400">{{ _('尚未提交审批') }}</p>
+            <p class="text-sm text-slate-400 dark:text-slate-500">{{ _('点击上方按钮提交审批') }}</p>
+        </div>
+        {% else %}
+        {# 已提交状态：显示完整流程时间线 #}
+        <div class="relative">
+            <!-- 审批流程节点（动态渲染） -->
+            <div id="approvalFlowContainer" class="relative pb-14">
+                <!-- 加载中状态 -->
+                <div class="relative pl-8">
+                    <div class="absolute left-[9px] top-0 bottom-0 w-0.5 bg-slate-200 dark:bg-slate-700"></div>
+                    <div class="flex items-center justify-center py-4">
+                        <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                        <span class="ml-2 text-xs text-slate-400">{{ _('加载中...') }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 供应商确认节点 -->
+            {% set supplier_status = 'completed' if order.supplier_confirmed else 'pending' %}
+            {{ render_timeline_node(
+                title=_('供应商确认'),
+                status=supplier_status,
+                time=order.supplier_confirmed_date.strftime('%Y-%m-%d') if order.supplier_confirmed_date else '',
+                subtitle=order.supplier_confirmed_by if order.supplier_confirmed else _('待确认'),
+                show_line=true,
+                action_btn={'label': _('确认'), 'onclick': 'openSupplierConfirmModal()'} if can_edit and order.status == 'approved' and not order.supplier_confirmed else none
+            ) }}
+
+            {# 生产阶段配置 - 供应商确认后才进入生产流程，从"备料"开始 #}
+            {% set stage_config = [
+                {'key': 'preparing', 'label': '备料', 'date_field': none},
+                {'key': 'producing', 'label': '生产', 'date_field': none},
+                {'key': 'testing', 'label': '测试', 'date_field': 'milestone_test_complete_date'},
+                {'key': 'packaging', 'label': '包装', 'date_field': none},
+                {'key': 'ready', 'label': '待发货', 'date_field': 'milestone_ship_date'},
+                {'key': 'delivered', 'label': '到货', 'date_field': 'confirmed_date'}
+            ] %}
+            {% set stage_order = {'preparing': 0, 'producing': 1, 'testing': 2, 'packaging': 3, 'ready': 4, 'delivered': 5} %}
+            {# 供应商确认后，默认从备料阶段开始（order为-1表示还未进入生产流程） #}
+            {% set current_stage_order = stage_order.get(order.production_status, -1) %}
+
+            {% for stage in stage_config %}
+            {% set stage_num = loop.index0 %}
+            {% set is_completed = stage_num < current_stage_order %}
+            {% set is_current = stage_num == current_stage_order %}
+            {% set is_future = stage_num > current_stage_order %}
+            {% set is_last_stage = loop.last %}
+
+            {# 获取计划日期 #}
+            {% set planned_date = none %}
+            {% if stage.date_field %}
+                {% set planned_date = order[stage.date_field] %}
+            {% endif %}
+
+            {# 计算日期状态 #}
+            {% set days_diff = none %}
+            {% set date_status = 'future' %}
+            {% set is_stage_overdue = false %}
+            {% if planned_date and today %}
+                {% set planned_date_only = planned_date.date() if planned_date.date is defined else planned_date %}
+                {% if is_completed %}
+                    {% set date_status = 'completed' %}
+                {% elif is_current or is_future %}
+                    {% set days_diff = (planned_date_only - today).days %}
+                    {% if days_diff < 0 %}
+                        {% set date_status = 'overdue' %}
+                        {% set is_stage_overdue = true %}
+                    {% elif days_diff == 0 %}
+                        {% set date_status = 'today' %}
+                    {% else %}
+                        {% set date_status = 'future' %}
+                    {% endif %}
+                {% endif %}
+            {% endif %}
+
+            {# 确定节点状态 #}
+            {% set node_status = 'pending' %}
+            {% if is_completed %}
+                {% set node_status = 'completed' %}
+            {% elif is_current %}
+                {% if is_stage_overdue %}
+                    {% set node_status = 'overdue' %}
+                {% else %}
+                    {% set node_status = 'current' %}
+                {% endif %}
+            {% endif %}
+
+            {# 构建时间文本 #}
+            {% set time_text = '' %}
+            {% if planned_date %}
+                {% set time_text = planned_date.strftime('%m/%d') %}
+                {% if date_status == 'overdue' %}
+                    {% set time_text = time_text ~ ' 超期' ~ (-days_diff) ~ '天' %}
+                {% elif date_status == 'today' %}
+                    {% set time_text = time_text ~ ' 今天' %}
+                {% elif is_future and days_diff is not none and days_diff > 0 %}
+                    {% set time_text = time_text ~ ' 剩' ~ days_diff ~ '天' %}
+                {% endif %}
+            {% endif %}
+
+            {# 可点击推进的阶段 #}
+            {% set can_click = is_future and can_edit and order.status in ['approved', 'confirmed', 'producing', 'tested'] %}
+
+            {{ render_production_stage_node(
+                title=_(stage.label),
+                status=node_status,
+                time=time_text,
+                stage_key=stage.key,
+                show_line=true,
+                can_click=can_click,
+                show_test_conditions=is_current and stage.key == 'testing' and can_edit,
+                order=order
+            ) }}
+            {% endfor %}
+
+            {# 验收入库节点 - 最后一个节点不需要连线 #}
+            {% set acceptance_status = 'completed' if order.acceptance_status == 'passed' else 'pending' %}
+            {{ render_timeline_node(
+                title=_('验收入库'),
+                status=acceptance_status,
+                time=order.acceptance_date.strftime('%Y-%m-%d') if order.acceptance_date else '',
+                subtitle=_('已完成') if order.acceptance_status == 'passed' else _('待验收'),
+                show_line=false,
+                action_btn={'label': _('验收'), 'onclick': 'openAcceptanceModal()'} if can_edit and order.status == 'shipped' else none
+            ) }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ========================================
+   通用时间线节点
+   ======================================== #}
+{% macro render_timeline_node(title, status='pending', time='', subtitle='', show_line=true, action_btn=none) %}
+<div class="relative pl-8 pb-14">
+    {# 向上连接线（连接到上一个节点） #}
+    <div class="absolute left-[9px] top-0 h-[10px] w-0.5 bg-slate-200 dark:bg-slate-700 -mt-14"></div>
+    {# 向下连接线 #}
+    {% if show_line %}
+    <div class="absolute left-[9px] top-5 bottom-0 w-0.5
+        {% if status == 'completed' %}bg-green-500{% else %}bg-slate-200 dark:bg-slate-700{% endif %}"></div>
+    {% endif %}
+
+    {# 节点圆点 #}
+    <div class="absolute left-0 top-0 flex h-5 w-5 z-10">
+        {% if status == 'completed' %}
+        <span class="relative inline-flex rounded-full h-5 w-5 bg-green-500 ring-4 ring-white dark:ring-slate-900 items-center justify-center">
+            <span class="material-symbols-outlined text-white text-xs">check</span>
+        </span>
+        {% elif status == 'current' %}
+        <span class="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75 animate-ping"></span>
+        <span class="relative inline-flex rounded-full h-5 w-5 bg-amber-500 ring-4 ring-white dark:ring-slate-900 items-center justify-center">
+            <span class="material-symbols-outlined text-white text-xs">pending</span>
+        </span>
+        {% elif status == 'overdue' %}
+        <span class="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping"></span>
+        <span class="relative inline-flex rounded-full h-5 w-5 bg-red-500 ring-4 ring-white dark:ring-slate-900 items-center justify-center">
+            <span class="material-symbols-outlined text-white text-xs">warning</span>
+        </span>
+        {% else %}
+        <span class="relative inline-flex rounded-full h-5 w-5 bg-slate-200 dark:bg-slate-600 ring-4 ring-white dark:ring-slate-900"></span>
+        {% endif %}
+    </div>
+
+    {# 节点内容 #}
+    <div class="flex items-start justify-between">
+        <div>
+            <p class="text-sm font-semibold
+                {% if status == 'completed' %}text-slate-900 dark:text-slate-100
+                {% elif status == 'current' %}text-amber-600 dark:text-amber-400
+                {% elif status == 'overdue' %}text-red-600 dark:text-red-400
+                {% else %}text-slate-500 dark:text-slate-400{% endif %}">
+                {{ title }}
+                {% if status == 'completed' %}
+                <span class="text-xs text-green-600 dark:text-green-400 font-medium ml-2">✓</span>
+                {% elif status == 'current' %}
+                <span class="text-xs text-amber-600 dark:text-amber-400 font-medium ml-2">{{ _('当前') }}</span>
+                {% elif status == 'overdue' %}
+                <span class="text-xs text-red-600 dark:text-red-400 font-medium ml-2">{{ _('超期') }}</span>
+                {% endif %}
+            </p>
+            {% if subtitle %}
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ subtitle }}</p>
+            {% endif %}
+            {% if action_btn %}
+            <button onclick="{{ action_btn.onclick }}"
+                class="mt-2 text-xs px-2 py-1 text-primary hover:bg-primary/10 rounded transition-colors">
+                {{ action_btn.label }}
+            </button>
+            {% endif %}
+        </div>
+        {% if time %}
+        <div class="text-right text-xs font-mono
+            {% if status == 'overdue' %}text-red-500 dark:text-red-400
+            {% else %}text-slate-400 dark:text-slate-500{% endif %}">
+            {% set time_parts = time.split(' ') %}
+            <p>{{ time_parts[0] if time_parts|length > 0 else time }}</p>
+            {% if time_parts|length > 1 %}
+            <p>{{ time_parts[1] }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ========================================
+   生产阶段节点（可点击推进）
+   ======================================== #}
+{% macro render_production_stage_node(title, status='pending', time='', stage_key='', show_line=true, can_click=false, show_test_conditions=false, order=none) %}
+<div class="relative pl-8 pb-14 {% if can_click %}cursor-pointer group{% endif %}"
+     {% if can_click %}onclick="advanceToStage('{{ stage_key }}')"{% endif %}>
+    {# 向上连接线（连接到上一个节点） #}
+    <div class="absolute left-[9px] top-0 h-[10px] w-0.5 bg-slate-200 dark:bg-slate-700 -mt-14"></div>
+    {# 向下连接线 #}
+    {% if show_line %}
+    <div class="absolute left-[9px] top-5 bottom-0 w-0.5
+        {% if status == 'completed' %}bg-green-500{% else %}bg-slate-200 dark:bg-slate-700{% endif %}"></div>
+    {% endif %}
+
+    {# 节点圆点 #}
+    <div class="absolute left-0 top-0 flex h-5 w-5 z-10">
+        {% if status == 'completed' %}
+        <span class="relative inline-flex rounded-full h-5 w-5 bg-green-500 ring-4 ring-white dark:ring-slate-900 items-center justify-center">
+            <span class="material-symbols-outlined text-white text-xs">check</span>
+        </span>
+        {% elif status == 'current' %}
+        <span class="absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 animate-ping"></span>
+        <span class="relative inline-flex rounded-full h-5 w-5 bg-primary ring-4 ring-white dark:ring-slate-900 items-center justify-center">
+            <span class="material-symbols-outlined text-white text-xs">radio_button_checked</span>
+        </span>
+        {% elif status == 'overdue' %}
+        <span class="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping"></span>
+        <span class="relative inline-flex rounded-full h-5 w-5 bg-red-500 ring-4 ring-white dark:ring-slate-900 items-center justify-center">
+            <span class="material-symbols-outlined text-white text-xs">warning</span>
+        </span>
+        {% else %}
+        <span class="relative inline-flex rounded-full h-5 w-5 bg-slate-200 dark:bg-slate-600 ring-4 ring-white dark:ring-slate-900
+            {% if can_click %}group-hover:bg-primary/50{% endif %}"></span>
+        {% endif %}
+    </div>
+
+    {# 节点内容 #}
+    <div class="flex items-start justify-between">
+        <p class="text-sm font-medium
+            {% if status == 'completed' %}text-slate-700 dark:text-slate-300
+            {% elif status == 'current' %}text-primary font-semibold
+            {% elif status == 'overdue' %}text-red-600 dark:text-red-400 font-semibold
+            {% else %}text-slate-400 dark:text-slate-500 {% if can_click %}group-hover:text-primary{% endif %}{% endif %}">
+            {{ title }}
+            {% if status == 'completed' %}
+            <span class="text-green-500 ml-1">✓</span>
+            {% elif status == 'current' %}
+            <span class="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded ml-2">{{ _('进行中') }}</span>
+            {% elif status == 'overdue' %}
+            <span class="text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded ml-2">{{ _('超期') }}</span>
+            {% endif %}
+        </p>
+        {% if time %}
+        <div class="text-right text-xs font-mono
+            {% if status == 'overdue' %}text-red-500 dark:text-red-400 font-medium
+            {% else %}text-slate-400 dark:text-slate-500{% endif %}">
+            {% set time_parts = time.split(' ') %}
+            <p>{{ time_parts[0] if time_parts|length > 0 else time }}</p>
+            {% if time_parts|length > 1 %}
+            <p>{{ time_parts[1] }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    {# 测试阶段条件（仅测试阶段且为当前阶段时显示） #}
+    {% if show_test_conditions and order %}
+    <div class="mt-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+        <p class="text-xs font-medium text-amber-700 dark:text-amber-400 mb-2">{{ _('推进条件') }}</p>
+        <div class="space-y-1.5">
+            <div class="flex items-center gap-2 text-xs">
+                {% if order.factory_test_status == 'passed' %}
+                <span class="material-symbols-outlined text-green-500 text-sm">check_circle</span>
+                <span class="text-slate-700 dark:text-slate-300">{{ _('测试通过') }}</span>
+                {% else %}
+                <span class="material-symbols-outlined text-slate-400 text-sm">radio_button_unchecked</span>
+                <span class="text-slate-500">{{ _('测试通过') }}</span>
+                {% endif %}
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+                {% if order.factory_test_report_url %}
+                <span class="material-symbols-outlined text-green-500 text-sm">check_circle</span>
+                <span class="text-slate-700 dark:text-slate-300">{{ _('报告上传') }}</span>
+                {% else %}
+                <span class="material-symbols-outlined text-slate-400 text-sm">radio_button_unchecked</span>
+                <span class="text-slate-500">{{ _('报告上传') }}</span>
+                {% endif %}
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+                {% if order.factory_test_signed_at %}
+                <span class="material-symbols-outlined text-green-500 text-sm">check_circle</span>
+                <span class="text-slate-700 dark:text-slate-300">{{ _('报告签证') }}</span>
+                {% else %}
+                <span class="material-symbols-outlined text-slate-400 text-sm">radio_button_unchecked</span>
+                <span class="text-slate-500">{{ _('报告签证') }}</span>
+                {% endif %}
+            </div>
+            {% if order.verification_test_type == 'site_fat' %}
+            <div class="flex items-center gap-2 text-xs">
+                {% if order.fat_completed %}
+                <span class="material-symbols-outlined text-green-500 text-sm">check_circle</span>
+                <span class="text-slate-700 dark:text-slate-300">{{ _('FAT完成') }}</span>
+                {% else %}
+                <span class="material-symbols-outlined text-slate-400 text-sm">radio_button_unchecked</span>
+                <span class="text-slate-500">{{ _('FAT完成') }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# 可点击提示 #}
+    {% if can_click %}
+    <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 group-hover:text-primary transition-colors">
+        {{ _('点击推进到此阶段') }} →
+    </p>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{# ========================================
+   时间线脚本（阶段推进逻辑）
+   ======================================== #}
+{% macro render_po_timeline_script(order) %}
+<script>
+(function() {
+    const orderId = {{ order.id }};
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const currentStage = '{{ order.production_status }}';
+
+    // 生产阶段标签 - 供应商确认后从"备料"开始
+    const stageLabels = {
+        'preparing': '{{ _("备料") }}',
+        'producing': '{{ _("生产") }}',
+        'testing': '{{ _("测试") }}',
+        'packaging': '{{ _("包装") }}',
+        'ready': '{{ _("待发货") }}',
+        'delivered': '{{ _("到货") }}'
+    };
+
+    const stageOrder = {'preparing': 0, 'producing': 1, 'testing': 2, 'packaging': 3, 'ready': 4, 'delivered': 5};
+
+    let pendingStage = null;
+
+    // 点击阶段名称推进到该阶段
+    window.advanceToStage = function(targetStage) {
+        // 只能向前推进
+        if (stageOrder[targetStage] <= stageOrder[currentStage]) {
+            showToast('{{ _("只能推进到后续阶段") }}', 'warning');
+            return;
+        }
+
+        // 如果当前是测试阶段且要推进到包装或之后，需要检查条件
+        if (currentStage === 'testing' && stageOrder[targetStage] >= stageOrder['packaging']) {
+            checkAndAdvanceStage(targetStage);
+        } else {
+            confirmAdvanceStage(targetStage);
+        }
+    };
+
+    function confirmAdvanceStage(targetStage) {
+        pendingStage = targetStage;
+        openConfirmModal('advanceStageModal', {
+            title: '{{ _("确认推进阶段") }}',
+            message: '{{ _("确定要推进到") }} "' + (stageLabels[targetStage] || targetStage) + '" {{ _("阶段吗？") }}',
+            onConfirm: executeAdvanceStage
+        });
+    }
+
+    async function checkAndAdvanceStage(targetStage) {
+        try {
+            const response = await fetch(`/purchase-order/api/${orderId}/check-stage-conditions`, {
+                method: 'GET',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const result = await response.json();
+            if (result.success) {
+                if (result.all_conditions_met) {
+                    pendingStage = targetStage;
+                    openConfirmModal('advanceStageModal', {
+                        title: '{{ _("条件已满足") }}',
+                        message: '{{ _("所有推进条件已满足，确定要推进吗？") }}',
+                        onConfirm: executeAdvanceStage
+                    });
+                } else {
+                    const failedList = result.failed_conditions.join('、');
+                    showToast('{{ _("条件未满足") }}: ' + failedList, 'warning');
+                }
+            } else {
+                showToast(result.message || '{{ _("检查失败") }}', 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('{{ _("操作失败") }}', 'error');
+        }
+    }
+
+    async function executeAdvanceStage() {
+        if (!pendingStage) return;
+        try {
+            const response = await fetch(`/purchase-order/api/${orderId}/advance-stage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ target_stage: pendingStage })
+            });
+            const result = await response.json();
+            if (result.success) {
+                showToast('{{ _("阶段推进成功") }}', 'success');
+                setTimeout(() => location.reload(), 500);
+            } else {
+                showToast(result.message || '{{ _("推进失败") }}', 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('{{ _("操作失败") }}', 'error');
+        }
+        pendingStage = null;
+    }
+})();
+</script>
+{% endmacro %}
