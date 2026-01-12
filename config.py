@@ -43,7 +43,10 @@ def get_database_url():
 
 class Config:
     """基础配置类 - 支持动态数据库配置"""
-    
+
+    # 统一版本号（所有环境共用，基于代码而非数据库）
+    APP_VERSION = '1.21.18'
+
     # 基本配置
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'local-development-secret-key-pma-2025'
     
@@ -86,7 +89,6 @@ class Config:
         DEBUG = False
         TESTING = False
         ENVIRONMENT = 'production'
-        APP_VERSION = '1.2.2-CLOUD'
         APP_NAME = 'PMA项目管理系统 (云端版)'
         CLOUD_PROVIDER = 'render'
         
@@ -143,7 +145,6 @@ class Config:
         DEBUG = True
         TESTING = False
         ENVIRONMENT = 'local'
-        APP_VERSION = '1.2.2-LOCAL'
         APP_NAME = 'PMA项目管理系统 (本地版)'
         CLOUD_PROVIDER = 'local'
         

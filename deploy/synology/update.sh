@@ -2,6 +2,11 @@
 # PMA 一键更新脚本
 # 在群晖上执行此脚本即可完成更新
 
+# 自动提升为 root 权限
+if [ "$EUID" -ne 0 ]; then
+    exec sudo bash "$0" "$@"
+fi
+
 set -e
 
 # 颜色输出

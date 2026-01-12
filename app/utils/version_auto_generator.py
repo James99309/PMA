@@ -31,73 +31,29 @@ class VersionAutoGenerator:
     def get_unified_version(self):
         """获取统一的当前版本号"""
         try:
-            # 优先级：环境变量 > 基于Git的当前版本 > 数据库当前版本 > 配置文件 > Git标签 > 默认值
-            
-            # 1. 环境变量（部署时设置）
+            # 优先级：配置文件（代码定义）> 环境变量 > 默认值
+            # 注：版本号基于代码而非数据库，确保各环境代码一致则版本一致
+
+            # 1. 配置文件版本（推荐，在 config.py 中统一定义）
+            config_version = current_app.config.get('APP_VERSION')
+            if config_version:
+                logger.info(f"使用配置文件版本: {config_version}")
+                return config_version
+
+            # 2. 环境变量（部署时覆盖）
             env_version = os.environ.get('APP_VERSION')
             if env_version:
                 logger.info(f"使用环境变量版本: {env_version}")
                 return env_version
-            
-            # 2. 检查Git记录是否需要更新版本
-            latest_commit = self._get_latest_commit_info()
-            if latest_commit:
-                # 检查数据库中是否已有基于此提交的版本
-                existing_version = VersionRecord.query.filter_by(git_commit=latest_commit['hash']).first()
-                if existing_version:
-                    # 确保此版本是当前版本
-                    if not existing_version.is_current:
-                        VersionRecord.query.update({'is_current': False})
-                        existing_version.is_current = True
-                        db.session.commit()
-                        logger.info(f"更新当前版本为基于Git的版本: {existing_version.version_number}")
-                    return existing_version.version_number
-                
-                # 如果没有基于此提交的版本，检查是否需要自动创建
-                current_db_version = VersionRecord.get_current_version()
-                if current_db_version:
-                    # 检查数据库版本的Git提交是否与最新提交不同
-                    if current_db_version.git_commit != latest_commit['hash']:
-                        logger.info(f"检测到新的Git提交，开始自动创建新版本")
-                        # 自动创建基于新Git提交的版本
-                        new_version = self.auto_create_version_from_git()
-                        if new_version:
-                            logger.info(f"自动创建版本成功: {new_version.version_number}")
-                            return new_version.version_number
-                        else:
-                            logger.warning("自动创建版本失败，使用当前数据库版本")
-                    return current_db_version.version_number
-                
-            # 3. 数据库当前版本
-            current_version = VersionRecord.get_current_version()
-            if current_version:
-                logger.info(f"使用数据库当前版本: {current_version.version_number}")
-                return current_version.version_number
-                
-            # 4. 配置文件版本
-            config_version = current_app.config.get('APP_VERSION')
-            if config_version:
-                logger.info(f"使用配置文件版本: {config_version}")
-                # 创建基于最新Git提交的初始版本记录
-                self._create_initial_version_with_git(config_version)
-                return config_version
-                
-            # 5. Git标签版本
-            git_version = self._get_latest_git_tag()
-            if git_version:
-                logger.info(f"使用Git标签版本: {git_version}")
-                self._create_initial_version_with_git(git_version)
-                return git_version
-                
-            # 6. 默认版本
-            default_version = "1.2.0"
+
+            # 3. 默认版本
+            default_version = "1.0.0"
             logger.warning(f"使用默认版本: {default_version}")
-            self._create_initial_version_with_git(default_version)
             return default_version
-            
+
         except Exception as e:
             logger.error(f"获取统一版本号失败: {str(e)}")
-            return "1.2.0"
+            return "1.0.0"
     
     def generate_next_version(self, change_type='patch'):
         """
