@@ -3311,12 +3311,16 @@
                     this.permissions[moduleId] = {};
                 }
                 if (enabled) {
-                    this.permissions[moduleId].can_view = true;
+                    // 启用时设置默认权限级别为"个人"，并触发联动逻辑
+                    this.permissions[moduleId].permission_level = 'personal';
+                    this.onPermissionLevelChange(moduleId, 'personal');
                 } else {
+                    // 禁用时清除所有权限
                     this.permissions[moduleId].can_view = false;
                     this.permissions[moduleId].can_create = false;
                     this.permissions[moduleId].can_edit = false;
                     this.permissions[moduleId].can_delete = false;
+                    this.permissions[moduleId].permission_level = null;
                 }
                 this.markChanged();
             },

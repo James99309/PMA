@@ -7,7 +7,7 @@ PMA Synology NAS deployment access information.
 | Service | URL |
 |---------|-----|
 | **PMA Website** | https://garbage-lottery-hanging-biological.trycloudflare.com |
-| **SSH Tunnel** | wireless-holmes-graphic-told.trycloudflare.com |
+| **SSH Tunnel** | penalties-requested-bridge-gif.trycloudflare.com |
 
 ---
 
@@ -27,11 +27,23 @@ http://192.168.1.2:5002
 
 ## SSH Access
 
-### External Access (via Cloudflare Tunnel)
+### One-Click Connect (Recommended)
+
+From PMA project root directory:
+```bash
+./ssh-nas.sh
+```
+
+If tunnel address changed:
+```bash
+./ssh-nas.sh new-address.trycloudflare.com
+```
+
+### Manual External Access (via Cloudflare Tunnel)
 
 **Step 1: Start the proxy (keep running)**
 ```bash
-cloudflared access tcp --hostname wireless-holmes-graphic-told.trycloudflare.com --url localhost:2222
+cloudflared access tcp --hostname penalties-requested-bridge-gif.trycloudflare.com --url localhost:2222
 ```
 
 **Step 2: Connect via SSH (new terminal)**
@@ -42,22 +54,6 @@ ssh -p 2222 admin@localhost
 ### Internal Access (LAN)
 ```bash
 ssh admin@192.168.1.2
-```
-
-### SSH Config (Optional)
-
-Add to `~/.ssh/config` for easier access:
-```
-Host synology-tunnel
-    HostName localhost
-    Port 2222
-    User admin
-    ProxyCommand cloudflared access tcp --hostname wireless-holmes-graphic-told.trycloudflare.com --url %h:%p
-```
-
-Then simply run:
-```bash
-ssh synology-tunnel
 ```
 
 ---
@@ -97,6 +93,22 @@ sudo docker logs cloudflared-ssh 2>&1 | grep trycloudflare
 
 # HTTP tunnel address
 sudo docker logs cloudflared 2>&1 | grep trycloudflare
+```
+
+### Restart SSH Tunnel (on Synology)
+
+```bash
+sudo docker stop cloudflared-ssh
+sudo docker rm cloudflared-ssh
+
+sudo docker run -d --name cloudflared-ssh \
+  --restart unless-stopped \
+  cloudflare/cloudflared:latest \
+  tunnel --no-autoupdate --url tcp://192.168.1.2:22
+
+# Wait and get new address
+sleep 8
+sudo docker logs cloudflared-ssh 2>&1 | grep trycloudflare
 ```
 
 ---
@@ -145,4 +157,4 @@ sudo docker exec pma-postgres pg_dump -U pma pma > backup_$(date +%Y%m%d).sql
 
 ---
 
-*Last Updated: 2026-01-11*
+*Last Updated: 2026-01-12*

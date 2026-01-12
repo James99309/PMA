@@ -424,6 +424,14 @@ def calendar():
     # 获取可共享用户树（用于用户选择器组件）
     shareable_users_tree = get_shareable_users_tree(current_user)
 
+    # 检查用户是否有查看他人日志的权限（用于显示账户选择器）
+    worklog_permission = current_user.get_permission_level('worklog')
+    can_view_others_worklog = (
+        current_user.role in ['admin', 'ceo'] or
+        current_user.is_department_manager or
+        worklog_permission in ['company', 'department', 'system']
+    )
+
     return render_template(
         'worklog/tw_calendar.html',
         work_type_options=work_type_options,
@@ -432,7 +440,8 @@ def calendar():
         has_manage_permission=has_manage_permission,
         projects=projects,
         customers=customers,
-        shareable_users_tree=shareable_users_tree
+        shareable_users_tree=shareable_users_tree,
+        can_view_others_worklog=can_view_others_worklog
     )
 
 
@@ -492,27 +501,37 @@ def get_items():
     owner_id = request.args.get('owner_id', type=int)
 
     if owner_id:
-        # 检查权限：管理员/CEO 或 部门负责人可以查看他人日历
+        # 检查权限：基于 worklog 模块权限配置
         from app.permissions import is_admin_or_ceo
-        can_view_others = is_admin_or_ceo() or current_user.is_department_manager
+        from app.models.user import User
+        from app.models.expense import Department
 
-        if not can_view_others:
-            return jsonify({'error': '无权查看他人日历', 'events': [], 'datesWithItems': []}), 403
+        target_user = User.query.get(owner_id)
+        if not target_user:
+            return jsonify({'error': '用户不存在', 'events': [], 'datesWithItems': []}), 404
 
-        # 部门负责人只能查看管理部门的成员
-        if current_user.is_department_manager and not is_admin_or_ceo():
-            from app.models.user import User
-            from app.models.expense import Department
-            target_user = User.query.get(owner_id)
+        # 获取 worklog 模块权限级别
+        worklog_permission = current_user.get_permission_level('worklog')
 
-            # 获取用户管理的所有部门名称
+        # 判断是否有权查看目标用户
+        can_view_target = False
+
+        if is_admin_or_ceo() or worklog_permission == 'system':
+            # 管理员/CEO 或 system 级权限：可查看所有人
+            can_view_target = True
+        elif worklog_permission == 'company':
+            # company 级权限：可查看同公司用户
+            can_view_target = target_user.company_name == current_user.company_name
+        elif worklog_permission == 'department' or current_user.is_department_manager:
+            # department 级权限或部门负责人：可查看同部门/管理部门的用户
             managed_depts = Department.query.filter_by(manager_id=current_user.id).all()
             managed_dept_names = [d.name for d in managed_depts]
             if current_user.department and current_user.department not in managed_dept_names:
                 managed_dept_names.append(current_user.department)
+            can_view_target = target_user.department in managed_dept_names
 
-            if not target_user or target_user.department not in managed_dept_names:
-                return jsonify({'error': '只能查看管理部门成员日历', 'events': [], 'datesWithItems': []}), 403
+        if not can_view_target:
+            return jsonify({'error': '无权查看该用户日历', 'events': [], 'datesWithItems': []}), 403
 
         # 查询指定用户的工作项
         query = WorkItem.query.filter(

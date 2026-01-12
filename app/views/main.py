@@ -589,9 +589,25 @@ def get_available_accounts():
                 })
         else:
             # 使用权限配置系统判断可见账户
-            # 注：可见账户范围通过权限级别控制
-            permission_level = current_user.get_permission_level('customer')
-            if permission_level in ['company', 'department'] or current_user.is_department_manager:
+            # 注：可见账户范围通过 worklog 模块权限级别控制
+            permission_level = current_user.get_permission_level('worklog')
+
+            if permission_level == 'company':
+                # company 级权限：可查看同公司所有用户
+                all_users = User.query.filter(
+                    User.id != current_user.id,
+                    User._is_active == True,
+                    User.company_name == current_user.company_name
+                ).all()
+                for user in all_users:
+                    accounts.append({
+                        'id': user.id,
+                        'name': user.real_name or user.username,
+                        'role': user.role,
+                        'has_unread': user.id in unread_sender_ids,
+                        'latest_time': unread_sender_times.get(user.id)
+                    })
+            elif permission_level in ['department'] or current_user.is_department_manager:
                 # 获取用户管理的所有部门名称
                 from app.models.expense import Department
                 managed_depts = Department.query.filter_by(manager_id=current_user.id).all()
