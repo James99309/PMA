@@ -1067,67 +1067,31 @@ def create_expense():
                                     current_app.logger.warning(f"文件过大: {file_obj.filename} ({file_size} bytes)")
                                     continue
                                 
-                                # 检测运行环境 - 优先判断是否在云端部署
+                                # 使用智能存储系统（NAS 优先，Supabase 备份）
                                 current_app.logger.info(f"开始处理文件上传: {file_obj.filename}, 大小: {file_size} bytes")
-                                cloud_env = is_cloud_environment()
-                                current_app.logger.info(f"环境检测结果: 云端环境={cloud_env}")
-                                if cloud_env:
-                                    # 云端环境，使用Supabase存储
-                                    try:
-                                        from app.utils.supabase_client import get_supabase_client
-                                        supabase_client = get_supabase_client()
-                                        
-                                        # 使用规范化的文件命名系统
-                                        # upload_expense_invoice方法现在会自动生成规范化的文件名
-                                        # 格式：{项目代码}-{客户简称}-{报销单号}-{明细序号}-{文件序号}.{扩展名}
-                                        
-                                        # 上传到Supabase（传递明细索引和文件索引避免冲突）
-                                        upload_result = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, file_obj.filename, 'invoice', index, file_index)
-                                        
-                                        if upload_result:
-                                            # 处理新的返回格式
-                                            if isinstance(upload_result, dict):
-                                                image_url = upload_result['url']
-                                                original_filename = upload_result['filename']  # 使用规范化文件名
-                                            else:
-                                                image_url = upload_result
-                                                original_filename = file_obj.filename
-                                        else:
-                                            raise Exception("Supabase上传失败")
-                                            
-                                        current_app.logger.info(f"发票文件上传到Supabase成功: {image_url}")
-                                        
-                                    except Exception as supabase_error:
-                                        current_app.logger.error(f"云端Supabase上传失败: {str(supabase_error)}")
-                                        # 添加详细错误信息
-                                        import traceback
-                                        current_app.logger.error(f"Supabase上传详细错误: {traceback.format_exc()}")
-                                        current_app.logger.error(f"文件信息: filename={file_obj.filename}, size={file_size}, ext={file_ext}")
-                                        # 云端上传失败，跳过这个文件
-                                        continue
-                                else:
-                                    # 本地环境，使用智能存储系统（自动生成规范化文件名）
-                                    try:
-                                        from app.utils.supabase_client import get_supabase_client
-                                        supabase_client = get_supabase_client()
-                                        
-                                        # 上传到智能存储系统（传递明细索引和文件索引避免冲突）
-                                        upload_result = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, file_obj.filename, 'invoice', index, file_index)
-                                        
-                                        if upload_result:
-                                            # 处理新的返回格式
-                                            if isinstance(upload_result, dict):
-                                                image_url = upload_result['url']
-                                                original_filename = upload_result['filename']  # 使用规范化文件名
-                                            else:
-                                                image_url = upload_result
-                                                original_filename = file_obj.filename
-                                        else:
-                                            raise Exception("智能存储上传失败")
-                                            
-                                    except Exception as storage_error:
-                                        current_app.logger.error(f"智能存储上传失败: {str(storage_error)}")
-                                        continue
+                                try:
+                                    from app.utils.smart_storage_manager import get_smart_expense_storage
+                                    smart_storage = get_smart_expense_storage()
+
+                                    # 使用智能存储上传（自动处理 NAS/Supabase 策略）
+                                    upload_result = smart_storage.upload_expense_invoice(
+                                        detail_obj.id, file_obj, file_obj.filename,
+                                        'invoice', index, file_index
+                                    )
+
+                                    if upload_result:
+                                        image_url = upload_result.get('url')
+                                        original_filename = upload_result.get('filename', file_obj.filename)
+                                        storage_type = upload_result.get('storage', 'unknown')
+                                        current_app.logger.info(f"发票上传成功 ({storage_type}): {image_url}")
+                                    else:
+                                        raise Exception("智能存储上传失败")
+
+                                except Exception as storage_error:
+                                    current_app.logger.error(f"发票上传失败: {str(storage_error)}")
+                                    import traceback
+                                    current_app.logger.error(f"详细错误: {traceback.format_exc()}")
+                                    continue
                                 
                                 # 注意：original_filename已经在上面的if-else分支中设置了
                                 
@@ -1869,45 +1833,27 @@ def edit_expense(id):
                                         logger.warning(f"明细 {index}: 文件过大 - {file_obj.filename}")
                                         continue
                                     
-                                    # 云端上传逻辑
-                                    cloud_env = is_cloud_environment()
-                                    if cloud_env:
-                                        try:
-                                            from app.utils.supabase_client import get_supabase_client
-                                            supabase_client = get_supabase_client()
-                                            
-                                            # 使用规范化的文件命名系统（传递文件索引避免冲突）
-                                            upload_result = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, file_obj.filename, 'invoice', index, file_index)
-                                            
-                                            if upload_result:
-                                                # 处理新的返回格式
-                                                if isinstance(upload_result, dict):
-                                                    image_url = upload_result['url']
-                                                    original_filename = upload_result['filename']  # 使用规范化文件名
-                                                else:
-                                                    image_url = upload_result
-                                                    original_filename = file_obj.filename
-                                            else:
-                                                raise Exception("Supabase上传失败")
-                                                
-                                            logger.info(f"明细 {index}: Supabase上传成功 - {image_url}")
-                                            
-                                        except Exception as supabase_error:
-                                            logger.error(f"明细 {index}: Supabase上传失败 - {supabase_error}")
-                                            continue
-                                    else:
-                                        # 本地上传逻辑
-                                        import uuid
-                                        upload_dir = os.path.join(current_app.static_folder, 'uploads', 'invoices', str(detail_obj.id))
-                                        os.makedirs(upload_dir, exist_ok=True)
-                                        
-                                        filename = f"invoice_{uuid.uuid4().hex[:8]}.{file_ext}"
-                                        file_path = os.path.join(upload_dir, filename)
-                                        file_obj.save(file_path)
-                                        
-                                        relative_path = os.path.join('uploads', 'invoices', str(detail_obj.id), filename).replace('\\', '/')
-                                        image_url = f"/static/{relative_path}"
-                                        original_filename = file_obj.filename  # 本地上传使用原始文件名
+                                    # 使用智能存储系统（NAS 优先，Supabase 备份）
+                                    try:
+                                        from app.utils.smart_storage_manager import get_smart_expense_storage
+                                        smart_storage = get_smart_expense_storage()
+
+                                        upload_result = smart_storage.upload_expense_invoice(
+                                            detail_obj.id, file_obj, file_obj.filename,
+                                            'invoice', index, file_index
+                                        )
+
+                                        if upload_result:
+                                            image_url = upload_result.get('url')
+                                            original_filename = upload_result.get('filename', file_obj.filename)
+                                            storage_type = upload_result.get('storage', 'unknown')
+                                            logger.info(f"明细 {index}: 上传成功 ({storage_type}) - {image_url}")
+                                        else:
+                                            raise Exception("智能存储上传失败")
+
+                                    except Exception as storage_error:
+                                        logger.error(f"明细 {index}: 上传失败 - {storage_error}")
+                                        continue
                                     
                                     # 添加到图片列表
                                     processed_images.append({
@@ -2432,51 +2378,47 @@ def upload_invoice_image(detail_id):
                 'message': _('每个报销明细最多只能上传10张发票')
             }), 400
         
-        # 检测运行环境 - 优先判断是否在云端部署
-        # 使用智能存储系统（自动选择本地/云端）
+        # 使用智能存储系统（NAS 优先，Supabase 备份）
         try:
-            from app.utils.supabase_client import get_supabase_client
-            supabase_client = get_supabase_client()
-            
-            current_app.logger.info(f"使用智能存储系统上传发票: {'本地存储' if supabase_client.use_local_storage else '云端存储'}")
-            
+            from app.utils.smart_storage_manager import get_smart_expense_storage
+            smart_storage = get_smart_expense_storage()
+
+            current_app.logger.info(f"使用智能存储系统上传发票")
+
             # 计算下一个文件序号（避免命名冲突）
             next_file_sequence = current_count + 1
-            
-            # 上传到智能存储系统（自动生成规范化文件名，传递文件序号）
-            upload_result = supabase_client.upload_expense_invoice(detail_id, file, file.filename, 'invoice', None, next_file_sequence)
-            
+
+            # 上传到智能存储系统
+            upload_result = smart_storage.upload_expense_invoice(
+                detail_id, file, file.filename,
+                'invoice', None, next_file_sequence
+            )
+
             if upload_result:
-                # 处理新的返回格式（支持向下兼容）
-                if isinstance(upload_result, dict):
-                    # 新格式：详细文件信息
-                    image_url = upload_result['url']
-                    display_filename = upload_result['filename']  # 使用规范化文件名
-                    current_app.logger.info(f"规范化文件名: {display_filename}")
-                else:
-                    # 旧格式：仅URL字符串（向下兼容）
-                    image_url = upload_result
-                    display_filename = file.filename
-                
+                image_url = upload_result.get('url')
+                display_filename = upload_result.get('filename', file.filename)
+                storage_type = upload_result.get('storage', 'unknown')
+
+                current_app.logger.info(f"发票上传成功 ({storage_type}): {image_url}")
+
                 # 添加到明细记录
                 detail.add_invoice_image(display_filename, image_url, file_size)
                 db.session.commit()
-                
-                current_app.logger.info(f"发票图片上传成功: {image_url}")
-                
+
                 return jsonify({
                     'success': True,
                     'message': _('发票上传成功'),
                     'image_url': image_url,
                     'filename': display_filename,
                     'size': file_size,
-                    'invoice_count': detail.invoice_count
+                    'invoice_count': detail.invoice_count,
+                    'storage': storage_type
                 })
             else:
                 raise Exception("智能存储系统上传失败")
-                
+
         except Exception as upload_error:
-            current_app.logger.error(f"智能存储系统上传失败: {str(upload_error)}")
+            current_app.logger.error(f"发票上传失败: {str(upload_error)}")
             return jsonify({
                 'success': False,
                 'message': _('文件上传失败，请重试')
@@ -3394,10 +3336,56 @@ def download_invoice(detail_id, invoice_index):
         invoice_info = invoice_images[invoice_index]
         filename = invoice_info.get('filename', f'invoice_{detail_id}_{invoice_index}')
         file_url = invoice_info.get('url', '')
-        
+
         # 检查是否强制下载模式 - 只有明确请求下载时才强制下载，否则允许预览
-        force_download = (request.args.get('download') == '1' or 
+        force_download = (request.args.get('download') == '1' or
                          request.args.get('as_attachment') == 'true')
+
+        # 处理 NAS 智能存储路径（/storage/nas/...）
+        if file_url.startswith('/storage/nas/'):
+            from app.views.storage import _get_file_with_fallback
+            from urllib.parse import urlparse, parse_qs
+            from io import BytesIO
+
+            # 解析 URL 获取 bucket_type 和 path
+            # 格式: /storage/nas/{bucket_type}?path={nas_path}
+            parsed = urlparse(file_url)
+            path_parts = parsed.path.split('/')
+            bucket_type = path_parts[3] if len(path_parts) > 3 else 'invoice'
+            query_params = parse_qs(parsed.query)
+            nas_path = query_params.get('path', [''])[0]
+
+            if nas_path:
+                # 智能获取文件（NAS 优先，Supabase 回退）
+                file_content, source = _get_file_with_fallback(nas_path, bucket_type)
+
+                if file_content:
+                    # 确定 MIME 类型
+                    file_ext = os.path.splitext(filename)[1].lower()
+                    mime_types = {
+                        '.jpg': 'image/jpeg',
+                        '.jpeg': 'image/jpeg',
+                        '.png': 'image/png',
+                        '.gif': 'image/gif',
+                        '.pdf': 'application/pdf',
+                        '.heic': 'image/heic',
+                        '.heif': 'image/heif'
+                    }
+                    mimetype = mime_types.get(file_ext, 'application/octet-stream')
+
+                    current_app.logger.info(f"NAS 智能存储获取文件成功，来源: {source}，大小: {len(file_content)} bytes")
+
+                    # 返回文件
+                    return send_file(
+                        BytesIO(file_content),
+                        as_attachment=force_download,
+                        download_name=filename if force_download else None,
+                        mimetype=mimetype
+                    )
+                else:
+                    current_app.logger.error(f"NAS 智能存储获取文件失败: {nas_path}")
+                    flash(_('发票文件不存在'), 'danger')
+                    abort(404)
         
         # 检查是否是预览模式
         is_preview_mode = (request.args.get('view') == 'inline' or 

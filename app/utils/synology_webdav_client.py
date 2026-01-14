@@ -2,14 +2,17 @@
 """
 群晖WebDAV存储客户端
 
-用于将会议录音文件存储到群晖NAS的WebDAV服务。
+用于将文件存储到群晖NAS的WebDAV服务。
+支持内外网自动切换，优先使用内网连接。
 """
 
 import os
+import time
+import socket
 import logging
 import requests
 from requests.auth import HTTPBasicAuth
-from urllib.parse import urljoin, quote
+from urllib.parse import urljoin, quote, urlparse
 from typing import Optional, Tuple
 from flask import current_app
 
@@ -17,11 +20,19 @@ logger = logging.getLogger(__name__)
 
 
 class SynologyWebDAVClient:
-    """群晖WebDAV存储客户端"""
+    """群晖WebDAV存储客户端 - 支持内外网自动切换"""
 
     def __init__(self):
         """初始化WebDAV客户端"""
-        self.base_url = os.getenv('SYNOLOGY_WEBDAV_URL', '')
+        # 内网地址（局域网直连，速度快）
+        self.internal_url = os.getenv('SYNOLOGY_WEBDAV_INTERNAL_URL', 'http://192.168.1.2:5005')
+        # 外网地址（Cloudflare Tunnel，外网可用）
+        self.external_url = os.getenv('SYNOLOGY_WEBDAV_EXTERNAL_URL', '')
+        # 兼容旧配置
+        legacy_url = os.getenv('SYNOLOGY_WEBDAV_URL', '')
+        if legacy_url and not self.external_url:
+            self.external_url = legacy_url
+
         self.username = os.getenv('SYNOLOGY_WEBDAV_USER', '')
         self.password = os.getenv('SYNOLOGY_WEBDAV_PASSWORD', '')
         self.base_path = os.getenv('SYNOLOGY_WEBDAV_PATH', '/pma-files')
@@ -31,8 +42,88 @@ class SynologyWebDAVClient:
 
         # 超时设置（秒）
         self.timeout = int(os.getenv('SYNOLOGY_WEBDAV_TIMEOUT', '30'))
+        self.connect_timeout = int(os.getenv('SYNOLOGY_WEBDAV_CONNECT_TIMEOUT', '3'))
 
+        # 内网可用性缓存
+        self._internal_available = None
+        self._last_internal_check = 0
+        self._internal_check_interval = 60  # 60秒检查一次内网可用性
+
+        # 当前使用的 URL
+        self._current_url = None
         self._session = None
+
+        # 初始化时选择最佳 URL
+        self.base_url = self._select_best_url()
+
+        logger.info(f"WebDAV客户端初始化: internal={self.internal_url}, external={self.external_url}, selected={self.base_url}")
+
+    def _select_best_url(self) -> str:
+        """选择最佳的连接地址（优先内网）"""
+        # 如果内网可用，优先使用内网
+        if self.internal_url and self._is_internal_available():
+            logger.debug("使用内网地址连接 NAS")
+            return self.internal_url
+
+        # 内网不可用，使用外网
+        if self.external_url:
+            logger.debug("使用外网地址连接 NAS")
+            return self.external_url
+
+        # 都没有配置，返回内网地址（让后续逻辑处理错误）
+        return self.internal_url
+
+    def _is_internal_available(self) -> bool:
+        """检查内网是否可用（带缓存）"""
+        now = time.time()
+
+        # 使用缓存结果
+        if self._internal_available is not None and \
+           (now - self._last_internal_check) < self._internal_check_interval:
+            return self._internal_available
+
+        self._last_internal_check = now
+
+        if not self.internal_url:
+            self._internal_available = False
+            return False
+
+        try:
+            # 解析内网地址
+            parsed = urlparse(self.internal_url)
+            host = parsed.hostname
+            port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+
+            # 快速 TCP 连接测试
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(self.connect_timeout)
+            result = sock.connect_ex((host, port))
+            sock.close()
+
+            self._internal_available = (result == 0)
+
+            if self._internal_available:
+                logger.debug(f"内网 {host}:{port} 可达")
+            else:
+                logger.debug(f"内网 {host}:{port} 不可达")
+
+        except Exception as e:
+            logger.debug(f"内网检测异常: {e}")
+            self._internal_available = False
+
+        return self._internal_available
+
+    def refresh_connection(self) -> str:
+        """刷新连接，重新选择最佳地址"""
+        self._internal_available = None  # 清除缓存
+        self._last_internal_check = 0
+        self._session = None  # 重置会话
+        self.base_url = self._select_best_url()
+        return self.base_url
+
+    def is_using_internal(self) -> bool:
+        """检查当前是否使用内网连接"""
+        return self.base_url == self.internal_url
 
     @property
     def session(self) -> requests.Session:
@@ -46,7 +137,15 @@ class SynologyWebDAVClient:
     @property
     def is_configured(self) -> bool:
         """检查是否已配置"""
-        return bool(self.base_url and self.username and self.password)
+        return bool((self.internal_url or self.external_url) and self.username and self.password)
+
+    @property
+    def is_available(self) -> bool:
+        """检查 NAS 是否可用"""
+        if not self.is_configured:
+            return False
+        # 有任一地址可用即可
+        return bool(self.internal_url and self._is_internal_available()) or bool(self.external_url)
 
     def _build_url(self, remote_path: str) -> str:
         """构建完整的WebDAV URL"""
@@ -375,6 +474,78 @@ class SynologyWebDAVClient:
             logger.error(f"检查文件存在异常: {str(e)}")
             return False
 
+    def list_directory(self, remote_path: str = '', depth: int = 1) -> list:
+        """列出目录内容
+
+        Args:
+            remote_path: 远程目录路径（相对于base_path）
+            depth: 列出深度，1表示仅当前目录，'infinity'表示递归
+
+        Returns:
+            文件和目录列表，每个元素为 {'name': str, 'is_dir': bool, 'size': int}
+        """
+        if not self.is_configured:
+            return []
+
+        try:
+            url = self._build_url(remote_path)
+            if not url.endswith('/'):
+                url += '/'
+
+            response = self.session.request(
+                'PROPFIND',
+                url,
+                headers={'Depth': str(depth)},
+                timeout=self.timeout
+            )
+
+            if response.status_code not in (200, 207):
+                logger.error(f"列目录失败: {response.status_code}")
+                return []
+
+            # 解析 XML 响应
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(response.content)
+
+            # WebDAV 命名空间
+            ns = {'D': 'DAV:'}
+            items = []
+
+            for resp in root.findall('.//D:response', ns):
+                href_elem = resp.find('D:href', ns)
+                if href_elem is None:
+                    continue
+
+                href = href_elem.text or ''
+                # 跳过当前目录本身
+                if href.rstrip('/') == url.rstrip('/').replace(self.base_url, ''):
+                    continue
+
+                # 获取资源类型
+                is_dir = resp.find('.//D:collection', ns) is not None
+
+                # 获取文件大小
+                size = 0
+                content_length = resp.find('.//D:getcontentlength', ns)
+                if content_length is not None and content_length.text:
+                    size = int(content_length.text)
+
+                # 提取相对路径
+                name = href.rstrip('/').split('/')[-1]
+                if name:
+                    items.append({
+                        'name': name,
+                        'path': href,
+                        'is_dir': is_dir,
+                        'size': size
+                    })
+
+            return items
+
+        except Exception as e:
+            logger.error(f"列目录异常: {str(e)}")
+            return []
+
     def _ensure_directory_exists(self, dir_path: str) -> bool:
         """确保目录存在，如果不存在则递归创建
 
@@ -422,7 +593,25 @@ def get_synology_webdav_client() -> SynologyWebDAVClient:
     return _webdav_client
 
 
+def reset_synology_webdav_client():
+    """重置WebDAV客户端单例（配置变化时调用）"""
+    global _webdav_client
+    _webdav_client = None
+
+
 def is_synology_storage_enabled() -> bool:
     """检查是否启用了群晖存储"""
-    storage_type = os.getenv('MEETING_STORAGE_TYPE', 'synology').lower()
-    return storage_type == 'synology'
+    # 检查是否配置了 NAS 存储
+    internal_url = os.getenv('SYNOLOGY_WEBDAV_INTERNAL_URL', '')
+    external_url = os.getenv('SYNOLOGY_WEBDAV_EXTERNAL_URL', '')
+    legacy_url = os.getenv('SYNOLOGY_WEBDAV_URL', '')
+
+    return bool(internal_url or external_url or legacy_url)
+
+
+def is_nas_available() -> bool:
+    """检查 NAS 是否可用"""
+    if not is_synology_storage_enabled():
+        return False
+    client = get_synology_webdav_client()
+    return client.is_available

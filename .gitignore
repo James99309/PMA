@@ -18,6 +18,7 @@ app.db
 .env.local
 .env.*.backup
 .env.supabase.prod
+.env.nas
 .flaskenv
 
 # 日志文件

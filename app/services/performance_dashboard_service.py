@@ -853,7 +853,7 @@ class PerformanceDashboardService:
             # 主查询：获取客户信息和统计数据
             query = db.session.query(
                 Company.id,
-                Company.name,
+                Company.company_name,
                 Company.company_type,
                 func.coalesce(project_subquery.c.project_count, 0).label('project_count'),
                 func.coalesce(amount_subquery.c.total_amount, 0).label('total_amount')

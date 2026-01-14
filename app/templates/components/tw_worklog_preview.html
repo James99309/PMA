@@ -110,17 +110,39 @@
 (function() {
     const modalId = '{{ modal_id }}';
 
-    // 工作类型标签映射
+    // 工作类型标签映射（完整31个类型，与 WorkItem.TYPE_LABELS 保持同步）
     const workTypeLabels = {
-        'customer_visit': '{{ _("客户拜访") }}',
-        'customer_call': '{{ _("客户电话") }}',
-        'customer_meeting': '{{ _("客户会议") }}',
+        'meeting': '{{ _("会议") }}',
+        'internal_training': '{{ _("内部培训") }}',
+        'other': '{{ _("其他") }}',
+        'customer_visit': '{{ _("拜访客户") }}',
+        'presales_support': '{{ _("售前支持") }}',
+        'hr_affairs': '{{ _("人事事务") }}',
+        'admin_affairs': '{{ _("行政事务") }}',
+        'customer_reception': '{{ _("客户接待") }}',
+        'external_training': '{{ _("外部培训") }}',
+        'market_activity': '{{ _("市场活动") }}',
+        'exhibition': '{{ _("展会") }}',
+        'product_training': '{{ _("产品培训") }}',
         'internal_meeting': '{{ _("内部会议") }}',
+        'business_trip': '{{ _("出差") }}',
+        'vendor_support': '{{ _("厂商支持") }}',
+        'technical_support': '{{ _("技术支持") }}',
+        'after_sales_service': '{{ _("售后服务") }}',
+        'project_followup': '{{ _("项目跟进") }}',
+        'quotation_work': '{{ _("报价工作") }}',
         'document_work': '{{ _("文档工作") }}',
-        'development': '{{ _("开发工作") }}',
-        'research': '{{ _("调研分析") }}',
-        'training': '{{ _("培训学习") }}',
-        'other': '{{ _("其他") }}'
+        'development_work': '{{ _("开发工作") }}',
+        'testing_work': '{{ _("测试工作") }}',
+        'design_work': '{{ _("设计工作") }}',
+        'research_work': '{{ _("调研工作") }}',
+        'planning_work': '{{ _("规划工作") }}',
+        'communication': '{{ _("沟通协调") }}',
+        'report_work': '{{ _("报告撰写") }}',
+        'leave': '{{ _("请假") }}',
+        'holiday': '{{ _("假期") }}',
+        'overtime': '{{ _("加班") }}',
+        'duty': '{{ _("值班") }}'
     };
 
     // 当前日志数据

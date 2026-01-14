@@ -27,8 +27,14 @@ def main():
         args = parser.parse_args()
         
         # 强制加载本地环境配置
+        from dotenv import load_dotenv
+
+        # 加载 NAS 存储配置（优先级最高）
+        if os.path.exists('.env.nas'):
+            load_dotenv('.env.nas', override=True)
+            logger.info("🗄️ 加载 NAS 存储配置文件 .env.nas")
+
         if not args.supabase:
-            from dotenv import load_dotenv
             load_dotenv('.env.local', override=True)
             logger.info("🔧 强制加载本地环境配置文件 .env.local")
         

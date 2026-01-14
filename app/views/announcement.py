@@ -287,14 +287,17 @@ def api_upload_attachment(announcement_id):
         file_size = file.tell()
         file.seek(0)
 
-        # 使用Supabase上传
-        storage_client = get_supabase_client()
-        result = storage_client.upload_file(
+        # 使用智能存储（NAS 优先，Supabase 回退）
+        from app.utils.smart_storage_manager import get_smart_storage
+
+        smart_storage = get_smart_storage()
+
+        result = smart_storage.upload_file(
             object_id=announcement_id,
             file=file,
             filename=file.filename,
             file_type='attachment',
-            bucket_type='default',
+            bucket_type='invoice',  # 复用 invoice bucket
             business_type='announcement'
         )
 
@@ -361,7 +364,7 @@ def api_delete_attachment(attachment_id):
 @announcement_bp.route('/api/preview_attachment/<int:attachment_id>')
 @login_required
 def api_preview_attachment(attachment_id):
-    """代理预览公告附件 - 正确设置 Content-Type 以支持 PDF 等文件预览"""
+    """代理预览公告附件 - 支持 NAS 智能存储和云端回退"""
     import requests
     from flask import Response
     from urllib.parse import quote
@@ -370,38 +373,66 @@ def api_preview_attachment(attachment_id):
     url = attachment.file_url
     filename = attachment.filename
 
-    try:
-        # 从云端存储获取文件
-        resp = requests.get(url, timeout=30)
-        if resp.status_code == 200:
-            # 根据文件扩展名确定 MIME 类型
-            ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'bin'
-            mime_map = {
-                'pdf': 'application/pdf',
-                'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
-                'png': 'image/png', 'gif': 'image/gif',
-                'webp': 'image/webp', 'bmp': 'image/bmp',
-                'doc': 'application/msword',
-                'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'xls': 'application/vnd.ms-excel',
-                'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'ppt': 'application/vnd.ms-powerpoint',
-                'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-                'txt': 'text/plain',
-                'zip': 'application/zip',
-                'rar': 'application/x-rar-compressed'
-            }
-            mime_type = mime_map.get(ext, 'application/octet-stream')
+    # 根据文件扩展名确定 MIME 类型
+    ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'bin'
+    mime_map = {
+        'pdf': 'application/pdf',
+        'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+        'png': 'image/png', 'gif': 'image/gif',
+        'webp': 'image/webp', 'bmp': 'image/bmp',
+        'doc': 'application/msword',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'xls': 'application/vnd.ms-excel',
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'ppt': 'application/vnd.ms-powerpoint',
+        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'txt': 'text/plain',
+        'zip': 'application/zip',
+        'rar': 'application/x-rar-compressed'
+    }
+    mime_type = mime_map.get(ext, 'application/octet-stream')
 
-            # 对文件名进行 RFC 5987 编码以支持中文
-            encoded_filename = quote(filename, safe='')
-            headers = {
-                'Content-Type': mime_type,
-                'Content-Disposition': f"inline; filename*=UTF-8''{encoded_filename}"
-            }
-            return Response(resp.content, headers=headers)
+    # 对文件名进行 RFC 5987 编码以支持中文
+    encoded_filename = quote(filename, safe='')
+
+    try:
+        # 处理 NAS 智能存储路径
+        if url and url.startswith('/storage/nas/'):
+            from app.views.storage import _get_file_with_fallback
+            from urllib.parse import urlparse, parse_qs
+
+            parsed = urlparse(url)
+            path_parts = parsed.path.split('/')
+            bucket_type = path_parts[3] if len(path_parts) > 3 else 'invoice'
+            query_params = parse_qs(parsed.query)
+            nas_path = query_params.get('path', [''])[0]
+
+            if nas_path:
+                file_content, source = _get_file_with_fallback(nas_path, bucket_type)
+                if file_content:
+                    logger.info(f"公告附件从 {source} 获取成功")
+                    headers = {
+                        'Content-Type': mime_type,
+                        'Content-Disposition': f"inline; filename*=UTF-8''{encoded_filename}",
+                        'X-Storage-Source': source or 'unknown'
+                    }
+                    return Response(file_content, headers=headers)
+                else:
+                    return jsonify({'success': False, 'message': '文件获取失败'}), 404
+
+        # 云端文件（Supabase URL），代理下载
+        elif url and (url.startswith('http://') or url.startswith('https://')):
+            resp = requests.get(url, timeout=30)
+            if resp.status_code == 200:
+                headers = {
+                    'Content-Type': mime_type,
+                    'Content-Disposition': f"inline; filename*=UTF-8''{encoded_filename}"
+                }
+                return Response(resp.content, headers=headers)
+            else:
+                return jsonify({'success': False, 'message': '文件获取失败'}), 404
         else:
-            return jsonify({'success': False, 'message': '文件获取失败'}), 404
+            return jsonify({'success': False, 'message': '无效的文件URL'}), 400
 
     except Exception as e:
         logger.error(f"预览附件失败: {str(e)}", exc_info=True)

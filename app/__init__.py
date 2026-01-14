@@ -320,6 +320,9 @@ def create_app(config_class=Config):
     # 导入报销管理蓝图
     from app.views.expense import expense
 
+    # 导入 NAS 存储代理蓝图
+    from app.views.storage import storage_bp
+
     # 导入配置管理蓝图
     from app.views.config_management import config_management_bp
 
@@ -357,6 +360,7 @@ def create_app(config_class=Config):
     app.register_blueprint(purchase_order_bp)  # 注册采购订单蓝图（Tailwind风格）
     csrf.exempt(purchase_order_bp)  # 豁免采购订单蓝图的CSRF保护
     app.register_blueprint(expense, url_prefix='/expense')  # 注册报销管理蓝图
+    app.register_blueprint(storage_bp)  # 注册 NAS 存储代理蓝图
     app.register_blueprint(config_management_bp)  # 注册配置管理蓝图
     csrf.exempt(config_management_bp)  # 豁免配置管理蓝图的CSRF保护
 

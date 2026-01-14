@@ -7725,3 +7725,36 @@ msgstr "No serial numbers available"
 
 msgid "条"
 msgstr "items"
+
+# 导航菜单缺失翻译
+msgid "会议纪要"
+msgstr "Meeting Minutes"
+
+msgid "销售管理"
+msgstr "Sales Management"
+
+msgid "采购仓储"
+msgstr "Procurement"
+
+msgid "序列号管理"
+msgstr "Serial Numbers"
+
+# 工作日志表单缺失翻译
+msgid "请输入工作内容"
+msgstr "Enter work content"
+
+msgid "输入 @ 可以提及用户，输入 # 可以引用项目"
+msgstr "Type @ to mention users, # to reference projects"
+
+msgid "附件"
+msgstr "Attachments"
+
+# 侧边栏菜单缺失翻译
+msgid "客户订单"
+msgstr "Customer Order"
+
+msgid "发货管理"
+msgstr "Shipping"
+
+msgid "产品模板"
+msgstr "Templates"

@@ -1833,16 +1833,17 @@ def create_product():
             product_image = request.files['product_image']
             if product_image.filename:  # 确保有文件被上传
                 logger.debug(f'处理产品图片上传: {product_image.filename}')
-                # 使用智能存储系统（自动判断本地/云端环境）
+                # 使用智能存储系统（NAS 优先，Supabase 备份）
                 try:
                     # 先保存产品以获取ID
                     db.session.add(new_product)
                     db.session.flush()  # 获取ID但不提交
-                    
-                    # 使用Supabase智能存储客户端上传图片
-                    supabase_client = get_supabase_client()
-                    image_url = supabase_client.upload_product_file(new_product.id, product_image, 'image', 'product')
-                    
+
+                    # 使用智能存储系统上传图片
+                    from app.utils.smart_storage_manager import get_smart_product_storage
+                    smart_storage = get_smart_product_storage()
+                    image_url = smart_storage.upload_product_file(new_product.id, product_image, 'image', 'product')
+
                     if image_url:
                         new_product.image_path = image_url
                         has_image = True
@@ -1861,17 +1862,18 @@ def create_product():
             product_pdf = request.files['product_pdf']
             if product_pdf.filename:  # 确保有文件被上传
                 logger.debug(f'处理产品PDF上传: {product_pdf.filename}')
-                # 使用智能存储系统（自动判断本地/云端环境）
+                # 使用智能存储系统（NAS 优先，Supabase 备份）
                 try:
                     # 如果产品还没有添加到会话，先添加并flush
                     if new_product not in db.session:
                         db.session.add(new_product)
                         db.session.flush()  # 获取ID但不提交
-                    
-                    # 使用Supabase智能存储客户端上传PDF
-                    supabase_client = get_supabase_client()
-                    pdf_url = supabase_client.upload_product_file(new_product.id, product_pdf, 'pdf', 'product')
-                    
+
+                    # 使用智能存储系统上传PDF
+                    from app.utils.smart_storage_manager import get_smart_product_storage
+                    smart_storage = get_smart_product_storage()
+                    pdf_url = smart_storage.upload_product_file(new_product.id, product_pdf, 'pdf', 'product')
+
                     if pdf_url:
                         new_product.pdf_path = pdf_url
                         has_pdf = True
@@ -2285,12 +2287,12 @@ def update_product_api(id):
             product_image = request.files['product_image']
             if product_image.filename:  # 确保有文件被上传
                 logger.debug(f'处理产品图片上传: {product_image.filename}')
-                # 使用智能存储系统（自动判断本地/云端环境）
+                # 使用智能存储系统（NAS 优先，Supabase 备份）
                 try:
-                    # 使用Supabase智能存储客户端上传图片
-                    supabase_client = get_supabase_client()
-                    image_url = supabase_client.upload_product_file(product.id, product_image, 'image', 'product')
-                    
+                    from app.utils.smart_storage_manager import get_smart_product_storage
+                    smart_storage = get_smart_product_storage()
+                    image_url = smart_storage.upload_product_file(product.id, product_image, 'image', 'product')
+
                     if image_url:
                         # 如果已有旧图片且是本地路径，删除本地文件
                         if product.image_path and not product.image_path.startswith('http'):
@@ -2301,7 +2303,7 @@ def update_product_api(id):
                                     logger.info(f"删除旧本地图片: {old_image_path}")
                                 except Exception as e:
                                     logger.warning(f"删除旧图片失败: {str(e)}")
-                        
+
                         # 更新图片路径
                         product.image_path = image_url
                         image_changed = True
@@ -2349,12 +2351,12 @@ def update_product_api(id):
             product_pdf = request.files['product_pdf']
             if product_pdf.filename:  # 确保有文件被上传
                 logger.debug(f'处理产品PDF上传: {product_pdf.filename}')
-                # 使用智能存储系统（自动判断本地/云端环境）
+                # 使用智能存储系统（NAS 优先，Supabase 备份）
                 try:
-                    # 使用Supabase智能存储客户端上传PDF
-                    supabase_client = get_supabase_client()
-                    pdf_url = supabase_client.upload_product_file(product.id, product_pdf, 'pdf', 'product')
-                    
+                    from app.utils.smart_storage_manager import get_smart_product_storage
+                    smart_storage = get_smart_product_storage()
+                    pdf_url = smart_storage.upload_product_file(product.id, product_pdf, 'pdf', 'product')
+
                     if pdf_url:
                         # 如果已有旧PDF且是本地路径，删除本地文件
                         if product.pdf_path and not product.pdf_path.startswith('http'):

@@ -113,7 +113,7 @@ class ProductFileService:
     
     def download_pdf(self, product_id: int) -> Response:
         """
-        下载产品PDF文件（支持分类共享）
+        下载产品PDF文件（支持分类共享、NAS 智能存储）
 
         Args:
             product_id: 产品ID
@@ -130,18 +130,46 @@ class ProductFileService:
             return jsonify({'error': '该产品没有PDF文件'}), 404
 
         try:
+            import urllib.parse
+
+            # 处理中文文件名
+            original_filename = f"{product.product_name or product.product_mn}.pdf"
+            encoded_filename = urllib.parse.quote(original_filename)
+
+            # 处理 NAS 智能存储路径
+            if effective_pdf.startswith('/storage/nas/'):
+                from app.views.storage import _get_file_with_fallback
+                from urllib.parse import urlparse, parse_qs
+
+                parsed = urlparse(effective_pdf)
+                path_parts = parsed.path.split('/')
+                bucket_type = path_parts[3] if len(path_parts) > 3 else 'product'
+                query_params = parse_qs(parsed.query)
+                nas_path = query_params.get('path', [''])[0]
+
+                if nas_path:
+                    file_content, source = _get_file_with_fallback(nas_path, bucket_type)
+                    if file_content:
+                        logger.info(f"产品PDF从 {source} 获取成功")
+                        return Response(
+                            file_content,
+                            mimetype='application/pdf',
+                            headers={
+                                'Content-Disposition': f'attachment; filename*=UTF-8\'\'{encoded_filename}',
+                                'Content-Length': str(len(file_content)),
+                                'X-Storage-Source': source or 'unknown'
+                            }
+                        )
+                    else:
+                        return jsonify({'error': 'PDF文件不存在'}), 404
+
             # 如果是云端文件，通过代理方式强制下载
-            if effective_pdf.startswith('http'):
+            elif effective_pdf.startswith('http'):
                 import requests
-                import urllib.parse
 
                 # 获取云端文件内容
                 response = requests.get(effective_pdf, timeout=30)
                 response.raise_for_status()
-
-                # 处理中文文件名
-                original_filename = f"{product.product_name or product.product_mn}.pdf"
-                encoded_filename = urllib.parse.quote(original_filename)
 
                 # 创建强制下载的响应
                 return Response(
@@ -165,14 +193,14 @@ class ProductFileService:
                     download_name=f"{product.product_name or product.product_mn}.pdf",
                     mimetype='application/pdf'
                 )
-                
+
         except Exception as e:
             logger.error(f"下载PDF文件失败: {str(e)}")
             return jsonify({'error': '下载PDF文件失败'}), 500
     
     def preview_pdf(self, product_id: int) -> Response:
         """
-        预览产品PDF文件（支持分类共享）
+        预览产品PDF文件（支持分类共享、NAS 智能存储）
 
         Args:
             product_id: 产品ID
@@ -192,8 +220,38 @@ class ProductFileService:
             return jsonify({'error': 'PDF文件不存在'}), 404
 
         try:
+            # 处理 NAS 智能存储路径
+            if effective_pdf.startswith('/storage/nas/'):
+                from app.views.storage import _get_file_with_fallback
+                from urllib.parse import urlparse, parse_qs
+
+                parsed = urlparse(effective_pdf)
+                path_parts = parsed.path.split('/')
+                bucket_type = path_parts[3] if len(path_parts) > 3 else 'product'
+                query_params = parse_qs(parsed.query)
+                nas_path = query_params.get('path', [''])[0]
+
+                if nas_path:
+                    file_content, source = _get_file_with_fallback(nas_path, bucket_type)
+                    if file_content:
+                        logger.info(f"产品PDF预览从 {source} 获取成功")
+                        return Response(
+                            file_content,
+                            mimetype='application/pdf',
+                            headers={
+                                'Access-Control-Allow-Origin': '*',
+                                'Access-Control-Allow-Methods': 'GET',
+                                'Access-Control-Allow-Headers': 'Content-Type',
+                                'Content-Length': str(len(file_content)),
+                                'Cache-Control': 'public, max-age=3600',
+                                'X-Storage-Source': source or 'unknown'
+                            }
+                        )
+                    else:
+                        return jsonify({'error': 'PDF文件不存在'}), 404
+
             # 处理云端文件
-            if effective_pdf.startswith('http'):
+            elif effective_pdf.startswith('http'):
                 import requests
 
                 # 代理方式获取文件内容，确保PDF.js能正常加载
@@ -320,12 +378,12 @@ class ProductFileService:
     def _cleanup_and_upload(self, product: Product, file: FileStorage, file_type: str) -> Optional[str]:
         """
         清理旧文件并上传新文件（原子操作）
-        
+
         Args:
             product: 产品对象
             file: 新文件对象
             file_type: 文件类型 ('image' 或 'pdf')
-            
+
         Returns:
             str: 新文件的URL，失败返回None
         """
@@ -336,15 +394,18 @@ class ProductFileService:
                 old_file_path = product.image_path
             elif file_type == 'pdf' and product.pdf_path:
                 old_file_path = product.pdf_path
-            
-            # 上传新文件
-            new_file_url = self.supabase_client.upload_product_file(
+
+            # 使用智能存储系统上传新文件（NAS 优先，Supabase 备份）
+            from app.utils.smart_storage_manager import get_smart_product_storage
+            smart_storage = get_smart_product_storage()
+
+            new_file_url = smart_storage.upload_product_file(
                 product_id=product.id,
                 file=file,
                 file_type=file_type,
                 bucket_type='product'
             )
-            
+
             if new_file_url:
                 # 上传成功后清理旧文件
                 if old_file_path:
@@ -354,12 +415,12 @@ class ProductFileService:
                         bucket_type='product'
                     )
                     logger.info(f"🗑️ 已清理旧{file_type}文件: {old_file_path}")
-                
+
                 return new_file_url
             else:
-                logger.error(f"❌ {file_type}文件上传失败: supabase_client返回None")
+                logger.error(f"❌ {file_type}文件上传失败: smart_storage返回None")
                 return None
-                
+
         except Exception as e:
             logger.error(f"💥 文件清理和上传失败: {str(e)}")
             return None
@@ -636,8 +697,12 @@ class ProductFileService:
                 bucket_type=bucket_type
             )
 
-        # 上传新文件
-        return self.file_manager.upload_product_file(
+        # 使用智能存储系统上传新文件（NAS 优先，Supabase 备份）
+        from app.utils.smart_storage_manager import get_smart_product_storage
+        smart_storage = get_smart_product_storage()
+
+        return smart_storage.upload_product_file(
+            product_id=product.id,
             file=file,
             file_type=file_type,
             bucket_type=bucket_type

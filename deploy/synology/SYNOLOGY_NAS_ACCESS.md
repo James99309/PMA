@@ -8,6 +8,8 @@ PMA Synology NAS deployment access information.
 |---------|-----|
 | **PMA Website** | https://garbage-lottery-hanging-biological.trycloudflare.com |
 | **SSH Tunnel** | penalties-requested-bridge-gif.trycloudflare.com |
+| **WebDAV** | https://medicine-maiden-concerts-interpreted.trycloudflare.com |
+| **DSM** | https://structured-void-morgan-printing.trycloudflare.com |
 
 ---
 
@@ -143,7 +145,46 @@ sudo docker exec pma-postgres pg_dump -U pma pma > backup_$(date +%Y%m%d).sql
 | PostgreSQL Port | 5432 (internal) |
 | SSH Port | 22 |
 | DSM Port | 5000 |
-| WebDAV Port | 5006 |
+| WebDAV HTTPS Port | 5006 |
+| WebDAV HTTP Port | 5005 |
+
+---
+
+## WebDAV File Storage
+
+### Internal Access (LAN)
+```
+http://192.168.1.2:5005/pma-files/
+```
+
+### External Access (via Cloudflare Tunnel)
+```
+https://medicine-maiden-concerts-interpreted.trycloudflare.com/pma-files/
+```
+
+### Test Connection
+```bash
+# Internal
+curl -X PROPFIND -H "Depth: 1" -u pma-storage:PASSWORD http://192.168.1.2:5005/pma-files/
+
+# External
+curl -X PROPFIND -H "Depth: 1" -u pma-storage:PASSWORD https://medicine-maiden-concerts-interpreted.trycloudflare.com/pma-files/
+```
+
+### Restart WebDAV Tunnel (on Synology)
+```bash
+sudo docker stop cloudflared-webdav
+sudo docker rm cloudflared-webdav
+
+sudo docker run -d --name cloudflared-webdav \
+  --restart unless-stopped \
+  cloudflare/cloudflared:latest \
+  tunnel --no-autoupdate --url http://192.168.1.2:5005
+
+# Wait and get new address
+sleep 8
+sudo docker logs cloudflared-webdav 2>&1 | grep trycloudflare
+```
 
 ---
 
@@ -157,4 +198,4 @@ sudo docker exec pma-postgres pg_dump -U pma pma > backup_$(date +%Y%m%d).sql
 
 ---
 
-*Last Updated: 2026-01-12*
+*Last Updated: 2026-01-13*

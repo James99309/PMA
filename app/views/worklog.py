@@ -1547,22 +1547,24 @@ def upload_worklog_attachment(log_date):
         # 确定文件类型
         file_type = 'pdf' if ext == 'pdf' else 'image'
 
-        # 上传到 Supabase
-        supabase_client = get_supabase_client()
+        # 使用智能存储（NAS 优先，Supabase 回退）
+        from app.utils.smart_storage_manager import get_smart_storage
 
         # 重置文件指针（之前已读取过）
         file.seek(0)
 
-        result = supabase_client.upload_file(
+        smart_storage = get_smart_storage()
+
+        result = smart_storage.upload_file(
             object_id=worklog.id,
             file=file,
             filename=original_filename,
-            file_type='attachment',  # 使用简洁格式
-            bucket_type='invoice',  # 复用 invoice-images 桶
-            business_type='worklog'  # 工作日志类型
+            file_type='attachment',
+            bucket_type='invoice',  # 复用 invoice bucket
+            business_type='worklog'
         )
 
-        logger.info(f"upload_file 返回结果: {result}")
+        logger.info(f"智能存储上传结果: {result}")
 
         if result and result.get('url'):
             # 保存到数据库
@@ -1662,32 +1664,57 @@ def preview_worklog_attachment(log_date, index):
     # 判断是否强制下载
     force_download = request.args.get('download') == '1'
 
+    # 确定 MIME 类型
+    if file_type == 'pdf':
+        mime_type = 'application/pdf'
+    else:
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'bin'
+        mime_map = {
+            'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+            'png': 'image/png', 'gif': 'image/gif',
+            'webp': 'image/webp', 'heic': 'image/heic',
+            'pdf': 'application/pdf'
+        }
+        mime_type = mime_map.get(ext, 'application/octet-stream')
+
+    # 对文件名进行 RFC 5987 编码以支持中文
+    from urllib.parse import quote
+    encoded_filename = quote(filename, safe='')
+    disposition_type = 'attachment' if force_download else 'inline'
+
     try:
-        # 云端文件，代理下载
-        if url and (url.startswith('http://') or url.startswith('https://')):
+        # 处理 NAS 智能存储路径
+        if url and url.startswith('/storage/nas/'):
+            from app.views.storage import _get_file_with_fallback
+            from urllib.parse import urlparse, parse_qs
+
+            parsed = urlparse(url)
+            path_parts = parsed.path.split('/')
+            bucket_type = path_parts[3] if len(path_parts) > 3 else 'invoice'
+            query_params = parse_qs(parsed.query)
+            nas_path = query_params.get('path', [''])[0]
+
+            if nas_path:
+                file_content, source = _get_file_with_fallback(nas_path, bucket_type)
+                if file_content:
+                    logger.info(f"Worklog 附件从 {source} 获取成功")
+                    headers = {
+                        'Content-Type': mime_type,
+                        'Content-Disposition': f"{disposition_type}; filename*=UTF-8''{encoded_filename}",
+                        'X-Storage-Source': source or 'unknown'
+                    }
+                    return Response(file_content, headers=headers)
+                else:
+                    return jsonify({'success': False, 'message': _('文件获取失败')}), 404
+
+        # 云端文件（Supabase URL），代理下载
+        elif url and (url.startswith('http://') or url.startswith('https://')):
             resp = requests.get(url, timeout=30)
             if resp.status_code == 200:
-                # 确定 MIME 类型
-                if file_type == 'pdf':
-                    mime_type = 'application/pdf'
-                else:
-                    ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'bin'
-                    mime_map = {
-                        'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
-                        'png': 'image/png', 'gif': 'image/gif',
-                        'webp': 'image/webp', 'heic': 'image/heic'
-                    }
-                    mime_type = mime_map.get(ext, 'application/octet-stream')
-
-                # 对文件名进行 RFC 5987 编码以支持中文
-                from urllib.parse import quote
-                encoded_filename = quote(filename, safe='')
-                disposition_type = 'attachment' if force_download else 'inline'
-
-                headers = {'Content-Type': mime_type}
-                # 使用 filename* 参数支持 UTF-8 编码的文件名
-                headers['Content-Disposition'] = f"{disposition_type}; filename*=UTF-8''{encoded_filename}"
-
+                headers = {
+                    'Content-Type': mime_type,
+                    'Content-Disposition': f"{disposition_type}; filename*=UTF-8''{encoded_filename}"
+                }
                 return Response(resp.content, headers=headers)
             else:
                 return jsonify({'success': False, 'message': _('文件获取失败')}), 404
