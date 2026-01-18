@@ -52,6 +52,7 @@
     let currentMode = 'create'; // 'create' or 'edit'
     let editExpenseId = null;
     let existingDetails = [];
+    let attributionUsersLoaded = false; // 费用归属用户列表是否已加载
 
     const ExpenseModal = {
         /**
@@ -83,6 +84,9 @@
                 if (noCustomerCheckbox) {
                     noCustomerCheckbox.addEventListener('change', (e) => this.toggleNoCustomerMode(e.target.checked));
                 }
+
+                // 费用归属选择器初始化
+                this.initAttributionSelector();
 
                 // 报销单主货币变化时，重新计算所有明细的汇率
                 const currencySelect = document.getElementById('expense_currency');
@@ -344,6 +348,17 @@
                 noCustomerCheckbox.disabled = false;
             }
 
+            // 重置费用归属选择器状态
+            attributionUsersLoaded = false;
+            const attributeCheckbox = document.getElementById('expense_attribute_to_self');
+            const attributeContainer = document.getElementById('expenseAttributedToContainer');
+            const attributeSelect = document.getElementById('expense_attributed_to_id');
+            if (attributeCheckbox) attributeCheckbox.checked = true;
+            if (attributeContainer) attributeContainer.style.display = 'none';
+            if (attributeSelect) {
+                attributeSelect.innerHTML = '<option value="">' + (config.i18n.loading || '加载中...') + '</option>';
+            }
+
             // 隐藏说明必填标记
             const descRequired = document.querySelector('.expense-desc-required');
             if (descRequired) descRequired.classList.add('hidden');
@@ -372,6 +387,45 @@
             if (titleEl) titleEl.value = data.title || '';
             if (currencyEl) currencyEl.value = data.currency || config.defaultCurrency;
             if (descriptionEl) descriptionEl.value = data.description || '';
+
+            // 处理费用归属
+            const attributeToSelfCheckbox = document.getElementById('expense_attribute_to_self');
+            const attributedToContainer = document.getElementById('expenseAttributedToContainer');
+            const attributedToSelect = document.getElementById('expense_attributed_to_id');
+
+            if (attributeToSelfCheckbox && attributedToContainer && attributedToSelect) {
+                // 判断是否归属他人（attributed_to_id 存在且不等于 owner_id）
+                const isAttributedToOther = data.attributed_to_id && data.attributed_to_id !== data.owner_id;
+
+                if (isAttributedToOther) {
+                    // 归属他人：取消勾选"归属自己"，显示选择器，加载用户列表
+                    attributeToSelfCheckbox.checked = false;
+                    attributedToContainer.style.display = 'block';
+
+                    // 加载同公司用户列表
+                    fetch('/expense/api/users/same-company')
+                        .then(response => response.json())
+                        .then(result => {
+                            if (result.success) {
+                                attributedToSelect.innerHTML = '<option value="">' + (config.messages?.selectAttributedTo || '请选择归属人') + '</option>';
+                                result.users.forEach(user => {
+                                    // 排除当前用户
+                                    if (user.id !== data.owner_id) {
+                                        const selected = user.id === data.attributed_to_id ? 'selected' : '';
+                                        attributedToSelect.innerHTML += `<option value="${user.id}" ${selected}>${user.real_name || user.username}</option>`;
+                                    }
+                                });
+                            }
+                        })
+                        .catch(error => {
+                            console.error('加载用户列表失败:', error);
+                        });
+                } else {
+                    // 归属自己：勾选复选框，隐藏选择器
+                    attributeToSelfCheckbox.checked = true;
+                    attributedToContainer.style.display = 'none';
+                }
+            }
 
             if (data.customer_id) {
                 // 关联客户模式
@@ -833,6 +887,78 @@
         },
 
         /**
+         * 初始化费用归属选择器
+         */
+        initAttributionSelector: function() {
+            const checkbox = document.getElementById('expense_attribute_to_self');
+            const container = document.getElementById('expenseAttributedToContainer');
+            const select = document.getElementById('expense_attributed_to_id');
+
+            if (!checkbox || !container || !select) {
+                return;
+            }
+
+            const currentValue = select.dataset.currentValue;
+
+            // 监听复选框变化
+            checkbox.addEventListener('change', () => {
+                if (checkbox.checked) {
+                    container.style.display = 'none';
+                    select.value = '';
+                } else {
+                    container.style.display = 'block';
+                    if (!attributionUsersLoaded) {
+                        this.loadSameCompanyUsers(currentValue);
+                        attributionUsersLoaded = true;
+                    }
+                }
+            });
+
+            // 如果初始状态是不归属自己，加载用户列表
+            if (!checkbox.checked && currentValue) {
+                this.loadSameCompanyUsers(currentValue);
+                attributionUsersLoaded = true;
+            }
+        },
+
+        /**
+         * 加载同公司用户列表
+         * @param {string|number} selectedUserId - 预选的用户ID
+         */
+        loadSameCompanyUsers: function(selectedUserId) {
+            const select = document.getElementById('expense_attributed_to_id');
+            if (!select) return;
+
+            select.innerHTML = '<option value="">' + (config.i18n.loading || '加载中...') + '</option>';
+
+            fetch('/expense/api/users/same-company')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        select.innerHTML = '<option value="">' + (config.i18n.selectAttributedTo || '请选择归属人') + '</option>';
+                        data.users.forEach(user => {
+                            // 排除当前用户
+                            if (!user.is_current_user) {
+                                const option = document.createElement('option');
+                                option.value = user.id;
+                                option.textContent = user.real_name + (user.department ? ` (${user.department})` : '');
+                                if (selectedUserId && String(user.id) === String(selectedUserId)) {
+                                    option.selected = true;
+                                }
+                                select.appendChild(option);
+                            }
+                        });
+                    } else {
+                        select.innerHTML = '<option value="">' + (config.i18n.loadFailed || '加载失败') + '</option>';
+                    }
+                })
+                .catch(error => {
+                    select.innerHTML = '<option value="">' + (config.i18n.loadFailed || '加载失败') + '</option>';
+                    console.error('加载同公司用户列表失败:', error);
+                });
+        },
+
+        /**
          * 初始化客户搜索组件
          */
         initCustomerSearchComponent: function() {
@@ -1199,6 +1325,13 @@
             formData.append('title', document.getElementById('expense_title')?.value || '');
             formData.append('currency', document.getElementById('expense_currency')?.value || config.defaultCurrency);
             formData.append('description', document.getElementById('expense_description')?.value || '');
+
+            // 费用归属
+            const attributeToSelf = document.getElementById('expense_attribute_to_self')?.checked;
+            formData.append('attribute_to_self', attributeToSelf ? '1' : '0');
+            if (!attributeToSelf) {
+                formData.append('attributed_to_id', document.getElementById('expense_attributed_to_id')?.value || '');
+            }
 
             const noCustomerMode = document.getElementById('expense_no_customer_mode')?.checked;
             formData.append('no_customer_mode', noCustomerMode ? '1' : '');

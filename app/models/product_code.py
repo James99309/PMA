@@ -8,7 +8,8 @@ class ProductCategory(db.Model):
     __tablename__ = 'product_categories'
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)  # 分类名称
+    name = Column(String(100), nullable=False)  # 分类名称（中文）
+    name_en = Column(String(100))  # 分类名称（英文）
     code_letter = Column(String(1), nullable=False, unique=True)  # 分类标识符
     description = Column(Text)  # 描述
     display_order = Column(Integer, default=0, nullable=False)  # 显示顺序
@@ -28,13 +29,14 @@ class ProductCategory(db.Model):
         return f'<ProductCategory {self.name} ({self.code_letter})>'
 
 class ProductSubcategory(db.Model):
-    """产品名称模型"""
+    """产品子分类（产品系列）模型"""
     __tablename__ = 'product_subcategories'
-    
+
     id = Column(Integer, primary_key=True)
     category_id = Column(Integer, ForeignKey('product_categories.id'), nullable=False)
-    name = Column(String(100), nullable=False)  # 产品名称
-    code_letter = Column(String(1), nullable=False)  # 产品名称标识符
+    name = Column(String(100), nullable=False)  # 子分类名称（中文）
+    name_en = Column(String(100))  # 子分类名称（英文）
+    code_letter = Column(String(1), nullable=False)  # 子分类标识符
     description = Column(Text)  # 描述
     display_order = Column(Integer, default=0)  # 在所属分类中的排序位置（从1开始）
     image_path = Column(String(500))  # 子分类共享图片
@@ -109,6 +111,7 @@ class ProductCodeField(db.Model):
     category_id = Column(Integer, ForeignKey('product_categories.id'), nullable=True)  # 分类级字段
     subcategory_id = Column(Integer, ForeignKey('product_subcategories.id'), nullable=True)  # 子分类级字段
     name = Column(String(100), nullable=False)  # 字段名称
+    name_en = Column(String(100))  # 字段名称（英文）
     code = Column(String(10), nullable=True)  # 字段编码，用于标识
     description = Column(Text, nullable=True)  # 字段说明
     field_type = Column(String(20), nullable=False)  # 字段类型：'origin_location', 'spec', 'supplement'

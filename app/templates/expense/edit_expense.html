@@ -227,15 +227,52 @@
                         <!-- 报销说明 -->
                         <div class="col-md-6 mb-3">
                             <label for="description" class="form-label">{{ _('报销说明') }}</label>
-                            <textarea class="form-control" 
-                                      id="description" name="description" 
-                                      rows="4" 
+                            <textarea class="form-control"
+                                      id="description" name="description"
+                                      rows="4"
                                       placeholder="{{ _('请描述报销的背景、目的等总体说明') }}"
                                       style="resize: vertical;"
                                       {% if approval_edit_mode and approval_edit_info and 'description' not in approval_edit_info.editable_fields %}readonly{% endif %}>{{ request.form.get('description', expense.description or '') }}</textarea>
                         </div>
                     </div>
-                    
+
+                    <!-- 费用归属选择 -->
+                    {% if not approval_edit_mode %}
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{{ _('费用归属') }}</label>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="attributeToSelf" name="attribute_to_self" value="1"
+                                       {% if not expense.attributed_to_id or expense.attributed_to_id == expense.owner_id %}checked{% endif %}>
+                                <label class="form-check-label" for="attributeToSelf">
+                                    {{ _('归属自己') }}
+                                    <small class="text-muted d-block">{{ _('费用计入本人部门，审批走本人上级') }}</small>
+                                </label>
+                            </div>
+                            <!-- 归属人选择器 -->
+                            <div id="attributedToContainer" style="{% if not expense.attributed_to_id or expense.attributed_to_id == expense.owner_id %}display: none;{% endif %}">
+                                <label for="attributed_to_id" class="form-label">{{ _('选择归属人') }}</label>
+                                <select class="form-select" id="attributed_to_id" name="attributed_to_id">
+                                    <option value="">{{ _('加载中...') }}</option>
+                                </select>
+                                <small class="text-muted">{{ _('费用将计入归属人部门，审批需归属人及其上级确认') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <!-- 审核编辑模式下仅显示归属信息 -->
+                    {% if expense.attributed_to_id and expense.attributed_to_id != expense.owner_id %}
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{{ _('费用归属') }}</label>
+                            <div class="form-control-plaintext">
+                                <span class="badge bg-info">{{ expense.attributed_to.real_name if expense.attributed_to else '未知' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+
                     <div class="section-divider"></div>
                     
                     <!-- 第二部分：报销明细管理 -->
@@ -499,6 +536,79 @@ window.i18nTexts = {
     editableExchangeRate: '{{ _("可在当前审核阶段编辑汇率") }}'
 };
 
+// 初始化费用归属选择器
+function initAttributionSelector() {
+    const attributeToSelfCheckbox = document.getElementById('attributeToSelf');
+    const attributedToContainer = document.getElementById('attributedToContainer');
+    const attributedToSelect = document.getElementById('attributed_to_id');
+
+    // 如果是审核编辑模式，这些元素可能不存在
+    if (!attributeToSelfCheckbox || !attributedToContainer || !attributedToSelect) {
+        console.log('费用归属选择器元素未找到（可能是审核编辑模式）');
+        return;
+    }
+
+    // 当前报销单的归属人ID（从后端传入）
+    const currentAttributedToId = {{ expense.attributed_to_id|default(0, true) }};
+    const currentOwnerId = {{ expense.owner_id }};
+    let usersLoaded = false;
+
+    // 监听复选框变化
+    attributeToSelfCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+            // 归属自己：隐藏选择器
+            attributedToContainer.style.display = 'none';
+            attributedToSelect.value = '';
+        } else {
+            // 不归属自己：显示选择器并加载用户列表
+            attributedToContainer.style.display = 'block';
+            if (!usersLoaded) {
+                loadSameCompanyUsers(currentAttributedToId);
+            }
+        }
+    });
+
+    // 如果当前不是归属自己，需要初始加载用户列表
+    if (currentAttributedToId && currentAttributedToId !== currentOwnerId) {
+        loadSameCompanyUsers(currentAttributedToId);
+    }
+
+    // 加载同公司用户列表
+    function loadSameCompanyUsers(selectedUserId) {
+        attributedToSelect.innerHTML = '<option value="">{{ _("加载中...") }}</option>';
+
+        fetch('/expense/api/users/same-company')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    attributedToSelect.innerHTML = '<option value="">{{ _("请选择归属人") }}</option>';
+                    data.users.forEach(user => {
+                        // 排除当前用户（因为当前用户已经可以通过"归属自己"选项选择）
+                        if (!user.is_current_user) {
+                            const option = document.createElement('option');
+                            option.value = user.id;
+                            option.textContent = user.real_name + (user.department ? ` (${user.department})` : '');
+                            // 如果有预选值，设置选中状态
+                            if (selectedUserId && user.id === selectedUserId) {
+                                option.selected = true;
+                            }
+                            attributedToSelect.appendChild(option);
+                        }
+                    });
+                    usersLoaded = true;
+                    console.log('已加载同公司用户列表:', data.users.length);
+                } else {
+                    attributedToSelect.innerHTML = '<option value="">{{ _("加载失败，请刷新页面重试") }}</option>';
+                    console.error('加载用户列表失败:', data.message);
+                }
+            })
+            .catch(error => {
+                attributedToSelect.innerHTML = '<option value="">{{ _("加载失败，请刷新页面重试") }}</option>';
+                console.error('加载同公司用户列表失败:', error);
+            });
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // 表单提交验证和AJAX提交
     document.getElementById('expenseForm').addEventListener('submit', function(e) {
@@ -564,15 +674,18 @@ document.addEventListener('DOMContentLoaded', function() {
         
         customerSearchContainer.addEventListener('customerCleared', function(e) {
             console.log('客户选择已清除');
-            
+
             // 清空客户ID隐藏字段
             $('#customer_id').val('');
-            
+
             // 清空并禁用联系人选择框
             clearContactSelection();
         });
     }
-    
+
+    // 初始化费用归属选择器
+    initAttributionSelector();
+
     // 监听主表字段变化，控制提交按钮状态
     const titleInput = document.getElementById('title');
     const customerIdInput = document.getElementById('customer_id');

@@ -24,7 +24,6 @@ from app.utils.access_control import (
     can_view_company, can_edit_company_info, can_edit_company_sharing, can_delete_company,
     can_view_contact, can_edit_contact, can_delete_contact, can_change_company_owner
 )
-from app.utils.notification_helpers import trigger_event_notification
 from app.utils.user_helpers import generate_user_tree_data
 from app.utils.activity_tracker import check_company_activity, update_active_status
 from zoneinfo import ZoneInfo

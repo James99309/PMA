@@ -51,12 +51,17 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 
                 <div class="row mb-3">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label for="name" class="form-label">区域名称 <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="name" name="name" required>
                         <div class="form-text">销售区域的名称，如"中国"、"美国"等</div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
+                        <label for="name_en" class="form-label">英文名称</label>
+                        <input type="text" class="form-control" id="name_en" name="name_en">
+                        <div class="form-text">销售区域的英文名称，如"China"、"USA"等</div>
+                    </div>
+                    <div class="col-md-4">
                         <label for="code" class="form-label">区域编码 <span class="text-danger">*</span></label>
                         <input type="text" class="form-control text-uppercase" id="code" name="code" maxlength="1" required style="width: 80px;">
                         <div class="form-text">单个字母或数字，用于产品编码中标识销售区域</div>

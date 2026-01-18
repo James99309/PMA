@@ -181,6 +181,52 @@ def check_mn_code_duplicate(mn_code, exclude_dev_product_id=None, exclude_produc
         return {'is_duplicate': False, 'dev_products': [], 'standard_products': [], 'config_versions': [], 'error': str(e)}
 
 
+# ============================================================================
+# 分类代码生成辅助函数 (用于跨系统导入时自动创建分类)
+# ============================================================================
+
+def generate_next_category_code_letter():
+    """生成下一个可用的分类代码字母
+
+    Returns:
+        str: 下一个可用的大写字母 (A-Z)
+
+    Raises:
+        ValueError: 如果所有字母代码已用完
+    """
+    import string
+    used = {c.code_letter for c in ProductCategory.query.all() if c.code_letter}
+    for letter in string.ascii_uppercase:
+        if letter not in used:
+            return letter
+    raise ValueError("所有分类字母代码已用完")
+
+
+def generate_next_subcategory_code_letter(category_id):
+    """生成下一个可用的子分类代码字符
+
+    Args:
+        category_id: 父分类ID
+
+    Returns:
+        str: 下一个可用的字符 (A-Z, 然后是 0-9)
+
+    Raises:
+        ValueError: 如果所有字符代码已用完
+    """
+    import string
+    used = {s.code_letter for s in ProductSubcategory.query.filter_by(category_id=category_id).all() if s.code_letter}
+    # 先尝试字母
+    for letter in string.ascii_uppercase:
+        if letter not in used:
+            return letter
+    # 再尝试数字
+    for digit in string.digits:
+        if digit not in used:
+            return digit
+    raise ValueError("所有子分类字符代码已用完")
+
+
 # ============================================================
 # 产品库筛选配置（与报价单/客户/项目管理保持一致的通用模式）
 # ============================================================
@@ -1004,6 +1050,7 @@ def get_products():
                     'category': p.category_name,  # 使用智能属性
                     'product_mn': p.product_mn,
                     'product_name': p.name,  # 使用智能属性
+                    'product_name_en': p.name_en,  # 英文产品名称
                     'model': p.model,
                     'specification': p.specification,
                     'brand': p.brand,
@@ -1782,20 +1829,105 @@ def create_product():
                 logger.warning(f"[DEBUG] source_configuration_id 转换失败")
                 source_configuration_id = None
 
-        # 获取分类体系字段
-        category_id = request.form.get('category_id')
-        subcategory_id = request.form.get('subcategory_id')
-        region_id = request.form.get('region_id')
+        # 获取配置来源类型
+        source_type = request.form.get('source_type', 'manual')
 
-        # 转换为整数
-        try:
-            category_id = int(category_id) if category_id else None
-        except (ValueError, TypeError):
-            category_id = None
-        try:
-            subcategory_id = int(subcategory_id) if subcategory_id else None
-        except (ValueError, TypeError):
-            subcategory_id = None
+        # 验证 source_type 值
+        valid_source_types = ['manual', 'from_config', 'from_sp8d', 'from_dev', 'from_spec']
+        if source_type not in valid_source_types:
+            source_type = 'manual'
+
+        # 对于 from_sp8d 类型，需要按名称匹配或创建本地分类
+        if source_type == 'from_sp8d':
+            logger.info(f"[DEBUG] from_sp8d 类型，清除 source_configuration_id（远程ID不可用于本地FK）")
+            source_configuration_id = None
+
+            # 从表单获取分类名称（用于按名称匹配）
+            category_name = request.form.get('category_name', '').strip()
+            category_name_en = request.form.get('category_name_en', '').strip()
+            subcategory_name = request.form.get('subcategory_name', '').strip()
+            subcategory_name_en = request.form.get('subcategory_name_en', '').strip()
+
+            logger.info(f"[DEBUG] SP8D导入分类名称: category={category_name}/{category_name_en}, subcategory={subcategory_name}/{subcategory_name_en}")
+
+            # 匹配或创建一级分类
+            local_cat = None
+            if category_name_en:
+                # 优先按英文名匹配（忽略大小写）
+                local_cat = ProductCategory.query.filter(
+                    func.lower(ProductCategory.name_en) == func.lower(category_name_en)
+                ).first()
+            if not local_cat and category_name:
+                # 回退：按中文名匹配
+                local_cat = ProductCategory.query.filter_by(name=category_name).first()
+            if not local_cat and (category_name or category_name_en):
+                # 自动创建新分类
+                try:
+                    new_code_letter = generate_next_category_code_letter()
+                    local_cat = ProductCategory(
+                        name=category_name or category_name_en,
+                        name_en=category_name_en or None,
+                        code_letter=new_code_letter
+                    )
+                    db.session.add(local_cat)
+                    db.session.flush()
+                    logger.info(f"[DEBUG] 自动创建分类: {local_cat.name} (code={new_code_letter})")
+                except ValueError as e:
+                    logger.error(f"创建分类失败: {str(e)}")
+
+            category_id = local_cat.id if local_cat else None
+
+            # 匹配或创建二级分类
+            local_sub = None
+            if subcategory_name_en and category_id:
+                # 优先按英文名匹配（在同一父分类下，忽略大小写）
+                local_sub = ProductSubcategory.query.filter(
+                    ProductSubcategory.category_id == category_id,
+                    func.lower(ProductSubcategory.name_en) == func.lower(subcategory_name_en)
+                ).first()
+            if not local_sub and subcategory_name and category_id:
+                # 回退：按中文名匹配
+                local_sub = ProductSubcategory.query.filter(
+                    ProductSubcategory.category_id == category_id,
+                    ProductSubcategory.name == subcategory_name
+                ).first()
+            if not local_sub and category_id and (subcategory_name or subcategory_name_en):
+                # 自动创建新子分类
+                try:
+                    new_sub_code = generate_next_subcategory_code_letter(category_id)
+                    local_sub = ProductSubcategory(
+                        category_id=category_id,
+                        name=subcategory_name or subcategory_name_en,
+                        name_en=subcategory_name_en or None,
+                        code_letter=new_sub_code
+                    )
+                    db.session.add(local_sub)
+                    db.session.flush()
+                    logger.info(f"[DEBUG] 自动创建子分类: {local_sub.name} (code={new_sub_code})")
+                except ValueError as e:
+                    logger.error(f"创建子分类失败: {str(e)}")
+
+            subcategory_id = local_sub.id if local_sub else None
+            logger.info(f"[DEBUG] SP8D导入分类匹配结果: category_id={category_id}, subcategory_id={subcategory_id}")
+
+        else:
+            # 非SP8D导入：直接使用前端传递的ID
+            # 获取分类体系字段
+            category_id = request.form.get('category_id')
+            subcategory_id = request.form.get('subcategory_id')
+
+            # 转换为整数
+            try:
+                category_id = int(category_id) if category_id else None
+            except (ValueError, TypeError):
+                category_id = None
+            try:
+                subcategory_id = int(subcategory_id) if subcategory_id else None
+            except (ValueError, TypeError):
+                subcategory_id = None
+
+        # 获取区域字段（两种情况共用）
+        region_id = request.form.get('region_id')
         try:
             region_id = int(region_id) if region_id else None
         except (ValueError, TypeError):
@@ -1822,9 +1954,9 @@ def create_product():
             region_id=region_id,
             # 配置来源信息
             source_configuration_id=source_configuration_id,
-            source_type='from_config' if source_configuration_id else 'manual',
-            # 从配置引入时锁定MN编码
-            is_mn_locked=True if source_configuration_id else False
+            source_type=source_type,
+            # 从配置引入时锁定MN编码（本地或远程配置都锁定）
+            is_mn_locked=True if source_type in ['from_config', 'from_sp8d', 'from_spec'] else False
         )
         
         # 处理产品图片上传到Supabase
@@ -1893,7 +2025,47 @@ def create_product():
         
         logger.info(f'产品创建成功: ID={new_product.id}, MN={new_product.product_mn}, 名称={new_product.product_name}, 有图片={has_image}, 有PDF={has_pdf}')
         logger.info(f'[DEBUG] 保存后的配置信息: source_configuration_id={new_product.source_configuration_id}, source_type={new_product.source_type}, category_id={new_product.category_id}, subcategory_id={new_product.subcategory_id}, region_id={new_product.region_id}')
-        
+
+        # === SP8D 导入产品时自动导入规格 ===
+        if source_type == 'from_sp8d':
+            sp8d_config_id = request.form.get('sp8d_configuration_id')
+            if sp8d_config_id:
+                try:
+                    from app.services.sp8d_api_service import sp8d_api_service
+                    from app.services.spec_service import SpecService
+
+                    # 获取 SP8D 规格数据
+                    spec_data = sp8d_api_service.get_configuration_specs(int(sp8d_config_id))
+
+                    if spec_data and spec_data.get('specs'):
+                        # 转换为本地规格格式并保存
+                        specs_to_save = []
+                        for idx, spec in enumerate(spec_data['specs']):
+                            specs_to_save.append({
+                                'field_name': spec.get('name', ''),
+                                'field_name_en': spec.get('name_en', ''),
+                                'field_value': spec.get('value', ''),
+                                'field_code': spec.get('code_char', ''),
+                                'display_order': idx + 1,
+                                'include_in_description': True
+                            })
+
+                        # 使用规格服务保存
+                        result = SpecService.save_specs(
+                            SpecService.TYPE_PRODUCT,
+                            new_product.id,
+                            specs_to_save
+                        )
+                        if result.get('success'):
+                            logger.info(f"已从SP8D导入 {len(specs_to_save)} 条规格到产品 {new_product.id}")
+                        else:
+                            logger.warning(f"SP8D规格导入部分失败: {result.get('message')}")
+                    else:
+                        logger.info(f"SP8D配置 {sp8d_config_id} 没有规格数据")
+                except Exception as e:
+                    logger.error(f"导入SP8D规格失败: {e}")
+                    # 规格导入失败不影响产品创建，只记录日志
+
         return jsonify({
             'success': True,
             'message': '产品创建成功',
@@ -3824,7 +3996,10 @@ def get_configurations_tree():
     """获取可引入配置的树状数据
 
     返回按分类/子分类组织的配置产品树，用于产品库引入功能。
-    只返回 pilot（小批价）或 production（可生产）状态的配置。
+
+    **环境自适应**：
+    - SP8D: 查询本地 ProductConfiguration 表
+    - OVS: 调用SP8D的远程API
 
     Returns:
         JSON: 树状配置数据
@@ -3855,6 +4030,36 @@ def get_configurations_tree():
             ]
         }
     """
+    from config import Config
+
+    # ============================================================
+    # 环境自适应逻辑：OVS调用SP8D API，SP8D查询本地数据库
+    # ============================================================
+    if Config.IS_OVS:
+        # OVS环境：调用SP8D的远程API
+        from app.services.sp8d_api_service import sp8d_api_service
+
+        tree_data = sp8d_api_service.get_configurations_tree()
+
+        if tree_data is not None:
+            # 标记为远程配置，前端不应设置 source_configuration_id
+            # 因为 SP8D 的配置 ID 在 OVS 数据库中不存在（会导致 FK 违规）
+            def mark_remote_configs(nodes):
+                for node in nodes:
+                    if node.get('type') == 'configuration':
+                        node['is_remote'] = True
+                    if 'children' in node:
+                        mark_remote_configs(node['children'])
+
+            mark_remote_configs(tree_data)
+            return jsonify({'success': True, 'data': tree_data})
+        else:
+            return jsonify({
+                'success': False,
+                'message': _('SP8D系统暂时不可用，请稍后重试或手动输入产品配置')
+            }), 503
+
+    # SP8D环境：查询本地数据库（保持原有逻辑）
     from app.models.spec_template import ProductConfiguration, SpecTemplate
 
     # 查询 pilot/production 状态的配置
@@ -3883,9 +4088,11 @@ def get_configurations_tree():
         # 获取状态显示文本
         status_display = _('可生产') if config.status == 'production' else _('小批价')
 
-        # 查找区域ID（通过区域编码查找 ProductCodeField）
+        # 查找区域ID和区域名称（通过区域编码查找 ProductCodeField）
         # ProductCodeField 有 code 字段或其第一个 option 的 code 来标识区域
         region_id = None
+        region_name_display = config.region_name
+        region_name_en_display = config.region_name_en if hasattr(config, 'region_name_en') else None
         if config.region:
             from app.models.product_code import ProductCodeField, ProductCodeFieldOption
             # 先尝试通过 ProductCodeField.code 匹配
@@ -3895,6 +4102,10 @@ def get_configurations_tree():
             ).first()
             if region_field:
                 region_id = region_field.id
+                # 当 region_name 为空时，从 ProductCodeField 获取名称
+                if not region_name_display:
+                    region_name_display = region_field.name
+                    region_name_en_display = region_field.name_en
             else:
                 # 如果 field.code 是 '?' 则通过 option.code 查找
                 region_option = ProductCodeFieldOption.query.join(ProductCodeField).filter(
@@ -3919,12 +4130,16 @@ def get_configurations_tree():
             'status_display': status_display,
             'region': config.region,
             'region_id': region_id,
-            'region_name': config.region_name or config.region,
+            'region_name': region_name_display or config.region,
+            'region_name_en': region_name_en_display,
             'category_id': template.category_id,
             'category_name': template.category.name if template.category else None,
+            'category_name_en': template.category.name_en if template.category else None,
             'subcategory_id': template.subcategory_id,
             'subcategory_name': template.subcategory.name if template.subcategory else None,
+            'subcategory_name_en': template.subcategory.name_en if template.subcategory else None,
             'product_name': product_name,
+            'product_name_en': template.subcategory.name_en if template.subcategory else None,
             'already_imported': already_imported
         }
 

@@ -5,6 +5,7 @@ from app.extensions import csrf
 from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField, ProductCodeFieldOption, ProductCode, ProductCodeFieldValue, SpecificationDictionary, SpecificationOption
 from app.models.product import Product
 from app.permissions import admin_required, product_manager_required, permission_required
+from app.utils.legacy_decorators import feature_flag  # [LegacySpecSystem] 导入特性开关装饰器
 import json
 import random
 import string
@@ -12,6 +13,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text, update, Integer, case
 from datetime import datetime
 from app.routes.spec_dictionary import generate_smart_code
+import logging
+
+logger = logging.getLogger(__name__)
 
 # 创建蓝图
 product_code_bp = Blueprint('product_code', __name__, url_prefix='/product-code')
@@ -1573,6 +1577,7 @@ def new_origin_field():
     """添加新销售区域"""
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
+        name_en = request.form.get('name_en', '').strip()  # 英文名称
         code = request.form.get('code', '').strip().upper()  # 获取用户输入的编码并转为大写
         description = request.form.get('description', '')
 
@@ -1610,6 +1615,7 @@ def new_origin_field():
             field = ProductCodeField(
                 subcategory_id=default_subcategory.id,
                 name=name,
+                name_en=name_en if name_en else None,  # 英文名称
                 code=code,  # 直接使用用户输入的编码
                 description=description,
                 field_type='origin_location',
@@ -1662,9 +1668,11 @@ def edit_origin_field(id):
         
         if request.method == 'POST':
             name = request.form.get('name')
+            name_en = request.form.get('name_en', '').strip()  # 英文名称
             description = request.form.get('description')
-            
+
             field.name = name
+            field.name_en = name_en if name_en else None  # 英文名称
             field.description = description
             # 固定值
             field.position = 1
@@ -2723,11 +2731,14 @@ def get_available_specs(subcategory_id):
 
 @product_code_bp.route('/api/fields', methods=['POST'])
 @login_required
+@feature_flag('LEGACY_SPEC_SYSTEM_ENABLED')  # [LegacySpecSystem] 旧规格系统特性开关
 @product_manager_required
 @csrf.exempt
 def create_field():
     """
     创建产品代码字段（支持分类级和子分类级）
+
+    [LegacySpecSystem] 此API已通过特性开关控制，可在LEGACY_SPEC_SYSTEM_ENABLED=false时禁用
 
     Request Body:
         {
@@ -2747,6 +2758,8 @@ def create_field():
         JSON: {success, message, data}
     """
     try:
+        # [LegacySpecSystem] 记录规格字段创建操作
+        logger.info('[LegacySpecSystem] Creating product code field')
         data = request.get_json()
 
         category_id = data.get('category_id')
@@ -2897,6 +2910,9 @@ def create_field():
         db.session.add(new_field)
         db.session.commit()
 
+        # [LegacySpecSystem] 规格字段创建成功
+        logger.info(f'[LegacySpecSystem] Product code field created: id={new_field.id}, name={new_field.name}')
+
         return jsonify({
             'success': True,
             'message': '规格创建成功',
@@ -2913,10 +2929,12 @@ def create_field():
 
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f'创建字段失败: {str(e)}')
+        # [LegacySpecSystem] 规格字段创建失败
+        logger.error(f'[LegacySpecSystem] Failed to create product code field: {str(e)}', exc_info=True)
         return jsonify({
             'success': False,
-            'message': f'创建失败: {str(e)}'
+            'message': f'创建失败: {str(e)}',
+            'source': 'legacy_spec_system'
         }), 500
 
 
@@ -2972,11 +2990,14 @@ def get_field(field_id):
 
 @product_code_bp.route('/api/fields/<int:field_id>', methods=['PUT'])
 @login_required
+@feature_flag('LEGACY_SPEC_SYSTEM_ENABLED')  # [LegacySpecSystem] 旧规格系统特性开关
 @product_manager_required
 @csrf.exempt
 def update_field(field_id):
     """
     更新产品代码字段（子分类级自有字段）
+
+    [LegacySpecSystem] 此API已通过特性开关控制，可在LEGACY_SPEC_SYSTEM_ENABLED=false时禁用
 
     Args:
         field_id: 字段ID
@@ -2993,6 +3014,8 @@ def update_field(field_id):
         JSON: {success, message}
     """
     try:
+        # [LegacySpecSystem] 记录规格字段更新操作
+        logger.info(f'[LegacySpecSystem] Updating product code field: id={field_id}')
         field = ProductCodeField.query.get(field_id)
 
         if not field:
@@ -3091,6 +3114,7 @@ def update_field(field_id):
 
 @product_code_bp.route('/api/fields/<int:field_id>', methods=['DELETE'])
 @login_required
+@feature_flag('LEGACY_SPEC_SYSTEM_ENABLED')  # [LegacySpecSystem] 旧规格系统特性开关
 @product_manager_required
 @csrf.exempt
 def delete_field_api(field_id):
@@ -3256,6 +3280,7 @@ def get_options_api(field_id):
 
 @product_code_bp.route('/api/fields/<int:field_id>/options', methods=['POST'])
 @login_required
+@feature_flag('LEGACY_SPEC_SYSTEM_ENABLED')  # [LegacySpecSystem] 旧规格系统特性开关
 @product_manager_required
 @csrf.exempt
 def create_option_api(field_id):
@@ -3520,6 +3545,7 @@ def get_option_api(option_id):
 
 @product_code_bp.route('/api/options/<int:option_id>', methods=['PUT'])
 @login_required
+@feature_flag('LEGACY_SPEC_SYSTEM_ENABLED')  # [LegacySpecSystem] 旧规格系统特性开关
 @product_manager_required
 @csrf.exempt
 def update_option_api(option_id):
@@ -3623,6 +3649,7 @@ def update_option_api(option_id):
 
 @product_code_bp.route('/api/options/<int:option_id>', methods=['DELETE'])
 @login_required
+@feature_flag('LEGACY_SPEC_SYSTEM_ENABLED')  # [LegacySpecSystem] 旧规格系统特性开关
 @product_manager_required
 @csrf.exempt
 def delete_option_api(option_id):
@@ -3719,6 +3746,7 @@ def delete_option_api(option_id):
 
 @product_code_bp.route('/api/options/<int:option_id>/toggle', methods=['PATCH'])
 @login_required
+@feature_flag('LEGACY_SPEC_SYSTEM_ENABLED')  # [LegacySpecSystem] 旧规格系统特性开关
 @product_manager_required
 @csrf.exempt
 def toggle_option_status_api(option_id):
@@ -3812,6 +3840,7 @@ def create_category_api():
     try:
         data = request.get_json()
         name = data.get('name', '').strip()
+        name_en = data.get('name_en', '').strip()
         code_letter = data.get('code_letter', '').strip().upper()
         description = data.get('description', '').strip()
 
@@ -3841,6 +3870,7 @@ def create_category_api():
         # 创建分类
         category = ProductCategory(
             name=name,
+            name_en=name_en if name_en else None,
             code_letter=code_letter,
             description=description,
             display_order=max_order + 1
@@ -3854,6 +3884,7 @@ def create_category_api():
             'data': {
                 'id': category.id,
                 'name': category.name,
+                'name_en': category.name_en,
                 'code_letter': category.code_letter,
                 'display_order': category.display_order
             }
@@ -3878,6 +3909,7 @@ def get_category_api(category_id):
             'data': {
                 'id': category.id,
                 'name': category.name,
+                'name_en': category.name_en or '',
                 'code_letter': category.code_letter,
                 'description': category.description or ''
             }
@@ -3892,15 +3924,57 @@ def get_category_api(category_id):
 @product_manager_required
 @csrf.exempt
 def update_category_api(category_id):
-    """更新产品分类"""
+    """更新产品分类
+
+    支持两种编辑模式：
+    1. 完全编辑：当分类未被使用时（is_used=false），可修改所有字段
+    2. 部分编辑：当分类已被使用时（is_used=true），仅允许修改 name_en（英文名称）
+    """
     try:
         category = ProductCategory.query.get_or_404(category_id)
 
         data = request.get_json()
         name = data.get('name', '').strip()
+        name_en = data.get('name_en', '').strip()
         code_letter = data.get('code_letter', '').strip().upper()
         description = data.get('description', '').strip()
 
+        # 检查分类是否被使用（与列表页相同的逻辑）
+        used_in_dev = db.session.execute(
+            text("SELECT 1 FROM dev_products WHERE category_id = :id LIMIT 1"),
+            {"id": category.id}
+        ).first() is not None
+
+        subcategory_count = ProductSubcategory.query.filter_by(category_id=category.id).count()
+        is_used = used_in_dev or subcategory_count > 0
+
+        # 如果分类已被使用，仅允许修改 name_en，其他字段被忽略
+        if is_used:
+            # 检测用户是否尝试修改锁定的字段
+            if 'name' in data and name and name != category.name:
+                return jsonify({
+                    'success': False,
+                    'message': '此分类已被使用，无法修改名称'
+                }), 400
+
+            if 'code_letter' in data and code_letter and code_letter != category.code_letter:
+                return jsonify({
+                    'success': False,
+                    'message': '此分类已被使用，无法修改标识符'
+                }), 400
+
+            if 'description' in data and description and description != (category.description or ''):
+                return jsonify({
+                    'success': False,
+                    'message': '此分类已被使用，无法修改描述'
+                }), 400
+
+            # 仅更新 name_en（英文名称）
+            category.name_en = name_en if name_en else None
+            db.session.commit()
+            return jsonify({'success': True, 'message': '英文名称保存成功'})
+
+        # 分类未被使用，允许完全编辑
         # 验证必填字段
         if not name:
             return jsonify({'success': False, 'message': '分类名称是必填项'}), 400
@@ -3924,6 +3998,7 @@ def update_category_api(category_id):
 
         # 更新分类
         category.name = name
+        category.name_en = name_en if name_en else None
         category.code_letter = code_letter
         category.description = description
         db.session.commit()
@@ -4027,6 +4102,7 @@ def create_subcategory_api():
 
         category_id = data.get('category_id')
         name = data.get('name', '').strip()
+        name_en = data.get('name_en', '').strip()
         code_letter = data.get('code_letter', '').strip().upper()
 
         # 验证必填字段
@@ -4078,6 +4154,7 @@ def create_subcategory_api():
         new_subcategory = ProductSubcategory(
             category_id=category_id,
             name=name,
+            name_en=name_en if name_en else None,
             code_letter=code_letter,
             description='',  # 用户要求不需要描述
             display_order=max_order + 1
@@ -4092,6 +4169,7 @@ def create_subcategory_api():
             'data': {
                 'id': new_subcategory.id,
                 'name': new_subcategory.name,
+                'name_en': new_subcategory.name_en,
                 'code_letter': new_subcategory.code_letter,
                 'display_order': new_subcategory.display_order
             }
@@ -4134,6 +4212,7 @@ def get_subcategory_api(subcategory_id):
             'data': {
                 'id': subcategory.id,
                 'name': subcategory.name,
+                'name_en': subcategory.name_en or '',
                 'code_letter': subcategory.code_letter,
                 'category_id': subcategory.category_id
             }
@@ -4153,15 +4232,20 @@ def get_subcategory_api(subcategory_id):
 @csrf.exempt
 def update_subcategory_api(subcategory_id):
     """
-    更新产品名称
+    更新产品子分类（产品名称）
+
+    支持两种编辑模式：
+    1. 完全编辑：当子分类未被使用时（is_used=false），可修改所有字段
+    2. 部分编辑：当子分类已被使用时（is_used=true），仅允许修改 name_en（英文名称）
 
     Args:
         subcategory_id: 子分类ID
 
     Request Body:
         {
-            "name": str,
-            "code_letter": str
+            "name": str,           # 产品名称（仅在未被使用时可修改）
+            "name_en": str,        # 英文名称（总是允许修改）
+            "code_letter": str     # 标识符（仅在未被使用时可修改）
         }
 
     Returns:
@@ -4188,17 +4272,38 @@ def update_subcategory_api(subcategory_id):
             {"pattern": pattern}
         ).first() is not None
 
-        if used_in_dev_by_subcategory or used_in_dev_by_code:
-            return jsonify({
-                'success': False,
-                'message': '此产品名称已被使用，无法修改'
-            }), 400
+        is_used = used_in_dev_by_subcategory or used_in_dev_by_code
 
         data = request.get_json()
         name = data.get('name', '').strip()
+        name_en = data.get('name_en', '').strip()
         code_letter = data.get('code_letter', '').strip().upper()
 
-        # 验证
+        # 如果子分类已被使用，仅允许修改 name_en，其他字段被忽略
+        if is_used:
+            # 检测用户是否尝试修改锁定的字段
+            if 'name' in data and name and name != subcategory.name:
+                return jsonify({
+                    'success': False,
+                    'message': '此产品名称已被使用，无法修改名称'
+                }), 400
+
+            if 'code_letter' in data and code_letter and code_letter != subcategory.code_letter:
+                return jsonify({
+                    'success': False,
+                    'message': '此产品名称已被使用，无法修改标识符'
+                }), 400
+
+            # 仅更新 name_en（英文名称）
+            subcategory.name_en = name_en if name_en else None
+            db.session.commit()
+            return jsonify({
+                'success': True,
+                'message': '英文名称保存成功'
+            })
+
+        # 子分类未被使用，允许完全编辑
+        # 验证必填字段
         if not name or not code_letter:
             return jsonify({
                 'success': False,
@@ -4230,8 +4335,9 @@ def update_subcategory_api(subcategory_id):
                 'message': f'标识符 {code_letter} 已在此分类下使用'
             }), 400
 
-        # 更新
+        # 更新子分类
         subcategory.name = name
+        subcategory.name_en = name_en if name_en else None
         subcategory.code_letter = code_letter
         db.session.commit()
 
@@ -4407,6 +4513,7 @@ def get_category_field(field_id):
 
 @product_code_bp.route('/api/category-fields', methods=['POST'])
 @login_required
+@feature_flag('LEGACY_SPEC_SYSTEM_ENABLED')  # [LegacySpecSystem] 旧规格系统特性开关
 @product_manager_required
 @csrf.exempt
 def create_category_field():
@@ -4512,6 +4619,7 @@ def create_category_field():
 
 @product_code_bp.route('/api/category-fields/<int:field_id>', methods=['PUT'])
 @login_required
+@feature_flag('LEGACY_SPEC_SYSTEM_ENABLED')  # [LegacySpecSystem] 旧规格系统特性开关
 @product_manager_required
 @csrf.exempt
 def update_category_field(field_id):
@@ -4582,6 +4690,7 @@ def update_category_field(field_id):
 
 @product_code_bp.route('/api/category-fields/<int:field_id>', methods=['DELETE'])
 @login_required
+@feature_flag('LEGACY_SPEC_SYSTEM_ENABLED')  # [LegacySpecSystem] 旧规格系统特性开关
 @product_manager_required
 @csrf.exempt
 def delete_category_field(field_id):
@@ -5570,3 +5679,5 @@ def delete_subcategory_field_option(option_id):
             'success': False,
             'message': f'删除失败: {str(e)}'
         }), 500
+
+

@@ -674,13 +674,14 @@
                 return colors[type] || 'bg-slate-500';
             },
 
-            // 格式化金额（万元）- 费用使用
+            // 格式化金额（元）- 费用预算使用，不转换为万元
             formatAmount(value) {
                 if (!value || value === 0) return CURRENCY_SYMBOL + '0';
-                if (value >= 10000) {
-                    return CURRENCY_SYMBOL + (value / 10000).toFixed(2) + AMOUNT_UNIT;
-                }
-                return CURRENCY_SYMBOL + value.toFixed(2);
+                // 直接显示元，带千位分隔符
+                return CURRENCY_SYMBOL + value.toLocaleString('zh-CN', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
             }
         };
     }

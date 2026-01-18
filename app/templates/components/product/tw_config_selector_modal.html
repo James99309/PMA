@@ -206,7 +206,7 @@ Tailwind 配置产品选择器模态框组件
                         </div>
                         <div class="flex items-center">
                             <span class="text-slate-500 dark:text-slate-400 mr-2">{{ _('分类') }}:</span>
-                            <span x-text="(selectedConfig?.category_name || '') + ' / ' + (selectedConfig?.subcategory_name || '')"
+                            <span x-text="(selectedConfig?.category_name_en || selectedConfig?.category_name || '') + ' / ' + (selectedConfig?.subcategory_name_en || selectedConfig?.subcategory_name || '')"
                                   class="text-slate-800 dark:text-slate-200"></span>
                         </div>
                     </div>

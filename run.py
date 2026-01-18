@@ -25,7 +25,7 @@ def main():
         parser.add_argument('--port', type=int, help='指定运行端口')
         parser.add_argument('--supabase', action='store_true', help='启用Supabase云端上传测试')
         args = parser.parse_args()
-        
+
         # 强制加载本地环境配置
         from dotenv import load_dotenv
 
@@ -34,10 +34,33 @@ def main():
             load_dotenv('.env.nas', override=True)
             logger.info("🗄️ 加载 NAS 存储配置文件 .env.nas")
 
-        if not args.supabase:
+        # 注意：启动脚本已经导出环境变量，但我们仍需尝试从对应的.env文件加载
+        # 这里先加载启动脚本可能指定的环境文件
+        # 检测启动脚本是否导出了 SUPABASE_DB_TYPE（用于判断是 SP8D 还是 OVS）
+        supabase_db_type = os.environ.get('SUPABASE_DB_TYPE', '').lower()
+
+        if supabase_db_type == 'sp8d':
+            # SP8D 测试模式 - 加载 .env.sp8d.local
+            if os.path.exists('.env.sp8d.local'):
+                load_dotenv('.env.sp8d.local', override=True)
+                logger.info("🔄 检测到SP8D测试模式，加载.env.sp8d.local配置")
+        elif supabase_db_type == 'ovs':
+            # OVS 测试模式 - 加载 .env.ovs.local
+            if os.path.exists('.env.ovs.local'):
+                load_dotenv('.env.ovs.local', override=True)
+                logger.info("🔄 检测到OVS测试模式，加载.env.ovs.local配置")
+        elif not args.supabase:
+            # 非跨系统测试模式 - 加载本地配置
             load_dotenv('.env.local', override=True)
             logger.info("🔧 强制加载本地环境配置文件 .env.local")
-        
+
+        # 现在检测是否在运行跨系统测试模式（此时环境变量已加载）
+        is_cross_system_test = (
+            os.environ.get('CROSS_SYSTEM_API_KEY') is not None or
+            os.environ.get('SP8D_API_BASE_URL') is not None or
+            os.environ.get('SUPABASE_DB_TYPE') in ['sp8d', 'ovs']
+        )
+
         # 如果启用了Supabase测试
         if args.supabase:
             logger.info("🌐 启用Supabase云端上传测试模式")
@@ -54,20 +77,23 @@ def main():
                             logger.info(f"✅ 设置环境变量: {key}={display_value}")
             else:
                 logger.warning("⚠️ Supabase配置文件 .env.supabase 不存在")
-        
-        # 强制使用本地数据库配置
-        os.environ['FLASK_ENV'] = 'local'
-        # 清除可能影响本地配置的环境变量
-        if 'DATABASE_URL' in os.environ:
-            del os.environ['DATABASE_URL']
-        if 'CLOUD_DB_URL' in os.environ:
-            del os.environ['CLOUD_DB_URL']
-        if 'CLOUD_DB_ACCESS' in os.environ:
-            del os.environ['CLOUD_DB_ACCESS']
-        
-        # 设置本地数据库配置
-        os.environ['LOCAL_DATABASE_URL'] = 'postgresql://nijie@localhost:5432/pma_local'
-        logger.info("🔧 配置为使用本地数据库")
+
+        # 仅在非跨系统测试模式下强制使用本地数据库配置
+        if not is_cross_system_test:
+            os.environ['FLASK_ENV'] = 'local'
+            # 清除可能影响本地配置的环境变量
+            if 'DATABASE_URL' in os.environ:
+                del os.environ['DATABASE_URL']
+            if 'CLOUD_DB_URL' in os.environ:
+                del os.environ['CLOUD_DB_URL']
+            if 'CLOUD_DB_ACCESS' in os.environ:
+                del os.environ['CLOUD_DB_ACCESS']
+
+            # 设置本地数据库配置
+            os.environ['LOCAL_DATABASE_URL'] = 'postgresql://nijie@localhost:5432/pma_local'
+            logger.info("🔧 配置为使用本地数据库")
+        else:
+            logger.info("✅ 使用启动脚本导出的数据库配置（跨系统API测试模式）")
         
         # 导入本地配置
         from config import LocalConfig
@@ -79,11 +105,13 @@ def main():
             logger.info(f"   SUPABASE_URL: {os.environ.get('SUPABASE_URL', 'NOT SET')}")
             logger.info(f"   FORCE_CLOUD_UPLOAD: {os.environ.get('FORCE_CLOUD_UPLOAD', 'NOT SET')}")
         
-        # 获取端口（优先使用命令行参数，然后使用默认值）
+        # 获取端口（优先级：命令行参数 > 环境变量 > 默认值）
         if args.port:
             port = args.port
         else:
-            port = 5011  # 默认端口5011
+            # 优先读取环境变量中的 FLASK_RUN_PORT（来自启动脚本）
+            env_port = os.environ.get('FLASK_RUN_PORT') or os.environ.get('PORT')
+            port = int(env_port) if env_port else 5011
         
         logger.info(f"PMA系统启动中...")
         logger.info(f"环境: {os.environ.get('FLASK_ENV', 'local')}")

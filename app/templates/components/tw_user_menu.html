@@ -17,15 +17,6 @@
             <span class="material-symbols-outlined text-slate-600 dark:text-slate-300 text-base">monitoring</span>
             <span class="text-slate-600 dark:text-slate-300 text-sm font-medium">{{ _('绩效看板') }}</span>
         </a>
-        <a class="flex items-center justify-between px-3 py-2 rounded-md transition-colors hover:bg-slate-100 dark:hover:bg-slate-700" href="{{ url_for('notification.center') }}">
-            <div class="flex items-center gap-3">
-                <span class="material-symbols-outlined text-slate-600 dark:text-slate-300 text-base">notifications</span>
-                <span class="text-slate-600 dark:text-slate-300 text-sm font-medium">{{ _('消息中心') }}</span>
-            </div>
-            {% if unread_notification_count > 0 %}
-            <span class="notification-badge">{{ unread_notification_count }}</span>
-            {% endif %}
-        </a>
         <a class="flex items-center justify-between px-3 py-2 rounded-md transition-colors hover:bg-slate-100 dark:hover:bg-slate-700" href="{{ url_for('approval.tw_center') }}">
             <div class="flex items-center gap-3">
                 <span class="material-symbols-outlined text-slate-600 dark:text-slate-300 text-base">approval</span>

@@ -732,8 +732,14 @@ def get_viewable_data(model_class, user, special_filters=None):
             all_filters = base_filters + [model_class.owner_id.in_(dept_user_ids)] + (special_filters if special_filters else [])
             query = model_class.query.filter(*all_filters)
         else:  # personal
-            # 个人级权限：只能查看自己创建的报销单（不包含归属关系）
-            all_filters = base_filters + [model_class.owner_id == user.id] + (special_filters if special_filters else [])
+            # 个人级权限：只能查看自己创建的报销单 + 归属给自己的报销单
+            # 🔥 修复：支持归属人查看归属给自己的报销单
+            from sqlalchemy import or_
+            personal_condition = or_(
+                model_class.owner_id == user.id,  # 自己创建的
+                model_class.attributed_to_id == user.id  # 归属给自己的
+            )
+            all_filters = base_filters + [personal_condition] + (special_filters if special_filters else [])
             query = model_class.query.filter(*all_filters)
 
         # 应用内容过滤
@@ -1844,13 +1850,15 @@ def can_view_in_approval_context(user, object_type, object_id):
     ).first()
     
     if approval_instance:
-        # 获取当前步骤 - 🔥 修复：current_step存储的是step_id，不是step_order
-        current_step = ApprovalStep.query.filter_by(
-            id=approval_instance.current_step
-        ).first()
-        
-        if current_step and current_step.approver_user_id == user.id:
-            return True
+        # 🔥 修复：current_step 存储的是 step_order，使用 get_current_step_info() 获取步骤信息
+        current_step = approval_instance.get_current_step_info()
+
+        if current_step:
+            # 使用动态审批人确定函数
+            from app.helpers.approval_helpers import get_step_actual_approver
+            actual_approver = get_step_actual_approver(current_step, approval_instance)
+            if actual_approver and actual_approver.id == user.id:
+                return True
     
     # 检查批价单审批系统（特殊处理）
     if object_type == 'pricing_order':

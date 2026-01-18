@@ -564,6 +564,7 @@ def api_create_template():
     template = SpecTemplate(
         model=data['model'],
         name=data.get('name'),
+        name_en=data.get('name_en'),
         description=data.get('description'),
         version=data.get('version', 'V1.0'),
         category_id=data.get('category_id'),
@@ -684,6 +685,7 @@ def api_update_template(template_id):
     # 更新基本信息
     template.model = data['model']
     template.name = data.get('name')
+    template.name_en = data.get('name_en')
     template.description = data.get('description')
     # 只在用户明确要求或版本未被绑定时才直接更新版本号
     if not structural_check['has_changes'] or template.version_first_used_at is None:
@@ -832,6 +834,7 @@ def api_copy_template(template_id):
     new_template = SpecTemplate(
         model=new_model,
         name=data.get('name', f"{template.name or ''} (副本)".strip()),
+        name_en=template.name_en,
         description=template.description,
         version='V1.0',
         created_by=current_user.id

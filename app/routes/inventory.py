@@ -5231,14 +5231,10 @@ def get_order_approval_flow_standard(object_id):
         # 构建响应数据
         stages_data = []
         
-        # 🔥 修复：获取当前步骤的step_order（current_step存储的是step_id）
-        current_step_order = None
-        if approval_instance.current_step:
-            from app.models.approval import ApprovalStep
-            current_step_obj = ApprovalStep.query.filter_by(id=approval_instance.current_step).first()
-            current_step_order = current_step_obj.step_order if current_step_obj else None
-        
-        logger.info(f"Debug: 当前步骤ID: {approval_instance.current_step}, 当前步骤顺序: {current_step_order}")
+        # 🔥 修复：current_step 直接存储的就是 step_order
+        current_step_order = approval_instance.current_step
+
+        logger.info(f"Debug: 当前步骤顺序: {current_step_order}")
         logger.info(f"Debug: 找到 {len(records)} 个审批记录")
         
         # 处理步骤数据（可能是模型对象或字典快照）
@@ -5318,17 +5314,17 @@ def get_order_approval_flow_standard(object_id):
         current_step = approval_instance.current_step
         
         if current_step:
-            # 查找当前步骤 - 🔥 修复：current_step存储的是step_id
+            # 查找当前步骤 - 🔥 修复：current_step存储的是step_order
             current_step_info = None
             for step in steps:
                 if isinstance(step, dict):
-                    # 快照数据中使用step_id匹配
-                    if step.get('step_id') == current_step:
+                    # 快照数据中使用step_order匹配
+                    if step.get('step_order') == current_step:
                         current_step_info = step
                         break
                 else:
-                    # 模型对象中使用id匹配
-                    if step.id == current_step:
+                    # 模型对象中使用step_order匹配
+                    if step.step_order == current_step:
                         current_step_info = step
                         break
             

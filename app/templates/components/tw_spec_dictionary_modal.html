@@ -31,6 +31,8 @@ Tailwind 规格字典管理模态框组件
 
 {# ============= 主模态框 ============= #}
 {% macro tw_spec_dictionary_modal(modal_id='specDictModal') %}
+{# [LegacySpecSystem] 规格字典模态框 - 当旧规格系统禁用时隐藏 #}
+{% if config.LEGACY_SPEC_SYSTEM_ENABLED %}
 <div id="{{ modal_id }}" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
     {# 遮罩层 #}
     <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
@@ -352,6 +354,7 @@ Tailwind 规格字典管理模态框组件
     </button>
 </footer>
 {% endcall %}
+{% endif %}
 {% endmacro %}
 
 

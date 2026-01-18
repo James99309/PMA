@@ -12,7 +12,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-load_dotenv(os.path.join(basedir, '.env'))
+# 加载 .env 文件，但不覆盖已存在的环境变量（保护启动脚本导出的配置）
+load_dotenv(os.path.join(basedir, '.env'), override=False)
 
 def get_database_url():
     """动态获取数据库URL"""
@@ -216,6 +217,10 @@ class Config:
 
     # Google Maps API 配置（用于地理编码服务）
     GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY') or 'AIzaSyD7Ipf3-0l0XYN5rvKpT1gL-PFKVEdzZmc'
+
+    # 旧规格系统特性开关 - 控制ProductCodeField API和UI的可用性
+    # [LegacySpecSystem] 此配置用于隔离和控制旧规格系统，支持未来的完全移除
+    LEGACY_SPEC_SYSTEM_ENABLED = os.getenv('LEGACY_SPEC_SYSTEM_ENABLED', 'true').lower() == 'true'
 
 # 🔒 安全别名配置
 LocalConfig = Config

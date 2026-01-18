@@ -27,6 +27,8 @@ SpecOptionsModal.open('规格名称');
 {% from 'components/tw_modal_base.html' import tw_modal, tw_sub_modal %}
 
 {% macro tw_spec_options_modal() %}
+{# [LegacySpecSystem] 规格选项模态框 - 当旧规格系统禁用时隐藏 #}
+{% if config.LEGACY_SPEC_SYSTEM_ENABLED %}
 <!-- 规格选项管理模态框 -->
 {% call tw_modal('specOptionsModal', title=_('管理规格选项'),
                  z_index='z-[9999]', max_width='max-w-3xl', max_height='max-h-[90vh]',
@@ -192,6 +194,7 @@ SpecOptionsModal.open('规格名称');
                 </button>
             </div>
 {% endcall %}
+{% endif %}
 
 {% endmacro %}
 
@@ -282,6 +285,14 @@ const SpecOptionsModal = (function() {
      *   }
      */
     async function open(specName, optionsOrCallback = null) {
+        // [LegacySpecSystem] 检查模态框是否存在（被禁用时会隐藏）
+        const modal = document.getElementById('specOptionsModal');
+        if (!modal) {
+            console.warn('[LegacySpec] Spec options modal does not exist - legacy spec system may be disabled');
+            alert('规格系统已禁用，请使用新规格模板系统');
+            return;
+        }
+
         state.specName = specName;
 
         // 解析参数

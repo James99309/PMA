@@ -939,17 +939,14 @@ class ApprovalInstance(db.Model):
             # 快照数据（字典列表）
             if isinstance(steps[0], dict):
                 for step in steps:
-                    # 🔥 修复：current_step存储的是step_id，优先用step_id匹配
-                    if step.get('step_id') == self.current_step:
-                        return step
-                    # 兼容性：如果没有step_id字段，回退到step_order匹配
-                    elif 'step_id' not in step and step.get('step_order') == self.current_step:
+                    # 🔥 修复：current_step 存储的是 step_order（整数），按 step_order 匹配
+                    if step.get('step_order') == self.current_step:
                         return step
             # 模型对象列表
             else:
                 for step in steps:
-                    # 对于模型对象，current_step存储的是step_id
-                    if step.id == self.current_step:
+                    # 对于模型对象，current_step 存储的是 step_order
+                    if step.step_order == self.current_step:
                         return step
         return None
     

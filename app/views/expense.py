@@ -43,6 +43,7 @@ EXPENSE_FILTER_CONFIG = {
     'owner_id': {'type': 'exact', 'field': 'owner_id'},
     'status': {'type': 'exact', 'field': 'status'},
     'customer_id': {'type': 'exact', 'field': 'customer_id'},
+    'attributed_to_id': {'type': 'exact', 'field': 'attributed_to_id'},  # 费用归属人筛选
     # search 需要跨表查询，在查询中手动处理
 }
 
@@ -645,6 +646,11 @@ def expense_list_ajax():
         # ============================================================
         query = apply_filters_to_query(query, Expense, filters, EXPENSE_FILTER_CONFIG)
 
+        # 归属我的：排除自己创建的报销单（只显示他人归属给我的）
+        exclude_owner = request.args.get('exclude_owner') == '1'
+        if exclude_owner:
+            query = query.filter(Expense.owner_id != current_user.id)
+
         # 全局搜索（同时搜索报销单编号、标题和客户名称，需要JOIN）
         if search:
             query = query.outerjoin(Company, Expense.customer_id == Company.id)
@@ -1008,6 +1014,15 @@ def create_expense():
                     customer_name = customer.company_name if customer else '未知客户'
                     title = f"{customer_name}-{current_user_name}-{time_str}"
             
+            # 处理费用归属人
+            # 如果勾选"归属自己"或未提供归属人，则归属到申请人自己
+            attribute_to_self = request.form.get('attribute_to_self', '1') == '1'
+            if attribute_to_self:
+                attributed_to_id = current_user.id
+            else:
+                attributed_to_id = request.form.get('attributed_to_id', type=int) or current_user.id
+            logger.info(f"费用归属人: attributed_to_id={attributed_to_id}, attribute_to_self={attribute_to_self}")
+
             # 创建报销单（主表）
             expense_obj = Expense(
                 title=title,
@@ -1017,6 +1032,7 @@ def create_expense():
                 project_id=project_id,
                 currency=expense_currency,  # 使用报销单主货币
                 owner_id=current_user.id,
+                attributed_to_id=attributed_to_id,  # 费用归属人
                 total_amount=total_amount  # 根据明细计算总金额
             )
             
@@ -1533,11 +1549,21 @@ def edit_expense(id):
                 
                 expense_obj.title = title
                 expense_obj.description = request.form.get('description', '').strip()
-                
+
                 # 保存用户明确选择的货币，确保不被后续逻辑覆盖
                 user_selected_currency = request.form.get('currency', Config.DEFAULT_CURRENCY)
                 expense_obj.currency = user_selected_currency
                 logger.info(f"常规编辑：用户选择的报销单货币 {user_selected_currency}")
+
+                # 处理费用归属人
+                # 如果勾选"归属自己"或未提供归属人，则归属到申请人自己
+                attribute_to_self = request.form.get('attribute_to_self', '1') == '1'
+                if attribute_to_self:
+                    expense_obj.attributed_to_id = expense_obj.owner_id
+                else:
+                    attributed_to_id = request.form.get('attributed_to_id', type=int)
+                    expense_obj.attributed_to_id = attributed_to_id or expense_obj.owner_id
+                logger.info(f"常规编辑：费用归属人 attributed_to_id={expense_obj.attributed_to_id}, attribute_to_self={attribute_to_self}")
             
             # 处理明细数据（复用创建报销单的逻辑）
             detail_data = {}
@@ -2117,6 +2143,65 @@ def monthly_expense_stats():
         # 移除department_stats，因为已从模型中删除部门功能
         'user_stats': user_stats_formatted
     })
+
+
+@expense.route('/api/users/same-company')
+@login_required
+@permission_required('expense', 'view')
+def get_same_company_users():
+    """获取同公司所有活跃账户列表（用于费用归属选择）"""
+    try:
+        # 获取当前用户的公司名称
+        current_company = current_user.company_name
+
+        if not current_company:
+            # 如果当前用户没有公司名称，只返回自己
+            return jsonify({
+                'success': True,
+                'users': [{
+                    'id': current_user.id,
+                    'username': current_user.username,
+                    'real_name': current_user.real_name or current_user.username,
+                    'department': current_user.department or '',
+                    'is_current_user': True
+                }]
+            })
+
+        # 查询同公司所有用户（is_active 是 property，需要在 Python 层面过滤）
+        users = User.query.filter(
+            User.company_name == current_company
+        ).order_by(
+            # 当前用户排在最前面
+            case((User.id == current_user.id, 0), else_=1),
+            User.real_name,
+            User.username
+        ).all()
+
+        users_data = []
+        for user in users:
+            # 在 Python 层面过滤活跃用户（因为 is_active 是 property）
+            if not user.is_active:
+                continue
+            users_data.append({
+                'id': user.id,
+                'username': user.username,
+                'real_name': user.real_name or user.username,
+                'department': user.department or '',
+                'is_current_user': user.id == current_user.id
+            })
+
+        return jsonify({
+            'success': True,
+            'users': users_data,
+            'company_name': current_company
+        })
+
+    except Exception as e:
+        logger.error(f"获取同公司用户列表失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': '获取用户列表失败，请重试'
+        }), 500
 
 
 @expense.route('/api/upload_invoice_temp', methods=['POST'])
@@ -3071,11 +3156,8 @@ def get_expense_approval_flow(expense_id):
         
         # 构建审批阶段数据
         stages_data = []
-        # 🔥 修复：获取当前步骤的step_order（current_step存储的是step_id）
-        current_step_order = None
-        if approval_instance.current_step:
-            current_step_obj = ApprovalStep.query.filter_by(id=approval_instance.current_step).first()
-            current_step_order = current_step_obj.step_order if current_step_obj else None
+        # 🔥 修复：current_step 直接存储的就是 step_order
+        current_step_order = approval_instance.current_step
         
         for i, step in enumerate(steps):
             # 确定审批人

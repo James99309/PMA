@@ -53,6 +53,13 @@ ProductModal.openEdit(productId);  // 打开编辑模态框
                 <!-- 引入模式相关字段 -->
                 <input type="hidden" name="source_configuration_id" id="sourceConfigurationId" value="">
                 <input type="hidden" name="source_type" id="sourceType" value="manual">
+                <!-- 分类名称（用于跨系统匹配） -->
+                <input type="hidden" name="category_name" id="categoryName" value="">
+                <input type="hidden" name="category_name_en" id="categoryNameEn" value="">
+                <input type="hidden" name="subcategory_name" id="subcategoryName" value="">
+                <input type="hidden" name="subcategory_name_en" id="subcategoryNameEn" value="">
+                <!-- SP8D配置ID（用于跨系统导入时获取规格） -->
+                <input type="hidden" name="sp8d_configuration_id" id="sp8dConfigurationId" value="">
 
                 <!-- 内容区域（可滚动） -->
                 <div class="flex-1 overflow-y-auto p-6">
@@ -68,6 +75,8 @@ ProductModal.openEdit(productId);  // 打开编辑模态框
                                     class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
                                     <option value="">{{ _('请选择产品类别') }}</option>
                                 </select>
+                                <!-- 导入模式只读显示 -->
+                                <div id="categoryReadonly" class="hidden py-2.5 px-3 block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm"></div>
                             </div>
 
                             <!-- 产品系列 -->
@@ -79,6 +88,8 @@ ProductModal.openEdit(productId);  // 打开编辑模态框
                                     class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
                                     <option value="">{{ _('请先选择产品类别') }}</option>
                                 </select>
+                                <!-- 导入模式只读显示 -->
+                                <div id="subcategoryReadonly" class="hidden py-2.5 px-3 block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm"></div>
                             </div>
                         </div>
 
@@ -91,6 +102,8 @@ ProductModal.openEdit(productId);  // 打开编辑模态框
                                 class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
                                 <option value="">{{ _('请选择销售区域') }}</option>
                             </select>
+                            <!-- 导入模式只读显示 -->
+                            <div id="regionReadonly" class="hidden py-2.5 px-3 block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm"></div>
                         </div>
 
                         <!-- 第三行：产品名称 + 产品型号 -->
@@ -837,6 +850,7 @@ window.ProductModal = (function() {
         document.getElementById('productId').value = '';
         document.getElementById('sourceConfigurationId').value = '';
         document.getElementById('sourceType').value = 'manual';
+        document.getElementById('sp8dConfigurationId').value = '';
 
         // 重置锁定状态
         resetLockedFields();
@@ -873,13 +887,51 @@ window.ProductModal = (function() {
         importedConfig = configData;
         currentProductId = null;
 
+        // 辅助函数：隐藏下拉框，显示只读文本
+        function showReadonlyField(selectId, readonlyId, chineseName, englishName, idValue) {
+            const selectEl = document.getElementById(selectId);
+            const readonlyEl = document.getElementById(readonlyId);
+            if (!selectEl || !readonlyEl) return;
+
+            // 隐藏下拉框
+            selectEl.classList.add('hidden');
+            selectEl.value = idValue;  // 仍然设置值用于表单提交
+            selectEl.removeAttribute('required');  // 移除 required 避免浏览器验证隐藏字段
+
+            // 显示只读文本（OVS优化：优先显示英文名，无英文名时显示中文名）
+            readonlyEl.classList.remove('hidden');
+            readonlyEl.textContent = englishName || chineseName || '';
+        }
+
         // 重置表单
         form.reset();
         document.getElementById('productId').value = '';
-        document.getElementById('sourceConfigurationId').value = configData.id;
-        document.getElementById('sourceType').value = 'from_spec';
-        console.log('[DEBUG] openFromImport - configData:', configData);
-        console.log('[DEBUG] openFromImport - sourceConfigurationId 设置为:', configData.id);
+
+        // 检测是否为远程配置（从SP8D导入）
+        // 远程配置的 ID 是 SP8D 系统的，不能作为本地 FK
+        if (configData.is_remote) {
+            // 跨系统导入：不设置 source_configuration_id（避免FK违规）
+            document.getElementById('sourceConfigurationId').value = '';
+            document.getElementById('sourceType').value = 'from_sp8d';
+            // 传递分类名称用于后端按名称匹配或创建
+            document.getElementById('categoryName').value = configData.category_name || '';
+            document.getElementById('categoryNameEn').value = configData.category_name_en || '';
+            document.getElementById('subcategoryName').value = configData.subcategory_name || '';
+            document.getElementById('subcategoryNameEn').value = configData.subcategory_name_en || '';
+            // 传递 SP8D 配置 ID 用于获取规格数据
+            document.getElementById('sp8dConfigurationId').value = configData.id || '';
+        } else {
+            // 本地配置导入：正常设置 source_configuration_id
+            document.getElementById('sourceConfigurationId').value = configData.id;
+            document.getElementById('sourceType').value = 'from_config';
+            // 清空分类名称（本地导入不需要）
+            document.getElementById('categoryName').value = '';
+            document.getElementById('categoryNameEn').value = '';
+            document.getElementById('subcategoryName').value = '';
+            document.getElementById('subcategoryNameEn').value = '';
+            // 清空 SP8D 配置 ID（本地导入不需要）
+            document.getElementById('sp8dConfigurationId').value = '';
+        }
 
         // 更新标题和按钮
         titleEl.textContent = '{{ _("从配置引入产品") }}';
@@ -891,24 +943,26 @@ window.ProductModal = (function() {
 
         // 预填充并锁定字段
         try {
-            // 设置分类
+            // 设置分类（只读显示）
             if (configData.category_id) {
-                categorySelect.value = configData.category_id;
-                await loadSubcategories(configData.category_id);
+                showReadonlyField('categoryId', 'categoryReadonly',
+                    configData.category_name, configData.category_name_en, configData.category_id);
             }
 
-            // 设置子分类
+            // 设置子分类（只读显示）
             if (configData.subcategory_id) {
-                subcategorySelect.value = configData.subcategory_id;
+                showReadonlyField('subcategoryId', 'subcategoryReadonly',
+                    configData.subcategory_name, configData.subcategory_name_en, configData.subcategory_id);
             }
 
-            // 设置区域
+            // 设置区域（只读显示）
             if (configData.region_id) {
-                regionSelect.value = configData.region_id;
+                showReadonlyField('regionId', 'regionReadonly',
+                    configData.region_name, configData.region_name_en, configData.region_id);
             }
 
-            // 设置产品名称和型号
-            productNameInput.value = configData.product_name || '';
+            // 设置产品名称和型号（优先英文，回退中文）
+            productNameInput.value = configData.product_name_en || configData.product_name || '';
             productModelInput.value = configData.template_model || '';
 
             // 设置MN编码（只读）
@@ -917,7 +971,7 @@ window.ProductModal = (function() {
                 mnCodeInput.value = configData.mn_code;
             }
 
-            // 锁定关键字段（分类、子分类、区域、型号、MN编码）
+            // 锁定型号字段和MN编码预览区域
             setLockedFields();
 
         } catch (error) {
@@ -927,19 +981,18 @@ window.ProductModal = (function() {
 
     /**
      * 设置锁定字段样式（引入模式）
+     * 注：分类、子分类、区域字段在导入模式下已被隐藏，用只读文本替代显示
      */
     function setLockedFields() {
         const lockedClass = 'bg-slate-100 dark:bg-slate-700 cursor-not-allowed pointer-events-none';
-        const fields = [categorySelect, subcategorySelect, regionSelect, productModelInput];
 
-        fields.forEach(field => {
-            if (field) {
-                field.classList.add(...lockedClass.split(' '));
-                field.setAttribute('data-locked', 'true');
-            }
-        });
+        // 只锁定型号输入框（分类相关下拉框已被隐藏）
+        if (productModelInput) {
+            productModelInput.classList.add(...lockedClass.split(' '));
+            productModelInput.setAttribute('data-locked', 'true');
+        }
 
-        // MN编码预览区域显示锁定图标
+        // MN编码预览区域显示锁定样式
         const mnPreviewContainer = mnCodePreview.closest('.p-4');
         if (mnPreviewContainer) {
             mnPreviewContainer.classList.add('border-primary/50', 'bg-primary/5');
@@ -951,20 +1004,35 @@ window.ProductModal = (function() {
      */
     function resetLockedFields() {
         const lockedClass = 'bg-slate-100 dark:bg-slate-700 cursor-not-allowed pointer-events-none';
-        const fields = [categorySelect, subcategorySelect, regionSelect, productModelInput];
 
-        fields.forEach(field => {
-            if (field) {
-                field.classList.remove(...lockedClass.split(' '));
-                field.removeAttribute('data-locked');
-            }
-        });
+        // 重置型号输入框锁定状态
+        if (productModelInput) {
+            productModelInput.classList.remove(...lockedClass.split(' '));
+            productModelInput.removeAttribute('data-locked');
+        }
 
         // 重置MN编码预览区域样式
         const mnPreviewContainer = mnCodePreview.closest('.p-4');
         if (mnPreviewContainer) {
             mnPreviewContainer.classList.remove('border-primary/50', 'bg-primary/5');
         }
+
+        // 重置只读显示区域（隐藏并清空内容）
+        ['categoryReadonly', 'subcategoryReadonly', 'regionReadonly'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add('hidden');
+                el.textContent = '';
+            }
+        });
+
+        // 显示回下拉框并恢复 required 属性
+        [categorySelect, subcategorySelect, regionSelect].forEach(select => {
+            if (select) {
+                select.classList.remove('hidden');
+                select.setAttribute('required', '');  // 恢复 required 属性
+            }
+        });
     }
 
     /**

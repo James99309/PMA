@@ -1751,29 +1751,29 @@ def recall_approval(instance_id):
         instance.status = ApprovalStatus.REJECTED
         instance.ended_at = datetime.now()
         
-        # 获取当前步骤ID（用于记录是在哪个步骤被召回的）
+        # 🔥 修复：获取当前步骤信息（可能是字典或对象）
         current_step = get_current_step_info(instance)
-        current_step_id = current_step.id if current_step else None
-        
-        # 如果无法获取当前步骤ID，使用实例对应流程的第一个步骤
-        if not current_step_id:
-            from app.models.approval import ApprovalStep
-            first_step = ApprovalStep.query.filter_by(
-                process_id=instance.process_id,
-                step_order=1
-            ).first()
-            current_step_id = first_step.id if first_step else None
-        
-        # 如果仍然无法获取步骤ID，创建一个临时记录步骤
-        if not current_step_id:
-            current_app.logger.error(f"无法为召回操作找到合适的步骤ID，审批实例: {instance_id}")
-            return jsonify({'success': False, 'message': '召回失败：无法确定当前审批步骤'}), 500
-        
+        current_step_id = None
+
+        if current_step:
+            if isinstance(current_step, dict):
+                # 快照数据：检查 step_id 是否为整数（数据库ID）
+                step_id_val = current_step.get('step_id')
+                if isinstance(step_id_val, int):
+                    current_step_id = step_id_val
+                # 如果是字符串（如 "attr_93_1"），则为动态步骤，无数据库ID
+            else:
+                # 模型对象
+                current_step_id = current_step.id
+
+        # 如果是动态步骤，step_id 可以为 None（召回是流程级别操作）
+        # ApprovalRecord.step_id 允许 NULL
+
         # 添加召回记录
         from app.models.approval import ApprovalRecord
         recall_record = ApprovalRecord(
             instance_id=instance_id,
-            step_id=current_step_id,  # 使用当前步骤ID或第一个步骤ID
+            step_id=current_step_id,  # 动态步骤时为 None
             approver_id=current_user.id,
             action='recall',
             comment=f"发起人召回审批流程。原因：{reason}" if reason else "发起人召回审批流程",

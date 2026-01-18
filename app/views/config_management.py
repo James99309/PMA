@@ -1270,7 +1270,6 @@ def get_ordered_modules():
         {'id': 'system_settings', 'name': '系统参数设置', 'icon': 'settings_applications', 'description': '管理系统参数配置', 'group': '系统管理'},
         {'id': 'version_management', 'name': '版本管理', 'icon': 'update', 'description': '管理系统版本', 'group': '系统管理'},
         {'id': 'approval_config', 'name': '审批流程配置', 'icon': 'rule', 'description': '配置审批流程模板', 'group': '系统管理'},
-        {'id': 'notification', 'name': '通知中心', 'icon': 'notifications', 'description': '管理系统通知', 'group': '系统管理'},
         {'id': 'change_history', 'name': '历史记录', 'icon': 'history', 'description': '查看操作历史记录', 'group': '系统管理'},
         {'id': 'backup', 'name': '数据库备份', 'icon': 'cloud_upload', 'description': '管理数据库备份', 'group': '系统管理'},
     ]

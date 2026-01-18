@@ -179,15 +179,6 @@ MODULE_METADATA_FALLBACK = {
         'supports_content_filter': False,
         'description': '配置审批流程模板'
     },
-    'notification': {
-        'name': '通知中心',
-        'icon': 'notifications',
-        'supports_discount': False,
-        'supports_owner_change': False,
-        'supports_affiliation': False,
-        'supports_content_filter': False,
-        'description': '管理系统通知'
-    },
     'change_history': {
         'name': '历史记录',
         'icon': 'history',

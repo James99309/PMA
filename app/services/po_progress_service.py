@@ -323,41 +323,13 @@ class PurchaseOrderProgressService:
     @staticmethod
     def send_overdue_notification(order):
         """
-        发送超期通知
+        发送超期通知（邮件通知功能已禁用）
 
         Args:
             order: PurchaseOrder 实例
         """
-        try:
-            from app.services.event_dispatcher import trigger_event_notification
-
-            milestone_labels = {
-                'test_complete': '测试完成',
-                'ship': '发货',
-                'delivery': '交付'
-            }
-
-            context = {
-                'order': order,
-                'order_number': order.order_number,
-                'supplier_name': order.company.company_name if order.company else '',
-                'overdue_days': order.overdue_days,
-                'overdue_milestone': milestone_labels.get(order.overdue_milestone, order.overdue_milestone),
-                'current_stage': PurchaseOrderProgressService.get_stage_label(order.production_status)
-            }
-
-            # 通知订单创建人
-            if order.created_by_id:
-                trigger_event_notification(
-                    event_key='purchase_order_overdue',
-                    target_user_id=order.created_by_id,
-                    context=context
-                )
-
-            logger.info(f"发送采购订单超期通知: {order.order_number}")
-
-        except Exception as e:
-            logger.error(f"发送超期通知失败: {str(e)}")
+        # 邮件通知功能已禁用 (2026-01-14)
+        logger.info(f"[邮件已禁用] 跳过采购订单超期通知: {order.order_number}")
 
     @staticmethod
     def update_delivery_schedule(order_id, user_id, updates, change_reason=None):

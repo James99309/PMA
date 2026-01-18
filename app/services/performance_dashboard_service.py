@@ -319,8 +319,10 @@ class PerformanceDashboardService:
             # 支持多货币转换：将所有报销单金额转换为目标用户的结算货币后汇总
             base_currency = target_currency  # 使用目标用户的结算货币
 
+            # 🔥 修复：使用 attributed_to_id 统计费用（如果设置了归属人）
+            # 如果没有归属人，则使用 owner_id（创建人）
             expenses = Expense.query.filter(
-                Expense.owner_id.in_(target_user_ids),
+                func.coalesce(Expense.attributed_to_id, Expense.owner_id).in_(target_user_ids),
                 extract('year', Expense.created_at) == year,
                 Expense.status.in_(['approved', 'awaiting_payment', 'paid']),
                 Expense.is_deleted == False
@@ -428,12 +430,13 @@ class PerformanceDashboardService:
             base_currency = target_currency or Config.DEFAULT_CURRENCY  # 使用目标货币或系统默认货币
 
             # 查询已审批的报销明细，同时获取报销单货币
+            # 🔥 修复：使用 attributed_to_id 统计费用（如果设置了归属人）
             query = db.session.query(
                 ExpenseDetail.expense_category,
                 ExpenseDetail.current_amount,
                 Expense.currency
             ).join(Expense).filter(
-                Expense.owner_id.in_(user_ids),
+                func.coalesce(Expense.attributed_to_id, Expense.owner_id).in_(user_ids),
                 extract('year', Expense.created_at) == year,
                 Expense.status.in_(['approved', 'awaiting_payment', 'paid']),
                 Expense.is_deleted == False
@@ -486,12 +489,13 @@ class PerformanceDashboardService:
             base_currency = target_currency or Config.DEFAULT_CURRENCY  # 使用目标货币或系统默认货币
 
             # 查询每笔报销单的月份、金额和货币
+            # 🔥 修复：使用 attributed_to_id 统计费用（如果设置了归属人）
             query = db.session.query(
                 extract('month', Expense.created_at).label('month'),
                 Expense.total_amount,
                 Expense.currency
             ).filter(
-                Expense.owner_id.in_(user_ids),
+                func.coalesce(Expense.attributed_to_id, Expense.owner_id).in_(user_ids),
                 extract('year', Expense.created_at) == year,
                 Expense.status.in_(['approved', 'awaiting_payment', 'paid']),
                 Expense.is_deleted == False

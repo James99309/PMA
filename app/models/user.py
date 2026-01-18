@@ -94,11 +94,7 @@ class User(db.Model, UserMixin):
         departments = Department.query.filter_by(manager_id=self.id).all()
         return [d.id for d in departments]
 
-    @property
-    def managed_departments(self):
-        """获取用户管理的部门列表"""
-        from app.models.expense import Department
-        return Department.query.filter_by(manager_id=self.id).all()
+    # managed_departments 属性由 expense.py 中 Department.manager 的 backref 自动提供
 
     def to_dict(self):
         """将用户信息转为字典，用于API响应"""

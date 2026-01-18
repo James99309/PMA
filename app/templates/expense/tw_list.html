@@ -6,6 +6,7 @@
 {% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles, render_tw_data_table_script, render_empty_row with context %}
 {% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
 {% from 'components/tw_confirm_modal.html' import tw_custom_modal, tw_custom_modal_script with context %}
+{% from 'components/tw_tabs.html' import render_tw_tabs, render_tw_tabs_script with context %}
 {% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_expense_status_badge with context %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
@@ -95,6 +96,15 @@
                 ) }}
                 {% endfor %}
             {% endcall %}
+
+            <!-- 页签切换 -->
+            {{ render_tw_tabs(
+                tabs=[
+                    {'key': 'all', 'label': _('全部报销'), 'icon': 'receipt_long'},
+                    {'key': 'attributed', 'label': _('归属我的'), 'icon': 'person_pin'}
+                ],
+                current_tab='all'
+            ) }}
 
             <!-- 筛选区域（可滚出） -->
             {{ render_tw_filter_bar(
@@ -264,6 +274,9 @@
     <!-- 数据表格脚本 -->
     {{ render_tw_data_table_script(table_id='expenseTable', sort_callback='sortTable') }}
 
+    <!-- 页签切换脚本 -->
+    {{ render_tw_tabs_script(on_change_callback='onTabChange') }}
+
     <!-- 通用列表管理器 -->
     <script src="{{ url_for('static', filename='js/tw-list-manager.js') }}"></script>
     <script>
@@ -291,6 +304,26 @@
         window.sortTable = function(field) {
             listManager.sortBy(field);
         };
+
+        // 页签切换回调函数
+        window.onTabChange = function(tabKey) {
+            const ownerSelect = document.querySelector('select[name="owner_id"]');
+
+            if (tabKey === 'attributed') {
+                // 切换到"归属我的"页签：归属给我 + 排除自己创建的
+                listManager.setExtraParams({
+                    tw: '1',
+                    attributed_to_id: '{{ current_user.id }}',
+                    exclude_owner: '1'
+                });
+                // 清空申请人筛选（避免与当前用户冲突）
+                if (ownerSelect) ownerSelect.value = '';
+            } else {
+                // 切换到"全部报销"页签，移除归属筛选
+                listManager.setExtraParams({ tw: '1' });
+            }
+            listManager.reload();
+        };
     })();
     </script>
 
@@ -311,6 +344,7 @@
             loading: '{{ _("加载中...") }}',
             selectCustomerFirst: '{{ _("请先选择关联客户") }}',
             selectContact: '{{ _("请选择联系人") }}',
+            selectAttributedTo: '{{ _("请选择归属人") }}',
             noContacts: '{{ _("该客户暂无联系人") }}',
             noResults: '{{ _("无匹配结果") }}',
             createSuccess: '{{ _("报销单创建成功") }}',

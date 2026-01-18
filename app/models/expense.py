@@ -74,7 +74,10 @@ class Expense(db.Model):
     created_at = Column(DateTime, default=get_local_time)
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
     is_deleted = Column(Boolean, default=False)
-    
+
+    # 费用归属人（用于统计技术支持费用归属销售）
+    attributed_to_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # 归属人ID
+
     # 关系定义
     customer = relationship('Company', backref='expenses')
     contact = relationship('Contact', backref='expenses')
@@ -82,6 +85,7 @@ class Expense(db.Model):
     owner = relationship('User', foreign_keys=[owner_id], backref='owned_expenses')
     approver = relationship('User', foreign_keys=[approved_by])
     payer = relationship('User', foreign_keys=[paid_by], backref='paid_expenses')
+    attributed_to = relationship('User', foreign_keys=[attributed_to_id], backref='attributed_expenses')
     
     # 一对多关系：报销单明细
     details = relationship('ExpenseDetail', backref='expense', cascade='all, delete-orphan', 
@@ -107,7 +111,25 @@ class Expense(db.Model):
         total = sum(detail.current_amount for detail in self.details)
         self.total_amount = total
         return total
-    
+
+    def calculate_attributed_to(self):
+        """
+        计算费用归属人
+        优先级：项目销售 > 客户所有者 > 申请人自己
+        """
+        # 1. 如果有关联项目，使用项目的销售负责人
+        if self.project_id and self.project:
+            if self.project.vendor_sales_manager_id:
+                return self.project.vendor_sales_manager_id
+
+        # 2. 如果有关联客户，使用客户的所有者
+        if self.customer_id and self.customer:
+            if self.customer.owner_id:
+                return self.customer.owner_id
+
+        # 3. 默认归属到申请人自己
+        return self.owner_id
+
     @property
     def detail_count(self):
         """获取明细数量"""

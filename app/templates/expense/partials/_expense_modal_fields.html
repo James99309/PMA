@@ -249,6 +249,40 @@
                           class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary text-sm resize-none"
                           placeholder="{{ _('请描述报销的背景、目的等总体说明') }}">{{ expense.description if expense else '' }}</textarea>
             </div>
+
+            {# 费用归属 #}
+            <div class="space-y-2">
+                <label class="block text-sm font-medium text-slate-600 dark:text-slate-400">{{ _('费用归属') }}</label>
+                <div class="flex items-center">
+                    <input type="checkbox"
+                           id="expense_attribute_to_self"
+                           name="attribute_to_self"
+                           data-field-code="attribute_to_self"
+                           value="1"
+                           {% if not expense or not expense.attributed_to_id or expense.attributed_to_id == expense.owner_id %}checked{% endif %}
+                           class="h-4 w-4 rounded border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 text-primary focus:ring-primary">
+                    <label class="ml-2 text-sm text-slate-700 dark:text-slate-300" for="expense_attribute_to_self">
+                        {{ _('归属自己') }}
+                    </label>
+                </div>
+                {# 归属人选择器（默认隐藏） #}
+                <div id="expenseAttributedToContainer"
+                     style="{% if not expense or not expense.attributed_to_id or expense.attributed_to_id == expense.owner_id %}display: none;{% endif %}">
+                    <label class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1.5" for="expense_attributed_to_id">
+                        {{ _('选择归属人') }}
+                    </label>
+                    <div class="relative">
+                        <select id="expense_attributed_to_id"
+                                name="attributed_to_id"
+                                data-field-code="attributed_to_id"
+                                data-current-value="{{ expense.attributed_to_id if expense else '' }}"
+                                class="w-full h-10 px-3 pr-10 appearance-none bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-slate-200 focus:ring-2 focus:ring-primary focus:border-primary text-sm">
+                            <option value="">{{ _('加载中...') }}</option>
+                        </select>
+                        <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-lg">expand_more</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

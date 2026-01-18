@@ -36,6 +36,7 @@ class TwListManager {
         this.sortField = config.sortField || 'updated_at';
         this.sortOrder = config.sortOrder || 'desc';
         this.infiniteScrollEnabled = config.infiniteScroll !== false;
+        this.extraParams = config.extraParams || {};
 
         // 消息文本（支持国际化）
         this.messages = Object.assign({
@@ -235,6 +236,83 @@ class TwListManager {
         }
 
         this.loadMore();
+    }
+
+    /**
+     * 设置额外参数
+     * @param {Object} params - 额外参数对象
+     */
+    setExtraParams(params) {
+        this.extraParams = params || {};
+    }
+
+    /**
+     * 重新加载列表（清空并重新请求）
+     */
+    reload() {
+        this.currentOffset = 0;
+        this.hasMore = true;
+        this.isLoading = false;
+
+        if (this.elements.tableBody) {
+            this.elements.tableBody.innerHTML = '';
+        }
+        if (this.elements.noMoreData) {
+            this.elements.noMoreData.classList.add('hidden');
+        }
+
+        this._loadData();
+    }
+
+    /**
+     * 内部加载数据方法（使用 extraParams）
+     * @private
+     */
+    _loadData() {
+        if (this.isLoading) return;
+
+        this.isLoading = true;
+        this._showLoading(true);
+
+        // 构建请求URL
+        const url = new URL(this.ajaxEndpoint, window.location.origin);
+
+        // 1. 先添加表单筛选值（排除与 extraParams 冲突的字段）
+        if (this.elements.filterForm) {
+            const formData = new FormData(this.elements.filterForm);
+            // exclude_owner=1 时排除 owner_id（避免条件冲突）
+            const excludeFields = this.extraParams.exclude_owner === '1' ? ['owner_id'] : [];
+            formData.forEach((value, key) => {
+                if (value && !excludeFields.includes(key)) {
+                    url.searchParams.set(key, value);
+                }
+            });
+        }
+
+        // 2. 再添加 extraParams（会覆盖表单中的同名参数）
+        Object.keys(this.extraParams).forEach(key => {
+            url.searchParams.set(key, this.extraParams[key]);
+        });
+
+        // 添加排序参数
+        url.searchParams.set('sort', this.sortField);
+        url.searchParams.set('order', this.sortOrder);
+        url.searchParams.set('offset', this.currentOffset);
+        url.searchParams.set('limit', this.pageSize);
+        url.searchParams.set('ajax', '1');
+
+        fetch(url.toString(), {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            this._handleLoadSuccess(data);
+        })
+        .catch(error => {
+            this._handleLoadError(error);
+        });
     }
 
     /**

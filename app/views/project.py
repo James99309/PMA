@@ -32,8 +32,6 @@ from app.services.exchange_rate_service import exchange_rate_service
 from app.utils.chinese_mapping_manager import mapping_manager
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
-from app.utils.notification_helpers import trigger_event_notification
-from app.services.event_dispatcher import notify_project_created, notify_project_status_updated
 from app.helpers.project_helpers import is_project_editable
 from app.utils.activity_tracker import check_company_activity, update_active_status
 from app.models.settings import SystemSettings
@@ -1264,28 +1262,6 @@ def add_project():
                 current_app.logger.info(f"项目 {project.project_name} 更新后评分已重新计算")
             except Exception as score_err:
                 current_app.logger.warning(f"项目更新后评分重新计算失败: {str(score_err)}")
-            
-            # 异步触发项目创建通知，避免阻塞保存操作
-            try:
-                import threading
-                from app.services.event_dispatcher import notify_project_created
-
-                def send_notifications_async():
-                    """异步发送通知"""
-                    with current_app.app_context():
-                        try:
-                            # 触发项目创建通知
-                            notify_project_created(project, current_user)
-                            current_app.logger.debug('异步项目创建通知已发送')
-                        except Exception as notify_err:
-                            current_app.logger.warning(f"异步触发项目创建通知失败: {str(notify_err)}")
-
-                # 启动异步通知线程
-                threading.Thread(target=send_notifications_async, daemon=True).start()
-                current_app.logger.debug('异步项目创建通知线程已启动')
-
-            except Exception as notify_err:
-                logger.warning(f"启动异步项目创建通知失败: {str(notify_err)}")
 
             flash('项目添加成功！', 'success')
             return redirect(url_for('project.view_project', project_id=project.id))
@@ -1430,32 +1406,6 @@ def edit_project(project_id):
                 current_app.logger.info(f"项目 {project.project_name} 更新后评分已重新计算")
             except Exception as score_err:
                 current_app.logger.warning(f"项目更新后评分重新计算失败: {str(score_err)}")
-            
-            # 如果项目阶段发生变更，触发通知
-            if old_stage != new_stage:
-                try:
-                    # 项目活跃度已在上面统一更新，这里只记录日志
-                    current_app.logger.debug(f"项目阶段变更后项目 {project.id} 活跃度已更新")
-
-                    import threading
-                    from app.services.event_dispatcher import notify_project_status_updated
-
-                    def send_stage_notifications_async():
-                        """异步发送阶段变更通知"""
-                        with current_app.app_context():
-                            try:
-                                # 触发项目阶段变更通知
-                                notify_project_status_updated(project, current_user, old_stage)
-                                current_app.logger.debug('异步项目阶段变更通知已发送')
-                            except Exception as notify_err:
-                                current_app.logger.warning(f"异步触发项目阶段变更通知失败: {str(notify_err)}")
-
-                    # 启动异步通知线程
-                    threading.Thread(target=send_stage_notifications_async, daemon=True).start()
-                    current_app.logger.debug('异步项目阶段变更通知线程已启动')
-
-                except Exception as notify_err:
-                    current_app.logger.warning(f"启动异步项目阶段变更通知失败: {str(notify_err)}")
 
             flash('项目信息已更新！', 'success')
             return redirect(url_for('project.view_project', project_id=project.id))
@@ -2421,30 +2371,7 @@ def update_project_stage():
             if project.current_stage != new_stage:
                 current_app.logger.error(f"项目阶段推进后数据库未更新: 项目ID={project.id}, 期望={new_stage}, 实际={project.current_stage}")
                 return jsonify({'success': False, 'message': '数据库更新失败，请联系管理员'}), 500
-            
-            # 触发阶段变更通知
-            if old_stage != new_stage:
-                try:
-                    import threading
-                    from app.services.event_dispatcher import notify_project_status_updated
 
-                    def send_stage_notifications_async():
-                        """异步发送阶段变更通知"""
-                        with current_app.app_context():
-                            try:
-                                # 触发项目阶段变更通知
-                                notify_project_status_updated(project, current_user, old_stage)
-                                current_app.logger.debug('异步项目阶段变更通知已发送')
-                            except Exception as notify_err:
-                                current_app.logger.warning(f"异步触发项目阶段变更通知失败: {str(notify_err)}")
-
-                    # 启动异步通知线程
-                    threading.Thread(target=send_stage_notifications_async, daemon=True).start()
-                    current_app.logger.debug('异步项目阶段变更通知线程已启动')
-
-                except Exception as notify_err:
-                    current_app.logger.warning(f"启动异步项目阶段变更通知失败: {str(notify_err)}")
-            
             # 构建响应数据
             response_data = {
                 'success': True, 
@@ -3995,26 +3922,29 @@ def preview_project_authorization(project_id):
                 'message': '项目暂无审批流程'
             })
         
-        # 获取当前步骤
-        from app.models.approval import ApprovalStep
-        current_step = ApprovalStep.query.get(approval_instance.current_step)
+        # 🔥 修复：使用 get_current_step_info() 获取步骤信息（支持动态步骤）
+        current_step = approval_instance.get_current_step_info()
         if not current_step:
             return jsonify({
                 'success': False,
                 'message': '未找到当前审批步骤'
             })
-        
+
+        # 获取步骤属性（兼容字典和对象）
+        step_action_type = current_step.get('action_type') if isinstance(current_step, dict) else current_step.action_type
+        step_branch_condition = current_step.get('branch_condition') if isinstance(current_step, dict) else current_step.branch_condition
+
         # 检查是否为授权步骤（简化版本）
         is_auth_step = False
-        if current_step.action_type == 'authorization':
+        if step_action_type == 'authorization':
             is_auth_step = True
-        elif current_step.action_type == 'branch_decision' and current_step.branch_condition:
+        elif step_action_type == 'branch_decision' and step_branch_condition:
             try:
                 import json
-                branch_condition = current_step.branch_condition
+                branch_condition = step_branch_condition
                 if isinstance(branch_condition, str):
                     branch_condition = json.loads(branch_condition)
-                
+
                 field_name = branch_condition.get('field')
                 if field_name:
                     field_value = getattr(project_obj, field_name, None)
@@ -4027,19 +3957,19 @@ def preview_project_authorization(project_id):
                             break
             except Exception as e:
                 logging.error(f"检查分支授权步骤失败: {e}")
-                
+
         if not is_auth_step:
             return jsonify({
                 'success': False,
                 'message': '当前步骤不是授权步骤'
             })
-        
+
         # 获取匹配的分支授权动作
         branch_action = None
-        if current_step.action_type == 'branch_decision' and current_step.branch_condition:
+        if step_action_type == 'branch_decision' and step_branch_condition:
             try:
                 import json
-                branch_condition = current_step.branch_condition
+                branch_condition = step_branch_condition
                 if isinstance(branch_condition, str):
                     branch_condition = json.loads(branch_condition)
                 
@@ -4227,14 +4157,8 @@ def get_project_approval_flow(project_id):
         
         # 构建审批阶段数据
         stages_data = []
-        current_step_id = approval_instance.current_step  # 当前步骤ID
-        
-        # 获取当前步骤的顺序，用于状态判断
-        current_step_order = None
-        for step in steps:
-            if step.get('step_id') == current_step_id:
-                current_step_order = step['step_order']
-                break
+        # 🔥 修复：current_step 存储的是 step_order（整数）
+        current_step_order = approval_instance.current_step
         
         for i, step in enumerate(steps):
             # 确定审批人
@@ -4270,8 +4194,8 @@ def get_project_approval_flow(project_id):
                     'action': latest_record.action,
                     'arrived_at': latest_record.timestamp.isoformat()
                 })
-            elif step['step_id'] == current_step_id:
-                # 当前步骤：使用步骤ID比较而非步骤顺序
+            elif step['step_order'] == current_step_order:
+                # 🔥 修复：使用 step_order 匹配当前步骤
                 stage_data['status'] = 'current'
                 stage_data['can_approve'] = (actual_approver and actual_approver.id == current_user.id)
             elif current_step_order and step['step_order'] < current_step_order:

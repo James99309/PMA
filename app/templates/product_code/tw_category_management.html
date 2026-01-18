@@ -69,17 +69,23 @@
     {% if page_slot == 'header' %}
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('产品分类管理') }}</h1>
         <div class="flex items-center gap-3">
+            {# [LegacySpecSystem] 规格字典按钮 - 当旧规格系统禁用时隐藏 #}
+            {% if config.LEGACY_SPEC_SYSTEM_ENABLED %}
             <button type="button" onclick="CategoryManager.showSpecDictModal()"
                     class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium transition-colors">
                 <span class="material-symbols-outlined" style="font-size: 20px;">menu_book</span>
                 <span>{{ _('规格字典') }}</span>
             </button>
+            {% endif %}
+            {# [LegacySpecSystem] 规格字段编辑按钮 - 当旧规格系统禁用时隐藏 #}
+            {% if config.LEGACY_SPEC_SYSTEM_ENABLED %}
             <button type="button" id="editCategoryFieldsBtn" onclick="CategoryManager.showCategoryFieldsModal()"
                     disabled
                     class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 <span class="material-symbols-outlined" style="font-size: 20px;">edit_note</span>
                 <span>{{ _('编辑规格') }}</span>
             </button>
+            {% endif %}
             <button type="button" onclick="CategoryManager.showAddCategoryModal()"
                     class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
                 <span class="material-symbols-outlined" style="font-size: 20px;">add</span>
@@ -167,6 +173,7 @@
                                 <tr>
                                     <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 60px">{{ _('序号') }}</th>
                                     <th class="p-3 text-slate-500 dark:text-slate-400 font-medium">{{ _('子分类名称') }}</th>
+                                    <th class="p-3 text-slate-500 dark:text-slate-400 font-medium">{{ _('英文名称') }}</th>
                                     <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 80px">{{ _('标识符') }}</th>
                                     <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 100px">{{ _('状态') }}</th>
                                     <th class="p-3 text-slate-500 dark:text-slate-400 font-medium text-right" style="width: 100px">{{ _('操作') }}</th>
@@ -177,7 +184,8 @@
                     </div>
                 </div>
 
-                {# 规格字段区域 #}
+                {# [LegacySpecSystem] 规格字段区域 - 当旧规格系统禁用时隐藏 #}
+                {% if config.LEGACY_SPEC_SYSTEM_ENABLED %}
                 <div class="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden" style="min-height: 240px;">
                     <div class="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
                         <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center">
@@ -224,6 +232,16 @@
                         </table>
                     </div>
                 </div>
+                {% else %}
+                {# [LegacySpecSystem] 规格系统已禁用的提示信息 #}
+                <div class="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden" style="min-height: 240px;">
+                    <div class="flex flex-col items-center justify-center h-full text-slate-500 dark:text-slate-400 py-8">
+                        <span class="material-symbols-outlined text-5xl mb-3">info</span>
+                        <p class="text-sm font-medium">{{ _('规格管理已迁移至规格模板系统') }}</p>
+                        <p class="text-xs mt-2">{{ _('请使用新系统进行规格定义') }}</p>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
     {% endif %}
@@ -245,6 +263,14 @@
                    oninput="CategoryManager.autoGenerateCategoryCode()"
                    class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                    placeholder="{{ _('如：PA、LNA、Mixer') }}">
+        </div>
+        <div>
+            <label for="categoryFormNameEn" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('英文名称') }}
+            </label>
+            <input type="text" id="categoryFormNameEn" name="name_en"
+                   class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                   placeholder="e.g., Amplifier, Low-Noise">
         </div>
         <div>
             <label for="categoryFormCode" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
@@ -282,6 +308,14 @@
                    oninput="CategoryManager.autoGenerateSubcategoryCode()"
                    class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                    placeholder="{{ _('如：功放芯片、低噪放') }}">
+        </div>
+        <div>
+            <label for="subcategoryFormNameEn" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('英文名称') }}
+            </label>
+            <input type="text" id="subcategoryFormNameEn" name="name_en"
+                   class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                   placeholder="e.g., Power Amplifier Chip, Low Noise">
         </div>
         <div>
             <label for="subcategoryFormCode" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
@@ -346,7 +380,87 @@
 </div>
 {% endcall %}
 
+{# 分类部分编辑模态框 #}
+{% call tw_sub_modal('categoryPartialEditModal', title=_('编辑英文名称'), icon='edit', icon_color='text-primary', z_index='z-50', max_width='max-w-md', close_action='CategoryManager.hidePartialEditCategoryForm()') %}
+<form id="categoryPartialEditForm" onsubmit="return CategoryManager.savePartialCategoryForm(event)" class="p-5 pt-0">
+    <input type="hidden" id="categoryPartialEditId" value="">
+    <div class="space-y-4">
+        <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('中文名称') }}
+            </label>
+            <div class="h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 flex items-center">
+                <span id="categoryPartialEditNameDisplay" class="text-sm"></span>
+            </div>
+            <p class="mt-1 text-xs text-slate-500">{{ _('已锁定，无法修改') }}</p>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('标识符') }}
+            </label>
+            <div class="h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 flex items-center">
+                <span id="categoryPartialEditCodeDisplay" class="text-sm font-mono"></span>
+            </div>
+            <p class="mt-1 text-xs text-slate-500">{{ _('已锁定，无法修改') }}</p>
+        </div>
+        <div>
+            <label for="categoryPartialEditNameEn" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('英文名称') }}
+            </label>
+            <input type="text" id="categoryPartialEditNameEn" name="name_en"
+                   class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                   placeholder="e.g., Amplifier, Low-Noise">
+        </div>
+    </div>
+    <footer class="flex items-center justify-end gap-3 pt-5 mt-5 border-t border-slate-200 dark:border-slate-700">
+        <button type="button" onclick="CategoryManager.hidePartialEditCategoryForm()" class="h-10 px-5 rounded-lg text-sm font-medium bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors border border-slate-300 dark:border-slate-600">{{ _('取消') }}</button>
+        <button type="submit" class="h-10 px-5 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary/90 shadow-sm transition-colors">{{ _('保存') }}</button>
+    </footer>
+</form>
+{% endcall %}
+
+{# 子分类部分编辑模态框 #}
+{% call tw_sub_modal('subcategoryPartialEditModal', title=_('编辑英文名称'), icon='edit', icon_color='text-primary', z_index='z-50', max_width='max-w-md', close_action='CategoryManager.hidePartialEditSubcategoryForm()') %}
+<form id="subcategoryPartialEditForm" onsubmit="return CategoryManager.savePartialSubcategoryForm(event)" class="p-5 pt-0">
+    <input type="hidden" id="subcategoryPartialEditId" value="">
+    <div class="space-y-4">
+        <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('中文名称') }}
+            </label>
+            <div class="h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 flex items-center">
+                <span id="subcategoryPartialEditNameDisplay" class="text-sm"></span>
+            </div>
+            <p class="mt-1 text-xs text-slate-500">{{ _('已锁定，无法修改') }}</p>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('标识符') }}
+            </label>
+            <div class="h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 flex items-center">
+                <span id="subcategoryPartialEditCodeDisplay" class="text-sm font-mono"></span>
+            </div>
+            <p class="mt-1 text-xs text-slate-500">{{ _('已锁定，无法修改') }}</p>
+        </div>
+        <div>
+            <label for="subcategoryPartialEditNameEn" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ _('英文名称') }}
+            </label>
+            <input type="text" id="subcategoryPartialEditNameEn" name="name_en"
+                   class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                   placeholder="e.g., Power Amplifier Chip, Low Noise">
+        </div>
+    </div>
+    <footer class="flex items-center justify-end gap-3 pt-5 mt-5 border-t border-slate-200 dark:border-slate-700">
+        <button type="button" onclick="CategoryManager.hidePartialEditSubcategoryForm()" class="h-10 px-5 rounded-lg text-sm font-medium bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors border border-slate-300 dark:border-slate-600">{{ _('取消') }}</button>
+        <button type="submit" class="h-10 px-5 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary/90 shadow-sm transition-colors">{{ _('保存') }}</button>
+    </footer>
+</form>
+{% endcall %}
+
 {# 分类规格管理模态框 - 使用标准 tw_modal 组件 #}
+{# [LegacySpecSystem] 分类规格管理模态框 - 当旧规格系统禁用时隐藏 #}
+{% if config.LEGACY_SPEC_SYSTEM_ENABLED %}
 {% call tw_modal('categoryFieldsModal',
     title=_('编辑分类规格'),
     z_index='z-40',
@@ -409,6 +523,7 @@
     </p>
 </div>
 {% endcall %}
+{% endif %}
 
 {# 规格字典模态框 #}
 {{ tw_spec_dictionary_modal() }}

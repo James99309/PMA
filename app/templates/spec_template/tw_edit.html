@@ -167,6 +167,13 @@
                                        placeholder="{{ _('可选：产品名称') }}">
                             </div>
                             <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('模板名称（英文）') }}</label>
+                                <input type="text" x-model="templateData.name_en"
+                                       @input="checkDirty()"
+                                       class="form-input w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
+                                       placeholder="{{ _('可选：Template Name (EN)') }}">
+                            </div>
+                            <div>
                                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('描述') }}</label>
                                 <input type="text" x-model="templateData.description"
                                        @input="checkDirty()"
@@ -465,6 +472,7 @@
             templateData: {
                 model: '{{ template.model if template else '' }}',
                 name: '{{ template.name if template else '' }}',
+                name_en: '{{ template.name_en if template else '' }}',
                 version: '{{ template.version if template else 'V1.0' }}',
                 description: '{{ template.description if template else '' }}',
                 category_id: '{{ template.category_id if template and template.category_id else '' }}',
@@ -1039,6 +1047,7 @@
                 const requestData = {
                     model: this.templateData.model,
                     name: this.templateData.name || null,
+                    name_en: this.templateData.name_en || null,
                     version: this.templateData.version || 'V1.0',
                     description: this.templateData.description || null,
                     category_id: this.templateData.category_id ? parseInt(this.templateData.category_id) : null,

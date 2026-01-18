@@ -180,14 +180,36 @@
                         <!-- 报销说明 -->
                         <div class="col-md-6 mb-3">
                             <label for="description" class="form-label">{{ _('报销说明') }}</label>
-                            <textarea class="form-control" 
-                                      id="description" name="description" 
-                                      rows="4" 
+                            <textarea class="form-control"
+                                      id="description" name="description"
+                                      rows="4"
                                       placeholder="{{ _('请描述报销的背景、目的等总体说明') }}"
                                       style="resize: vertical;">{{ request.form.get('description', '') }}</textarea>
                         </div>
                     </div>
-                    
+
+                    <!-- 费用归属选择 -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{{ _('费用归属') }}</label>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="attributeToSelf" name="attribute_to_self" value="1" checked>
+                                <label class="form-check-label" for="attributeToSelf">
+                                    {{ _('归属自己') }}
+                                    <small class="text-muted d-block">{{ _('费用计入本人部门，审批走本人上级') }}</small>
+                                </label>
+                            </div>
+                            <!-- 归属人选择器（默认隐藏） -->
+                            <div id="attributedToContainer" style="display: none;">
+                                <label for="attributed_to_id" class="form-label">{{ _('选择归属人') }}</label>
+                                <select class="form-select" id="attributed_to_id" name="attributed_to_id">
+                                    <option value="">{{ _('加载中...') }}</option>
+                                </select>
+                                <small class="text-muted">{{ _('费用将计入归属人部门，审批需归属人及其上级确认') }}</small>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="section-divider"></div>
                     
                     <!-- 第二部分：报销明细管理 -->
@@ -701,7 +723,69 @@ $(document).ready(function() {
     } else {
         console.error('未找到客户搜索容器');
     }
+
+    // 费用归属选择器逻辑
+    initAttributionSelector();
 });
+
+// 初始化费用归属选择器
+function initAttributionSelector() {
+    const attributeToSelfCheckbox = document.getElementById('attributeToSelf');
+    const attributedToContainer = document.getElementById('attributedToContainer');
+    const attributedToSelect = document.getElementById('attributed_to_id');
+    let usersLoaded = false;
+
+    if (!attributeToSelfCheckbox || !attributedToContainer || !attributedToSelect) {
+        console.log('费用归属选择器元素未找到');
+        return;
+    }
+
+    // 监听复选框变化
+    attributeToSelfCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+            // 归属自己：隐藏选择器
+            attributedToContainer.style.display = 'none';
+            attributedToSelect.value = '';
+        } else {
+            // 不归属自己：显示选择器并加载用户列表
+            attributedToContainer.style.display = 'block';
+            if (!usersLoaded) {
+                loadSameCompanyUsers();
+            }
+        }
+    });
+
+    // 加载同公司用户列表
+    function loadSameCompanyUsers() {
+        attributedToSelect.innerHTML = '<option value="">{{ _("加载中...") }}</option>';
+
+        fetch('/expense/api/users/same-company')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    attributedToSelect.innerHTML = '<option value="">{{ _("请选择归属人") }}</option>';
+                    data.users.forEach(user => {
+                        // 排除当前用户（因为当前用户已经可以通过"归属自己"选项选择）
+                        if (!user.is_current_user) {
+                            const option = document.createElement('option');
+                            option.value = user.id;
+                            option.textContent = user.real_name + (user.department ? ` (${user.department})` : '');
+                            attributedToSelect.appendChild(option);
+                        }
+                    });
+                    usersLoaded = true;
+                    console.log('已加载同公司用户列表:', data.users.length);
+                } else {
+                    attributedToSelect.innerHTML = '<option value="">{{ _("加载失败，请刷新页面重试") }}</option>';
+                    console.error('加载用户列表失败:', data.message);
+                }
+            })
+            .catch(error => {
+                attributedToSelect.innerHTML = '<option value="">{{ _("加载失败，请刷新页面重试") }}</option>';
+                console.error('加载同公司用户列表失败:', error);
+            });
+    }
+}
 
 // 简化：移除不必要的按键有效性测试逻辑
 // 保留基本的DOM元素引用供其他逻辑使用

@@ -7758,3 +7758,16 @@ msgstr "Shipping"
 
 msgid "产品模板"
 msgstr "Templates"
+
+# 费用归属相关翻译
+msgid "费用归属"
+msgstr "Expense Attribution"
+
+msgid "归属自己"
+msgstr "Attribute to myself"
+
+msgid "选择归属人"
+msgstr "Select attributee"
+
+msgid "请选择归属人"
+msgstr "Please select attributee"

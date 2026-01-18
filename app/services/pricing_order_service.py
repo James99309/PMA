@@ -1255,51 +1255,54 @@ class PricingOrderService:
             if approval_instance.status != ApprovalStatus.PENDING:
                 return False
                 
-            
-            # 检查当前步骤的审批人
-            current_step = ApprovalStep.query.get(approval_instance.current_step)
-            
+
+            # 🔥 修复：使用 get_current_step_info() 获取步骤信息（支持动态步骤）
+            current_step = approval_instance.get_current_step_info()
+
             if current_step:
-                
+                # 获取步骤属性（兼容字典和对象）
+                approver_user_id = current_step.get('approver_user_id') if isinstance(current_step, dict) else current_step.approver_user_id
+                approver_type = current_step.get('approver_type') if isinstance(current_step, dict) else current_step.approver_type
+
                 # 如果有审批人ID，获取审批人用户名
-                if current_step.approver_user_id:
+                if approver_user_id:
                     from app.models.user import User
-                    approver_user = User.query.get(current_step.approver_user_id)
+                    approver_user = User.query.get(approver_user_id)
                     approver_username = approver_user.username if approver_user else "未知用户"
-                
+
                 # 处理直接指定审批人的情况
-                if current_step.approver_user_id and current_step.approver_user_id == current_user.id:
+                if approver_user_id and approver_user_id == current_user.id:
                     return True
-                
+
                 # 🔥 新增：处理分支决策类型的审批步骤
-                if current_step.approver_type == 'branch':
+                if approver_type == 'branch':
                     try:
                         from app.helpers.approval_helpers import get_step_actual_approver
                         actual_approver = get_step_actual_approver(current_step, approval_instance)
-                        
+
                         if actual_approver and actual_approver.id == current_user.id:
                             return True
                         else:
                             pass
                     except Exception as e:
                         logger.error(f"🔍 [APPROVER_CHECK] ❌ 分支决策审批人确定失败: {str(e)}")
-                
+
                 # 处理其他特殊审批人类型（如auto等）
-                if current_step.approver_type in ['auto', 'next_level']:
+                if approver_type in ['auto', 'next_level']:
                     try:
                         from app.helpers.approval_helpers import get_step_actual_approver
                         actual_approver = get_step_actual_approver(current_step, approval_instance)
-                        
+
                         if actual_approver and actual_approver.id == current_user.id:
                             return True
                         else:
                             pass
                     except Exception as e:
                         logger.error(f"🔍 [APPROVER_CHECK] ❌ 特殊类型审批人确定失败: {str(e)}")
-                
+
             else:
                 pass
-                
+
             return False
         except Exception as e:
             logger.error(f"🔍 [APPROVER_CHECK] ❌ 检查审批人时发生异常: {str(e)}")
@@ -1337,21 +1340,24 @@ class PricingOrderService:
             from app.models.approval import ApprovalStep
             
             approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
-            
+
             if not approval_instance:
                 return False
-                
-            current_step = ApprovalStep.query.get(approval_instance.current_step)
-            
+
+            # 🔥 修复：使用 get_current_step_info() 获取步骤信息（支持动态步骤）
+            current_step = approval_instance.get_current_step_info()
+
             if not current_step:
                 return False
-                
-            editable_fields = current_step.editable_fields or []
-            
+
+            # 获取 editable_fields（兼容字典和对象）
+            editable_fields = current_step.get('editable_fields') if isinstance(current_step, dict) else current_step.editable_fields
+            editable_fields = editable_fields or []
+
             # 检查是否有任何定价相关字段在可编辑列表中
             pricing_fields = ['product_name', 'unit_price', 'total_price', 'pricing_details']
             has_pricing_edit_permission = any(field in editable_fields for field in pricing_fields)
-            
+
             return has_pricing_edit_permission
                 
         return False
@@ -1393,20 +1399,22 @@ class PricingOrderService:
             
             # 获取当前步骤的可编辑字段
             from app.helpers.approval_helpers import get_object_approval_instance
-            from app.models.approval import ApprovalStep
-            
+
             approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
-            
+
             if not approval_instance:
                 return False
-                
-            current_step = ApprovalStep.query.get(approval_instance.current_step)
-            
+
+            # 🔥 修复：使用 get_current_step_info() 获取步骤信息（支持动态步骤）
+            current_step = approval_instance.get_current_step_info()
+
             if not current_step:
                 return False
-                
-            editable_fields = current_step.editable_fields or []
-            
+
+            # 获取 editable_fields（兼容字典和对象）
+            editable_fields = current_step.get('editable_fields') if isinstance(current_step, dict) else current_step.editable_fields
+            editable_fields = editable_fields or []
+
             # 检查是否有任何结算相关字段在可编辑列表中
             settlement_fields = ['settlement_details', 'settlement_amount', 'settlement_rate', 'cost_price', 'settlement_total_discount_rate']
             has_settlement_edit_permission = any(field in editable_fields for field in settlement_fields)
@@ -1483,9 +1491,11 @@ class PricingOrderService:
                     
                     # 添加召回记录到统一系统
                     from app.models.approval import ApprovalRecord
+                    # 🔥 修复：step_id 是外键（指向 approval_step.id），不能存储 step_order
+                    # 召回是流程级别操作，不特定于某个步骤，设为 None
                     recall_record = ApprovalRecord(
                         instance_id=approval_instance.id,
-                        step_id=approval_instance.current_step,
+                        step_id=None,
                         approver_id=current_user_id,
                         action='recall',
                         comment=f"发起人召回批价单。原因：{reason}" if reason else "发起人召回批价单",
@@ -1669,20 +1679,22 @@ class PricingOrderService:
             
             # 获取当前步骤的可编辑字段
             from app.helpers.approval_helpers import get_object_approval_instance
-            from app.models.approval import ApprovalStep
-            
+
             approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
-            
+
             if not approval_instance:
                 return False
-                
-            current_step = ApprovalStep.query.get(approval_instance.current_step)
-            
+
+            # 🔥 修复：使用 get_current_step_info() 获取步骤信息（支持动态步骤）
+            current_step = approval_instance.get_current_step_info()
+
             if not current_step:
                 return False
-                
-            editable_fields = current_step.editable_fields or []
-            
+
+            # 获取 editable_fields（兼容字典和对象）
+            editable_fields = current_step.get('editable_fields') if isinstance(current_step, dict) else current_step.editable_fields
+            editable_fields = editable_fields or []
+
             # 检查是否有任何数量相关字段在可编辑列表中
             quantity_fields = ['quantity', 'unit_quantity', 'total_quantity']
             has_quantity_edit_permission = any(field in editable_fields for field in quantity_fields)
@@ -1713,20 +1725,22 @@ class PricingOrderService:
             
             # 获取当前步骤的可编辑字段
             from app.helpers.approval_helpers import get_object_approval_instance
-            from app.models.approval import ApprovalStep
-            
+
             approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
-            
+
             if not approval_instance:
                 return False
-                
-            current_step = ApprovalStep.query.get(approval_instance.current_step)
-            
+
+            # 🔥 修复：使用 get_current_step_info() 获取步骤信息（支持动态步骤）
+            current_step = approval_instance.get_current_step_info()
+
             if not current_step:
                 return False
-                
-            editable_fields = current_step.editable_fields or []
-            
+
+            # 获取 editable_fields（兼容字典和对象）
+            editable_fields = current_step.get('editable_fields') if isinstance(current_step, dict) else current_step.editable_fields
+            editable_fields = editable_fields or []
+
             # 检查是否有任何折扣价格相关字段在可编辑列表中
             discount_price_fields = ['discount_rate', 'unit_price', 'discounted_price', 'total_discount_rate']
             has_discount_price_edit_permission = any(field in editable_fields for field in discount_price_fields)
@@ -1758,20 +1772,22 @@ class PricingOrderService:
             
             # 获取当前步骤的可编辑字段
             from app.helpers.approval_helpers import get_object_approval_instance
-            from app.models.approval import ApprovalStep
-            
+
             approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
-            
+
             if not approval_instance:
                 return False
-                
-            current_step = ApprovalStep.query.get(approval_instance.current_step)
-            
+
+            # 🔥 修复：使用 get_current_step_info() 获取步骤信息（支持动态步骤）
+            current_step = approval_instance.get_current_step_info()
+
             if not current_step:
                 return False
-                
-            editable_fields = current_step.editable_fields or []
-            
+
+            # 获取 editable_fields（兼容字典和对象）
+            editable_fields = current_step.get('editable_fields') if isinstance(current_step, dict) else current_step.editable_fields
+            editable_fields = editable_fields or []
+
             # 检查是否有任何基本信息字段在可编辑列表中
             basic_info_fields = ['dealer_id', 'distributor_id', 'is_direct_contract', 'is_factory_pickup']
             has_basic_edit_permission = any(field in editable_fields for field in basic_info_fields)

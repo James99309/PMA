@@ -385,6 +385,12 @@ def create_app(config_class=Config):
 
     # 注册API v1蓝图
     app.register_blueprint(api_v1_bp, url_prefix='/api/v1')
+    csrf.exempt(api_v1_bp)  # 豁免API v1蓝图的CSRF保护（供外部系统调用）
+
+    # 注册外部API蓝图（供Stargirl培训系统等外部系统调用）
+    from app.api.external import external_api_bp
+    app.register_blueprint(external_api_bp)
+    csrf.exempt(external_api_bp)
     
     # 注册搜索API蓝图
     app.register_blueprint(search_bp, url_prefix='/api/v1/search')
@@ -536,7 +542,9 @@ def create_app(config_class=Config):
             '/auth/forgot-password', '/auth/reset-password',
             '/auth/activate', '/static', '/api/version',
             '/language/current', '/language/switch', '/storage',
-            '/p/'  # 产品公开信息页面（二维码扫描）
+            '/p/',  # 产品公开信息页面（二维码扫描）
+            '/api/v1/',  # API v1端点（有自己的认证机制）
+            '/api/external/'  # 外部API端点（供Stargirl等系统调用，使用API Key认证）
         ]
         
         # 检查当前路径是否需要登录
@@ -806,10 +814,6 @@ def create_app(config_class=Config):
     # 注册全局权限函数上下文处理器
     from app.context_processors import inject_permission_functions
     app.context_processor(inject_permission_functions)
-
-    # 注册通知蓝图
-    from app.routes.notification import notification
-    app.register_blueprint(notification)
 
     # 注册消息蓝图
     from app.views.message import message as message_bp

@@ -268,16 +268,28 @@ def edit_pricing_order(order_id):
         editable_fields = []
         if pricing_order.status == 'pending':
             from app.helpers.approval_helpers import get_object_approval_instance
-            from app.models.approval import ApprovalStep, ApprovalStatus
-            
+            from app.models.approval import ApprovalStatus
+
             # 优先使用V2系统
             approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
             if approval_instance and approval_instance.status == ApprovalStatus.PENDING:
-                current_approval_step = ApprovalStep.query.get(approval_instance.current_step)
-                if current_approval_step and current_approval_step.editable_fields:
+                # 🔥 修复：使用 get_current_step_info() 获取步骤信息（支持动态步骤）
+                current_approval_step = approval_instance.get_current_step_info()
+                # 获取 editable_fields（字典或对象都支持）
+                step_editable_fields = None
+                if current_approval_step:
+                    if isinstance(current_approval_step, dict):
+                        step_editable_fields = current_approval_step.get('editable_fields')
+                    else:
+                        step_editable_fields = current_approval_step.editable_fields
+                if step_editable_fields:
                     import json
                     try:
-                        editable_fields = json.loads(current_approval_step.editable_fields)
+                        # step_editable_fields 可能是字符串或已解析的列表
+                        if isinstance(step_editable_fields, str):
+                            editable_fields = json.loads(step_editable_fields)
+                        else:
+                            editable_fields = step_editable_fields
                     except:
                         editable_fields = []
         
@@ -1015,7 +1027,8 @@ def get_pricing_order_approval_flow(order_id):
                     step_data['approver_name'] = step_record.approver.real_name if step_record.approver else ''
             
             # 判断是否当前步骤
-            if approval_instance.current_step == step['id']:
+            # 🔥 修复：current_step 存储的是 step_order，按 step_order 匹配
+            if approval_instance.current_step == step['step_order']:
                 step_data['is_current'] = True
                 # 🔍 前端JavaScript期望current状态标记在status字段中
                 if approval_instance.status == ApprovalStatus.PENDING:
@@ -2577,17 +2590,21 @@ def get_pricing_order_detail_api(order_id):
         editable_fields = []
         if pricing_order.status == 'pending' and is_approval_context:
             from app.helpers.approval_helpers import get_object_approval_instance
-            from app.models.approval import ApprovalStep, ApprovalStatus
+            from app.models.approval import ApprovalStatus
 
             approval_instance = get_object_approval_instance('pricing_order', pricing_order.id)
             if approval_instance and approval_instance.status == ApprovalStatus.PENDING:
-                current_step = ApprovalStep.query.get(approval_instance.current_step)
-                if current_step and current_step.editable_fields:
-                    import json
-                    try:
-                        editable_fields = json.loads(current_step.editable_fields) if isinstance(current_step.editable_fields, str) else current_step.editable_fields
-                    except:
-                        editable_fields = []
+                # 🔥 修复：使用 get_current_step_info() 获取步骤信息（支持动态步骤）
+                current_step = approval_instance.get_current_step_info()
+                if current_step:
+                    # 获取 editable_fields（字典或对象都支持）
+                    step_editable_fields = current_step.get('editable_fields') if isinstance(current_step, dict) else current_step.editable_fields
+                    if step_editable_fields:
+                        import json
+                        try:
+                            editable_fields = json.loads(step_editable_fields) if isinstance(step_editable_fields, str) else step_editable_fields
+                        except:
+                            editable_fields = []
 
         # 判断是否可以提交/召回/重新提交（创建人或管理员）
         # - draft: 可提交

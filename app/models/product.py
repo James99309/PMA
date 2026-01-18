@@ -72,6 +72,19 @@ class Product(db.Model):
         return self.product_name or ''
 
     @property
+    def name_en(self):
+        """获取产品的英文名称
+
+        优先返回关联 ProductSubcategory 的英文名称
+
+        Returns:
+            str: 产品英文名称，或 None 如果没有关联的子分类或英文名称
+        """
+        if self.subcategory_obj and self.subcategory_obj.name_en:
+            return self.subcategory_obj.name_en
+        return None
+
+    @property
     def category_name(self):
         """获取产品分类名称（优先使用新字段，回退到旧字段）
 
@@ -84,6 +97,20 @@ class Product(db.Model):
         if self.category_obj:
             return self.category_obj.name
         return self.category or ''
+
+    @property
+    def category_name_en(self):
+        """获取分类的英文名称"""
+        if self.category_obj and self.category_obj.name_en:
+            return self.category_obj.name_en
+        return None
+
+    @property
+    def subcategory_name_en(self):
+        """获取子分类的英文名称"""
+        if self.subcategory_obj and self.subcategory_obj.name_en:
+            return self.subcategory_obj.name_en
+        return None
 
     @property
     def display_mn(self):

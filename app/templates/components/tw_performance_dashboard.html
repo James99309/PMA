@@ -1699,17 +1699,13 @@ function performanceDashboardData(userId, year, dashboardUrl) {
         },
 
         formatAmount(value) {
-            // 使用统一的货币转换工具
-            // value 是 CNY 元，转换为用户货币显示单位（K/M/万元）
-            if (typeof CurrencyHelpers !== 'undefined') {
-                return CurrencyHelpers.formatFromCNYYuan(value, this.userCurrency, { withSymbol: true });
-            }
-            // 回退逻辑（CurrencyHelpers 未加载时）
-            if (!value) return PERF_CURRENCY_SYMBOL + '0';
-            if (value >= 10000) {
-                return PERF_CURRENCY_SYMBOL + (value / 10000).toFixed(2) + PERF_AMOUNT_UNIT;
-            }
-            return PERF_CURRENCY_SYMBOL + value.toFixed(2);
+            // 报销预算金额直接显示元，不转换为万元（金额通常较小）
+            if (!value || value === 0) return PERF_CURRENCY_SYMBOL + '0';
+            // 直接显示元，带千位分隔符
+            return PERF_CURRENCY_SYMBOL + Number(value).toLocaleString('zh-CN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
         },
 
         // 切换费用范围

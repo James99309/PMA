@@ -59,6 +59,7 @@
                     <tr>
                         <th>序号</th>
                         <th>区域名称</th>
+                        <th>英文名称</th>
                         <th>编码</th>
                         <th>说明</th>
                         <th>操作</th>
@@ -69,6 +70,7 @@
                     <tr>
                         <td>{{ loop.index }}</td>
                         <td>{{ field.name }}</td>
+                        <td>{{ field.name_en or '-' }}</td>
                         <td><code>{{ field.code }}</code></td>
                         <td>{{ field.description }}</td>
                         <td class="text-center">
@@ -91,7 +93,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" class="text-center">暂无区域信息，请添加</td>
+                        <td colspan="6" class="text-center">暂无区域信息，请添加</td>
                     </tr>
                     {% endfor %}
                 </tbody>

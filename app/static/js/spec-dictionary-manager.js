@@ -745,6 +745,14 @@ const SpecDictionaryManager = (function() {
      */
     function show() {
         const els = getElements();
+
+        // [LegacySpecSystem] 检查模态框是否存在（被禁用时会隐藏）
+        if (!els.modal) {
+            console.warn('[LegacySpec] Spec dictionary modal does not exist - legacy spec system may be disabled');
+            alert('规格系统已禁用，请使用新规格模板系统');
+            return;
+        }
+
         els.modal.classList.remove('hidden');
 
         // 重置状态

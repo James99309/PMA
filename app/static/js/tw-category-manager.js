@@ -3,6 +3,11 @@
  * 管理产品分类、子分类和规格字段的 CRUD 操作
  */
 const CategoryManager = {
+    // [LegacySpecSystem] 功能标志
+    legacySpecSystemEnabled: window.config && window.config.LEGACY_SPEC_SYSTEM_ENABLED !== undefined
+        ? window.config.LEGACY_SPEC_SYSTEM_ENABLED
+        : true,  // 默认启用
+
     // 状态
     state: {
         selectedCategoryId: null,
@@ -40,6 +45,12 @@ const CategoryManager = {
      * 初始化
      */
     init() {
+        // [LegacySpecSystem] 日志输出初始化状态
+        console.log('[LegacySpec] CategoryManager initialized', {
+            legacySpecSystemEnabled: this.legacySpecSystemEnabled,
+            timestamp: new Date().toISOString()
+        });
+
         this.loadCategories();
     },
 
@@ -123,7 +134,12 @@ const CategoryManager = {
                                 <span class="material-symbols-outlined text-lg">delete</span>
                             </button>
                         ` : `
-                            <span class="p-1.5 text-slate-300 dark:text-slate-600" title="已使用，无法修改">
+                            <button type="button" onclick="event.stopPropagation(); CategoryManager.showPartialEditCategoryModal(${cat.id})"
+                                    class="p-1.5 text-slate-400 hover:text-blue-500 rounded transition-colors"
+                                    title="编辑英文名称">
+                                <span class="material-symbols-outlined text-lg">edit_note</span>
+                            </button>
+                            <span class="p-1.5 text-slate-300 dark:text-slate-600" title="已使用">
                                 <span class="material-symbols-outlined text-lg">lock</span>
                             </span>
                         `}
@@ -205,6 +221,7 @@ const CategoryManager = {
     showAddCategoryModal() {
         document.getElementById('categoryFormId').value = '';
         document.getElementById('categoryFormName').value = '';
+        document.getElementById('categoryFormNameEn').value = '';
         document.getElementById('categoryFormCode').value = '';
         document.getElementById('categoryFormDesc').value = '';
         document.getElementById('categoryFormModal-title').textContent = '添加分类';
@@ -223,6 +240,7 @@ const CategoryManager = {
                 const data = result.data;
                 document.getElementById('categoryFormId').value = data.id;
                 document.getElementById('categoryFormName').value = data.name;
+                document.getElementById('categoryFormNameEn').value = data.name_en || '';
                 document.getElementById('categoryFormCode').value = data.code_letter;
                 document.getElementById('categoryFormDesc').value = data.description || '';
                 document.getElementById('categoryFormModal-title').textContent = '编辑分类';
@@ -301,6 +319,7 @@ const CategoryManager = {
         const id = document.getElementById('categoryFormId').value;
         const data = {
             name: document.getElementById('categoryFormName').value.trim(),
+            name_en: document.getElementById('categoryFormNameEn').value.trim(),
             code_letter: document.getElementById('categoryFormCode').value.trim().toUpperCase(),
             description: document.getElementById('categoryFormDesc').value.trim()
         };
@@ -399,6 +418,9 @@ const CategoryManager = {
                     <span class="font-medium text-slate-900 dark:text-white">${sub.name}</span>
                 </td>
                 <td class="p-3">
+                    <span class="text-slate-600 dark:text-slate-400">${sub.name_en || '-'}</span>
+                </td>
+                <td class="p-3">
                     <span class="font-mono text-xs px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">${sub.code_letter}</span>
                 </td>
                 <td class="p-3">
@@ -419,6 +441,10 @@ const CategoryManager = {
                                 <span class="material-symbols-outlined text-lg">delete</span>
                             </button>
                         ` : `
+                            <button type="button" onclick="event.stopPropagation(); CategoryManager.showPartialEditSubcategoryModal(${sub.id})"
+                                    class="p-1.5 text-slate-400 hover:text-blue-500 rounded transition-colors" title="编辑英文名称">
+                                <span class="material-symbols-outlined text-lg">edit_note</span>
+                            </button>
                             <span class="p-1.5 text-slate-300 dark:text-slate-600" title="已使用">
                                 <span class="material-symbols-outlined text-lg">lock</span>
                             </span>
@@ -459,6 +485,7 @@ const CategoryManager = {
         }
         document.getElementById('subcategoryFormId').value = '';
         document.getElementById('subcategoryFormName').value = '';
+        document.getElementById('subcategoryFormNameEn').value = '';
         document.getElementById('subcategoryFormCode').value = '';
         document.getElementById('subcategoryFormModal-title').textContent = '添加子分类';
         document.getElementById('subcategoryFormModal').classList.remove('hidden');
@@ -476,6 +503,7 @@ const CategoryManager = {
                 const data = result.data;
                 document.getElementById('subcategoryFormId').value = data.id;
                 document.getElementById('subcategoryFormName').value = data.name;
+                document.getElementById('subcategoryFormNameEn').value = data.name_en || '';
                 document.getElementById('subcategoryFormCode').value = data.code_letter;
                 document.getElementById('subcategoryFormModal-title').textContent = '编辑子分类';
                 document.getElementById('subcategoryFormModal').classList.remove('hidden');
@@ -533,6 +561,7 @@ const CategoryManager = {
         const data = {
             category_id: this.state.selectedCategoryId,
             name: document.getElementById('subcategoryFormName').value.trim(),
+            name_en: document.getElementById('subcategoryFormNameEn').value.trim(),
             code_letter: document.getElementById('subcategoryFormCode').value.trim().toUpperCase()
         };
 
@@ -609,6 +638,15 @@ const CategoryManager = {
 
             loading.classList.add('hidden');
 
+            // [LegacySpecSystem] 检查是否是旧系统被禁用的错误
+            if (response.status === 503 || (result.source === 'legacy_spec_system' && !result.success)) {
+                console.warn('[LegacySpec] Legacy spec system is disabled, field loading skipped');
+                empty.classList.remove('hidden');
+                this.state.fields = [];
+                count.textContent = '0';
+                return;
+            }
+
             if (result.success && result.data) {
                 this.state.fields = result.data;
             } else {
@@ -624,7 +662,7 @@ const CategoryManager = {
             }
 
         } catch (error) {
-            console.error('加载规格字段失败:', error);
+            console.error('[LegacySpec] Error loading spec fields:', error);
             loading.classList.add('hidden');
             empty.classList.remove('hidden');
         }
@@ -764,6 +802,13 @@ const CategoryManager = {
      * 显示添加规格字段模态框（子分类级）
      */
     async showAddFieldModal() {
+        // [LegacySpecSystem] 检查旧系统是否启用
+        if (!this.legacySpecSystemEnabled) {
+            console.warn('[LegacySpec] Attempt to add field when legacy system is disabled');
+            this.showToast('规格系统已禁用，请使用新规格模板系统', 'warning');
+            return;
+        }
+
         if (!this.state.selectedSubcategoryId) {
             this.showToast('请先选择一个子分类', 'warning');
             return;
@@ -787,6 +832,13 @@ const CategoryManager = {
      * 显示分类规格管理模态框
      */
     async showCategoryFieldsModal() {
+        // [LegacySpecSystem] 检查旧系统是否启用
+        if (!this.legacySpecSystemEnabled) {
+            console.warn('[LegacySpec] Attempt to open category fields when legacy system is disabled');
+            this.showToast('规格系统已禁用，请使用新规格模板系统', 'warning');
+            return;
+        }
+
         if (!this.state.selectedCategoryId) {
             this.showToast('请先选择一个分类', 'warning');
             return;
@@ -966,6 +1018,13 @@ const CategoryManager = {
      * 显示添加分类规格表单（复用 fieldFormModal）
      */
     async showAddCategoryFieldForm() {
+        // [LegacySpecSystem] 检查旧系统是否启用
+        if (!this.legacySpecSystemEnabled) {
+            console.warn('[LegacySpec] Attempt to add category field when legacy system is disabled');
+            this.showToast('规格系统已禁用，请使用新规格模板系统', 'warning');
+            return;
+        }
+
         this.state.fieldFormMode = 'category';
         document.getElementById('fieldFormId').value = '';
         document.getElementById('fieldFormUseInCode').checked = true;
@@ -1043,6 +1102,13 @@ const CategoryManager = {
      * @param {string} fieldType - 字段类型 ('category' 或 'subcategory')
      */
     async showEditFieldModal(fieldId, fieldType = 'subcategory') {
+        // [LegacySpecSystem] 检查旧系统是否启用
+        if (!this.legacySpecSystemEnabled) {
+            console.warn('[LegacySpec] Attempt to edit field when legacy system is disabled');
+            this.showToast('规格系统已禁用，请使用新规格模板系统', 'warning');
+            return;
+        }
+
         try {
             // 设置表单模式，用于提交后刷新正确的列表
             this.state.fieldFormMode = fieldType;
@@ -1073,7 +1139,7 @@ const CategoryManager = {
                 this.showToast(result.message, 'error');
             }
         } catch (error) {
-            console.error('加载字段详情失败:', error);
+            console.error('[LegacySpec] Error loading field details:', error);
             this.showToast('加载失败', 'error');
         }
     },
@@ -1235,11 +1301,152 @@ const CategoryManager = {
      * 显示规格字典模态框
      */
     showSpecDictModal() {
+        // [LegacySpecSystem] 检查旧规格系统是否启用
+        if (!this.legacySpecSystemEnabled) {
+            console.warn('[LegacySpec] Spec dictionary is disabled');
+            this.showToast('规格系统已禁用，请使用新规格模板系统', 'warning');
+            return;
+        }
+
         if (typeof SpecDictionaryManager !== 'undefined') {
             SpecDictionaryManager.show();
         } else {
             this.showToast('规格字典组件未加载', 'error');
         }
+    },
+
+    // ========== 部分编辑模式（已锁定分类的英文字段编辑） ==========
+
+    /**
+     * 显示分类部分编辑模态框（仅编辑 name_en）
+     */
+    async showPartialEditCategoryModal(categoryId) {
+        try {
+            const response = await fetch(`${this.API.categories}/${categoryId}`);
+            const result = await response.json();
+
+            if (result.success) {
+                const data = result.data;
+                document.getElementById('categoryPartialEditId').value = data.id;
+                document.getElementById('categoryPartialEditNameDisplay').textContent = data.name;
+                document.getElementById('categoryPartialEditCodeDisplay').textContent = data.code_letter;
+                document.getElementById('categoryPartialEditNameEn').value = data.name_en || '';
+                document.getElementById('categoryPartialEditModal').classList.remove('hidden');
+            } else {
+                this.showToast(result.message, 'error');
+            }
+        } catch (error) {
+            console.error('加载分类详情失败:', error);
+            this.showToast('加载失败', 'error');
+        }
+    },
+
+    /**
+     * 隐藏分类部分编辑表单
+     */
+    hidePartialEditCategoryForm() {
+        document.getElementById('categoryPartialEditModal').classList.add('hidden');
+    },
+
+    /**
+     * 保存分类部分编辑（仅 name_en）
+     */
+    async savePartialCategoryForm(event) {
+        event.preventDefault();
+
+        const id = document.getElementById('categoryPartialEditId').value;
+        const data = {
+            name_en: document.getElementById('categoryPartialEditNameEn').value.trim()
+        };
+
+        try {
+            const response = await fetch(`${this.API.categories}/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.hidePartialEditCategoryForm();
+                this.loadCategories();
+                this.showToast('英文名称保存成功', 'success');
+            } else {
+                this.showToast(result.message, 'error');
+            }
+        } catch (error) {
+            console.error('保存分类失败:', error);
+            this.showToast('保存失败', 'error');
+        }
+
+        return false;
+    },
+
+    /**
+     * 显示子分类部分编辑模态框（仅编辑 name_en）
+     */
+    async showPartialEditSubcategoryModal(subcategoryId) {
+        try {
+            const response = await fetch(`${this.API.subcategories}/${subcategoryId}`);
+            const result = await response.json();
+
+            if (result.success) {
+                const data = result.data;
+                document.getElementById('subcategoryPartialEditId').value = data.id;
+                document.getElementById('subcategoryPartialEditNameDisplay').textContent = data.name;
+                document.getElementById('subcategoryPartialEditCodeDisplay').textContent = data.code_letter;
+                document.getElementById('subcategoryPartialEditNameEn').value = data.name_en || '';
+                document.getElementById('subcategoryPartialEditModal').classList.remove('hidden');
+            } else {
+                this.showToast(result.message, 'error');
+            }
+        } catch (error) {
+            console.error('加载子分类详情失败:', error);
+            this.showToast('加载失败', 'error');
+        }
+    },
+
+    /**
+     * 隐藏子分类部分编辑表单
+     */
+    hidePartialEditSubcategoryForm() {
+        document.getElementById('subcategoryPartialEditModal').classList.add('hidden');
+    },
+
+    /**
+     * 保存子分类部分编辑（仅 name_en）
+     */
+    async savePartialSubcategoryForm(event) {
+        event.preventDefault();
+
+        const id = document.getElementById('subcategoryPartialEditId').value;
+        const data = {
+            name_en: document.getElementById('subcategoryPartialEditNameEn').value.trim()
+        };
+
+        try {
+            const response = await fetch(`${this.API.subcategories}/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.hidePartialEditSubcategoryForm();
+                this.loadSubcategories(this.state.selectedCategoryId);
+                this.showToast('英文名称保存成功', 'success');
+            } else {
+                this.showToast(result.message, 'error');
+            }
+        } catch (error) {
+            console.error('保存子分类失败:', error);
+            this.showToast('保存失败', 'error');
+        }
+
+        return false;
     },
 
     // ========== 工具函数 ==========

@@ -583,7 +583,8 @@ def _get_approval_flow_impl(order_id):
                     'timestamp': r.timestamp.strftime('%Y-%m-%d %H:%M') if r.timestamp else '',
                     'approver_name': User.query.get(r.approver_id).real_name if r.approver_id else ''
                 } for r in step_records]
-            elif approval_instance.current_step == step_id:
+            elif approval_instance.current_step == step_order:
+                # 🔥 修复：current_step 存储的是 step_order
                 stage_info['status'] = 'current'
                 # 检查当前用户是否可以审批此步骤
                 stage_info['can_approve'] = can_user_approve(approval_instance.id, current_user.id)

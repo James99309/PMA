@@ -156,6 +156,7 @@ class SpecTemplate(db.Model):
     id = Column(Integer, primary_key=True)
     model = Column(String(100), nullable=False, unique=True)  # 产品型号
     name = Column(String(200))  # 模板名称
+    name_en = Column(String(200))  # 模板名称（英文）
     description = Column(Text)  # 模板描述
     version = Column(String(20), default='V1.0')  # 模板版本
     version_first_used_at = Column(DateTime)  # 当前版本首次生成MN编码的时间（用于判断版本是否被绑定）
@@ -185,6 +186,7 @@ class SpecTemplate(db.Model):
             'id': self.id,
             'model': self.model,
             'name': self.name,
+            'name_en': self.name_en,
             'description': self.description,
             'version': self.version,
             'version_first_used_at': self.version_first_used_at.isoformat() if self.version_first_used_at else None,

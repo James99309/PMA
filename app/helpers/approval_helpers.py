@@ -478,17 +478,33 @@ def get_step_actual_approver(step, approval_instance):
     
     # 获取审批发起人作为上下文用户
     context_user = User.query.get(approval_instance.created_by)
-    
+
+    # 🔥 检查是否有特殊的上下文用户ID（用于归属人上级审批等场景）
+    # 如果步骤数据中包含 context_user_id，则使用该用户作为上级计算的基础
+    step_context_user_id = None
+    if isinstance(step, dict):
+        step_context_user_id = step.get('context_user_id')
+
     # 如果是项目相关的审批，获取项目类型
     project_type = None
     if approval_instance.object_type == 'project':
         project = Project.query.get(approval_instance.object_id)
         if project:
             project_type = project.project_type
-    
+
     # 根据审批人类型确定实际审批人
     if approver_type == 'next_level':
-        # 上一级领导：基于发起人确定
+        # 上一级领导
+        # 如果步骤有 context_user_id（如归属人上级审批），则基于该用户计算上级
+        # 否则基于审批发起人计算上级
+        if step_context_user_id:
+            context_user_for_next_level = User.query.get(step_context_user_id)
+            if context_user_for_next_level:
+                current_app.logger.info(f"使用归属人 {context_user_for_next_level.username} 计算上级审批人")
+                result = get_next_level_approver(context_user_for_next_level)
+                return result
+            else:
+                current_app.logger.warning(f"步骤 context_user_id={step_context_user_id} 对应的用户不存在，回退到发起人")
         result = get_next_level_approver(context_user)
         return result
     elif approver_type == 'auto' or action_type == 'authorization':
@@ -2099,9 +2115,11 @@ def get_current_step_info(instance):
             # 从模板快照中获取当前步骤信息
             steps_data = snapshot_data['steps']
             current_step_data = None
-            
+
+            # 🔥 修复：使用 step_order 匹配当前步骤（而非 step_id）
+            # current_step 存储的是步骤顺序号（1, 2, 3...）
             for step_data in steps_data:
-                if step_data.get('step_id') == instance.current_step:
+                if step_data.get('step_order') == instance.current_step:
                     current_step_data = step_data
                     break
         
@@ -3297,25 +3315,104 @@ def start_approval_process(object_type, object_id, template_id, user_id=None, au
                             current_app.logger.info(f"授权编号步骤快照更新：项目类型 {project.project_type}，步骤 {step_data['step_order']}，分配给：{approver.username} ({approver.role})")
                 else:
                     current_app.logger.warning(f"无法为项目类型 {project.project_type} 找到合适的授权审批人")
-        
+
+        # 🔥 报销单费用归属审批流程调整
+        # 如果报销单指定了归属人（且不是申请人自己），需要动态插入两个步骤：
+        # 1. 归属人审批（确认接受费用归属）
+        # 2. 归属人上级审批
+        if object_type == 'expense':
+            from app.models.expense import Expense
+            expense = Expense.query.get(object_id)
+            if expense and expense.attributed_to_id and expense.attributed_to_id != expense.owner_id:
+                current_app.logger.info(f"报销单 {expense.expense_number} 指定了归属人: {expense.attributed_to_id}，需要调整审批流程")
+
+                # 获取归属人信息
+                attributed_to_user = User.query.get(expense.attributed_to_id)
+                if attributed_to_user:
+                    # 在快照中找到第一个 approver_type='next_level' 的步骤
+                    next_level_step_index = None
+                    for i, step_data in enumerate(template_snapshot['steps']):
+                        if step_data.get('approver_type') == 'next_level':
+                            next_level_step_index = i
+                            break
+
+                    if next_level_step_index is not None:
+                        current_app.logger.info(f"找到上级审批步骤（索引 {next_level_step_index}），将替换为归属人审批流程")
+
+                        # 获取原步骤信息
+                        original_step = template_snapshot['steps'][next_level_step_index]
+                        original_order = original_step['step_order']
+
+                        # 创建归属人审批步骤
+                        attribution_step = {
+                            'step_id': f"attr_{expense.id}_1",  # 动态生成的步骤ID
+                            'step_order': original_order,
+                            'step_name': f'归属人审批（{attributed_to_user.real_name or attributed_to_user.username}）',
+                            'approver_type': 'user',  # 固定用户审批
+                            'approver_user_id': attributed_to_user.id,
+                            'approver_username': attributed_to_user.username,
+                            'approver_real_name': attributed_to_user.real_name or attributed_to_user.username,
+                            'send_email': original_step.get('send_email', True),
+                            'action_type': original_step.get('action_type'),
+                            'action_params': original_step.get('action_params'),
+                            'editable_fields': original_step.get('editable_fields', []),
+                            'cc_users': [],
+                            'cc_enabled': False,
+                            'branch_condition': None
+                        }
+
+                        # 创建归属人上级审批步骤
+                        attribution_superior_step = {
+                            'step_id': f"attr_{expense.id}_2",  # 动态生成的步骤ID
+                            'step_order': original_order + 1,
+                            'step_name': '归属人上级审批',
+                            'approver_type': 'next_level',  # 上级审批
+                            'approver_user_id': None,  # 动态计算
+                            'approver_username': None,
+                            'approver_real_name': None,
+                            'send_email': original_step.get('send_email', True),
+                            'action_type': original_step.get('action_type'),
+                            'action_params': original_step.get('action_params'),
+                            'editable_fields': original_step.get('editable_fields', []),
+                            'cc_users': [],
+                            'cc_enabled': False,
+                            'branch_condition': None,
+                            # 🔥 关键：标记这个步骤基于归属人计算上级
+                            'context_user_id': attributed_to_user.id
+                        }
+
+                        # 替换原步骤为两个新步骤
+                        template_snapshot['steps'] = (
+                            template_snapshot['steps'][:next_level_step_index] +
+                            [attribution_step, attribution_superior_step] +
+                            template_snapshot['steps'][next_level_step_index + 1:]
+                        )
+
+                        # 重新调整后续步骤的 step_order
+                        for j, step_data in enumerate(template_snapshot['steps']):
+                            step_data['step_order'] = j + 1
+
+                        current_app.logger.info(f"已插入归属人审批步骤，新的步骤顺序: {[s['step_name'] for s in template_snapshot['steps']]}")
+                    else:
+                        current_app.logger.warning(f"报销单 {expense.expense_number} 的审批模板中没有找到上级审批步骤")
+                else:
+                    current_app.logger.warning(f"报销单 {expense.expense_number} 的归属人 {expense.attributed_to_id} 不存在")
+
         # 🔥 重要：不再提交模板步骤的更新，因为我们只修改快照
         # db.session.commit()  # 删除这行，避免修改数据库中的模板
-        
-        # 获取第一步的step_id
-        first_step = ApprovalStep.query.filter_by(
-            process_id=template_id,
-            step_order=1
-        ).first()
-        
-        if not first_step:
-            raise ValueError(f"审批模板 {template_id} 没有找到第一步")
-        
+
+        # 🔥 修复：使用 step_order 而不是 step_id
+        # current_step 是 Integer 类型，存储步骤顺序号（1, 2, 3...）
+        # 这样无论是原始步骤还是动态插入的归属人步骤，都能正确匹配
+        first_step_order = 1  # 第一步的 step_order 始终为 1
+        current_app.logger.info(f"使用 step_order 作为 current_step: {first_step_order}")
+
         # 创建审批实例
         instance = ApprovalInstance(
             process_id=template_id,
             object_id=object_id,
             object_type=object_type,
-            current_step=first_step.id,  # 使用第一步的step_id
+            current_step=first_step_order,  # 🔥 使用 step_order 而不是 step_id
             status=ApprovalStatus.PENDING,
             started_at=datetime.now(),
             created_by=user_id,
@@ -3543,19 +3640,19 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
         user_id = current_user.id
 
     # 🔧 预检查：验证current_step是否能在快照中找到（数据完整性检查）
+    # 🔥 修复：current_step 存储的是 step_order
     instance_steps = instance.get_steps()
     current_step_found = False
     if isinstance(instance_steps, list):
         for step in instance_steps:
-            step_id = step.get('step_id') if isinstance(step, dict) else getattr(step, 'id', None)
-            if step_id == instance.current_step:
+            step_order = step.get('step_order') if isinstance(step, dict) else getattr(step, 'step_order', None)
+            if step_order == instance.current_step:
                 current_step_found = True
                 break
 
     if not current_step_found:
         current_app.logger.error(
-            f"数据完整性错误: current_step={instance.current_step}在快照中找不到。"
-            f"这可能是current_step被错误地设置成了step_order值。"
+            f"数据完整性错误: current_step={instance.current_step}在快照中找不到对应的step_order。"
         )
         current_app.logger.warning(f"继续尝试处理，但可能会失败")
 
@@ -3799,8 +3896,9 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
             # ============================================================
             if next_step:
                 # 有下一步：移动到下一步
-                next_step_id = next_step.get('step_id') if isinstance(next_step, dict) else next_step.id
-                instance.current_step = next_step_id
+                # 🔥 修复：使用 step_order 而不是 step_id
+                next_step_order = next_step.get('step_order') if isinstance(next_step, dict) else next_step.step_order
+                instance.current_step = next_step_order
 
                 # 特殊处理：如果下一步是支付步骤，需要更新业务对象状态
                 next_step_action_type = next_step.get('action_type') if isinstance(next_step, dict) else getattr(next_step, 'action_type', None)
@@ -4080,20 +4178,19 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
         user_id = current_user.id
     
     # 🔧 预检查：验证current_step是否能在快照中找到（数据完整性检查）
-    # 这可以提前发现current_step数据错误的问题
+    # 🔥 修复：current_step 存储的是 step_order
     instance_steps = instance.get_steps()
     current_step_found = False
     if isinstance(instance_steps, list):
         for step in instance_steps:
-            step_id = step.get('step_id') if isinstance(step, dict) else getattr(step, 'id', None)
-            if step_id == instance.current_step:
+            step_order = step.get('step_order') if isinstance(step, dict) else getattr(step, 'step_order', None)
+            if step_order == instance.current_step:
                 current_step_found = True
                 break
 
     if not current_step_found:
         current_app.logger.error(
-            f"数据完整性错误: current_step={instance.current_step}在快照中找不到。"
-            f"这可能是current_step被错误地设置成了step_order值。"
+            f"数据完整性错误: current_step={instance.current_step}在快照中找不到对应的step_order。"
         )
         # 不直接返回False，让后续代码继续尝试处理
         current_app.logger.warning(f"继续尝试处理，但可能会失败")
@@ -4148,18 +4245,20 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
         
     # 🔧 关键修复：对V2快照系统，检查步骤ID是否在数据库中存在
     # 如果不存在，说明这是快照步骤，使用NULL避免外键约束冲突
-    if step_id_value is not None:
+
+    # 🔥 修复：先检查 step_id_value 是否为字符串类型（动态步骤如 "attr_93_1"）
+    # 字符串类型的 step_id 是动态生成的，不在数据库中，直接设为 None
+    if isinstance(step_id_value, str):
+        current_app.logger.info(f"🔧 动态步骤：step_id={step_id_value} 是字符串类型，使用NULL避免外键约束")
+        step_id_value = None
+    elif step_id_value is not None:
+        # 只有整数类型的 step_id 才去数据库查询验证
         existing_step = ApprovalStep.query.get(step_id_value)
         if existing_step is None:
             current_app.logger.info(f"🔧 快照步骤修复：步骤ID {step_id_value} 在数据库中不存在，使用NULL避免外键约束")
             step_id_value = None
         else:
             current_app.logger.info(f"🔧 常规步骤：步骤ID {step_id_value} 在数据库中存在，保持原值")
-    
-    # 处理字符串类型的快照步骤ID（旧逻辑保留）
-    if isinstance(step_id_value, str) and step_id_value.startswith('snapshot_step_'):
-        step_id_value = None
-        current_app.logger.info(f"字符串快照步骤：使用NULL作为step_id")
     
     
     record = ApprovalRecord(
@@ -4299,8 +4398,9 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
             # ============================================================
             if next_step:
                 # 有下一步：移动到下一步
-                next_step_id = next_step.get('step_id') if isinstance(next_step, dict) else next_step.id
-                instance.current_step = next_step_id
+                # 🔥 修复：使用 step_order 而不是 step_id
+                next_step_order = next_step.get('step_order') if isinstance(next_step, dict) else next_step.step_order
+                instance.current_step = next_step_order
 
                 # 特殊处理：如果下一步是支付步骤，需要更新业务对象状态
                 next_step_action_type = next_step.get('action_type') if isinstance(next_step, dict) else getattr(next_step, 'action_type', None)
