@@ -316,6 +316,7 @@ def api_get_role_permissions(role):
                 'can_create': perm.can_create,
                 'can_edit': perm.can_edit,
                 'can_delete': perm.can_delete,
+                'can_change_owner': perm.can_change_owner,
                 'permission_level': perm.permission_level or 'personal',
                 'pricing_discount_limit': perm.pricing_discount_limit,
                 'settlement_discount_limit': perm.settlement_discount_limit,
@@ -380,6 +381,7 @@ def api_save_role_permissions(role):
                 can_create=perm_data.get('can_create', False),
                 can_edit=perm_data.get('can_edit', False),
                 can_delete=perm_data.get('can_delete', False),
+                can_change_owner=perm_data.get('can_change_owner', False),
                 permission_level=perm_data.get('permission_level', 'personal')
             )
 
@@ -665,6 +667,7 @@ def api_batch_save_user_permissions():
                     can_create=perm_data.get('can_create', False),
                     can_edit=perm_data.get('can_edit', False),
                     can_delete=perm_data.get('can_delete', False),
+                    can_change_owner=perm_data.get('can_change_owner', False),
                     permission_level=perm_data.get('permission_level', 'personal'),
                     # 折扣和内容筛选配置
                     pricing_discount_limit=perm_data.get('pricing_discount_limit'),
@@ -683,6 +686,7 @@ def api_batch_save_user_permissions():
                         can_create=False,
                         can_edit=False,
                         can_delete=False,
+                        can_change_owner=False,
                         permission_level='none'
                     )
                     db.session.add(no_permission)

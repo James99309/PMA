@@ -796,6 +796,17 @@
                                                                                    @change="markChanged()">
                                                                             <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('删除') }}</span>
                                                                         </label>
+                                                                        <!-- 修改拥有人权限 - 仅当模块支持时显示 -->
+                                                                        <template x-if="hasOwnerChange(module.id)">
+                                                                            <label class="flex items-center gap-2" :class="isEditing ? 'cursor-pointer' : 'cursor-default'">
+                                                                                <input type="checkbox" class="perm-change-owner w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                       :data-module="module.id"
+                                                                                       :checked="getPermission(module.id).can_change_owner"
+                                                                                       :disabled="!isEditing"
+                                                                                       @change="markChanged()">
+                                                                                <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('修改拥有人') }}</span>
+                                                                            </label>
+                                                                        </template>
                                                                     </div>
 
                                                                     <!-- 折扣权限 -->
@@ -3110,6 +3121,7 @@
                             can_create: container.querySelector('.perm-create')?.checked || false,
                             can_edit: container.querySelector('.perm-edit')?.checked || false,
                             can_delete: container.querySelector('.perm-delete')?.checked || false,
+                            can_change_owner: container.querySelector('.perm-change-owner')?.checked || false,
                             permission_level: container.querySelector('.perm-level')?.value || 'personal'
                         };
 
@@ -3209,6 +3221,7 @@
                             can_create: container.querySelector('.perm-create')?.checked || false,
                             can_edit: container.querySelector('.perm-edit')?.checked || false,
                             can_delete: container.querySelector('.perm-delete')?.checked || false,
+                            can_change_owner: container.querySelector('.perm-change-owner')?.checked || false,
                             permission_level: container.querySelector('.perm-level')?.value || 'personal'
                         };
 
@@ -3469,6 +3482,12 @@
             isFeatureEnabled(moduleId, featureId) {
                 const perms = this.featurePermissions[moduleId];
                 return !perms || perms[featureId] !== false;
+            },
+
+            // 修改拥有人权限辅助方法
+            hasOwnerChange(moduleId) {
+                const module = this.modules.find(m => m.id === moduleId);
+                return module?.supports_owner_change === true;
             },
 
             // 折扣辅助方法

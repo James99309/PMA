@@ -60,6 +60,59 @@ ssh admin@192.168.1.2
 
 ---
 
+## SSH Passwordless Login (Already Configured)
+
+SSH 密钥免密登录已配置完成，内网和外网均可免密登录。
+
+### Configuration Details
+
+| Item | Value |
+|------|-------|
+| Local Public Key | `~/.ssh/id_rsa.pub` |
+| NAS Authorized Keys | `/var/services/homes/admin/.ssh/authorized_keys` |
+| Sudo Passwordless | `/etc/sudoers.d/admin` |
+
+### How It Works
+
+1. **内网免密登录**
+```bash
+ssh admin@192.168.1.2
+```
+
+2. **外网免密登录**
+```bash
+./ssh-nas.sh
+# 或手动
+cloudflared access tcp --hostname penalties-requested-bridge-gif.trycloudflare.com --url localhost:2222 &
+ssh -p 2222 admin@localhost
+```
+
+3. **远程执行命令（需要设置 PATH）**
+```bash
+# 内网
+ssh admin@192.168.1.2 "sudo sh -c 'export PATH=/usr/local/bin:\$PATH && docker ps'"
+
+# 外网（先启动代理）
+ssh -p 2222 admin@localhost "sudo sh -c 'export PATH=/usr/local/bin:\$PATH && docker ps'"
+```
+
+### Reconfigure (If Needed)
+
+如果需要重新配置免密登录（如更换电脑）：
+
+```bash
+# 1. 生成新密钥（如果没有）
+ssh-keygen -t rsa -b 4096
+
+# 2. 复制公钥到 NAS（需要密码）
+cat ~/.ssh/id_rsa.pub | ssh admin@192.168.1.2 "sudo sh -c 'cat >> /var/services/homes/admin/.ssh/authorized_keys'"
+
+# 3. 修复 homes 目录权限（如遇问题）
+ssh admin@192.168.1.2 "echo 'PASSWORD' | sudo -S chmod 755 /var/services/homes/"
+```
+
+---
+
 ## Synology DSM Access
 
 ### Internal Access (LAN)
@@ -198,4 +251,4 @@ sudo docker logs cloudflared-webdav 2>&1 | grep trycloudflare
 
 ---
 
-*Last Updated: 2026-01-13*
+*Last Updated: 2026-01-19*
