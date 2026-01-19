@@ -1,7 +1,7 @@
 {# 产品列表表格行模板 - 用于无限滚动AJAX加载 #}
 {% from 'components/tw_table_cells.html' import tw_cell_link, tw_cell_text, tw_cell_amount, tw_cell_mono, tw_cell_date %}
 {% for product in products %}
-{% set product_display_name = product.subcategory_obj.name if product.subcategory_obj else (product.product_name or '-') %}
+{% set product_display_name = product.product_name or '-' %}
 <tr class="table-row-hover transition-colors">
     <!-- 产品名称（带状态图标） -->
     <td class="p-3">

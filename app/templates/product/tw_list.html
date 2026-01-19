@@ -130,7 +130,7 @@
                 <tr class="table-row-hover transition-colors">
                     <!-- 产品名称（带状态图标） -->
                     <td class="p-3">
-                        {% set product_display_name = product.subcategory_obj.name if product.subcategory_obj else (product.product_name or '-') %}
+                        {% set product_display_name = product.product_name or '-' %}
                         <div class="flex items-center gap-2">
                             <!-- 状态图标 -->
                             {% if product.status == 'upcoming' %}

@@ -2281,11 +2281,15 @@ def api_create_company():
         if not data:
             return jsonify({'success': False, 'message': _('无效的请求数据')}), 400
 
-        # 验证必填字段
-        required_fields = ['company_name', 'country', 'region', 'company_type', 'source']
+        # 验证必填字段（country/region 改为可选，地图定位时自动填充）
+        required_fields = ['company_name', 'company_type', 'source']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'success': False, 'message': _('请填写所有必填字段')}), 400
+
+        # 地址必填（支持手动输入）
+        if not data.get('address'):
+            return jsonify({'success': False, 'message': _('请填写地址')}), 400
 
         # 创建新公司
         company = Company(

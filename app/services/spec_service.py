@@ -89,6 +89,7 @@ class SpecService:
             for spec_data in specs_data:
                 spec_id = spec_data.get('id')
                 field_name = spec_data.get('field_name', '').strip()
+                field_name_en = spec_data.get('field_name_en', '').strip() if spec_data.get('field_name_en') else ''
                 field_value = spec_data.get('field_value', '').strip()
                 field_code = spec_data.get('field_code') or None
                 include_in_description = spec_data.get('include_in_description', True)
@@ -107,6 +108,9 @@ class SpecService:
                             spec.field_code = field_code
                         if hasattr(spec, 'display_order'):
                             spec.display_order = display_order
+                        # 保存英文名称（如果提供且模型支持）
+                        if hasattr(spec, 'field_name_en') and field_name_en:
+                            spec.field_name_en = field_name_en
                         logger.debug(f"更新规格: {field_name} = {field_value}")
                 else:
                     # 添加新规格
@@ -120,6 +124,9 @@ class SpecService:
                         new_spec_kwargs['field_code'] = field_code
                     if hasattr(SpecModel, 'display_order'):
                         new_spec_kwargs['display_order'] = display_order
+                    # 保存英文名称（如果提供且模型支持）
+                    if hasattr(SpecModel, 'field_name_en') and field_name_en:
+                        new_spec_kwargs['field_name_en'] = field_name_en
 
                     new_spec = SpecModel(**new_spec_kwargs)
                     db.session.add(new_spec)
@@ -136,12 +143,21 @@ class SpecService:
                 all_specs = SpecModel.query.filter_by(**filter_kwargs).order_by(SpecModel.display_order).all()
             else:
                 all_specs = SpecModel.query.filter_by(**filter_kwargs).order_by(SpecModel.id).all()
+
+            # 检查是否为OVS系统，决定描述使用的语言
+            is_ovs = current_app.config.get('IS_OVS', False)
+
             description_parts = []
             for spec in all_specs:
                 if spec.include_in_description and spec.field_value:
                     unit = getattr(spec, unit_field, '') or ''
                     unit_str = f" {unit}" if unit else ""
-                    description_parts.append(f"{spec.field_name}: {spec.field_value}{unit_str}")
+                    # OVS使用英文名称，SP8D使用中文名称
+                    if is_ovs and hasattr(spec, 'field_name_en') and spec.field_name_en:
+                        field_display_name = spec.field_name_en
+                    else:
+                        field_display_name = spec.field_name
+                    description_parts.append(f"{field_display_name}: {spec.field_value}{unit_str}")
             new_description = ", ".join(description_parts) if description_parts else ""
 
             # 4. 更新产品描述
@@ -192,6 +208,7 @@ class SpecService:
                 spec_dict = {
                     'id': spec.id,
                     'field_name': spec.field_name,
+                    'field_name_en': getattr(spec, 'field_name_en', '') or '',
                     'field_value': spec.field_value,
                     'include_in_description': spec.include_in_description
                 }
@@ -486,6 +503,7 @@ class SpecService:
             spec_dict = {
                 'id': spec.id,
                 'field_name': spec.field_name,
+                'field_name_en': getattr(spec, 'field_name_en', '') or '',
                 'field_value': spec.field_value,
                 'field_code': getattr(spec, 'field_code', '') or '',
                 'unit': get_field_unit(spec.field_name) or '',
@@ -546,6 +564,7 @@ class SpecService:
                         specs.append({
                             'id': None,
                             'field_name': field.name,
+                            'field_name_en': field.name_en or '',
                             'field_value': '',
                             'field_code': '',
                             'unit': get_field_unit(field.name) or '',
@@ -597,9 +616,10 @@ class SpecService:
             if not field_value:
                 continue
 
-            # 添加英文名称到规格
+            # 添加英文名称到规格：优先使用已存储的值，回退到 SpecDefinition 查询
             spec_with_en = dict(spec)
-            spec_with_en['field_name_en'] = name_to_name_en.get(field_name, '')
+            if not spec_with_en.get('field_name_en'):
+                spec_with_en['field_name_en'] = name_to_name_en.get(field_name, '')
 
             cat_id = name_to_category.get(field_name)
             if cat_id and cat_id in category_map:

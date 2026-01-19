@@ -1247,6 +1247,7 @@ def api_category_subcategories(id):
         result.append({
             'id': s.id,
             'name': s.name,
+            'name_en': s.name_en or s.name,  # 英文名称，回退到中文
             'code_letter': s.code_letter,
             'display_order': s.display_order,
             'is_used': used_in_dev or used_by_code

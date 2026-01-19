@@ -15,7 +15,8 @@ class ProductSpec(db.Model):
 
     id = Column(Integer, primary_key=True)
     product_id = Column(Integer, ForeignKey('products.id', ondelete='CASCADE'), nullable=False)
-    field_name = Column(String(100), nullable=False)  # 规格名称
+    field_name = Column(String(100), nullable=False)  # 规格名称（中文）
+    field_name_en = Column(String(100), nullable=True)  # 规格名称（英文）
     field_value = Column(String(255), nullable=False)  # 规格值
     field_code = Column(String(10), nullable=True)  # 规格编码（用于MN号生成）
     include_in_description = Column(Boolean, default=False)  # 是否纳入产品描述
@@ -35,6 +36,7 @@ class ProductSpec(db.Model):
             'id': self.id,
             'product_id': self.product_id,
             'field_name': self.field_name,
+            'field_name_en': self.field_name_en or '',
             'field_value': self.field_value,
             'field_code': self.field_code,
             'display_order': self.display_order

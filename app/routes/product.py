@@ -543,7 +543,7 @@ def product_list():
     # ============================================================
     all_categories = ProductCategory.get_ordered_list()
     modal_categories = [
-        {'id': cat.id, 'name': cat.name, 'code_letter': cat.code_letter or ''}
+        {'id': cat.id, 'name': cat.name, 'name_en': cat.name_en or cat.name, 'code_letter': cat.code_letter or ''}
         for cat in all_categories
     ]
 
@@ -560,6 +560,7 @@ def product_list():
         modal_regions.append({
             'id': field.id,
             'name': field.name,
+            'name_en': field.name_en or field.name,
             'code': code
         })
 
@@ -603,7 +604,8 @@ def create():
         category_id = request.form.get('category_id')
         subcategory_id = request.form.get('subcategory_id')
         region_id = request.form.get('region_id') or None
-        product_model = request.form.get('product_model')
+        # 兼容模态框的 model 字段和传统 API 的 product_model 字段
+        product_model = request.form.get('model') or request.form.get('product_model')
         # 新产品：从前端获取 spec_mn 作为初始 product_mn
         spec_mn_from_form = request.form.get('spec_mn')
         product_mn = request.form.get('product_mn') or spec_mn_from_form
@@ -1910,6 +1912,29 @@ def create_product():
             subcategory_id = local_sub.id if local_sub else None
             logger.info(f"[DEBUG] SP8D导入分类匹配结果: category_id={category_id}, subcategory_id={subcategory_id}")
 
+            # === 根据 region 编码查找本地 region_id ===
+            region_id = None  # 初始化，后续可能被匹配覆盖
+            region_code = request.form.get('region_code', '').strip()
+            if region_code:
+                from app.models.product_code import ProductCodeField, ProductCodeFieldOption
+                # 先尝试通过 ProductCodeField.code 匹配
+                region_field = ProductCodeField.query.filter(
+                    ProductCodeField.field_type == 'origin_location',
+                    ProductCodeField.code == region_code
+                ).first()
+                if region_field:
+                    region_id = region_field.id
+                    logger.info(f"[DEBUG] 通过 region 编码 '{region_code}' 匹配到本地区域 ID: {region_id}")
+                else:
+                    # 如果 field.code 是 '?' 则通过 option.code 查找
+                    region_option = ProductCodeFieldOption.query.join(ProductCodeField).filter(
+                        ProductCodeField.field_type == 'origin_location',
+                        ProductCodeFieldOption.code == region_code
+                    ).first()
+                    if region_option:
+                        region_id = region_option.field_id
+                        logger.info(f"[DEBUG] 通过 option 编码 '{region_code}' 匹配到本地区域 ID: {region_id}")
+
         else:
             # 非SP8D导入：直接使用前端传递的ID
             # 获取分类体系字段
@@ -1926,12 +1951,15 @@ def create_product():
             except (ValueError, TypeError):
                 subcategory_id = None
 
-        # 获取区域字段（两种情况共用）
-        region_id = request.form.get('region_id')
-        try:
-            region_id = int(region_id) if region_id else None
-        except (ValueError, TypeError):
-            region_id = None
+        # 获取区域字段
+        # 注意：SP8D导入时 region_id 已在上面通过 region_code 匹配设置
+        if source_type != 'from_sp8d':
+            # 非SP8D导入：使用表单传递的 region_id
+            region_id = request.form.get('region_id')
+            try:
+                region_id = int(region_id) if region_id else None
+            except (ValueError, TypeError):
+                region_id = None
 
         # 创建新产品
         new_product = Product(
@@ -2104,7 +2132,8 @@ def update_product(id):
         # 获取表单数据（新版字段）
         product_type = request.form.get('type') or None
         product_status = request.form.get('status', 'active')
-        product_model = request.form.get('product_model')
+        # 兼容模态框的 model 字段和传统 API 的 product_model 字段
+        product_model = request.form.get('model') or request.form.get('product_model')
         # 兼容模态框的 name 字段和传统 API 的 product_name 字段
         product_name = request.form.get('name') or request.form.get('product_name') or None
         brand = request.form.get('brand') or None
@@ -2721,9 +2750,12 @@ def get_product(id):
             'owner_id': product.owner_id,
             'owner_name': owner_name,
             'image_path': product.image_path,
-            'pdf_path': product.pdf_path
+            'pdf_path': product.pdf_path,
+            # 配置来源信息（用于判断是否为引入产品）
+            'source_configuration_id': product.source_configuration_id,
+            'source_type': product.source_type
         }
-        
+
         return jsonify(response)
         
     except Exception as e:
@@ -3029,8 +3061,9 @@ def view_product_detail(id):
         # 未分类的规格放入 category_id=0
         uncategorized_specs = []
         for spec in product_specs:
-            # 添加英文名称
-            spec['field_name_en'] = name_to_name_en.get(spec['field_name'], '')
+            # 添加英文名称：优先使用存储的英文名称，回退到 SpecDefinition 查询
+            if not spec.get('field_name_en'):
+                spec['field_name_en'] = name_to_name_en.get(spec['field_name'], '')
             cat_id = name_to_category.get(spec['field_name'])
             if cat_id and cat_id in category_map:
                 if cat_id not in specs_by_category:
@@ -3121,7 +3154,7 @@ def view_product_detail(id):
             # 获取分类列表
             categories = ProductCategory.query.order_by(ProductCategory.display_order).all()
             modal_categories = [
-                {'id': cat.id, 'name': cat.name, 'code_letter': cat.code_letter or ''}
+                {'id': cat.id, 'name': cat.name, 'name_en': cat.name_en or cat.name, 'code_letter': cat.code_letter or ''}
                 for cat in categories
             ]
 
@@ -3136,6 +3169,7 @@ def view_product_detail(id):
                 modal_regions.append({
                     'id': field.id,
                     'name': field.name,
+                    'name_en': field.name_en or field.name,
                     'code': code
                 })
 

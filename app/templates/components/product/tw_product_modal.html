@@ -60,6 +60,8 @@ ProductModal.openEdit(productId);  // 打开编辑模态框
                 <input type="hidden" name="subcategory_name_en" id="subcategoryNameEn" value="">
                 <!-- SP8D配置ID（用于跨系统导入时获取规格） -->
                 <input type="hidden" name="sp8d_configuration_id" id="sp8dConfigurationId" value="">
+                <!-- SP8D区域编码（用于匹配本地区域ID） -->
+                <input type="hidden" name="region_code" id="regionCode" value="">
 
                 <!-- 内容区域（可滚动） -->
                 <div class="flex-1 overflow-y-auto p-6">
@@ -297,6 +299,7 @@ window.ProductModal = (function() {
         currencies: {{ currencies | tojson if currencies else '[]' }},
         csrfToken: '{{ csrf_token }}',
         productType: '{{ product_type }}',  // 'research' 或 'standard'
+        currentLang: '{{ session.get("language", "zh") }}',  // 当前语言
         urls: {
             // 产品路由（研发库已废弃，统一使用产品库路由）
             save: '{{ url_for("product.create_product") }}',
@@ -402,8 +405,11 @@ window.ProductModal = (function() {
         config.categories.forEach(cat => {
             const option = document.createElement('option');
             option.value = cat.id;
-            option.textContent = cat.name;
+            // 根据语言选择显示名称
+            option.textContent = (config.currentLang === 'en' && cat.name_en) ? cat.name_en : cat.name;
             option.dataset.code = cat.code_letter || '';
+            option.dataset.name = cat.name;  // 保存中文名称
+            option.dataset.nameEn = cat.name_en || '';  // 保存英文名称
             categorySelect.appendChild(option);
             categoryCodeMap[cat.id] = cat.code_letter || '';
         });
@@ -417,8 +423,11 @@ window.ProductModal = (function() {
         config.regions.forEach(region => {
             const option = document.createElement('option');
             option.value = region.id;
-            option.textContent = region.name;
+            // 根据语言选择显示名称
+            option.textContent = (config.currentLang === 'en' && region.name_en) ? region.name_en : region.name;
             option.dataset.code = region.code || '';
+            option.dataset.name = region.name;  // 保存中文名称
+            option.dataset.nameEn = region.name_en || '';  // 保存英文名称
             regionSelect.appendChild(option);
             regionCodeMap[region.id] = region.code || '';
         });
@@ -533,8 +542,11 @@ window.ProductModal = (function() {
         subcategories.forEach(sub => {
             const option = document.createElement('option');
             option.value = sub.id;
-            option.textContent = sub.name;
+            // 根据语言选择显示名称
+            option.textContent = (config.currentLang === 'en' && sub.name_en) ? sub.name_en : sub.name;
             option.dataset.code = sub.code_letter || '';
+            option.dataset.name = sub.name;  // 保存中文名称
+            option.dataset.nameEn = sub.name_en || '';  // 保存英文名称
             subcategorySelect.appendChild(option);
             subcategoryCodeMap[sub.id] = sub.code_letter || '';
         });
@@ -920,6 +932,8 @@ window.ProductModal = (function() {
             document.getElementById('subcategoryNameEn').value = configData.subcategory_name_en || '';
             // 传递 SP8D 配置 ID 用于获取规格数据
             document.getElementById('sp8dConfigurationId').value = configData.id || '';
+            // 传递区域编码用于后端按编码匹配本地区域ID
+            document.getElementById('regionCode').value = configData.region || '';
         } else {
             // 本地配置导入：正常设置 source_configuration_id
             document.getElementById('sourceConfigurationId').value = configData.id;
@@ -1004,11 +1018,20 @@ window.ProductModal = (function() {
      */
     function resetLockedFields() {
         const lockedClass = 'bg-slate-100 dark:bg-slate-700 cursor-not-allowed pointer-events-none';
+        const editLockedClass = 'bg-slate-100 dark:bg-slate-700 cursor-not-allowed';
 
         // 重置型号输入框锁定状态
         if (productModelInput) {
-            productModelInput.classList.remove(...lockedClass.split(' '));
+            productModelInput.classList.remove(...lockedClass.split(' '), ...editLockedClass.split(' '));
             productModelInput.removeAttribute('data-locked');
+            productModelInput.readOnly = false;
+        }
+
+        // 重置产品名称输入框锁定状态
+        const productNameInput = document.getElementById('productName');
+        if (productNameInput) {
+            productNameInput.classList.remove(...editLockedClass.split(' '));
+            productNameInput.readOnly = false;
         }
 
         // 重置MN编码预览区域样式
@@ -1026,11 +1049,12 @@ window.ProductModal = (function() {
             }
         });
 
-        // 显示回下拉框并恢复 required 属性
+        // 显示回下拉框并恢复 required 属性，同时重置 disabled 状态
         [categorySelect, subcategorySelect, regionSelect].forEach(select => {
             if (select) {
-                select.classList.remove('hidden');
+                select.classList.remove('hidden', ...editLockedClass.split(' '));
                 select.setAttribute('required', '');  // 恢复 required 属性
+                select.disabled = false;  // 重置 disabled 状态
             }
         });
     }
@@ -1152,8 +1176,49 @@ window.ProductModal = (function() {
             }
         }
 
+        // 检查是否为引入产品（有 source_configuration_id 或 source_type 为 from_config/from_sp8d）
+        const isImportedProduct = product.source_configuration_id ||
+            (product.source_type && product.source_type !== 'manual');
+
+        if (isImportedProduct) {
+            // 锁定引入产品的核心字段
+            lockImportedProductFields();
+        }
+
         // 更新MN编码预览
         updateMNCodePreview();
+    }
+
+    /**
+     * 锁定引入产品的字段（编辑模式下）
+     */
+    function lockImportedProductFields() {
+        const lockedClass = 'bg-slate-100 dark:bg-slate-700 cursor-not-allowed';
+
+        // 锁定分类
+        categorySelect.disabled = true;
+        categorySelect.classList.add(...lockedClass.split(' '));
+
+        // 锁定子分类
+        subcategorySelect.disabled = true;
+        subcategorySelect.classList.add(...lockedClass.split(' '));
+
+        // 锁定销售区域
+        regionSelect.disabled = true;
+        regionSelect.classList.add(...lockedClass.split(' '));
+
+        // 锁定产品名称
+        const productNameInput = document.getElementById('productName');
+        if (productNameInput) {
+            productNameInput.readOnly = true;
+            productNameInput.classList.add(...lockedClass.split(' '));
+        }
+
+        // 锁定产品型号
+        if (productModelInput) {
+            productModelInput.readOnly = true;
+            productModelInput.classList.add(...lockedClass.split(' '));
+        }
     }
 
     /**
