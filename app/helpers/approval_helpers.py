@@ -6362,12 +6362,13 @@ def resubmit_approval(object_type, object_id, user_id):
         if approval_instance:
             # 重置审批实例状态
             approval_instance.status = ApprovalStatus.PENDING
-            # 获取第一步的step_id
+            # 获取第一步，使用 step_order 保持与其他代码一致
             first_step = ApprovalStep.query.filter_by(
                 process_id=approval_instance.process_id,
                 step_order=1
             ).first()
-            approval_instance.current_step = first_step.id if first_step else 1
+            # 使用 step_order 而不是 step_id，与创建实例和移动步骤逻辑保持一致
+            approval_instance.current_step = first_step.step_order if first_step else 1
             approval_instance.started_at = datetime.now()
             approval_instance.ended_at = None
             

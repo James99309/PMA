@@ -933,20 +933,32 @@ class ApprovalInstance(db.Model):
             ).order_by(ApprovalStep.step_order.asc()).all()
     
     def get_current_step_info(self):
-        """获取当前步骤信息"""
+        """获取当前步骤信息
+
+        current_step 可能存储 step_order（正常情况）或 step_id（历史数据/重新提交场景）
+        优先按 step_order 匹配，如果匹配不到则按 step_id 匹配
+        """
         steps = self.get_steps()
         if isinstance(steps, list) and len(steps) > 0:
             # 快照数据（字典列表）
             if isinstance(steps[0], dict):
+                # 优先按 step_order 匹配
                 for step in steps:
-                    # 🔥 修复：current_step 存储的是 step_order（整数），按 step_order 匹配
                     if step.get('step_order') == self.current_step:
+                        return step
+                # 如果 step_order 匹配不到，尝试按 step_id 匹配（兼容历史数据）
+                for step in steps:
+                    if step.get('step_id') == self.current_step:
                         return step
             # 模型对象列表
             else:
+                # 优先按 step_order 匹配
                 for step in steps:
-                    # 对于模型对象，current_step 存储的是 step_order
                     if step.step_order == self.current_step:
+                        return step
+                # 如果 step_order 匹配不到，尝试按 step_id 匹配（兼容历史数据）
+                for step in steps:
+                    if step.id == self.current_step:
                         return step
         return None
     
