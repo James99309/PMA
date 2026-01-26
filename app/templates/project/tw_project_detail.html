@@ -7,6 +7,7 @@ context %}
 with context %}
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script, tw_status_modal,
 tw_status_modal_script with context %}
+{% from 'components/tw_modal_base.html' import tw_modal, tw_modal_content, tw_modal_footer with context %}
 {% from 'components/tw_action_replies.html' import render_tw_action_replies_script with context %}
 {% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_project_stage_badge,
 render_tw_project_type_badge, render_tw_report_source_badge, render_tw_industry_badge, render_tw_active_badge,
@@ -645,15 +646,27 @@ render_tw_expense_status_badge with context %}
     {% endif %}
     {% endcall %}
 
-    <!-- 删除确认模态框 -->
-    {{ tw_confirm_modal(
-    modal_id='deleteConfirmModal',
-    title=_('确认删除'),
-    message=_('确定要删除项目「') ~ project.project_name ~ _('」吗？此操作无法撤销。'),
-    confirm_text=_('删除'),
-    cancel_text=_('取消'),
-    variant='danger'
-    ) }}
+    <!-- 删除关联数据确认模态框 -->
+    {% call tw_modal('deleteDepModal', title=_('确认删除项目'), max_width='max-w-md', close_action="closeDeleteDepModal()", show_close=true) %}
+        {% call tw_modal_content(padding='px-6 py-4') %}
+        <div id="deleteDepContent">
+            <!-- 加载中状态 -->
+            <div class="flex items-center justify-center py-8">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        </div>
+        {% endcall %}
+        <footer id="deleteDepFooter" class="flex-shrink-0 flex items-center justify-end gap-3 px-6 py-5 bg-slate-50/50 dark:bg-slate-800/30">
+            <button type="button" onclick="closeDeleteDepModal()"
+                    class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">
+                {{ _('取消') }}
+            </button>
+            <button type="button" id="deleteDepConfirmBtn" onclick="executeDeleteProject()"
+                    class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                {{ _('确认删除') }}
+            </button>
+        </footer>
+    {% endcall %}
 
     <!-- 提交审批确认模态框 -->
     {{ tw_confirm_modal(
@@ -795,30 +808,180 @@ render_tw_expense_status_badge with context %}
             }
         });
 
-        // 删除项目确认
-        window.confirmDeleteProject = function (id) {
-            openConfirmModal('deleteConfirmModal', {
-                onConfirm: async function () {
-                    try {
-                        const response = await fetch(`/project/api/${id}/delete`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRFToken': csrfToken
-                            }
-                        });
-                        const data = await response.json();
-                        if (data.success) {
-                            window.location.href = '{{ url_for("project.list_projects") }}';
-                        } else {
-                            alert(data.message || i18n.deleteError);
-                        }
-                    } catch (error) {
-                        console.error('删除失败:', error);
-                        alert(i18n.deleteError);
-                    }
+        // 删除项目 - 存储当前要删除的项目ID
+        let pendingDeleteProjectId = null;
+
+        // 打开删除确认弹窗
+        window.confirmDeleteProject = async function (id) {
+            pendingDeleteProjectId = id;
+            const modal = document.getElementById('deleteDepModal');
+            const content = document.getElementById('deleteDepContent');
+            const confirmBtn = document.getElementById('deleteDepConfirmBtn');
+
+            // 显示加载状态
+            content.innerHTML = `
+                <div class="flex items-center justify-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+            `;
+            confirmBtn.disabled = true;
+            modal.classList.remove('hidden');
+
+            try {
+                const response = await fetch(`/project/api/check_delete_dependencies/${id}`);
+                const data = await response.json();
+
+                if (!data.success) {
+                    content.innerHTML = `
+                        <div class="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg text-sm text-red-700 dark:text-red-400">
+                            <span class="material-symbols-outlined align-middle mr-1 text-base">error</span>
+                            ${data.message}
+                        </div>
+                    `;
+                    confirmBtn.disabled = true;
+                    return;
                 }
+
+                renderDeleteDependencies(data);
+                confirmBtn.disabled = !data.can_delete;
+
+            } catch (error) {
+                console.error('检查关联数据失败:', error);
+                content.innerHTML = `
+                    <div class="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg text-sm text-red-700 dark:text-red-400">
+                        <span class="material-symbols-outlined align-middle mr-1 text-base">error</span>
+                        {{ _('检查关联数据失败，请重试') }}
+                    </div>
+                `;
+                confirmBtn.disabled = true;
+            }
+        };
+
+        // 渲染关联数据列表
+        function renderDeleteDependencies(data) {
+            const content = document.getElementById('deleteDepContent');
+            const deps = data.dependencies;
+            const totalCount = data.summary.total_count;
+            const hasBlockedItems = data.summary.blocked_count > 0;
+
+            // 如果没有关联数据
+            if (totalCount === 0) {
+                content.innerHTML = `
+                    <p class="text-sm text-slate-600 dark:text-slate-400">
+                        {{ _('确定要删除项目「') }}<strong>${data.project_name}</strong>{{ _('」吗？此操作无法撤销。') }}
+                    </p>
+                `;
+                return;
+            }
+
+            // 构建关联数据列表HTML
+            let listHtml = '';
+
+            // 批价单 - 不可删除，带锁图标
+            deps.pricing_orders.forEach(item => {
+                listHtml += `
+                    <li class="flex items-center text-sm text-red-600 dark:text-red-400">
+                        <span class="material-symbols-outlined mr-2 text-base">lock</span>
+                        <span>{{ _('批价单') }}: ${item.name} <span class="text-xs">({{ _('不可删除') }})</span></span>
+                    </li>
+                `;
             });
+
+            // 报价单 - 可删除
+            deps.quotations.forEach(item => {
+                listHtml += `
+                    <li class="flex items-center text-sm text-slate-700 dark:text-slate-300">
+                        <span class="material-symbols-outlined text-green-500 mr-2 text-base">check_circle</span>
+                        <span>{{ _('报价单') }}: ${item.name}</span>
+                    </li>
+                `;
+            });
+
+            // 跟进记录 - 可删除
+            if (deps.actions.length > 0) {
+                listHtml += `
+                    <li class="flex items-center text-sm text-slate-700 dark:text-slate-300">
+                        <span class="material-symbols-outlined text-green-500 mr-2 text-base">check_circle</span>
+                        <span>{{ _('跟进记录') }}: ${deps.actions.length} {{ _('条') }}</span>
+                    </li>
+                `;
+            }
+
+            // 审批实例 - 可删除
+            if (deps.approvals.length > 0) {
+                listHtml += `
+                    <li class="flex items-center text-sm text-slate-700 dark:text-slate-300">
+                        <span class="material-symbols-outlined text-green-500 mr-2 text-base">check_circle</span>
+                        <span>{{ _('审批记录') }}: ${deps.approvals.length} {{ _('条') }}</span>
+                    </li>
+                `;
+            }
+
+            // 构建完整内容
+            let html = `
+                <div class="space-y-3">
+                    <p class="text-sm text-slate-600 dark:text-slate-400">
+                        {{ _('删除项目「') }}<strong>${data.project_name}</strong>{{ _('」将同时删除以下关联数据：') }}
+                    </p>
+                    <ul class="space-y-2 max-h-60 overflow-y-auto">
+                        ${listHtml}
+                    </ul>
+            `;
+
+            // 如果存在批价单，显示警告
+            if (hasBlockedItems) {
+                html += `
+                    <div class="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg text-sm text-red-700 dark:text-red-400">
+                        <span class="material-symbols-outlined align-middle mr-1 text-base">warning</span>
+                        ${data.block_reason}
+                    </div>
+                `;
+            }
+
+            html += '</div>';
+            content.innerHTML = html;
+        }
+
+        // 关闭删除确认弹窗
+        window.closeDeleteDepModal = function () {
+            document.getElementById('deleteDepModal').classList.add('hidden');
+            pendingDeleteProjectId = null;
+        };
+
+        // 执行删除项目
+        window.executeDeleteProject = async function () {
+            if (!pendingDeleteProjectId) return;
+
+            const confirmBtn = document.getElementById('deleteDepConfirmBtn');
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = `
+                <span class="inline-flex items-center">
+                    <span class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></span>
+                    {{ _('删除中...') }}
+                </span>
+            `;
+
+            try {
+                const response = await fetch(`/project/delete/${pendingDeleteProjectId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    window.location.href = '{{ url_for("project.list_projects") }}';
+                } else {
+                    alert(data.message || i18n.deleteError);
+                    closeDeleteDepModal();
+                }
+            } catch (error) {
+                console.error('删除失败:', error);
+                alert(i18n.deleteError);
+                closeDeleteDepModal();
+            }
         };
 
         // 删除行动记录
@@ -1519,6 +1682,8 @@ render_tw_expense_status_badge with context %}
 
     <!-- 项目表单JS -->
     <script src="{{ url_for('static', filename='js/project-form.js') }}"></script>
+    <!-- 厂商销售负责人选择器 -->
+    <script src="{{ url_for('static', filename='js/vendor-sales-manager-selector.js') }}"></script>
 
     <!-- 项目编辑逻辑 -->
     <script>
@@ -1583,6 +1748,17 @@ render_tw_expense_status_badge with context %}
                 // 填充表单数据
                 ProjectForm.populateFormData(projectData, {
                     placeholders: i18n
+                });
+
+                // 加载厂商销售负责人数据（每次打开都需要重新加载以设置选中值）
+                const vendorDepartments = '{{ session.get("language", "zh") }}' === 'zh'
+                    ? ['销售部', '服务部']
+                    : ['sales_dep'];
+
+                loadVendorSalesManagers('vendor_sales_manager_id', {
+                    selectedUserId: projectData.vendor_sales_manager_id,
+                    emptyText: i18n.vendorSales,
+                    departments: vendorDepartments
                 });
 
                 // 打开模态框
@@ -1662,7 +1838,8 @@ render_tw_expense_status_badge with context %}
         empty_text=_('没有找到匹配的用户')
     ) }}
 
-    <!-- 修改厂商销售负责人模态框 (使用通用组件 + 厂商过滤) -->
+    <!-- 修改厂商销售负责人模态框 (使用通用组件 + 厂商过滤 + 部门过滤) -->
+    {% set vendor_dept_filter = ['销售部', '服务部'] if session.get('language', 'zh') == 'zh' else ['sales_dep'] %}
     {{ tw_user_selector_modal(
         modal_id='changeVendorSalesModal',
         title=_('修改厂商销售负责人'),
@@ -1673,6 +1850,7 @@ render_tw_expense_status_badge with context %}
         form_action=url_for('project.change_vendor_sales_manager', project_id=project.id),
         field_name='vendor_sales_manager_id',
         vendor_only=true,
+        vendor_departments=vendor_dept_filter,
         searchable=true,
         empty_text=_('没有找到厂商用户')
     ) }}

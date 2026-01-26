@@ -81,8 +81,10 @@
 </div>
 {% endcall %}
 
+{# 三列布局：报备源 + 产品情况 + 厂商销售负责人 #}
+{% call tw_form_row(cols=3) %}
 {# 报备源 - 必填 #}
-<div class="mt-4">
+<div>
     <label for="report_source" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
         {{ _('报备源') }}<span class="text-red-500">*</span>
     </label>
@@ -95,7 +97,7 @@
 </div>
 
 {# 产品情况 #}
-<div class="mt-4">
+<div>
     <label for="product_situation" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
         {{ _('产品情况') }}
     </label>
@@ -106,7 +108,18 @@
     </select>
 </div>
 
-
+{# 厂商销售负责人 #}
+<div>
+    <label for="vendor_sales_manager_id" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ _('厂商销售负责人') }}
+    </label>
+    <select id="vendor_sales_manager_id" name="vendor_sales_manager_id"
+        data-field-code="vendor_sales_manager_id"
+        class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
+        <option value="">{{ _('请选择厂商销售负责人') }}</option>
+    </select>
+</div>
+{% endcall %}
 
 {# 项目描述 #}
 <div class="mt-4">

@@ -42,7 +42,8 @@ Tailwind 用户选择器模态框组件
     selected_user_id=project.vendor_sales_manager_id,
     form_action=url_for('project.change_vendor_sales_manager', project_id=project.id),
     field_name='vendor_sales_manager_id',
-    vendor_only=true
+    vendor_only=true,
+    vendor_departments=['销售部', '服务部']
 ) }}
 
 参数：
@@ -61,6 +62,7 @@ Tailwind 用户选择器模态框组件
 - share_enabled: 是否已启用共享
 - locked_users: 锁定用户列表（不可移除），格式 [{id, name, initials}]，用于显示「部门默认」等
 - vendor_only: 是否只显示厂商公司，默认 false
+- vendor_departments: 厂商部门过滤列表（仅当vendor_only=true时生效），如 ['销售部', '服务部']
 - searchable: 是否显示搜索框，默认 true
 - empty_text: 空状态文本
 - reset_event_name: 可选，监听此事件来重置选中状态（多选模式），如 'reset-workitem-user-selector'
@@ -83,6 +85,7 @@ Tailwind 用户选择器模态框组件
     share_enabled=false,
     locked_users=none,
     vendor_only=false,
+    vendor_departments=none,
     searchable=true,
     empty_text=none,
     reset_event_name=none
@@ -502,7 +505,23 @@ function {{ modal_id }}Data() {
     const allUsersTree = {{ users_tree|tojson|safe if users_tree else '[]' }};
     {% if vendor_only %}
     // 厂商过滤：只保留 is_vendor=true 的公司
-    const usersTree = allUsersTree.filter(company => company.is_vendor === true);
+    let vendorTree = allUsersTree.filter(company => company.is_vendor === true);
+    {% if vendor_departments %}
+    // 部门过滤：只保留指定部门的用户
+    const allowedDepartments = {{ vendor_departments|tojson|safe }};
+    vendorTree = vendorTree.map(company => {
+        const filteredChildren = (company.children || []).filter(child => {
+            // 保留指定部门
+            if (child.type === 'department') {
+                return allowedDepartments.includes(child.name);
+            }
+            // 过滤掉直属用户（无部门）
+            return false;
+        });
+        return { ...company, children: filteredChildren };
+    }).filter(company => company.children && company.children.length > 0);
+    {% endif %}
+    const usersTree = vendorTree;
     {% else %}
     const usersTree = allUsersTree;
     {% endif %}

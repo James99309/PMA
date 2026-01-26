@@ -73,6 +73,7 @@ function formatUserDisplayText(user) {
  * @param {number} options.currentUserId - 当前登录用户ID
  * @param {boolean} options.currentUserIsVendor - 当前用户是否是厂商
  * @param {string} options.emptyText - 默认选项文本，默认为"请选择厂商销售负责人"
+ * @param {Array<string>} options.departments - 部门过滤列表（null表示不过滤）
  * @returns {Promise<void>}
  */
 async function loadVendorSalesManagers(selectElementId, options = {}) {
@@ -81,12 +82,19 @@ async function loadVendorSalesManagers(selectElementId, options = {}) {
         autoSelectCurrentUser = false,
         currentUserId = null,
         currentUserIsVendor = false,
-        emptyText = '请选择厂商销售负责人'
+        emptyText = '请选择厂商销售负责人',
+        departments = null
     } = options;
 
     try {
+        // 构建API URL
+        let url = '/api/users/hierarchical?vendor_only=true';
+        if (departments && departments.length > 0) {
+            url += `&departments=${encodeURIComponent(departments.join(','))}`;
+        }
+
         // 调用API获取厂商用户数据
-        const response = await fetch('/api/users/hierarchical?vendor_only=true');
+        const response = await fetch(url);
         const data = await response.json();
 
         const vendorSelect = document.getElementById(selectElementId);

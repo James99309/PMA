@@ -285,6 +285,8 @@ with context %}
 
     <!-- 项目表单JS -->
     <script src="{{ url_for('static', filename='js/project-form.js') }}"></script>
+    <!-- 厂商销售负责人选择器 -->
+    <script src="{{ url_for('static', filename='js/vendor-sales-manager-selector.js') }}"></script>
 
     <!-- 地图选择器 -->
     <script src="{{ url_for('static', filename='js/map-picker.js') }}"></script>
@@ -340,6 +342,20 @@ with context %}
                                     submitBtn.disabled = !valid;
                                 }
                             }
+                        });
+
+                        // 加载厂商销售负责人数据
+                        // 根据当前语言环境确定部门名称（SP8D中文/OVS英文）
+                        const vendorDepartments = '{{ session.get("language", "zh") }}' === 'zh'
+                            ? ['销售部', '服务部']
+                            : ['sales_dep'];
+
+                        loadVendorSalesManagers('vendor_sales_manager_id', {
+                            autoSelectCurrentUser: true,
+                            currentUserId: {{ current_user.id }},
+                            currentUserIsVendor: {{ 'true' if current_user.is_vendor_user() else 'false' }},
+                            emptyText: i18n.vendorSales,
+                            departments: vendorDepartments
                         });
 
                         formInitialized = true;

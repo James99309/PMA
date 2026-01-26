@@ -769,6 +769,7 @@ this.resetGroupedSelect('other');
 **核心功能**
 
 - ✅ 调用 `/api/users/hierarchical?vendor_only=true` 获取厂商用户
+- ✅ 支持按部门过滤用户（SP8D: 销售部/服务部, OVS: sales_dep）
 - ✅ 按部门优先级排序：销售部(1) → 服务部(2) → 其他(3)
 - ✅ 同优先级内按中文拼音排序
 - ✅ 支持编辑模式预选指定用户
@@ -798,6 +799,7 @@ loadVendorSalesManagers(selectElementId, options)
 | options.currentUserId | number | ❌ | null | 当前登录用户ID |
 | options.currentUserIsVendor | boolean | ❌ | false | 当前用户是否为厂商 |
 | options.emptyText | string | ❌ | '请选择厂商销售负责人' | 默认提示文本 |
+| options.departments | Array\<string\> | ❌ | null | 部门过滤列表（null表示不过滤） |
 
 **使用示例**
 
@@ -807,7 +809,7 @@ loadVendorSalesManagers(selectElementId, options)
 <script src="{{ url_for('static', filename='js/vendor-sales-manager-selector.js') }}"></script>
 ```
 
-**创建模式（自动选择当前厂商用户）**
+**创建模式（自动选择当前厂商用户 + 部门过滤）**
 ```html
 <select id="vendor_sales_manager_id" name="vendor_sales_manager_id" class="form-select">
     <option value="">请选择厂商销售负责人</option>
@@ -815,18 +817,24 @@ loadVendorSalesManagers(selectElementId, options)
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // 根据当前语言环境确定部门名称（SP8D中文/OVS英文）
+    const vendorDepartments = '{{ session.get("language", "zh") }}' === 'zh'
+        ? ['销售部', '服务部']
+        : ['sales_dep'];
+
     // 加载厂商销售负责人列表
     loadVendorSalesManagers('vendor_sales_manager_id', {
         autoSelectCurrentUser: true,
         currentUserId: {{ current_user.id }},
         currentUserIsVendor: {{ 'true' if current_user.is_vendor_user() else 'false' }},
-        emptyText: '请选择厂商销售'
+        emptyText: '请选择厂商销售',
+        departments: vendorDepartments
     });
 });
 </script>
 ```
 
-**编辑模式（预选已有负责人）**
+**编辑模式（预选已有负责人 + 部门过滤）**
 ```html
 <select id="vendor_sales_manager_id" name="vendor_sales_manager_id" class="form-select">
     <option value="">{{ _("请选择厂商销售负责人") }}</option>
@@ -834,12 +842,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // 根据当前语言环境确定部门名称（SP8D中文/OVS英文）
+    const vendorDepartments = '{{ session.get("language", "zh") }}' === 'zh'
+        ? ['销售部', '服务部']
+        : ['sales_dep'];
+
     // 加载厂商销售负责人列表并预选
     loadVendorSalesManagers('vendor_sales_manager_id', {
         {% if project and project.vendor_sales_manager_id %}
         selectedUserId: {{ project.vendor_sales_manager_id }},
         {% endif %}
-        emptyText: '{{ _("请选择厂商销售负责人") }}'
+        emptyText: '{{ _("请选择厂商销售负责人") }}',
+        departments: vendorDepartments
     });
 });
 </script>
@@ -847,9 +861,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
 **技术实现细节**
 
-1. **数据获取**: 调用 `/api/users/hierarchical?vendor_only=true` API
-2. **数据收集**: 从所有公司中提取所有用户到扁平列表
-3. **排序算法**:
+1. **数据获取**: 调用 `/api/users/hierarchical?vendor_only=true&departments=xxx` API
+2. **部门过滤**: 通过 `departments` 参数在后端过滤，支持多平台配置：
+   - SP8D（中国区）: `['销售部', '服务部']`
+   - OVS（海外区）: `['sales_dep']`
+3. **数据收集**: 从所有公司中提取所有用户到扁平列表
+4. **排序算法**:
    ```javascript
    // 部门优先级
    getDepartmentPriority(department) {
@@ -869,7 +886,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 **依赖关系**
 
-- **API依赖**: `/api/users/hierarchical` (需要支持 `vendor_only` 参数)
+- **API依赖**: `/api/users/hierarchical` (需要支持 `vendor_only` 和 `departments` 参数)
 - **前端依赖**: 无（纯JavaScript实现）
 - **CSS依赖**: Bootstrap 5 的 `.form-select` 样式
 
@@ -885,6 +902,7 @@ document.addEventListener('DOMContentLoaded', function() {
 | 日期 | 版本 | 变更说明 |
 |------|------|---------|
 | 2025-10-21 | 1.0.0 | 初始版本，从项目创建/编辑页面重构而来 |
+| 2026-01-20 | 1.1.0 | 新增 `departments` 参数支持部门过滤，支持多平台配置（SP8D/OVS） |
 
 ---
 

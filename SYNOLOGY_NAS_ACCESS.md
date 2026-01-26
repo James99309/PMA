@@ -10,6 +10,7 @@ PMA Synology NAS deployment access information.
 | **SSH Tunnel** | penalties-requested-bridge-gif.trycloudflare.com |
 | **WebDAV** | https://medicine-maiden-concerts-interpreted.trycloudflare.com |
 | **DSM** | https://structured-void-morgan-printing.trycloudflare.com |
+| **VPN (Xray)** | https://puzzle-clothes-naturally-temporary.trycloudflare.com |
 
 ---
 
@@ -122,6 +123,76 @@ http://192.168.1.2:5000
 
 ---
 
+## VPN Access (Xray + VLESS)
+
+NAS 上部署了 Xray VPN 服务，通过 Cloudflare Tunnel 暴露。
+
+### 当前地址
+```
+https://puzzle-clothes-naturally-temporary.trycloudflare.com
+```
+
+### 客户端配置
+
+| 配置项 | 值 |
+|-------|-----|
+| 协议 | VLESS |
+| 地址 | `puzzle-clothes-naturally-temporary.trycloudflare.com` |
+| 端口 | `443` |
+| UUID | `d5553350-bf09-422e-b819-6e10aa8f06fd` |
+| 加密 | none |
+| 传输 | websocket |
+| 路径 | `/ray` |
+| TLS | 开启 |
+
+### 一键导入链接
+```
+vless://d5553350-bf09-422e-b819-6e10aa8f06fd@puzzle-clothes-naturally-temporary.trycloudflare.com:443?encryption=none&security=tls&type=ws&path=%2Fray#NAS-VPN
+```
+
+### 二维码
+扫描 `deploy/synology/vpn_qrcode.png` 导入配置。
+
+### Clash 配置
+```yaml
+proxies:
+  - name: "NAS-VPN"
+    type: vless
+    server: puzzle-clothes-naturally-temporary.trycloudflare.com
+    port: 443
+    uuid: d5553350-bf09-422e-b819-6e10aa8f06fd
+    tls: true
+    network: ws
+    ws-opts:
+      path: /ray
+```
+
+### 查看连接日志
+```bash
+sudo docker logs xray --tail 20
+```
+
+### 获取新地址（重启后）
+```bash
+sudo docker logs cloudflared-vpn 2>&1 | grep trycloudflare
+```
+
+### 重启 VPN Tunnel
+```bash
+sudo docker stop cloudflared-vpn
+sudo docker rm cloudflared-vpn
+
+sudo docker run -d --name cloudflared-vpn \
+  --restart unless-stopped \
+  cloudflare/cloudflared:latest \
+  tunnel --no-autoupdate --url http://192.168.1.2:10086
+
+sleep 10
+sudo docker logs cloudflared-vpn 2>&1 | grep trycloudflare
+```
+
+---
+
 ## Container Status
 
 Check running containers:
@@ -134,6 +205,8 @@ Expected containers:
 - `pma-postgres` - PostgreSQL database
 - `cloudflared` - HTTP tunnel for PMA website
 - `cloudflared-ssh` - SSH tunnel
+- `xray` - VPN server (port 10086)
+- `cloudflared-vpn` - VPN tunnel
 
 ---
 
@@ -200,6 +273,7 @@ sudo docker exec pma-postgres pg_dump -U pma pma > backup_$(date +%Y%m%d).sql
 | DSM Port | 5000 |
 | WebDAV HTTPS Port | 5006 |
 | WebDAV HTTP Port | 5005 |
+| Xray VPN Port | 10086 |
 
 ---
 
@@ -251,4 +325,4 @@ sudo docker logs cloudflared-webdav 2>&1 | grep trycloudflare
 
 ---
 
-*Last Updated: 2026-01-19*
+*Last Updated: 2026-01-20*
