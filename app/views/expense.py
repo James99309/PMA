@@ -3235,7 +3235,6 @@ def get_expense_approval_flow(expense_id):
                 })
                 
                 # 调试信息：记录can_approve计算过程
-                from flask import current_app
                 current_app.logger.info("[DEBUG] Step %s can_approve calculation:", step['step_order'])
                 current_app.logger.info("  actual_approver: %s", actual_approver)
                 current_app.logger.info("  actual_approver.id: %s", actual_approver.id if actual_approver else None)
