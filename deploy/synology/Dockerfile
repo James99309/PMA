@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
-    libgdk-pixbuf2.0-0 \
+    libgdk-pixbuf-2.0-0 \
     libffi-dev \
     shared-mime-info \
     libcairo2 \
@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gir1.2-pango-1.0 \
     fonts-noto-cjk \
     curl \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制依赖文件
