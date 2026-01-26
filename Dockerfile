@@ -40,8 +40,8 @@ RUN pybabel compile -d app/translations || true
 # 创建存储目录
 RUN mkdir -p /app/storage /app/logs
 
-# 创建非 root 用户
-RUN useradd -m -u 1000 pma && chown -R pma:pma /app
+# 创建非 root 用户并设置权限
+RUN useradd -m -u 1000 pma && chown -R pma:pma /app && chmod -R u+rX /app
 USER pma
 
 # 暴露端口
