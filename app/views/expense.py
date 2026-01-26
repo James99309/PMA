@@ -3155,9 +3155,27 @@ def get_expense_approval_flow(expense_id):
         
         # 构建审批阶段数据
         stages_data = []
-        # 🔥 修复：current_step 直接存储的就是 step_order
-        current_step_order = approval_instance.current_step
-        
+        # 🔥 修复：current_step 可能是 step_order 或 step_id，需要智能匹配
+        # 使用与 get_current_step_info() 相同的逻辑：优先 step_order，失败则 step_id
+        current_step_value = approval_instance.current_step
+        matched_step_order = None
+
+        # 先尝试用 step_order 匹配
+        for step in steps:
+            if step.get('step_order') == current_step_value:
+                matched_step_order = current_step_value
+                break
+
+        # 如果 step_order 匹配不到，尝试用 step_id 匹配
+        if matched_step_order is None:
+            for step in steps:
+                if step.get('step_id') == current_step_value:
+                    matched_step_order = step.get('step_order')
+                    current_app.logger.info(f"[审批流程] current_step={current_step_value} 通过 step_id 匹配到 step_order={matched_step_order}")
+                    break
+
+        current_step_order = matched_step_order
+
         for i, step in enumerate(steps):
             # 确定审批人
             from app.helpers.approval_helpers import get_step_actual_approver

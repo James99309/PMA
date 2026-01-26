@@ -530,6 +530,28 @@ def _get_approval_flow_impl(order_id):
             instance_id=approval_instance.id
         ).order_by(ApprovalRecord.timestamp.asc()).all()
 
+        # 🔥 修复：current_step 可能是 step_order 或 step_id，需要智能匹配
+        current_step_value = approval_instance.current_step
+        matched_step_order = None
+
+        # 先尝试用 step_order 匹配
+        for step in steps:
+            step_order_val = step.get('step_order') if isinstance(step, dict) else step.step_order
+            if step_order_val == current_step_value:
+                matched_step_order = current_step_value
+                break
+
+        # 如果 step_order 匹配不到，尝试用 step_id 匹配
+        if matched_step_order is None:
+            for step in steps:
+                step_id_val = step.get('step_id') or step.get('id') if isinstance(step, dict) else step.id
+                if step_id_val == current_step_value:
+                    matched_step_order = step.get('step_order') if isinstance(step, dict) else step.step_order
+                    logger.info(f"[审批流程] current_step={current_step_value} 通过 step_id 匹配到 step_order={matched_step_order}")
+                    break
+
+        current_step_order = matched_step_order
+
         # 构建步骤数据
         stages_data = []
         for step in steps:
@@ -583,8 +605,8 @@ def _get_approval_flow_impl(order_id):
                     'timestamp': r.timestamp.strftime('%Y-%m-%d %H:%M') if r.timestamp else '',
                     'approver_name': User.query.get(r.approver_id).real_name if r.approver_id else ''
                 } for r in step_records]
-            elif approval_instance.current_step == step_order:
-                # 🔥 修复：current_step 存储的是 step_order
+            elif current_step_order == step_order:
+                # 🔥 修复：使用已计算的 current_step_order（已兼容 step_id 和 step_order）
                 stage_info['status'] = 'current'
                 # 检查当前用户是否可以审批此步骤
                 stage_info['can_approve'] = can_user_approve(approval_instance.id, current_user.id)

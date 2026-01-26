@@ -987,7 +987,27 @@ def get_pricing_order_approval_flow(order_id):
         approval_records = ApprovalRecord.query.filter_by(
             instance_id=approval_instance.id
         ).order_by(ApprovalRecord.timestamp).all()
-        
+
+        # 🔥 修复：current_step 可能是 step_order 或 step_id，需要智能匹配
+        current_step_value = approval_instance.current_step
+        matched_step_order = None
+
+        # 先尝试用 step_order 匹配
+        for step in template_steps:
+            if step.get('step_order') == current_step_value:
+                matched_step_order = current_step_value
+                break
+
+        # 如果 step_order 匹配不到，尝试用 step_id 匹配
+        if matched_step_order is None:
+            for step in template_steps:
+                if step.get('id') == current_step_value:
+                    matched_step_order = step.get('step_order')
+                    logger.info(f"[审批流程] current_step={current_step_value} 通过 step_id 匹配到 step_order={matched_step_order}")
+                    break
+
+        current_step_order = matched_step_order
+
         # 构建流程数据
         for step in template_steps:
             step_data = {
@@ -1027,8 +1047,8 @@ def get_pricing_order_approval_flow(order_id):
                     step_data['approver_name'] = step_record.approver.real_name if step_record.approver else ''
             
             # 判断是否当前步骤
-            # 🔥 修复：current_step 存储的是 step_order，按 step_order 匹配
-            if approval_instance.current_step == step['step_order']:
+            # 🔥 修复：使用已计算的 current_step_order（已兼容 step_id 和 step_order）
+            if current_step_order == step['step_order']:
                 step_data['is_current'] = True
                 # 🔍 前端JavaScript期望current状态标记在status字段中
                 if approval_instance.status == ApprovalStatus.PENDING:

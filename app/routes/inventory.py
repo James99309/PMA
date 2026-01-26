@@ -5230,9 +5230,29 @@ def get_order_approval_flow_standard(object_id):
         
         # 构建响应数据
         stages_data = []
-        
-        # 🔥 修复：current_step 直接存储的就是 step_order
-        current_step_order = approval_instance.current_step
+
+        # 🔥 修复：current_step 可能是 step_order 或 step_id，需要智能匹配
+        # 使用与 get_current_step_info() 相同的逻辑：优先 step_order，失败则 step_id
+        current_step_value = approval_instance.current_step
+        matched_step_order = None
+
+        # 先尝试用 step_order 匹配
+        for step in steps:
+            step_order_val = step.get('step_order') if isinstance(step, dict) else step.step_order
+            if step_order_val == current_step_value:
+                matched_step_order = current_step_value
+                break
+
+        # 如果 step_order 匹配不到，尝试用 step_id 匹配
+        if matched_step_order is None:
+            for step in steps:
+                step_id_val = step.get('step_id') if isinstance(step, dict) else getattr(step, 'id', None)
+                if step_id_val == current_step_value:
+                    matched_step_order = step.get('step_order') if isinstance(step, dict) else step.step_order
+                    logger.info(f"[审批流程] current_step={current_step_value} 通过 step_id 匹配到 step_order={matched_step_order}")
+                    break
+
+        current_step_order = matched_step_order
 
         logger.info(f"Debug: 当前步骤顺序: {current_step_order}")
         logger.info(f"Debug: 找到 {len(records)} 个审批记录")
@@ -5311,23 +5331,16 @@ def get_order_approval_flow_standard(object_id):
         
         # 检查当前用户是否可以审批
         can_approve = False
-        current_step = approval_instance.current_step
-        
-        if current_step:
-            # 查找当前步骤 - 🔥 修复：current_step存储的是step_order
+
+        if current_step_order:
+            # 🔥 修复：使用已计算的 current_step_order（已兼容 step_id 和 step_order）
             current_step_info = None
             for step in steps:
-                if isinstance(step, dict):
-                    # 快照数据中使用step_order匹配
-                    if step.get('step_order') == current_step:
-                        current_step_info = step
-                        break
-                else:
-                    # 模型对象中使用step_order匹配
-                    if step.step_order == current_step:
-                        current_step_info = step
-                        break
-            
+                step_order_val = step.get('step_order') if isinstance(step, dict) else step.step_order
+                if step_order_val == current_step_order:
+                    current_step_info = step
+                    break
+
             # 检查当前用户是否为当前步骤的审批人
             if current_step_info:
                 approver_user_id = current_step_info.get('approver_user_id') if isinstance(current_step_info, dict) else current_step_info.approver_user_id

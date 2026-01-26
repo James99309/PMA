@@ -2116,12 +2116,18 @@ def get_current_step_info(instance):
             steps_data = snapshot_data['steps']
             current_step_data = None
 
-            # 🔥 修复：使用 step_order 匹配当前步骤（而非 step_id）
-            # current_step 存储的是步骤顺序号（1, 2, 3...）
+            # 🔥 修复：current_step 可能是 step_order 或 step_id，需要智能匹配
+            # 优先 step_order 匹配，失败则用 step_id 匹配
             for step_data in steps_data:
                 if step_data.get('step_order') == instance.current_step:
                     current_step_data = step_data
                     break
+            # 如果 step_order 匹配不到，尝试用 step_id 匹配（兼容历史数据）
+            if not current_step_data:
+                for step_data in steps_data:
+                    if step_data.get('step_id') == instance.current_step:
+                        current_step_data = step_data
+                        break
         
         if current_step_data:
             # 创建虚拟步骤对象，包含快照中的正确信息
@@ -3640,19 +3646,27 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
         user_id = current_user.id
 
     # 🔧 预检查：验证current_step是否能在快照中找到（数据完整性检查）
-    # 🔥 修复：current_step 存储的是 step_order
+    # 🔥 修复：current_step 可能是 step_order 或 step_id，需要智能匹配
     instance_steps = instance.get_steps()
     current_step_found = False
     if isinstance(instance_steps, list):
+        # 先尝试用 step_order 匹配
         for step in instance_steps:
             step_order = step.get('step_order') if isinstance(step, dict) else getattr(step, 'step_order', None)
             if step_order == instance.current_step:
                 current_step_found = True
                 break
+        # 如果 step_order 匹配不到，尝试用 step_id 匹配（兼容历史数据）
+        if not current_step_found:
+            for step in instance_steps:
+                step_id = step.get('step_id') if isinstance(step, dict) else getattr(step, 'id', None)
+                if step_id == instance.current_step:
+                    current_step_found = True
+                    break
 
     if not current_step_found:
         current_app.logger.error(
-            f"数据完整性错误: current_step={instance.current_step}在快照中找不到对应的step_order。"
+            f"数据完整性错误: current_step={instance.current_step}在快照中找不到对应的step_order或step_id。"
         )
         current_app.logger.warning(f"继续尝试处理，但可能会失败")
 
@@ -4178,19 +4192,27 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
         user_id = current_user.id
     
     # 🔧 预检查：验证current_step是否能在快照中找到（数据完整性检查）
-    # 🔥 修复：current_step 存储的是 step_order
+    # 🔥 修复：current_step 可能是 step_order 或 step_id，需要智能匹配
     instance_steps = instance.get_steps()
     current_step_found = False
     if isinstance(instance_steps, list):
+        # 先尝试用 step_order 匹配
         for step in instance_steps:
             step_order = step.get('step_order') if isinstance(step, dict) else getattr(step, 'step_order', None)
             if step_order == instance.current_step:
                 current_step_found = True
                 break
+        # 如果 step_order 匹配不到，尝试用 step_id 匹配（兼容历史数据）
+        if not current_step_found:
+            for step in instance_steps:
+                step_id = step.get('step_id') if isinstance(step, dict) else getattr(step, 'id', None)
+                if step_id == instance.current_step:
+                    current_step_found = True
+                    break
 
     if not current_step_found:
         current_app.logger.error(
-            f"数据完整性错误: current_step={instance.current_step}在快照中找不到对应的step_order。"
+            f"数据完整性错误: current_step={instance.current_step}在快照中找不到对应的step_order或step_id。"
         )
         # 不直接返回False，让后续代码继续尝试处理
         current_app.logger.warning(f"继续尝试处理，但可能会失败")

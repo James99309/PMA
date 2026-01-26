@@ -1426,6 +1426,94 @@ def edit_project(project_id):
         **get_edit_project_data()
     )
 
+@project.route('/api/check_delete_dependencies/<int:project_id>', methods=['GET'])
+@login_required
+def check_delete_dependencies(project_id):
+    """检查项目删除前的关联数据"""
+    from app.models.approval import ApprovalInstance
+
+    proj = Project.query.get_or_404(project_id)
+
+    # 使用统一的数据权限检查
+    if not can_edit_data(proj, current_user):
+        return jsonify({'success': False, 'message': '您没有权限删除此项目'}), 403
+
+    dependencies = {
+        'quotations': [],      # 报价单（可删除）
+        'pricing_orders': [],  # 批价单（不可删除，带锁）
+        'actions': [],         # 跟进记录（可删除）
+        'approvals': []        # 审批实例（可删除）
+    }
+
+    # 1. 收集报价单
+    quotations = Quotation.query.filter_by(project_id=project_id).all()
+    quotation_ids = [q.id for q in quotations]
+    for q in quotations:
+        dependencies['quotations'].append({
+            'id': q.id,
+            'name': q.quotation_number or f'报价单#{q.id}',
+            'deletable': True
+        })
+
+    # 2. 收集批价单（通过报价单关联）
+    if quotation_ids:
+        pricing_orders = PricingOrder.query.filter(PricingOrder.quotation_id.in_(quotation_ids)).all()
+        for po in pricing_orders:
+            dependencies['pricing_orders'].append({
+                'id': po.id,
+                'name': po.order_number or f'批价单#{po.id}',
+                'deletable': False  # 批价单不可删除
+            })
+
+    # 3. 收集跟进记录
+    actions = Action.query.filter_by(project_id=project_id).all()
+    for a in actions:
+        dependencies['actions'].append({
+            'id': a.id,
+            'name': f'跟进记录#{a.id}',
+            'deletable': True
+        })
+
+    # 4. 收集项目审批实例
+    project_approvals = ApprovalInstance.query.filter_by(
+        object_type='project',
+        object_id=project_id
+    ).all()
+    for ap in project_approvals:
+        dependencies['approvals'].append({
+            'id': ap.id,
+            'name': f'项目审批#{ap.id}',
+            'deletable': True
+        })
+
+    # 5. 收集报价单审批实例
+    if quotation_ids:
+        quotation_approvals = ApprovalInstance.query.filter(
+            ApprovalInstance.object_type == 'quotation',
+            ApprovalInstance.object_id.in_(quotation_ids)
+        ).all()
+        for ap in quotation_approvals:
+            dependencies['approvals'].append({
+                'id': ap.id,
+                'name': f'报价单审批#{ap.id}',
+                'deletable': True
+            })
+
+    has_pricing_orders = len(dependencies['pricing_orders']) > 0
+
+    return jsonify({
+        'success': True,
+        'can_delete': not has_pricing_orders,
+        'block_reason': '存在批价单，无法删除项目。请先删除或转移批价单。' if has_pricing_orders else None,
+        'project_name': proj.project_name,
+        'dependencies': dependencies,
+        'summary': {
+            'total_count': sum(len(v) for v in dependencies.values()),
+            'blocked_count': len(dependencies['pricing_orders'])
+        }
+    })
+
+
 @project.route('/delete/<int:project_id>', methods=['POST'])
 @login_required
 # 注意：不使用 @permission_required 装饰器 - 创建者可以删除自己的项目数据
@@ -1448,12 +1536,25 @@ def delete_project(project_id):
     
     try:
         # === 关联数据清理开始 ===
-        
-        # 1. 先删除项目关联的所有报价单
+
+        # 0. 先获取报价单 IDs
         from app.models.quotation import Quotation
         quotations = Quotation.query.filter_by(project_id=project_id).all()
-        quotation_ids = [q.id for q in quotations]  # 保存报价单ID用于后续删除审批
-        
+        quotation_ids = [q.id for q in quotations]
+
+        # 1. 检查是否存在批价单 - 如果存在，阻止删除
+        from app.models.pricing_order import PricingOrder
+        if quotation_ids:
+            pricing_orders_count = PricingOrder.query.filter(PricingOrder.quotation_id.in_(quotation_ids)).count()
+            if pricing_orders_count > 0:
+                error_msg = '无法删除项目：存在关联的批价单。请先删除或转移批价单后再删除项目。'
+                logger.warning(f"用户 {current_user.username} 尝试删除项目 {project_id}，但存在 {pricing_orders_count} 个关联批价单")
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({'success': False, 'message': error_msg}), 400
+                flash(error_msg, 'danger')
+                return redirect(url_for('project.view_project', project_id=project_id))
+
+        # 2. 删除项目关联的所有报价单
         if quotations:
             for quotation in quotations:
                 db.session.delete(quotation)
@@ -1496,7 +1597,7 @@ def delete_project(project_id):
                 db.session.delete(approval)
             logger.info(f"删除项目 {project_id} 前，已删除关联的 {len(project_approvals)} 个项目审批实例和 {approval_record_count} 个审批记录")
         
-        # 5. 删除关联报价单的审批实例 (新增)
+        # 5. 删除关联报价单的审批实例
         if quotation_ids:
             quotation_approvals = ApprovalInstance.query.filter(
                 ApprovalInstance.object_type == 'quotation',
@@ -1510,7 +1611,7 @@ def delete_project(project_id):
                     quotation_approval_record_count += len(records)
                     db.session.delete(approval)
                 logger.info(f"删除项目 {project_id} 前，已删除关联的 {len(quotation_approvals)} 个报价单审批实例和 {quotation_approval_record_count} 个审批记录")
-        
+
         # 6. 删除项目关联的评分记录
         try:
             from app.models.project_scoring import ProjectScoringRecord, ProjectTotalScore
@@ -4157,9 +4258,28 @@ def get_project_approval_flow(project_id):
         
         # 构建审批阶段数据
         stages_data = []
-        # 🔥 修复：current_step 存储的是 step_order（整数）
-        current_step_order = approval_instance.current_step
-        
+        # 🔥 修复：current_step 可能是 step_order 或 step_id，需要智能匹配
+        # 使用与 get_current_step_info() 相同的逻辑：优先 step_order，失败则 step_id
+        current_step_value = approval_instance.current_step
+        matched_step_order = None
+
+        # 先尝试用 step_order 匹配
+        for step in steps:
+            if step.get('step_order') == current_step_value:
+                matched_step_order = current_step_value
+                break
+
+        # 如果 step_order 匹配不到，尝试用 step_id 匹配
+        if matched_step_order is None:
+            for step in steps:
+                if step.get('step_id') == current_step_value:
+                    matched_step_order = step.get('step_order')
+                    import logging
+                    logging.info(f"[审批流程] current_step={current_step_value} 通过 step_id 匹配到 step_order={matched_step_order}")
+                    break
+
+        current_step_order = matched_step_order
+
         for i, step in enumerate(steps):
             # 确定审批人
             from app.helpers.approval_helpers import get_step_actual_approver
