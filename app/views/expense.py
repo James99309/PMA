@@ -3110,13 +3110,12 @@ def get_expense_approval_flow(expense_id):
         # 获取报销单 - 使用直接查询，然后进行权限检查
         expense_obj = Expense.query.get_or_404(expense_id)
         
-        # 检查访问权限 - 创建者或审批人都可以查看
-        from app.utils.access_control import has_approval_permission
-        can_view = can_edit_data(expense_obj, current_user)
-        if not can_view:
-            can_view = has_approval_permission(current_user, expense_obj)
-
-        if not can_view:
+        # 检查访问权限 - 有查看权限的用户就可以查看审批流程
+        from app.utils.access_control import get_viewable_data
+        viewable_expense = get_viewable_data(Expense, current_user).filter(
+            Expense.id == expense_id
+        ).first()
+        if not viewable_expense:
             return jsonify({
                 'success': False,
                 'message': '您没有权限查看此报销单的审批流程'
@@ -3386,15 +3385,25 @@ def download_invoice(detail_id, invoice_index):
     import os
     import json
     import urllib.parse
-    from app.utils.access_control import can_edit_data
+    from app.utils.access_control import get_viewable_data
 
     try:
         # 获取报销明细
         expense_detail = ExpenseDetail.query.get_or_404(detail_id)
 
-        # 使用统一的数据权限检查（包含数据归属逻辑）
-        if not can_edit_data(expense_detail.expense, current_user):
-            flash(_('您没有权限下载此发票'), 'danger')
+        # 获取关联的报销单
+        expense = expense_detail.expense
+        if not expense:
+            flash(_('报销单不存在'), 'danger')
+            abort(404)
+
+        # 使用查看权限检查（下载/查看发票只需要查看权限，不需要编辑权限）
+        # 这与报销单列表页面的权限逻辑保持一致
+        viewable_expense = get_viewable_data(Expense, current_user).filter(
+            Expense.id == expense.id
+        ).first()
+        if not viewable_expense:
+            flash(_('您没有权限查看此发票'), 'danger')
             abort(403)
         
         # 解析发票图片数据
