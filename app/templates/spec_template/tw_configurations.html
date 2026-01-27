@@ -69,21 +69,21 @@
             edit_btn={'show': false},
             extra_actions=[
                 {
-                    'show': has_permission('rd_product', 'view') and template.configurations|selectattr('is_active')|selectattr('status', 'ne', 'production')|selectattr('status', 'ne', 'discontinued')|list|length > 0,
+                    'show': has_permission('product_code', 'view') and template.configurations|selectattr('is_active')|selectattr('status', 'ne', 'production')|selectattr('status', 'ne', 'discontinued')|list|length > 0,
                     'label': _('导出配置'),
                     'onclick': 'exportConfigurations()',
                     'icon': 'download',
                     'color': 'secondary'
                 },
                 {
-                    'show': has_permission('rd_product', 'edit'),
+                    'show': has_permission('product_code', 'edit'),
                     'label': _('导入配置'),
                     'onclick': 'showImportModal()',
                     'icon': 'upload',
                     'color': 'secondary'
                 },
                 {
-                    'show': has_permission('rd_product', 'create'),
+                    'show': has_permission('product_code', 'create'),
                     'label': _('新建配置版本'),
                     'onclick': 'openCreateConfigModal()',
                     'icon': 'add',
@@ -168,7 +168,7 @@
                         <!-- 操作栏 -->
                         <div class="px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
                             <!-- 拖动把手 -->
-                            {% if has_permission('rd_product', 'edit') %}
+                            {% if has_permission('product_code', 'edit') %}
                             <div class="drag-handle cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity">
                                 <span class="material-symbols-outlined text-slate-400 hover:text-slate-600 dark:hover:text-slate-300" style="font-size: 20px;">drag_indicator</span>
                             </div>
@@ -176,21 +176,21 @@
                             <div></div>
                             {% endif %}
                             <div class="flex items-center gap-2">
-                            {% if has_permission('rd_product', 'edit') %}
+                            {% if has_permission('product_code', 'edit') %}
                             <button type="button" onclick="openEditConfigModal({{ config.id }})"
                                class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                                title="{{ _('编辑') }}">
                                 <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
                             </button>
                             {% endif %}
-                            {% if has_permission('rd_product', 'create') %}
+                            {% if has_permission('product_code', 'create') %}
                             <button type="button" onclick="copyConfig({{ config.id }}, '{{ config.config_code }}')"
                                class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
                                title="{{ _('复制') }}">
                                 <span class="material-symbols-outlined" style="font-size: 18px;">content_copy</span>
                             </button>
                             {% endif %}
-                            {% if has_permission('rd_product', 'delete') and not config.mn_locked %}
+                            {% if has_permission('product_code', 'delete') and not config.mn_locked %}
                             <button type="button" onclick="confirmDeleteConfig({{ config.id }}, '{{ config.config_code }}')"
                                class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                title="{{ _('删除') }}">
@@ -206,7 +206,7 @@
                         <span class="material-symbols-outlined mb-3" style="font-size: 64px;">inventory_2</span>
                         <p class="text-lg font-medium mb-2">{{ _('暂无配置版本') }}</p>
                         <p class="text-sm mb-6">{{ _('创建配置版本来定义不同区域的产品规格') }}</p>
-                        {% if has_permission('rd_product', 'create') %}
+                        {% if has_permission('product_code', 'create') %}
                         <button type="button" onclick="openCreateConfigModal()"
                            class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
                             <span class="material-symbols-outlined" style="font-size: 20px;">add</span>

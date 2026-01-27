@@ -232,7 +232,7 @@
             back_url=url_for('spec_template.view_template', template_id=template.id),
             show_status_label=false,
             edit_btn={
-                'show': has_permission('rd_product', 'edit'),
+                'show': has_permission('product_code', 'edit'),
                 'label': _('编辑规格模板'),
                 'onclick': "window.location.href='" ~ url_for('spec_template.edit_template_page', template_id=template.id) ~ "'"
             },
@@ -242,21 +242,21 @@
                     'icon': 'download',
                     'onclick': 'exportConfigurations()',
                     'color': 'secondary',
-                    'show': has_permission('rd_product', 'view') and configurations|length > 0
+                    'show': has_permission('product_code', 'view') and configurations|length > 0
                 },
                 {
                     'label': _('导入配置'),
                     'icon': 'upload',
                     'onclick': 'showImportModal()',
                     'color': 'secondary',
-                    'show': has_permission('rd_product', 'edit')
+                    'show': has_permission('product_code', 'edit')
                 },
                 {
                     'label': _('保存规格'),
                     'icon': 'save',
                     'onclick': 'saveAllSpecs()',
                     'color': 'primary',
-                    'show': has_permission('rd_product', 'edit') and configurations|length > 0
+                    'show': has_permission('product_code', 'edit') and configurations|length > 0
                 }
             ],
             has_sidebar=false

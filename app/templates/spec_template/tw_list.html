@@ -64,7 +64,7 @@
                     <span class="material-symbols-outlined" style="font-size: 20px;">download</span>
                     <span>{{ _('下载模板') }}</span>
                 </a>
-                {% if has_permission('rd_product', 'create') %}
+                {% if has_permission('product_code', 'create') %}
                 <!-- 导入创建 -->
                 <button type="button" onclick="showImportModal()"
                    class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium transition-colors">
@@ -127,21 +127,21 @@
                            title="{{ _('查看') }}">
                             <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
                         </a>
-                        {% if has_permission('rd_product', 'edit') %}
+                        {% if has_permission('product_code', 'edit') %}
                         <a href="{{ url_for('spec_template.edit_template_page', template_id=template.id) }}"
                            class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                            title="{{ _('编辑') }}">
                             <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
                         </a>
                         {% endif %}
-                        {% if has_permission('rd_product', 'create') %}
+                        {% if has_permission('product_code', 'create') %}
                         <button type="button" onclick="copyTemplate({{ template.id }}, '{{ template.model }}')"
                            class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
                            title="{{ _('复制') }}">
                             <span class="material-symbols-outlined" style="font-size: 18px;">content_copy</span>
                         </button>
                         {% endif %}
-                        {% if has_permission('rd_product', 'delete') %}
+                        {% if has_permission('product_code', 'delete') %}
                         <button type="button" onclick="confirmDeleteTemplate({{ template.id }}, '{{ template.model }}')"
                            class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                            title="{{ _('删除') }}">
@@ -156,7 +156,7 @@
                     <span class="material-symbols-outlined mb-3" style="font-size: 64px;">description</span>
                     <p class="text-lg font-medium mb-2">{{ _('暂无规格模板') }}</p>
                     <p class="text-sm mb-6">{{ _('创建一个规格模板来定义产品型号的规格结构') }}</p>
-                    {% if has_permission('rd_product', 'create') %}
+                    {% if has_permission('product_code', 'create') %}
                     <a href="{{ url_for('spec_template.create_template_page') }}"
                        class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
                         <span class="material-symbols-outlined" style="font-size: 20px;">add</span>

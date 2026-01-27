@@ -129,7 +129,7 @@
                     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col h-full">
                         <div class="p-4 flex items-center justify-between">
                             <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('规格分类') }}</h3>
-                            {% if has_permission('rd_product', 'create') %}
+                            {% if has_permission('product_code', 'create') %}
                             <button type="button" @click="openAddCategoryModal()"
                                 class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                                 title="{{ _('添加分类') }}">
@@ -169,14 +169,14 @@
                                 </button>
                                 <!-- 编辑/删除按钮 - 悬停显示 -->
                                 <div class="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-0.5 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-600">
-                                    {% if has_permission('rd_product', 'edit') %}
+                                    {% if has_permission('product_code', 'edit') %}
                                     <button type="button" @click.stop="openEditCategoryModal({{ category.id }}, '{{ category.code }}', '{{ category.name }}', '{{ category.name_en }}', '{{ category.description|default('', true) }}')"
                                         class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                                         title="{{ _('编辑') }}">
                                         <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
                                     </button>
                                     {% endif %}
-                                    {% if has_permission('rd_product', 'delete') %}
+                                    {% if has_permission('product_code', 'delete') %}
                                     <button type="button" @click.stop="confirmDeleteCategory({{ category.id }}, '{{ category.name }}')"
                                         class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                         title="{{ _('删除') }}">
@@ -207,7 +207,7 @@
                                     <span>{{ _('显示已禁用') }}</span>
                                     <span x-show="disabledCount > 0" class="px-1.5 py-0.5 text-xs bg-slate-200 dark:bg-slate-700 rounded" x-text="disabledCount"></span>
                                 </label>
-                                {% if has_permission('rd_product', 'create') %}
+                                {% if has_permission('product_code', 'create') %}
                                 <button type="button" @click="openAddModal()"
                                     class="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
                                     <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
@@ -263,7 +263,7 @@
                                             <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400" x-text="def.default_test_method || '-'"></td>
                                             <td class="px-4 py-3 whitespace-nowrap text-right">
                                                 <div class="flex items-center justify-end gap-1">
-                                                    {% if has_permission('rd_product', 'edit') %}
+                                                    {% if has_permission('product_code', 'edit') %}
                                                     <!-- 启用/禁用切换按钮 -->
                                                     <button type="button" @click="toggleDefinition(def.id, def.name, def.is_active)"
                                                         class="inline-flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
@@ -277,7 +277,7 @@
                                                         <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
                                                     </button>
                                                     {% endif %}
-                                                    {% if has_permission('rd_product', 'delete') %}
+                                                    {% if has_permission('product_code', 'delete') %}
                                                     <button type="button" @click="confirmDelete(def.id, def.name)"
                                                         class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                                         title="{{ _('删除') }}">
