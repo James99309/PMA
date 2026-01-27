@@ -19,7 +19,7 @@ spec_definition_bp = Blueprint('spec_definition', __name__, url_prefix='/admin/s
 
 @spec_definition_bp.route('/')
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def list_definitions():
     """规格字典列表页"""
     categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
@@ -55,7 +55,7 @@ def list_definitions():
 
 @spec_definition_bp.route('/api/list')
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_list_definitions():
     """API: 获取规格字典列表"""
     category_id = request.args.get('category_id', type=int)
@@ -74,7 +74,7 @@ def api_list_definitions():
 
 @spec_definition_bp.route('/api/create', methods=['POST'])
 @login_required
-@permission_required('rd_product', 'create')
+@permission_required('product_code', 'create')
 def api_create_definition():
     """API: 创建规格项"""
     data = request.get_json()
@@ -123,7 +123,7 @@ def api_create_definition():
 
 @spec_definition_bp.route('/api/<int:definition_id>', methods=['GET'])
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_get_definition(definition_id):
     """API: 获取规格项详情"""
     definition = SpecDefinition.query.get_or_404(definition_id)
@@ -135,7 +135,7 @@ def api_get_definition(definition_id):
 
 @spec_definition_bp.route('/api/<int:definition_id>', methods=['PUT'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def api_update_definition(definition_id):
     """API: 更新规格项"""
     definition = SpecDefinition.query.get_or_404(definition_id)
@@ -175,7 +175,7 @@ def api_update_definition(definition_id):
 
 @spec_definition_bp.route('/api/<int:definition_id>', methods=['DELETE'])
 @login_required
-@permission_required('rd_product', 'delete')
+@permission_required('product_code', 'delete')
 def api_delete_definition(definition_id):
     """API: 删除规格项（软删除）"""
     definition = SpecDefinition.query.get_or_404(definition_id)
@@ -198,7 +198,7 @@ def api_delete_definition(definition_id):
 
 @spec_definition_bp.route('/api/<int:definition_id>/toggle', methods=['PUT'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def api_toggle_definition(definition_id):
     """API: 切换规格项启用/禁用状态"""
     definition = SpecDefinition.query.get_or_404(definition_id)
@@ -218,7 +218,7 @@ def api_toggle_definition(definition_id):
 
 @spec_definition_bp.route('/api/disabled')
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_list_disabled_definitions():
     """API: 获取已禁用的规格项列表"""
     category_id = request.args.get('category_id', type=int)
@@ -237,7 +237,7 @@ def api_list_disabled_definitions():
 
 @spec_definition_bp.route('/api/reorder', methods=['POST'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def api_reorder_definitions():
     """API: 规格项排序"""
     data = request.get_json()
@@ -269,7 +269,7 @@ def api_reorder_definitions():
 
 @spec_definition_bp.route('/api/categories', methods=['GET'])
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_list_categories():
     """API: 获取规格分类列表"""
     categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
@@ -281,7 +281,7 @@ def api_list_categories():
 
 @spec_definition_bp.route('/api/categories', methods=['POST'])
 @login_required
-@permission_required('rd_product', 'create')
+@permission_required('product_code', 'create')
 def api_create_category():
     """API: 创建规格分类"""
     data = request.get_json()
@@ -324,7 +324,7 @@ def api_create_category():
 
 @spec_definition_bp.route('/api/categories/<int:category_id>', methods=['PUT'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def api_update_category(category_id):
     """API: 更新规格分类"""
     category = SpecCategory.query.get_or_404(category_id)
@@ -359,7 +359,7 @@ def api_update_category(category_id):
 
 @spec_definition_bp.route('/api/categories/<int:category_id>', methods=['DELETE'])
 @login_required
-@permission_required('rd_product', 'delete')
+@permission_required('product_code', 'delete')
 def api_delete_category(category_id):
     """API: 删除规格分类（软删除）"""
     category = SpecCategory.query.get_or_404(category_id)
@@ -387,7 +387,7 @@ def api_delete_category(category_id):
 
 @spec_definition_bp.route('/api/categories/<int:category_id>/toggle', methods=['PUT'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def api_toggle_category(category_id):
     """API: 切换规格分类启用/禁用状态"""
     category = SpecCategory.query.get_or_404(category_id)
@@ -407,7 +407,7 @@ def api_toggle_category(category_id):
 
 @spec_definition_bp.route('/api/categories/reorder', methods=['POST'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def api_reorder_categories():
     """API: 分类排序"""
     data = request.get_json()
@@ -439,7 +439,7 @@ def api_reorder_categories():
 
 @spec_definition_bp.route('/test-methods')
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def list_test_methods():
     """测试方法字典列表页"""
     methods = TestMethodDictionary.query.filter_by(is_active=True).order_by(TestMethodDictionary.display_order).all()
@@ -448,7 +448,7 @@ def list_test_methods():
 
 @spec_definition_bp.route('/api/test-methods', methods=['GET'])
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_list_test_methods():
     """API: 获取测试方法列表"""
     methods = TestMethodDictionary.query.filter_by(is_active=True).order_by(TestMethodDictionary.display_order).all()
@@ -460,7 +460,7 @@ def api_list_test_methods():
 
 @spec_definition_bp.route('/api/test-methods', methods=['POST'])
 @login_required
-@permission_required('rd_product', 'create')
+@permission_required('product_code', 'create')
 def api_create_test_method():
     """API: 创建测试方法"""
     data = request.get_json()
@@ -493,7 +493,7 @@ def api_create_test_method():
 
 @spec_definition_bp.route('/api/test-methods/<int:method_id>', methods=['PUT'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def api_update_test_method(method_id):
     """API: 更新测试方法"""
     method = TestMethodDictionary.query.get_or_404(method_id)
@@ -524,7 +524,7 @@ def api_update_test_method(method_id):
 
 @spec_definition_bp.route('/api/test-methods/<int:method_id>', methods=['DELETE'])
 @login_required
-@permission_required('rd_product', 'delete')
+@permission_required('product_code', 'delete')
 def api_delete_test_method(method_id):
     """API: 删除测试方法（软删除）"""
     method = TestMethodDictionary.query.get_or_404(method_id)
@@ -541,7 +541,7 @@ def api_delete_test_method(method_id):
 
 @spec_definition_bp.route('/test-conditions')
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def list_test_conditions():
     """测试条件字典列表页"""
     conditions = TestConditionDictionary.query.filter_by(is_active=True).order_by(TestConditionDictionary.display_order).all()
@@ -550,7 +550,7 @@ def list_test_conditions():
 
 @spec_definition_bp.route('/api/test-conditions', methods=['GET'])
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_list_test_conditions():
     """API: 获取测试条件列表"""
     conditions = TestConditionDictionary.query.filter_by(is_active=True).order_by(TestConditionDictionary.display_order).all()
@@ -562,7 +562,7 @@ def api_list_test_conditions():
 
 @spec_definition_bp.route('/api/test-conditions', methods=['POST'])
 @login_required
-@permission_required('rd_product', 'create')
+@permission_required('product_code', 'create')
 def api_create_test_condition():
     """API: 创建测试条件"""
     data = request.get_json()
@@ -594,7 +594,7 @@ def api_create_test_condition():
 
 @spec_definition_bp.route('/api/test-conditions/<int:condition_id>', methods=['PUT'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def api_update_test_condition(condition_id):
     """API: 更新测试条件"""
     condition = TestConditionDictionary.query.get_or_404(condition_id)
@@ -624,7 +624,7 @@ def api_update_test_condition(condition_id):
 
 @spec_definition_bp.route('/api/test-conditions/<int:condition_id>', methods=['DELETE'])
 @login_required
-@permission_required('rd_product', 'delete')
+@permission_required('product_code', 'delete')
 def api_delete_test_condition(condition_id):
     """API: 删除测试条件（软删除）"""
     condition = TestConditionDictionary.query.get_or_404(condition_id)

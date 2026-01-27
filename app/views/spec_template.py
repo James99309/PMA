@@ -367,7 +367,7 @@ spec_template_bp = Blueprint('spec_template', __name__, url_prefix='/dev-product
 
 @spec_template_bp.route('/')
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def list_templates():
     """规格模板列表页"""
     templates = SpecTemplate.query.filter_by(is_active=True).order_by(SpecTemplate.created_at.desc()).all()
@@ -380,7 +380,7 @@ def list_templates():
 
 @spec_template_bp.route('/create', methods=['GET'])
 @login_required
-@permission_required('rd_product', 'create')
+@permission_required('product_code', 'create')
 def create_template_page():
     """创建规格模板页面"""
     categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
@@ -433,7 +433,7 @@ def create_template_page():
 
 @spec_template_bp.route('/<int:template_id>', methods=['GET'])
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def view_template(template_id):
     """查看规格模板详情"""
     template = SpecTemplate.query.get_or_404(template_id)
@@ -458,7 +458,7 @@ def view_template(template_id):
 
 @spec_template_bp.route('/<int:template_id>/edit', methods=['GET'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def edit_template_page(template_id):
     """编辑规格模板页面"""
     template = SpecTemplate.query.get_or_404(template_id)
@@ -533,7 +533,7 @@ def edit_template_page(template_id):
 
 @spec_template_bp.route('/api/list')
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_list_templates():
     """API: 获取规格模板列表"""
     templates = SpecTemplate.query.filter_by(is_active=True).order_by(SpecTemplate.created_at.desc()).all()
@@ -546,7 +546,7 @@ def api_list_templates():
 
 @spec_template_bp.route('/api/create', methods=['POST'])
 @login_required
-@permission_required('rd_product', 'create')
+@permission_required('product_code', 'create')
 def api_create_template():
     """API: 创建规格模板"""
     data = request.get_json()
@@ -619,7 +619,7 @@ def api_create_template():
 
 @spec_template_bp.route('/api/<int:template_id>', methods=['GET'])
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_get_template(template_id):
     """API: 获取规格模板详情"""
     template = SpecTemplate.query.get_or_404(template_id)
@@ -633,7 +633,7 @@ def api_get_template(template_id):
 
 @spec_template_bp.route('/api/<int:template_id>', methods=['PUT'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def api_update_template(template_id):
     """API: 更新规格模板"""
     template = SpecTemplate.query.get_or_404(template_id)
@@ -793,7 +793,7 @@ def api_update_template(template_id):
 
 @spec_template_bp.route('/api/<int:template_id>', methods=['DELETE'])
 @login_required
-@permission_required('rd_product', 'delete')
+@permission_required('product_code', 'delete')
 def api_delete_template(template_id):
     """API: 删除规格模板（软删除）"""
     template = SpecTemplate.query.get_or_404(template_id)
@@ -817,7 +817,7 @@ def api_delete_template(template_id):
 
 @spec_template_bp.route('/api/<int:template_id>/copy', methods=['POST'])
 @login_required
-@permission_required('rd_product', 'create')
+@permission_required('product_code', 'create')
 def api_copy_template(template_id):
     """API: 复制规格模板"""
     template = SpecTemplate.query.get_or_404(template_id)
@@ -871,7 +871,7 @@ def api_copy_template(template_id):
 
 @spec_template_bp.route('/api/definitions-by-category')
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_definitions_by_category():
     """API: 获取按分类组织的规格定义"""
     categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
@@ -897,7 +897,7 @@ def api_definitions_by_category():
 
 @spec_template_bp.route('/<int:template_id>/spec-config')
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def spec_config_matrix_page(template_id):
     """矩阵式规格配置页面"""
     template = SpecTemplate.query.get_or_404(template_id)
@@ -1046,7 +1046,7 @@ def spec_config_matrix_page(template_id):
 
 @spec_template_bp.route('/<int:template_id>/configurations')
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def configurations_page(template_id):
     """配置版本管理页面"""
     template = SpecTemplate.query.get_or_404(template_id)
@@ -1083,7 +1083,7 @@ def configurations_page(template_id):
 
 @spec_template_bp.route('/api/<int:template_id>/configurations')
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_list_configurations(template_id):
     """API: 获取模板的配置版本列表"""
     template = SpecTemplate.query.get_or_404(template_id)
@@ -1100,7 +1100,7 @@ def api_list_configurations(template_id):
 
 @spec_template_bp.route('/api/<int:template_id>/configurations', methods=['POST'])
 @login_required
-@permission_required('rd_product', 'create')
+@permission_required('product_code', 'create')
 def api_create_configuration(template_id):
     """API: 创建配置版本"""
     template = SpecTemplate.query.get_or_404(template_id)
@@ -1163,7 +1163,7 @@ def api_create_configuration(template_id):
 
 @spec_template_bp.route('/api/configurations/<int:config_id>', methods=['GET'])
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_get_configuration(config_id):
     """API: 获取配置版本详情"""
     config = ProductConfiguration.query.get_or_404(config_id)
@@ -1186,7 +1186,7 @@ def api_get_configuration(config_id):
 
 @spec_template_bp.route('/api/configurations/<int:config_id>', methods=['PUT'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def api_update_configuration(config_id):
     """API: 更新配置版本"""
     config = ProductConfiguration.query.get_or_404(config_id)
@@ -1270,7 +1270,7 @@ def api_update_configuration(config_id):
 
 @spec_template_bp.route('/api/configurations/<int:config_id>', methods=['DELETE'])
 @login_required
-@permission_required('rd_product', 'delete')
+@permission_required('product_code', 'delete')
 def api_delete_configuration(config_id):
     """API: 删除配置版本（软删除）"""
     config = ProductConfiguration.query.get_or_404(config_id)
@@ -1296,7 +1296,7 @@ def api_delete_configuration(config_id):
 
 @spec_template_bp.route('/api/configurations/<int:config_id>/copy', methods=['POST'])
 @login_required
-@permission_required('rd_product', 'create')
+@permission_required('product_code', 'create')
 def api_copy_configuration(config_id):
     """API: 复制配置版本"""
     config = ProductConfiguration.query.get_or_404(config_id)
@@ -1342,7 +1342,7 @@ def api_copy_configuration(config_id):
 
 @spec_template_bp.route('/api/<int:template_id>/configurations/order', methods=['PUT'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def api_update_configurations_order(template_id):
     """API: 更新配置版本排序"""
     data = request.get_json() or {}
@@ -1367,7 +1367,7 @@ def api_update_configurations_order(template_id):
 
 @spec_template_bp.route('/api/configurations/<int:config_id>/values', methods=['PUT'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def api_update_config_values(config_id):
     """API: 批量更新配置版本的规格值"""
     config = ProductConfiguration.query.get_or_404(config_id)
@@ -1481,7 +1481,7 @@ def api_update_config_values(config_id):
 
 @spec_template_bp.route('/api/download-import-template')
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_download_import_template():
     """API: 下载规格模板导入模板Excel"""
     from app.services.spec_import_service import SpecImportService
@@ -1504,7 +1504,7 @@ def api_download_import_template():
 
 @spec_template_bp.route('/api/import-create', methods=['POST'])
 @login_required
-@permission_required('rd_product', 'create')
+@permission_required('product_code', 'create')
 def api_import_create_template():
     """API: 通过Excel导入创建规格模板"""
     from app.services.spec_import_service import SpecImportService
@@ -1544,7 +1544,7 @@ def api_import_create_template():
 
 @spec_template_bp.route('/api/<int:template_id>/export-configurations')
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_export_configurations(template_id):
     """API: 导出配置矩阵（只导出未锁定的配置）"""
     from app.services.spec_import_service import SpecImportService
@@ -1576,7 +1576,7 @@ def api_export_configurations(template_id):
 
 @spec_template_bp.route('/api/<int:template_id>/import-configurations', methods=['POST'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def api_import_configurations(template_id):
     """API: 导入配置矩阵"""
     from app.services.spec_import_service import SpecImportService
@@ -1643,7 +1643,7 @@ def validate_attachment_file(file):
 
 @spec_template_bp.route('/api/item/<int:item_id>/attachments', methods=['GET'])
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_get_item_attachments(item_id):
     """获取模板规格项的附件列表（默认附件）"""
     item = SpecTemplateItem.query.get_or_404(item_id)
@@ -1661,7 +1661,7 @@ def api_get_item_attachments(item_id):
 
 @spec_template_bp.route('/api/item/<int:item_id>/attachments', methods=['POST'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def api_upload_item_attachment(item_id):
     """上传模板规格项附件（默认附件）"""
     from app.utils.supabase_client import get_supabase_client
@@ -1737,7 +1737,7 @@ def api_upload_item_attachment(item_id):
 
 @spec_template_bp.route('/api/attachment/<int:attachment_id>', methods=['DELETE'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def api_delete_attachment(attachment_id):
     """删除规格附件"""
     from app.utils.supabase_client import get_supabase_client
@@ -1767,7 +1767,7 @@ def api_delete_attachment(attachment_id):
 
 @spec_template_bp.route('/api/attachment/<int:attachment_id>/preview')
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_preview_attachment(attachment_id):
     """预览/下载规格附件"""
     import requests
@@ -1802,7 +1802,7 @@ def api_preview_attachment(attachment_id):
 
 @spec_template_bp.route('/api/config/<int:config_id>/item/<int:item_id>/attachments', methods=['GET'])
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_get_config_attachments(config_id, item_id):
     """获取配置版本的规格附件（带回退逻辑）"""
     config = ProductConfiguration.query.get_or_404(config_id)
@@ -1848,7 +1848,7 @@ def api_get_config_attachments(config_id, item_id):
 
 @spec_template_bp.route('/api/config/<int:config_id>/item/<int:item_id>/attachments', methods=['POST'])
 @login_required
-@permission_required('rd_product', 'edit')
+@permission_required('product_code', 'edit')
 def api_upload_config_attachment(config_id, item_id):
     """上传配置版本的规格附件"""
     from app.utils.supabase_client import get_supabase_client
@@ -1948,7 +1948,7 @@ def api_upload_config_attachment(config_id, item_id):
 
 @spec_template_bp.route('/api/attachments/count', methods=['POST'])
 @login_required
-@permission_required('rd_product', 'view')
+@permission_required('product_code', 'view')
 def api_get_attachments_count():
     """批量获取附件数量（用于矩阵显示）
 
