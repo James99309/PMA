@@ -3109,17 +3109,25 @@ def get_expense_approval_flow(expense_id):
     try:
         # 获取报销单 - 使用直接查询，然后进行权限检查
         expense_obj = Expense.query.get_or_404(expense_id)
-        
-        # 检查访问权限 - 有查看权限的用户就可以查看审批流程
-        from app.utils.access_control import get_viewable_data
-        viewable_expense = get_viewable_data(Expense, current_user).filter(
-            Expense.id == expense_id
-        ).first()
-        if not viewable_expense:
-            return jsonify({
-                'success': False,
-                'message': '您没有权限查看此报销单的审批流程'
-            }), 403
+
+        # 检查访问权限 - 优先检查是否为当前审批人
+        from app.helpers.approval_helpers import is_current_approver
+        is_approver = is_current_approver('expense', expense_id, current_user.id)
+
+        if is_approver:
+            # 如果是当前审批人，直接使用已获取的报销单（绕过常规权限检查）
+            pass
+        else:
+            # 否则使用常规权限检查
+            from app.utils.access_control import get_viewable_data
+            viewable_expense = get_viewable_data(Expense, current_user).filter(
+                Expense.id == expense_id
+            ).first()
+            if not viewable_expense:
+                return jsonify({
+                    'success': False,
+                    'message': '您没有权限查看此报销单的审批流程'
+                }), 403
         
         # 导入审批相关函数
         from app.helpers.approval_helpers import get_object_approval_instance, can_recall_approval, can_resubmit_approval

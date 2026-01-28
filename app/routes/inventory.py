@@ -5188,10 +5188,18 @@ def submit_order_approval_standard(object_id):
 def get_order_approval_flow_standard(object_id):
     """获取订单审批流程信息 - 标准化API"""
     try:
-        # 获取订单
-        from app.utils.access_control import get_viewable_data
-        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
-        order = viewable_orders.filter(PurchaseOrder.id == object_id).first_or_404()
+        # 检查订单访问权限 - 优先检查是否为当前审批人
+        from app.helpers.approval_helpers import is_current_approver
+        is_approver = is_current_approver('purchase_order', object_id, current_user.id)
+
+        if is_approver:
+            # 如果是当前审批人，直接获取订单（绕过常规权限检查）
+            order = PurchaseOrder.query.filter_by(id=object_id).first_or_404()
+        else:
+            # 否则使用常规权限检查
+            from app.utils.access_control import get_viewable_data
+            viewable_orders = get_viewable_data(PurchaseOrder, current_user)
+            order = viewable_orders.filter(PurchaseOrder.id == object_id).first_or_404()
         
         # 导入审批相关函数
         from app.helpers.approval_helpers import get_object_approval_instance
