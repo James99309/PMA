@@ -7367,12 +7367,12 @@ def check_universal_approval_permission(object_type, object_id, user_id, permiss
 def is_current_approver(object_type, object_id, user_id):
     """
     检查用户是否是当前审批步骤的审批人
-    
+
     Args:
-        object_type: 对象类型 
+        object_type: 对象类型
         object_id: 对象ID
         user_id: 用户ID
-        
+
     Returns:
         bool: 是否为当前审批人
     """
@@ -7381,22 +7381,23 @@ def is_current_approver(object_type, object_id, user_id):
         approval_instance = get_object_approval_instance(object_type, object_id)
         if not approval_instance or approval_instance.status != ApprovalStatus.PENDING:
             return False
-            
-        # 获取当前审批步骤
-        current_step = ApprovalStep.query.filter_by(id=approval_instance.current_step).first()
-        if not current_step:
+
+        # 🔥 修复：使用 get_current_step_info() 获取当前步骤
+        # current_step 字段可能存储 step_order 或 step_id，需要智能匹配
+        current_step_info = approval_instance.get_current_step_info()
+        if not current_step_info:
             return False
-            
+
         # 获取实际审批人
-        actual_approver = get_step_actual_approver(current_step, approval_instance)
+        actual_approver = get_step_actual_approver(current_step_info, approval_instance)
         if not actual_approver:
             return False
-            
+
         # 检查是否为当前审批人
         # get_step_actual_approver返回User对象，需要获取id
         approver_id = actual_approver.id if hasattr(actual_approver, 'id') else actual_approver.get('approver_id') if isinstance(actual_approver, dict) else None
         return approver_id == user_id
-        
+
     except Exception as e:
         current_app.logger.error(f"检查审批人权限失败: {str(e)}")
         return False
