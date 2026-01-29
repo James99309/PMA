@@ -571,6 +571,13 @@ def _get_approval_flow_impl(order_id):
 
             step_records = [r for r in records if r.step_id == step_id]
 
+            # 兜底：模板快照模式（动态生成的step_id写入记录时为NULL）
+            if not step_records and records:
+                approve_records = [r for r in records if r.action in ('approve', 'reject')]
+                if approve_records and all(r.step_id is None for r in approve_records):
+                    if step_order <= len(approve_records):
+                        step_records = [approve_records[step_order - 1]]
+
             # 获取审批人名称：优先使用快照中的名称，否则查询数据库
             if approver_real_name:
                 approver_name = approver_real_name

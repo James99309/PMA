@@ -4289,6 +4289,14 @@ def get_project_approval_flow(project_id):
             step_records = []
             if step.get('step_id'):
                 step_records = [r for r in records if r.step_id == step['step_id']]
+
+            # 兜底：模板快照模式（动态生成的step_id写入记录时为NULL）
+            if not step_records and records:
+                approve_records = [r for r in records if r.action in ('approve', 'reject')]
+                if approve_records and all(r.step_id is None for r in approve_records):
+                    step_order = step.get('step_order', i + 1)
+                    if step_order <= len(approve_records):
+                        step_records = [approve_records[step_order - 1]]
             
             stage_data = {
                 'id': step['step_id'],

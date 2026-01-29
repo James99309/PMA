@@ -3190,21 +3190,19 @@ def get_expense_approval_flow(expense_id):
             actual_approver = get_step_actual_approver(step, approval_instance)
             
             # 获取这个步骤的审批记录
-            # 优先通过step_id匹配，如果没有匹配到则通过审批者匹配
+            # 优先通过step_id匹配
             step_records = []
-            
+
             if step.get('step_id'):
-                # 尝试通过step_id匹配
                 step_records = [r for r in records if r.step_id == step['step_id']]
-            
-            # 注释掉错误的兜底逻辑，避免将其他审批流程的记录错误应用到当前步骤
-            # 这个逻辑会导致审批人在其他流程中的记录影响当前步骤的状态判断
-            # if not step_records and actual_approver:
-            #     approver_records = [r for r in records if r.approver_id == actual_approver.id]
-            #     if approver_records:
-            #         # 按时间排序，通常第一条记录对应该步骤
-            #         approver_records.sort(key=lambda x: x.timestamp)
-            #         step_records = [approver_records[0]]
+
+            # 兜底：模板快照模式（动态生成的step_id写入记录时为NULL）
+            if not step_records and records:
+                approve_records = [r for r in records if r.action in ('approve', 'reject')]
+                if approve_records and all(r.step_id is None for r in approve_records):
+                    step_order = step.get('step_order', i + 1)
+                    if step_order <= len(approve_records):
+                        step_records = [approve_records[step_order - 1]]
             
             stage_data = {
                 'id': step['step_id'],

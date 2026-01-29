@@ -1032,6 +1032,15 @@ def get_pricing_order_approval_flow(order_id):
             
             # 查找对应的审批记录
             step_record = next((r for r in approval_records if r.step_id == step['id']), None)
+
+            # 兜底：模板快照模式（动态生成的step_id写入记录时为NULL）
+            if not step_record and approval_records:
+                approve_records = [r for r in approval_records if r.action in ('approve', 'reject')]
+                if approve_records and all(r.step_id is None for r in approve_records):
+                    step_order = step['step_order']
+                    if step_order <= len(approve_records):
+                        step_record = approve_records[step_order - 1]
+
             if step_record:
                 # 🔍 调试：检查审批记录
                 
