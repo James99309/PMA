@@ -388,6 +388,19 @@ def get_next_level_approver(user):
                 current_app.logger.debug(f"找到部门分管人: {manager.username}")
                 return manager
 
+    # 如果用户是部门负责人，查找该部门的分管领导（通过 Department.manager_id）
+    if user.department and user.company_name and user.is_department_manager:
+        from app.models.expense import Department
+        dept = Department.query.filter_by(
+            name=user.department,
+            company_name=user.company_name
+        ).first()
+        if dept and dept.manager_id:
+            manager = User.query.get(dept.manager_id)
+            if manager and manager.id != user.id:
+                current_app.logger.debug(f"找到部门负责人的分管领导: {manager.username}")
+                return manager
+
     # 如果是部门负责人或没有找到部门负责人，上一级是总经理
     # 优先查找同企业的总经理
     if user.company_name:
