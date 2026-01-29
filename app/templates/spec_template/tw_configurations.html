@@ -582,10 +582,15 @@
     async function openEditConfigModal(configId) {
         try {
             const response = await fetch(`${API_BASE}/configurations/${configId}`);
+            if (!response.ok) {
+                const errData = await response.json().catch(() => null);
+                showToast(errData?.message || '{{ _("加载失败") }}', 'error');
+                return;
+            }
             const result = await response.json();
 
             if (!result.success) {
-                showToast('{{ _("加载失败") }}', 'error');
+                showToast(result.message || '{{ _("加载失败") }}', 'error');
                 return;
             }
 

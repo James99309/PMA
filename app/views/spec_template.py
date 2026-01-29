@@ -1166,22 +1166,29 @@ def api_create_configuration(template_id):
 @permission_required('product_code', 'view')
 def api_get_configuration(config_id):
     """API: 获取配置版本详情"""
-    config = ProductConfiguration.query.get_or_404(config_id)
+    try:
+        config = ProductConfiguration.query.get_or_404(config_id)
 
-    # 获取配置值
-    config_data = config.to_dict()
-    config_data['values'] = {}
-    for cv in config.config_values:
-        config_data['values'][cv.template_item_id] = {
-            'id': cv.id,
-            'value': cv.value,
-            'notes': cv.notes
-        }
+        # 获取配置值
+        config_data = config.to_dict()
+        config_data['values'] = {}
+        for cv in config.config_values:
+            config_data['values'][cv.template_item_id] = {
+                'id': cv.id,
+                'value': cv.value,
+                'notes': cv.notes
+            }
 
-    return jsonify({
-        'success': True,
-        'data': config_data
-    })
+        return jsonify({
+            'success': True,
+            'data': config_data
+        })
+    except Exception as e:
+        logger.error(f"获取配置版本详情失败 (config_id={config_id}): {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'获取配置版本详情失败: {str(e)}'
+        }), 500
 
 
 @spec_template_bp.route('/api/configurations/<int:config_id>', methods=['PUT'])

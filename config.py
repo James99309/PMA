@@ -46,7 +46,7 @@ class Config:
     """基础配置类 - 支持动态数据库配置"""
 
     # 统一版本号（所有环境共用，基于代码而非数据库）
-    APP_VERSION = '1.21.27'
+    APP_VERSION = '1.21.28'
 
     # 基本配置
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'local-development-secret-key-pma-2025'
