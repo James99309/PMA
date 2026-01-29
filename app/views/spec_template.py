@@ -1173,6 +1173,8 @@ def api_get_configuration(config_id):
         config_data = config.to_dict()
         config_data['values'] = {}
         for cv in config.config_values:
+            if cv.template_item_id is None:
+                continue
             config_data['values'][cv.template_item_id] = {
                 'id': cv.id,
                 'value': cv.value,
