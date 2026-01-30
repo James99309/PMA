@@ -225,10 +225,103 @@
             <!-- FORCE_RENDER: mode_direct={{ mode }}, rendered_input_id={{ 'edit_editable_fields_input' if mode == 'edit' else 'editable_fields_input' }} -->
           </div>
           
+          {# 执行条件配置 #}
+          <div class="form-group mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox"
+                     id="{{ 'edit_' if is_edit else '' }}execution_condition_enabled"
+                     onchange="handleExecutionConditionToggle('{{ 'edit_' if is_edit else '' }}')">
+              <label class="form-check-label" for="{{ 'edit_' if is_edit else '' }}execution_condition_enabled">
+                设置执行条件
+              </label>
+            </div>
+            <small class="form-text text-muted">不设置条件时，此步骤将无条件执行</small>
+          </div>
+
+          {# 隐藏字段存储序列化JSON - 放在 section 外部确保始终可提交 #}
+          <input type="hidden" id="{{ 'edit_' if is_edit else '' }}execution_condition_json"
+                 name="{{ 'edit_' if is_edit else '' }}execution_condition_json" value="">
+
+          <div id="{{ 'edit_' if is_edit else '' }}executionConditionSection" style="display: none;">
+            <div class="card border-warning mb-3">
+              <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0"><i class="fas fa-filter mr-2"></i>执行条件配置</h6>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-4">
+                    <label for="{{ 'edit_' if is_edit else '' }}exec_cond_field">条件字段 <span class="text-danger">*</span></label>
+                    <select class="form-control" id="{{ 'edit_' if is_edit else '' }}exec_cond_field"
+                            onchange="updateExecutionConditionJson('{{ 'edit_' if is_edit else '' }}')">
+                      <option value="">请选择字段</option>
+                      {% if template and get_object_field_options %}
+                        {% set field_options = get_object_field_options(template.object_type) %}
+                        {% if field_options %}
+                          {% if field_options is mapping and 'master' in field_options %}
+                            <optgroup label="主记录字段">
+                              {% for field_code, field_name in field_options.master %}
+                                <option value="{{ field_code }}">{{ field_name }}</option>
+                              {% endfor %}
+                            </optgroup>
+                            {% if field_options.detail %}
+                            <optgroup label="明细字段">
+                              {% for field_code, field_name in field_options.detail %}
+                                <option value="{{ field_code }}">{{ field_name }}</option>
+                              {% endfor %}
+                            </optgroup>
+                            {% endif %}
+                          {% else %}
+                            {% for field_code, field_name in field_options %}
+                              <option value="{{ field_code }}">{{ field_name }}</option>
+                            {% endfor %}
+                          {% endif %}
+                        {% endif %}
+                      {% endif %}
+                    </select>
+                  </div>
+                  <div class="col-md-4">
+                    <label for="{{ 'edit_' if is_edit else '' }}exec_cond_operator">运算符 <span class="text-danger">*</span></label>
+                    <select class="form-control" id="{{ 'edit_' if is_edit else '' }}exec_cond_operator"
+                            onchange="updateExecutionConditionJson('{{ 'edit_' if is_edit else '' }}')">
+                      <optgroup label="基本比较">
+                        <option value="equals">等于</option>
+                        <option value="not_equals">不等于</option>
+                      </optgroup>
+                      <optgroup label="数值比较">
+                        <option value="greater_than">大于</option>
+                        <option value="less_than">小于</option>
+                        <option value="greater_equal">大于等于</option>
+                        <option value="less_equal">小于等于</option>
+                      </optgroup>
+                      <optgroup label="文本匹配">
+                        <option value="contains">包含</option>
+                        <option value="not_contains">不包含</option>
+                      </optgroup>
+                      <optgroup label="空值判断">
+                        <option value="is_null">为空</option>
+                        <option value="is_not_null">不为空</option>
+                      </optgroup>
+                    </select>
+                  </div>
+                  <div class="col-md-4">
+                    <label for="{{ 'edit_' if is_edit else '' }}exec_cond_value">比较值</label>
+                    <input type="text" class="form-control" id="{{ 'edit_' if is_edit else '' }}exec_cond_value"
+                           placeholder="请输入比较值"
+                           oninput="updateExecutionConditionJson('{{ 'edit_' if is_edit else '' }}')">
+                  </div>
+                </div>
+                <div class="alert alert-warning mt-3 mb-0">
+                  <i class="fas fa-info-circle"></i>
+                  <small>当条件满足时执行此步骤，否则自动跳过。金额字段以分为单位。</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {# 邮件通知设置 #}
           <div class="form-group mb-3">
             <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="{{ 'edit_' if is_edit else '' }}send_email" 
+              <input class="form-check-input" type="checkbox" id="{{ 'edit_' if is_edit else '' }}send_email"
                      name="send_email" value="true" checked>
               <label class="form-check-label" for="{{ 'edit_' if is_edit else '' }}send_email">
                 发送邮件通知

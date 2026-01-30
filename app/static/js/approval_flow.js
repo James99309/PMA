@@ -248,7 +248,8 @@ class ApprovalFlow {
         const isCurrent = stage.stage_order === currentStage;
         const isCompleted = stage.status === 'approved';
         const isRejected = stage.status === 'rejected';
-        const isPending = !isCompleted && !isCurrent && !isRejected;
+        const isSkipped = stage.status === 'skipped';
+        const isPending = !isCompleted && !isCurrent && !isRejected && !isSkipped;
 
         // 可审批状态
         if (!isRecalled && isCurrent && canApprove) {
@@ -268,7 +269,7 @@ class ApprovalFlow {
             leftLine.style.width = '50%';
 
             // 判断左边线条颜色
-            if (isCompleted || isCurrent) {
+            if (isCompleted || isCurrent || isSkipped) {
                 leftLine.classList.add('completed');
             } else {
                 leftLine.classList.add('pending');
@@ -284,7 +285,7 @@ class ApprovalFlow {
             rightLine.style.width = '50%';
 
             // 判断右边线条颜色
-            if (isCompleted) {
+            if (isCompleted || isSkipped) {
                 rightLine.classList.add('completed');
             } else {
                 rightLine.classList.add('pending');
@@ -301,6 +302,7 @@ class ApprovalFlow {
 
     // 创建Tailwind模式的圆圈元素
     createTwCircleElement(stage, isCurrent, isCompleted, isRejected, isPending, canApprove, isRecalled) {
+        const isSkipped = stage.status === 'skipped';
         const circleDiv = document.createElement('div');
         circleDiv.className = 'tw-stage-circle';
 
@@ -316,6 +318,10 @@ class ApprovalFlow {
                 circleDiv.classList.add('recalled-inactive');
                 iconSpan.textContent = isCompleted ? 'check' : 'schedule';
             }
+        } else if (isSkipped) {
+            circleDiv.classList.add('pending');
+            circleDiv.style.opacity = '0.5';
+            iconSpan.textContent = 'skip_next';
         } else if (isCompleted) {
             circleDiv.classList.add('completed', 'ring-completed');
             iconSpan.textContent = 'check';
@@ -414,7 +420,11 @@ class ApprovalFlow {
         const dateDiv = document.createElement('p');
         dateDiv.className = 'tw-stage-date';
 
-        if (stage.status === 'approved' || stage.status === 'rejected') {
+        if (stage.status === 'skipped') {
+            dateDiv.textContent = '已跳过';
+            dateDiv.style.color = '#999';
+            dateDiv.style.fontStyle = 'italic';
+        } else if (stage.status === 'approved' || stage.status === 'rejected') {
             if (stage.processed_at) {
                 const processedDate = new Date(stage.processed_at);
                 dateDiv.textContent = `${window.approvalFlowI18n?.processed || '处理: '}${processedDate.toLocaleDateString()}`;
@@ -535,6 +545,10 @@ class ApprovalFlow {
             } else {
                 circleDiv.innerHTML = '<i class="fas fa-times"></i>';
             }
+        } else if (stage.status === 'skipped') {
+            circleDiv.classList.add('pending');
+            circleDiv.style.opacity = '0.5';
+            circleDiv.innerHTML = '<i class="fas fa-forward"></i>';
         } else if (stage.status === 'waiting' || stage.status === 'pending') {
             circleDiv.classList.add('pending');
             // 等待状态下，支付步骤和普通步骤都显示相同的灰色样式

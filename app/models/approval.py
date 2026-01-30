@@ -131,6 +131,9 @@ class ApprovalStep(db.Model):
     # 分支步骤支持
     step_type = db.Column(db.String(20), default='normal', comment="步骤类型：normal(常规) 或 branch(分支)")
     branch_condition = db.Column(db.JSON, nullable=True, comment="分支条件配置（兼容性保留，新版使用独立表）")
+
+    # 步骤执行条件
+    execution_condition = db.Column(db.JSON, nullable=True, comment="步骤执行条件：满足条件时才执行此步骤，为空则无条件执行")
     
     # 废弃字段：复杂并行分支功能已简化，以下字段保留但不再使用
     parent_step_id = db.Column(db.Integer, db.ForeignKey("approval_step.id"), nullable=True, comment="[废弃] 上级步骤ID，用于并行分支")
@@ -188,6 +191,7 @@ class ApprovalStep(db.Model):
         step.step_type = snapshot_data.get('step_type', 'normal')
         step.branch_condition = snapshot_data.get('branch_condition')
         step.action_params = snapshot_data.get('action_params')
+        step.execution_condition = snapshot_data.get('execution_condition')
         step.process_id = process_id or snapshot_data.get('process_id')
 
         return step
@@ -195,8 +199,30 @@ class ApprovalStep(db.Model):
     def is_branch_step(self):
         """判断是否为分支步骤"""
         return self.step_type == 'branch'
-    
-    
+
+    def evaluate_execution_condition(self, target_object):
+        """评估步骤执行条件，决定是否需要执行此步骤
+
+        Returns:
+            True  → 条件满足，执行此步骤
+            False → 条件不满足，跳过此步骤
+            None  → 无条件（未设置条件），正常执行
+        """
+        condition = self.execution_condition
+        if not condition or not isinstance(condition, dict):
+            return None  # 无条件，正常执行
+
+        field = condition.get('field')
+        operator = condition.get('operator')
+        value = condition.get('value')
+
+        if not field or not operator:
+            return None  # 配置不完整，视为无条件
+
+        # 复用已有的字段值获取和条件评估方法
+        object_value = self._get_object_field_value(target_object, field)
+        return self._evaluate_condition(object_value, operator, value)
+
     def get_branch_conditions(self):
         """获取分支条件 - 统一使用新表数据"""
         from app.models.approval_branch_condition import ApprovalBranchCondition

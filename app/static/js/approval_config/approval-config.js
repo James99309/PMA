@@ -82,17 +82,52 @@ class ApprovalConfigManager {
                 return; // 停止提交，等待用户处理冲突
             }
             
-            // 获取表单数据
+            // === 提交前同步：确保所有隐藏字段的DOM值与UI状态一致 ===
+            // 注意：必须在 new FormData(form) 之前完成同步
+
+            // 同步可编辑字段
+            const editableFieldsInput = form.querySelector('input[name="editable_fields"]') ||
+                                       form.querySelector('#editable_fields_input') ||
+                                       form.querySelector('#edit_editable_fields_input');
+            if (editableFieldsInput) {
+                const isEditMode = editableFieldsInput.id.includes('edit_');
+                const currentFields = isEditMode ? this.editSelectedFields : this.selectedFields;
+                const expectedValue = JSON.stringify(currentFields);
+
+                if (editableFieldsInput.value !== expectedValue) {
+                    console.warn('⚠️ [提交前修复] 可编辑字段隐藏字段值不同步，正在更新');
+                    editableFieldsInput.value = expectedValue;
+                    console.log('✅ [提交前修复] 可编辑字段隐藏字段已更新为:', expectedValue);
+                }
+            } else {
+                console.warn('⚠️ [提交前验证] 未找到可编辑字段隐藏输入框');
+            }
+
+            // 同步执行条件隐藏字段
+            const execCondInput = form.querySelector('input[name="execution_condition_json"]') ||
+                                  form.querySelector('input[name="edit_execution_condition_json"]');
+            if (execCondInput) {
+                const execPrefix = execCondInput.name.startsWith('edit_') ? 'edit_' : '';
+                const execCheckbox = document.getElementById(execPrefix + 'execution_condition_enabled');
+                if (execCheckbox && execCheckbox.checked) {
+                    window.updateExecutionConditionJson(execPrefix);
+                    console.log('✅ [提交前同步] execution_condition_json:', execCondInput.value);
+                } else {
+                    execCondInput.value = '';
+                    console.log('✅ [提交前同步] 执行条件未启用，清空隐藏字段');
+                }
+            }
+
+            // === 获取表单数据（同步完成后才捕获快照） ===
             const formData = new FormData(form);
-            
+
             // 🔍 调试：详细记录表单数据
             console.log('📋 表单元素数量:', form.elements.length);
-            
+
             // 记录所有表单字段
             const formDataEntries = {};
             for (let [key, value] of formData.entries()) {
                 if (formDataEntries[key]) {
-                    // 如果键已存在，转换为数组
                     if (Array.isArray(formDataEntries[key])) {
                         formDataEntries[key].push(value);
                     } else {
@@ -103,27 +138,7 @@ class ApprovalConfigManager {
                 }
             }
             console.log('📋 表单数据详情:', formDataEntries);
-            
-            // 特别关注可编辑字段相关数据 - 增强验证和同步
-            const editableFieldsInput = form.querySelector('input[name="editable_fields"]') || 
-                                       form.querySelector('#editable_fields_input') ||
-                                       form.querySelector('#edit_editable_fields_input');
-            if (editableFieldsInput) {
-                // 🔍 表单提交前确保可编辑字段数据同步
-                const isEditMode = editableFieldsInput.id.includes('edit_');
-                const currentFields = isEditMode ? this.editSelectedFields : this.selectedFields;
-                const expectedValue = JSON.stringify(currentFields);
 
-                // 如果不同步，更新隐藏字段值
-                if (editableFieldsInput.value !== expectedValue) {
-                    console.warn('⚠️ [提交前修复] 隐藏字段值不同步，正在更新');
-                    editableFieldsInput.value = expectedValue;
-                    console.log('✅ [提交前修复] 隐藏字段已更新为:', expectedValue);
-                }
-            } else {
-                console.warn('⚠️ [提交前验证] 未找到可编辑字段隐藏输入框');
-            }
-            
             // 特别关注动作类型
             const actionTypeInput = form.querySelector('select[name="action_type"]') ||
                                    form.querySelector('#action_type') ||
@@ -1414,6 +1429,47 @@ class ApprovalConfigManager {
             });
             // 调用更新徽章函数显示已选用户
             this.updateCcUserBadges('edit_');
+        }
+
+        // 处理执行条件回填
+        this.populateExecutionCondition(modal, stepData.execution_condition, 'edit_');
+    }
+
+    /**
+     * 填充执行条件数据
+     * @param {Element} modal - 模态框元素
+     * @param {Object|null} executionCondition - 执行条件数据
+     * @param {string} prefix - 字段前缀 ('edit_' 或 '')
+     */
+    populateExecutionCondition(modal, executionCondition, prefix = '') {
+        const checkbox = modal.querySelector(`#${prefix}execution_condition_enabled`);
+        const section = modal.querySelector(`#${prefix}executionConditionSection`);
+        const fieldSelect = modal.querySelector(`#${prefix}exec_cond_field`);
+        const operatorSelect = modal.querySelector(`#${prefix}exec_cond_operator`);
+        const valueInput = modal.querySelector(`#${prefix}exec_cond_value`);
+        const hiddenInput = modal.querySelector(`#${prefix}execution_condition_json`);
+
+        if (!checkbox || !section) return;
+
+        if (executionCondition && typeof executionCondition === 'object' &&
+            executionCondition.field && executionCondition.operator) {
+            // 有执行条件 → 勾选并展开
+            checkbox.checked = true;
+            section.style.display = 'block';
+
+            if (fieldSelect) fieldSelect.value = executionCondition.field;
+            if (operatorSelect) operatorSelect.value = executionCondition.operator;
+            if (valueInput) valueInput.value = executionCondition.value || '';
+            if (hiddenInput) hiddenInput.value = JSON.stringify(executionCondition);
+        } else {
+            // 无执行条件 → 取消勾选并隐藏
+            checkbox.checked = false;
+            section.style.display = 'none';
+
+            if (fieldSelect) fieldSelect.value = '';
+            if (operatorSelect) operatorSelect.selectedIndex = 0;
+            if (valueInput) valueInput.value = '';
+            if (hiddenInput) hiddenInput.value = '';
         }
     }
 
@@ -3069,6 +3125,24 @@ class ApprovalConfigManager {
             editCcEnabledCheckbox.checked = false;
         }
 
+        // 重置执行条件区域
+        const editExecCondCheckbox = modal.querySelector('#edit_execution_condition_enabled');
+        if (editExecCondCheckbox) {
+            editExecCondCheckbox.checked = false;
+        }
+        const editExecCondSection = modal.querySelector('#edit_executionConditionSection');
+        if (editExecCondSection) {
+            editExecCondSection.style.display = 'none';
+        }
+        const editExecCondField = modal.querySelector('#edit_exec_cond_field');
+        if (editExecCondField) editExecCondField.value = '';
+        const editExecCondOperator = modal.querySelector('#edit_exec_cond_operator');
+        if (editExecCondOperator) editExecCondOperator.selectedIndex = 0;
+        const editExecCondValue = modal.querySelector('#edit_exec_cond_value');
+        if (editExecCondValue) editExecCondValue.value = '';
+        const editExecCondJson = modal.querySelector('#edit_execution_condition_json');
+        if (editExecCondJson) editExecCondJson.value = '';
+
         // 重置分支条件相关字段（复用resetAddStepModal的完善逻辑）
         const editBranchValueContainer = modal.querySelector('#edit_branchValueContainer');
         if (editBranchValueContainer) {
@@ -3419,6 +3493,57 @@ window.removeFieldBadge = function(fieldCode) {
 window.removeEditFieldBadge = function(fieldCode) {
     if (window.approvalConfig) {
         window.approvalConfig.removeEditFieldBadge(fieldCode);
+    }
+};
+
+// 全局执行条件开关处理函数
+window.handleExecutionConditionToggle = function(prefix) {
+    prefix = prefix || '';
+    const checkbox = document.getElementById(prefix + 'execution_condition_enabled');
+    const section = document.getElementById(prefix + 'executionConditionSection');
+
+    if (!checkbox || !section) return;
+
+    if (checkbox.checked) {
+        section.style.display = 'block';
+    } else {
+        section.style.display = 'none';
+        // 清空隐藏字段
+        const hiddenInput = document.getElementById(prefix + 'execution_condition_json');
+        if (hiddenInput) hiddenInput.value = '';
+        // 重置选择
+        const fieldSelect = document.getElementById(prefix + 'exec_cond_field');
+        const operatorSelect = document.getElementById(prefix + 'exec_cond_operator');
+        const valueInput = document.getElementById(prefix + 'exec_cond_value');
+        if (fieldSelect) fieldSelect.value = '';
+        if (operatorSelect) operatorSelect.selectedIndex = 0;
+        if (valueInput) valueInput.value = '';
+    }
+};
+
+// 全局执行条件JSON序列化函数
+window.updateExecutionConditionJson = function(prefix) {
+    prefix = prefix || '';
+    const fieldSelect = document.getElementById(prefix + 'exec_cond_field');
+    const operatorSelect = document.getElementById(prefix + 'exec_cond_operator');
+    const valueInput = document.getElementById(prefix + 'exec_cond_value');
+    const hiddenInput = document.getElementById(prefix + 'execution_condition_json');
+
+    if (!hiddenInput) return;
+
+    const field = fieldSelect ? fieldSelect.value : '';
+    const operator = operatorSelect ? operatorSelect.value : '';
+    const value = valueInput ? valueInput.value : '';
+
+    if (field && operator) {
+        const condition = {
+            field: field,
+            operator: operator,
+            value: value
+        };
+        hiddenInput.value = JSON.stringify(condition);
+    } else {
+        hiddenInput.value = '';
     }
 };
 

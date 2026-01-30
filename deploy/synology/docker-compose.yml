@@ -66,6 +66,9 @@ services:
       SYNOLOGY_WEBDAV_PATH: ${SYNOLOGY_WEBDAV_PATH:-/pma-files}
       SYNOLOGY_WEBDAV_VERIFY_SSL: "false"
 
+      # 外部 API Key（供 Stargirl 等外部系统调用员工接口）
+      EXTERNAL_API_KEY: ${EXTERNAL_API_KEY:-stargirl-pma-integration-2024}
+
       # Supabase 备份配置（当前禁用，仅使用 NAS）
       NAS_SYNC_TO_SUPABASE: "false"
       NAS_FALLBACK_TO_SUPABASE: "false"

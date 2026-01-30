@@ -4315,13 +4315,22 @@ def get_project_approval_flow(project_id):
             # 处理审批记录
             if step_records:
                 latest_record = step_records[-1]
-                stage_data.update({
-                    'status': 'approved' if latest_record.action == 'approve' else 'rejected',
-                    'completed_time': latest_record.timestamp.isoformat(),
-                    'comment': latest_record.comment,
-                    'action': latest_record.action,
-                    'arrived_at': latest_record.timestamp.isoformat()
-                })
+                if latest_record.action == 'skipped':
+                    # 跳过的步骤
+                    stage_data.update({
+                        'status': 'skipped',
+                        'comment': latest_record.comment or '条件不满足，自动跳过',
+                        'action': 'skipped',
+                        'completed_time': latest_record.timestamp.isoformat() if latest_record.timestamp else None
+                    })
+                else:
+                    stage_data.update({
+                        'status': 'approved' if latest_record.action == 'approve' else 'rejected',
+                        'completed_time': latest_record.timestamp.isoformat(),
+                        'comment': latest_record.comment,
+                        'action': latest_record.action,
+                        'arrived_at': latest_record.timestamp.isoformat()
+                    })
             elif step['step_order'] == current_step_order:
                 # 🔥 修复：使用 step_order 匹配当前步骤
                 stage_data['status'] = 'current'

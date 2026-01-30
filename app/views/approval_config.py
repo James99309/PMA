@@ -531,7 +531,8 @@ def add_step():
         branch_group_id=branch_group_id,
         branch_level=default_params['branch_level'],
         parent_step_id=default_params['parent_step_id'],
-        is_parallel=default_params['is_parallel']
+        is_parallel=default_params['is_parallel'],
+        execution_condition=additional_fields.get('execution_condition')
     )
     
     # 更新动作类型并提交
@@ -1159,7 +1160,8 @@ def get_step_data(step_id):
             'cc_enabled': step.cc_enabled or False,
             'approver_user_id': step.approver_user_id,
             'approver_type': step.approver_type or 'user',
-            'action_type': step.action_type or ''
+            'action_type': step.action_type or '',
+            'execution_condition': step.execution_condition
         }
         
         return jsonify({

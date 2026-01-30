@@ -601,17 +601,23 @@ def _get_approval_flow_impl(order_id):
             # 确定步骤状态
             if step_records:
                 last_record = step_records[-1]
-                stage_info['status'] = 'approved' if last_record.action == 'approve' else 'rejected'
-                # 添加完成时间（供前端时间线显示）
-                stage_info['completed_time'] = last_record.timestamp.strftime('%Y-%m-%d %H:%M') if last_record.timestamp else None
-                # 添加审批意见
-                stage_info['comment'] = last_record.comment
-                stage_info['records'] = [{
-                    'action': r.action,
-                    'comment': r.comment,
-                    'timestamp': r.timestamp.strftime('%Y-%m-%d %H:%M') if r.timestamp else '',
-                    'approver_name': User.query.get(r.approver_id).real_name if r.approver_id else ''
-                } for r in step_records]
+                if last_record.action == 'skipped':
+                    # 跳过的步骤
+                    stage_info['status'] = 'skipped'
+                    stage_info['comment'] = last_record.comment or '条件不满足，自动跳过'
+                    stage_info['completed_time'] = last_record.timestamp.strftime('%Y-%m-%d %H:%M') if last_record.timestamp else None
+                else:
+                    stage_info['status'] = 'approved' if last_record.action == 'approve' else 'rejected'
+                    # 添加完成时间（供前端时间线显示）
+                    stage_info['completed_time'] = last_record.timestamp.strftime('%Y-%m-%d %H:%M') if last_record.timestamp else None
+                    # 添加审批意见
+                    stage_info['comment'] = last_record.comment
+                    stage_info['records'] = [{
+                        'action': r.action,
+                        'comment': r.comment,
+                        'timestamp': r.timestamp.strftime('%Y-%m-%d %H:%M') if r.timestamp else '',
+                        'approver_name': User.query.get(r.approver_id).real_name if r.approver_id else ''
+                    } for r in step_records]
             elif current_step_order == step_order:
                 # 🔥 修复：使用已计算的 current_step_order（已兼容 step_id 和 step_order）
                 stage_info['status'] = 'current'

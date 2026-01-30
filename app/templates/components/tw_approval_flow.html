@@ -329,7 +329,8 @@ window.{{ namespace }} = window.{{ namespace }} || {};
             if (index === 0) {
                 stage.prev_completed = true;
             } else {
-                stage.prev_completed = flowData.stages[index - 1].status === 'approved';
+                const prevStatus = flowData.stages[index - 1].status;
+                stage.prev_completed = (prevStatus === 'approved' || prevStatus === 'skipped');
             }
             html += renderStageNode(stage, flowData);
         });
@@ -383,13 +384,17 @@ window.{{ namespace }} = window.{{ namespace }} || {};
         const isCurrent = stage.status === 'current';
         const isPending = stage.status === 'pending';
         const isRejected = stage.status === 'rejected';
+        const isSkipped = stage.status === 'skipped';
 
         // 圆圈样式
         let circleClass = '';
         let circleIcon = '';
         let animationClass = '';
 
-        if (isCompleted) {
+        if (isSkipped) {
+            circleClass = 'bg-slate-300 dark:bg-slate-500';
+            circleIcon = '<span class="material-symbols-outlined text-white text-xs">skip_next</span>';
+        } else if (isCompleted) {
             circleClass = 'bg-green-500';
             circleIcon = '<span class="material-symbols-outlined text-white text-xs">check</span>';
         } else if (isCurrent) {
@@ -407,7 +412,10 @@ window.{{ namespace }} = window.{{ namespace }} || {};
         // 状态文字
         let statusText = '';
         let statusClass = '';
-        if (isCompleted) {
+        if (isSkipped) {
+            statusText = '{{ _("已跳过") }}';
+            statusClass = 'text-slate-400 dark:text-slate-500';
+        } else if (isCompleted) {
             statusText = i18n.approved;
             statusClass = 'text-green-600 dark:text-green-400';
         } else if (isCurrent) {
@@ -430,6 +438,10 @@ window.{{ namespace }} = window.{{ namespace }} || {};
         if (stage.comment && (isCompleted || isRejected)) {
             commentHtml = `
                 <div class="text-xs text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded ml-2 border border-slate-200 dark:border-slate-700">"${stage.comment}"</div>
+            `;
+        } else if (isSkipped && stage.comment) {
+            commentHtml = `
+                <div class="text-xs text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded ml-2 border border-slate-200 dark:border-slate-700 italic">${stage.comment}</div>
             `;
         }
 
@@ -468,12 +480,12 @@ window.{{ namespace }} = window.{{ namespace }} || {};
         }
 
         // 节点透明度
-        const opacityClass = isPending ? 'opacity-50' : '';
+        const opacityClass = isPending ? 'opacity-50' : (isSkipped ? 'opacity-60' : '');
         const isLast = stage.is_last || false;
 
         // 连接线颜色
-        const lineDownColor = isCompleted ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-700';
-        const lineUpColor = stage.prev_completed ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-700';
+        const lineDownColor = (isCompleted || isSkipped) ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-700';
+        const lineUpColor = (stage.prev_completed || stage.prev_skipped) ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-700';
 
         // 下连线样式：最后一个节点需要延伸更长以连接容器padding外的节点
         const lineDownClass = isLast
@@ -484,7 +496,9 @@ window.{{ namespace }} = window.{{ namespace }} || {};
 
         // 徽章样式
         let badgeClass = '';
-        if (isCompleted) {
+        if (isSkipped) {
+            badgeClass = 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 line-through';
+        } else if (isCompleted) {
             badgeClass = 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300';
         } else if (isCurrent) {
             badgeClass = 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300';

@@ -2557,9 +2557,9 @@ def delete_approval_template(template_id):
         }
 
 
-def add_approval_step(template_id, step_name, approver_id, send_email=True, editable_fields=None, cc_users=None, cc_enabled=False, approver_type='user', step_type='normal', branch_condition=None, parent_step_id=None, is_parallel=False, branch_group_id=None, branch_level=0, branch_path=None, merge_step_id=None):
+def add_approval_step(template_id, step_name, approver_id, send_email=True, editable_fields=None, cc_users=None, cc_enabled=False, approver_type='user', step_type='normal', branch_condition=None, parent_step_id=None, is_parallel=False, branch_group_id=None, branch_level=0, branch_path=None, merge_step_id=None, execution_condition=None):
     """添加审批步骤
-    
+
     Args:
         template_id: 模板ID
         step_name: 步骤名称
@@ -2573,7 +2573,8 @@ def add_approval_step(template_id, step_name, approver_id, send_email=True, edit
         branch_condition: 分支条件配置
         parent_step_id: 上级步骤ID（用于并行分支）
         is_parallel: 是否为并行分支
-        
+        execution_condition: 步骤执行条件（JSON），满足条件时才执行此步骤
+
     Returns:
         新创建的步骤对象，如果模板不存在则返回None
     """
@@ -2612,7 +2613,8 @@ def add_approval_step(template_id, step_name, approver_id, send_email=True, edit
         branch_group_id=branch_group_id,
         branch_level=branch_level,
         branch_path=branch_path,
-        merge_step_id=merge_step_id
+        merge_step_id=merge_step_id,
+        execution_condition=execution_condition
     )
     
     db.session.add(step)
@@ -2621,7 +2623,7 @@ def add_approval_step(template_id, step_name, approver_id, send_email=True, edit
     return step
 
 
-def update_approval_step(step_id, step_name=None, approver_id=None, send_email=None, editable_fields=None, cc_users=None, cc_enabled=None, update_approver=False, approver_type=None):
+def update_approval_step(step_id, step_name=None, approver_id=None, send_email=None, editable_fields=None, cc_users=None, cc_enabled=None, update_approver=False, approver_type=None, execution_condition=None):
     """更新审批步骤
     
     Args:
@@ -2665,9 +2667,12 @@ def update_approval_step(step_id, step_name=None, approver_id=None, send_email=N
         
     if cc_enabled is not None:
         step.cc_enabled = cc_enabled
-    
+
+    if execution_condition is not None:
+        step.execution_condition = execution_condition
+
     db.session.commit()
-    
+
     return step
 
 
@@ -3283,7 +3288,8 @@ def start_approval_process(object_type, object_id, template_id, user_id=None, au
                 'editable_fields': step.editable_fields or [],
                 'cc_users': step.cc_users or [],
                 'cc_enabled': step.cc_enabled,
-                'branch_condition': branch_condition  # 🔥 关键修复：使用完整的分支条件数据
+                'branch_condition': branch_condition,  # 🔥 关键修复：使用完整的分支条件数据
+                'execution_condition': step.execution_condition  # 步骤执行条件
             }
             
             template_snapshot['steps'].append(step_data)
@@ -3514,8 +3520,30 @@ def start_approval_process(object_type, object_id, template_id, user_id=None, au
 
         current_app.logger.info(f"成功发起审批流程: {object_type}:{object_id}, 模板ID: {template_id}, 实例ID: {instance.id}")
 
+        # 检查第一步的执行条件，如果不满足则跳过到下一个可执行步骤
+        all_steps = instance.get_steps()
+        first_step = all_steps[0] if all_steps else None
+        if first_step:
+            target_object = _get_target_object_by_type(instance)
+            should_execute = _check_step_execution_condition(first_step, target_object)
+            if should_execute is False:
+                # 第一步条件不满足，跳过并寻找下一个可执行步骤
+                _create_skip_record(instance, first_step)
+                next_executable = _advance_to_next_executable_step(instance, 0, all_steps, target_object)
+                if next_executable:
+                    next_order = next_executable.get('step_order') if isinstance(next_executable, dict) else next_executable.step_order
+                    instance.current_step = next_order
+                    first_step = next_executable  # 更新 first_step 为实际通知的步骤
+                    current_app.logger.info(f"第一步执行条件不满足，跳过到步骤 {next_order}")
+                else:
+                    # 所有步骤都不满足条件，直接完成
+                    instance.status = ApprovalStatus.APPROVED
+                    instance.ended_at = datetime.now()
+                    current_app.logger.info(f"所有步骤执行条件均不满足，审批流程自动完成")
+                    first_step = None  # 不需要通知
+                db.session.flush()
+
         # 通知第一步审批人（站内消息）
-        first_step = instance.get_steps()[0] if instance.get_steps() else None
         if first_step:
             from app.services.approval_message_service import ApprovalMessageService
             ApprovalMessageService.send_approval_notification(instance, first_step, actual_approver=get_step_actual_approver(first_step, instance))
@@ -3890,24 +3918,10 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
                 current_app.logger.error(f"无法从当前步骤获取step_order，审批失败")
                 return False
 
-            next_step_order = current_step_order + 1
-            next_step = None
-            
-            # 从模板快照中查找下一步骤
+            # 从模板快照中查找下一步骤（支持执行条件跳过）
             steps = instance.get_steps()
-            if isinstance(steps, list) and len(steps) > 0:
-                if isinstance(steps[0], dict):
-                    # 快照数据（字典列表）
-                    for step in steps:
-                        if step.get('step_order') == next_step_order:
-                            next_step = step
-                            break
-                else:
-                    # 模型对象列表（兼容模式）
-                    for step in steps:
-                        if step.step_order == next_step_order:
-                            next_step = step
-                            break
+            target_object = _get_target_object_by_type(instance)
+            next_step = _advance_to_next_executable_step(instance, current_step_order, steps, target_object)
 
 
             # ============================================================
@@ -4078,6 +4092,113 @@ def _handle_project_authorization(instance, project_type, preview_only=False, br
     except Exception as e:
         current_app.logger.error(f"处理项目授权失败: {project.id}, 错误: {str(e)}")
         return None
+
+
+def _check_step_execution_condition(step, target_object):
+    """检查步骤的执行条件
+
+    Args:
+        step: 步骤对象（ApprovalStep对象或快照字典）
+        target_object: 目标业务对象
+
+    Returns:
+        True  → 条件满足，执行此步骤
+        False → 条件不满足，跳过此步骤
+        None  → 无条件（未设置条件），正常执行
+    """
+    if isinstance(step, dict):
+        condition = step.get('execution_condition')
+    else:
+        condition = getattr(step, 'execution_condition', None)
+
+    if not condition or not isinstance(condition, dict):
+        return None  # 无条件
+
+    # 创建临时 ApprovalStep 对象以复用评估逻辑
+    temp_step = ApprovalStep.from_snapshot(step) if isinstance(step, dict) else step
+    if temp_step is None:
+        return None
+    return temp_step.evaluate_execution_condition(target_object)
+
+
+def _create_skip_record(instance, step, reason="条件不满足，自动跳过"):
+    """为跳过的步骤创建审批记录
+
+    Args:
+        instance: 审批实例对象
+        step: 步骤对象（ApprovalStep对象或快照字典）
+        reason: 跳过原因
+
+    注意：ApprovalRecord.approver_id 是 NOT NULL，
+    跳过记录使用审批实例的创建人（发起人）作为记录关联用户。
+    """
+    step_id = step.get('step_id') if isinstance(step, dict) else step.id
+
+    record = ApprovalRecord(
+        instance_id=instance.id,
+        step_id=step_id if isinstance(step_id, int) else None,
+        approver_id=instance.created_by,  # 使用发起人ID，因为approver_id不可为空
+        action='skipped',
+        comment=reason,
+        timestamp=datetime.now()
+    )
+    db.session.add(record)
+    current_app.logger.info(
+        f"步骤跳过记录已创建: instance_id={instance.id}, "
+        f"step_id={step_id}, reason={reason}"
+    )
+
+
+def _find_step_by_order(steps, step_order):
+    """从步骤列表中按step_order查找步骤
+
+    Args:
+        steps: 步骤列表（字典列表或对象列表）
+        step_order: 目标步骤序号
+
+    Returns:
+        匹配的步骤对象/字典，如果没有则返回None
+    """
+    if not isinstance(steps, list) or len(steps) == 0:
+        return None
+
+    if isinstance(steps[0], dict):
+        for step in steps:
+            if step.get('step_order') == step_order:
+                return step
+    else:
+        for step in steps:
+            if step.step_order == step_order:
+                return step
+    return None
+
+
+def _advance_to_next_executable_step(instance, current_step_order, steps, target_object):
+    """从当前步骤开始，寻找下一个可执行的步骤（跳过不满足执行条件的步骤）
+
+    Args:
+        instance: 审批实例
+        current_step_order: 当前步骤序号
+        steps: 全部步骤列表
+        target_object: 目标业务对象
+
+    Returns:
+        下一个可执行的步骤（字典或对象），如果所有后续步骤都不满足条件则返回None
+    """
+    next_order = current_step_order + 1
+    next_step = _find_step_by_order(steps, next_order)
+
+    while next_step:
+        should_execute = _check_step_execution_condition(next_step, target_object)
+        if should_execute is not False:
+            # 条件满足或无条件 → 执行此步骤
+            return next_step
+        # 条件不满足 → 创建跳过记录，继续找下一步
+        _create_skip_record(instance, next_step)
+        next_order += 1
+        next_step = _find_step_by_order(steps, next_order)
+
+    return None  # 没有可执行的后续步骤
 
 
 def _get_target_object_by_type(instance):
@@ -4400,25 +4521,11 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
                 current_app.logger.error(f"无法从当前步骤获取step_order，审批失败")
                 return False
 
-            next_step_order = current_step_order + 1
-            next_step = None
-            
-            # 从模板快照中查找下一步骤
+            # 从模板快照中查找下一步骤（支持执行条件跳过）
             steps = instance.get_steps()
-            if isinstance(steps, list) and len(steps) > 0:
-                if isinstance(steps[0], dict):
-                    # 快照数据（字典列表）
-                    for step in steps:
-                        if step.get('step_order') == next_step_order:
-                            next_step = step
-                            break
-                else:
-                    # 模型对象列表（兼容模式）
-                    for step in steps:
-                        if step.step_order == next_step_order:
-                            next_step = step
-                            break
-            
+            target_object = _get_target_object_by_type(instance)
+            next_step = _advance_to_next_executable_step(instance, current_step_order, steps, target_object)
+
 
             # ============================================================
             # 阶段1：执行当前步骤的动作（统一处理，无论是否有下一步）
@@ -5073,6 +5180,16 @@ def get_workflow_steps(approval_instance, current_user_id=None):
         is_current = is_objective_current and user_can_approve
         is_waiting = is_objective_current and not user_can_approve
         
+        # 检查是否有跳过记录
+        is_skipped = False
+        skip_comment = None
+        step_id_value = step.get('step_id') if isinstance(step, dict) else step.id
+        for record in completed_records:
+            if record.action == 'skipped' and record.step_id == step_id_value:
+                is_skipped = True
+                skip_comment = record.comment
+                break
+
         step_info = {
             'order': step_order,
             'name': step_name,
@@ -5080,13 +5197,25 @@ def get_workflow_steps(approval_instance, current_user_id=None):
             'is_current': is_current,
             'is_waiting': is_waiting,  # 新增：等待状态
             'is_completed': is_completed,
+            'is_skipped': is_skipped,  # 新增：跳过状态
             'action': None,
             'timestamp': None,
             'comment': None
         }
-        
+
+        # 如果步骤被跳过，设置对应信息
+        if is_skipped:
+            step_info.update({
+                'action': 'skipped',
+                'comment': skip_comment or '条件不满足，自动跳过'
+            })
+            # 从记录列表中移除已匹配的跳过记录
+            for record in completed_records:
+                if record.action == 'skipped' and record.step_id == step_id_value:
+                    completed_records.remove(record)
+                    break
         # 如果步骤已完成，查找对应的审批记录
-        if is_completed:
+        elif is_completed:
             # 查找匹配这个步骤的审批记录
             matching_record = None
             for record in completed_records:
@@ -5095,7 +5224,7 @@ def get_workflow_steps(approval_instance, current_user_id=None):
                 if not matching_record:  # 取第一个还没有被使用的记录
                     matching_record = record
                     break
-            
+
             if matching_record:
                 step_info.update({
                     'action': matching_record.action,

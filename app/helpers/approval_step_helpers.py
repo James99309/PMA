@@ -274,11 +274,28 @@ def process_additional_fields(form_data):
         elif isinstance(user_id, int):
             processed_cc_users.append(user_id)
 
+    # 解析执行条件
+    execution_condition_json = (form_data.get('execution_condition_json') or
+                                form_data.get('edit_execution_condition_json'))
+    current_app.logger.info(f"🔍 [执行条件] 原始表单数据: execution_condition_json={form_data.get('execution_condition_json')}, edit_execution_condition_json={form_data.get('edit_execution_condition_json')}")
+    if execution_condition_json:
+        try:
+            execution_condition = json.loads(execution_condition_json)
+            # 空对象视为无条件
+            if not execution_condition or not isinstance(execution_condition, dict):
+                execution_condition = None
+        except (json.JSONDecodeError, TypeError):
+            execution_condition = None
+    else:
+        execution_condition = None
+    current_app.logger.info(f"🔍 [执行条件] 解析结果: {execution_condition}")
+
     return {
         'send_email': send_email,
         'editable_fields': editable_fields,
         'cc_users': processed_cc_users,
-        'cc_enabled': cc_enabled
+        'cc_enabled': cc_enabled,
+        'execution_condition': execution_condition
     }
 
 
@@ -507,7 +524,7 @@ def handle_regular_step_edit(step, form_data):
     
     # 更新步骤
     from app.helpers.approval_helpers import update_approval_step
-    
+
     updated_step = update_approval_step(
         step.id,
         step_name=step_data['step_name'],
@@ -517,7 +534,8 @@ def handle_regular_step_edit(step, form_data):
         cc_users=additional_fields['cc_users'],
         cc_enabled=additional_fields['cc_enabled'],
         update_approver=True,
-        approver_type=approver_data['approver_type']
+        approver_type=approver_data['approver_type'],
+        execution_condition=additional_fields.get('execution_condition')
     )
     
     if updated_step:
