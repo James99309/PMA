@@ -104,45 +104,26 @@ class ApprovalConfigManager {
             }
 
             // 同步执行条件隐藏字段
+            // 同时按 name 和 id 查找，确保能找到
             const execCondInput = form.querySelector('input[name="execution_condition_json"]') ||
-                                  form.querySelector('input[name="edit_execution_condition_json"]');
+                                  form.querySelector('input[name="edit_execution_condition_json"]') ||
+                                  form.querySelector('#execution_condition_json') ||
+                                  form.querySelector('#edit_execution_condition_json');
             if (execCondInput) {
-                const execPrefix = execCondInput.name.startsWith('edit_') ? 'edit_' : '';
+                const execPrefix = (execCondInput.name || execCondInput.id || '').startsWith('edit_') ? 'edit_' : '';
                 const execCheckbox = document.getElementById(execPrefix + 'execution_condition_enabled');
                 if (execCheckbox && execCheckbox.checked) {
+                    // 强制从当前UI状态重建JSON
                     window.updateExecutionConditionJson(execPrefix);
-                    console.log('✅ [提交前同步] execution_condition_json:', execCondInput.value);
+                } else if (!execCheckbox) {
+                    // checkbox找不到时保留现有值，不清空
                 } else {
                     execCondInput.value = '';
-                    console.log('✅ [提交前同步] 执行条件未启用，清空隐藏字段');
                 }
             }
 
             // === 获取表单数据（同步完成后才捕获快照） ===
             const formData = new FormData(form);
-
-            // 🔍 调试：详细记录表单数据
-            console.log('📋 表单元素数量:', form.elements.length);
-
-            // 记录所有表单字段
-            const formDataEntries = {};
-            for (let [key, value] of formData.entries()) {
-                if (formDataEntries[key]) {
-                    if (Array.isArray(formDataEntries[key])) {
-                        formDataEntries[key].push(value);
-                    } else {
-                        formDataEntries[key] = [formDataEntries[key], value];
-                    }
-                } else {
-                    formDataEntries[key] = value;
-                }
-            }
-            console.log('📋 表单数据详情:', formDataEntries);
-
-            // 特别关注动作类型
-            const actionTypeInput = form.querySelector('select[name="action_type"]') ||
-                                   form.querySelector('#action_type') ||
-                                   form.querySelector('#edit_action_type');
 
             // 发送AJAX请求
             const response = await fetch(form.action, {
@@ -3529,7 +3510,9 @@ window.updateExecutionConditionJson = function(prefix) {
     const valueInput = document.getElementById(prefix + 'exec_cond_value');
     const hiddenInput = document.getElementById(prefix + 'execution_condition_json');
 
-    if (!hiddenInput) return;
+    if (!hiddenInput) {
+        return;
+    }
 
     const field = fieldSelect ? fieldSelect.value : '';
     const operator = operatorSelect ? operatorSelect.value : '';

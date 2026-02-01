@@ -2623,9 +2623,11 @@ def add_approval_step(template_id, step_name, approver_id, send_email=True, edit
     return step
 
 
-def update_approval_step(step_id, step_name=None, approver_id=None, send_email=None, editable_fields=None, cc_users=None, cc_enabled=None, update_approver=False, approver_type=None, execution_condition=None):
+_UNSET = object()  # 哨兵值：区分"不更新"和"设为None"
+
+def update_approval_step(step_id, step_name=None, approver_id=None, send_email=None, editable_fields=None, cc_users=None, cc_enabled=None, update_approver=False, approver_type=None, execution_condition=_UNSET):
     """更新审批步骤
-    
+
     Args:
         step_id: 步骤ID
         step_name: 步骤名称
@@ -2636,39 +2638,39 @@ def update_approval_step(step_id, step_name=None, approver_id=None, send_email=N
         cc_enabled: 是否启用抄送
         update_approver: 是否更新审批人（用于区分None值和不更新）
         approver_type: 审批人类型 ('user', 'next_level', 'auto')
-        
+        execution_condition: 执行条件（dict或None表示清空，_UNSET表示不更新）
+
     Returns:
         更新后的步骤对象，如果没有找到则返回None
     """
-    # 🔍 调试：记录更新步骤的参数
     step = ApprovalStep.query.get(step_id)
     if not step:
         return None
-    
+
     if step_name is not None:
         step.step_name = step_name
-        
+
     # 只有在明确指定更新审批人时才更新，允许设置为None
     if update_approver:
         step.approver_user_id = approver_id
-    
+
     if approver_type is not None:
         step.approver_type = approver_type
-        
+
     if send_email is not None:
         step.send_email = send_email
-    
+
     if editable_fields is not None:
-        # 🔍 调试：记录可编辑字段更新
         step.editable_fields = editable_fields
-        
+
     if cc_users is not None:
         step.cc_users = cc_users
-        
+
     if cc_enabled is not None:
         step.cc_enabled = cc_enabled
 
-    if execution_condition is not None:
+    # execution_condition: _UNSET=不更新, None=清空条件, dict=设置条件
+    if execution_condition is not _UNSET:
         step.execution_condition = execution_condition
 
     db.session.commit()
@@ -6503,12 +6505,18 @@ def can_resubmit_approval(object_type, object_id, user_id):
 def resubmit_approval(object_type, object_id, user_id):
     """
     重新提交审批流程
-    
+
+    重新提交时删除旧实例，使用最新的审批模板配置创建全新实例。
+    这样可以确保：
+    - 模板快照使用最新配置（包括步骤、执行条件等）
+    - 动态调整逻辑（授权审批人、归属人等）重新执行
+    - 执行条件基于当前业务数据重新评估
+
     Args:
         object_type: 对象类型
         object_id: 对象ID
         user_id: 提交人ID
-        
+
     Returns:
         字典，包含操作结果
     """
@@ -6519,79 +6527,49 @@ def resubmit_approval(object_type, object_id, user_id):
                 'success': False,
                 'message': '无权限重新提交或审批流程状态不允许重新提交'
             }
-        
-        # 获取现有审批实例
+
+        # 获取现有审批实例，如果存在则删除（级联删除审批记录）
         approval_instance = get_object_approval_instance(object_type, object_id)
-        
+        template_id = None
         if approval_instance:
-            # 重置审批实例状态
-            approval_instance.status = ApprovalStatus.PENDING
-            # 获取第一步，使用 step_order 保持与其他代码一致
-            first_step = ApprovalStep.query.filter_by(
-                process_id=approval_instance.process_id,
-                step_order=1
-            ).first()
-            # 使用 step_order 而不是 step_id，与创建实例和移动步骤逻辑保持一致
-            approval_instance.current_step = first_step.step_order if first_step else 1
-            approval_instance.started_at = datetime.now()
-            approval_instance.ended_at = None
-            
-            # 删除所有审批记录（重置审批历史）
-            ApprovalRecord.query.filter_by(instance_id=approval_instance.id).delete()
-            
-            # 添加重新提交记录
-            resubmit_record = ApprovalRecord(
-                instance_id=approval_instance.id,
-                step_id=None,
-                approver_id=user_id,
-                action='resubmit',
-                comment='重新提交审批',
-                timestamp=datetime.now()
-            )
-            
-            db.session.add(resubmit_record)
-        else:
-            # 如果没有审批实例，创建新的
-            # 获取可用的审批模板
+            template_id = approval_instance.process_id
+            old_instance_id = approval_instance.id
+            db.session.delete(approval_instance)
+            db.session.flush()
+            current_app.logger.info(f"重新提交: 已删除旧审批实例 {old_instance_id}")
+
+        # 确定使用的审批模板
+        if not template_id:
             templates = get_available_templates(object_type)
             if not templates:
                 return {
                     'success': False,
                     'message': '未找到适用的审批流程模板'
                 }
-            
-            # 使用第一个可用模板创建新的审批实例（使用 auto_commit=False）
-            template = templates[0]
-            new_instance = start_approval_process(object_type, object_id, template.id, user_id, auto_commit=False)
+            template_id = templates[0].id
 
-            if new_instance:
-                # 更新业务对象状态为待审批
-                update_business_object_status(object_type, object_id, 'pending')
-                # 统一提交：审批实例创建 + 业务对象状态更新
-                db.session.commit()
-                
-                return {
-                    'success': True,
-                    'message': '重新提交审批成功'
-                }
-            else:
-                return {
-                    'success': False,
-                    'message': '创建审批实例失败'
-                }
-        
-        # 对于有审批实例的情况，更新业务对象状态为待审批
-        if approval_instance:
-            update_business_object_status(object_type, object_id, 'pending')
-            db.session.commit()
-        
-        current_app.logger.info(f"重新提交审批成功: {object_type}#{object_id}, 提交人: {user_id}")
-        
+        # 使用最新模板配置创建全新审批实例
+        new_instance = start_approval_process(
+            object_type, object_id, template_id, user_id, auto_commit=False
+        )
+
+        if not new_instance:
+            return {
+                'success': False,
+                'message': '创建审批实例失败'
+            }
+
+        # 更新业务对象状态为待审批
+        update_business_object_status(object_type, object_id, 'pending')
+        db.session.commit()
+
+        current_app.logger.info(f"重新提交审批成功: {object_type}#{object_id}, 提交人: {user_id}, 新实例: {new_instance.id}")
+
         return {
             'success': True,
             'message': '重新提交审批成功'
         }
-        
+
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"重新提交审批失败: {str(e)}")

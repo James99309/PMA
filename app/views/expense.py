@@ -3163,8 +3163,7 @@ def get_expense_approval_flow(expense_id):
         
         # 构建审批阶段数据
         stages_data = []
-        # 🔥 修复：current_step 可能是 step_order 或 step_id，需要智能匹配
-        # 使用与 get_current_step_info() 相同的逻辑：优先 step_order，失败则 step_id
+        # current_step 可能是 step_order 或 step_id，需要智能匹配
         current_step_value = approval_instance.current_step
         matched_step_order = None
 
@@ -3179,10 +3178,13 @@ def get_expense_approval_flow(expense_id):
             for step in steps:
                 if step.get('step_id') == current_step_value:
                     matched_step_order = step.get('step_order')
-                    current_app.logger.info(f"[审批流程] current_step={current_step_value} 通过 step_id 匹配到 step_order={matched_step_order}")
                     break
 
         current_step_order = matched_step_order
+
+        # 预评估执行条件：对尚未到达的步骤检查条件，不满足条件的不显示
+        from app.helpers.approval_helpers import _check_step_execution_condition
+        target_object_for_condition = expense_obj
 
         for i, step in enumerate(steps):
             # 确定审批人
@@ -3204,9 +3206,18 @@ def get_expense_approval_flow(expense_id):
                     if step_order <= len(approve_records):
                         step_records = [approve_records[step_order - 1]]
             
+            # 对尚未到达的步骤，评估执行条件，不满足条件的不显示
+            if not step_records and step['step_order'] != current_step_order:
+                # 此步骤尚未处理且不是当前步骤，检查执行条件
+                exec_condition = step.get('execution_condition')
+                if exec_condition and isinstance(exec_condition, dict):
+                    should_execute = _check_step_execution_condition(step, target_object_for_condition)
+                    if should_execute is False:
+                        continue  # 条件不满足，不显示此步骤
+
             stage_data = {
                 'id': step['step_id'],
-                'stage_name': step['step_name'],  # 修复字段名匹配问题
+                'stage_name': step['step_name'],
                 'stage_order': step['step_order'],
                 'approver_name': actual_approver.real_name if actual_approver else '待确定',
                 'approver_id': actual_approver.id if actual_approver else None,
@@ -3214,49 +3225,36 @@ def get_expense_approval_flow(expense_id):
                 'completed_time': None,
                 'comment': None,
                 'action': None,
-                'arrived_at': None,  # 前端期望的字段名
+                'arrived_at': None,
                 'can_approve': False
             }
-            
+
             if step_records:
                 # 使用最新的记录
                 latest_record = step_records[-1]
                 if latest_record.action == 'skipped':
-                    # 跳过的步骤
-                    stage_data.update({
-                        'status': 'skipped',
-                        'comment': latest_record.comment or '条件不满足，自动跳过',
-                        'action': 'skipped',
-                        'processed_at': latest_record.timestamp.strftime('%Y-%m-%d %H:%M:%S') if latest_record.timestamp else None
-                    })
+                    # 已跳过的步骤也不显示
+                    continue
                 else:
                     stage_data.update({
-                        'status': 'approved' if latest_record.action == 'approve' else 'rejected',  # 前端期望的状态值
-                        'processed_at': latest_record.timestamp.strftime('%Y-%m-%d %H:%M:%S'),  # 修复字段名
+                        'status': 'approved' if latest_record.action == 'approve' else 'rejected',
+                        'processed_at': latest_record.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
                         'comment': latest_record.comment,
                         'action': latest_record.action,
-                        'approver_name': latest_record.approver.real_name,  # 修复关联字段名
+                        'approver_name': latest_record.approver.real_name,
                         'approver_id': latest_record.approver_id
                     })
             elif step['step_order'] == current_step_order:
                 # 当前步骤 - 使用标准权限检查
                 from app.helpers.approval_helpers import can_user_approve
                 can_approve = can_user_approve(approval_instance.id, current_user.id)
-                
+
                 stage_data.update({
                     'status': 'current',
-                    'arrived_at': approval_instance.started_at.strftime('%Y-%m-%d %H:%M:%S'),  # 修复字段名
+                    'arrived_at': approval_instance.started_at.strftime('%Y-%m-%d %H:%M:%S'),
                     'can_approve': can_approve
                 })
-                
-                # 调试信息：记录can_approve计算过程
-                current_app.logger.info("[DEBUG] Step %s can_approve calculation:", step['step_order'])
-                current_app.logger.info("  actual_approver: %s", actual_approver)
-                current_app.logger.info("  actual_approver.id: %s", actual_approver.id if actual_approver else None)
-                current_app.logger.info("  current_user: %s", current_user)  
-                current_app.logger.info("  current_user.id: %s", current_user.id)
-                current_app.logger.info("  can_approve: %s", can_approve)
-            
+
             stages_data.append(stage_data)
         
         # 确定整体状态

@@ -1,0 +1,26 @@
+# FRP 服务端配置 - 部署在 VPS 上
+# 适用于 FRP v0.50+ (TOML 格式)
+# 文档: https://gofrp.org/zh-cn/docs/
+
+# FRP 监听端口
+bindPort = 7000
+
+# 认证 token（必须与 frpc 端一致）
+auth.token = "YOUR_FRP_AUTH_TOKEN"
+
+# 日志配置
+log.to = "/var/log/frps.log"
+log.level = "info"
+log.maxDays = 7
+
+# Dashboard（可选，用于监控）
+webServer.addr = "127.0.0.1"
+webServer.port = 7500
+webServer.user = "admin"
+webServer.password = "YOUR_DASHBOARD_PASSWORD"
+
+# 允许的端口范围（安全限制）
+allowPorts = [
+    { start = 5001, end = 5010 },
+    { start = 8080, end = 8090 }
+]

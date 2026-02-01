@@ -1,0 +1,37 @@
+# FRP 客户端配置 - DS925+ 连接 VPS
+# 适用于 FRP v0.50+ (TOML 格式)
+# 文档: https://gofrp.org/zh-cn/docs/
+
+# VPS 服务器地址和端口（修改为你的 VPS）
+serverAddr = "YOUR_VPS_IP"
+serverPort = 7000
+
+# 认证 token（必须与 frps 端一致）
+auth.token = "YOUR_FRP_AUTH_TOKEN"
+
+# 日志配置
+log.to = "console"
+log.level = "info"
+
+# 传输配置
+transport.protocol = "tcp"
+transport.heartbeatInterval = 30
+transport.heartbeatTimeout = 90
+
+# ============ PMA 网站穿透 ============
+[[proxies]]
+name = "pma-web"
+type = "tcp"
+localIP = "pma-app"
+localPort = 5000
+remotePort = 5001
+
+# ============ WebDAV 文件服务穿透（可选） ============
+# 注意: frpc 容器在 Docker 网络中，需要使用 host.docker.internal 或
+# 给 docker-compose 添加 network_mode: host 才能访问 NAS 本机 IP
+# [[proxies]]
+# name = "pma-webdav"
+# type = "tcp"
+# localIP = "host.docker.internal"
+# localPort = 5005
+# remotePort = 5005

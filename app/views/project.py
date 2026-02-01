@@ -4258,8 +4258,6 @@ def get_project_approval_flow(project_id):
         
         # 构建审批阶段数据
         stages_data = []
-        # 🔥 修复：current_step 可能是 step_order 或 step_id，需要智能匹配
-        # 使用与 get_current_step_info() 相同的逻辑：优先 step_order，失败则 step_id
         current_step_value = approval_instance.current_step
         matched_step_order = None
 
@@ -4274,17 +4272,18 @@ def get_project_approval_flow(project_id):
             for step in steps:
                 if step.get('step_id') == current_step_value:
                     matched_step_order = step.get('step_order')
-                    import logging
-                    logging.info(f"[审批流程] current_step={current_step_value} 通过 step_id 匹配到 step_order={matched_step_order}")
                     break
 
         current_step_order = matched_step_order
 
+        # 预评估执行条件：对尚未到达的步骤检查条件，不满足条件的不显示
+        from app.helpers.approval_helpers import get_step_actual_approver, _check_step_execution_condition
+        target_object_for_condition = project_obj
+
         for i, step in enumerate(steps):
             # 确定审批人
-            from app.helpers.approval_helpers import get_step_actual_approver
             actual_approver = get_step_actual_approver(step, approval_instance)
-            
+
             # 获取这个步骤的审批记录
             step_records = []
             if step.get('step_id'):
@@ -4297,7 +4296,15 @@ def get_project_approval_flow(project_id):
                     step_order = step.get('step_order', i + 1)
                     if step_order <= len(approve_records):
                         step_records = [approve_records[step_order - 1]]
-            
+
+            # 对尚未到达的步骤，评估执行条件，不满足条件的不显示
+            if not step_records and step['step_order'] != current_step_order:
+                exec_condition = step.get('execution_condition')
+                if exec_condition and isinstance(exec_condition, dict):
+                    should_execute = _check_step_execution_condition(step, target_object_for_condition)
+                    if should_execute is False:
+                        continue
+
             stage_data = {
                 'id': step['step_id'],
                 'stage_name': step['step_name'],
@@ -4311,18 +4318,13 @@ def get_project_approval_flow(project_id):
                 'arrived_at': None,
                 'can_approve': False
             }
-            
+
             # 处理审批记录
             if step_records:
                 latest_record = step_records[-1]
                 if latest_record.action == 'skipped':
-                    # 跳过的步骤
-                    stage_data.update({
-                        'status': 'skipped',
-                        'comment': latest_record.comment or '条件不满足，自动跳过',
-                        'action': 'skipped',
-                        'completed_time': latest_record.timestamp.isoformat() if latest_record.timestamp else None
-                    })
+                    # 已跳过的步骤也不显示
+                    continue
                 else:
                     stage_data.update({
                         'status': 'approved' if latest_record.action == 'approve' else 'rejected',
@@ -4332,13 +4334,11 @@ def get_project_approval_flow(project_id):
                         'arrived_at': latest_record.timestamp.isoformat()
                     })
             elif step['step_order'] == current_step_order:
-                # 🔥 修复：使用 step_order 匹配当前步骤
                 stage_data['status'] = 'current'
                 stage_data['can_approve'] = (actual_approver and actual_approver.id == current_user.id)
             elif current_step_order and step['step_order'] < current_step_order:
-                # 已处理的步骤（通常是已通过）：仅在有当前步骤顺序时比较
                 stage_data['status'] = 'approved'
-            
+
             stages_data.append(stage_data)
         
         # 获取实际状态

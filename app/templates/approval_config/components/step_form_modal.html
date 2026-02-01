@@ -240,7 +240,7 @@
 
           {# 隐藏字段存储序列化JSON - 放在 section 外部确保始终可提交 #}
           <input type="hidden" id="{{ 'edit_' if is_edit else '' }}execution_condition_json"
-                 name="{{ 'edit_' if is_edit else '' }}execution_condition_json" value="">
+                 name="{{ 'edit_' if is_edit else '' }}execution_condition_json" value="" data-permanent>
 
           <div id="{{ 'edit_' if is_edit else '' }}executionConditionSection" style="display: none;">
             <div class="card border-warning mb-3">

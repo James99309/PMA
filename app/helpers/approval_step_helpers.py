@@ -277,7 +277,6 @@ def process_additional_fields(form_data):
     # 解析执行条件
     execution_condition_json = (form_data.get('execution_condition_json') or
                                 form_data.get('edit_execution_condition_json'))
-    current_app.logger.info(f"🔍 [执行条件] 原始表单数据: execution_condition_json={form_data.get('execution_condition_json')}, edit_execution_condition_json={form_data.get('edit_execution_condition_json')}")
     if execution_condition_json:
         try:
             execution_condition = json.loads(execution_condition_json)
@@ -288,7 +287,6 @@ def process_additional_fields(form_data):
             execution_condition = None
     else:
         execution_condition = None
-    current_app.logger.info(f"🔍 [执行条件] 解析结果: {execution_condition}")
 
     return {
         'send_email': send_email,
@@ -525,6 +523,9 @@ def handle_regular_step_edit(step, form_data):
     # 更新步骤
     from app.helpers.approval_helpers import update_approval_step
 
+    # execution_condition: dict=设置条件, None=清空条件（始终传递，不跳过）
+    execution_condition = additional_fields.get('execution_condition')
+
     updated_step = update_approval_step(
         step.id,
         step_name=step_data['step_name'],
@@ -535,7 +536,7 @@ def handle_regular_step_edit(step, form_data):
         cc_enabled=additional_fields['cc_enabled'],
         update_approver=True,
         approver_type=approver_data['approver_type'],
-        execution_condition=additional_fields.get('execution_condition')
+        execution_condition=execution_condition
     )
     
     if updated_step:
