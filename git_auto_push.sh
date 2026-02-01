@@ -155,3 +155,51 @@ fi
 # 提交并推送
 git commit -m "$msg"
 git push origin main
+
+if [ $? -ne 0 ]; then
+    echo -e "\033[31m[错误] git push 失败，跳过 NAS 拉新。\033[0m"
+    exit 1
+fi
+
+# ========================
+# 询问是否在 NAS 上拉新
+# ========================
+echo ""
+echo "是否要在中国 NAS 上拉新？(y/n)"
+read nas_pull
+
+if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ]; then
+    NAS_USER="james.sh"
+    NAS_UPDATE_SCRIPT="/volume1/docker/pma/deploy/synology-cn/update.sh"
+    TUNNEL_HOST="ssh.jamesgpone.win"
+    TUNNEL_LOCAL_PORT=2222
+
+    echo "[信息] 启动 Cloudflare 隧道..."
+    cloudflared access tcp --hostname "$TUNNEL_HOST" --url "localhost:$TUNNEL_LOCAL_PORT" &
+    CF_PID=$!
+
+    echo "[信息] 等待隧道建立..."
+    sleep 3
+    for i in $(seq 1 10); do
+        if ssh -p "$TUNNEL_LOCAL_PORT" -o ConnectTimeout=2 -o BatchMode=yes "$NAS_USER@localhost" "echo ok" &>/dev/null; then
+            echo -e "\033[32m[信息] 隧道已建立，执行 NAS 拉新...\033[0m"
+            break
+        fi
+        if [ "$i" -eq 10 ]; then
+            echo -e "\033[31m[错误] 隧道建立超时，请检查网络。\033[0m"
+            kill "$CF_PID" 2>/dev/null
+            exit 1
+        fi
+        sleep 1
+    done
+
+    ssh -t -p "$TUNNEL_LOCAL_PORT" "$NAS_USER@localhost" "bash $NAS_UPDATE_SCRIPT"
+
+    echo "[信息] 关闭 Cloudflare 隧道..."
+    kill "$CF_PID" 2>/dev/null
+    wait "$CF_PID" 2>/dev/null
+
+    echo -e "\033[32m[完成] NAS 拉新流程结束。\033[0m"
+else
+    echo "[信息] 跳过 NAS 拉新。"
+fi
