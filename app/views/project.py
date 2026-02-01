@@ -3298,7 +3298,7 @@ def _format_stats_for_ajax(full_stats):
 
 @project.route('/update_project_sharing/<int:project_id>', methods=['POST'])
 @login_required
-@permission_required('project', 'edit')
+@permission_required('project', 'view')
 def update_project_sharing(project_id):
     """更新项目共享设置"""
     try:

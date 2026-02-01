@@ -3665,7 +3665,7 @@ def add_action_for_company(company_id):
                           STATUS_OPTIONS=get_status_options(),
                           COUNTRY_OPTIONS=get_country_options()) 
 @customer.route('/<int:company_id>/update_sharing', methods=['POST'])
-@permission_required('customer', 'edit')
+@permission_required('customer', 'view')
 def update_company_sharing(company_id):
     company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
     

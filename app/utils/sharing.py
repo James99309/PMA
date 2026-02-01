@@ -187,8 +187,12 @@ class SharingService:
         from app.utils.access_control import can_edit_data
         if not can_edit_data(data_obj, user):
             return False
-        
-        # 基本编辑权限检查通过后，进一步检查模块权限和权限级别
+
+        # 数据拥有者始终可以管理自己数据的共享设置
+        if hasattr(data_obj, 'owner_id') and data_obj.owner_id == user.id:
+            return True
+
+        # 以下模块级权限检查仅针对非拥有者（管理者编辑他人数据的场景）
         if model_type == 'project':
             # 检查用户是否有项目模块的编辑权限
             if not user.has_permission('project', 'edit'):
