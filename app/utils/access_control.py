@@ -264,35 +264,23 @@ def apply_content_filters(query, model_class, module_name, user):
         from app.views.config_management import get_content_filter_options
         module_filter_options = get_content_filter_options().get(module_name, {})
 
-        # 获取用户的权限数据（包含content_filters）
-        from app.models.user import Permission
-        from app.models.role_permissions import RolePermission
+        # 获取用户的权限数据（包含content_filters）- 使用缓存
+        role_permission, user_permission = user._get_cached_permissions(module_name)
 
-        # 优先查个人权限
-        user_permission = Permission.query.filter_by(
-            user_id=user.id,
-            module=module_name
-        ).first()
-
-        # 如果个人权限没有 content_filters，查角色权限
-        if not user_permission or not user_permission.content_filters:
-            role_permission = RolePermission.query.filter_by(
-                role=user.role,
-                module=module_name
-            ).first()
-            if role_permission and role_permission.content_filters:
-                content_filters = role_permission.content_filters
-                logger.debug(f"使用角色权限的 content_filters: {content_filters}")
-            else:
-                # 没有任何 content_filters 配置
-                # 如果模块定义了内容筛选选项，则必须配置才能查看
-                if module_filter_options:
-                    logger.debug(f"{module_name} 模块定义了内容筛选但用户未配置，返回空查询")
-                    return query.filter(False)
-                # 模块没有定义内容筛选选项，不做过滤
-                return query
-        else:
+        # 优先使用个人权限的 content_filters
+        if user_permission and user_permission.content_filters:
             content_filters = user_permission.content_filters
+        elif role_permission and role_permission.content_filters:
+            content_filters = role_permission.content_filters
+            logger.debug(f"使用角色权限的 content_filters: {content_filters}")
+        else:
+            # 没有任何 content_filters 配置
+            # 如果模块定义了内容筛选选项，则必须配置才能查看
+            if module_filter_options:
+                logger.debug(f"{module_name} 模块定义了内容筛选但用户未配置，返回空查询")
+                return query.filter(False)
+            # 模块没有定义内容筛选选项，不做过滤
+            return query
 
         logger.debug(f"应用 {module_name} 模块的内容过滤: {content_filters}")
 

@@ -2966,6 +2966,64 @@ def get_object_approval_instance(object_type, object_id, include_rejected=False)
         return None
 
 
+def get_object_approval_instances_batch(object_type, object_ids):
+    """批量获取多个业务对象的审批实例
+
+    用一次 IN 查询获取所有相关审批实例，然后按状态优先级选出最优实例。
+    状态优先级：PENDING > APPROVED > REJECTED > RECALLED
+    与 get_object_approval_instance() 保持完全一致的选择逻辑。
+
+    Args:
+        object_type: 业务对象类型（如 'expense'）
+        object_ids: 业务对象ID列表
+
+    Returns:
+        dict: { object_id: ApprovalInstance 或 None }
+    """
+    if not object_ids:
+        return {}
+
+    result = {oid: None for oid in object_ids}
+
+    try:
+        # 一次查询获取所有相关审批实例
+        all_instances = ApprovalInstance.query.filter(
+            ApprovalInstance.object_type == object_type,
+            ApprovalInstance.object_id.in_(object_ids)
+        ).order_by(ApprovalInstance.started_at.desc()).all()
+
+        # 按 object_id 分组
+        from collections import defaultdict
+        instances_by_id = defaultdict(list)
+        for inst in all_instances:
+            instances_by_id[inst.object_id].append(inst)
+
+        # 状态优先级映射（值越小优先级越高）
+        status_priority = {
+            ApprovalStatus.PENDING: 0,
+            ApprovalStatus.APPROVED: 1,
+            ApprovalStatus.REJECTED: 2,
+            ApprovalStatus.RECALLED: 3,
+        }
+
+        # 为每个对象选择最优实例
+        for oid, instances in instances_by_id.items():
+            if not instances:
+                continue
+            # 按状态优先级排序，同状态按 started_at 倒序（已由查询保证）
+            best = min(instances, key=lambda i: status_priority.get(i.status, 99))
+            result[oid] = best
+
+    except Exception as e:
+        current_app.logger.error(f"批量获取审批实例失败: {e}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
+    return result
+
+
 def cleanup_duplicate_dynamic_templates():
     """清理重复的动态审批模板
     

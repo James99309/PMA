@@ -1330,6 +1330,10 @@ def get_content_filter_options():
             'industry': {
                 'label': str(_l('行业分类')),
                 'options': get_industry_options()
+            },
+            'source': {
+                'label': str(_l('来源')),
+                'options': get_report_source_options()
             }
         },
         # 批价单模块筛选选项

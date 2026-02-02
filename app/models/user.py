@@ -4,7 +4,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import time
 from flask_login import UserMixin
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
-from flask import current_app
+from flask import current_app, has_request_context
+try:
+    from flask import g
+except ImportError:
+    g = None
 
 class User(db.Model, UserMixin):
     """
@@ -116,6 +120,88 @@ class User(db.Model, UserMixin):
             'last_login': self.last_login
         }
     
+    def _load_permission_cache(self):
+        """
+        批量加载该用户的所有权限数据到 flask.g 缓存。
+
+        整个请求周期内只查询数据库 2 次（RolePermission + Permission），
+        后续所有 has_permission() / get_permission_level() 调用直接从缓存读取。
+
+        缓存结构:
+            g._perm_cache = {
+                'user_id': int,
+                'role_perms': { module: RolePermission_obj, ... },
+                'personal_perms': { module: Permission_obj, ... }
+            }
+
+        非请求上下文（如CLI脚本）自动回退到 None，调用方应直接查库。
+        """
+        if not has_request_context():
+            return None
+
+        cache = getattr(g, '_perm_cache', None)
+        if cache and cache.get('user_id') == self.id:
+            return cache
+
+        from app.models.role_permissions import RolePermission
+
+        # 批量加载角色权限（1次查询）
+        role_perms_list = RolePermission.query.filter_by(role=self.role).all()
+        role_perms = {rp.module: rp for rp in role_perms_list}
+
+        # 批量加载个人权限（1次查询）
+        personal_perms_list = Permission.query.filter_by(user_id=self.id).all()
+        personal_perms = {pp.module: pp for pp in personal_perms_list}
+
+        cache = {
+            'user_id': self.id,
+            'role_perms': role_perms,
+            'personal_perms': personal_perms
+        }
+        g._perm_cache = cache
+        return cache
+
+    def _get_cached_permissions(self, module):
+        """
+        从缓存获取指定模块的角色权限和个人权限。
+
+        返回:
+            (role_permission, personal_permission) 元组
+            如果非请求上下文或缓存加载失败，回退到直接查库。
+        """
+        try:
+            cache = self._load_permission_cache()
+        except Exception:
+            cache = None
+
+        if cache:
+            return cache['role_perms'].get(module), cache['personal_perms'].get(module)
+
+        # 回退：非请求上下文，直接查库
+        from app.models.role_permissions import RolePermission
+        role_permission = RolePermission.query.filter_by(role=self.role, module=module).first()
+        personal_permission = Permission.query.filter_by(user_id=self.id, module=module).first()
+        return role_permission, personal_permission
+
+    @staticmethod
+    def _check_action_permission(perm_obj, action):
+        """从权限对象中检查指定动作的权限"""
+        if not perm_obj:
+            return False
+        if getattr(perm_obj, 'permission_level', None) == 'none':
+            return False
+        if action == 'view':
+            return perm_obj.can_view
+        elif action == 'create':
+            return perm_obj.can_create
+        elif action == 'edit':
+            return perm_obj.can_edit
+        elif action == 'delete':
+            return perm_obj.can_delete
+        elif action == 'change_owner':
+            return getattr(perm_obj, 'can_change_owner', False)
+        return False
+
     def has_permission(self, module, action):
         """
         检查用户是否具有指定模块和动作的权限
@@ -132,57 +218,18 @@ class User(db.Model, UserMixin):
         返回:
             bool: 是否拥有该权限
         """
-        # 调试日志
-
         try:
             # 管理员默认拥有所有权限
             if self.role == 'admin':
                 return True
 
-            # 1. 获取角色权限（基础权限）
-            from app.models.role_permissions import RolePermission
-            role_permission = RolePermission.query.filter_by(role=self.role, module=module).first()
-            role_has_permission = False
-            if role_permission:
-                # 检查角色权限级别是否为 'none'
-                if getattr(role_permission, 'permission_level', None) == 'none':
-                    role_has_permission = False
-                elif action == 'view':
-                    role_has_permission = role_permission.can_view
-                elif action == 'create':
-                    role_has_permission = role_permission.can_create
-                elif action == 'edit':
-                    role_has_permission = role_permission.can_edit
-                elif action == 'delete':
-                    role_has_permission = role_permission.can_delete
-                elif action == 'change_owner':
-                    role_has_permission = getattr(role_permission, 'can_change_owner', False)
+            role_permission, personal_permission = self._get_cached_permissions(module)
 
-            # 2. 获取用户个人权限（覆盖权限）
-            permission = Permission.query.filter_by(user_id=self.id, module=module).first()
-
-            # 3. 权限优先级：个人权限完全覆盖角色权限
-            if permission:
-                # 如果设置了个人权限，使用个人权限（可以扩展或限制角色权限）
-                personal_has_permission = False
-                # 检查个人权限级别是否为 'none'
-                if getattr(permission, 'permission_level', None) == 'none':
-                    personal_has_permission = False
-                elif action == 'view':
-                    personal_has_permission = permission.can_view
-                elif action == 'create':
-                    personal_has_permission = permission.can_create
-                elif action == 'edit':
-                    personal_has_permission = permission.can_edit
-                elif action == 'delete':
-                    personal_has_permission = permission.can_delete
-                elif action == 'change_owner':
-                    personal_has_permission = getattr(permission, 'can_change_owner', False)
-
-                return personal_has_permission
+            # 个人权限完全覆盖角色权限
+            if personal_permission:
+                return self._check_action_permission(personal_permission, action)
             else:
-                # 如果没有个人权限，使用角色权限
-                return role_has_permission
+                return self._check_action_permission(role_permission, action)
 
         except Exception as e:
             # 发生数据库错误时，回滚事务并记录错误
@@ -203,16 +250,16 @@ class User(db.Model, UserMixin):
     def get_permission_level(self, module):
         """
         获取用户在指定模块的权限级别
-        
+
         权限级别逻辑：
         1. 权限级别由角色权限决定
         2. 用户个人权限只能在角色权限基础上增加权限开关，不能提升权限级别
         3. 如果用户有该模块的任何权限，使用角色权限的级别
         4. 如果用户没有权限，返回 personal 级别
-        
+
         参数:
             module: 权限模块名称
-            
+
         返回:
             str: 权限级别 ('system', 'company', 'department', 'personal')
         """
@@ -220,47 +267,39 @@ class User(db.Model, UserMixin):
             # 管理员默认拥有系统级权限
             if self.role == 'admin':
                 return 'system'
-            
+
+            role_permission, permission = self._get_cached_permissions(module)
+
             # 1. 获取角色权限级别（基础权限级别）
-            from app.models.role_permissions import RolePermission
-            role_permission = RolePermission.query.filter_by(role=self.role, module=module).first()
             role_level = 'personal'  # 默认个人级
             if role_permission:
                 role_level = role_permission.permission_level or 'personal'
-            
-            # 2. 直接检查用户是否有该模块的任何权限（避免递归调用）
-            # 获取角色权限
+
+            # 2. 直接检查用户是否有该模块的任何权限
             role_has_any_permission = False
             if role_permission:
-                role_has_any_permission = (role_permission.can_view or role_permission.can_create or 
+                role_has_any_permission = (role_permission.can_view or role_permission.can_create or
                                          role_permission.can_edit or role_permission.can_delete)
-            
-            # 获取个人权限
-            permission = Permission.query.filter_by(user_id=self.id, module=module).first()
+
             personal_has_any_permission = False
             if permission:
-                personal_has_any_permission = (permission.can_view or permission.can_create or 
+                personal_has_any_permission = (permission.can_view or permission.can_create or
                                              permission.can_edit or permission.can_delete)
-            
+
             # 合并权限检查
             user_has_permission = role_has_any_permission or personal_has_any_permission
-            
+
             # 3. 权限级别优先级：使用 permission_level 作为判断基准
-            #    - 如果 permission_level 有值（is not None）→ 使用个人权限级别
-            #    - 如果 permission_level 为 None 或记录不存在 → 使用角色权限级别
             if user_has_permission:
-                # 判断个人权限级别是否为 None（使用 is not None 而不是 truthy 判断）
                 if permission and permission.permission_level is not None:
                     final_level = permission.permission_level
                 else:
-                    # 否则使用角色权限级别
                     final_level = role_level
             else:
                 final_level = 'personal'
-            
-            
+
             return final_level
-            
+
         except Exception as e:
             print(f"[ERROR][get_permission_level] Database error: {str(e)}")
             return 'personal'
@@ -277,18 +316,15 @@ class User(db.Model, UserMixin):
             Permission 或 RolePermission 对象，包含 content_filters 等字段
             如果没有找到配置，返回 None
         """
-        from app.models.role_permissions import RolePermission
-
         try:
-            # 优先查询个人权限
-            personal_perm = self.permissions.filter_by(module=module).first()
-            if personal_perm:
-                return personal_perm
+            role_permission, personal_permission = self._get_cached_permissions(module)
 
-            # 其次查询角色权限
-            return RolePermission.query.filter_by(
-                role=self.role, module=module
-            ).first()
+            # 优先返回个人权限
+            if personal_permission:
+                return personal_permission
+
+            # 其次返回角色权限
+            return role_permission
         except Exception as e:
             print(f"[ERROR][get_permission_config] Database error: {str(e)}")
             return None
@@ -306,34 +342,22 @@ class User(db.Model, UserMixin):
         返回:
             bool: 模块是否启用
         """
-        from app.utils.permission_helpers import is_module_enabled
-        from app.models.role_permissions import RolePermission
+        from app.utils.permission_helpers import is_module_enabled as _is_module_enabled
 
         try:
             # 管理员所有模块默认启用
             if self.role == 'admin':
                 return True
 
-            # 1. 先查个人权限
-            personal_permission = Permission.query.filter_by(
-                user_id=self.id,
-                module=module_name
-            ).first()
+            role_permission, personal_permission = self._get_cached_permissions(module_name)
 
-            if personal_permission and is_module_enabled(personal_permission):
+            if personal_permission and _is_module_enabled(personal_permission):
                 return True
 
-            # 2. 回退到角色权限
-            role_permission = RolePermission.query.filter_by(
-                role=self.role,
-                module=module_name
-            ).first()
-
-            return is_module_enabled(role_permission)
+            return _is_module_enabled(role_permission)
 
         except Exception as e:
             print(f"[ERROR][is_module_enabled] Database error: {str(e)}")
-            # 管理员即使出错也返回True
             if self.role == 'admin':
                 return True
             return False

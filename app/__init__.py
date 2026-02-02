@@ -631,88 +631,43 @@ def create_app(config_class=Config):
         """向模板上下文注入当前用户的权限信息"""
         def has_permission(module, action):
             from flask_login import current_user
-            
+
             try:
-                # 如果用户未登录，则没有权限
                 if not current_user.is_authenticated:
                     return False
-                    
-                # 管理员和CEO默认拥有所有权限
+
+                # CEO 额外检查（has_permission 已处理 admin）
                 from app.permissions import is_admin_or_ceo
                 if is_admin_or_ceo():
                     return True
-                    
-                # 1. 获取角色权限（基础权限）
-                from app.models.role_permissions import RolePermission
-                role_permission = RolePermission.query.filter_by(role=current_user.role, module=module).first()
-                role_has_permission = False
-                if role_permission:
-                    # 检查角色权限级别
-                    if getattr(role_permission, 'permission_level', None) == 'none':
-                        role_has_permission = False
-                    elif action == 'view':
-                        role_has_permission = role_permission.can_view
-                    elif action == 'create':
-                        role_has_permission = role_permission.can_create
-                    elif action == 'edit':
-                        role_has_permission = role_permission.can_edit
-                    elif action == 'delete':
-                        role_has_permission = role_permission.can_delete
 
-                # 2. 获取用户个人权限（覆盖权限）
-                from app.models.user import Permission
-                permission = Permission.query.filter_by(user_id=current_user.id, module=module).first()
+                # 委托给 User.has_permission()（已有请求级缓存）
+                return current_user.has_permission(module, action)
 
-                # 3. 权限优先级：个人权限完全覆盖角色权限
-                if permission:
-                    # 如果设置了个人权限，使用个人权限（可以扩展或限制角色权限）
-                    personal_has_permission = False
-                    # 检查个人权限级别
-                    if getattr(permission, 'permission_level', None) == 'none':
-                        personal_has_permission = False
-                    elif action == 'view':
-                        personal_has_permission = permission.can_view
-                    elif action == 'create':
-                        personal_has_permission = permission.can_create
-                    elif action == 'edit':
-                        personal_has_permission = permission.can_edit
-                    elif action == 'delete':
-                        personal_has_permission = permission.can_delete
-
-                    return personal_has_permission  # 直接返回个人权限结果
-                else:
-                    # 如果没有个人权限，使用角色权限
-                    return role_has_permission
-                
             except Exception as e:
-                # 发生数据库错误时，回滚事务并记录错误
-                # Database error in permission check - log to app logger if available
                 try:
                     from flask import current_app
                     current_app.logger.error(f"Permission check database error: {str(e)}")
                 except:
-                    pass  # Ignore logging errors
+                    pass
                 try:
                     from app import db
                     db.session.rollback()
-                except Exception as rollback_error:
-                    pass  # Ignore rollback errors in permission context
-                
-                # 对于权限检查失败，默认返回False（安全策略）
-                # 但对于管理员和CEO，即使数据库出错也应该有权限
+                except Exception:
+                    pass
+
                 from app.permissions import is_admin_or_ceo
                 if is_admin_or_ceo():
                     return True
-                
+
                 return False
-                
+
         # 添加管理员/CEO检查函数到模板上下文
         def is_admin_or_ceo_template():
             from app.permissions import is_admin_or_ceo
             from flask_login import current_user
-            # 确保传递正确的用户参数
             return is_admin_or_ceo(current_user)
-            
+
         return {
             'has_permission': has_permission,
             'is_admin_or_ceo': is_admin_or_ceo_template

@@ -100,31 +100,28 @@ def index():
     if current_user.has_permission('expense', 'view'):
         try:
             from app.models.expense import Expense
-            from app.helpers.approval_helpers import get_object_approval_instance
-            
+            from app.helpers.approval_helpers import get_object_approval_instances_batch
+
             # 获取最近的报销单，包含关联的审批实例信息
             recent_expenses_query = get_viewable_data(Expense, current_user).options(
                 joinedload(Expense.owner),
                 joinedload(Expense.project)
             ).order_by(Expense.updated_at.desc()).limit(5)
-            
+
             raw_expenses = recent_expenses_query.all()
-            
-            # 为每个报销单添加审批状态信息
+
+            # 批量获取所有报销单的审批实例（1次IN查询替代N次循环查询）
+            expense_ids = [e.id for e in raw_expenses]
+            approval_map = get_object_approval_instances_batch('expense', expense_ids)
+
             for expense in raw_expenses:
-                try:
-                    # 获取审批实例以获取审批状态
-                    approval_instance = get_object_approval_instance('expense', expense.id)
-                    if approval_instance:
-                        expense.approval_status = approval_instance.status.value
-                    else:
-                        expense.approval_status = 'draft'
-                except Exception as e:
-                    logger.warning(f"获取报销单 {expense.id} 审批状态失败: {str(e)}")
-                    expense.approval_status = expense.status  # 使用报销单自身状态
-                
+                approval_instance = approval_map.get(expense.id)
+                if approval_instance:
+                    expense.approval_status = approval_instance.status.value
+                else:
+                    expense.approval_status = 'draft'
                 recent_expenses.append(expense)
-                
+
         except Exception as e:
             logger.warning(f"报销单查询失败: {str(e)}")
             try:
@@ -135,12 +132,12 @@ def index():
                     joinedload(Expense.owner),
                     joinedload(Expense.project)
                 ).order_by(Expense.id.desc()).limit(5)
-                
+
                 raw_expenses = recent_expenses_query.all()
                 for expense in raw_expenses:
                     expense.approval_status = expense.status  # 使用报销单自身状态
                     recent_expenses.append(expense)
-                    
+
             except Exception as e2:
                 logger.error(f"报销单查询完全失败: {str(e2)}")
                 # 回滚失败的事务
@@ -151,9 +148,7 @@ def index():
     # 使用用户的结算货币进行汇率转换
     expense_monthly_stats = []
     expense_year_total = 0
-    # 从数据库直接查询以获取最新值，避免 Flask-Login session 缓存问题
-    fresh_user = User.query.get(current_user.id)
-    user_settlement_currency = (fresh_user.settlement_currency if fresh_user else None) or Config.DEFAULT_CURRENCY
+    user_settlement_currency = current_user.settlement_currency or Config.DEFAULT_CURRENCY
     user_currency_symbol = get_currency_symbol(user_settlement_currency)
     # 获取 CNY → 用户结算货币 的汇率
     user_exchange_rate = exchange_rate_service.get_exchange_rate('CNY', user_settlement_currency)
