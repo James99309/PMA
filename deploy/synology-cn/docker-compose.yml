@@ -98,6 +98,8 @@ services:
           memory: 768M
         reservations:
           memory: 384M
+    labels:
+      - "autoheal=true"
     networks:
       - pma-network
 
@@ -119,6 +121,25 @@ services:
           memory: 32M
     networks:
       - pma-network
+
+  # 容器健康监控 - unhealthy 时自动重启
+  autoheal:
+    image: willfarrell/autoheal
+    container_name: pma-autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: 30
+      AUTOHEAL_START_PERIOD: 120
+      AUTOHEAL_DEFAULT_STOP_TIMEOUT: 10
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      resources:
+        limits:
+          memory: 32M
+        reservations:
+          memory: 8M
 
   # FRP 客户端（外网穿透，连接 VPS）
   frpc:
