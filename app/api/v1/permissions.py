@@ -86,27 +86,22 @@ def update_user_permissions(user_id):
         )
     
     try:
-        # 清除现有权限
-        Permission.query.filter_by(user_id=user_id).delete()
+        # === 性能优化：批量删除 ===
+        Permission.query.filter_by(user_id=user_id).delete(synchronize_session=False)
 
-        # 添加新权限
+        # === 性能优化：构建批量插入数据 ===
+        permission_records = []
         for perm_data in permissions_data:
             module = perm_data.get('module')
+            if not module:
+                continue
+
             can_view = perm_data.get('can_view', False)
             can_create = perm_data.get('can_create', False)
             can_edit = perm_data.get('can_edit', False)
             can_delete = perm_data.get('can_delete', False)
             can_change_owner = perm_data.get('can_change_owner', False)
-
-            # 提取扩展字段
             permission_level = perm_data.get('permission_level', 'personal')
-            permission_level_description = perm_data.get('permission_level_description')
-            pricing_discount_limit = perm_data.get('pricing_discount_limit')
-            settlement_discount_limit = perm_data.get('settlement_discount_limit')
-            content_filters = perm_data.get('content_filters')
-
-            if not module:
-                continue
 
             # 数据一致性验证：如果permission_level为'none'，强制所有权限为False
             if permission_level == 'none':
@@ -117,25 +112,28 @@ def update_user_permissions(user_id):
                 can_change_owner = False
                 logger.info(f"✅ 数据一致性保护：模块 {module} level='none'，已强制清空所有权限")
 
-            permission = Permission(
-                user_id=user_id,
-                module=module,
-                can_view=can_view,
-                can_create=can_create,
-                can_edit=can_edit,
-                can_delete=can_delete,
-                can_change_owner=can_change_owner,
-                permission_level=permission_level,
-                permission_level_description=permission_level_description,
-                pricing_discount_limit=pricing_discount_limit,
-                settlement_discount_limit=settlement_discount_limit,
-                content_filters=content_filters
-            )
-            db.session.add(permission)
+            permission_records.append({
+                'user_id': user_id,
+                'module': module,
+                'can_view': can_view,
+                'can_create': can_create,
+                'can_edit': can_edit,
+                'can_delete': can_delete,
+                'can_change_owner': can_change_owner,
+                'permission_level': permission_level,
+                'permission_level_description': perm_data.get('permission_level_description'),
+                'pricing_discount_limit': perm_data.get('pricing_discount_limit'),
+                'settlement_discount_limit': perm_data.get('settlement_discount_limit'),
+                'content_filters': perm_data.get('content_filters')
+            })
+
+        # === 性能优化：批量插入 ===
+        if permission_records:
+            db.session.bulk_insert_mappings(Permission, permission_records)
 
         db.session.commit()
 
-        logger.info(f"成功更新用户 {user_id} 的个人权限，共 {len(permissions_data)} 个模块")
+        logger.info(f"成功更新用户 {user_id} 的个人权限，共 {len(permission_records)} 个模块")
 
         return api_response(
             success=True,

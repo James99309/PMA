@@ -269,25 +269,35 @@ def api_get_roles():
 @login_required
 @permission_required('config_management', 'view')
 def api_get_role_permissions(role):
-    """获取角色默认权限"""
+    """获取角色默认权限（性能优化版）"""
     from flask import session
     from app.models.permission_module import PermissionModule, PermissionModuleFeature, RoleFeaturePermission
 
     try:
         lang = session.get('language', 'zh')
 
-        # 获取模块列表（按 sort_order 顺序），包含子功能
-        modules = []
+        # === 性能优化：一次性查询所有模块 ===
         db_modules = PermissionModule.query.filter_by(is_active=True)\
             .order_by(PermissionModule.sort_order).all()
 
-        for m in db_modules:
-            # 获取模块的子功能
-            features = PermissionModuleFeature.query.filter_by(
-                module_id=m.module_id,
-                is_active=True
-            ).order_by(PermissionModuleFeature.sort_order).all()
+        # === 性能优化：一次性查询所有子功能，避免 N+1 问题 ===
+        module_ids = [m.module_id for m in db_modules]
+        all_features = PermissionModuleFeature.query.filter(
+            PermissionModuleFeature.module_id.in_(module_ids),
+            PermissionModuleFeature.is_active == True
+        ).order_by(PermissionModuleFeature.sort_order).all()
 
+        # 按模块ID分组子功能
+        features_by_module = {}
+        for f in all_features:
+            if f.module_id not in features_by_module:
+                features_by_module[f.module_id] = []
+            features_by_module[f.module_id].append(f)
+
+        # 构建模块列表
+        modules = []
+        for m in db_modules:
+            module_features = features_by_module.get(m.module_id, [])
             modules.append({
                 'id': m.module_id,
                 'name': m.name_en if lang == 'en' and m.name_en else m.name,
@@ -299,7 +309,7 @@ def api_get_role_permissions(role):
                 'supports_owner_change': m.supports_owner_change,
                 'supports_affiliation': m.supports_affiliation,
                 'supports_content_filter': m.supports_content_filter,
-                'features': [f.to_dict(lang) for f in features]
+                'features': [f.to_dict(lang) for f in module_features]
             })
 
         # 如果数据库为空，使用回退
@@ -357,7 +367,7 @@ def api_get_role_permissions(role):
 @login_required
 @permission_required('config_management', 'edit')
 def api_save_role_permissions(role):
-    """保存角色默认权限（包括子功能权限）"""
+    """保存角色默认权限（性能优化版，包括子功能权限）"""
     import time
     from app.models.permission_module import RoleFeaturePermission
 
@@ -369,61 +379,53 @@ def api_save_role_permissions(role):
         permissions = data.get('permissions', {})
         feature_permissions = data.get('feature_permissions', {})
 
-        # 删除现有角色权限
-        RolePermission.query.filter_by(role=role).delete()
+        # === 性能优化：批量删除 ===
+        RolePermission.query.filter_by(role=role).delete(synchronize_session=False)
 
-        # 创建新的角色权限
+        # === 性能优化：构建批量插入数据 ===
+        role_perm_records = []
         for module, perm_data in permissions.items():
-            role_perm = RolePermission(
-                role=role,
-                module=module,
-                can_view=perm_data.get('can_view', False),
-                can_create=perm_data.get('can_create', False),
-                can_edit=perm_data.get('can_edit', False),
-                can_delete=perm_data.get('can_delete', False),
-                can_change_owner=perm_data.get('can_change_owner', False),
-                permission_level=perm_data.get('permission_level', 'personal')
-            )
+            role_perm_records.append({
+                'role': role,
+                'module': module,
+                'can_view': perm_data.get('can_view', False),
+                'can_create': perm_data.get('can_create', False),
+                'can_edit': perm_data.get('can_edit', False),
+                'can_delete': perm_data.get('can_delete', False),
+                'can_change_owner': perm_data.get('can_change_owner', False),
+                'permission_level': perm_data.get('permission_level', 'personal'),
+                'pricing_discount_limit': perm_data.get('pricing_discount_limit'),
+                'settlement_discount_limit': perm_data.get('settlement_discount_limit'),
+                'content_filters': perm_data.get('content_filter')
+            })
 
-            # 设置可选字段 - 折扣权限
-            if 'pricing_discount_limit' in perm_data:
-                role_perm.pricing_discount_limit = perm_data['pricing_discount_limit']
-            if 'settlement_discount_limit' in perm_data:
-                role_perm.settlement_discount_limit = perm_data['settlement_discount_limit']
-            # 设置可选字段 - 内容筛选
-            if 'content_filter' in perm_data:
-                role_perm.content_filters = perm_data['content_filter']
-
-            db.session.add(role_perm)
+        # === 性能优化：批量插入角色权限 ===
+        if role_perm_records:
+            db.session.bulk_insert_mappings(RolePermission, role_perm_records)
 
         # 保存子功能权限
         if feature_permissions:
             now = time.time()
+            # === 性能优化：先删除该角色的所有子功能权限，再批量插入 ===
+            RoleFeaturePermission.query.filter_by(role=role).delete(synchronize_session=False)
+
+            feature_records = []
             for module_id, features in feature_permissions.items():
                 for feature_id, is_enabled in features.items():
-                    # 查找或创建记录
-                    fp = RoleFeaturePermission.query.filter_by(
-                        role=role,
-                        module_id=module_id,
-                        feature_id=feature_id
-                    ).first()
+                    feature_records.append({
+                        'role': role,
+                        'module_id': module_id,
+                        'feature_id': feature_id,
+                        'is_enabled': is_enabled,
+                        'created_at': now,
+                        'updated_at': now
+                    })
 
-                    if fp:
-                        fp.is_enabled = is_enabled
-                        fp.updated_at = now
-                    else:
-                        fp = RoleFeaturePermission(
-                            role=role,
-                            module_id=module_id,
-                            feature_id=feature_id,
-                            is_enabled=is_enabled,
-                            created_at=now,
-                            updated_at=now
-                        )
-                        db.session.add(fp)
+            if feature_records:
+                db.session.bulk_insert_mappings(RoleFeaturePermission, feature_records)
 
         db.session.commit()
-        logger.info(f"角色 {role} 权限保存成功")
+        logger.info(f"角色 {role} 权限保存成功，共 {len(role_perm_records)} 个模块权限")
 
         return jsonify({
             'success': True,
@@ -622,7 +624,7 @@ def api_batch_get_user_permissions():
 @login_required
 @permission_required('config_management', 'edit')
 def api_batch_save_user_permissions():
-    """批量保存用户权限覆盖"""
+    """批量保存用户权限覆盖（性能优化版）"""
     try:
         from app.models.user import User, Permission
         from app.utils.module_metadata import get_all_modules
@@ -649,50 +651,53 @@ def api_batch_save_user_permissions():
         all_modules = get_all_modules()
         all_module_ids = list(all_modules.keys())
 
-        # 批量更新每个用户的权限
-        for user_id in user_ids:
-            # 删除该用户的所有现有权限
-            Permission.query.filter_by(user_id=user_id).delete()
+        # === 性能优化：批量删除 ===
+        Permission.query.filter(Permission.user_id.in_(user_ids)).delete(synchronize_session=False)
 
+        # === 性能优化：预先构建所有权限记录 ===
+        permission_records = []
+
+        for user_id in user_ids:
             # 添加选中模块的权限
             for module, perm_data in permissions_data.items():
                 # 跳过混合状态的权限（不覆盖）
                 if perm_data.get('skip_mixed'):
                     continue
 
-                permission = Permission(
-                    user_id=user_id,
-                    module=module,
-                    can_view=perm_data.get('can_view', False),
-                    can_create=perm_data.get('can_create', False),
-                    can_edit=perm_data.get('can_edit', False),
-                    can_delete=perm_data.get('can_delete', False),
-                    can_change_owner=perm_data.get('can_change_owner', False),
-                    permission_level=perm_data.get('permission_level', 'personal'),
-                    # 折扣和内容筛选配置
-                    pricing_discount_limit=perm_data.get('pricing_discount_limit'),
-                    settlement_discount_limit=perm_data.get('settlement_discount_limit'),
-                    content_filters=perm_data.get('content_filter')  # 前端用 content_filter
-                )
-                db.session.add(permission)
+                permission_records.append({
+                    'user_id': user_id,
+                    'module': module,
+                    'can_view': perm_data.get('can_view', False),
+                    'can_create': perm_data.get('can_create', False),
+                    'can_edit': perm_data.get('can_edit', False),
+                    'can_delete': perm_data.get('can_delete', False),
+                    'can_change_owner': perm_data.get('can_change_owner', False),
+                    'permission_level': perm_data.get('permission_level', 'personal'),
+                    'pricing_discount_limit': perm_data.get('pricing_discount_limit'),
+                    'settlement_discount_limit': perm_data.get('settlement_discount_limit'),
+                    'content_filters': perm_data.get('content_filter')
+                })
 
-            # 为未选中的模块添加"无权限"记录，阻止回退到角色权限
+            # 为未选中的模块添加"无权限"记录
             for module_id in all_module_ids:
                 if module_id not in permissions_data:
-                    no_permission = Permission(
-                        user_id=user_id,
-                        module=module_id,
-                        can_view=False,
-                        can_create=False,
-                        can_edit=False,
-                        can_delete=False,
-                        can_change_owner=False,
-                        permission_level='none'
-                    )
-                    db.session.add(no_permission)
+                    permission_records.append({
+                        'user_id': user_id,
+                        'module': module_id,
+                        'can_view': False,
+                        'can_create': False,
+                        'can_edit': False,
+                        'can_delete': False,
+                        'can_change_owner': False,
+                        'permission_level': 'none'
+                    })
+
+        # === 性能优化：批量插入 ===
+        if permission_records:
+            db.session.bulk_insert_mappings(Permission, permission_records)
 
         db.session.commit()
-        logger.info(f"批量更新 {len(user_ids)} 个用户的权限成功")
+        logger.info(f"批量更新 {len(user_ids)} 个用户的权限成功，共 {len(permission_records)} 条记录")
 
         return jsonify({
             'success': True,

@@ -69,8 +69,6 @@ if [ "$SKIP_BUILD" = true ]; then
 else
     echo -e "\n${YELLOW}[3/5] 重建并重启服务...${NC}"
     $DOCKER_COMPOSE up -d --build pma
-    echo -e "${YELLOW}重启 Cloudflare 隧道（刷新 DNS 缓存）...${NC}"
-    $DOCKER_COMPOSE restart cloudflared
 fi
 
 echo -e "\n${YELLOW}[4/5] 等待容器健康检查...${NC}"
