@@ -475,7 +475,20 @@ def create_app(config_class=Config):
         except Exception as e:
             logger.error(f"获取应用版本信息失败: {str(e)}")
             return {'success': False, 'message': '获取版本信息失败', 'error': str(e)}, 500
-    
+
+    # 健康检查端点（用于 Docker 健康检查）
+    @app.route('/health', methods=['GET'])
+    def health_check():
+        """健康检查端点，用于容器健康检查"""
+        try:
+            # 简单检查数据库连接
+            from sqlalchemy import text
+            db.session.execute(text('SELECT 1'))
+            return {'status': 'healthy', 'database': 'ok'}, 200
+        except Exception as e:
+            logger.error(f"健康检查失败: {str(e)}")
+            return {'status': 'unhealthy', 'error': str(e)}, 503
+
     # 数据初始化
     with app.app_context():
         # 为Supabase环境设置search_path，解决表创建问题

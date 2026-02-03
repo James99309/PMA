@@ -53,7 +53,7 @@ for cmd in git docker; do
     fi
 done
 
-echo -e "\n${YELLOW}[1/4] 拉取最新代码...${NC}"
+echo -e "\n${YELLOW}[1/5] 拉取最新代码...${NC}"
 cd "$PROJECT_DIR"
 if [ "$SKIP_GIT" = true ]; then
     echo -e "${YELLOW}跳过 git pull（--skip-git）${NC}"
@@ -61,20 +61,37 @@ else
     git pull origin main
 fi
 
-echo -e "\n${YELLOW}[2/4] 切换到部署目录...${NC}"
+echo -e "\n${YELLOW}[2/5] 切换到部署目录...${NC}"
 cd "$DEPLOY_DIR"
 
 if [ "$SKIP_BUILD" = true ]; then
-    echo -e "\n${YELLOW}[3/4] 跳过重建（--skip-build）...${NC}"
+    echo -e "\n${YELLOW}[3/5] 跳过重建（--skip-build）...${NC}"
 else
-    echo -e "\n${YELLOW}[3/4] 重建并重启服务...${NC}"
+    echo -e "\n${YELLOW}[3/5] 重建并重启服务...${NC}"
     $DOCKER_COMPOSE up -d --build pma
     echo -e "${YELLOW}重启 Cloudflare 隧道（刷新 DNS 缓存）...${NC}"
     $DOCKER_COMPOSE restart cloudflared
 fi
 
-echo -e "\n${YELLOW}[4/4] 执行数据库迁移...${NC}"
-sleep 5
+echo -e "\n${YELLOW}[4/5] 等待容器健康检查...${NC}"
+MAX_WAIT=60
+WAITED=0
+while [ $WAITED -lt $MAX_WAIT ]; do
+    HEALTH=$($DOCKER inspect --format='{{.State.Health.Status}}' pma-app 2>/dev/null || echo "unknown")
+    if [ "$HEALTH" = "healthy" ]; then
+        echo -e "${GREEN}✓ 容器已就绪 (${WAITED}秒)${NC}"
+        break
+    fi
+    echo -e "  等待中... ($HEALTH) ${WAITED}s/${MAX_WAIT}s"
+    sleep 3
+    WAITED=$((WAITED + 3))
+done
+
+if [ "$HEALTH" != "healthy" ]; then
+    echo -e "${YELLOW}⚠ 容器未通过健康检查，但继续执行迁移...${NC}"
+fi
+
+echo -e "\n${YELLOW}[5/5] 执行数据库迁移...${NC}"
 $DOCKER exec pma-app flask db upgrade || echo -e "${YELLOW}数据库迁移跳过（可能没有新迁移）${NC}"
 
 echo -e "\n${GREEN}========================================${NC}"

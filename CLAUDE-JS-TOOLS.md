@@ -52,6 +52,7 @@
 | tw-grouped-select.js | 树形分组下拉选择器 | 分组下拉选择+输入框组合（类型选择器） | 1 | ✅ 已文档化 🆕 |
 | map-picker.js | 地图位置选择器 | 弹窗地图选点、地址搜索（Google Maps） | 2 | ✅ 已文档化 🆕 |
 | address-picker.js | 通用地址选择器 | 地址输入框+地图定位，自动填充结构化数据 | 2 | ✅ 已文档化 🆕 |
+| QualityScorePopover | 评分悬浮组件 | 日志质量评分蜘蛛图悬浮显示 | 2 | ✅ 已文档化 🆕 |
 
 > **说明**:
 > - ✅ 已文档化 - 有完整的API文档和使用示例
@@ -3552,6 +3553,90 @@ AddressPicker.clearAddress('address');
 
 ---
 
-**版本**: 3.0.0
-**最后更新**: 2026-01-11
+### 🎯 评分展示类
+
+#### QualityScorePopover（评分悬浮组件）
+
+**基本信息**
+- **文件路径**: `app/templates/components/tw_quality_score_popover.html`（Jinja2 宏提供 JS 脚本）
+- **功能描述**: 统一的日志质量评分悬浮组件，显示评分徽章，鼠标悬浮时展示蜘蛛图和改进建议
+- **依赖库**: 无外部依赖
+- **创建日期**: 2026-02-03
+
+**已使用页面**
+1. `app/templates/worklog/tw_calendar.html` - 工作日历（Alpine.js 环境）
+2. `app/templates/components/tw_worklog_preview.html` - 日志预览组件（JavaScript 环境）
+
+**核心特性**
+- 评分徽章四色显示（绿/蓝/琥珀/灰）
+- 悬浮显示蜘蛛图（5维度）
+- 显示互动加分和改进建议
+- 支持 Alpine.js 和纯 JavaScript 两种环境
+- 深色模式支持
+- 完整国际化
+
+**JavaScript API**
+
+```javascript
+/**
+ * 渲染评分徽章（带悬浮面板）
+ * @param {string} containerId - 容器元素 ID
+ * @param {Object} scoreData - 评分数据对象
+ * @param {Object} options - 配置选项
+ */
+QualityScorePopover.render(containerId, scoreData, options);
+```
+
+**使用示例**
+
+模板导入：
+```jinja2
+{% from 'components/tw_quality_score_popover.html' import render_quality_score_script with context %}
+
+<!-- 在脚本区域添加 -->
+{{ render_quality_score_script() }}
+```
+
+HTML 容器：
+```html
+<!-- 需要预先创建带 group/score relative 类的容器 -->
+<div id="score-badge" class="hidden group/score relative"></div>
+```
+
+JavaScript 调用：
+```javascript
+// 评分数据结构
+const scoreData = {
+    total: 75,
+    icon: 'sentiment_satisfied',
+    badge_class: 'tw-badge-blue',
+    level: 'good',
+    breakdown: {
+        count: 10,      // 数量分 (max 15)
+        quality: 20,    // 质量分 (max 25)
+        diversity: 12,  // 多样分 (max 15)
+        timeliness: 8,  // 及时分 (max 10)
+        activity: 10,   // 行为分 (max 15)
+        interaction: 5  // 互动加分
+    },
+    issues: ['low_diversity'],
+    suggestions: {
+        'low_diversity': {
+            issue: '工作类型单一',
+            suggestion: '尝试记录不同类型的工作'
+        }
+    }
+};
+
+// 渲染评分悬浮组件
+QualityScorePopover.render('score-badge', scoreData, { position: 'right' });
+```
+
+**Alpine.js 环境使用**
+详见 `CLAUDE-TW-COMPONENTS.md` 中的评分悬浮组件章节。
+
+---
+
+**版本**: 3.1.0
+**最后更新**: 2026-02-03
 **维护者**: Claude AI

@@ -8,6 +8,7 @@
 {% from 'components/tw_file_preview.html' import render_file_preview_modal, render_file_preview_script with context %}
 {% from 'components/tw_grouped_select.html' import tw_grouped_select_input with context %}
 {% from 'components/tw_worklog_reactions.html' import render_worklog_reactions_script with context %}
+{% from 'components/tw_quality_score_popover.html' import render_quality_score_badge_alpine, render_quality_score_popover_alpine with context %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 
@@ -1073,102 +1074,8 @@
                         <!-- 评分徽章（已提交日志显示，悬浮显示雷达图） -->
                         <div x-show="logData.quality_score" class="flex items-center relative group/score"
                              @mouseenter="markScoreViewed(logData.id)">
-                            <template x-if="logData.quality_score">
-                                <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full cursor-default transition-all"
-                                     :class="{
-                                         'score-ring-glow': !isScoreViewed(logData.id),
-                                         'bg-green-100 dark:bg-green-900/30': logData.quality_score.badge_class === 'tw-badge-green',
-                                         'bg-blue-100 dark:bg-blue-900/30': logData.quality_score.badge_class === 'tw-badge-blue',
-                                         'bg-amber-100 dark:bg-amber-900/30': logData.quality_score.badge_class === 'tw-badge-amber',
-                                         'bg-slate-100 dark:bg-slate-700': logData.quality_score.badge_class === 'tw-badge-gray'
-                                     }">
-                                    <span class="material-symbols-outlined text-xl"
-                                          :class="{
-                                              'text-green-500': logData.quality_score.badge_class === 'tw-badge-green',
-                                              'text-blue-500': logData.quality_score.badge_class === 'tw-badge-blue',
-                                              'text-amber-500': logData.quality_score.badge_class === 'tw-badge-amber',
-                                              'text-slate-400': logData.quality_score.badge_class === 'tw-badge-gray'
-                                          }"
-                                          style="font-variation-settings: 'FILL' 1, 'wght' 400"
-                                          x-text="logData.quality_score.icon"></span>
-                                    <span class="text-sm font-bold"
-                                          :class="{
-                                              'text-green-600 dark:text-green-400': logData.quality_score.badge_class === 'tw-badge-green',
-                                              'text-blue-600 dark:text-blue-400': logData.quality_score.badge_class === 'tw-badge-blue',
-                                              'text-amber-600 dark:text-amber-400': logData.quality_score.badge_class === 'tw-badge-amber',
-                                              'text-slate-600 dark:text-slate-400': logData.quality_score.badge_class === 'tw-badge-gray'
-                                          }"
-                                          x-text="logData.quality_score.total"></span>
-                                </div>
-                            </template>
-
-                            <!-- 悬浮提示框：雷达图 + 建议 -->
-                            <div class="absolute right-0 top-full mt-2 p-3 rounded-lg bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700 opacity-0 invisible group-hover/score:opacity-100 group-hover/score:visible transition-all duration-200 z-50"
-                                 style="width: 280px;">
-                                <template x-if="logData.quality_score">
-                                    <div>
-                                        <!-- 雷达图（5维度：数量、质量、多样、及时、行为） -->
-                                        <div class="flex justify-center mb-1">
-                                            <svg width="180" height="160" viewBox="0 0 180 160">
-                                                <!-- 背景网格（五边形，3层） -->
-                                                <polygon points="90,20 128,48 114,95 66,95 52,48" fill="none" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="1"/>
-                                                <polygon points="90,35 116,55 106,90 74,90 64,55" fill="none" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
-                                                <polygon points="90,50 104,62 98,85 82,85 76,62" fill="none" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.6"/>
-                                                <!-- 轴线（5条） -->
-                                                <line x1="90" y1="65" x2="90" y2="20" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
-                                                <line x1="90" y1="65" x2="128" y2="48" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
-                                                <line x1="90" y1="65" x2="114" y2="95" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
-                                                <line x1="90" y1="65" x2="66" y2="95" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
-                                                <line x1="90" y1="65" x2="52" y2="48" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
-                                                <!-- 数据多边形 -->
-                                                <polygon
-                                                    :points="`90,${65 - 45 * (logData.quality_score.breakdown?.count || 0) / 15} ${90 + 38 * (logData.quality_score.breakdown?.quality || 0) / 25},${65 - 17 * (logData.quality_score.breakdown?.quality || 0) / 25} ${90 + 24 * (logData.quality_score.breakdown?.diversity || 0) / 15},${65 + 30 * (logData.quality_score.breakdown?.diversity || 0) / 15} ${90 - 24 * (logData.quality_score.breakdown?.timeliness || 0) / 10},${65 + 30 * (logData.quality_score.breakdown?.timeliness || 0) / 10} ${90 - 38 * (logData.quality_score.breakdown?.activity || 0) / 15},${65 - 17 * (logData.quality_score.breakdown?.activity || 0) / 15}`"
-                                                    :class="{
-                                                        'fill-green-500/30 stroke-green-500': logData.quality_score.level === 'excellent',
-                                                        'fill-blue-500/30 stroke-blue-500': logData.quality_score.level === 'good',
-                                                        'fill-amber-500/30 stroke-amber-500': logData.quality_score.level === 'fair',
-                                                        'fill-slate-400/30 stroke-slate-400': logData.quality_score.level === 'poor'
-                                                    }"
-                                                    stroke-width="1.5"/>
-                                                <!-- 维度标签 -->
-                                                <text x="90" y="12" text-anchor="middle" class="fill-slate-900 dark:fill-slate-200" style="font-size:10px">{{ _('数量') }} <tspan x-text="logData.quality_score.breakdown?.count || 0"></tspan></text>
-                                                <text x="140" y="42" text-anchor="start" class="fill-slate-900 dark:fill-slate-200" style="font-size:10px">{{ _('质量') }} <tspan x-text="logData.quality_score.breakdown?.quality || 0"></tspan></text>
-                                                <text x="125" y="108" text-anchor="start" class="fill-slate-900 dark:fill-slate-200" style="font-size:10px">{{ _('多样') }} <tspan x-text="logData.quality_score.breakdown?.diversity || 0"></tspan></text>
-                                                <text x="55" y="108" text-anchor="end" class="fill-slate-900 dark:fill-slate-200" style="font-size:10px">{{ _('及时') }} <tspan x-text="logData.quality_score.breakdown?.timeliness || 0"></tspan></text>
-                                                <text x="40" y="42" text-anchor="end" class="fill-slate-900 dark:fill-slate-200" style="font-size:10px">{{ _('行为') }} <tspan x-text="logData.quality_score.breakdown?.activity || 0"></tspan></text>
-                                            </svg>
-                                        </div>
-
-                                        <!-- 互动加分（如有） -->
-                                        <template x-if="logData.quality_score.breakdown?.interaction > 0">
-                                            <div class="text-center text-xs text-slate-500 dark:text-slate-400 mb-3">
-                                                +<span x-text="logData.quality_score.breakdown?.interaction"></span> {{ _('互动加分') }}
-                                            </div>
-                                        </template>
-
-                                        <!-- 改进建议（有问题时显示全部） -->
-                                        <template x-if="logData.quality_score.issues && logData.quality_score.issues.length > 0">
-                                            <div class="space-y-1.5">
-                                                <template x-for="issueKey in logData.quality_score.issues" :key="issueKey">
-                                                    <div x-show="logData.quality_score.suggestions && logData.quality_score.suggestions[issueKey]"
-                                                         class="text-xs">
-                                                        <div class="text-slate-900 dark:text-slate-200 font-medium" x-text="logData.quality_score.suggestions[issueKey]?.issue"></div>
-                                                        <div class="text-slate-500 dark:text-slate-400 mt-0.5" x-text="logData.quality_score.suggestions[issueKey]?.suggestion"></div>
-                                                    </div>
-                                                </template>
-                                            </div>
-                                        </template>
-
-                                        <!-- 鼓励语（仅 excellent/good 等级且无问题时显示） -->
-                                        <template x-if="(!logData.quality_score.issues || logData.quality_score.issues.length === 0) && (logData.quality_score.level === 'excellent' || logData.quality_score.level === 'good')">
-                                            <div class="text-center">
-                                                <p class="text-xs text-green-600 dark:text-green-400 font-medium"
-                                                   x-text="logData.quality_score.level === 'excellent' ? '{{ _("太棒了！继续保持！") }}' : '{{ _("做得不错！保持下去！") }}'"></p>
-                                            </div>
-                                        </template>
-                                    </div>
-                                </template>
-                            </div>
+                            {{ render_quality_score_badge_alpine(score_var='logData.quality_score', show_glow=true, glow_condition='!isScoreViewed(logData.id)') }}
+                            {{ render_quality_score_popover_alpine(score_var='logData.quality_score', position='right') }}
                         </div>
                     </header>
 

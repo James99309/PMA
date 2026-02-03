@@ -27,6 +27,7 @@
 {% from 'components/tw_file_preview.html' import render_file_preview_modal, render_file_preview_script with context %}
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal with context %}
 {% from 'components/tw_worklog_reactions.html' import render_worklog_reactions_script with context %}
+{% from 'components/tw_quality_score_popover.html' import render_quality_score_script with context %}
 
 {# 日志预览模态框 #}
 {% macro render_worklog_preview_modal(modal_id='worklogPreviewModal') %}
@@ -54,8 +55,8 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-3">
-                    <!-- 评分徽章（可点击展开建议） -->
-                    <div id="{{ modal_id }}-score-badge" class="hidden"></div>
+                    <!-- 评分徽章（悬浮显示蜘蛛图） -->
+                    <div id="{{ modal_id }}-score-badge" class="hidden group/score relative"></div>
                     <!-- 关闭按钮 -->
                     <button type="button" onclick="window['closeWorklogPreview_{{ modal_id }}'](); return false;"
                             class="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
@@ -105,6 +106,9 @@
 
 <!-- 点赞组件脚本 -->
 {{ render_worklog_reactions_script() }}
+
+<!-- 评分悬浮组件脚本 -->
+{{ render_quality_score_script() }}
 
 <script>
 (function() {
@@ -257,8 +261,8 @@
                     });
                 }
 
-                // 渲染评分徽章（标题栏右侧）
-                renderScoreBadge(currentLogData.quality_score);
+                // 渲染评分徽章（标题栏右侧，悬浮显示蜘蛛图）
+                QualityScorePopover.render(modalId + '-score-badge', currentLogData.quality_score);
 
                 // 标记日志为已读
                 markLogAsRead(logDate, ownerId);
@@ -613,213 +617,6 @@
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
-    }
-
-    // 评分徽章展开状态
-    let scorePanelExpanded = false;
-
-    /**
-     * 渲染评分徽章
-     */
-    function renderScoreBadge(scoreData) {
-        const badgeContainer = document.getElementById(modalId + '-score-badge');
-        if (!badgeContainer) return;
-
-        if (!scoreData) {
-            badgeContainer.classList.add('hidden');
-            badgeContainer.innerHTML = '';
-            return;
-        }
-
-        // 徽章颜色映射
-        const colorMap = {
-            'tw-badge-green': { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400', icon: 'text-green-500' },
-            'tw-badge-blue': { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400', icon: 'text-blue-500' },
-            'tw-badge-amber': { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-600 dark:text-amber-400', icon: 'text-amber-500' },
-            'tw-badge-gray': { bg: 'bg-slate-100 dark:bg-slate-700', text: 'text-slate-600 dark:text-slate-400', icon: 'text-slate-400' }
-        };
-
-        const colors = colorMap[scoreData.badge_class] || colorMap['tw-badge-gray'];
-        const hasIssues = scoreData.issues && scoreData.issues.length > 0;
-
-        badgeContainer.innerHTML = `
-            <button type="button" onclick="window['toggleScoreSuggestions_${modalId}'](); event.stopPropagation();"
-                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-full ${colors.bg} transition-all hover:scale-105 cursor-pointer"
-                    title="{{ _('点击查看详情') }}">
-                <span class="material-symbols-outlined text-xl ${colors.icon}"
-                      style="font-variation-settings: 'FILL' 1, 'wght' 400">${scoreData.icon}</span>
-                <span class="text-sm font-bold ${colors.text}">${scoreData.total}</span>
-                ${hasIssues ? `<span class="material-symbols-outlined text-sm ${colors.text} transition-transform" id="${modalId}-expand-icon">expand_more</span>` : ''}
-            </button>
-        `;
-        badgeContainer.classList.remove('hidden');
-        scorePanelExpanded = false;
-    }
-
-    /**
-     * 切换建议面板
-     */
-    window['toggleScoreSuggestions_' + modalId] = function() {
-        if (!currentLogData || !currentLogData.quality_score) return;
-
-        const scoreData = currentLogData.quality_score;
-        const contentEl = document.getElementById(modalId + '-content');
-        const expandIcon = document.getElementById(modalId + '-expand-icon');
-        let panelEl = document.getElementById(modalId + '-suggestions-panel');
-
-        if (scorePanelExpanded) {
-            // 收起面板
-            if (panelEl) {
-                panelEl.remove();
-            }
-            if (expandIcon) {
-                expandIcon.style.transform = 'rotate(0deg)';
-            }
-            scorePanelExpanded = false;
-        } else {
-            // 展开面板
-            if (!panelEl) {
-                panelEl = document.createElement('div');
-                panelEl.id = modalId + '-suggestions-panel';
-                panelEl.className = 'mb-6 p-4 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700';
-                // 插入到内容区域开头
-                if (contentEl) {
-                    contentEl.insertBefore(panelEl, contentEl.firstChild);
-                }
-            }
-
-            // 渲染面板内容
-            panelEl.innerHTML = renderSuggestionsContent(scoreData);
-
-            if (expandIcon) {
-                expandIcon.style.transform = 'rotate(180deg)';
-            }
-            scorePanelExpanded = true;
-        }
-    };
-
-    /**
-     * 渲染建议面板内容（含蜘蛛图）
-     */
-    function renderSuggestionsContent(scoreData) {
-        const { total, breakdown, issues, suggestions, level } = scoreData;
-
-        // 蜘蛛图颜色
-        const radarFillColor = level === 'excellent' ? 'rgba(34, 197, 94, 0.3)' :
-                              level === 'good' ? 'rgba(59, 130, 246, 0.3)' :
-                              level === 'fair' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(148, 163, 184, 0.3)';
-        const radarStrokeColor = level === 'excellent' ? '#22c55e' :
-                                level === 'good' ? '#3b82f6' :
-                                level === 'fair' ? '#f59e0b' : '#94a3b8';
-
-        // 计算蜘蛛图多边形顶点（5维度：数量、质量、多样、及时、行为）
-        const countVal = breakdown?.count || 0;
-        const qualityVal = breakdown?.quality || 0;
-        const diversityVal = breakdown?.diversity || 0;
-        const timelinessVal = breakdown?.timeliness || 0;
-        const activityVal = breakdown?.activity || 0;
-
-        // 各维度最大值
-        const maxCount = 15, maxQuality = 25, maxDiversity = 15, maxTimeliness = 10, maxActivity = 15;
-
-        // 计算各顶点位置（中心点90,65，外圈半径45）
-        const cx = 90, cy = 65, r = 45;
-        const p1y = cy - r * (countVal / maxCount);  // 顶部（数量）
-        const p2x = cx + 38 * (qualityVal / maxQuality);
-        const p2y = cy - 17 * (qualityVal / maxQuality);  // 右上（质量）
-        const p3x = cx + 24 * (diversityVal / maxDiversity);
-        const p3y = cy + 30 * (diversityVal / maxDiversity);  // 右下（多样）
-        const p4x = cx - 24 * (timelinessVal / maxTimeliness);
-        const p4y = cy + 30 * (timelinessVal / maxTimeliness);  // 左下（及时）
-        const p5x = cx - 38 * (activityVal / maxActivity);
-        const p5y = cy - 17 * (activityVal / maxActivity);  // 左上（行为）
-
-        const radarPoints = `${cx},${p1y} ${p2x},${p2y} ${p3x},${p3y} ${p4x},${p4y} ${p5x},${p5y}`;
-
-        let html = `
-            <!-- 分数概览 -->
-            <div class="flex items-center justify-between mb-3">
-                <div class="flex items-center gap-3">
-                    <span class="text-2xl font-bold text-slate-900 dark:text-white">${total}</span>
-                    <span class="text-sm text-slate-500 dark:text-slate-400">/ 90+</span>
-                </div>
-                <div class="flex flex-wrap gap-1 text-xs text-slate-500 dark:text-slate-400">
-                    <span>{{ _('基础') }}${breakdown?.base || 10}</span>
-                    <span>+</span>
-                    <span>{{ _('工作项') }}${breakdown?.items || 0}</span>
-                    <span>+</span>
-                    <span>{{ _('质量') }}${qualityVal}</span>
-                    <span>+</span>
-                    <span>{{ _('及时') }}${timelinessVal}</span>
-                    ${(breakdown?.interaction || 0) > 0 ? `<span>+</span><span>{{ _('互动') }}${breakdown.interaction}</span>` : ''}
-                </div>
-            </div>
-
-            <!-- 蜘蛛图（5维度：数量、质量、多样、及时、行为） -->
-            <div class="flex justify-center mb-3">
-                <svg width="180" height="160" viewBox="0 0 180 160">
-                    <!-- 背景网格（五边形，3层） -->
-                    <polygon points="90,20 128,48 114,95 66,95 52,48" fill="none" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="1"/>
-                    <polygon points="90,35 116,55 106,90 74,90 64,55" fill="none" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
-                    <polygon points="90,50 104,62 98,85 82,85 76,62" fill="none" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.6"/>
-                    <!-- 轴线（5条） -->
-                    <line x1="90" y1="65" x2="90" y2="20" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
-                    <line x1="90" y1="65" x2="128" y2="48" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
-                    <line x1="90" y1="65" x2="114" y2="95" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
-                    <line x1="90" y1="65" x2="66" y2="95" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
-                    <line x1="90" y1="65" x2="52" y2="48" stroke="currentColor" class="text-slate-300 dark:text-slate-500" stroke-width="0.8"/>
-                    <!-- 数据多边形 -->
-                    <polygon points="${radarPoints}" fill="${radarFillColor}" stroke="${radarStrokeColor}" stroke-width="1.5"/>
-                    <!-- 维度标签 -->
-                    <text x="90" y="12" text-anchor="middle" class="fill-slate-900 dark:fill-slate-200" style="font-size:10px">{{ _('数量') }} ${countVal}</text>
-                    <text x="140" y="42" text-anchor="start" class="fill-slate-900 dark:fill-slate-200" style="font-size:10px">{{ _('质量') }} ${qualityVal}</text>
-                    <text x="125" y="108" text-anchor="start" class="fill-slate-900 dark:fill-slate-200" style="font-size:10px">{{ _('多样') }} ${diversityVal}</text>
-                    <text x="55" y="108" text-anchor="end" class="fill-slate-900 dark:fill-slate-200" style="font-size:10px">{{ _('及时') }} ${timelinessVal}</text>
-                    <text x="40" y="42" text-anchor="end" class="fill-slate-900 dark:fill-slate-200" style="font-size:10px">{{ _('行为') }} ${activityVal}</text>
-                </svg>
-            </div>
-
-            <!-- 互动加分（如有） -->
-            ${(breakdown?.interaction || 0) > 0 ? `
-                <div class="text-center text-xs text-slate-500 dark:text-slate-400 mb-3">
-                    +${breakdown.interaction} {{ _('互动加分') }}
-                </div>
-            ` : ''}
-        `;
-
-        if (issues && issues.length > 0 && suggestions) {
-            // 有改进建议
-            html += `
-                <div class="space-y-1.5">
-            `;
-
-            for (const issueKey of issues) {
-                const suggestion = suggestions[issueKey];
-                if (suggestion) {
-                    html += `
-                        <div class="text-xs">
-                            <div class="text-slate-900 dark:text-slate-200 font-medium">${escapeHtml(suggestion.issue)}</div>
-                            <div class="text-slate-500 dark:text-slate-400 mt-0.5">${escapeHtml(suggestion.suggestion)}</div>
-                        </div>
-                    `;
-                }
-            }
-
-            html += '</div>';
-        } else {
-            // 无问题，显示鼓励
-            const encourageText = level === 'excellent' ?
-                '{{ _("太棒了！继续保持！") }}' :
-                '{{ _("做得不错！保持下去！") }}';
-
-            html += `
-                <div class="text-center">
-                    <p class="text-xs text-green-600 dark:text-green-400 font-medium">${encourageText}</p>
-                </div>
-            `;
-        }
-
-        return html;
     }
 
     /**

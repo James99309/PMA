@@ -26,6 +26,7 @@
 16. [Mention 编辑器组件](#-tailwind-mention-编辑器组件)
 17. [详情页卡片高度同步工具](#-详情页卡片高度同步工具)
 18. [签字板组件](#️-tailwind-签字板组件)
+19. [评分悬浮组件](#-tailwind-评分悬浮组件)
 
 ---
 
@@ -2553,8 +2554,132 @@ formData.append('signature', signatureData);
 
 ---
 
+## 🎯 Tailwind 评分悬浮组件
+
+### **组件概述**
+统一的日志质量评分悬浮组件，显示评分徽章，鼠标悬浮时展示蜘蛛图和改进建议。
+
+**文件位置**: `app/templates/components/tw_quality_score_popover.html`
+
+**功能特性**:
+- 统一的评分徽章样式（绿/蓝/琥珀/灰四色）
+- 悬浮显示蜘蛛图（5维度：数量、质量、多样、及时、行为）
+- 显示互动加分
+- 显示改进建议或鼓励语
+- 支持 Alpine.js 和纯 JavaScript 两种使用方式
+- 深色模式支持
+- 完整国际化
+
+### **提供的宏**
+| 宏名称 | 用途 | 环境 |
+|--------|------|------|
+| `render_quality_score_badge_alpine` | 渲染评分徽章 | Alpine.js |
+| `render_quality_score_popover_alpine` | 渲染悬浮面板 | Alpine.js |
+| `render_quality_score_script` | 提供 `QualityScorePopover` 全局对象 | JavaScript |
+
+### **Alpine.js 环境使用**
+适用于日历等 Alpine.js 页面：
+
+```jinja2
+{% from 'components/tw_quality_score_popover.html' import
+    render_quality_score_badge_alpine,
+    render_quality_score_popover_alpine
+with context %}
+
+<!-- 在需要显示评分的位置 -->
+<div x-show="logData.quality_score" class="relative group/score">
+    {{ render_quality_score_badge_alpine(
+        score_var='logData.quality_score',
+        show_glow=true,
+        glow_condition='!isScoreViewed(logData.id)'
+    ) }}
+    {{ render_quality_score_popover_alpine(
+        score_var='logData.quality_score',
+        position='right'
+    ) }}
+</div>
+```
+
+**参数说明**：
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `score_var` | string | `'logData.quality_score'` | Alpine 变量名 |
+| `show_glow` | boolean | `false` | 是否显示光晕效果 |
+| `glow_condition` | string | `'true'` | 光晕显示条件（Alpine 表达式） |
+| `position` | string | `'right'` | 弹出位置，`'right'` 或 `'left'` |
+
+### **JavaScript 环境使用**
+适用于消息预览等纯 JavaScript 页面：
+
+```jinja2
+{% from 'components/tw_quality_score_popover.html' import render_quality_score_script with context %}
+
+<!-- 在脚本区域添加 -->
+{{ render_quality_score_script() }}
+
+<script>
+// 渲染评分徽章（带悬浮面板）
+QualityScorePopover.render('container-id', scoreData, { position: 'right' });
+</script>
+```
+
+**API 说明**：
+```javascript
+QualityScorePopover.render(containerId, scoreData, options)
+```
+- `containerId`: 容器元素 ID（需预先创建带 `group/score relative` 类的容器）
+- `scoreData`: 评分数据对象（包含 `total`, `icon`, `badge_class`, `breakdown`, `level`, `issues`, `suggestions`）
+- `options`: 配置对象 `{ position: 'right' | 'left' }`
+
+### **评分数据结构**
+```javascript
+{
+    total: 75,                    // 总分
+    icon: 'sentiment_satisfied',  // Material 图标名
+    badge_class: 'tw-badge-blue', // 徽章颜色类
+    level: 'good',                // 等级: excellent/good/fair/poor
+    breakdown: {
+        count: 10,      // 数量分 (max 15)
+        quality: 20,    // 质量分 (max 25)
+        diversity: 12,  // 多样分 (max 15)
+        timeliness: 8,  // 及时分 (max 10)
+        activity: 10,   // 行为分 (max 15)
+        interaction: 5  // 互动加分
+    },
+    issues: ['low_diversity'],    // 问题列表
+    suggestions: {
+        'low_diversity': {
+            issue: '工作类型单一',
+            suggestion: '尝试记录不同类型的工作'
+        }
+    }
+}
+```
+
+### **样式依赖**
+需要在页面中定义光晕动画样式：
+```css
+@keyframes ring-glow {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.7); }
+    50% { box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.4), 0 0 6px rgba(234, 179, 8, 0.2); }
+}
+.score-ring-glow {
+    animation: ring-glow 2s ease-in-out infinite;
+}
+```
+
+### **已使用页面**
+1. `app/templates/worklog/tw_calendar.html` - 工作日历（Alpine.js 环境）
+2. `app/templates/components/tw_worklog_preview.html` - 日志预览组件（JavaScript 环境）
+
+### **创建日期**
+2026-02-03
+
+---
+
 ## 📝 更新日志
 
+- **2026-02-03**: 新增评分悬浮组件（`tw_quality_score_popover.html`），统一日历和消息预览的蜘蛛图显示，消除约 300 行重复代码
 - **2026-01-11**: 新增签字板组件（`tw_signature_pad.html`），支持手写签名、触摸屏、导出 base64
 - **2026-01-09**: 新增详情页卡片高度同步工具（`detail-card-sync.js`），支持多列布局底部对齐
 - **2026-01-03**: 新增 Mention 编辑器组件（`tw_mention_editor.html`），支持 @ 用户和 # 项目引用
