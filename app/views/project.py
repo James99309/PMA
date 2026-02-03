@@ -1061,7 +1061,9 @@ def view_project(project_id):
     # 获取关联客户数据（用于Tailwind模板）
     from app.models.project_customer_association import ProjectCustomerAssociation
     customer_associations_data = []
-    associations = ProjectCustomerAssociation.query.filter_by(project_id=project_id).all()
+    associations = ProjectCustomerAssociation.query \
+        .options(joinedload(ProjectCustomerAssociation.company), joinedload(ProjectCustomerAssociation.creator)) \
+        .filter_by(project_id=project_id).all()
     for assoc in associations:
         if assoc.company:
             customer_associations_data.append({
@@ -2953,13 +2955,32 @@ def get_users_api():
     
     try:
         from app.models.user import User
-        
+        from app.models.dictionary import Dictionary
+
         if user_type == 'vendor':
-            # 获取厂商用户
-            users = [user for user in User.query.all() if user.is_vendor_user()]
+            # 获取厂商用户：company_name 在 Dictionary 中标记为 is_vendor=True
+            vendor_companies = db.session.query(Dictionary.value).filter(
+                Dictionary.type == 'company',
+                Dictionary.is_active == True,
+                Dictionary.is_vendor == True
+            ).subquery()
+            users = User.query.filter(
+                User.company_name.isnot(None),
+                User.company_name.in_(db.session.query(vendor_companies))
+            ).all()
         elif user_type == 'dealer':
-            # 获取代理商用户（非厂商用户）
-            users = [user for user in User.query.all() if not user.is_vendor_user()]
+            # 获取代理商用户：company_name 不在厂商列表中
+            vendor_company_names = db.session.query(Dictionary.value).filter(
+                Dictionary.type == 'company',
+                Dictionary.is_active == True,
+                Dictionary.is_vendor == True
+            )
+            users = User.query.filter(
+                or_(
+                    User.company_name.is_(None),
+                    ~User.company_name.in_(vendor_company_names)
+                )
+            ).all()
         else:
             # 获取所有用户
             users = User.query.all()

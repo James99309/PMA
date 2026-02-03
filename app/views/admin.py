@@ -94,21 +94,26 @@ def refresh_project_activity():
         from app.models.project import Project
         from app.utils.project_activity import update_project_activity
 
-        # 获取所有未删除的项目
-        projects = Project.query.filter(Project.is_deleted == False).all()
-
         success_count = 0
         error_count = 0
 
-        for project in projects:
-            try:
-                update_project_activity(project)
-                success_count += 1
-            except Exception as e:
-                logger.error(f"更新项目 {project.id} 活跃状态失败: {str(e)}")
-                error_count += 1
-
-        db.session.commit()
+        # 分批处理，避免一次性加载全部项目到内存
+        batch_size = 100
+        offset = 0
+        while True:
+            projects = Project.query.filter(Project.is_deleted == False) \
+                .limit(batch_size).offset(offset).all()
+            if not projects:
+                break
+            for project in projects:
+                try:
+                    update_project_activity(project)
+                    success_count += 1
+                except Exception as e:
+                    logger.error(f"更新项目 {project.id} 活跃状态失败: {str(e)}")
+                    error_count += 1
+            db.session.commit()
+            offset += batch_size
 
         message = f'项目活跃状态刷新完成：成功 {success_count} 个'
         if error_count > 0:

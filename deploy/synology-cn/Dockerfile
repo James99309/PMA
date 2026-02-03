@@ -64,4 +64,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
 # 默认启动命令（生产环境使用 gunicorn）
 # --preload: 主进程加载应用后 fork worker，节省内存
 # --timeout 300: 首次启动加载 19MB CJK 字体较慢，需要充足超时
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "4", "--timeout", "300", "--preload", "wsgi:app"]
+# --max-requests 500: worker 处理 500 个请求后自动重启，防止内存泄漏
+# --max-requests-jitter 50: 添加随机偏移，避免所有 worker 同时重启
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "4", "--timeout", "300", "--preload", "--max-requests", "500", "--max-requests-jitter", "50", "wsgi:app"]

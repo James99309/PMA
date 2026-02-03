@@ -184,33 +184,31 @@ def get_countries_regions():
         "regions": regions
     })
 
-def get_existing_filter_options(all_viewable_companies):
+def get_existing_filter_options(viewable_query):
     """
     基于实际存在的公司数据生成筛选器选项
+    接受 SQLAlchemy 查询对象，使用 SQL DISTINCT 避免全表加载到内存
     """
     from app.utils.i18n import get_current_language
     lang_code = get_current_language()
-    
-    # 获取实际存在的企业类型
-    existing_company_types = {c.company_type for c in all_viewable_companies if c.company_type}
-    company_type_options = [(key, COMPANY_TYPE_LABELS.get(key, {}).get(lang_code, key)) 
+
+    # 使用 SQL DISTINCT 查询各字段的唯一值，避免加载全部记录到内存
+    existing_company_types = {r[0] for r in viewable_query.with_entities(Company.company_type).distinct().all() if r[0]}
+    company_type_options = [(key, COMPANY_TYPE_LABELS.get(key, {}).get(lang_code, key))
                            for key in existing_company_types]
-    
-    # 获取实际存在的行业
-    existing_industries = {c.industry for c in all_viewable_companies if c.industry}  
+
+    existing_industries = {r[0] for r in viewable_query.with_entities(Company.industry).distinct().all() if r[0]}
     industry_options = [(key, INDUSTRY_LABELS.get(key, {}).get(lang_code, key))
                        for key in existing_industries]
-    
-    # 获取实际存在的状态
-    existing_statuses = {c.status for c in all_viewable_companies if c.status}
+
+    existing_statuses = {r[0] for r in viewable_query.with_entities(Company.status).distinct().all() if r[0]}
     status_options = [(key, STATUS_LABELS.get(key, {}).get(lang_code, key))
                      for key in existing_statuses]
-    
-    # 获取实际存在的国家
-    existing_countries = {c.country for c in all_viewable_companies if c.country}
+
+    existing_countries = {r[0] for r in viewable_query.with_entities(Company.country).distinct().all() if r[0]}
     country_options = [(key, COUNTRY_LABELS.get(key, {}).get(lang_code, key))
                       for key in existing_countries]
-    
+
     return company_type_options, industry_options, status_options, country_options
 
 @customer.route('/')
@@ -301,54 +299,40 @@ def list_companies():
     # 获取所有用户和唯一的owner_ids用于筛选
     # 移除活跃状态过滤，确保所有实际拥有客户的用户都出现在筛选选项中
     all_users = User.query.order_by(User.real_name, User.username).all()
-    
-    # 获取当前用户可见的所有公司数据（用于生成筛选器选项）
-    all_viewable_companies = get_viewable_data(Company, current_user).all()
-    unique_owner_ids = {c.owner_id for c in all_viewable_companies if c.owner_id}
-    
-    # 获取实际存在的筛选器选项（基于当前可见数据）
-    company_type_options, industry_options, status_options, country_options = get_existing_filter_options(all_viewable_companies)
-    
-    # 计算统计数据
-    all_companies_query = get_viewable_data(Company, current_user)
-    total_companies = all_companies_query.count()
-    
+
+    # 使用 SQL 查询代替全表加载到内存
+    all_viewable_query = get_viewable_data(Company, current_user)
+    unique_owner_ids = {r[0] for r in all_viewable_query.with_entities(Company.owner_id).distinct().all() if r[0]}
+
+    # 获取实际存在的筛选器选项（传入查询对象，内部用 SQL DISTINCT）
+    company_type_options, industry_options, status_options, country_options = get_existing_filter_options(all_viewable_query)
+
+    # 计算统计数据（复用同一个基础查询）
+    total_companies = all_viewable_query.count()
+
     # 活跃企业统计
-    active_companies = all_companies_query.filter(Company.status == 'active').count()
-    
+    active_companies = all_viewable_query.filter(Company.status == 'active').count()
+
     # 直接客户统计（公司类型为user的客户数量）
-    direct_customers = all_companies_query.filter(Company.company_type == 'user').count()
-    
+    direct_customers = all_viewable_query.filter(Company.company_type == 'user').count()
+
     # 项目客户统计（客户被项目关联过的数量）
     from app.models.project import Project
-    from sqlalchemy import or_
-    
-    # 获取所有客户公司名称
-    company_names = {c.company_name for c in all_viewable_companies}
-    
-    # 查询被项目关联过的公司名称（使用集合操作提高效率）
-    if company_names:
-        # 直接使用SQL的or_条件查询，避免获取所有数据后再处理
-        linked_companies_subquery = db.session.query(Company.company_name).filter(
-            Company.company_name.in_(
-                db.session.query(Project.end_user).filter(Project.end_user.isnot(None)).union(
-                    db.session.query(Project.design_issues).filter(Project.design_issues.isnot(None))
-                ).union(
-                    db.session.query(Project.dealer).filter(Project.dealer.isnot(None))
-                ).union(
-                    db.session.query(Project.contractor).filter(Project.contractor.isnot(None))
-                ).union(
-                    db.session.query(Project.system_integrator).filter(Project.system_integrator.isnot(None))
-                )
-            )
-        ).distinct()
-        
-        # 统计被项目关联过的客户数量
-        project_customers = all_companies_query.filter(
-            Company.company_name.in_(linked_companies_subquery)
-        ).count()
-    else:
-        project_customers = 0
+
+    # 用 SQL subquery 查询被项目关联过的公司名称，避免加载全部公司名到内存
+    linked_companies_subquery = db.session.query(Project.end_user).filter(Project.end_user.isnot(None)).union(
+        db.session.query(Project.design_issues).filter(Project.design_issues.isnot(None))
+    ).union(
+        db.session.query(Project.dealer).filter(Project.dealer.isnot(None))
+    ).union(
+        db.session.query(Project.contractor).filter(Project.contractor.isnot(None))
+    ).union(
+        db.session.query(Project.system_integrator).filter(Project.system_integrator.isnot(None))
+    )
+
+    project_customers = all_viewable_query.filter(
+        Company.company_name.in_(linked_companies_subquery)
+    ).count()
     
     # 构建标准化筛选配置
     filter_config = {
@@ -1023,8 +1007,8 @@ def search_contacts():
     query = get_viewable_data(Contact, current_user)
     
     if search:
-        # 搜索联系人
-        contacts = query.filter(Contact.name.ilike(f'%{search}%')).all()
+        # 搜索联系人，限制结果数量避免大量数据加载到内存
+        contacts = query.filter(Contact.name.ilike(f'%{search}%')).limit(200).all()
     else:
         contacts = query.limit(50).all()  # 限制结果数量
     
