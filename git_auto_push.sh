@@ -231,6 +231,9 @@ if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ] || [ "$nas_pull" = "s" ] || [ 
     TUNNEL_LOCAL_PORT=2222
 
     echo "[信息] 启动 Cloudflare 隧道..."
+    # 清理可能占用端口的旧进程
+    lsof -ti:$TUNNEL_LOCAL_PORT | xargs kill -9 2>/dev/null
+    sleep 1
     cloudflared access tcp --hostname "$TUNNEL_HOST" --url "localhost:$TUNNEL_LOCAL_PORT" &
     CF_PID=$!
 
