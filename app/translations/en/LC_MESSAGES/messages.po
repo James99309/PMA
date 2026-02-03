@@ -2015,6 +2015,8 @@ msgid "统计每月新增的项目记录数"
 msgstr "Count of new project records added each month"
 msgid "五星项目增量"
 msgstr "Five-Star Project Increment"
+msgid "客户活跃度"
+msgstr "Customer Activity Rate"
 msgid "统计五星项目的月度增量（相对于基线月的增长）"
 msgstr "Monthly increment statistics of five-star projects (growth relative to baseline month)"
 msgid "注意事项"
@@ -5884,6 +5886,16 @@ msgid "品牌推广"
 msgstr "Brand Promotion"
 msgid "活动执行"
 msgstr "Event Execution"
+msgid "视频制作"
+msgstr "Video Production"
+msgid "物料设计"
+msgstr "Material Design"
+msgid "社媒运营"
+msgstr "Social Media"
+msgid "渠道活动"
+msgstr "Channel Activities"
+msgid "品牌活动"
+msgstr "Brand Events"
 # ===== 服务类 =====
 msgid "现场运维"
 msgstr "On-site Maintenance"
@@ -7598,6 +7610,22 @@ msgstr "Project Link"
 
 msgid "活跃度评分"
 msgstr "Activity Score"
+
+# 客户活跃度6级状态翻译
+msgid "高度活跃"
+msgstr "Highly Active"
+
+msgid "正常"
+msgstr "Normal"
+
+msgid "待跟进"
+msgstr "To Follow"
+
+msgid "休眠"
+msgstr "Dormant"
+
+msgid "流失"
+msgstr "Churned"
 
 msgid "评分"
 msgstr "Score"

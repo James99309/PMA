@@ -369,9 +369,11 @@ def calendar():
             {'value': 'customer_maintenance', 'label': _('客户维护')}
         ]},
         {'key': 'marketing', 'label': _('市场'), 'options': [
-            {'value': 'market_planning', 'label': _('市场策划')},
-            {'value': 'brand_promotion', 'label': _('品牌推广')},
-            {'value': 'event_execution', 'label': _('活动执行')}
+            {'value': 'video_production', 'label': _('视频制作')},
+            {'value': 'material_design', 'label': _('物料设计')},
+            {'value': 'social_media_operation', 'label': _('社媒运营')},
+            {'value': 'channel_activity', 'label': _('渠道活动')},
+            {'value': 'brand_event', 'label': _('品牌活动')}
         ]},
         {'key': 'service', 'label': _('服务'), 'options': [
             {'value': 'onsite_maintenance', 'label': _('现场运维')},

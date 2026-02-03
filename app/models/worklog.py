@@ -83,9 +83,14 @@ class WorkItem(db.Model):
         'business_negotiation': '#22c55e',
         'customer_maintenance': '#22c55e',
         # 市场 - 橙色 #f59e0b
-        'market_planning': '#f59e0b',
-        'brand_promotion': '#f59e0b',
-        'event_execution': '#f59e0b',
+        'market_planning': '#f59e0b',      # [隐藏] 旧类型，保留数据兼容
+        'brand_promotion': '#f59e0b',      # [隐藏] 旧类型，保留数据兼容
+        'event_execution': '#f59e0b',      # [隐藏] 旧类型，保留数据兼容
+        'video_production': '#f59e0b',     # 视频制作
+        'material_design': '#f59e0b',      # 物料设计
+        'social_media_operation': '#f59e0b',  # 社媒运营
+        'channel_activity': '#f59e0b',     # 渠道活动
+        'brand_event': '#f59e0b',          # 品牌活动
         # 服务 - 蓝色 #3b82f6
         'onsite_maintenance': '#3b82f6',
         'service_response': '#3b82f6',
@@ -127,10 +132,15 @@ class WorkItem(db.Model):
         'presales_support': '售前支持',
         'business_negotiation': '商务洽谈',
         'customer_maintenance': '客户维护',
-        # 市场
-        'market_planning': '市场策划',
-        'brand_promotion': '品牌推广',
-        'event_execution': '活动执行',
+        # 市场（旧类型保留数据兼容，新类型用于选择）
+        'market_planning': '市场策划',      # [隐藏] 旧类型
+        'brand_promotion': '品牌推广',      # [隐藏] 旧类型
+        'event_execution': '活动执行',      # [隐藏] 旧类型
+        'video_production': '视频制作',     # 新类型
+        'material_design': '物料设计',      # 新类型
+        'social_media_operation': '社媒运营',  # 新类型
+        'channel_activity': '渠道活动',     # 新类型
+        'brand_event': '品牌活动',          # 新类型
         # 服务
         'onsite_maintenance': '现场运维',
         'service_response': '服务响应',

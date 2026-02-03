@@ -310,8 +310,10 @@ def list_companies():
     # 计算统计数据（复用同一个基础查询）
     total_companies = all_viewable_query.count()
 
-    # 活跃企业统计
-    active_companies = all_viewable_query.filter(Company.status == 'active').count()
+    # 活跃企业统计（6级状态系统：高度活跃、活跃、正常视为活跃）
+    active_companies = all_viewable_query.filter(
+        Company.status.in_(['highly_active', 'active', 'normal'])
+    ).count()
 
     # 直接客户统计（公司类型为user的客户数量）
     direct_customers = all_viewable_query.filter(Company.company_type == 'user').count()
@@ -788,7 +790,7 @@ def companies_list_ajax():
         
         statistics = {
             'total': base_filtered_query.count(),
-            'active': base_filtered_query.filter(Company.status == 'active').count(),
+            'active': base_filtered_query.filter(Company.status.in_(['highly_active', 'active', 'normal'])).count(),
             'direct_customer': base_filtered_query.filter(Company.company_type == 'user').count(),
             'project_customers': filtered_project_customers
         }

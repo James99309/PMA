@@ -559,10 +559,71 @@ def get_industry_options():
 INDUSTRY_OPTIONS = [(k, v['zh']) for k, v in INDUSTRY_LABELS.items()
                     if k not in INDUSTRY_ALIASES]
 
-# 客户状态映射
+# =============================================================================
+# 客户活跃度6级状态定义
+# =============================================================================
+
+# 客户活跃度状态映射（6级）
+ACTIVITY_STATUS_LABELS = {
+    'highly_active': {'zh': '高度活跃', 'en': 'Highly Active'},
+    'active': {'zh': '活跃', 'en': 'Active'},
+    'normal': {'zh': '正常', 'en': 'Normal'},
+    'to_follow': {'zh': '待跟进', 'en': 'To Follow'},
+    'dormant': {'zh': '休眠', 'en': 'Dormant'},
+    'churned': {'zh': '流失', 'en': 'Churned'},
+}
+
+# 客户活跃度状态颜色映射（用于徽章显示）
+ACTIVITY_STATUS_COLORS = {
+    'highly_active': {'bg': 'rgba(134,239,172,0.2)', 'border': '#86efac', 'text': '#166534'},
+    'active': {'bg': 'rgba(147,197,253,0.2)', 'border': '#93c5fd', 'text': '#1e40af'},
+    'normal': {'bg': 'rgba(125,211,252,0.2)', 'border': '#7dd3fc', 'text': '#0369a1'},
+    'to_follow': {'bg': 'rgba(253,224,71,0.2)', 'border': '#fde047', 'text': '#a16207'},
+    'dormant': {'bg': 'rgba(253,186,116,0.2)', 'border': '#fdba74', 'text': '#c2410c'},
+    'churned': {'bg': 'rgba(209,213,219,0.2)', 'border': '#d1d5db', 'text': '#4b5563'},
+}
+
+# 状态优先级（数值越高越好）
+ACTIVITY_STATUS_PRIORITY = {
+    'highly_active': 6,
+    'active': 5,
+    'normal': 4,
+    'to_follow': 3,
+    'dormant': 2,
+    'churned': 1,
+}
+
+def activity_status_label(key, lang='zh'):
+    """获取活跃度状态标签"""
+    return ACTIVITY_STATUS_LABELS.get(key, {}).get(lang, key)
+
+def activity_status_color(key):
+    """获取活跃度状态颜色配置"""
+    return ACTIVITY_STATUS_COLORS.get(key, ACTIVITY_STATUS_COLORS['churned'])
+
+def get_activity_status_options():
+    """获取语言感知的活跃度状态选项"""
+    try:
+        from app.utils.i18n import get_current_language
+        lang_code = get_current_language()
+        return [(k, v[lang_code]) for k, v in ACTIVITY_STATUS_LABELS.items()]
+    except Exception as e:
+        import logging
+        logging.warning(f"get_activity_status_options 获取语言失败: {e}")
+        return [(k, v['zh']) for k, v in ACTIVITY_STATUS_LABELS.items()]
+
+ACTIVITY_STATUS_OPTIONS = [(k, v['zh']) for k, v in ACTIVITY_STATUS_LABELS.items()]
+
+# 客户状态映射（保留向后兼容，映射到新的6级状态）
 STATUS_LABELS = {
-    'active': {'zh': '活跃', 'en': 'active'},
-    'inactive': {'zh': '不活跃', 'en': 'idle'}
+    'highly_active': {'zh': '高度活跃', 'en': 'Highly Active'},
+    'active': {'zh': '活跃', 'en': 'Active'},
+    'normal': {'zh': '正常', 'en': 'Normal'},
+    'to_follow': {'zh': '待跟进', 'en': 'To Follow'},
+    'dormant': {'zh': '休眠', 'en': 'Dormant'},
+    'churned': {'zh': '流失', 'en': 'Churned'},
+    # 向后兼容旧状态
+    'inactive': {'zh': '流失', 'en': 'Churned'},
 }
 
 # 活跃状态映射（布尔值）
@@ -577,18 +638,18 @@ def active_status_label(key, lang='zh'):
 def status_label(key, lang='zh'):
     return STATUS_LABELS.get(key, {}).get(lang, key)
 
-STATUS_OPTIONS = [(k, v['zh']) for k, v in STATUS_LABELS.items()]
+STATUS_OPTIONS = [(k, v['zh']) for k, v in ACTIVITY_STATUS_LABELS.items()]
 
 def get_status_options():
     """获取语言感知的状态选项"""
     try:
         from app.utils.i18n import get_current_language
         lang_code = get_current_language()
-        return [(k, v[lang_code]) for k, v in STATUS_LABELS.items()]
+        return [(k, v[lang_code]) for k, v in ACTIVITY_STATUS_LABELS.items()]
     except Exception as e:
         import logging
         logging.warning(f"get_status_options 获取语言失败: {e}")
-        return [(k, v['zh']) for k, v in STATUS_LABELS.items()]
+        return [(k, v['zh']) for k, v in ACTIVITY_STATUS_LABELS.items()]
 
 # 国家映射
 COUNTRY_LABELS = {

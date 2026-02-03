@@ -186,8 +186,8 @@ class PerformanceDashboardService:
             customer_activity = PerformanceDashboardService.get_customer_activity_trend(user_id)
             customer_value = PerformanceDashboardService.get_customer_value_ranking(user_id)
 
-            # 汇总年度数据
-            summary = PerformanceDashboardService._calculate_yearly_summary(yearly_stats, targets_dict)
+            # 汇总年度数据（传入 user_id 用于计算客户活跃度）
+            summary = PerformanceDashboardService._calculate_yearly_summary(yearly_stats, targets_dict, user_id)
 
             # 计算月度增长
             monthly_growth = PerformanceDashboardService._calculate_monthly_growth(yearly_stats)
@@ -234,7 +234,7 @@ class PerformanceDashboardService:
                 'activity_monthly_trend': [],
                 'industry_trend': {},
                 'monthly_growth': [],
-                'configured_items': ['implant_amount', 'sales_amount', 'new_customers', 'new_projects'],
+                'configured_items': [],  # 异常时返回空列表，前端显示"未配置绩效目标"
                 # 客户分布数据默认值
                 'customer_type_stats': {},
                 'customer_trend': {},
@@ -889,7 +889,7 @@ class PerformanceDashboardService:
             return []
 
     @staticmethod
-    def _calculate_yearly_summary(yearly_stats, targets_dict):
+    def _calculate_yearly_summary(yearly_stats, targets_dict, user_id=None):
         """计算年度汇总数据"""
         try:
             totals = {
@@ -938,6 +938,35 @@ class PerformanceDashboardService:
                     'target': round(target_val, 2) if isinstance(target_val, float) else target_val,
                     'rate': round(rate, 1),
                     'status': 'success' if rate >= 100 else ('warning' if rate >= 80 else 'danger')
+                }
+
+            # 添加客户活跃度指标
+            if user_id:
+                activity_data = PerformanceService.calculate_customer_activity_rate(user_id)
+                # 客户活跃度是百分比指标，目标暂定为80%
+                activity_target = 80
+                activity_rate = activity_data['rate']
+                # 达成率 = 实际活跃度 / 目标活跃度 * 100
+                achievement_rate = (activity_rate / activity_target * 100) if activity_target > 0 else 0
+                achievement['customer_activity_rate'] = {
+                    'actual': activity_rate,
+                    'target': activity_target,
+                    'rate': round(achievement_rate, 1),
+                    'status': 'success' if achievement_rate >= 100 else ('warning' if achievement_rate >= 80 else 'danger'),
+                    # 附加详情数据
+                    'highly_active_count': activity_data['highly_active_count'],
+                    'active_count': activity_data['active_count'],
+                    'total_count': activity_data['total_count']
+                }
+            else:
+                achievement['customer_activity_rate'] = {
+                    'actual': 0,
+                    'target': 80,
+                    'rate': 0,
+                    'status': 'danger',
+                    'highly_active_count': 0,
+                    'active_count': 0,
+                    'total_count': 0
                 }
 
             return achievement
@@ -1091,6 +1120,10 @@ class PerformanceDashboardService:
             'sales_amount': {'actual': 0, 'target': 0, 'rate': 0, 'status': 'danger'},
             'new_customers': {'actual': 0, 'target': 0, 'rate': 0, 'status': 'danger'},
             'new_projects': {'actual': 0, 'target': 0, 'rate': 0, 'status': 'danger'},
+            'customer_activity_rate': {
+                'actual': 0, 'target': 80, 'rate': 0, 'status': 'danger',
+                'highly_active_count': 0, 'active_count': 0, 'total_count': 0
+            },
         }
 
     @staticmethod
@@ -1173,8 +1206,7 @@ class PerformanceDashboardService:
         """
         获取用户配置的绩效项目代码列表
 
-        2026-01-08: 废弃旧的 RolePerformanceTarget/UserPerformanceTarget 系统
-        统一使用 EmployeeSalaryConfig，默认显示所有指标
+        从用户绩效配置 (UserPerformanceTarget) 读取，如果没有配置则返回空列表
 
         Args:
             user_id: 用户ID
@@ -1183,8 +1215,42 @@ class PerformanceDashboardService:
         Returns:
             list: 绩效项目代码列表
         """
-        # 废弃旧系统，默认显示所有指标
-        return ['implant_amount', 'sales_amount', 'new_customers', 'new_projects']
+        from app.models.performance_config import UserPerformanceTarget
+
+        # item_code 到看板 metric_code 的映射
+        item_code_mapping = {
+            'sales_target': 'sales_amount',
+            'implant_amount': 'implant_amount',
+            'new_customers': 'new_customers',
+            'new_projects': 'new_projects',
+            'customer_activity_rate': 'customer_activity_rate',
+            'high_price_amount': 'high_price_amount',
+            'quotation_count': 'quotation_count',
+        }
+
+        try:
+            # 从用户绩效配置读取
+            user_targets = UserPerformanceTarget.query.filter_by(
+                user_id=user_id, year=year
+            ).all()
+
+            if not user_targets:
+                # 用户没有配置，返回空列表（前端显示"未配置绩效目标"）
+                return []
+
+            # 转换为看板指标代码
+            configured_codes = []
+            for target in user_targets:
+                item_code = target.item_code
+                mapped_code = item_code_mapping.get(item_code, item_code)
+                if mapped_code not in configured_codes:
+                    configured_codes.append(mapped_code)
+
+            return configured_codes
+
+        except Exception as e:
+            logger.warning(f"读取用户绩效配置失败: {e}，返回空列表")
+            return []
 
     @staticmethod
     def _get_team_summary_for_manager(user_id, year):

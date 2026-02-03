@@ -343,14 +343,28 @@
         .fc-event-business_negotiation .fc-daygrid-event-dot, .fc-event-customer_maintenance .fc-daygrid-event-dot { border-color: var(--cal-marketing-sales) !important; }
 
         /* ===== 市场类 (橙色) ===== */
+        /* 旧类型（保留数据兼容） */
         .fc-timegrid-event.fc-event-market_planning, .fc-daygrid-block-event.fc-event-market_planning,
         .fc-timegrid-event.fc-event-brand_promotion, .fc-daygrid-block-event.fc-event-brand_promotion,
-        .fc-timegrid-event.fc-event-event_execution, .fc-daygrid-block-event.fc-event-event_execution { background: var(--cal-marketing-bg) !important; }
+        .fc-timegrid-event.fc-event-event_execution, .fc-daygrid-block-event.fc-event-event_execution,
+        /* 新类型 */
+        .fc-timegrid-event.fc-event-video_production, .fc-daygrid-block-event.fc-event-video_production,
+        .fc-timegrid-event.fc-event-material_design, .fc-daygrid-block-event.fc-event-material_design,
+        .fc-timegrid-event.fc-event-social_media_operation, .fc-daygrid-block-event.fc-event-social_media_operation,
+        .fc-timegrid-event.fc-event-channel_activity, .fc-daygrid-block-event.fc-event-channel_activity,
+        .fc-timegrid-event.fc-event-brand_event, .fc-daygrid-block-event.fc-event-brand_event { background: var(--cal-marketing-bg) !important; }
         .fc-event-market_planning, .fc-event-market_planning .fc-event-title, .fc-event-market_planning .fc-event-time,
         .fc-event-brand_promotion, .fc-event-brand_promotion .fc-event-title, .fc-event-brand_promotion .fc-event-time,
-        .fc-event-event_execution, .fc-event-event_execution .fc-event-title, .fc-event-event_execution .fc-event-time { color: var(--cal-marketing) !important; }
+        .fc-event-event_execution, .fc-event-event_execution .fc-event-title, .fc-event-event_execution .fc-event-time,
+        .fc-event-video_production, .fc-event-video_production .fc-event-title, .fc-event-video_production .fc-event-time,
+        .fc-event-material_design, .fc-event-material_design .fc-event-title, .fc-event-material_design .fc-event-time,
+        .fc-event-social_media_operation, .fc-event-social_media_operation .fc-event-title, .fc-event-social_media_operation .fc-event-time,
+        .fc-event-channel_activity, .fc-event-channel_activity .fc-event-title, .fc-event-channel_activity .fc-event-time,
+        .fc-event-brand_event, .fc-event-brand_event .fc-event-title, .fc-event-brand_event .fc-event-time { color: var(--cal-marketing) !important; }
         .fc-event-market_planning .fc-daygrid-event-dot, .fc-event-brand_promotion .fc-daygrid-event-dot,
-        .fc-event-event_execution .fc-daygrid-event-dot { border-color: var(--cal-marketing) !important; }
+        .fc-event-event_execution .fc-daygrid-event-dot, .fc-event-video_production .fc-daygrid-event-dot,
+        .fc-event-material_design .fc-daygrid-event-dot, .fc-event-social_media_operation .fc-daygrid-event-dot,
+        .fc-event-channel_activity .fc-daygrid-event-dot, .fc-event-brand_event .fc-daygrid-event-dot { border-color: var(--cal-marketing) !important; }
 
         /* ===== 服务类 (蓝色) ===== */
         .fc-timegrid-event.fc-event-onsite_maintenance, .fc-daygrid-block-event.fc-event-onsite_maintenance,
@@ -2044,6 +2058,8 @@ function workCalendar() {
                 'meeting': 'common', 'internal_training': 'common', 'other': 'common',
                 'customer_visit': 'sales', 'presales_support': 'sales', 'business_negotiation': 'sales', 'customer_maintenance': 'sales',
                 'market_planning': 'marketing', 'brand_promotion': 'marketing', 'event_execution': 'marketing',
+                'video_production': 'marketing', 'material_design': 'marketing', 'social_media_operation': 'marketing',
+                'channel_activity': 'marketing', 'brand_event': 'marketing',
                 'onsite_maintenance': 'service', 'service_response': 'service', 'technical_support': 'service', 'troubleshooting': 'service',
                 'admin_affairs': 'admin', 'office_management': 'admin', 'asset_management': 'admin',
                 'hr_affairs': 'hr', 'recruitment': 'hr', 'employee_relations': 'hr', 'performance_management': 'hr',

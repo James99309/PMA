@@ -19,6 +19,7 @@ import datetime
 from app.utils.filters import project_type_style, project_stage_style, format_date, format_datetime, format_currency, format_achievement_rate
 from app.utils.dictionary_helpers import (
     project_type_label, project_stage_label, project_type_label_i18n, project_stage_label_i18n, report_source_label, authorization_status_label, company_type_label, company_type_color, product_situation_label, industry_label, industry_color, status_label, share_permission_label, user_label, get_role_display_name, get_amount_unit_config, get_currency_symbol, get_default_currency, approval_status_label, product_type_label, product_status_label, dev_product_status_label, active_status_label,
+    activity_status_label, activity_status_color,
     make_i18n_filter
 )
 from app.utils.access_control import can_edit_company_info, can_edit_data, can_change_company_owner, can_start_approval
@@ -737,6 +738,8 @@ def create_app(config_class=Config):
     app.jinja_env.filters['industry_label'] = make_i18n_filter(industry_label)
     app.jinja_env.filters['industry_color'] = industry_color
     app.jinja_env.filters['status_label'] = make_i18n_filter(status_label)
+    app.jinja_env.filters['activity_status_label'] = make_i18n_filter(activity_status_label)
+    app.jinja_env.globals['activity_status_color'] = activity_status_color
     app.jinja_env.filters['user_label'] = user_label
     app.jinja_env.filters['share_permission_label'] = make_i18n_filter(share_permission_label)
     app.jinja_env.filters['approval_status_label'] = make_i18n_filter(approval_status_label)
@@ -1028,7 +1031,16 @@ def create_app(config_class=Config):
             app.logger.info("Supabase 备份服务初始化完成")
         except Exception as e:
             app.logger.error(f"初始化 Supabase 备份服务时出错: {str(e)}")
-    
+
+        # 启动客户活跃度定时修正任务（仅在非测试环境）
+        if not app.config.get('TESTING'):
+            try:
+                from app.utils.scheduled_tasks import start_scheduler
+                start_scheduler(run_time="01:00")  # 每日凌晨1点执行
+                app.logger.info("客户活跃度定时修正任务已启动")
+            except Exception as e:
+                app.logger.error(f"启动客户活跃度定时任务时出错: {str(e)}")
+
     # 注册上下文处理器
     from app.utils.access_control import register_context_processors
     register_context_processors(app)

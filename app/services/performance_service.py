@@ -548,6 +548,60 @@ class PerformanceService:
             return {}
 
     @staticmethod
+    def calculate_customer_activity_rate(user_id):
+        """计算客户活跃度比率
+
+        公式: (高度活跃 + 活跃) / 总客户数 × 100%
+
+        活跃度状态基于 Company.activity_status 字段：
+        - highly_active: 高度活跃
+        - active: 活跃
+        - inactive: 不活跃
+        - dormant: 休眠
+
+        Args:
+            user_id: 用户ID
+
+        Returns:
+            dict: {
+                'rate': float,  # 活跃度百分比 (0-100)
+                'highly_active_count': int,
+                'active_count': int,
+                'total_count': int
+            }
+        """
+        try:
+            base_query = Company.query.filter(
+                Company.owner_id == user_id,
+                Company.is_deleted == False
+            )
+
+            total_count = base_query.count()
+            highly_active_count = base_query.filter(
+                Company.activity_status == 'highly_active'
+            ).count()
+            active_count = base_query.filter(
+                Company.activity_status == 'active'
+            ).count()
+
+            rate = ((highly_active_count + active_count) / total_count * 100) if total_count > 0 else 0
+
+            return {
+                'rate': round(rate, 2),
+                'highly_active_count': highly_active_count,
+                'active_count': active_count,
+                'total_count': total_count
+            }
+        except Exception as e:
+            logger.error(f"计算客户活跃度失败: {e}")
+            return {
+                'rate': 0,
+                'highly_active_count': 0,
+                'active_count': 0,
+                'total_count': 0
+            }
+
+    @staticmethod
     def refresh_all_statistics(user_id, year):
         """刷新用户年度所有统计数据到缓存表（可选功能）
 
@@ -560,4 +614,4 @@ class PerformanceService:
             return True
         except Exception as e:
             logger.error(f"刷新统计数据失败: {e}")
-            return False 
+            return False

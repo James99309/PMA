@@ -1301,6 +1301,22 @@ def get_default_metrics_definitions():
                 'filter': {'owner_id': '{user_id}'},
                 'date_field': 'created_at'
             }
+        },
+        {
+            'metric_code': 'customer_activity_rate',
+            'metric_name': '客户活跃度',
+            'metric_name_en': 'Customer Activity Rate',
+            'metric_category': '客户管理',
+            'data_type': 'percentage',
+            'description': '活跃和高度活跃客户占总客户的比例',
+            'description_en': 'Percentage of active and highly active customers',
+            'is_system_metric': True,
+            'available_sources': {
+                'model': 'Company',
+                'field': 'activity_status',
+                'aggregate': 'custom',
+                'formula': '(highly_active + active) / total * 100'
+            }
         }
     ]
 
@@ -1366,7 +1382,8 @@ def get_preset_performance_items():
         'new_customers': 'person_add',
         'new_projects': 'folder_open',
         'high_price_amount': 'price_check',
-        'quotation_count': 'description'
+        'quotation_count': 'description',
+        'customer_activity_rate': 'person_check'
     }
 
     # 分类图标映射
@@ -1422,7 +1439,8 @@ def _get_hardcoded_preset_items(unit_config, lang):
             'new_customers': '新增客户',
             'new_projects': '新增项目',
             'high_price_amount': '高批价金额',
-            'quotation_count': '报价单数量'
+            'quotation_count': '报价单数量',
+            'customer_activity_rate': '客户活跃度'
         },
         'en': {
             'sales_target': 'Sales Target',
@@ -1430,7 +1448,8 @@ def _get_hardcoded_preset_items(unit_config, lang):
             'new_customers': 'New Customers',
             'new_projects': 'New Projects',
             'high_price_amount': 'High Price Amount',
-            'quotation_count': 'Quotation Count'
+            'quotation_count': 'Quotation Count',
+            'customer_activity_rate': 'Customer Activity Rate'
         }
     }
 
@@ -1441,7 +1460,8 @@ def _get_hardcoded_preset_items(unit_config, lang):
             'new_customers': '新建客户数量',
             'new_projects': '新建项目数量',
             'high_price_amount': '折扣率≥85%的批价单金额',
-            'quotation_count': '提交的报价单数量'
+            'quotation_count': '提交的报价单数量',
+            'customer_activity_rate': '活跃和高度活跃客户占总客户的比例'
         },
         'en': {
             'sales_target': 'Approved pricing order amount',
@@ -1449,7 +1469,8 @@ def _get_hardcoded_preset_items(unit_config, lang):
             'new_customers': 'New customers count',
             'new_projects': 'New projects count',
             'high_price_amount': 'High discount (≥85%) pricing amount',
-            'quotation_count': 'Submitted quotations count'
+            'quotation_count': 'Submitted quotations count',
+            'customer_activity_rate': 'Percentage of active and highly active customers'
         }
     }
 
@@ -1474,7 +1495,10 @@ def _get_hardcoded_preset_items(unit_config, lang):
          'category': '销售业绩', 'is_system_metric': True, 'result_unit': amount_unit},
         {'id': 6, 'code': 'quotation_count', 'name': name_dict['quotation_count'], 'unit': count_unit,
          'data_type': 'count', 'description': desc_dict['quotation_count'], 'icon': 'description',
-         'category': '销售业绩', 'is_system_metric': True, 'result_unit': count_unit}
+         'category': '销售业绩', 'is_system_metric': True, 'result_unit': count_unit},
+        {'id': 7, 'code': 'customer_activity_rate', 'name': name_dict['customer_activity_rate'], 'unit': '%',
+         'data_type': 'percentage', 'description': desc_dict['customer_activity_rate'], 'icon': 'person_check',
+         'category': '客户管理', 'is_system_metric': True, 'result_unit': '%'}
     ]
 
 

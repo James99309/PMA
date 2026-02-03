@@ -1892,7 +1892,6 @@ input[type="number"].discount-rate:hover {
 }
 
 /* 徽章样式 - 无动画效果，保持静态渐变和阴影 */
-
 /* ==================== 优化的统一按钮系统 ==================== */
 
 /* 统一按钮基础样式 - 默认灰色外观，1px黑色边框 */
@@ -4771,13 +4770,8 @@ a:focus .badge.badge-transparent.expense-number-badge {
     --badge-border-opacity: 0.6;
 }
 
-/* 客户状态具体颜色定义 - 采用CSS变量透明度系统 */
-.data-list-table .badge.customer-status-active,
-.badge.customer-status-active {
-    background-color: rgba(212, 237, 218, var(--badge-bg-opacity)) !important; /* 绿色系背景 */
-    color: rgba(21, 87, 36, var(--badge-text-opacity)) !important; /* 绿色系文字 */
-    border-color: rgba(212, 237, 218, var(--badge-border-opacity)) !important; /* 绿色系边框 */
-}
+/* 客户状态具体颜色定义 - 旧版二元状态（已废弃，保留inactive用于用户激活状态） */
+/* 注意：customer-status-active 已由6级状态系统接管，使用蓝色方案 */
 
 .data-list-table .badge.customer-status-inactive,
 .badge.customer-status-inactive {
@@ -4791,6 +4785,54 @@ a:focus .badge.badge-transparent.expense-number-badge {
     background-color: rgba(226, 227, 229, var(--badge-bg-opacity)) !important; /* 灰色系背景 */
     color: rgba(73, 80, 87, var(--badge-text-opacity)) !important; /* 灰色系文字 */
     border-color: rgba(226, 227, 229, var(--badge-border-opacity)) !important; /* 灰色系边框 */
+}
+
+/* 6级客户活跃度状态 - 高度活跃（淡绿色） */
+.data-list-table .badge.customer-status-highly-active,
+.badge.customer-status-highly-active {
+    background-color: rgba(134, 239, 172, var(--badge-bg-opacity)) !important; /* 淡绿背景 */
+    color: rgba(22, 101, 52, var(--badge-text-opacity)) !important; /* 深绿文字 */
+    border-color: rgba(134, 239, 172, var(--badge-border-opacity)) !important; /* 淡绿边框 */
+}
+
+/* 6级客户活跃度状态 - 活跃（淡蓝色） */
+.data-list-table .badge.customer-status-active,
+.badge.customer-status-active {
+    background-color: rgba(147, 197, 253, var(--badge-bg-opacity)) !important; /* 淡蓝背景 */
+    color: rgba(30, 64, 175, var(--badge-text-opacity)) !important; /* 深蓝文字 */
+    border-color: rgba(147, 197, 253, var(--badge-border-opacity)) !important; /* 淡蓝边框 */
+}
+
+/* 6级客户活跃度状态 - 正常（淡青色） */
+.data-list-table .badge.customer-status-normal,
+.badge.customer-status-normal {
+    background-color: rgba(125, 211, 252, var(--badge-bg-opacity)) !important; /* 淡青背景 */
+    color: rgba(3, 105, 161, var(--badge-text-opacity)) !important; /* 深青文字 */
+    border-color: rgba(125, 211, 252, var(--badge-border-opacity)) !important; /* 淡青边框 */
+}
+
+/* 6级客户活跃度状态 - 待跟进（淡黄色） */
+.data-list-table .badge.customer-status-to-follow,
+.badge.customer-status-to-follow {
+    background-color: rgba(253, 224, 71, var(--badge-bg-opacity)) !important; /* 淡黄背景 */
+    color: rgba(161, 98, 7, var(--badge-text-opacity)) !important; /* 深黄文字 */
+    border-color: rgba(253, 224, 71, var(--badge-border-opacity)) !important; /* 淡黄边框 */
+}
+
+/* 6级客户活跃度状态 - 休眠（淡橙色） */
+.data-list-table .badge.customer-status-dormant,
+.badge.customer-status-dormant {
+    background-color: rgba(253, 186, 116, var(--badge-bg-opacity)) !important; /* 淡橙背景 */
+    color: rgba(194, 65, 12, var(--badge-text-opacity)) !important; /* 深橙文字 */
+    border-color: rgba(253, 186, 116, var(--badge-border-opacity)) !important; /* 淡橙边框 */
+}
+
+/* 6级客户活跃度状态 - 流失（淡灰色） */
+.data-list-table .badge.customer-status-churned,
+.badge.customer-status-churned {
+    background-color: rgba(209, 213, 219, var(--badge-bg-opacity)) !important; /* 淡灰背景 */
+    color: rgba(75, 85, 99, var(--badge-text-opacity)) !important; /* 深灰文字 */
+    border-color: rgba(209, 213, 219, var(--badge-border-opacity)) !important; /* 淡灰边框 */
 }
 
 /* ========== 项目锁定状态徽章样式 ========== */

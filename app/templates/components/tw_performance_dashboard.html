@@ -118,74 +118,47 @@
 {# ============================================================== #}
 {% macro render_goals_section() %}
 <div class="space-y-6">
+    {# 未配置绩效目标提示 #}
+    <template x-if="configuredItems.length === 0">
+        <div class="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-8 text-center">
+            <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 mb-4 block">tune</span>
+            <h3 class="text-lg font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('未配置绩效目标') }}</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('该角色尚未配置绩效指标，请联系管理员在绩效配置中设置') }}</p>
+        </div>
+    </template>
+
+    {# 已配置绩效目标时显示正常内容 #}
+    <template x-if="configuredItems.length > 0">
+    <div>
     {# 目标达成趋势图 - 仪表盘样式 #}
     <div class="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
-        {# 四色切换按钮 - 左对齐 #}
-        <div class="flex items-center gap-2 mb-3">
-            {# 植入额 - 蓝色 #}
-            <button @click="selectMetric('implant_amount')"
-                :class="selectedMetric === 'implant_amount'
-                    ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
-                    : 'border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50'"
-                class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-sm font-medium transition-colors">
-                <span class="material-symbols-outlined text-base">payments</span>
-                <span>{{ _('植入额') }}</span>
-            </button>
-
-            {# 销售额 - 绿色 #}
-            <button @click="selectMetric('sales_amount')"
-                :class="selectedMetric === 'sales_amount'
-                    ? 'border-green-500 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
-                    : 'border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50'"
-                class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-sm font-medium transition-colors">
-                <span class="material-symbols-outlined text-base">point_of_sale</span>
-                <span>{{ _('销售额') }}</span>
-            </button>
-
-            {# 新增项目 - 紫色 #}
-            <button @click="selectMetric('new_projects')"
-                :class="selectedMetric === 'new_projects'
-                    ? 'border-purple-500 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300'
-                    : 'border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/50'"
-                class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-sm font-medium transition-colors">
-                <span class="material-symbols-outlined text-base">folder_open</span>
-                <span>{{ _('新增项目') }}</span>
-            </button>
-
-            {# 新增客户 - 橙色 #}
-            <button @click="selectMetric('new_customers')"
-                :class="selectedMetric === 'new_customers'
-                    ? 'border-amber-500 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
-                    : 'border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50'"
-                class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-sm font-medium transition-colors">
-                <span class="material-symbols-outlined text-base">person_add</span>
-                <span>{{ _('新增客户') }}</span>
-            </button>
+        {# 动态指标切换按钮 - 左对齐 #}
+        <div class="flex items-center gap-2 mb-3 flex-wrap">
+            <template x-for="metricCode in configuredItems" :key="metricCode">
+                <button @click="selectMetric(metricCode)"
+                    :class="selectedMetric === metricCode
+                        ? metricConfigs[metricCode]?.colors?.active
+                        : metricConfigs[metricCode]?.colors?.inactive"
+                    class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-sm font-medium transition-colors">
+                    <span class="material-symbols-outlined text-base" x-text="metricConfigs[metricCode]?.icon"></span>
+                    <span x-text="metricConfigs[metricCode]?.label"></span>
+                </button>
+            </template>
         </div>
 
-        {# 仪表盘数据区 - 颜色跟随选中指标 #}
+        {# 仪表盘数据区 - 颜色跟随选中指标（动态配置） #}
         <div class="flex items-center justify-between mb-6">
             {# 左侧：标签 + 数值 - 颜色动态变化 #}
             <div>
                 <p class="text-sm font-medium transition-colors"
-                   :class="{
-                       'text-blue-600 dark:text-blue-400': selectedMetric === 'implant_amount',
-                       'text-green-600 dark:text-green-400': selectedMetric === 'sales_amount',
-                       'text-purple-600 dark:text-purple-400': selectedMetric === 'new_projects',
-                       'text-amber-600 dark:text-amber-400': selectedMetric === 'new_customers'
-                   }">{{ _('今年累计') }}</p>
+                   :class="metricConfigs[selectedMetric]?.textColor">{{ _('今年累计') }}</p>
 
                 {# 有团队目标时：显示双行（个人淡色 + 团队深色） #}
                 <template x-if="teamSummary && teamSummary[selectedMetric]?.target > 0">
                     <div>
                         {# 个人（上面，小字体，淡色） #}
                         <p class="text-xl mt-1 transition-colors"
-                           :class="{
-                               'text-blue-400/70 dark:text-blue-300/70': selectedMetric === 'implant_amount',
-                               'text-green-400/70 dark:text-green-300/70': selectedMetric === 'sales_amount',
-                               'text-purple-400/70 dark:text-purple-300/70': selectedMetric === 'new_projects',
-                               'text-amber-400/70 dark:text-amber-300/70': selectedMetric === 'new_customers'
-                           }">
+                           :class="metricConfigs[selectedMetric]?.lightTextColor">
                             <span class="text-xs text-slate-400 dark:text-slate-500 mr-1">{{ _('个人') }}</span>
                             <span x-text="formatValue(selectedMetric, summary[selectedMetric]?.actual)"></span>
                             <template x-if="summary[selectedMetric]?.target > 0">
@@ -196,12 +169,7 @@
                         </p>
                         {# 团队（下面，标准字体，深色） #}
                         <p class="text-4xl font-bold mt-1 transition-colors"
-                           :class="{
-                               'text-blue-600 dark:text-blue-400': selectedMetric === 'implant_amount',
-                               'text-green-600 dark:text-green-400': selectedMetric === 'sales_amount',
-                               'text-purple-600 dark:text-purple-400': selectedMetric === 'new_projects',
-                               'text-amber-600 dark:text-amber-400': selectedMetric === 'new_customers'
-                           }">
+                           :class="metricConfigs[selectedMetric]?.textColor">
                             <span class="text-sm font-normal text-slate-500 dark:text-slate-400 mr-1">{{ _('团队') }}</span>
                             <span x-text="formatValue(selectedMetric, teamSummary[selectedMetric]?.actual)"></span>
                             <span class="text-2xl text-slate-400 dark:text-slate-500">
@@ -214,12 +182,7 @@
                 {# 无团队目标时：保持原样单行显示 #}
                 <template x-if="!teamSummary || !teamSummary[selectedMetric]?.target">
                     <p class="text-4xl font-bold mt-1 transition-colors"
-                       :class="{
-                           'text-blue-600 dark:text-blue-400': selectedMetric === 'implant_amount',
-                           'text-green-600 dark:text-green-400': selectedMetric === 'sales_amount',
-                           'text-purple-600 dark:text-purple-400': selectedMetric === 'new_projects',
-                           'text-amber-600 dark:text-amber-400': selectedMetric === 'new_customers'
-                       }">
+                       :class="metricConfigs[selectedMetric]?.textColor">
                         <span x-text="formatValue(selectedMetric, summary[selectedMetric]?.actual)"></span>
                         {# 如果有目标，显示 /目标值 #}
                         <template x-if="summary[selectedMetric]?.target > 0">
@@ -242,21 +205,11 @@
                                 <span class="text-xs text-slate-400 w-8">{{ _('个人') }}</span>
                                 <div class="w-24 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                                     <div class="h-full rounded-full transition-all duration-500"
-                                         :class="{
-                                             'bg-blue-300 dark:bg-blue-400/50': selectedMetric === 'implant_amount',
-                                             'bg-green-300 dark:bg-green-400/50': selectedMetric === 'sales_amount',
-                                             'bg-purple-300 dark:bg-purple-400/50': selectedMetric === 'new_projects',
-                                             'bg-amber-300 dark:bg-amber-400/50': selectedMetric === 'new_customers'
-                                         }"
+                                         :class="metricConfigs[selectedMetric]?.barColorLight"
                                          :style="'width: ' + Math.min(summary[selectedMetric]?.rate ?? 0, 100) + '%'"></div>
                                 </div>
                                 <span class="text-sm font-medium transition-colors w-10 text-right"
-                                      :class="{
-                                          'text-blue-400': selectedMetric === 'implant_amount',
-                                          'text-green-400': selectedMetric === 'sales_amount',
-                                          'text-purple-400': selectedMetric === 'new_projects',
-                                          'text-amber-400': selectedMetric === 'new_customers'
-                                      }"
+                                      :class="metricConfigs[selectedMetric]?.lightTextColor?.replace('/70', '')"
                                       x-text="(summary[selectedMetric]?.rate ?? 0) + '%'"></span>
                             </div>
                         </template>
@@ -265,21 +218,11 @@
                             <span class="text-xs text-slate-500 w-8">{{ _('团队') }}</span>
                             <div class="w-24 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                                 <div class="h-full rounded-full transition-all duration-500"
-                                     :class="{
-                                         'bg-blue-600 dark:bg-blue-500': selectedMetric === 'implant_amount',
-                                         'bg-green-600 dark:bg-green-500': selectedMetric === 'sales_amount',
-                                         'bg-purple-600 dark:bg-purple-500': selectedMetric === 'new_projects',
-                                         'bg-amber-600 dark:bg-amber-500': selectedMetric === 'new_customers'
-                                     }"
+                                     :class="metricConfigs[selectedMetric]?.barColorDeep"
                                      :style="'width: ' + Math.min(teamSummary[selectedMetric]?.rate ?? 0, 100) + '%'"></div>
                             </div>
                             <span class="text-sm font-medium transition-colors w-10 text-right"
-                                  :class="{
-                                      'text-blue-600 dark:text-blue-400': selectedMetric === 'implant_amount',
-                                      'text-green-600 dark:text-green-400': selectedMetric === 'sales_amount',
-                                      'text-purple-600 dark:text-purple-400': selectedMetric === 'new_projects',
-                                      'text-amber-600 dark:text-amber-400': selectedMetric === 'new_customers'
-                                  }"
+                                  :class="metricConfigs[selectedMetric]?.textColor"
                                   x-text="(teamSummary[selectedMetric]?.rate ?? 0) + '%'"></span>
                         </div>
                     </div>
@@ -289,21 +232,11 @@
                     <div class="flex items-center gap-3">
                         <div class="w-32 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                             <div class="h-full rounded-full transition-all duration-500"
-                                 :class="{
-                                     'bg-blue-500': selectedMetric === 'implant_amount',
-                                     'bg-green-500': selectedMetric === 'sales_amount',
-                                     'bg-purple-500': selectedMetric === 'new_projects',
-                                     'bg-amber-500': selectedMetric === 'new_customers'
-                                 }"
+                                 :class="metricConfigs[selectedMetric]?.barColor"
                                  :style="'width: ' + Math.min(summary[selectedMetric]?.rate ?? 0, 100) + '%'"></div>
                         </div>
                         <span class="text-sm font-medium transition-colors"
-                              :class="{
-                                  'text-blue-600 dark:text-blue-400': selectedMetric === 'implant_amount',
-                                  'text-green-600 dark:text-green-400': selectedMetric === 'sales_amount',
-                                  'text-purple-600 dark:text-purple-400': selectedMetric === 'new_projects',
-                                  'text-amber-600 dark:text-amber-400': selectedMetric === 'new_customers'
-                              }"
+                              :class="metricConfigs[selectedMetric]?.textColor"
                               x-text="(summary[selectedMetric]?.rate ?? 0) + '%'"></span>
                     </div>
                 </template>
@@ -358,6 +291,8 @@
             </table>
         </div>
     </div>
+    </div>
+    </template>
 </div>
 {% endmacro %}
 
@@ -751,7 +686,95 @@ function performanceDashboardData(userId, year, dashboardUrl) {
         error: null,
         activeTab: 'goals',
         selectedMetric: 'implant_amount',  // 当前选中的指标
-        metricOrder: ['implant_amount', 'sales_amount', 'new_projects', 'new_customers'],  // 指标显示顺序
+        metricOrder: ['implant_amount', 'sales_amount', 'new_projects', 'new_customers', 'customer_activity_rate'],  // 指标显示顺序
+        // 指标配置映射（用于动态渲染按钮）
+        metricConfigs: {
+            'implant_amount': {
+                label: '{{ _("植入额") }}',
+                icon: 'payments',
+                colors: {
+                    active: 'border-blue-500 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300',
+                    inactive: 'border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50'
+                },
+                textColor: 'text-blue-600 dark:text-blue-400',
+                lightTextColor: 'text-blue-400/70 dark:text-blue-300/70',
+                barColor: 'bg-blue-500',
+                barColorLight: 'bg-blue-300 dark:bg-blue-400/50',
+                barColorDeep: 'bg-blue-600 dark:bg-blue-500',
+                chartColorLight: '#93c5fd',
+                chartColorDeep: '#2563eb',
+                isPercentage: false,
+                isAmount: true
+            },
+            'sales_amount': {
+                label: '{{ _("销售额") }}',
+                icon: 'point_of_sale',
+                colors: {
+                    active: 'border-green-500 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300',
+                    inactive: 'border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50'
+                },
+                textColor: 'text-green-600 dark:text-green-400',
+                lightTextColor: 'text-green-400/70 dark:text-green-300/70',
+                barColor: 'bg-green-500',
+                barColorLight: 'bg-green-300 dark:bg-green-400/50',
+                barColorDeep: 'bg-green-600 dark:bg-green-500',
+                chartColorLight: '#86efac',
+                chartColorDeep: '#16a34a',
+                isPercentage: false,
+                isAmount: true
+            },
+            'new_projects': {
+                label: '{{ _("新增项目") }}',
+                icon: 'folder_open',
+                colors: {
+                    active: 'border-purple-500 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300',
+                    inactive: 'border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/50'
+                },
+                textColor: 'text-purple-600 dark:text-purple-400',
+                lightTextColor: 'text-purple-400/70 dark:text-purple-300/70',
+                barColor: 'bg-purple-500',
+                barColorLight: 'bg-purple-300 dark:bg-purple-400/50',
+                barColorDeep: 'bg-purple-600 dark:bg-purple-500',
+                chartColorLight: '#d8b4fe',
+                chartColorDeep: '#9333ea',
+                isPercentage: false,
+                isAmount: false
+            },
+            'new_customers': {
+                label: '{{ _("新增客户") }}',
+                icon: 'person_add',
+                colors: {
+                    active: 'border-amber-500 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
+                    inactive: 'border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50'
+                },
+                textColor: 'text-amber-600 dark:text-amber-400',
+                lightTextColor: 'text-amber-400/70 dark:text-amber-300/70',
+                barColor: 'bg-amber-500',
+                barColorLight: 'bg-amber-300 dark:bg-amber-400/50',
+                barColorDeep: 'bg-amber-600 dark:bg-amber-500',
+                chartColorLight: '#fcd34d',
+                chartColorDeep: '#d97706',
+                isPercentage: false,
+                isAmount: false
+            },
+            'customer_activity_rate': {
+                label: '{{ _("客户活跃度") }}',
+                icon: 'person_check',
+                colors: {
+                    active: 'border-cyan-500 bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300',
+                    inactive: 'border-cyan-300 dark:border-cyan-600 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/50'
+                },
+                textColor: 'text-cyan-600 dark:text-cyan-400',
+                lightTextColor: 'text-cyan-400/70 dark:text-cyan-300/70',
+                barColor: 'bg-cyan-500',
+                barColorLight: 'bg-cyan-300 dark:bg-cyan-400/50',
+                barColorDeep: 'bg-cyan-600 dark:bg-cyan-500',
+                chartColorLight: '#67e8f9',
+                chartColorDeep: '#0891b2',
+                isPercentage: true,
+                isAmount: false
+            }
+        },
 
         // 数据
         summary: {},
@@ -927,38 +950,30 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 ? CurrencyHelpers.getUnit(this.userCurrency)
                 : PERF_AMOUNT_UNIT;
 
-            // 根据选中的指标获取数据和对应颜色
-            let personalData, teamData = null, unit, personalColor, teamColor;
-            switch (this.selectedMetric) {
-                case 'implant_amount':
-                    personalData = this.goalAchievement.map(r => convertAmount(r.implant_amount.actual));
-                    unit = amountUnit;
-                    personalColor = '#93c5fd';  // blue-300 (浅)
-                    teamColor = '#2563eb';      // blue-600 (深)
-                    break;
-                case 'sales_amount':
-                    personalData = this.goalAchievement.map(r => convertAmount(r.sales_amount.actual));
-                    unit = amountUnit;
-                    personalColor = '#86efac';  // green-300 (浅)
-                    teamColor = '#16a34a';      // green-600 (深)
-                    break;
-                case 'new_customers':
-                    personalData = this.goalAchievement.map(r => r.new_customers.actual);
-                    unit = '{{ _("个") }}';
-                    personalColor = '#fcd34d';  // amber-300 (浅)
-                    teamColor = '#d97706';      // amber-600 (深)
-                    break;
-                case 'new_projects':
-                    personalData = this.goalAchievement.map(r => r.new_projects.actual);
-                    unit = '{{ _("个") }}';
-                    personalColor = '#d8b4fe';  // purple-300 (浅)
-                    teamColor = '#9333ea';      // purple-600 (深)
-                    break;
-                default:
-                    personalData = this.goalAchievement.map(r => convertAmount(r.implant_amount.actual));
-                    unit = amountUnit;
-                    personalColor = '#93c5fd';
-                    teamColor = '#2563eb';
+            // 根据选中的指标获取数据和对应颜色（使用 metricConfigs）
+            const config = this.metricConfigs[this.selectedMetric];
+            let personalData, teamData = null, unit;
+            const personalColor = config?.chartColorLight || '#93c5fd';
+            const teamColor = config?.chartColorDeep || '#2563eb';
+
+            // 根据指标类型获取数据
+            if (config?.isPercentage) {
+                // 百分比指标：客户活跃度等
+                // 由于 goalAchievement 是月度数据，而客户活跃度是实时计算的，
+                // 对于百分比指标，显示当前值作为平线
+                const currentRate = this.summary[this.selectedMetric]?.actual || 0;
+                personalData = Array(12).fill(currentRate);
+                unit = '%';
+            } else if (config?.isAmount) {
+                // 金额指标
+                const metricKey = this.selectedMetric;
+                personalData = this.goalAchievement.map(r => convertAmount(r[metricKey]?.actual || 0));
+                unit = amountUnit;
+            } else {
+                // 数量指标
+                const metricKey = this.selectedMetric;
+                personalData = this.goalAchievement.map(r => r[metricKey]?.actual || 0);
+                unit = '{{ _("个") }}';
             }
 
             // 检查是否有团队数据（只有销售额有团队数据）
@@ -1586,7 +1601,8 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 implant_amount: '{{ _("植入额") }}',
                 sales_amount: '{{ _("销售额") }}',
                 new_customers: '{{ _("新增客户") }}',
-                new_projects: '{{ _("新增项目") }}'
+                new_projects: '{{ _("新增项目") }}',
+                customer_activity_rate: '{{ _("客户活跃度") }}'
             };
             return labels[key] || key;
         },
@@ -1597,7 +1613,8 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 implant_amount: '{{ _("植入额") }}/{{ _("植入目标") }}',
                 sales_amount: '{{ _("销售额") }}/{{ _("销售目标") }}',
                 new_customers: '{{ _("新增客户") }}/{{ _("客户目标") }}',
-                new_projects: '{{ _("新增项目") }}/{{ _("项目目标") }}'
+                new_projects: '{{ _("新增项目") }}/{{ _("项目目标") }}',
+                customer_activity_rate: '{{ _("客户活跃度") }}'
             };
             return labels[key] || key;
         },
@@ -1692,7 +1709,12 @@ function performanceDashboardData(userId, year, dashboardUrl) {
         },
 
         formatValue(key, value) {
-            if (key.includes('amount')) {
+            // 使用 metricConfigs 判断指标类型
+            const config = this.metricConfigs[key];
+            if (config?.isPercentage) {
+                return (value || 0).toFixed(1) + '%';
+            }
+            if (config?.isAmount || key.includes('amount')) {
                 return this.formatAmount(value);
             }
             return value;
@@ -1763,8 +1785,14 @@ function performanceDashboardData(userId, year, dashboardUrl) {
         formatMetricValue(key, value) {
             // 无值或为0时显示 "-"
             if (!value || value === 0) return '-';
+            // 使用 metricConfigs 判断指标类型
+            const config = this.metricConfigs[key];
+            // 百分比类指标：显示 xx.x%
+            if (config?.isPercentage) {
+                return (value || 0).toFixed(1) + '%';
+            }
             // 金额类指标：转换为用户货币显示单位
-            if (key.includes('amount')) {
+            if (config?.isAmount || key.includes('amount')) {
                 if (typeof CurrencyHelpers !== 'undefined') {
                     // 使用智能单位格式化（不带符号，紧凑格式）
                     const converted = CurrencyHelpers.convertFromCNYYuan(value, this.userCurrency);

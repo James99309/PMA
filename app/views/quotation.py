@@ -3105,18 +3105,6 @@ def view_quotation(id):
             logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id}")
             flash(_('您没有权限查看此报价单'), 'danger')
             return redirect(url_for('quotation.list_quotations'))
-        # 项目权限校验 - 使用权限配置系统
-        # 注：各角色的报价单查看权限通过权限配置系统控制：
-        # - 配置 quotation 模块的 system/company/department 级权限
-        # - 使用 content_filters 字段限制可见的 project_type
-        # 例如：财务总监配置 system 级权限可查看所有报价单
-        #       渠道经理配置 content_filters = {"project_type": ["channel_follow"]}
-        if quotation.project:
-            if not can_view_project(current_user, quotation.project):
-                logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id} 关联项目 {quotation.project_id}")
-                flash(_('您没有权限查看该报价单关联的项目'), 'danger')
-                return redirect(url_for('quotation.list_quotations'))
-        
         # 按产品库分类体系排序获取报价单明细
         from app.models.product_code import ProductCategory, ProductSubcategory
         from sqlalchemy import case
