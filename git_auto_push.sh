@@ -140,34 +140,41 @@ fi
 # ========================
 git status
 
-# 添加所有更改
-git add .
-
-# ========================
-# 询问是否增加版本号
-# ========================
-VERSION_FILE="app_version.json"
-if [ -f "$VERSION_FILE" ]; then
-    CURRENT_VERSION=$(python3 -c "import json; print(json.load(open('$VERSION_FILE'))['app_version'])")
+# 检查是否有本地改动
+if [ -z "$(git status --porcelain)" ]; then
     echo ""
-    echo "当前版本: $CURRENT_VERSION"
-    echo "是否增加版本号？"
-    echo "  1) 小迭代 (patch: x.x.X+1)"
-    echo "  2) 功能更新 (minor: x.X+1.0)"
-    echo "  3) 主版本 (major: X+1.0.0)"
-    echo "  n) 不改版本号"
-    read -p "选择 [1/2/3/n]: " ver_choice
+    echo -e "\033[33m[信息] 本地没有改动，跳过提交和推送。\033[0m"
+    SKIP_PUSH=1
+else
+    SKIP_PUSH=0
+    # 添加所有更改
+    git add .
 
-    if [ "$ver_choice" = "1" ] || [ "$ver_choice" = "2" ] || [ "$ver_choice" = "3" ]; then
-        IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
-        case "$ver_choice" in
-            1) PATCH=$((PATCH + 1)) ;;
-            2) MINOR=$((MINOR + 1)); PATCH=0 ;;
-            3) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
-        esac
-        NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+    # ========================
+    # 询问是否增加版本号
+    # ========================
+    VERSION_FILE="app_version.json"
+    if [ -f "$VERSION_FILE" ]; then
+        CURRENT_VERSION=$(python3 -c "import json; print(json.load(open('$VERSION_FILE'))['app_version'])")
+        echo ""
+        echo "当前版本: $CURRENT_VERSION"
+        echo "是否增加版本号？"
+        echo "  1) 小迭代 (patch: x.x.X+1)"
+        echo "  2) 功能更新 (minor: x.X+1.0)"
+        echo "  3) 主版本 (major: X+1.0.0)"
+        echo "  n) 不改版本号"
+        read -p "选择 [1/2/3/n]: " ver_choice
 
-        python3 -c "
+        if [ "$ver_choice" = "1" ] || [ "$ver_choice" = "2" ] || [ "$ver_choice" = "3" ]; then
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+            case "$ver_choice" in
+                1) PATCH=$((PATCH + 1)) ;;
+                2) MINOR=$((MINOR + 1)); PATCH=0 ;;
+                3) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            esac
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+
+            python3 -c "
 import json
 with open('$VERSION_FILE', 'r') as f:
     data = json.load(f)
@@ -175,30 +182,31 @@ data['app_version'] = '$NEW_VERSION'
 with open('$VERSION_FILE', 'w') as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
 "
-        echo -e "\033[32m[版本] $CURRENT_VERSION → $NEW_VERSION\033[0m"
-        git add "$VERSION_FILE"
-    else
-        echo "[信息] 保持当前版本 $CURRENT_VERSION"
+            echo -e "\033[32m[版本] $CURRENT_VERSION → $NEW_VERSION\033[0m"
+            git add "$VERSION_FILE"
+        else
+            echo "[信息] 保持当前版本 $CURRENT_VERSION"
+        fi
     fi
-fi
 
-# 读取提交信息
-echo ""
-echo "请输入提交信息："
-read msg
+    # 读取提交信息
+    echo ""
+    echo "请输入提交信息："
+    read msg
 
-# 如果未输入，则自动生成
-if [ -z "$msg" ]; then
-    msg="Auto commit at $(date)"
-fi
+    # 如果未输入，则自动生成
+    if [ -z "$msg" ]; then
+        msg="Auto commit at $(date)"
+    fi
 
-# 提交并推送
-git commit -m "$msg"
-git push origin main
+    # 提交并推送
+    git commit -m "$msg"
+    git push origin main
 
-if [ $? -ne 0 ]; then
-    echo -e "\033[31m[错误] git push 失败，跳过 NAS 拉新。\033[0m"
-    exit 1
+    if [ $? -ne 0 ]; then
+        echo -e "\033[31m[错误] git push 失败，跳过 NAS 拉新。\033[0m"
+        exit 1
+    fi
 fi
 
 # ========================

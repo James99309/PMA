@@ -928,6 +928,16 @@
                     stay_text=_('取消'),
                     variant='warning'
                 ) }}
+
+                <!-- 批量保存权限确认模态框 -->
+                {{ tw_confirm_modal(
+                    modal_id='batchSaveConfirmModal',
+                    title=_('确认批量保存'),
+                    message=_('将同时影响多个账户的权限，是否继续？'),
+                    confirm_text=_('确认保存'),
+                    cancel_text=_('取消'),
+                    variant='primary'
+                ) }}
             </div>
 
             <!-- 绩效配置标签页 -->
@@ -2976,13 +2986,16 @@
                 }
 
                 try {
+                    // 多用户时只加载第一个用户的权限（作为编辑基准）
+                    const queryUserIds = isSingleUser ? userIds : [userIds[0]];
+
                     const response = await fetch('/config-management/api/users/permissions/batch', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
                         },
-                        body: JSON.stringify({ user_ids: userIds })
+                        body: JSON.stringify({ user_ids: queryUserIds })
                     });
                     const data = await response.json();
 
@@ -2991,7 +3004,8 @@
                         this.permissions = data.data.permissions || {};
                         this.contentFilterOptions = data.data.content_filter_options || {};
                         this.featurePermissions = data.data.feature_permissions || {};
-                        this.userCount = data.data.user_count || userIds.length;
+                        // 保持实际选中的用户数（用于显示和保存）
+                        this.userCount = userIds.length;
 
                         // 如果是单用户，获取用户角色并加载角色权限进行比较
                         if (isSingleUser && data.data.user_role) {
@@ -3199,16 +3213,19 @@
                     return;
                 }
 
+                // 多用户时显示确认弹窗
+                if (this.selectedUserIds.length > 1) {
+                    const confirmed = await this._confirmBatchSave();
+                    if (!confirmed) return;
+                }
+
                 this.saving = true;
 
-                // 收集权限数据（跳过mixed状态）
+                // 收集权限数据（不再跳过 mixed 状态，因为多用户时只加载第一个用户的权限）
                 const permissionsData = {};
                 const featurePerms = {};
 
                 this.modules.forEach(module => {
-                    const perm = this.permissions[module.id] || {};
-                    if (perm.mixed) return;  // 跳过混合状态
-
                     const container = document.querySelector(`[data-module="${module.id}"]`);
                     if (!container) return;
 
@@ -3276,6 +3293,18 @@
                 } finally {
                     this.saving = false;
                 }
+            },
+
+            // 确认批量保存
+            _confirmBatchSave() {
+                return new Promise((resolve) => {
+                    const count = this.selectedUserIds.length;
+                    openConfirmModal('batchSaveConfirmModal', {
+                        message: `{{ _("将同时影响") }} ${count} {{ _("个账户的权限，是否继续？") }}`,
+                        onConfirm: () => resolve(true),
+                        onCancel: () => resolve(false)
+                    });
+                });
             },
 
             // 展开/折叠分组

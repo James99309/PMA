@@ -220,6 +220,8 @@ function {{ selector_id }}Config() {
         isSearching: false,
         searchResultCount: null,
         allRoleCodes: {{ available_roles|map(attribute='role_code')|list|tojson }},
+        // 跨角色选择控制：记录当前多选所属的角色
+        _currentSelectedRole: null,
         {% endif %}
 
         init() {
@@ -233,6 +235,7 @@ function {{ selector_id }}Config() {
         selectRole(roleCode) {
             this.selectedRole = roleCode;
             this.selectedUsers = [];  // 清空用户选择
+            this._currentSelectedRole = null;  // 重置跨角色选择控制
             this.configMode = 'role';
             this.onRoleSelected();
         },
@@ -280,12 +283,25 @@ function {{ selector_id }}Config() {
 
         // 切换用户选择
         toggleUserSelection(userId, roleCode) {
+            // 跨角色检测：如果当前选择的角色与已选用户的角色不同，清空之前的选择
+            if (this.selectedUsers.length > 0 && this._currentSelectedRole && this._currentSelectedRole !== roleCode) {
+                this.selectedUsers = [];
+            }
+            // 记录当前选择的角色
+            this._currentSelectedRole = roleCode;
+
             const idx = this.selectedUsers.indexOf(userId);
             if (idx === -1) {
                 this.selectedUsers.push(userId);
             } else {
                 this.selectedUsers.splice(idx, 1);
             }
+
+            // 如果清空了所有选择，重置角色记录
+            if (this.selectedUsers.length === 0) {
+                this._currentSelectedRole = null;
+            }
+
             // 如果有选中用户，切换到用户配置模式
             if (this.selectedUsers.length > 0) {
                 this.configMode = 'users';
@@ -299,6 +315,12 @@ function {{ selector_id }}Config() {
 
         // 选择角色下的所有用户
         selectAllInRole(roleCode) {
+            // 跨角色检测：切换角色时清空之前的选择
+            if (this._currentSelectedRole && this._currentSelectedRole !== roleCode) {
+                this.selectedUsers = [];
+            }
+            this._currentSelectedRole = roleCode;
+
             const users = this.roleUsers[roleCode] || [];
             users.forEach(user => {
                 if (!this.selectedUsers.includes(user.id)) {
@@ -327,6 +349,7 @@ function {{ selector_id }}Config() {
         // 清空所有用户选择
         clearSelection() {
             this.selectedUsers = [];
+            this._currentSelectedRole = null;
             this.configMode = 'role';
             this.onRoleSelected();
         },
@@ -437,6 +460,7 @@ function {{ selector_id }}Config() {
         selectSingleUser(userId, roleCode) {
             // 清空之前的选择，只选中当前用户
             this.selectedUsers = [userId];
+            this._currentSelectedRole = roleCode;
             this.configMode = 'users';
             this.onUsersSelected();
         },
