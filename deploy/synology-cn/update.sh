@@ -64,6 +64,8 @@ echo -e "\n${YELLOW}[1/4] 拉取最新代码...${NC}"
 if [ "$SKIP_GIT" = true ]; then
     echo -e "${YELLOW}跳过 git pull（--skip-git）${NC}"
 else
+    # 修复 HTTP/2 协议问题
+    git config --global http.version HTTP/1.1
     git pull origin main
 fi
 
