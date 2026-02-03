@@ -89,6 +89,10 @@ services:
     volumes:
       - pma_storage:/app/storage
       - pma_logs:/app/logs
+      # 代码热重载挂载（无需重建即可更新）
+      - ${PROJECT_DIR:-/volume1/docker/pma}/app:/app/app:ro
+      - ${PROJECT_DIR:-/volume1/docker/pma}/migrations:/app/migrations:ro
+      - ${PROJECT_DIR:-/volume1/docker/pma}/config.py:/app/config.py:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -110,6 +114,7 @@ services:
       - pma-network
 
   # Cloudflare Tunnel（外网访问，零成本免备案）
+  # 注意：不依赖 pma，避免 pma 重建时影响隧道
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: pma-cloudflared
@@ -117,8 +122,6 @@ services:
     command: tunnel run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
-    depends_on:
-      - pma
     deploy:
       resources:
         limits:
