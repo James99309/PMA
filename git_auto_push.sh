@@ -140,15 +140,16 @@ fi
 # ========================
 git status
 
-# 检查是否有本地改动
-if [ -z "$(git status --porcelain)" ]; then
+# 添加所有更改
+git add .
+
+# 检查是否有staged的内容
+if git diff --cached --quiet; then
     echo ""
-    echo -e "\033[33m[信息] 本地没有改动，跳过提交和推送。\033[0m"
+    echo -e "\033[33m[信息] 没有需要提交的改动，跳过提交和推送。\033[0m"
     SKIP_PUSH=1
 else
     SKIP_PUSH=0
-    # 添加所有更改
-    git add .
 
     # ========================
     # 询问是否增加版本号
@@ -240,7 +241,7 @@ if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ] || [ "$nas_pull" = "s" ] || [ 
     echo "[信息] 等待隧道建立..."
     sleep 3
     for i in $(seq 1 10); do
-        if ssh -p "$TUNNEL_LOCAL_PORT" -o ConnectTimeout=2 -o BatchMode=yes "$NAS_USER@localhost" "echo ok" &>/dev/null; then
+        if ssh -p "$TUNNEL_LOCAL_PORT" -o ConnectTimeout=2 -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$NAS_USER@localhost" "echo ok" &>/dev/null; then
             echo -e "\033[32m[信息] 隧道已建立，执行 NAS 拉新...\033[0m"
             break
         fi
