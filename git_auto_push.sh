@@ -205,10 +205,18 @@ fi
 # 询问是否在 NAS 上拉新
 # ========================
 echo ""
-echo "是否要在中国 NAS 上拉新？(y/n)"
+echo "是否要在中国 NAS 上拉新？"
+echo "  y) 正常更新（git pull + 重建）"
+echo "  s) 跳过 git pull，直接重建（git 拉取失败时使用）"
+echo "  n) 跳过"
 read nas_pull
 
-if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ]; then
+NAS_UPDATE_FLAGS=""
+if [ "$nas_pull" = "s" ] || [ "$nas_pull" = "S" ]; then
+    NAS_UPDATE_FLAGS="--skip-git"
+fi
+
+if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ] || [ "$nas_pull" = "s" ] || [ "$nas_pull" = "S" ]; then
     NAS_USER="james.sh"
     NAS_UPDATE_SCRIPT="/volume1/docker/pma/deploy/synology-cn/update.sh"
     TUNNEL_HOST="ssh.jamesgpone.win"
@@ -233,7 +241,7 @@ if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ]; then
         sleep 1
     done
 
-    ssh -t -p "$TUNNEL_LOCAL_PORT" "$NAS_USER@localhost" "bash $NAS_UPDATE_SCRIPT"
+    ssh -t -p "$TUNNEL_LOCAL_PORT" "$NAS_USER@localhost" "bash $NAS_UPDATE_SCRIPT $NAS_UPDATE_FLAGS"
 
     echo "[信息] 关闭 Cloudflare 隧道..."
     kill "$CF_PID" 2>/dev/null

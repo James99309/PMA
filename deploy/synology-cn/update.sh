@@ -2,8 +2,9 @@
 # PMA DS925+ 一键更新脚本
 # 在 DS925+ 上通过 SSH 执行
 #
-# 用法: ./update.sh          # 拉取代码 + 重建容器 + 数据库迁移
+# 用法: ./update.sh               # 拉取代码 + 重建容器 + 数据库迁移
 #       ./update.sh --skip-build  # 仅拉取代码和数据库迁移，不重建容器
+#       ./update.sh --skip-git    # 跳过 git pull，直接重建容器 + 数据库迁移
 
 # 自动提升为 root 权限
 if [ "$EUID" -ne 0 ]; then
@@ -30,9 +31,13 @@ PROJECT_DIR="/volume1/docker/pma"
 DEPLOY_DIR="$PROJECT_DIR/deploy/synology-cn"
 
 SKIP_BUILD=false
-if [ "$1" = "--skip-build" ]; then
-    SKIP_BUILD=true
-fi
+SKIP_GIT=false
+for arg in "$@"; do
+    case "$arg" in
+        --skip-build) SKIP_BUILD=true ;;
+        --skip-git)   SKIP_GIT=true ;;
+    esac
+done
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}  PMA DS925+ 自动更新脚本${NC}"
@@ -50,7 +55,11 @@ done
 
 echo -e "\n${YELLOW}[1/4] 拉取最新代码...${NC}"
 cd "$PROJECT_DIR"
-git pull origin main
+if [ "$SKIP_GIT" = true ]; then
+    echo -e "${YELLOW}跳过 git pull（--skip-git）${NC}"
+else
+    git pull origin main
+fi
 
 echo -e "\n${YELLOW}[2/4] 切换到部署目录...${NC}"
 cd "$DEPLOY_DIR"
@@ -60,6 +69,8 @@ if [ "$SKIP_BUILD" = true ]; then
 else
     echo -e "\n${YELLOW}[3/4] 重建并重启服务...${NC}"
     $DOCKER_COMPOSE up -d --build pma
+    echo -e "${YELLOW}重启 Cloudflare 隧道（刷新 DNS 缓存）...${NC}"
+    $DOCKER_COMPOSE restart cloudflared
 fi
 
 echo -e "\n${YELLOW}[4/4] 执行数据库迁移...${NC}"
