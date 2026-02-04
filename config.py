@@ -46,7 +46,7 @@ class Config:
     """基础配置类 - 支持动态数据库配置"""
 
     # 统一版本号（所有环境共用，基于代码而非数据库）
-    APP_VERSION = '1.21.39'
+    APP_VERSION = '1.21.40'
 
     # 基本配置
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'local-development-secret-key-pma-2025'
@@ -185,13 +185,16 @@ class Config:
     REMEMBER_COOKIE_DURATION = timedelta(days=7)
     
     # 邮件配置
-    MAIL_SERVER = 'smtp.gmail.com'
-    MAIL_PORT = 587
-    MAIL_USE_TLS = True
-    MAIL_USERNAME = 'james98980566@gmail.com'
-    MAIL_PASSWORD = 'cihkheuuyvnkrtrj'
-    MAIL_DEFAULT_SENDER = 'james98980566@gmail.com'
-    ADMIN_EMAIL = 'James.ni@evertacsolutions.com'
+    # 支持从环境变量读取，便于在中国NAS环境使用国内邮件服务
+    # Gmail SMTP 在中国被防火墙阻止，需要使用腾讯企业邮箱/阿里云邮件等国内服务
+    MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+    MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))
+    MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'True').lower() in ('true', '1', 'yes')
+    MAIL_USE_SSL = os.environ.get('MAIL_USE_SSL', 'False').lower() in ('true', '1', 'yes')
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME', 'james98980566@gmail.com')
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD', 'cihkheuuyvnkrtrj')
+    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', os.environ.get('MAIL_USERNAME', 'james98980566@gmail.com'))
+    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'James.ni@evertacsolutions.com')
     
     # 安全配置
     WTF_CSRF_ENABLED = True

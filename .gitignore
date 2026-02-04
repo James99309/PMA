@@ -95,6 +95,7 @@ tmp/
 *.log
 *.csv
 *.json
+!app_version.json
 *.zip
 *.tar
 *.gz

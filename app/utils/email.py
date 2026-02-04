@@ -11,13 +11,30 @@ from itsdangerous import URLSafeTimedSerializer
 logger = logging.getLogger(__name__)
 
 
-def _send_email_sync(smtp_server, smtp_port, sender_email, sender_password, use_tls, recipient, subject, msg_string):
-    """同步发送邮件的内部函数（在后台线程中执行）"""
+def _send_email_sync(smtp_server, smtp_port, sender_email, sender_password, use_tls, use_ssl, recipient, subject, msg_string):
+    """同步发送邮件的内部函数（在后台线程中执行）
+
+    Args:
+        smtp_server: SMTP服务器地址
+        smtp_port: SMTP端口
+        sender_email: 发件人邮箱
+        sender_password: 发件人密码/授权码
+        use_tls: 是否使用STARTTLS（端口587常用）
+        use_ssl: 是否使用SSL（端口465常用，国内邮件服务常用此模式）
+        recipient: 收件人邮箱
+        subject: 邮件主题
+        msg_string: 邮件内容字符串
+    """
     try:
-        if use_tls:
+        if use_ssl:
+            # SSL模式：直接建立加密连接（端口465，国内邮件服务常用）
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port)
+        elif use_tls:
+            # TLS模式：先明文连接再升级加密（端口587，Gmail常用）
             server = smtplib.SMTP(smtp_server, smtp_port)
             server.starttls()
         else:
+            # 无加密模式（不推荐）
             server = smtplib.SMTP(smtp_server, smtp_port)
 
         server.login(sender_email, sender_password)
@@ -48,9 +65,10 @@ def send_email(subject, recipient, content, html=None, async_send=True):
     sender_email = current_app.config.get('MAIL_USERNAME')
     sender_password = current_app.config.get('MAIL_PASSWORD')
     use_tls = current_app.config.get('MAIL_USE_TLS', True)
+    use_ssl = current_app.config.get('MAIL_USE_SSL', False)
 
     # 输出详细的配置信息
-    logger.info(f"SMTP配置: 服务器={smtp_server}, 端口={smtp_port}, 发件人={sender_email}")
+    logger.info(f"SMTP配置: 服务器={smtp_server}, 端口={smtp_port}, 发件人={sender_email}, TLS={use_tls}, SSL={use_ssl}")
     logger.info(f"开始向 {recipient} 发送邮件, 主题: {subject}, 异步模式: {async_send}")
 
     # 移除密码中的空格(如果有)
@@ -93,7 +111,7 @@ def send_email(subject, recipient, content, html=None, async_send=True):
             # 异步模式：在后台线程中发送邮件，立即返回
             thread = threading.Thread(
                 target=_send_email_sync,
-                args=(smtp_server, smtp_port, sender_email, sender_password, use_tls, recipient, subject, msg_string)
+                args=(smtp_server, smtp_port, sender_email, sender_password, use_tls, use_ssl, recipient, subject, msg_string)
             )
             thread.daemon = True  # 设为守护线程，主程序退出时自动结束
             thread.start()
@@ -101,7 +119,7 @@ def send_email(subject, recipient, content, html=None, async_send=True):
             return True
         else:
             # 同步模式：等待发送完成
-            return _send_email_sync(smtp_server, smtp_port, sender_email, sender_password, use_tls, recipient, subject, msg_string)
+            return _send_email_sync(smtp_server, smtp_port, sender_email, sender_password, use_tls, use_ssl, recipient, subject, msg_string)
 
     except Exception as e:
         logger.error(f"发送邮件失败: {str(e)}", exc_info=True)

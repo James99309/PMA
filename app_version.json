@@ -1,0 +1,80 @@
+{
+  "app_version": "1.21.40",
+  "environment": "production",
+  "timestamp": "2026-02-04 08:38:12",
+  "modules": {
+    "user": {
+      "files": {
+        "app/views/user.py": {
+          "hash": "a0984a6dae5d5ad678cdc769c7b872c6",
+          "last_modified": "2026-01-09 00:49:55"
+        },
+        "app/models/user.py": {
+          "hash": "3c2e06bb0c9a60a97b6f70b3c1bf6cf0",
+          "last_modified": "2026-02-02 10:06:00"
+        },
+        "app/permissions.py": {
+          "hash": "d3c61de6cee9dd4fbdc0f2d0cebf634e",
+          "last_modified": "2025-12-13 10:54:15"
+        },
+        "app/utils/permissions.py": {
+          "hash": "7e19cb40909041ae68599fdb4257a427",
+          "last_modified": "2026-01-06 11:26:34"
+        }
+      },
+      "status": "ok"
+    },
+    "customer": {
+      "files": {
+        "app/views/customer.py": {
+          "hash": "61cf3596742e693906d10c82f4b38ac6",
+          "last_modified": "2026-02-03 21:18:35"
+        },
+        "app/models/customer.py": {
+          "hash": "dbdfc0488242df84703221eb414893ea",
+          "last_modified": "2026-01-11 20:53:21"
+        }
+      },
+      "status": "ok"
+    },
+    "project": {
+      "files": {
+        "app/views/project.py": {
+          "hash": "43ee5f4cb0664aa686b12ddc7d94c6fd",
+          "last_modified": "2026-02-03 10:56:10"
+        },
+        "app/models/project.py": {
+          "hash": "d5c09e27362c2a8bd3cb8e351a7838e5",
+          "last_modified": "2026-01-12 07:07:18"
+        }
+      },
+      "status": "ok"
+    },
+    "quotation": {
+      "files": {
+        "app/views/quotation.py": {
+          "hash": "1bdbc10e78fb2397393d55fe54e705de",
+          "last_modified": "2026-02-03 23:11:38"
+        },
+        "app/models/quotation.py": {
+          "hash": "0687dea40e58947d0f2aa616d74b457a",
+          "last_modified": "2025-12-13 10:54:15"
+        }
+      },
+      "status": "ok"
+    },
+    "product": {
+      "files": {
+        "app/routes/product.py": {
+          "hash": "98aafc1eef4a70cdc093f28474abd061",
+          "last_modified": "2026-01-29 09:37:32"
+        },
+        "app/models/product.py": {
+          "hash": "cda2283c6405015039abd97bdd1056d2",
+          "last_modified": "2026-01-18 08:05:35"
+        }
+      },
+      "status": "ok"
+    }
+  }
+}
