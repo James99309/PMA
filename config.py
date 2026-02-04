@@ -46,7 +46,7 @@ class Config:
     """基础配置类 - 支持动态数据库配置"""
 
     # 统一版本号（所有环境共用，基于代码而非数据库）
-    APP_VERSION = '1.21.41'
+    APP_VERSION = '1.21.42'
 
     # 基本配置
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'local-development-secret-key-pma-2025'
@@ -134,7 +134,7 @@ class Config:
             }
         
         # 云端域名配置
-        APP_DOMAIN = os.environ.get('APP_DOMAIN', 'https://your-app.onrender.com')
+        APP_DOMAIN = os.environ.get('APP_DOMAIN', 'https://pma.jamesgpone.win')
         # 安全的PORT配置，处理Render平台的PORT环境变量
         port_env = os.environ.get('PORT', '10000')
         if port_env == '$PORT' or not port_env.isdigit():

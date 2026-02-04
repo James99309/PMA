@@ -431,7 +431,8 @@ def calendar():
     can_view_others_worklog = (
         current_user.role in ['admin', 'ceo'] or
         current_user.is_department_manager or
-        worklog_permission in ['company', 'department', 'system']
+        worklog_permission in ['company', 'department', 'system'] or
+        len(subordinate_ids) > 0  # 有数据归属下属的用户也可以查看
     )
 
     return render_template(
@@ -531,6 +532,11 @@ def get_items():
             if current_user.department and current_user.department not in managed_dept_names:
                 managed_dept_names.append(current_user.department)
             can_view_target = target_user.department in managed_dept_names
+
+        # 检查是否是数据归属下属
+        if not can_view_target:
+            subordinate_ids = get_subordinate_user_ids(current_user)
+            can_view_target = owner_id in subordinate_ids
 
         if not can_view_target:
             return jsonify({'error': '无权查看该用户日历', 'events': [], 'datesWithItems': []}), 403

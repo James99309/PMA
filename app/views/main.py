@@ -626,6 +626,23 @@ def get_available_accounts():
                         'has_unread': user.id in unread_sender_ids,
                         'latest_time': unread_sender_times.get(user.id)
                     })
+            else:
+                # personal 级权限：检查是否有数据归属下属
+                from app.views.worklog import get_subordinate_user_ids
+                subordinate_ids = get_subordinate_user_ids(current_user)
+                if subordinate_ids:
+                    subordinates = User.query.filter(
+                        User.id.in_(subordinate_ids),
+                        User._is_active == True
+                    ).all()
+                    for user in subordinates:
+                        accounts.append({
+                            'id': user.id,
+                            'name': user.real_name or user.username,
+                            'role': user.role,
+                            'has_unread': user.id in unread_sender_ids,
+                            'latest_time': unread_sender_times.get(user.id)
+                        })
 
         # 排序：有未读的排前面，按最新消息时间倒序
         from datetime import datetime
