@@ -168,8 +168,8 @@ class Config:
             }
         }
         
-        # 本地域名配置
-        APP_DOMAIN = 'http://localhost:5005'
+        # 非云端环境（本地开发、NAS部署等）统一使用生产域名
+        APP_DOMAIN = 'https://pma.jamesgpone.win'
         PORT = 5005
     
     # 模板配置
