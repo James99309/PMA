@@ -264,7 +264,7 @@
                 </select>
             </div>
             
-            {% if is_admin %}
+            {% if is_admin or has_subordinates %}
             <div class="col-md-2">
                 <label for="user_id" class="form-label">操作用户</label>
                 <select class="form-select" id="user_id" name="user_id">
@@ -324,7 +324,7 @@
                                 <th style="width: 120px; min-width: 120px;">字段名称</th>
                                 <th style="width: 260px; min-width: 260px;">变更前</th>
                                 <th style="width: 260px; min-width: 260px;">变更后</th>
-                                {% if is_admin %}
+                                {% if is_admin or has_subordinates %}
                                 <th style="width: 110px; min-width: 110px;">操作用户</th>
                                 {% endif %}
                                 <th style="width: 200px; min-width: 200px;">记录信息</th>
@@ -408,7 +408,7 @@
                                 </td>
                                 
                                 <!-- 操作用户 -->
-                                {% if is_admin %}
+                                {% if is_admin or has_subordinates %}
                                 <td>
                                     {% if log.user %}
                                         <span class="user-info" title="{{ log.user.real_name or log.user.username }}">

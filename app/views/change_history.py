@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from app.decorators import admin_required
+from app.utils.access_control import get_personal_viewable_user_ids
 from app.models.change_log import ChangeLog
 from app.models.user import User
 from app.models.project import Project
@@ -28,10 +29,12 @@ def detail(log_id):
     """查看历史记录详情"""
     log = ChangeLog.query.get_or_404(log_id)
     
-    # 如果不是管理员，只能查看自己的记录
-    if current_user.role != 'admin' and log.user_id != current_user.id:
-        from flask import abort
-        abort(403)
+    # 如果不是管理员，只能查看自己和归属用户的记录
+    if current_user.role != 'admin':
+        viewable_user_ids = get_personal_viewable_user_ids(current_user)
+        if log.user_id not in viewable_user_ids:
+            from flask import abort
+            abort(403)
     
     # 解析JSON数据
     old_values = {}
@@ -108,10 +111,11 @@ def get_logs():
         # 构建查询
         query = ChangeLog.query
         
-        # 如果不是管理员，只能查看自己的操作记录
+        # 如果不是管理员，只能查看自己和归属用户的操作记录
         if current_user.role != 'admin':
-            query = query.filter(ChangeLog.user_id == current_user.id)
-        
+            viewable_user_ids = get_personal_viewable_user_ids(current_user)
+            query = query.filter(ChangeLog.user_id.in_(viewable_user_ids))
+
         # 模块过滤
         if module_name:
             query = query.filter(ChangeLog.module_name == module_name)
@@ -120,10 +124,15 @@ def get_logs():
         if operation_type:
             query = query.filter(ChangeLog.operation_type == operation_type)
         
-        # 用户过滤（只有管理员可以按用户过滤）
-        if user_id and current_user.role == 'admin':
-            query = query.filter(ChangeLog.user_id == user_id)
-        
+        # 用户过滤（管理员可以过滤所有用户，非管理员只能过滤可查看范围内的用户）
+        if user_id:
+            if current_user.role == 'admin':
+                query = query.filter(ChangeLog.user_id == user_id)
+            else:
+                # 非管理员只能在可查看范围内过滤
+                if user_id in viewable_user_ids:
+                    query = query.filter(ChangeLog.user_id == user_id)
+
         # 日期范围过滤
         if start_date:
             try:
@@ -224,21 +233,28 @@ def _get_history_data(template='admin/change_history.html'):
     
     # 构建查询
     query = ChangeLog.query
-    
-    # 如果不是管理员，只能查看自己的操作记录
+
+    # 获取可查看的用户ID列表（用于非管理员）
+    viewable_user_ids = []
     if current_user.role != 'admin':
-        query = query.filter(ChangeLog.user_id == current_user.id)
-    
+        viewable_user_ids = get_personal_viewable_user_ids(current_user)
+        query = query.filter(ChangeLog.user_id.in_(viewable_user_ids))
+
     if table_name:
         query = query.filter(ChangeLog.table_name == table_name)
     
     if operation_type:
         query = query.filter(ChangeLog.operation_type == operation_type)
-    
-    # 只有管理员可以按用户过滤
-    if user_id and current_user.role == 'admin':
-        query = query.filter(ChangeLog.user_id == user_id)
-    
+
+    # 用户过滤（管理员可以过滤所有用户，非管理员只能过滤可查看范围内的用户）
+    if user_id:
+        if current_user.role == 'admin':
+            query = query.filter(ChangeLog.user_id == user_id)
+        else:
+            # 非管理员只能在可查看范围内过滤
+            if int(user_id) in viewable_user_ids:
+                query = query.filter(ChangeLog.user_id == user_id)
+
     if date_from:
         try:
             date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
@@ -263,17 +279,23 @@ def _get_history_data(template='admin/change_history.html'):
         error_out=False
     )
     
-    # 获取所有用户用于过滤（只有管理员可以看到）
+    # 获取所有用户用于过滤（管理员可以看到全部，有下属的用户可以看到可查看范围内的用户）
     users = []
+    has_subordinates = False
     if current_user.role == 'admin':
         users = User.query.order_by(User.real_name).all()
-    
+    else:
+        # 非管理员：如果有归属用户，则显示用户列表
+        if len(viewable_user_ids) > 1:
+            has_subordinates = True
+            users = User.query.filter(User.id.in_(viewable_user_ids)).order_by(User.real_name).all()
+
     # 获取所有表名用于过滤
     if current_user.role == 'admin':
         table_names = ChangeLog.query.with_entities(ChangeLog.table_name).distinct().all()
     else:
-        # 普通用户只能看到自己操作过的表
-        table_names = ChangeLog.query.filter(ChangeLog.user_id == current_user.id).with_entities(ChangeLog.table_name).distinct().all()
+        # 非管理员只能看到可查看用户操作过的表
+        table_names = ChangeLog.query.filter(ChangeLog.user_id.in_(viewable_user_ids)).with_entities(ChangeLog.table_name).distinct().all()
     table_names = [t[0] for t in table_names if t[0]]
     
     return render_template(template,
@@ -287,7 +309,8 @@ def _get_history_data(template='admin/change_history.html'):
                              'date_from': date_from,
                              'date_to': date_to
                          },
-                         is_admin=current_user.role == 'admin')
+                         is_admin=current_user.role == 'admin',
+                         has_subordinates=has_subordinates)
 
 @change_history_bp.route('/api/users')
 @login_required

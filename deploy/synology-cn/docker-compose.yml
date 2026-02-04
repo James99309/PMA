@@ -83,6 +83,16 @@ services:
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_KEY: ${SUPABASE_KEY:-}
 
+      # 邮件配置（中国环境使用国内邮件服务，如163、QQ、腾讯企业邮箱）
+      MAIL_SERVER: ${MAIL_SERVER:-smtp.163.com}
+      MAIL_PORT: ${MAIL_PORT:-465}
+      MAIL_USE_TLS: ${MAIL_USE_TLS:-false}
+      MAIL_USE_SSL: ${MAIL_USE_SSL:-true}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_DEFAULT_SENDER: ${MAIL_DEFAULT_SENDER:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+
       # 本地存储路径
       LOCAL_STORAGE_ROOT: /app/storage
 
