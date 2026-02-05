@@ -293,23 +293,36 @@ def get_recent_work_records():
                     })
                 base_query = base_query.filter(Action.owner_id == current_user.id)
         
-        # 计算总数（用于判断是否还有更多数据）
-        total_count = base_query.count()
-
-        # 加载关联数据并按时间倒序排列（使用分页）
+        # 多取1条用于判断是否还有更多数据（避免全表count查询）
         records = base_query.options(
             joinedload(Action.company),
             joinedload(Action.contact),
             joinedload(Action.project),
             joinedload(Action.owner)
-        ).order_by(Action.date.desc(), Action.created_at.desc()).offset(offset).limit(limit).all()
-        
+        ).order_by(Action.date.desc(), Action.created_at.desc()).offset(offset).limit(limit + 1).all()
+
+        has_more = len(records) > limit
+        if has_more:
+            records = records[:limit]
+
+        # 批量获取所有记录的回复数量（1次SQL替代40次）
+        record_ids = [r.id for r in records]
+        reply_count_map = {}
+        if record_ids:
+            reply_counts = db.session.query(
+                ActionReply.action_id,
+                func.count(ActionReply.id).label('cnt')
+            ).filter(
+                ActionReply.action_id.in_(record_ids)
+            ).group_by(ActionReply.action_id).all()
+            reply_count_map = {row[0]: row[1] for row in reply_counts}
+
         # 处理数据
         result = []
         for record in records:
-            # 检查是否有回复（使用动态关系的count()方法）
-            has_reply = record.replies.count() > 0
-            
+            # 从批量查询结果获取回复数量（避免N+1）
+            reply_count = reply_count_map.get(record.id, 0)
+
             # 获取客户信息
             customer_name = ''
             customer_id = None
@@ -319,14 +332,14 @@ def get_recent_work_records():
             elif record.contact and record.contact.company:
                 customer_name = record.contact.company.company_name
                 customer_id = record.contact.company.id
-                
+
             # 获取联系人信息
             contact_name = record.contact.name if record.contact else ''
-            
+
             # 获取关联项目
             project_name = record.project.project_name if record.project else ''
             project_id = record.project.id if record.project else None
-            
+
             # 使用render_owner宏生成拥有者徽章HTML
             owner_initials = ''
             if record.owner:
@@ -361,22 +374,23 @@ def get_recent_work_records():
                 'project_name': project_name,
                 'project_id': project_id,
                 'communication': record.communication,
-                'has_reply': has_reply,
-                'reply_count': record.replies.count(),
+                'has_reply': reply_count > 0,
+                'reply_count': reply_count,
                 'owner_name': record.owner.real_name or record.owner.username if record.owner else '',
-                'owner_badge_html': owner_badge_html,  # 使用render_owner逻辑的徽章HTML
+                'owner_badge_html': owner_badge_html,
                 'owner_id': record.owner_id,
-                'owner_initials': owner_initials  # 拥有人姓名缩写（用于 Tailwind 首页）
+                'owner_initials': owner_initials
             }
             result.append(record_data)
 
         # 返回分页数据
+        loaded_count = len(result)
         response_data = {
             'success': True,
             'data': result,
-            'loaded_count': len(result),  # 本次加载的记录数
-            'total': total_count,  # 总记录数
-            'has_more': offset + len(result) < total_count  # 是否还有更多数据
+            'loaded_count': loaded_count,
+            'total': offset + loaded_count + (1 if has_more else 0),
+            'has_more': has_more
         }
 
         return jsonify(response_data)
