@@ -16,7 +16,16 @@
     }
 </script>
 <!-- Material Symbols for Tailwind components -->
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet" />
+<!-- DNS预解析和预连接，加速CDN域名解析 -->
+<link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+<link rel="dns-prefetch" href="https://fonts.gstatic.cn">
+<link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin>
+<!-- 字体：使用国内镜像，非阻塞加载 -->
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript>
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+</noscript>
 <style>
     /* 标准化页面头部区域在固定导航下的间距调整 - 与其他模块保持一致 */
     .page-with-fixed-nav .page-header-with-actions {
