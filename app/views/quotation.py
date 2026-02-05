@@ -3154,31 +3154,23 @@ def view_quotation(id):
         # 替换原有的details
         quotation.details = sorted_details
 
-        # 查询可选新拥有人
+        # 查询可选新拥有人 - 使用协作用户公共函数
         all_users = []
         if can_change_quotation_owner(current_user, quotation):
-            from app.permissions import is_admin_or_ceo
-            if is_admin_or_ceo():
-                all_users = User.query.all()
-            elif getattr(current_user, 'is_department_manager', False) or current_user.role == 'sales_director':
-                # 部门负责人只能在本部门进行转移
-                all_users = User.query.filter(
-                    or_(User.role == 'admin', User._is_active == True),
-                    User.department == current_user.department
-                ).all()
-            else:
-                # 其他人只能改为自己
-                all_users = User.query.filter(User.id.in_([current_user.id, quotation.owner_id])).all()
-            if not all_users:
-                all_users = User.query.filter(User.id.in_([current_user.id, quotation.owner_id])).all()
+            from app.utils.user_helpers import get_collaborative_users
+            all_users = get_collaborative_users(current_user)
+            # 确保包含当前归属人
+            if quotation.owner_id not in {u.id for u in all_users}:
+                owner_user = User.query.get(quotation.owner_id)
+                if owner_user:
+                    all_users = list(all_users) + [owner_user]
         has_change_owner_permission = can_change_quotation_owner(current_user, quotation)
-        
+
         # 生成用户树状数据
-        from app.utils.user_helpers import generate_user_tree_data
+        from app.utils.user_helpers import generate_user_tree_data_from_users
         user_tree_data = None
         if has_change_owner_permission:
-            filter_by_dept = not is_admin_or_ceo()
-            user_tree_data = generate_user_tree_data(filter_by_department=filter_by_dept)
+            user_tree_data = generate_user_tree_data_from_users(all_users)
         
         # 获取审批实例信息
         approval_instance = get_object_approval_instance('quotation', quotation.id)

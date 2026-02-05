@@ -963,49 +963,20 @@ def view_project(project_id):
     # 查询可选新拥有人
     all_users = []
     if can_change_project_owner(current_user, project):
-        if is_admin_or_ceo():
-            all_users = User.query.all()
-        elif getattr(current_user, 'is_department_manager', False) or current_user.role == 'sales_director':
-            all_users = User.query.filter(
-                or_(User.role == 'admin', User._is_active == True),
-                User.department == current_user.department
-            ).all()
-        else:
-            # 包含有数据归属的账户，即使不在同公司/部门
-            # 1. 当前用户自己
-            # 2. 当前项目拥有者
-            base_user_ids = {current_user.id, project.owner_id}
-            
-            # 3. 通过归属关系，用户可以将数据转移给的账户
-            from app.models.user import Affiliation
-            
-            # 用户可以查看的数据的拥有者（双向关系）
-            # - 用户作为viewer，可以查看的数据的owner
-            viewer_affiliations = Affiliation.query.filter_by(viewer_id=current_user.id).all()
-            viewer_accessible_owner_ids = {a.owner_id for a in viewer_affiliations}
-            
-            # - 用户作为owner，将数据归属给的viewer（可以将数据转移给这些用户）
-            owner_affiliations = Affiliation.query.filter_by(owner_id=current_user.id).all()
-            owner_accessible_viewer_ids = {a.viewer_id for a in owner_affiliations}
-            
-            # 合并所有可访问的用户ID
-            all_accessible_user_ids = base_user_ids.union(viewer_accessible_owner_ids).union(owner_accessible_viewer_ids)
-            
-            # 查询这些用户，确保只包含活跃用户
-            all_users = User.query.filter(
-                User.id.in_(all_accessible_user_ids),
-                or_(User.role == 'admin', User._is_active == True)
-            ).all()
-            
-        if not all_users:
-            all_users = User.query.filter(User.id.in_([current_user.id, project.owner_id])).all()
+        from app.utils.user_helpers import get_collaborative_users
+        all_users = get_collaborative_users(current_user)
+        # 确保包含当前归属人
+        if project.owner_id not in {u.id for u in all_users}:
+            owner_user = User.query.get(project.owner_id)
+            if owner_user:
+                all_users = list(all_users) + [owner_user]
+
     has_change_owner_permission = can_change_project_owner(current_user, project)
 
     # 生成用户树状数据
     from app.utils.user_helpers import generate_user_tree_data_from_users
     user_tree_data = None
     if has_change_owner_permission:
-        # 使用已筛选的用户列表生成树状数据，而不是使用默认的权限过滤
         user_tree_data = generate_user_tree_data_from_users(all_users)
 
     # 获取系统设置

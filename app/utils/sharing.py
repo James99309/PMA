@@ -362,20 +362,18 @@ def get_shareable_users(current_user, model_type=None):
     from app.models.user import User
     from sqlalchemy import or_
 
-    # 如果指定了模块类型，根据该模块的权限级别过滤用户
+    # 如果指定了模块类型，使用协作用户范围
     if model_type:
-        from app.utils.permissions import get_accessible_users
-
-        # 获取可访问的用户（基于权限级别 + 归属关系）
-        accessible_users = get_accessible_users(current_user, model_type)
+        from app.utils.user_helpers import get_collaborative_users
+        collaborative_users = get_collaborative_users(current_user)
 
         # 排除当前用户，只保留活跃用户
         filtered_users = [
-            u for u in accessible_users
+            u for u in collaborative_users
             if u.id != current_user.id and (u.role == 'admin' or u._is_active)
         ]
 
-        logger.debug(f"用户 {current_user.username} 在模块 {model_type} 可分享给 {len(filtered_users)} 个用户（基于权限级别过滤）")
+        logger.debug(f"用户 {current_user.username} 在模块 {model_type} 可分享给 {len(filtered_users)} 个用户")
 
         # 返回一个模拟查询对象，实际是列表
         # 为了兼容 get_shareable_users_tree 中的 .all() 调用

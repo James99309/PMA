@@ -1136,36 +1136,21 @@ def view_company(company_id):
     from app.utils.i18n import get_current_language
     country_code_to_name = get_country_names(get_current_language())
     
-    # 查询可选新拥有人 - 使用权限配置系统
-    # 注：可选拥有人范围通过权限级别控制
-    # - system级权限可以看到所有用户
-    # - department级权限可以看到本部门用户
-    # - personal级权限只能看到自己和当前拥有者
+    # 查询可选新拥有人
     if can_change_company_owner(current_user, company):
-        from app.permissions import is_admin_or_ceo
-        permission_level = current_user.get_permission_level('customer')
+        from app.utils.user_helpers import get_collaborative_users
+        all_users = get_collaborative_users(current_user)
+        # 确保包含当前归属人（即使不在协作范围内）
+        if company.owner_id not in {u.id for u in all_users}:
+            owner_user = User.query.get(company.owner_id)
+            if owner_user:
+                all_users = list(all_users) + [owner_user]
 
-        if is_admin_or_ceo() or permission_level == 'system':
-            # 系统级权限：可以看到所有用户
-            all_users = User.query.all()
-        elif permission_level in ['company', 'department'] or getattr(current_user, 'is_department_manager', False):
-            # 企业/部门级权限：只能选择本部门的活跃用户和管理员
-            all_users = User.query.filter(
-                or_(User.role == 'admin', User._is_active == True),
-                User.department == current_user.department
-            ).all()
-        else:
-            # 个人级权限：至少包含当前用户和当前拥有者
-            all_users = User.query.filter(User.id.in_([current_user.id, company.owner_id])).all()
-        # 保险：如果all_users为空，至少包含当前用户和当前拥有者
-        if not all_users:
-            all_users = User.query.filter(User.id.in_([current_user.id, company.owner_id])).all()
-    
     # 生成用户树状数据
     user_tree_data = None
     if can_change_company_owner(current_user, company):
-        filter_by_dept = current_user.role != 'admin'
-        user_tree_data = generate_user_tree_data(filter_by_department=filter_by_dept)
+        from app.utils.user_helpers import generate_user_tree_data_from_users
+        user_tree_data = generate_user_tree_data_from_users(all_users)
 
     # 获取客户关联的报价单（通过项目）
     from app.models.quotation import Quotation
@@ -1237,6 +1222,7 @@ def view_company(company_id):
                           INDUSTRY_OPTIONS=get_industry_options(),
                           STATUS_OPTIONS=get_status_options(),
                           user_tree_data=user_tree_data,
+                          has_change_owner_permission=user_tree_data is not None,
                           return_url=return_url,  # 智能返回URL
                           # 添加审批相关函数
                           get_object_approval_instance=get_object_approval_instance,
@@ -3550,23 +3536,10 @@ def view_contact(contact_id):
         for action in actions:
             if action.owner_id and action.owner_id in owners:
                 action.owner = owners[action.owner_id]
-    # 传递可选新拥有人 - 使用权限配置系统
-    # 注：可选拥有人范围和修改权限通过权限级别控制
+    # 传递可选新拥有人 - 使用协作用户公共函数
+    from app.utils.sharing import get_shareable_users_tree
     from app.permissions import is_admin_or_ceo
     permission_level = current_user.get_permission_level('customer')
-    all_users = []
-
-    if is_admin_or_ceo() or permission_level == 'system':
-        all_users = User.query.all()
-    elif permission_level in ['company', 'department'] or getattr(current_user, 'is_department_manager', False):
-        all_users = User.query.filter(
-            or_(User.role == 'admin', User._is_active == True),
-            User.department == current_user.department
-        ).all()
-    else:
-        all_users = User.query.filter(User.id.in_([current_user.id, contact.owner_id])).all()
-    if not all_users:
-        all_users = User.query.filter(User.id.in_([current_user.id, contact.owner_id])).all()
 
     # 计算是否有权限显示修改按钮
     has_change_owner_permission = False
@@ -3574,20 +3547,17 @@ def view_contact(contact_id):
         has_change_owner_permission = True
     elif (permission_level in ['company', 'department'] or getattr(current_user, 'is_department_manager', False)) and contact.owner and hasattr(contact.owner, 'department') and contact.owner.department == current_user.department:
         has_change_owner_permission = True
-    
-    # 生成用户树状数据
-    from app.utils.user_helpers import generate_user_tree_data
+
+    # 生成用户树状数据（使用与客户/项目详情页一致的数据源）
     user_tree_data = None
     if has_change_owner_permission:
-        filter_by_dept = current_user.role != 'admin'
-        user_tree_data = generate_user_tree_data(filter_by_department=filter_by_dept)
+        user_tree_data = get_shareable_users_tree(current_user, 'customer')
 
     # 获取与该企业相关的项目（通过项目-客户关联表）
     from app.models.project_customer_association import ProjectCustomerAssociation
     projects = [assoc.project for assoc in company.project_associations.all()]
 
     return render_template('customer/tw_contact_view.html', contact=contact, company=company, actions=actions,
-                          all_users=all_users,
                           has_change_owner_permission=has_change_owner_permission,
                           user_tree_data=user_tree_data,
                           projects=projects,

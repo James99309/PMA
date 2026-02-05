@@ -530,6 +530,7 @@ def api_batch_get_user_permissions():
                 'can_create': perm.can_create,
                 'can_edit': perm.can_edit,
                 'can_delete': perm.can_delete,
+                'can_change_owner': perm.can_change_owner,
                 'permission_level': perm.permission_level or 'personal',
                 'pricing_discount_limit': perm.pricing_discount_limit,
                 'settlement_discount_limit': perm.settlement_discount_limit,
@@ -551,6 +552,7 @@ def api_batch_get_user_permissions():
                     p['can_create'] == first_perm['can_create'] and
                     p['can_edit'] == first_perm['can_edit'] and
                     p['can_delete'] == first_perm['can_delete'] and
+                    p['can_change_owner'] == first_perm['can_change_owner'] and
                     p['permission_level'] == first_perm['permission_level']
                     for p in module_perms
                 )
@@ -561,6 +563,7 @@ def api_batch_get_user_permissions():
                         'can_create': first_perm['can_create'],
                         'can_edit': first_perm['can_edit'],
                         'can_delete': first_perm['can_delete'],
+                        'can_change_owner': first_perm['can_change_owner'],
                         'permission_level': first_perm['permission_level'],
                         'pricing_discount_limit': first_perm['pricing_discount_limit'],
                         'settlement_discount_limit': first_perm['settlement_discount_limit'],
@@ -574,6 +577,7 @@ def api_batch_get_user_permissions():
                         'can_create': None,
                         'can_edit': None,
                         'can_delete': None,
+                        'can_change_owner': None,
                         'permission_level': None,
                         'pricing_discount_limit': None,
                         'settlement_discount_limit': None,
@@ -587,6 +591,7 @@ def api_batch_get_user_permissions():
                     'can_create': None,
                     'can_edit': None,
                     'can_delete': None,
+                    'can_change_owner': None,
                     'permission_level': None,
                     'pricing_discount_limit': None,
                     'settlement_discount_limit': None,

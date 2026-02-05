@@ -191,17 +191,15 @@ Tailwind 用户选择器模态框组件
                         <div x-show="!isSearchMode" class="border border-slate-200 dark:border-slate-700 rounded-md h-48 sm:h-80 overflow-y-auto">
                             <ul class="text-sm text-slate-800 dark:text-slate-200">
                                 <template x-for="company in filteredUsersTree" :key="company.id">
-                                    <li class="border-b border-slate-200 dark:border-slate-700 last:border-b-0"
-                                        @mouseenter="company.children && company.children.length > 0 && expandNode(company.id)"
-                                        @mouseleave="collapseNode(company.id)">
+                                    <li class="border-b border-slate-200 dark:border-slate-700 last:border-b-0">
                                         <!-- 公司节点 -->
-                                        <div class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                            <span class="material-symbols-outlined text-lg mr-2 text-slate-500 dark:text-slate-400 cursor-pointer"
-                                                  @click.stop="toggleNode(company.id)"
+                                        <div class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"
+                                             @click="toggleNode(company.id)">
+                                            <span class="material-symbols-outlined text-lg mr-2 text-slate-500 dark:text-slate-400"
                                                   x-text="isExpanded(company.id) ? 'arrow_drop_down' : 'arrow_right'"></span>
                                             <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center cursor-pointer transition-colors"
                                                  :class="isCompanyAllSelected(company) || isCompanyPartialSelected(company) ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'"
-                                                 @click="toggleCompany(company)">
+                                                 @click.stop="toggleCompany(company)">
                                                 <span x-show="isCompanyAllSelected(company)" class="material-symbols-outlined text-white" style="font-size: 14px;">check</span>
                                                 <span x-show="!isCompanyAllSelected(company) && isCompanyPartialSelected(company)" class="material-symbols-outlined text-white" style="font-size: 14px;">remove</span>
                                             </div>
@@ -221,15 +219,14 @@ Tailwind 用户选择器模态框组件
                                                 <li class="border-b border-slate-200 dark:border-slate-700 last:border-b-0">
                                                     <!-- 部门节点 -->
                                                     <template x-if="child.type === 'department'">
-                                                        <div @mouseenter="child.children && child.children.length > 0 && expandNode(child.id)"
-                                                             @mouseleave="collapseNode(child.id)">
-                                                            <div class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                                                <span class="material-symbols-outlined text-lg mr-2 text-slate-500 dark:text-slate-400 cursor-pointer"
-                                                                      @click.stop="toggleNode(child.id)"
+                                                        <div>
+                                                            <div class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"
+                                                                 @click="toggleNode(child.id, company.id)">
+                                                                <span class="material-symbols-outlined text-lg mr-2 text-slate-500 dark:text-slate-400"
                                                                       x-text="isExpanded(child.id) ? 'arrow_drop_down' : 'arrow_right'"></span>
                                                                 <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center cursor-pointer transition-colors"
                                                                      :class="isDeptAllSelected(child) || isDeptPartialSelected(child) ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'"
-                                                                     @click="toggleDepartment(child)">
+                                                                     @click.stop="toggleDepartment(child)">
                                                                     <span x-show="isDeptAllSelected(child)" class="material-symbols-outlined text-white" style="font-size: 14px;">check</span>
                                                                     <span x-show="!isDeptAllSelected(child) && isDeptPartialSelected(child)" class="material-symbols-outlined text-white" style="font-size: 14px;">remove</span>
                                                                 </div>
@@ -395,13 +392,11 @@ Tailwind 用户选择器模态框组件
                     <div x-show="!isSearchMode" class="border border-slate-200 dark:border-slate-700 rounded-md h-60 sm:h-80 overflow-y-auto">
                         <ul class="text-sm text-slate-800 dark:text-slate-200">
                             <template x-for="company in filteredUsersTree" :key="company.id">
-                                <li class="border-b border-slate-200 dark:border-slate-700 last:border-b-0"
-                                    @mouseenter="company.children && company.children.length > 0 && expandNode(company.id)"
-                                    @mouseleave="collapseNode(company.id)">
+                                <li class="border-b border-slate-200 dark:border-slate-700 last:border-b-0">
                                     <!-- 公司节点 -->
-                                    <div class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                        <span class="material-symbols-outlined text-lg mr-2 text-slate-500 dark:text-slate-400 cursor-pointer"
-                                              @click.stop="toggleNode(company.id)"
+                                    <div class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"
+                                         @click="toggleNode(company.id)">
+                                        <span class="material-symbols-outlined text-lg mr-2 text-slate-500 dark:text-slate-400"
                                               x-text="isExpanded(company.id) ? 'arrow_drop_down' : 'arrow_right'"></span>
                                         <span class="font-medium text-slate-700 dark:text-slate-300" x-text="company.name"></span>
                                     </div>
@@ -419,11 +414,10 @@ Tailwind 用户选择器模态框组件
                                             <li class="border-b border-slate-200 dark:border-slate-700 last:border-b-0">
                                                 <!-- 部门节点 -->
                                                 <template x-if="child.type === 'department'">
-                                                    <div @mouseenter="child.children && child.children.length > 0 && expandNode(child.id)"
-                                                         @mouseleave="collapseNode(child.id)">
-                                                        <div class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                                            <span class="material-symbols-outlined text-lg mr-2 text-slate-500 dark:text-slate-400 cursor-pointer"
-                                                                  @click.stop="toggleNode(child.id)"
+                                                    <div>
+                                                        <div class="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"
+                                                             @click="toggleNode(child.id, company.id)">
+                                                            <span class="material-symbols-outlined text-lg mr-2 text-slate-500 dark:text-slate-400"
                                                                   x-text="isExpanded(child.id) ? 'arrow_drop_down' : 'arrow_right'"></span>
                                                             <span class="text-slate-600 dark:text-slate-400" x-text="child.name"></span>
                                                         </div>
@@ -527,12 +521,8 @@ function {{ modal_id }}Data() {
     {% endif %}
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-    // 单选模式下默认展开所有公司节点
-    {% if mode == 'single' %}
-    const defaultExpandedNodes = usersTree.map(company => company.id);
-    {% else %}
+    // 默认全部折叠
     const defaultExpandedNodes = [];
-    {% endif %}
 
     return {
         open: false,
@@ -629,17 +619,19 @@ function {{ modal_id }}Data() {
 
         // 节点展开/折叠
         isExpanded(nodeId) { return this.expandedNodes.includes(nodeId); },
-        toggleNode(nodeId) {
-            const idx = this.expandedNodes.indexOf(nodeId);
-            if (idx === -1) this.expandedNodes.push(nodeId);
-            else this.expandedNodes.splice(idx, 1);
-        },
-        expandNode(nodeId) {
-            if (!this.expandedNodes.includes(nodeId)) this.expandedNodes.push(nodeId);
-        },
-        collapseNode(nodeId) {
-            const idx = this.expandedNodes.indexOf(nodeId);
-            if (idx !== -1) this.expandedNodes.splice(idx, 1);
+        toggleNode(nodeId, parentId) {
+            const isExpanded = this.expandedNodes.includes(nodeId);
+            if (isExpanded) {
+                // 折叠：移除该节点
+                this.expandedNodes = this.expandedNodes.filter(id => id !== nodeId);
+            } else {
+                // 展开：手风琴模式，仅保留父节点 + 当前节点（同级互斥）
+                if (parentId) {
+                    this.expandedNodes = [parentId, nodeId];
+                } else {
+                    this.expandedNodes = [nodeId];
+                }
+            }
         },
 
         {% if mode == 'single' %}

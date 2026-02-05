@@ -140,12 +140,16 @@
                                     <div class="flex items-start gap-3">
                                         <span class="material-symbols-outlined text-base text-slate-500 dark:text-slate-400 mt-0.5">person</span>
                                         <div class="flex-1 min-w-0">
-                                            <p class="text-slate-500 dark:text-slate-400 text-sm">{{ _('负责人') }}</p>
-                                            <p class="text-slate-800 dark:text-slate-200 font-medium text-sm flex items-center gap-2">
-                                                {{ contact.owner.real_name or contact.owner.username if contact.owner else _('未指定') }}
+                                            <p class="text-slate-500 dark:text-slate-400 text-sm flex items-center gap-1">
+                                                {{ _('负责人') }}
                                                 {% if has_change_owner_permission %}
-                                                <button type="button" onclick="window.dispatchEvent(new CustomEvent('open-change-owner-modal'))" class="text-primary text-xs hover:underline">{{ _('修改') }}</button>
+                                                <button type="button" onclick="window.dispatchEvent(new CustomEvent('open-change-owner-modal'))" class="p-0.5 rounded text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="{{ _('修改') }}">
+                                                    <span class="material-symbols-outlined text-sm">edit</span>
+                                                </button>
                                                 {% endif %}
+                                            </p>
+                                            <p class="text-slate-800 dark:text-slate-200 font-medium text-sm">
+                                                {{ contact.owner.real_name or contact.owner.username if contact.owner else _('未指定') }}
                                             </p>
                                         </div>
                                     </div>

@@ -204,4 +204,40 @@ def generate_user_tree_data_from_users(users):
         
         root_nodes.append(company_node)
     
-    return root_nodes 
+    return root_nodes
+
+
+def get_collaborative_users(user):
+    """
+    获取用户可协作的用户列表（用于归属人选择器、共享用户选择器等）
+
+    规则：
+    - 管理员/CEO：所有用户
+    - 非管理员：同公司所有激活用户 + 双向数据归属关联的跨公司用户
+
+    返回: User 对象列表
+    """
+    from app.permissions import is_admin_or_ceo
+
+    if is_admin_or_ceo():
+        return User.query.all()
+
+    from app.models.user import Affiliation
+
+    # 1. 同公司所有激活用户
+    user_ids = set(
+        u.id for u in User.query.filter(
+            User.company_name == user.company_name,
+            User._is_active == True
+        ).all()
+    )
+
+    # 2. 我能查看其数据的归属用户（跨公司）
+    for aff in Affiliation.query.filter_by(viewer_id=user.id).all():
+        user_ids.add(aff.owner_id)
+
+    # 3. 能查看我数据的上级用户（跨公司）
+    for aff in Affiliation.query.filter_by(owner_id=user.id).all():
+        user_ids.add(aff.viewer_id)
+
+    return User.query.filter(User.id.in_(list(user_ids))).all()

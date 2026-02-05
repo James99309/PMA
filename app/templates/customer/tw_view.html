@@ -196,7 +196,7 @@
                                     {'icon': 'public', 'label': _('国家/地区'), 'value': country_code_to_name.get(company.country, company.country) if company.country else none, 'hide_empty': true},
                                     {'icon': 'location_city', 'label': _('省/州'), 'value': company.region, 'hide_empty': true},
                                     {'icon': 'location_on', 'label': _('详细地址'), 'value': company.address, 'hide_empty': true},
-                                    {'icon': 'person', 'label': _('负责人'), 'value': company.owner.real_name or company.owner.username if company.owner else none, 'hide_empty': true},
+                                    {'icon': 'person', 'label': _('负责人'), 'value': company.owner.real_name or company.owner.username if company.owner else none, 'hide_empty': true, 'edit_btn': {'onclick': "window.dispatchEvent(new CustomEvent('open-change-owner-modal'))", 'show': has_change_owner_permission}},
                                     {'icon': 'payments', 'label': _('累计报销费用'), 'value': '{}{:,.2f}'.format(currency_config.symbol, total_expense_amount or 0)}
                                 ]
                             ) }}
@@ -531,6 +531,22 @@
         save_url='/customer/' ~ company.id ~ '/update_sharing',
         searchable=true,
         empty_text=_('暂无可共享的用户')
+    ) }}
+    {% endif %}
+
+    {% if has_change_owner_permission and shareable_users_tree %}
+    <!-- 修改负责人模态框 -->
+    {{ tw_user_selector_modal(
+        modal_id='changeOwnerModal',
+        title=_('修改客户负责人'),
+        event_name='open-change-owner-modal',
+        users_tree=shareable_users_tree,
+        mode='single',
+        selected_user_id=company.owner_id,
+        form_action=url_for('customer.change_company_owner', company_id=company.id),
+        field_name='new_owner_id',
+        searchable=true,
+        empty_text=_('没有找到匹配的用户')
     ) }}
     {% endif %}
 
