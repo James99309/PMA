@@ -1044,110 +1044,43 @@ def manage_permissions(user_id):
         # 获取用户的角色权限
         from app.models.role_permissions import RolePermission
         role_perms = RolePermission.query.filter_by(role=user.role).all()
+
+        # 使用辅助函数构建角色权限字典
         role_permissions = {}
         for perm in role_perms:
-            role_permissions[perm.module] = {
-                'can_view': perm.can_view,
-                'can_create': perm.can_create,
-                'can_edit': perm.can_edit,
-                'can_delete': perm.can_delete,
-                'can_change_owner': getattr(perm, 'can_change_owner', False),
-                'permission_level': perm.permission_level or 'personal',
-                'permission_level_description': perm.permission_level_description,
-                'pricing_discount_limit': perm.pricing_discount_limit,
-                'settlement_discount_limit': perm.settlement_discount_limit
-            }
-        
-        # 获取用户的个人权限
+            role_permissions[perm.module] = build_permission_dict(perm)
+
+        # 转换角色权限为数组格式（用于前端"恢复角色设置"功能）
+        role_permissions_list = []
+        for module in modules:
+            module_id = module['id']
+            perm = role_permissions.get(module_id, get_default_permission_dict())
+            perm_copy = perm.copy()
+            perm_copy['module'] = module_id
+            role_permissions_list.append(perm_copy)
+
+        # 获取用户的个人权限，使用辅助函数构建字典
         personal_perms = list(user.permissions)
         personal_permissions = {}
         for permission in personal_perms:
-            personal_permissions[permission.module] = {
-                'can_view': permission.can_view,
-                'can_create': permission.can_create,
-                'can_edit': permission.can_edit,
-                'can_delete': permission.can_delete,
-                'can_change_owner': getattr(permission, 'can_change_owner', False),
-                'permission_level': permission.permission_level,
-                'permission_level_description': permission.permission_level_description,
-                'pricing_discount_limit': permission.pricing_discount_limit,
-                'settlement_discount_limit': permission.settlement_discount_limit
-            }
-        
-        # 合并权限：个人权限可以增强角色权限，但不能减少
-        permissions_dict = {}
-        all_modules = set()
-        
-        # 收集所有模块
+            personal_permissions[permission.module] = build_permission_dict(permission)
+
+        # 权限加载逻辑：与 user_detail 保持一致
+        # - 如果个人权限的 permission_level 有值 → 使用个人权限（完全覆盖角色权限）
+        # - 如果 permission_level 为 None 或记录不存在 → 使用角色权限
+        permissions = []
         for module in modules:
-            all_modules.add(module['id'])
-        for module in role_permissions.keys():
-            all_modules.add(module)
-        for module in personal_permissions.keys():
-            all_modules.add(module)
-        
-        # 为每个模块生成最终权限 - 遵循继承逻辑
-        for module in all_modules:
-            role_perm = role_permissions.get(module)
-            personal_perm = personal_permissions.get(module, None)
-            
-            if role_perm:
-                # 如果角色权限中有此模块，使用角色权限作为基础，个人权限可以增强
-                effective_can_view = role_perm['can_view'] or (personal_perm['can_view'] if personal_perm else False)
-                effective_can_create = role_perm['can_create'] or (personal_perm['can_create'] if personal_perm else False)
-                effective_can_edit = role_perm['can_edit'] or (personal_perm['can_edit'] if personal_perm else False)
-                effective_can_delete = role_perm['can_delete'] or (personal_perm['can_delete'] if personal_perm else False)
-                effective_can_change_owner = role_perm['can_change_owner'] or (personal_perm['can_change_owner'] if personal_perm else False)
-                # 权限级别：个人权限设置 > 角色权限设置
-                effective_level = (personal_perm['permission_level'] if personal_perm and personal_perm.get('permission_level') else role_perm['permission_level'])
-            elif personal_perm:
-                # 如果角色权限中没有此模块，但个人权限中有，使用个人权限
-                effective_can_view = personal_perm['can_view']
-                effective_can_create = personal_perm['can_create']
-                effective_can_edit = personal_perm['can_edit']
-                effective_can_delete = personal_perm['can_delete']
-                effective_can_change_owner = personal_perm['can_change_owner']
-                effective_level = personal_perm['permission_level']
+            module_id = module['id']
+            role_perm = role_permissions.get(module_id, get_default_permission_dict())
+            personal_perm = personal_permissions.get(module_id)
+
+            if personal_perm and personal_perm.get('permission_level') is not None:
+                final_perm = personal_perm.copy()
             else:
-                # 如果角色权限和个人权限中都没有此模块，默认为关闭状态
-                effective_can_view = False
-                effective_can_create = False
-                effective_can_edit = False
-                effective_can_delete = False
-                effective_can_change_owner = False
-                effective_level = 'personal'
-            
-            # 折扣限制取更严格的（较高的数值）
-            if role_perm and personal_perm:
-                # 如果都有设置，取更严格的限制
-                effective_pricing_limit = (personal_perm.get('pricing_discount_limit') if personal_perm.get('pricing_discount_limit') is not None 
-                                         else role_perm.get('pricing_discount_limit'))
-                effective_settlement_limit = (personal_perm.get('settlement_discount_limit') if personal_perm.get('settlement_discount_limit') is not None 
-                                            else role_perm.get('settlement_discount_limit'))
-            elif role_perm:
-                # 只有角色权限
-                effective_pricing_limit = role_perm.get('pricing_discount_limit')
-                effective_settlement_limit = role_perm.get('settlement_discount_limit')
-            elif personal_perm:
-                # 只有个人权限
-                effective_pricing_limit = personal_perm.get('pricing_discount_limit')
-                effective_settlement_limit = personal_perm.get('settlement_discount_limit')
-            else:
-                # 都没有
-                effective_pricing_limit = None
-                effective_settlement_limit = None
-            
-            permissions_dict[module] = {
-                'module': module,
-                'can_view': effective_can_view,
-                'can_create': effective_can_create,
-                'can_edit': effective_can_edit,
-                'can_delete': effective_can_delete,
-                'can_change_owner': effective_can_change_owner,
-                'permission_level': effective_level,
-                'pricing_discount_limit': effective_pricing_limit,
-                'settlement_discount_limit': effective_settlement_limit
-            }
+                final_perm = role_perm.copy()
+
+            final_perm['module'] = module_id
+            permissions.append(final_perm)
         
         # 准备内容筛选配置（配置驱动，支持国际化）
         filter_configs = {
@@ -1217,9 +1150,9 @@ def manage_permissions(user_id):
         return render_template('user/permissions.html',
                              user=user_data,
                              modules=modules,
-                             permissions=list(permissions_dict.values()),
+                             permissions=permissions,
                              role_dict=ROLE_DICT,
-                             role_permissions=role_permissions,
+                             role_permissions=role_permissions_list,
                              personal_permissions=personal_permissions,
                              filter_configs=filter_configs)
     # POST请求 - 保存权限设置

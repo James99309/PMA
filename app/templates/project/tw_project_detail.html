@@ -10,7 +10,7 @@ tw_status_modal_script with context %}
 {% from 'components/tw_modal_base.html' import tw_modal, tw_modal_content, tw_modal_footer with context %}
 {% from 'components/tw_action_replies.html' import render_tw_action_replies_script with context %}
 {% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_project_stage_badge,
-render_tw_project_type_badge, render_tw_report_source_badge, render_tw_industry_badge, render_tw_active_badge,
+render_tw_project_type_badge, render_tw_report_source_badge, render_tw_industry_badge, render_tw_customer_status_badge,
 render_tw_expense_status_badge with context %}
 {% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
 {% from 'components/tw_form_fields.html' import tw_form_checkbox with context %}
@@ -206,7 +206,7 @@ render_tw_expense_status_badge with context %}
     {% if slot == 'content' %}
     {# 使用统一的详情页布局组件 #}
     {% set status_badges_content %}
-        {{ render_tw_active_badge(project.is_active) }}
+        {{ render_tw_customer_status_badge(project.activity_status) }}
         {{ render_tw_lock_status_badge(project.is_locked) }}
     {% endset %}
     {% set effective_status = project.status or 'draft' %}

@@ -1110,6 +1110,14 @@ class PricingOrderService:
             old_stage = project.current_stage
             project.current_stage = 'signed'
 
+            # 自动锁定项目（与手动阶段推进保持一致）
+            if not project.is_locked:
+                project.is_locked = True
+                project.locked_reason = '项目已签约，自动锁定'
+                project.locked_by = pricing_order.approved_by or pricing_order.created_by
+                project.locked_at = datetime.now()
+                current_app.logger.info(f'项目 {project.project_name} (ID: {project.id}) 批价单审批通过，自动锁定')
+
             # 记录日志
             current_app.logger.info(f"批价单 {pricing_order.order_number} 审批通过，项目 {project.project_name} 阶段从 {old_stage} 更新为 signed")
 

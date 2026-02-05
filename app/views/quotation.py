@@ -259,8 +259,35 @@ def list_quotations():
         # 按标签排序
         project_stage_options.sort(key=lambda x: x['label'])
         
-        # 计算统计数据
+        # 计算统计数据（应用与主查询相同的筛选条件）
         stats_query = get_viewable_data(Quotation, current_user)
+        stats_joined = False
+
+        if search:
+            stats_query = stats_query.join(Project, Quotation.project_id == Project.id)
+            stats_joined = True
+            stats_query = stats_query.filter(
+                or_(
+                    Quotation.quotation_number.ilike(f'%{search}%'),
+                    Project.project_name.ilike(f'%{search}%')
+                )
+            )
+
+        if owner_filter:
+            stats_query = stats_query.filter(Quotation.owner_id == owner_filter)
+
+        if project_type_filter:
+            if not stats_joined:
+                stats_query = stats_query.join(Project, Quotation.project_id == Project.id)
+                stats_joined = True
+            stats_query = stats_query.filter(Project.project_type == project_type_filter)
+
+        if project_stage_filter:
+            if not stats_joined:
+                stats_query = stats_query.join(Project, Quotation.project_id == Project.id)
+                stats_joined = True
+            stats_query = stats_query.filter(Project.current_stage == project_stage_filter)
+
         total_stats_count = stats_query.count()
 
         # 获取当前语言环境的目标货币和显示配置

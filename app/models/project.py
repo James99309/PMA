@@ -47,9 +47,10 @@ class Project(SharingMixin, db.Model):
     locked_at = Column(DateTime, nullable=True)  # 锁定时间
     
     # 活跃度相关字段
-    is_active = Column(Boolean, default=True, nullable=False)  # 是否活跃
+    is_active = Column(Boolean, default=True, nullable=False)  # 是否活跃（派生字段，由activity_status同步）
+    activity_status = Column(String(20), default='normal', nullable=False)  # 6级活跃度状态
     last_activity_date = Column(DateTime, default=func.now(), nullable=True)  # 最后活动时间
-    activity_reason = Column(String(50), nullable=True)  # 活跃状态原因
+    activity_reason = Column(String(100), nullable=True)  # 活跃状态原因
     
     # 销售负责人字段
     vendor_sales_manager_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # 厂商销售负责人

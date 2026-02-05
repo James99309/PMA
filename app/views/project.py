@@ -27,7 +27,7 @@ import os
 from flask_wtf.csrf import CSRFProtect
 from app.models.action import Action, ActionReply
 from app.models.projectpm_stage_history import ProjectStageHistory  # 导入阶段历史记录模型
-from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS, INDUSTRY_OPTIONS, get_industry_options, get_project_type_options, get_report_source_options, get_product_situation_options, get_project_stage_options, get_default_currency, get_currency_symbol, get_amount_unit_config
+from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS, INDUSTRY_OPTIONS, get_industry_options, get_project_type_options, get_report_source_options, get_product_situation_options, get_project_stage_options, get_default_currency, get_currency_symbol, get_amount_unit_config, get_activity_status_options
 from app.services.exchange_rate_service import exchange_rate_service
 from app.utils.chinese_mapping_manager import mapping_manager
 from sqlalchemy import or_, func
@@ -53,7 +53,7 @@ PROJECT_FILTER_CONFIG = {
     'search': {'type': 'ilike', 'fields': ['project_name', 'authorization_code']},
     'owner_id': {'type': 'exact', 'aliases': ['filter_owner_id']},
     'vendor_sales_manager_id': {'type': 'exact', 'aliases': ['filter_vendor_sales_manager_id']},
-    'is_active': {'type': 'boolean'},
+    'activity_status': {'type': 'exact'},
     'industry': {'type': 'exact'},
     'report_source': {'type': 'exact'},
     'current_stage': {'type': 'exact'},
@@ -162,7 +162,7 @@ def list_projects():
     owner_id = apply_default_owner_filter(
         request.args, filters, current_user.id,
         owner_field='owner_id',
-        filter_keys=['search', 'current_stage', 'industry', 'project_type', 'is_active', 'filter_owner_id'],
+        filter_keys=['search', 'current_stage', 'industry', 'project_type', 'activity_status', 'filter_owner_id'],
         module_id='project'
     )
 
@@ -224,8 +224,16 @@ def list_projects():
         stats_query = get_viewable_data(Project, current_user)
 
         # 应用筛选条件（排除 current_stage 以显示各阶段统计）
-        stats_query = _apply_filters_to_query(stats_query, search, None, None,
-                                             None, None, None, None, None)
+        stats_query = _apply_filters_to_query(
+            stats_query, current_user, search,
+            owner_id=filters.get('owner_id', ''),
+            vendor_sales_manager_id=filters.get('vendor_sales_manager_id', ''),
+            activity_status=filters.get('activity_status', ''),
+            industry=filters.get('industry', ''),
+            report_source=filters.get('report_source', ''),
+            project_type=filters.get('project_type', ''),
+            current_stage=None
+        )
 
         # 使用优化的聚合统计函数（仅2次数据库查询）
         raw_statistics = get_full_project_stats(stats_query, target_currency)
@@ -332,14 +340,14 @@ def list_projects():
                 )[-1])()
             },
             {
-                'name': 'is_active',
-                'label': _(mapping_manager.get_field_display_name('common', 'is_active')),
+                'name': 'activity_status',
+                'label': _('活跃度'),
                 'all_option_text': _('全部状态'),
-                'current_value': request.args.get('is_active', ''),
+                'current_value': request.args.get('activity_status', ''),
                 'col_width': 2,
                 'options': [
-                    {'value': 'true', 'label': _('活跃'), 'translate': False},
-                    {'value': 'false', 'label': _('非活跃'), 'translate': False}
+                    {'value': value, 'label': label, 'translate': False}
+                    for value, label in get_activity_status_options()
                 ]
             },
             {
@@ -434,12 +442,12 @@ def list_projects():
                 'min_width': '140px'
             },
             {
-                'key': 'is_active', 
-                'field': 'is_active',  # 新增：指定对应的数据库字段名
-                'label': _(mapping_manager.get_field_display_name('common', 'is_active')),
+                'key': 'activity_status',
+                'field': 'activity_status',
+                'label': _('活跃度'),
                 'type': 'custom',
                 'render': 'render_status_badge',
-                'width': '80px'
+                'width': '100px'
             },
             {
                 'key': 'current_stage', 
@@ -578,7 +586,7 @@ def project_list_ajax():
         search = filters.get('search', '')
         owner_id = filters.get('owner_id', '')
         vendor_sales_manager_id = filters.get('vendor_sales_manager_id', '')
-        is_active = filters.get('is_active', '')
+        activity_status = filters.get('activity_status', '')
         industry = filters.get('industry', '')
         report_source = filters.get('report_source', '')
         project_type = filters.get('project_type', '')
@@ -650,7 +658,7 @@ def project_list_ajax():
                         'link_url': '/project/view/{id}',
                         'badges': [
                             {'field': 'current_stage', 'renderer': 'project_stage'},
-                            {'field': 'is_active', 'renderer': 'status_badge'},
+                            {'field': 'activity_status', 'renderer': 'status_badge'},
                             {'field': 'project_type', 'renderer': 'project_type'}
                         ],
                         'details': [
@@ -687,7 +695,7 @@ def project_list_ajax():
                     {'key': 'owner', 'label': _(mapping_manager.get_field_display_name('project', 'owner_id')), 'type': 'custom', 'render': 'render_owner', 'width': '120px'},
                     {'key': 'authorization_code', 'label': _(mapping_manager.get_field_display_name('project', 'authorization_code')), 'type': 'custom', 'render': 'render_project_authorization', 'width': '120px'},
                     {'key': 'project_name', 'label': _(mapping_manager.get_field_display_name('project', 'project_name')), 'type': 'link', 'url_template': '/project/view/{id}', 'width': '200px'},
-                    {'key': 'is_active', 'label': _(mapping_manager.get_field_display_name('common', 'is_active')), 'type': 'custom', 'render': 'render_status_badge', 'width': '80px'},
+                    {'key': 'activity_status', 'label': _('活跃度'), 'type': 'custom', 'render': 'render_status_badge', 'width': '100px'},
                     {'key': 'current_stage', 'label': _(mapping_manager.get_field_display_name('project', 'current_stage')), 'type': 'custom', 'render': 'render_project_stage', 'width': '120px'},
                     {'key': 'project_type', 'label': _(mapping_manager.get_field_display_name('project', 'project_type')), 'type': 'custom', 'render': 'render_project_type', 'width': '100px', 'align': 'start'},
                     {'key': 'quotation_customer', 'label': _(mapping_manager.get_field_display_name('project', 'quotation_customer')), 'type': 'number', 'format': 'currency', 'width': '120px', 'align': 'end'},
@@ -716,7 +724,7 @@ def project_list_ajax():
 
             # 应用筛选条件
             stats_query = _apply_filters_to_query(stats_query, search, owner_id, vendor_sales_manager_id,
-                                                is_active, industry, report_source, project_type, None)
+                                                activity_status, industry, report_source, project_type, None)
 
             # 使用优化的聚合统计函数
             raw_statistics = get_full_project_stats(stats_query, default_currency)
@@ -3171,7 +3179,7 @@ def _calculate_stage_stats_fast(projects):
 
 
 def _apply_filters_to_query(query, current_user, search=None, owner_id=None, vendor_sales_manager_id=None,
-                           is_active=None, industry=None, report_source=None, current_stage=None, project_type=None):
+                           activity_status=None, industry=None, report_source=None, current_stage=None, project_type=None):
     """将筛选条件应用到查询对象，复用现有筛选逻辑"""
     from sqlalchemy import or_
 
@@ -3191,9 +3199,8 @@ def _apply_filters_to_query(query, current_user, search=None, owner_id=None, ven
     if vendor_sales_manager_id:
         query = query.filter(Project.vendor_sales_manager_id == vendor_sales_manager_id)
 
-    if is_active:
-        is_active_value = is_active.lower() == 'true'
-        query = query.filter(Project.is_active == is_active_value)
+    if activity_status:
+        query = query.filter(Project.activity_status == activity_status)
 
     if industry:
         query = query.filter(Project.industry == industry)
@@ -3224,8 +3231,12 @@ def get_full_project_stats(base_query, target_currency=None):
         # 1. 基础统计查询 - 使用数据库聚合函数
         base_stats = base_query.with_entities(
             func.count(Project.id).label('total_count'),
-            func.sum(Project.is_active.cast(db.Integer)).label('active_count'),
-            func.sum((~Project.is_active).cast(db.Integer)).label('inactive_count'),
+            func.sum(case(
+                (Project.activity_status.in_(['highly_active', 'active', 'normal']), 1), else_=0
+            )).label('active_count'),
+            func.sum(case(
+                (Project.activity_status.in_(['to_follow', 'dormant', 'churned']), 1), else_=0
+            )).label('inactive_count'),
             func.sum(func.coalesce(Project.quotation_customer, 0)).label('total_amount')
         ).first()
 

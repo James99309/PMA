@@ -6,7 +6,7 @@
 {% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles,
 render_tw_data_table_script, render_empty_row with context %}
 {% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_industry_badge,
-render_tw_project_stage_badge_key, render_tw_project_type_badge, render_tw_report_source_badge, render_tw_active_badge
+render_tw_project_stage_badge_key, render_tw_project_type_badge, render_tw_report_source_badge, render_tw_customer_status_badge
 with context %}
 {% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
 <!DOCTYPE html>
@@ -187,7 +187,7 @@ with context %}
             </td>
             <!-- 活跃状态 -->
             <td class="p-3 whitespace-nowrap">
-                {{ render_tw_active_badge(project.is_active) }}
+                {{ render_tw_customer_status_badge(project.activity_status) }}
             </td>
             <!-- 项目阶段 -->
             <td class="p-3 whitespace-nowrap overflow-hidden">

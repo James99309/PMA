@@ -1,12 +1,12 @@
 {# 项目列表表格行模板 - 用于无限滚动AJAX加载 #}
-{% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_industry_badge, render_tw_project_stage_badge_key, render_tw_project_type_badge, render_tw_report_source_badge, render_tw_active_badge %}
+{% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_industry_badge, render_tw_project_stage_badge_key, render_tw_project_type_badge, render_tw_report_source_badge, render_tw_customer_status_badge %}
 {% from 'components/tw_table_cells.html' import tw_cell_link, tw_cell_link_secondary, tw_cell_badge, tw_cell_mono, tw_cell_amount, tw_cell_date %}
 {% for project in projects %}
 <tr class="table-row-hover transition-colors">
     {{ tw_cell_badge(render_tw_owner_badge(project.owner)) }}
     {{ tw_cell_link(url_for('project.view_project', project_id=project.id, tw=1), project.project_name, title=project.project_name) }}
     {{ tw_cell_mono(project.authorization_code) }}
-    {{ tw_cell_badge(render_tw_active_badge(project.is_active)) }}
+    {{ tw_cell_badge(render_tw_customer_status_badge(project.activity_status)) }}
     {{ tw_cell_badge(render_tw_project_stage_badge_key(project.current_stage)) }}
     {{ tw_cell_badge(render_tw_project_type_badge(project.project_type)) }}
     {{ tw_cell_amount(project.quotation_customer, 'CNY') }}

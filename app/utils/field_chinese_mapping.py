@@ -158,6 +158,7 @@ PROJECT_FIELDS = {
     'authorization_status': '授权状态',
     'authorization_code': '授权编号',
     'report_source': '报备来源',
+    'activity_status': '活跃度',
     'activity_reason': '活动原因',
     'quotation_customer': '报价金额',
     'design_issues': '设计问题',
@@ -358,6 +359,7 @@ FORM_FIELD_MAPPINGS = {
     'authorization_status': '授权状态',
     'authorization_code': '授权编号',
     'report_source': '报备来源',
+    'activity_status': '活跃度',
     'activity_reason': '活动原因',
     'quotation_customer': '报价金额',
     'design_issues': '设计问题',
@@ -420,7 +422,6 @@ FORM_FIELD_MAPPINGS = {
     'contact_id': '联系人',
     'project_id': '关联项目',
     'total_amount': '总金额',
-    'status': '审批状态',
     'owner_id': '申请人',
     'approved_by': '审批人',
     'approved_at': '审批时间',
@@ -643,6 +644,7 @@ def get_form_fields_by_module():
     """
     return {
         'customer': {
+            'status': '活跃度',
             'company_name': '企业名称',
             'contact_name': '联系人姓名',
             'contact_department': '部门',
@@ -670,7 +672,8 @@ def get_form_fields_by_module():
             'vendor_sales_manager_id': '厂商销售',
             'current_stage': '当前阶段',
             'delivery_forecast': '交付预测',
-            'activity_reason': '活动原因',
+            'activity_status': '活跃度',
+    'activity_reason': '活动原因',
             'quotation_customer': '报价金额',
             'design_issues': '设计问题',
             'product_situation': '产品情况',

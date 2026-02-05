@@ -307,16 +307,21 @@ def list_companies():
     # 获取实际存在的筛选器选项（传入查询对象，内部用 SQL DISTINCT）
     company_type_options, industry_options, status_options, country_options = get_existing_filter_options(all_viewable_query)
 
-    # 计算统计数据（复用同一个基础查询）
-    total_companies = all_viewable_query.count()
+    # 构建带筛选条件的统计查询（与主查询筛选一致）
+    stats_filtered_query = apply_filters_to_query(
+        get_viewable_data(Company, current_user), Company, filters, CUSTOMER_FILTER_CONFIG
+    )
+
+    # 计算统计数据（使用筛选后的查询）
+    total_companies = stats_filtered_query.count()
 
     # 活跃企业统计（6级状态系统：高度活跃、活跃、正常视为活跃）
-    active_companies = all_viewable_query.filter(
+    active_companies = stats_filtered_query.filter(
         Company.status.in_(['highly_active', 'active', 'normal'])
     ).count()
 
     # 直接客户统计（公司类型为user的客户数量）
-    direct_customers = all_viewable_query.filter(Company.company_type == 'user').count()
+    direct_customers = stats_filtered_query.filter(Company.company_type == 'user').count()
 
     # 项目客户统计（客户被项目关联过的数量）
     from app.models.project import Project
@@ -332,7 +337,7 @@ def list_companies():
         db.session.query(Project.system_integrator).filter(Project.system_integrator.isnot(None))
     )
 
-    project_customers = all_viewable_query.filter(
+    project_customers = stats_filtered_query.filter(
         Company.company_name.in_(linked_companies_subquery)
     ).count()
     
@@ -413,7 +418,7 @@ def list_companies():
             },
             {
                 'name': 'status_filter',
-                'label': _(mapping_manager.get_field_display_name('company', 'status')),
+                'label': _('活跃度'),
                 'all_option_text': _('全部状态'),
                 'current_value': status_filter,
                 'col_width': 2,
@@ -561,7 +566,7 @@ def list_companies():
                 {
                     'key': 'status',
                     'field': 'status',
-                    'label': _(mapping_manager.get_field_display_name('company', 'status')),
+                    'label': _('活跃度'),
                     'type': 'badge',
                     'render': 'render_status_badge',
                     'width': '100px',

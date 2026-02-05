@@ -101,13 +101,25 @@ const PermissionPanel = (function() {
         currentPermissions = config.permissions || [];
         CONTENT_FILTER_OPTIONS = config.filterConfigs || {};
 
+        // 重置面板状态（支持多次调用，如切换角色时重新加载）
+        panelInitialized = false;
+        modulePermissionsCache = {};
+        currentSelectedModule = null;
+
         console.log('权限面板初始化:', config.contextType, config.contextId);
 
         // 绑定模式切换事件（立即绑定，不依赖元数据加载）
         attachModeToggleListeners();
 
-        // 注意：编辑面板的初始化延迟到进入编辑模式时执行
-        // 这样可以在查看模式下避免不必要的API调用和DOM操作
+        // 检测页面是否有查看/编辑模式切换
+        // 如果没有（如独立权限管理页面、角色权限页面），直接初始化编辑面板
+        const hasViewEditToggle = document.getElementById('permissionViewMode') ||
+                                   document.getElementById('enterEditMode');
+        if (!hasViewEditToggle) {
+            console.log('未检测到查看/编辑切换，直接初始化编辑面板');
+            initEditPanel();
+        }
+        // 有切换的页面：编辑面板的初始化延迟到进入编辑模式时执行
     }
 
     /**

@@ -52,6 +52,35 @@ def run_activity_correction():
         logger.error(traceback.format_exc())
 
 
+def run_project_activity_correction():
+    """
+    执行项目活跃度修正任务
+
+    从Flask应用上下文中执行批量更新所有项目的活跃度状态。
+    此函数会在定时任务触发时被调用。
+    """
+    from flask import current_app
+    from app import create_app, db
+    from app.utils.activity_tracker import batch_update_all_project_activity
+
+    logger.info(f"[{datetime.now()}] 开始执行项目活跃度定时修正...")
+
+    try:
+        try:
+            app = current_app._get_current_object()
+        except RuntimeError:
+            app = create_app()
+
+        with app.app_context():
+            updated, total = batch_update_all_project_activity()
+            logger.info(f"[{datetime.now()}] 项目活跃度修正完成: 更新 {updated}/{total} 条记录")
+
+    except Exception as e:
+        logger.error(f"[{datetime.now()}] 项目活跃度修正失败: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+
+
 def _run_schedule():
     """
     调度器主循环
@@ -85,6 +114,7 @@ def start_scheduler(run_time="01:00"):
 
     # 设置每日定时任务
     schedule.every().day.at(run_time).do(run_activity_correction)
+    schedule.every().day.at("01:30").do(run_project_activity_correction)
 
     _scheduler_running = True
 
@@ -92,7 +122,7 @@ def start_scheduler(run_time="01:00"):
     _scheduler_thread = threading.Thread(target=_run_schedule, daemon=True)
     _scheduler_thread.start()
 
-    logger.info(f"定时任务调度器已启动，每日 {run_time} 执行客户活跃度修正")
+    logger.info(f"定时任务调度器已启动，每日 {run_time} 执行客户活跃度修正，01:30 执行项目活跃度修正")
 
 
 def stop_scheduler():
