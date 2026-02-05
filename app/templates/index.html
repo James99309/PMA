@@ -161,8 +161,15 @@
                                     <span class="material-symbols-outlined text-2xl text-slate-400 animate-spin">progress_activity</span>
                                 </div>
 
+                                <!-- 加载失败状态 -->
+                                <div x-show="loadError" x-cloak class="flex flex-col items-center py-6 gap-2">
+                                    <span class="material-symbols-outlined text-2xl text-slate-400">cloud_off</span>
+                                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('加载失败') }}</span>
+                                    <button @click="loadData()" class="text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400">{{ _('点击重试') }}</button>
+                                </div>
+
                                 <!-- 数据内容 -->
-                                <div x-show="!loading" x-cloak class="space-y-4">
+                                <div x-show="!loading && !loadError" x-cloak class="space-y-4">
                                     <!-- 动态绩效指标 -->
                                     <template x-for="item in configuredItems" :key="item">
                                         <div class="space-y-1.5" x-show="summary[item]?.target > 0">
@@ -540,6 +547,7 @@
     function statusCardData() {
         return {
             loading: true,
+            loadError: false,
             // 动态绩效指标
             configuredItems: [],
             summary: {},
@@ -547,33 +555,48 @@
             expenseBudgets: [],
 
             async loadData() {
-                try {
-                    const year = new Date().getFullYear();
-                    const url = `/api/v1/performance/dashboard/{{ current_user.id }}?year=${year}`;
-                    const res = await fetch(url, {
-                        headers: {
-                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                        }
-                    });
-                    const result = await res.json();
+                this.loading = true;
+                this.loadError = false;
+                const maxRetries = 2;
+                const timeoutMs = 15000;
 
-                    if (result.success && result.data) {
-                        // 动态配置的绩效项目
-                        this.configuredItems = result.data.configured_items || [];
-                        this.summary = result.data.summary || {};
-
-                        // 解析费用数据（支持多范围，后端返回已是元单位）
-                        this.expenseBudgets = (result.data.expense_budgets || [result.data.expense_budget]).filter(b => b);
-                        // 为每个范围计算当月费用
-                        const currentMonth = new Date().getMonth() + 1;
-                        this.expenseBudgets.forEach(budget => {
-                            const monthlyTrend = budget.monthly_trend || [];
-                            const currentMonthData = monthlyTrend.find(m => m.month === currentMonth);
-                            budget.monthExpense = currentMonthData ? (currentMonthData.amount || 0) : 0;
+                for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                    const controller = new AbortController();
+                    const timer = setTimeout(() => controller.abort(), timeoutMs);
+                    try {
+                        const year = new Date().getFullYear();
+                        const url = `/api/v1/performance/dashboard/{{ current_user.id }}?year=${year}&lite=1`;
+                        const res = await fetch(url, {
+                            signal: controller.signal,
+                            headers: {
+                                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                            }
                         });
+                        clearTimeout(timer);
+                        const result = await res.json();
+
+                        if (result.success && result.data) {
+                            this.configuredItems = result.data.configured_items || [];
+                            this.summary = result.data.summary || {};
+                            this.expenseBudgets = (result.data.expense_budgets || [result.data.expense_budget]).filter(b => b);
+                            const currentMonth = new Date().getMonth() + 1;
+                            this.expenseBudgets.forEach(budget => {
+                                const monthlyTrend = budget.monthly_trend || [];
+                                const currentMonthData = monthlyTrend.find(m => m.month === currentMonth);
+                                budget.monthExpense = currentMonthData ? (currentMonthData.amount || 0) : 0;
+                            });
+                        }
+                        this.loading = false;
+                        return;
+                    } catch (e) {
+                        clearTimeout(timer);
+                        if (attempt < maxRetries) {
+                            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+                            continue;
+                        }
+                        console.error('加载数据状态失败:', e);
+                        this.loadError = true;
                     }
-                } catch (e) {
-                    console.error('加载数据状态失败:', e);
                 }
                 this.loading = false;
             },

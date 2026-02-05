@@ -356,7 +356,10 @@ Tailwind 工作记录组件
         }
         url += '?' + params.toString();
 
-        fetch(url)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        fetch(url, { signal: controller.signal })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
@@ -373,6 +376,7 @@ Tailwind 工作记录组件
                 console.error('加载工作记录失败:', error);
             })
             .finally(() => {
+                clearTimeout(timeoutId);
                 state.isLoading = false;
                 const loadingMore = elements.loadingMore();
                 if (loadingMore) loadingMore.classList.add('hidden');

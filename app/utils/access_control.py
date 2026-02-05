@@ -788,7 +788,7 @@ def get_viewable_data(model_class, user, special_filters=None):
         
         # 以下是原有的公司过滤逻辑（用于公司页面和通用查询）
         try:
-            viewable_company_ids = [company.id for company in get_viewable_data(Company, user).all()]
+            viewable_company_ids = [row[0] for row in get_viewable_data(Company, user).with_entities(Company.id).all()]
         except Exception as e:
             logger.error(f"获取可查看公司数据时出错: {e}")
             viewable_company_ids = []

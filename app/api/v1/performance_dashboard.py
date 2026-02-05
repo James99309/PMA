@@ -91,51 +91,52 @@ def get_performance_dashboard(user_id):
 
     # 获取年份参数
     year = request.args.get('year', datetime.now().year, type=int)
+    # lite 模式：仅返回首页所需的轻量数据
+    lite = request.args.get('lite', '0') == '1'
 
     try:
         # 获取看板数据
-        dashboard_data = PerformanceDashboardService.get_dashboard_data(user_id, year)
-
-        # 获取字典数据（用于前端显示标签）
-        # 合并数据库字典和硬编码字典，确保中文 key 也有映射
-        from app.utils.i18n import get_current_language
-        lang = get_current_language()
-
-        # 从数据库获取
-        company_type_dict = {k: v for k, v in get_company_type_options()}
-        # 合并硬编码字典（用于中文 key 的 fallback）
-        for k, v in COMPANY_TYPE_LABELS.items():
-            if k not in company_type_dict:
-                company_type_dict[k] = v.get(lang, v.get('zh', k))
-
-        # 行业字典直接从硬编码获取（已包含中文别名）
-        industry_dict = {k: v for k, v in get_industry_options()}
-        # 合并中文别名
-        for k, v in INDUSTRY_LABELS.items():
-            if k not in industry_dict:
-                industry_dict[k] = v.get(lang, v.get('zh', k))
+        dashboard_data = PerformanceDashboardService.get_dashboard_data(user_id, year, lite=lite)
 
         # 获取目标用户的货币配置
         target_user = User.query.get(user_id)
         user_currency = target_user.settlement_currency if target_user else Config.DEFAULT_CURRENCY
         user_exchange_rate = exchange_rate_service.get_exchange_rate('CNY', user_currency)
 
+        response_data = {
+            'user_id': user_id,
+            'year': year,
+            'currency_config': {
+                'currency': user_currency,
+                'exchange_rate': user_exchange_rate
+            },
+            **dashboard_data
+        }
+
+        # 完整模式才返回字典数据（lite 模式不需要）
+        if not lite:
+            from app.utils.i18n import get_current_language
+            lang = get_current_language()
+
+            company_type_dict = {k: v for k, v in get_company_type_options()}
+            for k, v in COMPANY_TYPE_LABELS.items():
+                if k not in company_type_dict:
+                    company_type_dict[k] = v.get(lang, v.get('zh', k))
+
+            industry_dict = {k: v for k, v in get_industry_options()}
+            for k, v in INDUSTRY_LABELS.items():
+                if k not in industry_dict:
+                    industry_dict[k] = v.get(lang, v.get('zh', k))
+
+            response_data['dictionaries'] = {
+                'company_type': company_type_dict,
+                'industry': industry_dict
+            }
+
         return api_response(
             success=True,
             message="获取成功",
-            data={
-                'user_id': user_id,
-                'year': year,
-                'currency_config': {
-                    'currency': user_currency,
-                    'exchange_rate': user_exchange_rate
-                },
-                'dictionaries': {
-                    'company_type': company_type_dict,
-                    'industry': industry_dict
-                },
-                **dashboard_data
-            }
+            data=response_data
         )
     except Exception as e:
         logger.error(f"获取绩效看板数据失败: {e}")

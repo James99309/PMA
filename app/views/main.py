@@ -6,7 +6,7 @@ from app import db
 from app.models.project import Project
 from app.utils.access_control import get_viewable_data
 from app.models.quotation import Quotation
-from app.models.customer import Company
+from app.models.customer import Company, Contact
 from app.models.action import Action, ActionReply
 from app.models.user import User
 from app.utils.dictionary_helpers import project_type_label, get_currency_symbol
@@ -296,7 +296,7 @@ def get_recent_work_records():
         # 多取1条用于判断是否还有更多数据（避免全表count查询）
         records = base_query.options(
             joinedload(Action.company),
-            joinedload(Action.contact),
+            joinedload(Action.contact).joinedload(Contact.company),
             joinedload(Action.project),
             joinedload(Action.owner)
         ).order_by(Action.date.desc(), Action.created_at.desc()).offset(offset).limit(limit + 1).all()
@@ -316,6 +316,21 @@ def get_recent_work_records():
                 ActionReply.action_id.in_(record_ids)
             ).group_by(ActionReply.action_id).all()
             reply_count_map = {row[0]: row[1] for row in reply_counts}
+
+        # 批量预加载 vendor 状态（避免每条记录单独查询 Dictionary 表）
+        vendor_user_ids = set()
+        owner_ids = list(set(r.owner_id for r in records if r.owner_id))
+        if owner_ids:
+            from app.models.dictionary import Dictionary
+            vendor_companies = {d.value for d in Dictionary.query.filter_by(
+                type='company', is_active=True, is_vendor=True
+            ).all()}
+            if vendor_companies:
+                vendor_users = User.query.filter(
+                    User.id.in_(owner_ids),
+                    User.company_name.in_(vendor_companies)
+                ).with_entities(User.id).all()
+                vendor_user_ids = {u[0] for u in vendor_users}
 
         # 处理数据
         result = []
@@ -343,8 +358,8 @@ def get_recent_work_records():
             # 使用render_owner宏生成拥有者徽章HTML
             owner_initials = ''
             if record.owner:
-                # 判断是否为厂商账户
-                if record.owner.is_vendor_user():
+                # 判断是否为厂商账户（使用批量预加载结果）
+                if record.owner_id in vendor_user_ids:
                     # 厂商账户使用胶囊造型徽章
                     display_name = record.owner.real_name if record.owner.real_name else record.owner.username
                     owner_badge_html = f'<span class="badge bg-primary rounded-pill">{display_name}</span>'

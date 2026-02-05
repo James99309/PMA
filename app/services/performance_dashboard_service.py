@@ -94,12 +94,13 @@ class PerformanceDashboardService:
         return scopes[0] if scopes else ([user.id], 'personal', '个人')
 
     @staticmethod
-    def get_dashboard_data(user_id, year):
+    def get_dashboard_data(user_id, year, lite=False):
         """获取完整的看板数据
 
         Args:
             user_id: 用户ID
             year: 年份
+            lite: 轻量模式，仅返回 summary/configured_items/expense_budgets（首页用）
 
         Returns:
             dict: 看板数据，包含：
@@ -117,8 +118,6 @@ class PerformanceDashboardService:
         try:
             # 复用现有服务获取年度统计
             yearly_stats = PerformanceService.get_yearly_statistics(user_id, year)
-            # 行业分布使用全局模式（不按年份过滤，显示最近12个月）
-            industry_stats = PerformanceService.get_monthly_industry_statistics(user_id)  # 全局模式
 
             # 从绩效目标配置获取目标数据（使用新的目标表）
             targets_dict = PerformanceDashboardService.get_user_kpi_targets(user_id, year)
@@ -157,7 +156,6 @@ class PerformanceDashboardService:
                         }
                     logger.info(f"[DEBUG] Final targets_dict month 1: {targets_dict.get(1, {})}")
 
-            # 新增聚合逻辑
             # 获取费用预算范围（根据用户角色，支持多范围）
             user = User.query.get(user_id)
             expense_scopes = PerformanceDashboardService._get_expense_scopes(user, year)
@@ -176,6 +174,26 @@ class PerformanceDashboardService:
             # 保持 expense_budget 为第一个范围（向后兼容）
             expense_budget = expense_budgets[0] if expense_budgets else PerformanceDashboardService._empty_expense_budget()
 
+            # 汇总年度数据（传入 user_id 用于计算客户活跃度）
+            summary = PerformanceDashboardService._calculate_yearly_summary(yearly_stats, targets_dict, user_id)
+
+            # 获取配置的绩效项目列表（用于前端动态列显示）
+            configured_items = PerformanceDashboardService._get_configured_performance_items(user_id, year)
+
+            # lite 模式：仅返回首页所需的轻量数据，跳过重型聚合查询
+            if lite:
+                return {
+                    'summary': summary,
+                    'configured_items': configured_items,
+                    'expense_budget': expense_budget,
+                    'expense_budgets': expense_budgets,
+                }
+
+            # === 以下为完整模式的重型查询 ===
+
+            # 行业分布使用全局模式（不按年份过滤，显示最近12个月）
+            industry_stats = PerformanceService.get_monthly_industry_statistics(user_id)  # 全局模式
+
             # 活跃度使用全局模式（不按年份过滤，显示最近12个月）
             activity_score = PerformanceDashboardService.get_activity_score(user_id)  # 全局模式
             activity_monthly_trend = PerformanceDashboardService.get_monthly_activity_trend(user_id)  # 全局模式
@@ -185,9 +203,6 @@ class PerformanceDashboardService:
             customer_trend = PerformanceService.get_monthly_customer_statistics(user_id)  # 全局模式
             customer_activity = PerformanceDashboardService.get_customer_activity_trend(user_id)
             customer_value = PerformanceDashboardService.get_customer_value_ranking(user_id)
-
-            # 汇总年度数据（传入 user_id 用于计算客户活跃度）
-            summary = PerformanceDashboardService._calculate_yearly_summary(yearly_stats, targets_dict, user_id)
 
             # 计算月度增长
             monthly_growth = PerformanceDashboardService._calculate_monthly_growth(yearly_stats)
@@ -199,9 +214,6 @@ class PerformanceDashboardService:
 
             # 检查是否为M级管理者并获取团队目标
             team_summary = PerformanceDashboardService._get_team_summary_for_manager(user_id, year)
-
-            # 获取配置的绩效项目列表（用于前端动态列显示）
-            configured_items = PerformanceDashboardService._get_configured_performance_items(user_id, year)
 
             return {
                 'summary': summary,

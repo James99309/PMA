@@ -2943,8 +2943,10 @@ def get_pricing_order_detail_api(order_id):
             pricing_order.created_by == current_user.id or current_user.role == 'admin'
         )
 
-        # 判断是否可删除（草稿、已驳回、已召回状态且是创建者）
-        can_delete = pricing_order.status in editable_statuses and pricing_order.created_by == current_user.id
+        # 判断是否可删除（草稿、已驳回、已召回状态且是创建者或管理员）
+        can_delete = pricing_order.status in editable_statuses and (
+            pricing_order.created_by == current_user.id or current_user.role == 'admin'
+        )
 
         # 判断是否可导出PDF（仅审批通过后）
         can_export_pricing = False
