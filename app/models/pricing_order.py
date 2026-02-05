@@ -22,7 +22,8 @@ class PricingOrderStatus(enum.Enum):
 class PricingOrderApprovalFlowType(enum.Enum):
     """批价单审批流程类型枚举"""
     CHANNEL_FOLLOW = 'channel_follow'      # 渠道跟进类
-    SALES_KEY = 'sales_key'               # 销售重点类  
+    SALES_FOCUS = 'sales_focus'            # 销售重点类
+    SALES_KEY = 'sales_key'               # 销售重点类（旧值，向sales_focus统一）
     SALES_OPPORTUNITY = 'sales_opportunity' # 销售机会类
 
 
