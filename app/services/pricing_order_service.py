@@ -1639,28 +1639,33 @@ class PricingOrderService:
     def can_export_pdf(pricing_order, current_user, pdf_type='pricing'):
         """
         检查是否可以导出PDF
-        基于权限配置系统：
-        - 批价单PDF: 有查看权限即可导出
-        - 结算单PDF: 需要 settlement_view 权限
+        使用数据归属机制检查权限，与 Bootstrap 详情页保持一致：
+        - 批价单PDF: 管理员/商务助理/财务总监 或 创建人 或 项目销售负责人
+        - 结算单PDF: 管理员/商务助理/财务总监
         """
         # 管理员和CEO拥有所有权限
         from app.permissions import is_admin_or_ceo
         if is_admin_or_ceo():
             return True
 
-        # 首先检查是否有批价单查看权限
-        if not PricingOrderService.can_view_pricing_order(pricing_order, current_user):
+        # 使用数据归属机制验证查看权限
+        from app.utils.access_control import get_viewable_data
+        from app.models import PricingOrder
+        viewable = get_viewable_data(PricingOrder, current_user).filter(PricingOrder.id == pricing_order.id).first()
+        if not viewable:
             return False
 
-        # 批价单PDF: 有查看权限即可导出
+        # 批价单PDF: 管理员/商务助理/财务总监 或 创建人 或 项目销售负责人
         if pdf_type == 'pricing':
-            return True
+            return (
+                current_user.role in ['admin', 'business_admin', 'finance_director']
+                or pricing_order.created_by == current_user.id
+                or (pricing_order.project and pricing_order.project.vendor_sales_manager_id == current_user.id)
+            )
 
-        # 结算单PDF: 需要 settlement_view 权限
-        # 注：具体角色的结算单权限通过权限配置系统设置
-        # 在 pricing_order 模块配置中启用 settlement_view 权限
+        # 结算单PDF: 管理员/商务助理/财务总监
         if pdf_type == 'settlement':
-            return current_user.has_permission('pricing_order', 'view', 'settlement_view')
+            return current_user.role in ['admin', 'business_admin', 'finance_director']
 
         return False
     

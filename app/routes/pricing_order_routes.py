@@ -902,15 +902,17 @@ def evaluate_branch_condition_for_display(branch_condition, pricing_order):
 def get_pricing_order_approval_flow(order_id):
     """获取批价单审批流程信息 - 统一API"""
     try:
-        # 获取批价单
-        pricing_order = PricingOrder.query.get_or_404(order_id)
-        
-        # 权限检查
-        if not PricingOrderService.can_view_pricing_order(pricing_order, current_user):
+        # 获取批价单（使用数据归属机制验证权限）
+        from app.utils.access_control import get_viewable_data
+
+        viewable_orders = get_viewable_data(PricingOrder, current_user)
+        pricing_order = viewable_orders.filter(PricingOrder.id == order_id).first()
+
+        if not pricing_order:
             return jsonify({
                 'success': False,
-                'message': '您没有权限查看该批价单'
-            }), 403
+                'message': '批价单不存在或您没有权限查看'
+            }), 404
         
         # 获取统一审批流程数据
         from app.helpers.approval_helpers import get_object_approval_instance
@@ -1207,23 +1209,14 @@ def get_approval_flow(order_id):
 
 def _build_pricing_order_query(current_user):
     """构建批价单查询（含权限过滤），供列表和AJAX共用"""
-    from app.permissions import is_admin_or_ceo
+    from app.utils.access_control import get_viewable_data
     from sqlalchemy.orm import joinedload
 
-    query = PricingOrder.query.options(
+    query = get_viewable_data(PricingOrder, current_user)
+    query = query.options(
         joinedload(PricingOrder.project),
         joinedload(PricingOrder.creator)
     )
-
-    if not is_admin_or_ceo():
-        query = query.filter(
-            db.or_(
-                PricingOrder.created_by == current_user.id,
-                PricingOrder.approval_records.any(
-                    PricingOrderApprovalRecord.approver_id == current_user.id
-                )
-            )
-        )
 
     return query
 
@@ -1426,21 +1419,12 @@ def list_pricing_orders():
                              can_view_settlement=can_view_settlement)
     else:
         # ---- 原版 Bootstrap ----
+        from app.utils.access_control import get_viewable_data
+
         page = request.args.get('page', 1, type=int)
         per_page = 20
 
-        query = PricingOrder.query
-
-        from app.permissions import is_admin_or_ceo
-        if not is_admin_or_ceo():
-            query = query.filter(
-                db.or_(
-                    PricingOrder.created_by == current_user.id,
-                    PricingOrder.approval_records.any(
-                        PricingOrderApprovalRecord.approver_id == current_user.id
-                    )
-                )
-            )
+        query = get_viewable_data(PricingOrder, current_user)
 
         pagination = query.order_by(PricingOrder.created_at.desc()).paginate(
             page=page, per_page=per_page, error_out=False
@@ -2949,11 +2933,17 @@ def get_pricing_order_detail_api(order_id):
         )
 
         # 判断是否可导出PDF（仅审批通过后）
+        # Tailwind 模态框权限：仅管理员/商务助理/财务总监有导出和创建订单权限
+        # 注：Bootstrap 详情页保持原有逻辑（创建人/销售负责人也可导出批价单）
         can_export_pricing = False
         can_export_settlement = False
+        can_create_sales_order = False
         if pricing_order.status == 'approved':
-            can_export_pricing = PricingOrderService.can_export_pdf(pricing_order, current_user, 'pricing')
-            can_export_settlement = PricingOrderService.can_export_pdf(pricing_order, current_user, 'settlement')
+            # 导出和创建订单权限：仅管理员/商务助理/财务总监
+            allowed_roles = ['admin', 'business_admin', 'finance_director']
+            can_export_pricing = current_user.role in allowed_roles
+            can_export_settlement = current_user.role in allowed_roles
+            can_create_sales_order = current_user.role in allowed_roles
 
         # 构建响应
         response_data = {
@@ -2997,7 +2987,9 @@ def get_pricing_order_detail_api(order_id):
             'editable_fields': editable_fields,
             # 导出权限（仅审批通过后有效）
             'can_export_pricing': can_export_pricing,
-            'can_export_settlement': can_export_settlement
+            'can_export_settlement': can_export_settlement,
+            # 创建客户订单权限
+            'can_create_sales_order': can_create_sales_order
         }
 
         return jsonify(response_data)

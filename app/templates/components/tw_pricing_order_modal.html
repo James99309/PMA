@@ -953,6 +953,14 @@ window.PricingOrderModal = (function() {
         const hasApproval = po.status && po.status !== 'draft';
         updateLayoutForApproval(hasApproval);
 
+        // 审批完成后默认折叠审批流程区域，方便查看明细
+        if (po.status === 'approved') {
+            const modal = document.getElementById('pricingOrderModal');
+            if (modal && modal._x_dataStack) {
+                modal._x_dataStack[0].approvalCollapsed = true;
+            }
+        }
+
         // 加载审批流程（使用标准组件动态模式）
         if (window.PricingApprovalFlow) {
             PricingApprovalFlow.init(
@@ -2028,8 +2036,8 @@ window.PricingOrderModal = (function() {
             `;
         }
 
-        // 创建客户订单按钮（仅审批通过后显示）
-        if (po.status === 'approved') {
+        // 创建客户订单按钮（仅有权限时显示）
+        if (po.can_create_sales_order) {
             buttons += `
                 <button onclick="PricingOrderModal.showCreateSalesOrderModal()"
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
