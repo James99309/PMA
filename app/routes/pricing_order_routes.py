@@ -1416,7 +1416,8 @@ def list_pricing_orders():
                              total_count=total_count,
                              filter_config=filter_config,
                              list_config=list_config,
-                             can_view_settlement=can_view_settlement)
+                             can_view_settlement=can_view_settlement,
+                             now_year=datetime.now().year)
     else:
         # ---- 原版 Bootstrap ----
         from app.utils.access_control import get_viewable_data
@@ -3002,3 +3003,260 @@ def get_pricing_order_detail_api(order_id):
             'success': False,
             'message': f'获取批价单详情失败: {str(e)}'
         }), 500
+
+
+@pricing_order_bp.route('/export_excel')
+@login_required
+def export_excel_list():
+    """导出批价单/结算单Excel"""
+    from flask_babel import gettext as _
+    from io import BytesIO
+    from sqlalchemy.orm import joinedload
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+
+    # 角色权限检查
+    allowed_roles = ['admin', 'business_admin', 'finance_director']
+    if current_user.role not in allowed_roles:
+        return jsonify({'success': False, 'message': '您没有权限执行此操作'}), 403
+
+    # 解析参数
+    year = request.args.get('year', type=int)
+    month = request.args.get('month', type=int)  # 0 或空 = 全部月份
+    exclude_statuses = request.args.getlist('exclude_statuses')
+    include_settlement = request.args.get('include_settlement', '1') == '1'
+
+    if not year:
+        year = datetime.now().year
+
+    # 构建查询 - 复用权限过滤
+    query = _build_pricing_order_query(current_user)
+    query = query.options(
+        joinedload(PricingOrder.pricing_details),
+        joinedload(PricingOrder.settlement_details),
+        joinedload(PricingOrder.dealer),
+        joinedload(PricingOrder.distributor),
+        joinedload(PricingOrder.settlement_orders).joinedload(SettlementOrder.details).joinedload(SettlementOrderDetail.settlement_company),
+    )
+
+    # 按年月筛选
+    start_date = datetime(year, month if month else 1, 1)
+    if month:
+        if month == 12:
+            end_date = datetime(year + 1, 1, 1)
+        else:
+            end_date = datetime(year, month + 1, 1)
+    else:
+        end_date = datetime(year + 1, 1, 1)
+    query = query.filter(PricingOrder.created_at >= start_date, PricingOrder.created_at < end_date)
+
+    # 排除指定状态
+    if exclude_statuses:
+        query = query.filter(PricingOrder.status.notin_(exclude_statuses))
+
+    query = query.order_by(PricingOrder.created_at.desc())
+    pricing_orders = query.all()
+
+    # ---- 创建 Excel ----
+    wb = Workbook()
+
+    # 公共样式
+    header_font = Font(name='微软雅黑', size=11, bold=True, color='FFFFFF')
+    normal_font = Font(name='微软雅黑', size=10)
+    header_fill = PatternFill(start_color='0066CC', end_color='0066CC', fill_type='solid')
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    left_align = Alignment(horizontal='left', vertical='center', wrap_text=True)
+    right_align = Alignment(horizontal='right', vertical='center')
+    thin_border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+
+    def write_header(ws, headers):
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_idx, value=h)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_align
+            cell.border = thin_border
+
+    def write_cell(ws, row, col, value, align=None):
+        cell = ws.cell(row=row, column=col, value=value)
+        cell.font = normal_font
+        cell.border = thin_border
+        cell.alignment = align or left_align
+        return cell
+
+    status_labels = {
+        'draft': '草稿', 'pending': '审批中',
+        'approved': '已批准', 'rejected': '已拒绝',
+    }
+    flow_type_labels = {
+        'channel_follow': '渠道跟进类',
+        'sales_focus': '销售重点类',
+        'sales_key': '销售重点类',
+        'sales_opportunity': '销售机会类',
+    }
+    settlement_status_labels = {
+        'pending': '待结算', 'partially_settled': '部分结算',
+        'fully_settled': '全部结算',
+    }
+    detail_settlement_labels = {
+        'draft': '草稿', 'pending': '待结算', 'settled': '已结算',
+    }
+
+    # ===== Sheet1: 批价单 =====
+    ws1 = wb.active
+    ws1.title = '批价单'
+    pricing_headers = [
+        '批价单号', '销售负责人', '项目名称', '创建时间', '状态',
+        '审批流类型', '批价单总金额', '整体折扣率', '币种',
+        '经销商', '分销商',
+        '产品名称', '产品型号', '品牌', '单位', '数量',
+        '市场单价', '折扣率', '折扣后价格', '小计'
+    ]
+    write_header(ws1, pricing_headers)
+
+    row = 2
+    for po in pricing_orders:
+        creator_name = (po.creator.real_name or po.creator.username) if po.creator else ''
+        project_name = po.project.project_name if po.project else ''
+        created_str = po.created_at.strftime('%Y-%m-%d') if po.created_at else ''
+        status_text = status_labels.get(po.status, po.status)
+        flow_text = flow_type_labels.get(po.approval_flow_type, po.approval_flow_type or '')
+        dealer_name = po.dealer.company_name if po.dealer else ''
+        distributor_name = po.distributor.company_name if po.distributor else ''
+        discount_pct = f"{(po.pricing_total_discount_rate or 1) * 100:.2f}%"
+
+        details = po.pricing_details
+        if not details:
+            # 无明细时输出一行基本信息
+            write_cell(ws1, row, 1, po.order_number)
+            write_cell(ws1, row, 2, creator_name)
+            write_cell(ws1, row, 3, project_name)
+            write_cell(ws1, row, 4, created_str)
+            write_cell(ws1, row, 5, status_text)
+            write_cell(ws1, row, 6, flow_text)
+            write_cell(ws1, row, 7, po.pricing_total_amount or 0, right_align)
+            write_cell(ws1, row, 8, discount_pct, right_align)
+            write_cell(ws1, row, 9, po.currency or 'CNY')
+            write_cell(ws1, row, 10, dealer_name)
+            write_cell(ws1, row, 11, distributor_name)
+            row += 1
+        else:
+            for d in details:
+                write_cell(ws1, row, 1, po.order_number)
+                write_cell(ws1, row, 2, creator_name)
+                write_cell(ws1, row, 3, project_name)
+                write_cell(ws1, row, 4, created_str)
+                write_cell(ws1, row, 5, status_text)
+                write_cell(ws1, row, 6, flow_text)
+                write_cell(ws1, row, 7, po.pricing_total_amount or 0, right_align)
+                write_cell(ws1, row, 8, discount_pct, right_align)
+                write_cell(ws1, row, 9, po.currency or 'CNY')
+                write_cell(ws1, row, 10, dealer_name)
+                write_cell(ws1, row, 11, distributor_name)
+                write_cell(ws1, row, 12, d.product_name or '')
+                write_cell(ws1, row, 13, d.product_model or '')
+                write_cell(ws1, row, 14, d.brand or '')
+                write_cell(ws1, row, 15, d.unit or '')
+                write_cell(ws1, row, 16, d.quantity or 0, right_align)
+                write_cell(ws1, row, 17, d.market_price or 0, right_align)
+                write_cell(ws1, row, 18, f"{(d.discount_rate or 1) * 100:.2f}%", right_align)
+                write_cell(ws1, row, 19, d.unit_price or 0, right_align)
+                write_cell(ws1, row, 20, d.total_price or 0, right_align)
+                row += 1
+
+    # 设置列宽
+    from openpyxl.utils import get_column_letter
+    col_widths_1 = [16, 12, 25, 12, 10, 14, 14, 12, 8, 20, 20, 25, 18, 12, 8, 8, 12, 10, 14, 14]
+    for i, w in enumerate(col_widths_1, 1):
+        ws1.column_dimensions[get_column_letter(i)].width = w
+
+    # ===== Sheet2: 结算单（可选）=====
+    if include_settlement:
+        ws2 = wb.create_sheet(title='结算单')
+        settlement_headers = [
+            '结算单号', '销售负责人', '项目名称', '创建时间',
+            '审批状态', '结算状态', '总金额', '整体折扣率', '币种',
+            '经销商', '分销商', '关联批价单号',
+            '产品名称', '产品型号', '品牌', '单位', '数量',
+            '市场单价', '折扣率', '折扣后价格', '小计',
+            '明细结算状态', '结算对象公司'
+        ]
+        write_header(ws2, settlement_headers)
+
+        row2 = 2
+        for po in pricing_orders:
+            for so in po.settlement_orders:
+                creator_name = (so.creator.real_name or so.creator.username) if so.creator else ''
+                project_name = so.project.project_name if so.project else ''
+                created_str = so.created_at.strftime('%Y-%m-%d') if so.created_at else ''
+                status_text = status_labels.get(so.status, so.status)
+                settle_status_text = settlement_status_labels.get(
+                    so.get_dynamic_settlement_status(), so.settlement_status or ''
+                )
+                dealer_name = so.dealer.company_name if so.dealer else ''
+                distributor_name = so.distributor.company_name if so.distributor else ''
+                discount_pct = f"{(so.total_discount_rate or 1) * 100:.2f}%"
+
+                details = so.details
+                if not details:
+                    write_cell(ws2, row2, 1, so.order_number)
+                    write_cell(ws2, row2, 2, creator_name)
+                    write_cell(ws2, row2, 3, project_name)
+                    write_cell(ws2, row2, 4, created_str)
+                    write_cell(ws2, row2, 5, status_text)
+                    write_cell(ws2, row2, 6, settle_status_text)
+                    write_cell(ws2, row2, 7, so.total_amount or 0, right_align)
+                    write_cell(ws2, row2, 8, discount_pct, right_align)
+                    write_cell(ws2, row2, 9, so.currency or 'CNY')
+                    write_cell(ws2, row2, 10, dealer_name)
+                    write_cell(ws2, row2, 11, distributor_name)
+                    write_cell(ws2, row2, 12, po.order_number)
+                    row2 += 1
+                else:
+                    for d in details:
+                        write_cell(ws2, row2, 1, so.order_number)
+                        write_cell(ws2, row2, 2, creator_name)
+                        write_cell(ws2, row2, 3, project_name)
+                        write_cell(ws2, row2, 4, created_str)
+                        write_cell(ws2, row2, 5, status_text)
+                        write_cell(ws2, row2, 6, settle_status_text)
+                        write_cell(ws2, row2, 7, so.total_amount or 0, right_align)
+                        write_cell(ws2, row2, 8, discount_pct, right_align)
+                        write_cell(ws2, row2, 9, so.currency or 'CNY')
+                        write_cell(ws2, row2, 10, dealer_name)
+                        write_cell(ws2, row2, 11, distributor_name)
+                        write_cell(ws2, row2, 12, po.order_number)
+                        write_cell(ws2, row2, 13, d.product_name or '')
+                        write_cell(ws2, row2, 14, d.product_model or '')
+                        write_cell(ws2, row2, 15, d.brand or '')
+                        write_cell(ws2, row2, 16, d.unit or '')
+                        write_cell(ws2, row2, 17, d.quantity or 0, right_align)
+                        write_cell(ws2, row2, 18, d.market_price or 0, right_align)
+                        write_cell(ws2, row2, 19, f"{(d.discount_rate or 1) * 100:.2f}%", right_align)
+                        write_cell(ws2, row2, 20, d.unit_price or 0, right_align)
+                        write_cell(ws2, row2, 21, d.total_price or 0, right_align)
+                        write_cell(ws2, row2, 22, detail_settlement_labels.get(d.settlement_status, d.settlement_status or ''))
+                        write_cell(ws2, row2, 23, d.settlement_company.company_name if d.settlement_company else '')
+                        row2 += 1
+
+        col_widths_2 = [16, 12, 25, 12, 10, 10, 14, 12, 8, 20, 20, 16, 25, 18, 12, 8, 8, 12, 10, 14, 14, 12, 20]
+        for i, w in enumerate(col_widths_2, 1):
+            ws2.column_dimensions[get_column_letter(i)].width = w
+
+    # 输出文件
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    month_str = f"-{month:02d}" if month else ""
+    filename = f"批价单导出_{year}{month_str}.xlsx"
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.document',
+        as_attachment=True,
+        download_name=filename
+    )

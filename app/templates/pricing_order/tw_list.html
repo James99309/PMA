@@ -5,6 +5,7 @@
 {% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles, render_tw_data_table_script, render_empty_row with context %}
 {% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_status_badge with context %}
 {% from 'components/tw_pricing_order_modal.html' import tw_pricing_order_modal, tw_pricing_order_modal_script with context %}
+{% from 'components/tw_modal_base.html' import tw_modal with context %}
 
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
@@ -67,7 +68,15 @@
     {% if slot == 'content' %}
         {% call(page_slot) render_tw_fixed_page() %}
         {% if page_slot == 'header' %}
-            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('批价单管理') }}</h1>
+            <div class="flex items-center justify-between w-full">
+                <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('批价单管理') }}</h1>
+                {% if current_user.role in ['admin', 'business_admin', 'finance_director'] %}
+                <button onclick="openExportModal()" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors">
+                    <span class="material-symbols-outlined text-lg">download</span>
+                    {{ _('导出Excel') }}
+                </button>
+                {% endif %}
+            </div>
         {% elif page_slot == 'content' %}
             {# 统计卡片 #}
             {% set stats = list_config.stats.cards %}
@@ -185,6 +194,82 @@
     {# 批价单模态框 - 复用报价单中的完整组件 #}
     {{ tw_pricing_order_modal() }}
 
+    {# 导出Excel模态框 #}
+    {% if current_user.role in ['admin', 'business_admin', 'finance_director'] %}
+    {% call tw_modal('exportExcelModal', title=_('导出Excel'), close_action='closeExportModal()', max_width='max-w-md', show_close=true, header_border=true) %}
+    <div class="p-6 space-y-5">
+        {# 年份选择 #}
+        <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('年份') }}</label>
+            <select id="exportYear" class="w-full rounded-lg border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white text-sm focus:ring-primary focus:border-primary">
+                {% for y in range(2025, now_year + 1) %}
+                <option value="{{ y }}" {% if y == now_year %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {# 月份选择 #}
+        <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('月份') }}</label>
+            <select id="exportMonth" class="w-full rounded-lg border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white text-sm focus:ring-primary focus:border-primary">
+                <option value="0">{{ _('全部月份') }}</option>
+                {% for m in range(1, 13) %}
+                <option value="{{ m }}">{{ m }}{{ _('月') }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {# 排除状态 #}
+        <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('排除状态') }}</label>
+            <div class="flex flex-wrap gap-x-5 gap-y-2">
+                <label class="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
+                    <input type="checkbox" name="exclude_status" value="draft" checked
+                           class="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary">
+                    {{ _('草稿') }}
+                </label>
+                <label class="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
+                    <input type="checkbox" name="exclude_status" value="pending"
+                           class="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary">
+                    {{ _('审批中') }}
+                </label>
+                <label class="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
+                    <input type="checkbox" name="exclude_status" value="rejected"
+                           class="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary">
+                    {{ _('已拒绝') }}
+                </label>
+            </div>
+        </div>
+        {# 导出内容 #}
+        <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('导出内容') }}</label>
+            <div class="flex flex-col gap-2">
+                <label class="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
+                    <input type="radio" name="export_type" value="with_settlement" checked
+                           class="border-slate-300 dark:border-slate-600 text-primary focus:ring-primary">
+                    {{ _('批价单') }} + {{ _('结算单') }}
+                </label>
+                <label class="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
+                    <input type="radio" name="export_type" value="pricing_only"
+                           class="border-slate-300 dark:border-slate-600 text-primary focus:ring-primary">
+                    {{ _('仅批价单') }}
+                </label>
+            </div>
+        </div>
+    </div>
+    {# 底部按钮 #}
+    <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
+        <button type="button" onclick="closeExportModal()"
+            class="h-10 px-5 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+            {{ _('取消') }}
+        </button>
+        <button type="button" id="exportExcelBtn" onclick="doExportExcel()"
+            class="h-10 px-5 rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-colors inline-flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-lg">download</span>
+            {{ _('导出') }}
+        </button>
+    </div>
+    {% endcall %}
+    {% endif %}
+
     {{ render_tw_layout_script() }}
     {{ render_tw_filter_bar_script(form_id='filterForm') }}
     {{ render_tw_data_table_script(table_id='pricingOrderTable', sort_callback='sortTable') }}
@@ -216,5 +301,58 @@
         };
     })();
     </script>
+
+    {% if current_user.role in ['admin', 'business_admin', 'finance_director'] %}
+    <script>
+    function openExportModal() {
+        document.getElementById('exportExcelModal').classList.remove('hidden');
+    }
+    function closeExportModal() {
+        document.getElementById('exportExcelModal').classList.add('hidden');
+    }
+    function doExportExcel() {
+        var year = document.getElementById('exportYear').value;
+        var month = document.getElementById('exportMonth').value;
+        var excludeChecks = document.querySelectorAll('input[name="exclude_status"]:checked');
+        var exportType = document.querySelector('input[name="export_type"]:checked').value;
+
+        var params = new URLSearchParams();
+        params.append('year', year);
+        if (month && month !== '0') params.append('month', month);
+        excludeChecks.forEach(function(cb) { params.append('exclude_statuses', cb.value); });
+        if (exportType === 'pricing_only') params.append('include_settlement', '0');
+
+        var btn = document.getElementById('exportExcelBtn');
+        var origHTML = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined text-lg animate-spin">progress_activity</span> {{ _("正在导出...") }}';
+
+        // 使用 fetch 进行下载，以便处理错误
+        fetch('{{ url_for("pricing_order.export_excel_list") }}?' + params.toString())
+            .then(function(resp) {
+                if (!resp.ok) throw new Error('Export failed');
+                return resp.blob();
+            })
+            .then(function(blob) {
+                var a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                var monthStr = (month && month !== '0') ? '-' + month.padStart(2, '0') : '';
+                a.download = '批价单导出_' + year + monthStr + '.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                closeExportModal();
+            })
+            .catch(function(err) {
+                alert('{{ _("导出Excel失败") }}');
+                console.error(err);
+            })
+            .finally(function() {
+                btn.disabled = false;
+                btn.innerHTML = origHTML;
+            });
+    }
+    </script>
+    {% endif %}
 </body>
 </html>
