@@ -5,7 +5,7 @@
 # ============================================================
 # 功能:
 # - 自动检测当前数据库配置
-# - 交互式选择文件存储方式（本地/云端）
+# - 交互式选择文件存储方式（本地/NAS）
 # - 显示完整配置摘要
 # - 提供确认步骤，避免误操作
 # ============================================================
@@ -107,7 +107,7 @@ echo ""
 # ============================================================
 echo -e "${CYAN}📁 选择文件存储方式:${NC}"
 echo "   [1] 本地文件存储（开发推荐）"
-echo "   [2] 云端Supabase存储（生产环境测试）"
+echo "   [2] 新加坡NAS存储（WebDAV，与生产一致）"
 echo ""
 read -p "请选择 [1-2，默认1]: " storage_choice
 storage_choice=${storage_choice:-1}
@@ -131,52 +131,64 @@ if [ "$storage_choice" = "1" ]; then
     STORAGE_LOCATION="本地文件系统"
     print_success "✅ 使用本地文件存储"
 else
-    STORAGE_TYPE="云端Supabase存储"
-    STORAGE_LOCATION="生产环境Supabase"
+    STORAGE_TYPE="新加坡NAS存储"
+    STORAGE_LOCATION="新加坡NAS WebDAV"
 
-    # 检查云端存储配置文件
-    if [ ! -f ".env.supabase.prod" ]; then
-        print_error "❌ 错误: 未找到云端存储配置文件 .env.supabase.prod"
-        print_warning "💡 请确保文件存在并包含正确的 Supabase 配置"
+    # 检查NAS存储配置文件
+    if [ ! -f ".env.nas" ]; then
+        print_error "❌ 错误: 未找到NAS存储配置文件 .env.nas"
+        print_warning "💡 请确保文件存在并包含正确的 WebDAV 配置"
         exit 1
     fi
 
-    print_info "🔍 正在加载云端存储配置..."
+    print_info "🔍 正在加载NAS存储配置..."
 
-    # 加载Supabase配置
-    export $(cat .env.supabase.prod | grep -v '^#' | grep -v '^$' | xargs)
+    # 加载NAS配置
+    export $(cat .env.nas | grep -v '^#' | grep -v '^$' | xargs)
+
+    # 设置阻止Supabase自动加载
+    export FORCE_LOCAL_STORAGE=true
 
     # 验证必要的环境变量
-    if [ -z "$SUPABASE_URL" ]; then
-        print_error "❌ 错误: SUPABASE_URL 未设置"
+    if [ -z "$SYNOLOGY_WEBDAV_EXTERNAL_URL" ]; then
+        print_error "❌ 错误: SYNOLOGY_WEBDAV_EXTERNAL_URL 未设置"
         exit 1
     fi
 
-    if [ -z "$SUPABASE_KEY" ]; then
-        print_error "❌ 错误: SUPABASE_KEY 未设置"
+    if [ -z "$SYNOLOGY_WEBDAV_USER" ]; then
+        print_error "❌ 错误: SYNOLOGY_WEBDAV_USER 未设置"
         exit 1
     fi
 
-    # 显示存储桶信息
+    # 验证WebDAV外网地址可达
+    print_info "🔍 正在验证NAS WebDAV连接..."
+    WEBDAV_URL="$SYNOLOGY_WEBDAV_EXTERNAL_URL"
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$WEBDAV_URL" 2>/dev/null)
+    if [ "$HTTP_CODE" = "000" ]; then
+        print_warning "⚠️  NAS WebDAV外网地址不可达: $WEBDAV_URL"
+        print_warning "   将尝试使用内网地址..."
+        if [ ! -z "$SYNOLOGY_WEBDAV_INTERNAL_URL" ]; then
+            HTTP_CODE_INT=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "$SYNOLOGY_WEBDAV_INTERNAL_URL" 2>/dev/null)
+            if [ "$HTTP_CODE_INT" != "000" ]; then
+                print_success "   内网地址可达: $SYNOLOGY_WEBDAV_INTERNAL_URL"
+            else
+                print_warning "   内网地址也不可达，启动后可能无法访问NAS文件"
+            fi
+        fi
+    else
+        print_success "✅ NAS WebDAV连接验证通过"
+    fi
+
+    # 显示NAS连接信息
     echo ""
-    print_success "✅ 云端存储配置验证通过"
-    echo "   URL: ${SUPABASE_URL:0:40}..."
-
-    if [ ! -z "$SUPABASE_BUCKET_INVOICE" ]; then
-        echo "   发票存储桶: $SUPABASE_BUCKET_INVOICE"
+    print_success "✅ NAS存储配置已加载"
+    echo "   外网地址: $SYNOLOGY_WEBDAV_EXTERNAL_URL"
+    if [ ! -z "$SYNOLOGY_WEBDAV_INTERNAL_URL" ]; then
+        echo "   内网地址: $SYNOLOGY_WEBDAV_INTERNAL_URL"
     fi
-
-    if [ ! -z "$SUPABASE_BUCKET_PRODUCT" ]; then
-        echo "   产品存储桶: $SUPABASE_BUCKET_PRODUCT"
-    fi
-
-    if [ ! -z "$SUPABASE_BUCKET_RD_PRODUCT" ]; then
-        echo "   研发产品存储桶: $SUPABASE_BUCKET_RD_PRODUCT"
-    fi
-
-    if [ ! -z "$FORCE_CLOUD_UPLOAD" ]; then
-        echo "   强制云端上传: $FORCE_CLOUD_UPLOAD"
-    fi
+    echo "   WebDAV路径: $SYNOLOGY_WEBDAV_PATH"
+    echo "   NAS存储启用: $NAS_STORAGE_ENABLED"
+    echo "   FORCE_LOCAL_STORAGE: true"
 fi
 
 echo ""
@@ -205,10 +217,8 @@ echo "   类型: $STORAGE_TYPE"
 echo "   位置: $STORAGE_LOCATION"
 
 if [ "$storage_choice" = "2" ]; then
-    echo "   URL: ${SUPABASE_URL:0:40}..."
-    if [ ! -z "$SUPABASE_BUCKET_INVOICE" ]; then
-        echo "   存储桶: $SUPABASE_BUCKET_INVOICE, $SUPABASE_BUCKET_PRODUCT, $SUPABASE_BUCKET_RD_PRODUCT"
-    fi
+    echo "   WebDAV: $SYNOLOGY_WEBDAV_EXTERNAL_URL"
+    echo "   路径: $SYNOLOGY_WEBDAV_PATH"
 fi
 echo ""
 
@@ -226,10 +236,9 @@ echo ""
 # ============================================================
 if [ "$storage_choice" = "2" ]; then
     print_warning "⚠️  重要提醒:"
-    print_warning "   - 当前使用生产环境 Supabase 存储"
-    print_warning "   - 所有文件上传将直接保存到生产环境"
-    print_warning "   - 请谨慎操作，避免上传测试数据到生产存储"
-    print_warning "   - 下载功能测试将使用真实生产数据"
+    print_warning "   - 当前使用新加坡NAS WebDAV存储"
+    print_warning "   - 文件将通过WebDAV上传到NAS"
+    print_warning "   - 需要网络可达NAS WebDAV服务"
     echo ""
 fi
 
@@ -245,7 +254,7 @@ case $confirm in
         print_info "💡 提示:"
         echo "   - 修改数据库配置: 编辑 .env 文件"
         echo "   - 使用本地存储: 重新运行并选择选项 1"
-        echo "   - 使用云端存储: 重新运行并选择选项 2"
+        echo "   - 使用NAS存储: 重新运行并选择选项 2"
         echo ""
         exit 0
         ;;
@@ -279,8 +288,8 @@ export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib:${DYLD_FALLBACK_LIBRARY_PATH
 
 # 启动Flask应用
 if [ "$storage_choice" = "2" ]; then
-    # 云端存储模式：传递 --supabase 参数
-    python3 run.py --supabase
+    # NAS存储模式：环境变量已通过export设置
+    python3 run.py
 else
     # 本地存储模式：不传递参数
     python3 run.py

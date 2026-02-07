@@ -48,7 +48,7 @@ services:
       DATABASE_URL: postgresql://pma:${POSTGRES_PASSWORD:-pma_secure_password_2025}@postgres:5432/pma_sa
 
       # 数据库类型：OVS（决定货币为 USD/$）
-      SUPABASE_DB_TYPE: ovs
+      PMA_DB_TYPE: ovs
 
       # Flask 配置
       FLASK_ENV: production
@@ -59,6 +59,7 @@ services:
 
       # NAS 智能存储管理器配置
       NAS_STORAGE_ENABLED: "true"
+      FORCE_LOCAL_STORAGE: "true"
 
       # 群晖 WebDAV 存储（DS925+ 本机）
       MEETING_STORAGE_TYPE: synology

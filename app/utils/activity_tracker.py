@@ -31,8 +31,12 @@ ACTIVITY_STATUS = {
     'normal': '正常',
     'to_follow': '待跟进',
     'dormant': '休眠',
-    'churned': '流失'
+    'churned': '流失',
+    'frozen': '已冻结'
 }
+
+# 冻结阶段 — 这些阶段的项目不参与活跃度评估
+FROZEN_STAGES = ['signed', 'lost', 'paused']
 
 # 状态优先级（数值越高越好）
 STATUS_PRIORITY = {
@@ -41,7 +45,8 @@ STATUS_PRIORITY = {
     'normal': 4,
     'to_follow': 3,
     'dormant': 2,
-    'churned': 1
+    'churned': 1,
+    'frozen': 0
 }
 
 # 时间阈值（天）
@@ -552,6 +557,12 @@ def calculate_project_activity_status(project_id):
     if not project:
         return 'churned', '项目不存在', None
 
+    # 冻结阶段项目不参与活跃度评估
+    if project.current_stage in FROZEN_STAGES:
+        from app.utils.dictionary_helpers import PROJECT_STAGE_LABELS
+        stage_label = PROJECT_STAGE_LABELS.get(project.current_stage, {}).get('zh', project.current_stage)
+        return 'frozen', f'项目已{stage_label}，活跃度已冻结', project.last_activity_date
+
     # 收集所有活动时间
     activities = []
 
@@ -638,14 +649,12 @@ def batch_update_all_project_activity():
     """
     批量更新所有项目活跃度（定时任务使用）
 
-    排除 lost/paused 阶段的项目。
+    处理所有未删除项目，冻结阶段项目由 calculate 层统一返回 frozen 状态。
 
     Returns:
         (updated_count, total_count): 更新数量、总数量
     """
-    projects = Project.query.filter(
-        Project.current_stage.notin_(['lost', 'paused'])
-    ).all()
+    projects = Project.query.all()
     updated_count = 0
     total_count = len(projects)
 

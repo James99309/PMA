@@ -98,17 +98,17 @@ class SupabaseStorageClient:
     
     def _should_use_local_storage(self) -> bool:
         """决定是否使用本地存储"""
+        # FORCE_LOCAL_STORAGE 优先级最高（用于 NAS 部署覆盖镜像内嵌的 .env.supabase.prod）
+        force_local = os.getenv('FORCE_LOCAL_STORAGE', '').lower() in ['true', '1', 'yes']
+        if force_local:
+            logger.info("📁 FORCE_LOCAL_STORAGE=true, 强制使用本地存储")
+            return True
+
         # 强制云端存储的环境变量
         force_cloud = os.getenv('FORCE_CLOUD_UPLOAD', '').lower() in ['true', '1', 'yes']
         if force_cloud:
             logger.info("🚀 FORCE_CLOUD_UPLOAD=true, 强制使用云端存储")
             return False
-            
-        # 强制本地存储的环境变量
-        force_local = os.getenv('FORCE_LOCAL_STORAGE', '').lower() in ['true', '1', 'yes']
-        if force_local:
-            logger.info("📁 FORCE_LOCAL_STORAGE=true, 强制使用本地存储")
-            return True
         
         # 检查Supabase配置是否可用
         supabase_url = os.getenv('SUPABASE_URL')

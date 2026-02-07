@@ -571,6 +571,7 @@ ACTIVITY_STATUS_LABELS = {
     'to_follow': {'zh': '待跟进', 'en': 'To Follow'},
     'dormant': {'zh': '休眠', 'en': 'Dormant'},
     'churned': {'zh': '流失', 'en': 'Churned'},
+    'frozen': {'zh': '已冻结', 'en': 'Frozen'},
 }
 
 # 客户活跃度状态颜色映射（用于徽章显示）
@@ -581,6 +582,7 @@ ACTIVITY_STATUS_COLORS = {
     'to_follow': {'bg': 'rgba(253,224,71,0.2)', 'border': '#fde047', 'text': '#a16207'},
     'dormant': {'bg': 'rgba(253,186,116,0.2)', 'border': '#fdba74', 'text': '#c2410c'},
     'churned': {'bg': 'rgba(209,213,219,0.2)', 'border': '#d1d5db', 'text': '#4b5563'},
+    'frozen': {'bg': 'rgba(148,163,184,0.2)', 'border': '#94a3b8', 'text': '#475569'},
 }
 
 # 状态优先级（数值越高越好）
@@ -591,6 +593,7 @@ ACTIVITY_STATUS_PRIORITY = {
     'to_follow': 3,
     'dormant': 2,
     'churned': 1,
+    'frozen': 0,
 }
 
 def activity_status_label(key, lang='zh'):

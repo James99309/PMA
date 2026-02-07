@@ -35,16 +35,15 @@ def main():
             logger.info("🗄️ 加载 NAS 存储配置文件 .env.nas")
 
         # 注意：启动脚本已经导出环境变量，但我们仍需尝试从对应的.env文件加载
-        # 这里先加载启动脚本可能指定的环境文件
-        # 检测启动脚本是否导出了 SUPABASE_DB_TYPE（用于判断是 SP8D 还是 OVS）
-        supabase_db_type = os.environ.get('SUPABASE_DB_TYPE', '').lower()
+        # 检测数据库类型（SP8D/OVS），兼容旧变量名 SUPABASE_DB_TYPE
+        pma_db_type = (os.environ.get('PMA_DB_TYPE', '') or os.environ.get('SUPABASE_DB_TYPE', '')).lower()
 
-        if supabase_db_type == 'sp8d':
+        if pma_db_type == 'sp8d':
             # SP8D 测试模式 - 加载 .env.sp8d.local
             if os.path.exists('.env.sp8d.local'):
                 load_dotenv('.env.sp8d.local', override=True)
                 logger.info("🔄 检测到SP8D测试模式，加载.env.sp8d.local配置")
-        elif supabase_db_type == 'ovs':
+        elif pma_db_type == 'ovs':
             # OVS 测试模式 - 加载 .env.ovs.local
             if os.path.exists('.env.ovs.local'):
                 load_dotenv('.env.ovs.local', override=True)
@@ -58,7 +57,7 @@ def main():
         is_cross_system_test = (
             os.environ.get('CROSS_SYSTEM_API_KEY') is not None or
             os.environ.get('SP8D_API_BASE_URL') is not None or
-            os.environ.get('SUPABASE_DB_TYPE') in ['sp8d', 'ovs']
+            (os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE', '')) in ['sp8d', 'ovs']
         )
 
         # 如果启用了Supabase测试

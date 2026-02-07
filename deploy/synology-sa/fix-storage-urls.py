@@ -43,8 +43,8 @@ sys.path.insert(0, get_project_root())
 
 from app import create_app, db
 
-# Supabase OVS 项目 URL 前缀
-SUPABASE_PREFIX = 'https://pqzviljbpfoqvyfulakl.supabase.co/storage/v1/object/public/'
+# Supabase PMA 项目 URL 前缀
+SUPABASE_PREFIX = 'https://iqcyimnjtnmomvfuwjzw.supabase.co/storage/v1/object/public/'
 
 # 桶名 → (bucket_type, nas_subdir)
 BUCKET_MAP = {
@@ -222,9 +222,9 @@ def fix_worklog_urls(dry_run=True):
     """修复 Worklog 模型的 attachments (JSON)"""
     count = 0
     try:
-        from app.models.worklog import Worklog
-        worklogs = Worklog.query.filter(
-            Worklog.attachments.like('%' + SUPABASE_PREFIX.replace('/', '%') + '%')
+        from app.models.worklog import WorkLog
+        worklogs = WorkLog.query.filter(
+            WorkLog.attachments.like('%' + SUPABASE_PREFIX.replace('/', '%') + '%')
         ).all()
         for w in worklogs:
             if not w.attachments:

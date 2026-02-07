@@ -38,7 +38,7 @@ def get_database_url():
     use_supabase = os.environ.get('USE_SUPABASE', 'false').lower() == 'true'
     if use_supabase:
         # 根据环境变量选择SP8D或OVS数据库
-        database_type = os.environ.get('SUPABASE_DB_TYPE', 'ovs').lower()
+        database_type = (os.environ.get('PMA_DB_TYPE', '') or os.environ.get('SUPABASE_DB_TYPE', 'ovs')).lower()
         if database_type == 'sp8d':
             logger.info("✅ 使用Supabase SP8D数据库配置")
             return supabase_sp8d_url

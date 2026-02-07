@@ -67,14 +67,15 @@ def create_app(config_class=Config):
     app = Flask(__name__, template_folder='templates')
     app.config.from_object(config_class)
     
-    # 检查并注入Supabase配置
+    # 检查存储配置
     try:
+        force_local_storage = os.getenv('FORCE_LOCAL_STORAGE', '').lower() == 'true'
+        force_cloud_upload = os.getenv('FORCE_CLOUD_UPLOAD', '').lower() == 'true'
         supabase_url = os.getenv('SUPABASE_URL')
-        force_cloud_upload = os.getenv('FORCE_CLOUD_UPLOAD')
-        
-        # 如果没有环境变量，尝试从配置文件加载
-        if not supabase_url or not force_cloud_upload:
-            logger.info("从环境变量中未找到Supabase配置，尝试从配置文件加载...")
+
+        # 只在明确要求云端上传且缺少配置时才尝试加载 .env.supabase.prod
+        if force_cloud_upload and not supabase_url:
+            logger.info("FORCE_CLOUD_UPLOAD=true 但缺少 SUPABASE_URL，尝试从配置文件加载...")
             env_file_path = os.path.join(os.path.dirname(app.root_path), '.env.supabase.prod')
             if os.path.exists(env_file_path):
                 with open(env_file_path, 'r') as f:
@@ -85,14 +86,16 @@ def create_app(config_class=Config):
                             if key in ['SUPABASE_URL', 'SUPABASE_KEY', 'SUPABASE_BUCKET', 'FORCE_CLOUD_UPLOAD']:
                                 os.environ[key] = value
                                 logger.info(f"已从配置文件加载环境变量: {key}")
-        
-        # 记录最终的环境变量状态
-        logger.info(f"Flask应用创建时的环境变量状态:")
+
+        # 记录最终的存储配置状态
+        logger.info(f"Flask应用创建时的存储配置:")
+        logger.info(f"  FORCE_LOCAL_STORAGE: {os.getenv('FORCE_LOCAL_STORAGE', 'NOT SET')}")
+        logger.info(f"  NAS_STORAGE_ENABLED: {os.getenv('NAS_STORAGE_ENABLED', 'NOT SET')}")
         logger.info(f"  SUPABASE_URL: {os.getenv('SUPABASE_URL', 'NOT SET')}")
         logger.info(f"  FORCE_CLOUD_UPLOAD: {os.getenv('FORCE_CLOUD_UPLOAD', 'NOT SET')}")
-        
+
     except Exception as e:
-        logger.error(f"加载Supabase配置时出错: {e}")
+        logger.error(f"加载存储配置时出错: {e}")
     
     # 统一版本号管理 - 优先使用配置文件中的版本号
     if not app.config.get('APP_VERSION'):

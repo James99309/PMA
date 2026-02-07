@@ -453,7 +453,7 @@ Tailwind 工作记录组件
                 </td>
                 <td class="py-2 pr-6 wr-cell" title="${escapeHtml(record.project_name || '')}">
                     ${record.project_name ?
-                        `<a href="/project/view/${record.project_id}" class="font-medium text-slate-500 dark:text-slate-400 hover:text-primary">${escapeHtml(record.project_name)}</a>` :
+                        `<a href="/project/view/${record.project_id}?tw=1" class="font-medium text-slate-500 dark:text-slate-400 hover:text-primary">${escapeHtml(record.project_name)}</a>` :
                         '<span class="text-slate-400">-</span>'
                     }
                 </td>

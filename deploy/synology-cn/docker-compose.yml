@@ -71,17 +71,15 @@ services:
       # 外部 API Key
       EXTERNAL_API_KEY: ${EXTERNAL_API_KEY:-stargirl-pma-integration-2024}
 
-      # Supabase 备份配置
-      NAS_SYNC_TO_SUPABASE: ${NAS_SYNC_TO_SUPABASE:-false}
-      NAS_FALLBACK_TO_SUPABASE: ${NAS_FALLBACK_TO_SUPABASE:-false}
+      # 数据库类型：SP8D（决定货币为 CNY/¥）
+      PMA_DB_TYPE: sp8d
+
+      # 强制本地存储（不使用 Supabase）
+      FORCE_LOCAL_STORAGE: "true"
 
       # AI 服务（会议纪要功能 - 中国网络可能需要代理）
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-
-      # Supabase（发票/产品图片存储，可选）
-      SUPABASE_URL: ${SUPABASE_URL:-}
-      SUPABASE_KEY: ${SUPABASE_KEY:-}
 
       # 邮件配置（中国环境使用国内邮件服务，如163、QQ、腾讯企业邮箱）
       MAIL_SERVER: ${MAIL_SERVER:-smtp.163.com}

@@ -218,60 +218,83 @@ with open('$VERSION_FILE', 'w') as f:
 fi
 
 # ========================
-# 询问是否在 NAS 上拉新
+# NAS 拉新通用函数
 # ========================
-echo ""
-echo "是否要在中国 NAS 上拉新？(y/n)"
-read nas_pull
+pull_nas() {
+    local NAS_NAME="$1"
+    local TUNNEL_HOST="$2"
+    local LOCAL_PORT="$3"
+    local NAS_USER="$4"
+    local UPDATE_SCRIPT="$5"
 
-if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ]; then
-    NAS_USER="james.sh"
-    NAS_UPDATE_SCRIPT="/volume1/docker/pma/deploy/synology-cn/update.sh"
-    TUNNEL_HOST="ssh.jamesgpone.win"
-    TUNNEL_LOCAL_PORT=2222
+    echo ""
+    echo -e "\033[36m========== $NAS_NAME 拉新开始 ==========\033[0m"
 
-    echo "[信息] 启动 Cloudflare 隧道..."
-    lsof -ti:$TUNNEL_LOCAL_PORT | xargs kill -9 2>/dev/null
+    echo "[信息] 启动 Cloudflare 隧道 → $TUNNEL_HOST ..."
+    lsof -ti:$LOCAL_PORT | xargs kill -9 2>/dev/null
     sleep 1
-    cloudflared access tcp --hostname "$TUNNEL_HOST" --url "localhost:$TUNNEL_LOCAL_PORT" &
+    cloudflared access tcp --hostname "$TUNNEL_HOST" --url "localhost:$LOCAL_PORT" &
     CF_PID=$!
 
     echo "[信息] 等待隧道建立..."
     sleep 3
     for i in $(seq 1 10); do
-        if ssh -p $TUNNEL_LOCAL_PORT -o ConnectTimeout=5 -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$NAS_USER@localhost" "echo ok" &>/dev/null; then
+        if ssh -p $LOCAL_PORT -o ConnectTimeout=5 -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$NAS_USER@localhost" "echo ok" &>/dev/null; then
             echo -e "\033[32m[信息] 隧道已建立\033[0m"
             break
         fi
         if [ "$i" -eq 10 ]; then
-            echo -e "\033[31m[错误] 隧道建立超时，请检查网络。\033[0m"
+            echo -e "\033[31m[错误] $NAS_NAME 隧道建立超时，请检查网络。\033[0m"
             kill "$CF_PID" 2>/dev/null
-            exit 1
+            return 1
         fi
         sleep 1
     done
 
-    # 通过隧道 SSH 到 NAS 执行 update.sh（内含 git pull + 热重载）
-    echo -e "\033[36m[信息] 通过隧道执行 NAS 更新...\033[0m"
-    ssh -p $TUNNEL_LOCAL_PORT \
+    echo -e "\033[36m[信息] 通过隧道执行 $NAS_NAME 更新...\033[0m"
+    ssh -p $LOCAL_PORT \
         -o StrictHostKeyChecking=accept-new \
         -o BatchMode=yes \
         -o ServerAliveInterval=5 \
         -o ServerAliveCountMax=6 \
-        "$NAS_USER@localhost" "bash $NAS_UPDATE_SCRIPT"
+        "$NAS_USER@localhost" "bash $UPDATE_SCRIPT"
 
     if [ $? -ne 0 ]; then
-        echo -e "\033[31m[错误] NAS 更新执行失败\033[0m"
+        echo -e "\033[31m[错误] $NAS_NAME 更新执行失败\033[0m"
     else
-        echo -e "\033[32m[信息] NAS 更新完成\033[0m"
+        echo -e "\033[32m[信息] $NAS_NAME 更新完成\033[0m"
     fi
 
-    # 清理：关闭隧道
-    echo "[信息] 关闭连接..."
+    echo "[信息] 关闭 $NAS_NAME 连接..."
     kill "$CF_PID" 2>/dev/null
     wait "$CF_PID" 2>/dev/null
 
-    echo -e "\033[32m[完成] NAS 拉新流程结束。\033[0m"
-else
-    echo "[信息] 跳过 NAS 拉新。"
-fi
+    echo -e "\033[36m========== $NAS_NAME 拉新结束 ==========\033[0m"
+}
+
+# ========================
+# 询问是否在 NAS 上拉新
+# ========================
+echo ""
+echo "是否要在 NAS 上拉新？"
+echo "  1) 中国 NAS (SP8D)"
+echo "  2) 新加坡 NAS (OVS)"
+echo "  3) 两台都拉新"
+echo "  n) 跳过"
+read -p "选择 [1/2/3/n]: " nas_choice
+
+case "$nas_choice" in
+    1)
+        pull_nas "中国 NAS" "ssh.jamesgpone.win" 2222 "james.sh" "/volume1/docker/pma/deploy/synology-cn/update.sh"
+        ;;
+    2)
+        pull_nas "新加坡 NAS" "sg-ssh.jamesgpone.win" 2223 "admin" "/volume1/docker/pma/deploy/synology-sa/update.sh"
+        ;;
+    3)
+        pull_nas "中国 NAS" "ssh.jamesgpone.win" 2222 "james.sh" "/volume1/docker/pma/deploy/synology-cn/update.sh"
+        pull_nas "新加坡 NAS" "sg-ssh.jamesgpone.win" 2223 "admin" "/volume1/docker/pma/deploy/synology-sa/update.sh"
+        ;;
+    *)
+        echo "[信息] 跳过 NAS 拉新。"
+        ;;
+esac
