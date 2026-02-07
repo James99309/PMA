@@ -229,6 +229,10 @@ if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ]; then
     TUNNEL_LOCAL_PORT=2222
     NAS_PROJECT_DIR="/volume1/docker/pma"
 
+    # SSH 多路复用：所有 SSH/rsync 操作复用同一条连接，避免 Cloudflare 隧道建新连接失败
+    SSH_CONTROL_PATH="/tmp/cf-nas-ssh-mux-$$"
+    SSH_OPTS="-p $TUNNEL_LOCAL_PORT -o ControlMaster=auto -o ControlPath=$SSH_CONTROL_PATH -o ControlPersist=120 -o StrictHostKeyChecking=accept-new"
+
     echo "[信息] 启动 Cloudflare 隧道..."
     lsof -ti:$TUNNEL_LOCAL_PORT | xargs kill -9 2>/dev/null
     sleep 1
@@ -238,8 +242,8 @@ if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ]; then
     echo "[信息] 等待隧道建立..."
     sleep 3
     for i in $(seq 1 10); do
-        if ssh -p "$TUNNEL_LOCAL_PORT" -o ConnectTimeout=2 -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$NAS_USER@localhost" "echo ok" &>/dev/null; then
-            echo -e "\033[32m[信息] 隧道已建立\033[0m"
+        if ssh $SSH_OPTS -o ConnectTimeout=2 -o BatchMode=yes "$NAS_USER@localhost" "echo ok" &>/dev/null; then
+            echo -e "\033[32m[信息] 隧道已建立（SSH 主连接已创建）\033[0m"
             break
         fi
         if [ "$i" -eq 10 ]; then
@@ -250,7 +254,7 @@ if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ]; then
         sleep 1
     done
 
-    # 通过隧道 rsync 代码到 NAS（替代 git pull，避免中国访问 GitHub 卡住）
+    # rsync 复用已建立的 SSH 主连接（不再建新 websocket 连接）
     echo -e "\033[36m[信息] 通过隧道同步代码到 NAS...\033[0m"
     PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
     rsync -avz --delete \
@@ -267,21 +271,24 @@ if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ]; then
         --exclude '.DS_Store' \
         --exclude 'scripts/archived/' \
         --exclude 'docs/archived/' \
-        -e "ssh -p $TUNNEL_LOCAL_PORT" \
+        -e "ssh $SSH_OPTS" \
         "$PROJECT_ROOT/" \
         "$NAS_USER@localhost:$NAS_PROJECT_DIR/"
 
     if [ $? -ne 0 ]; then
         echo -e "\033[31m[错误] 代码同步失败\033[0m"
+        ssh -O exit $SSH_OPTS "$NAS_USER@localhost" 2>/dev/null
         kill "$CF_PID" 2>/dev/null
         exit 1
     fi
     echo -e "\033[32m[信息] 代码同步完成\033[0m"
 
-    # 在 NAS 上执行更新（跳过 git pull，代码已通过 rsync 同步）
-    ssh -t -p "$TUNNEL_LOCAL_PORT" "$NAS_USER@localhost" "bash $NAS_UPDATE_SCRIPT --skip-git"
+    # 复用同一连接执行 NAS 更新（跳过 git pull，代码已通过 rsync 同步）
+    ssh -t $SSH_OPTS "$NAS_USER@localhost" "bash $NAS_UPDATE_SCRIPT --skip-git"
 
-    echo "[信息] 关闭 Cloudflare 隧道..."
+    # 清理：关闭 SSH 主连接和 Cloudflare 隧道
+    echo "[信息] 关闭连接..."
+    ssh -O exit $SSH_OPTS "$NAS_USER@localhost" 2>/dev/null
     kill "$CF_PID" 2>/dev/null
     wait "$CF_PID" 2>/dev/null
 
