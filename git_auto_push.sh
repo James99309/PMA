@@ -143,10 +143,15 @@ git status
 # 添加所有更改
 git add .
 
-# 检查是否有staged的内容
-if git diff --cached --quiet; then
+# 检查是否有除 app_version.json 之外的实际改动
+REAL_CHANGES=$(git diff --cached --name-only | grep -v '^app_version.json$')
+
+if [ -z "$REAL_CHANGES" ]; then
     echo ""
-    echo -e "\033[33m[信息] 没有需要提交的改动，跳过提交和推送。\033[0m"
+    echo -e "\033[33m[信息] 没有实际代码改动（仅 app_version.json 时间戳变化），跳过提交和推送。\033[0m"
+    # 还原 app_version.json 的暂存
+    git restore --staged app_version.json 2>/dev/null
+    git checkout -- app_version.json 2>/dev/null
     SKIP_PUSH=1
 else
     SKIP_PUSH=0
@@ -214,25 +219,17 @@ fi
 # 询问是否在 NAS 上拉新
 # ========================
 echo ""
-echo "是否要在中国 NAS 上拉新？"
-echo "  y) 正常更新（git pull + 重建）"
-echo "  s) 跳过 git pull，直接重建（git 拉取失败时使用）"
-echo "  n) 跳过"
+echo "是否要在中国 NAS 上拉新？(y/n)"
 read nas_pull
 
-NAS_UPDATE_FLAGS=""
-if [ "$nas_pull" = "s" ] || [ "$nas_pull" = "S" ]; then
-    NAS_UPDATE_FLAGS="--skip-git"
-fi
-
-if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ] || [ "$nas_pull" = "s" ] || [ "$nas_pull" = "S" ]; then
+if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ]; then
     NAS_USER="james.sh"
     NAS_UPDATE_SCRIPT="/volume1/docker/pma/deploy/synology-cn/update.sh"
     TUNNEL_HOST="ssh.jamesgpone.win"
     TUNNEL_LOCAL_PORT=2222
+    NAS_PROJECT_DIR="/volume1/docker/pma"
 
     echo "[信息] 启动 Cloudflare 隧道..."
-    # 清理可能占用端口的旧进程
     lsof -ti:$TUNNEL_LOCAL_PORT | xargs kill -9 2>/dev/null
     sleep 1
     cloudflared access tcp --hostname "$TUNNEL_HOST" --url "localhost:$TUNNEL_LOCAL_PORT" &
@@ -242,7 +239,7 @@ if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ] || [ "$nas_pull" = "s" ] || [ 
     sleep 3
     for i in $(seq 1 10); do
         if ssh -p "$TUNNEL_LOCAL_PORT" -o ConnectTimeout=2 -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$NAS_USER@localhost" "echo ok" &>/dev/null; then
-            echo -e "\033[32m[信息] 隧道已建立，执行 NAS 拉新...\033[0m"
+            echo -e "\033[32m[信息] 隧道已建立\033[0m"
             break
         fi
         if [ "$i" -eq 10 ]; then
@@ -253,7 +250,36 @@ if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ] || [ "$nas_pull" = "s" ] || [ 
         sleep 1
     done
 
-    ssh -t -p "$TUNNEL_LOCAL_PORT" "$NAS_USER@localhost" "bash $NAS_UPDATE_SCRIPT $NAS_UPDATE_FLAGS"
+    # 通过隧道 rsync 代码到 NAS（替代 git pull，避免中国访问 GitHub 卡住）
+    echo -e "\033[36m[信息] 通过隧道同步代码到 NAS...\033[0m"
+    PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+    rsync -avz --delete \
+        --exclude '.git' \
+        --exclude 'venv' \
+        --exclude '__pycache__' \
+        --exclude '*.pyc' \
+        --exclude '.env' \
+        --exclude '.env.*' \
+        --exclude 'node_modules' \
+        --exclude 'logs/' \
+        --exclude 'cloud_db_backups/' \
+        --exclude 'data/' \
+        --exclude '.DS_Store' \
+        --exclude 'scripts/archived/' \
+        --exclude 'docs/archived/' \
+        -e "ssh -p $TUNNEL_LOCAL_PORT" \
+        "$PROJECT_ROOT/" \
+        "$NAS_USER@localhost:$NAS_PROJECT_DIR/"
+
+    if [ $? -ne 0 ]; then
+        echo -e "\033[31m[错误] 代码同步失败\033[0m"
+        kill "$CF_PID" 2>/dev/null
+        exit 1
+    fi
+    echo -e "\033[32m[信息] 代码同步完成\033[0m"
+
+    # 在 NAS 上执行更新（跳过 git pull，代码已通过 rsync 同步）
+    ssh -t -p "$TUNNEL_LOCAL_PORT" "$NAS_USER@localhost" "bash $NAS_UPDATE_SCRIPT --skip-git"
 
     echo "[信息] 关闭 Cloudflare 隧道..."
     kill "$CF_PID" 2>/dev/null
