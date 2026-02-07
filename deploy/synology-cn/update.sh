@@ -18,7 +18,15 @@ export PATH="/volume1/@appstore/Git/bin:/usr/local/bin:$PATH"
 
 # Docker 命令（Synology 需要完整路径）
 DOCKER="/usr/local/bin/docker"
-DOCKER_COMPOSE="$DOCKER compose"
+# 自动检测: docker compose 插件 vs docker-compose 独立命令
+if $DOCKER compose version &>/dev/null; then
+    DOCKER_COMPOSE="$DOCKER compose"
+elif command -v docker-compose &>/dev/null; then
+    DOCKER_COMPOSE="docker-compose"
+else
+    echo -e "${RED}错误: 未找到 docker compose${NC}"
+    exit 1
+fi
 
 # 颜色输出
 RED='\033[0;31m'

@@ -18,7 +18,15 @@ export PATH="/volume1/@appstore/Git/bin:/usr/local/bin:$PATH"
 
 # Docker commands (Synology needs full path)
 DOCKER="/usr/local/bin/docker"
-DOCKER_COMPOSE="$DOCKER compose"
+# Auto-detect: docker compose plugin vs docker-compose standalone
+if $DOCKER compose version &>/dev/null; then
+    DOCKER_COMPOSE="$DOCKER compose"
+elif command -v docker-compose &>/dev/null; then
+    DOCKER_COMPOSE="docker-compose"
+else
+    echo -e "${RED}Error: docker compose not found${NC}"
+    exit 1
+fi
 
 # Colors
 RED='\033[0;31m'
