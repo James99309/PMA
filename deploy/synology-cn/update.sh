@@ -119,7 +119,7 @@ if [ "$NEED_REBUILD" = true ]; then
 else
     echo -e "\n${YELLOW}[2/4] 热重载应用...${NC}"
     # 发送 HUP 信号让 gunicorn 重新加载
-    $DOCKER exec pma-app kill -HUP 1 2>/dev/null || {
+    $DOCKER kill --signal=HUP pma-app 2>/dev/null || {
         echo -e "${YELLOW}热重载失败，尝试重启容器...${NC}"
         $DOCKER restart pma-app
     }
