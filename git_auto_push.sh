@@ -249,10 +249,11 @@ if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ]; then
         sleep 1
     done
 
-    # 通过隧道 SSH 到 NAS 执行 update.sh（内含 git pull + docker restart）
+    # 通过隧道 SSH 到 NAS 执行 update.sh（内含 git pull + 热重载）
     echo -e "\033[36m[信息] 通过隧道执行 NAS 更新...\033[0m"
-    ssh -t -p $TUNNEL_LOCAL_PORT \
+    ssh -p $TUNNEL_LOCAL_PORT \
         -o StrictHostKeyChecking=accept-new \
+        -o BatchMode=yes \
         "$NAS_USER@localhost" "bash $NAS_UPDATE_SCRIPT"
 
     if [ $? -ne 0 ]; then
