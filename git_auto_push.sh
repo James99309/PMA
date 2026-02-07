@@ -227,11 +227,6 @@ if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ]; then
     NAS_UPDATE_SCRIPT="/volume1/docker/pma/deploy/synology-cn/update.sh"
     TUNNEL_HOST="ssh.jamesgpone.win"
     TUNNEL_LOCAL_PORT=2222
-    NAS_PROJECT_DIR="/volume1/docker/pma"
-
-    # SSH 多路复用配置
-    SSH_CONTROL_PATH="/tmp/cf-nas-ssh-mux-$$"
-    SSH_WRAPPER="/tmp/cf-nas-ssh-wrapper-$$"
 
     echo "[信息] 启动 Cloudflare 隧道..."
     lsof -ti:$TUNNEL_LOCAL_PORT | xargs kill -9 2>/dev/null
@@ -239,7 +234,6 @@ if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ]; then
     cloudflared access tcp --hostname "$TUNNEL_HOST" --url "localhost:$TUNNEL_LOCAL_PORT" &
     CF_PID=$!
 
-    # 探针：仅测试连通性（不建立主连接）
     echo "[信息] 等待隧道建立..."
     sleep 3
     for i in $(seq 1 10); do
@@ -255,77 +249,20 @@ if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ]; then
         sleep 1
     done
 
-    # 创建 SSH 持久主连接（-fN: 后台运行，无命令）
-    echo "[信息] 创建 SSH 主连接..."
-    ssh -fN -p $TUNNEL_LOCAL_PORT \
-        -o ControlMaster=yes \
-        -o ControlPath="$SSH_CONTROL_PATH" \
-        -o StrictHostKeyChecking=accept-new \
-        -o BatchMode=yes \
-        "$NAS_USER@localhost"
-
-    if [ $? -ne 0 ]; then
-        echo -e "\033[31m[错误] SSH 主连接创建失败\033[0m"
-        kill "$CF_PID" 2>/dev/null
-        exit 1
-    fi
-
-    # 验证主连接
-    if ssh -O check -o ControlPath="$SSH_CONTROL_PATH" "$NAS_USER@localhost" 2>/dev/null; then
-        echo -e "\033[32m[信息] SSH 主连接已就绪\033[0m"
-    else
-        echo -e "\033[31m[错误] SSH 主连接验证失败\033[0m"
-        kill "$CF_PID" 2>/dev/null
-        exit 1
-    fi
-
-    # 创建 SSH 包装脚本，供 rsync 使用（彻底避免 -e 选项解析问题）
-    cat > "$SSH_WRAPPER" << WRAPPER_EOF
-#!/bin/bash
-exec ssh -p $TUNNEL_LOCAL_PORT -o ControlMaster=auto -o ControlPath=$SSH_CONTROL_PATH -o StrictHostKeyChecking=accept-new "\$@"
-WRAPPER_EOF
-    chmod +x "$SSH_WRAPPER"
-
-    # rsync 通过包装脚本复用 SSH 主连接
-    echo -e "\033[36m[信息] 通过隧道同步代码到 NAS...\033[0m"
-    PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
-    rsync -avz --delete \
-        --exclude '.git' \
-        --exclude 'venv' \
-        --exclude '__pycache__' \
-        --exclude '*.pyc' \
-        --exclude '.env' \
-        --exclude '.env.*' \
-        --exclude 'node_modules' \
-        --exclude 'logs/' \
-        --exclude 'cloud_db_backups/' \
-        --exclude 'data/' \
-        --exclude '.DS_Store' \
-        --exclude 'scripts/archived/' \
-        --exclude 'docs/archived/' \
-        -e "$SSH_WRAPPER" \
-        "$PROJECT_ROOT/" \
-        "$NAS_USER@localhost:$NAS_PROJECT_DIR/"
-
-    if [ $? -ne 0 ]; then
-        echo -e "\033[31m[错误] 代码同步失败\033[0m"
-        ssh -O exit -o ControlPath="$SSH_CONTROL_PATH" "$NAS_USER@localhost" 2>/dev/null
-        rm -f "$SSH_WRAPPER"
-        kill "$CF_PID" 2>/dev/null
-        exit 1
-    fi
-    echo -e "\033[32m[信息] 代码同步完成\033[0m"
-
-    # 复用主连接执行 NAS 更新
+    # 通过隧道 SSH 到 NAS 执行 update.sh（内含 git pull + docker restart）
+    echo -e "\033[36m[信息] 通过隧道执行 NAS 更新...\033[0m"
     ssh -t -p $TUNNEL_LOCAL_PORT \
-        -o ControlMaster=auto \
-        -o ControlPath="$SSH_CONTROL_PATH" \
-        "$NAS_USER@localhost" "bash $NAS_UPDATE_SCRIPT --skip-git"
+        -o StrictHostKeyChecking=accept-new \
+        "$NAS_USER@localhost" "bash $NAS_UPDATE_SCRIPT"
 
-    # 清理：关闭 SSH 主连接、删除包装脚本、关闭隧道
+    if [ $? -ne 0 ]; then
+        echo -e "\033[31m[错误] NAS 更新执行失败\033[0m"
+    else
+        echo -e "\033[32m[信息] NAS 更新完成\033[0m"
+    fi
+
+    # 清理：关闭隧道
     echo "[信息] 关闭连接..."
-    ssh -O exit -o ControlPath="$SSH_CONTROL_PATH" "$NAS_USER@localhost" 2>/dev/null
-    rm -f "$SSH_WRAPPER"
     kill "$CF_PID" 2>/dev/null
     wait "$CF_PID" 2>/dev/null
 
