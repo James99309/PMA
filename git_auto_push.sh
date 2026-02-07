@@ -188,8 +188,10 @@ data['app_version'] = '$NEW_VERSION'
 with open('$VERSION_FILE', 'w') as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
 "
+            # 同步更新 config.py 中的 APP_VERSION
+            sed -i '' "s/APP_VERSION = '.*'/APP_VERSION = '$NEW_VERSION'/" config.py
             echo -e "\033[32m[版本] $CURRENT_VERSION → $NEW_VERSION\033[0m"
-            git add "$VERSION_FILE"
+            git add "$VERSION_FILE" config.py
         else
             echo "[信息] 保持当前版本 $CURRENT_VERSION"
         fi
