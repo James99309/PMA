@@ -16,9 +16,8 @@ set -e
 
 # ============ Configuration ============
 
-NAS_HOST="${NAS_HOST:-192.168.1.2}"
-NAS_PORT="${NAS_PORT:-22}"
-NAS_USER="${NAS_USER:-admin}"
+# DS925+ SSH connection (via Cloudflare Tunnel)
+NAS_SSH_HOST="${NAS_SSH_HOST:-sg-nas}"
 NAS_DOCKER_DIR="/volume1/docker/pma"
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -82,7 +81,7 @@ if [[ "$LATEST_BACKUP" == *.gz ]]; then
     NAS_BACKUP_PATH="$NAS_DOCKER_DIR/db_backup_ovs.sql"
 fi
 
-scp -O -P "$NAS_PORT" "$BACKUP_FILE" "$NAS_USER@$NAS_HOST:$NAS_BACKUP_PATH"
+scp -O "$BACKUP_FILE" "$NAS_SSH_HOST:$NAS_BACKUP_PATH"
 info "Backup transferred to NAS: $NAS_BACKUP_PATH"
 
 # ============ Step 3: Import into NAS PostgreSQL ============
@@ -97,23 +96,23 @@ if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
 fi
 
 # SSH to NAS and import
-ssh -p "$NAS_PORT" "$NAS_USER@$NAS_HOST" bash -s << 'REMOTE_SCRIPT'
+ssh "$NAS_SSH_HOST" bash -s << 'REMOTE_SCRIPT'
 set -e
 DOCKER="/usr/local/bin/docker"
 BACKUP_FILE="/volume1/docker/pma/db_backup_ovs.sql"
 
 echo "Dropping and recreating pma_sa database..."
-$DOCKER exec pma-postgres psql -U pma -d postgres -c "
+sudo $DOCKER exec pma-postgres psql -U pma -d postgres -c "
     SELECT pg_terminate_backend(pg_stat_activity.pid)
     FROM pg_stat_activity
     WHERE pg_stat_activity.datname = 'pma_sa' AND pid <> pg_backend_pid();
 " 2>/dev/null || true
 
-$DOCKER exec pma-postgres psql -U pma -d postgres -c "DROP DATABASE IF EXISTS pma_sa;"
-$DOCKER exec pma-postgres psql -U pma -d postgres -c "CREATE DATABASE pma_sa ENCODING 'UTF8';"
+sudo $DOCKER exec pma-postgres psql -U pma -d postgres -c "DROP DATABASE IF EXISTS pma_sa;"
+sudo $DOCKER exec pma-postgres psql -U pma -d postgres -c "CREATE DATABASE pma_sa ENCODING 'UTF8';"
 
 echo "Importing backup (this may take a few minutes)..."
-$DOCKER exec -i pma-postgres psql -U pma -d pma_sa < "$BACKUP_FILE"
+sudo $DOCKER exec -i pma-postgres psql -U pma -d pma_sa < "$BACKUP_FILE"
 
 echo "Import complete."
 
@@ -128,7 +127,7 @@ info "Database imported successfully"
 
 echo -e "\n${YELLOW}[4/4] Verifying data integrity...${NC}"
 
-ssh -p "$NAS_PORT" "$NAS_USER@$NAS_HOST" bash -s << 'VERIFY_SCRIPT'
+ssh "$NAS_SSH_HOST" bash -s << 'VERIFY_SCRIPT'
 DOCKER="/usr/local/bin/docker"
 
 echo ""
@@ -165,5 +164,5 @@ echo ""
 echo -e "${YELLOW}Next steps:${NC}"
 echo "  1. Compare table/row counts with Supabase to verify completeness"
 echo "  2. Run: bash deploy/synology-sa/migrate-storage.sh"
-echo "  3. Restart PMA app: ssh -p $NAS_PORT $NAS_USER@$NAS_HOST 'sudo docker restart pma-app'"
+echo "  3. Restart PMA app: ssh $NAS_SSH_HOST 'sudo docker restart pma-app'"
 echo "  4. Test login at https://sg-pma.jamesgpone.win"

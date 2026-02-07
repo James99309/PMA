@@ -22,7 +22,8 @@ set -e
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SYNC_SCRIPT="$PROJECT_ROOT/scripts/tools/sync_supabase_to_nas.py"
 
-NAS_WEBDAV_URL="${NAS_WEBDAV_URL:-http://192.168.1.2:5005}"
+# Use external WebDAV URL (via Cloudflare Tunnel) since we run from Mac
+NAS_WEBDAV_URL="${NAS_WEBDAV_URL:-https://webdav.jamesgpone.win}"
 NAS_WEBDAV_USER="${NAS_WEBDAV_USER:-pma-storage}"
 NAS_WEBDAV_PATH="/pma-files"
 

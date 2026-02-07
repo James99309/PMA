@@ -3,7 +3,7 @@
 # Run on DS925+ via SSH
 # Prerequisites: Images loaded via build-and-transfer.sh
 #
-# IMPORTANT: This script preserves the existing pma-cloudflared tunnel.
+# IMPORTANT: This script preserves the existing cloudflared-named-tunnel.
 # It creates a shared external network and connects cloudflared to it,
 # so the tunnel continues serving all domains without interruption.
 
@@ -92,16 +92,16 @@ fi
 # ============ Step 5: Connect cloudflared to shared network ============
 
 echo -e "\n${YELLOW}[5/9] Connecting cloudflared to shared network...${NC}"
-if $DOCKER ps --format '{{.Names}}' | grep -q "pma-cloudflared"; then
+if $DOCKER ps --format '{{.Names}}' | grep -q "cloudflared-named-tunnel"; then
     # Check if already connected
-    if $DOCKER network inspect "$NETWORK_NAME" 2>/dev/null | grep -q "pma-cloudflared"; then
-        echo -e "${GREEN}✓ pma-cloudflared already on '$NETWORK_NAME'${NC}"
+    if $DOCKER network inspect "$NETWORK_NAME" 2>/dev/null | grep -q "cloudflared-named-tunnel"; then
+        echo -e "${GREEN}✓ cloudflared-named-tunnel already on '$NETWORK_NAME'${NC}"
     else
-        $DOCKER network connect "$NETWORK_NAME" pma-cloudflared
-        echo -e "${GREEN}✓ Connected pma-cloudflared to '$NETWORK_NAME'${NC}"
+        $DOCKER network connect "$NETWORK_NAME" cloudflared-named-tunnel
+        echo -e "${GREEN}✓ Connected cloudflared-named-tunnel to '$NETWORK_NAME'${NC}"
     fi
 else
-    echo -e "${YELLOW}⚠ pma-cloudflared not running - tunnel routing won't work until it's started${NC}"
+    echo -e "${YELLOW}⚠ cloudflared-named-tunnel not running - tunnel routing won't work until it's started${NC}"
 fi
 
 # ============ Step 6: Stop old PMA containers (preserve cloudflared) ============

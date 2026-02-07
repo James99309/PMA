@@ -6,10 +6,9 @@ set -e
 
 # ============ Configuration ============
 
-# DS925+ SSH connection
-NAS_HOST="${NAS_HOST:-192.168.1.2}"
-NAS_PORT="${NAS_PORT:-22}"
-NAS_USER="${NAS_USER:-admin}"
+# DS925+ SSH connection (via Cloudflare Tunnel)
+# Uses ~/.ssh/config alias 'sg-nas' which routes through cloudflared
+NAS_SSH_HOST="${NAS_SSH_HOST:-sg-nas}"
 NAS_DOCKER_DIR="${NAS_DOCKER_DIR:-/volume1/docker}"
 
 # Project root directory
@@ -36,7 +35,7 @@ echo -e "${GREEN}  Mac → DS925+ (Singapore)${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 echo "Project dir: $PROJECT_ROOT"
-echo "Target NAS:  $NAS_USER@$NAS_HOST:$NAS_PORT"
+echo "Target NAS:  $NAS_SSH_HOST (via Cloudflare Tunnel)"
 echo ""
 
 # ============ Step 1: Check Docker ============
@@ -97,17 +96,17 @@ info "[5/5] Transferring images to DS925+..."
 
 echo ""
 warn "Transfer may take some time depending on network speed"
-echo "Target: $NAS_HOST:$NAS_DOCKER_DIR/"
+echo "Target: $NAS_SSH_HOST:$NAS_DOCKER_DIR/"
 echo ""
 
 read -p "Start transfer? (Y/n) " confirm
 if [ "$confirm" = "n" ] || [ "$confirm" = "N" ]; then
     info "Skipped. Manual transfer command:"
-    echo "  scp -O -P $NAS_PORT $IMAGES_FILE $NAS_USER@$NAS_HOST:$NAS_DOCKER_DIR/"
+    echo "  scp -O $IMAGES_FILE $NAS_SSH_HOST:$NAS_DOCKER_DIR/"
     exit 0
 fi
 
-scp -O -P "$NAS_PORT" "$IMAGES_FILE" "$NAS_USER@$NAS_HOST:$NAS_DOCKER_DIR/"
+scp -O "$IMAGES_FILE" "$NAS_SSH_HOST:$NAS_DOCKER_DIR/"
 
 info "Image transfer complete!"
 
@@ -119,10 +118,10 @@ echo ""
 echo -e "${YELLOW}Next steps on DS925+:${NC}"
 echo ""
 echo "  # SSH to NAS"
-echo "  ssh -p $NAS_PORT $NAS_USER@$NAS_HOST"
+echo "  ssh $NAS_SSH_HOST"
 echo ""
 echo "  # Load images"
-echo "  gunzip -c $NAS_DOCKER_DIR/pma-images.tar.gz | sudo docker load"
+echo "  sudo gunzip -c $NAS_DOCKER_DIR/pma-images.tar.gz | sudo docker load"
 echo ""
 echo "  # Verify images"
 echo "  sudo docker images | grep -E 'pma-app|postgres|autoheal'"

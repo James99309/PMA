@@ -237,7 +237,7 @@ if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ]; then
     echo "[信息] 等待隧道建立..."
     sleep 3
     for i in $(seq 1 10); do
-        if ssh -p $TUNNEL_LOCAL_PORT -o ConnectTimeout=2 -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$NAS_USER@localhost" "echo ok" &>/dev/null; then
+        if ssh -p $TUNNEL_LOCAL_PORT -o ConnectTimeout=5 -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$NAS_USER@localhost" "echo ok" &>/dev/null; then
             echo -e "\033[32m[信息] 隧道已建立\033[0m"
             break
         fi
@@ -254,6 +254,8 @@ if [ "$nas_pull" = "y" ] || [ "$nas_pull" = "Y" ]; then
     ssh -p $TUNNEL_LOCAL_PORT \
         -o StrictHostKeyChecking=accept-new \
         -o BatchMode=yes \
+        -o ServerAliveInterval=5 \
+        -o ServerAliveCountMax=6 \
         "$NAS_USER@localhost" "bash $NAS_UPDATE_SCRIPT"
 
     if [ $? -ne 0 ]; then
