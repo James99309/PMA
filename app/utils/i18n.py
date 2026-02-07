@@ -46,13 +46,19 @@ def get_current_language():
             if browser_lang:
                 return browser_lang
         
-        # 5. 默认返回简体中文
-        return 'zh'
+        # 5. 根据数据库类型返回默认语言：亚太地区(OVS)默认英文，中国区(SP8D)默认中文
+        try:
+            is_ovs = current_app.config.get('IS_OVS', False)
+            return 'en' if is_ovs else 'zh'
+        except:
+            return 'zh'
     except Exception as e:
         # 如果出现任何异常，记录日志并返回默认语言
         try:
             from flask import current_app
             current_app.logger.warning(f"语言检测异常: {e}")
+            is_ovs = current_app.config.get('IS_OVS', False)
+            return 'en' if is_ovs else 'zh'
         except:
             # 如果连日志都无法记录，静默处理
             pass

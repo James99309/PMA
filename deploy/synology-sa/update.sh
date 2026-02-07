@@ -116,15 +116,25 @@ if [ "$NEED_REBUILD" = true ]; then
         WAITED=$((WAITED + 3))
     done
 else
-    echo -e "\n${YELLOW}[2/4] Hot reloading application...${NC}"
-    $DOCKER kill --signal=HUP pma-app 2>/dev/null || {
-        echo -e "${YELLOW}Hot reload failed, restarting container...${NC}"
-        $DOCKER restart pma-app
-    }
-    echo -e "${GREEN}✓ Hot reload complete (takes ~2-3s to apply)${NC}"
+    echo -e "\n${YELLOW}[2/4] Recreating container (refresh file mounts)...${NC}"
+    # Use force-recreate to ensure config.py file bind mount is refreshed
+    cd "$DEPLOY_DIR"
+    $DOCKER_COMPOSE up -d --force-recreate pma
+    echo -e "${GREEN}✓ Container recreated${NC}"
 
-    echo -e "\n${YELLOW}[3/4] Waiting for service...${NC}"
-    sleep 3
+    echo -e "\n${YELLOW}[3/4] Waiting for health check...${NC}"
+    MAX_WAIT=60
+    WAITED=0
+    while [ $WAITED -lt $MAX_WAIT ]; do
+        HEALTH=$($DOCKER inspect --format='{{.State.Health.Status}}' pma-app 2>/dev/null || echo "unknown")
+        if [ "$HEALTH" = "healthy" ]; then
+            echo -e "${GREEN}✓ Container ready (${WAITED}s)${NC}"
+            break
+        fi
+        echo -e "  Waiting... ($HEALTH) ${WAITED}s/${MAX_WAIT}s"
+        sleep 3
+        WAITED=$((WAITED + 3))
+    done
 fi
 
 echo -e "\n${YELLOW}[4/4] Running database migrations...${NC}"

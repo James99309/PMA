@@ -7813,3 +7813,9 @@ msgstr "Select attributee"
 
 msgid "请选择归属人"
 msgstr "Please select attributee"
+
+msgid "亚太地区"
+msgstr "Asia Pacific"
+
+msgid "中国区"
+msgstr "China"
