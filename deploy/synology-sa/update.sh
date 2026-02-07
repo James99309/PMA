@@ -65,8 +65,10 @@ if [ "$SKIP_GIT" = true ]; then
     echo -e "${YELLOW}Skipped git pull (--skip-git)${NC}"
 else
     git config --global http.version HTTP/1.1
-    git pull origin main
-    # Fix file permissions: git pull runs as root, but container runs as pma(1000)
+    # NAS deployment always matches remote exactly, discard local changes
+    git fetch origin main
+    git reset --hard origin/main
+    # Fix file permissions: git runs as root, but container runs as pma(1000)
     chown -R 1000:1000 "$PROJECT_DIR"
 fi
 
@@ -145,7 +147,7 @@ echo -e "${GREEN}  Update Complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
 
 echo -e "\n${YELLOW}Container status:${NC}"
-$DOCKER_COMPOSE ps
+$DOCKER_COMPOSE ps 2>/dev/null || $DOCKER ps --filter "name=pma" --format "table {{.Names}}\t{{.Status}}"
 
 echo -e "\n${YELLOW}Recent logs:${NC}"
-$DOCKER_COMPOSE logs --tail=5 pma
+$DOCKER_COMPOSE logs --tail=5 pma 2>/dev/null || $DOCKER logs --tail=5 pma-app

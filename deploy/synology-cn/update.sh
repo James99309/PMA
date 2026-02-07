@@ -66,8 +66,10 @@ if [ "$SKIP_GIT" = true ]; then
 else
     # 修复 HTTP/2 协议问题
     git config --global http.version HTTP/1.1
-    git pull origin main
-    # 修复文件权限：git pull 以 root 运行，但容器以 pma(1000) 用户运行
+    # NAS 部署始终与远端完全一致，不保留本地修改
+    git fetch origin main
+    git reset --hard origin/main
+    # 修复文件权限：git 以 root 运行，但容器以 pma(1000) 用户运行
     chown -R 1000:1000 "$PROJECT_DIR"
 fi
 
@@ -149,7 +151,7 @@ echo -e "${GREEN}========================================${NC}"
 
 # 显示容器状态
 echo -e "\n${YELLOW}容器状态：${NC}"
-$DOCKER_COMPOSE ps
+$DOCKER_COMPOSE ps 2>/dev/null || $DOCKER ps --filter "name=pma" --format "table {{.Names}}\t{{.Status}}"
 
 echo -e "\n${YELLOW}最近日志：${NC}"
-$DOCKER_COMPOSE logs --tail=5 pma
+$DOCKER_COMPOSE logs --tail=5 pma 2>/dev/null || $DOCKER logs --tail=5 pma-app
