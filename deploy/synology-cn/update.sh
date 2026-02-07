@@ -67,6 +67,8 @@ else
     # 修复 HTTP/2 协议问题
     git config --global http.version HTTP/1.1
     git pull origin main
+    # 修复文件权限：git pull 以 root 运行，但容器以 pma(1000) 用户运行
+    chown -R 1000:1000 "$PROJECT_DIR"
 fi
 
 # 检查 requirements.txt 是否变化

@@ -66,6 +66,8 @@ if [ "$SKIP_GIT" = true ]; then
 else
     git config --global http.version HTTP/1.1
     git pull origin main
+    # Fix file permissions: git pull runs as root, but container runs as pma(1000)
+    chown -R 1000:1000 "$PROJECT_DIR"
 fi
 
 # Check if requirements.txt changed
@@ -115,7 +117,7 @@ if [ "$NEED_REBUILD" = true ]; then
     done
 else
     echo -e "\n${YELLOW}[2/4] Hot reloading application...${NC}"
-    $DOCKER exec pma-app kill -HUP 1 2>/dev/null || {
+    $DOCKER kill --signal=HUP pma-app 2>/dev/null || {
         echo -e "${YELLOW}Hot reload failed, restarting container...${NC}"
         $DOCKER restart pma-app
     }
