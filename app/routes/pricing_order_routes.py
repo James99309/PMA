@@ -7,7 +7,7 @@ from app.models.quotation import Quotation
 from app.models.customer import Company
 from app.services.pricing_order_service import PricingOrderService
 from app.services.discount_permission_service import DiscountPermissionService
-from app.permissions import check_permission, permission_required
+from app.permissions import check_permission, permission_required, is_admin_or_ceo
 import os
 
 # 条件导入 PDF 生成器（本地开发时可跳过 weasyprint）
@@ -2315,17 +2315,19 @@ def delete_pricing_order(order_id):
     try:
         pricing_order = PricingOrder.query.get_or_404(order_id)
         
-        # 权限检查：只有创建人且状态为草稿时才能删除
-        if pricing_order.created_by != current_user.id:
+        # 权限检查：创建人或管理员/CEO可删除
+        if pricing_order.created_by != current_user.id and not is_admin_or_ceo():
             return jsonify({
                 'success': False,
                 'message': '您没有权限删除该批价单'
             }), 403
-        
-        if pricing_order.status != 'draft':
+
+        # 状态检查：创建人可删除draft/rejected，管理员可删除任意状态
+        deletable_statuses = ['draft', 'rejected']
+        if pricing_order.status not in deletable_statuses and not is_admin_or_ceo():
             return jsonify({
                 'success': False,
-                'message': '只有草稿状态的批价单才能删除'
+                'message': '只有草稿或已驳回状态的批价单才能删除'
             }), 400
 
         data = request.get_json(silent=True) or {}
@@ -2345,10 +2347,19 @@ def delete_pricing_order(order_id):
         for settlement_order in settlement_orders:
             db.session.delete(settlement_order)
         
-        # 删除批价单明细
+        # 获取批价单明细ID列表，用于清理通过pricing_detail_id关联的结算明细
         pricing_details = PricingOrderDetail.query.filter_by(
             pricing_order_id=order_id
         ).all()
+        pricing_detail_ids = [d.id for d in pricing_details]
+        if pricing_detail_ids:
+            extra_settlement_details = SettlementOrderDetail.query.filter(
+                SettlementOrderDetail.pricing_detail_id.in_(pricing_detail_ids)
+            ).all()
+            for detail in extra_settlement_details:
+                db.session.delete(detail)
+
+        # 删除批价单明细
         for detail in pricing_details:
             db.session.delete(detail)
         
