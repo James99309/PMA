@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from sqlalchemy import func, extract, and_, or_, text
+from sqlalchemy import func, extract, and_, or_, text, case
 from app import db
 from app.models.performance import PerformanceTarget, PerformanceStatistics, FiveStarProjectBaseline
 from app.models.quotation import Quotation, QuotationDetail
@@ -255,26 +255,119 @@ class PerformanceService:
     
     @staticmethod
     def get_yearly_statistics(user_id, year):
-        """获取用户年度统计数据 - 实时计算模式"""
+        """获取用户年度统计数据 - 批量计算模式（1次SQL替代12次）"""
         try:
-            logger.info(f"实时计算用户{user_id}的{year}年度绩效数据")
-            monthly_stats = []
-
-            for month in range(1, 13):
-                try:
-                    # 直接实时计算，不使用缓存
-                    stats = PerformanceService.calculate_monthly_statistics_realtime(user_id, year, month)
-                    monthly_stats.append(stats)
-                except Exception as month_error:
-                    logger.warning(f"实时计算第{month}月统计失败: {month_error}")
-                    monthly_stats.append(PerformanceService._create_empty_stats())
-
-            logger.info(f"实时计算用户{user_id}年度{year}统计完成，共{len(monthly_stats)}个月")
+            logger.info(f"批量计算用户{user_id}的{year}年度绩效数据")
+            monthly_stats = PerformanceService.calculate_yearly_statistics_batch(user_id, year)
+            logger.info(f"批量计算用户{user_id}年度{year}统计完成，共{len(monthly_stats)}个月")
             return monthly_stats
-
         except Exception as e:
-            logger.error(f"获取年度统计失败: {e}")
-            return []
+            logger.error(f"获取年度统计失败: {e}，回退到逐月计算")
+            # 回退到逐月计算
+            try:
+                monthly_stats = []
+                for month in range(1, 13):
+                    try:
+                        stats = PerformanceService.calculate_monthly_statistics_realtime(user_id, year, month)
+                        monthly_stats.append(stats)
+                    except Exception as month_error:
+                        logger.warning(f"实时计算第{month}月统计失败: {month_error}")
+                        monthly_stats.append(PerformanceService._create_empty_stats())
+                return monthly_stats
+            except Exception as e2:
+                logger.error(f"逐月计算也失败: {e2}")
+                return []
+
+    @staticmethod
+    def calculate_yearly_statistics_batch(user_id, year):
+        """批量计算用户全年12个月的绩效统计（1次SQL替代12次）
+
+        将原来12次 calculate_monthly_statistics_realtime 调用合并为
+        单次按月 GROUP BY 的聚合查询，大幅减少数据库往返。
+        """
+        result = db.session.execute(text("""
+            WITH all_months AS (
+                SELECT generate_series(1, 12) AS month
+            ),
+            monthly_projects AS (
+                SELECT EXTRACT(month FROM p.created_at)::int AS month,
+                       COUNT(DISTINCT p.id) AS new_projects,
+                       SUM(CASE WHEN p.rating = 5 THEN 1 ELSE 0 END) AS five_star_projects,
+                       string_agg(DISTINCT p.industry, '|') AS industries
+                FROM projects p
+                WHERE p.owner_id = :user_id
+                  AND EXTRACT(year FROM p.created_at) = :year
+                GROUP BY EXTRACT(month FROM p.created_at)
+            ),
+            implant_data AS (
+                SELECT EXTRACT(month FROM q.created_at)::int AS month,
+                       COALESCE(SUM(qd.quantity * qd.market_price), 0) AS implant_amount
+                FROM quotation_details qd
+                JOIN quotations q ON qd.quotation_id = q.id
+                WHERE q.owner_id = :user_id
+                  AND EXTRACT(year FROM q.created_at) = :year
+                GROUP BY EXTRACT(month FROM q.created_at)
+            ),
+            customer_data AS (
+                SELECT EXTRACT(month FROM c.created_at)::int AS month,
+                       COUNT(*) AS new_customers
+                FROM companies c
+                WHERE c.owner_id = :user_id
+                  AND EXTRACT(year FROM c.created_at) = :year
+                GROUP BY EXTRACT(month FROM c.created_at)
+            ),
+            sales_data AS (
+                SELECT EXTRACT(month FROM po.approved_at)::int AS month,
+                       COALESCE(SUM(po.pricing_total_amount), 0) AS sales_amount
+                FROM pricing_orders po
+                WHERE po.created_by = :user_id
+                  AND po.status = 'approved'
+                  AND EXTRACT(year FROM po.approved_at) = :year
+                GROUP BY EXTRACT(month FROM po.approved_at)
+            )
+            SELECT
+                am.month,
+                COALESCE(mp.new_projects, 0) AS new_projects,
+                COALESCE(mp.five_star_projects, 0) AS five_star_projects,
+                COALESCE(mp.industries, '') AS industries,
+                COALESCE(id.implant_amount, 0) AS implant_amount,
+                COALESCE(cd.new_customers, 0) AS new_customers,
+                COALESCE(sd.sales_amount, 0) AS sales_amount
+            FROM all_months am
+            LEFT JOIN monthly_projects mp ON am.month = mp.month
+            LEFT JOIN implant_data id ON am.month = id.month
+            LEFT JOIN customer_data cd ON am.month = cd.month
+            LEFT JOIN sales_data sd ON am.month = sd.month
+            ORDER BY am.month
+        """), {'user_id': user_id, 'year': year}).fetchall()
+
+        monthly_stats = []
+        for row in result:
+            # 处理行业统计
+            industries_str = row.industries if row.industries else ''
+            industry_stats = {}
+            if industries_str:
+                for industry in industries_str.split('|'):
+                    if industry and industry.strip():
+                        name = industry.strip()
+                        industry_stats[name] = industry_stats.get(name, 0) + 1
+
+            stats = type('RealtimeStats', (), {
+                'implant_amount_actual': float(row.implant_amount or 0),
+                'sales_amount_actual': float(row.sales_amount or 0),
+                'new_customers_actual': int(row.new_customers or 0),
+                'new_projects_actual': int(row.new_projects or 0),
+                'five_star_projects_actual': int(row.five_star_projects or 0),
+                'industry_statistics': industry_stats,
+                'calculated_at': datetime.now()
+            })()
+            monthly_stats.append(stats)
+
+        # 确保返回12个月数据
+        while len(monthly_stats) < 12:
+            monthly_stats.append(PerformanceService._create_empty_stats())
+
+        return monthly_stats
     
     @staticmethod
     def calculate_monthly_statistics_realtime(user_id, year, month):
@@ -571,18 +664,23 @@ class PerformanceService:
             }
         """
         try:
-            base_query = Company.query.filter(
+            # 单次条件聚合替代3次COUNT查询
+            result = db.session.query(
+                func.count(Company.id).label('total'),
+                func.count(case(
+                    (Company.activity_status == 'highly_active', Company.id)
+                )).label('highly_active'),
+                func.count(case(
+                    (Company.activity_status == 'active', Company.id)
+                )).label('active')
+            ).filter(
                 Company.owner_id == user_id,
                 Company.is_deleted == False
-            )
+            ).first()
 
-            total_count = base_query.count()
-            highly_active_count = base_query.filter(
-                Company.activity_status == 'highly_active'
-            ).count()
-            active_count = base_query.filter(
-                Company.activity_status == 'active'
-            ).count()
+            total_count = result.total or 0
+            highly_active_count = result.highly_active or 0
+            active_count = result.active or 0
 
             rate = ((highly_active_count + active_count) / total_count * 100) if total_count > 0 else 0
 

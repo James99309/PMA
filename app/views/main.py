@@ -6,7 +6,7 @@ from app import db
 from app.models.project import Project
 from app.utils.access_control import get_viewable_data
 from app.models.quotation import Quotation
-from app.models.customer import Company, Contact
+from app.models.customer import Contact
 from app.models.action import Action, ActionReply
 from app.models.user import User
 from app.utils.dictionary_helpers import project_type_label, get_currency_symbol
@@ -77,23 +77,6 @@ def index():
                 # 回滚失败的事务
                 db.session.rollback()
                 recent_quotations = []
-    
-    # 查询当前用户可见的最近5个客户，按更新时间倒序
-    recent_companies = []
-    if current_user.has_permission('customer', 'view'):
-        try:
-            recent_companies = get_viewable_data(Company, current_user).order_by(Company.updated_at.desc()).limit(5).all()
-        except Exception as e:
-            logger.warning(f"客户查询失败: {str(e)}")
-            try:
-                # 回滚失败的事务
-                db.session.rollback()
-                recent_companies = get_viewable_data(Company, current_user).order_by(Company.id.desc()).limit(5).all()
-            except Exception as e2:
-                logger.error(f"客户查询完全失败: {str(e2)}")
-                # 回滚失败的事务
-                db.session.rollback()
-                recent_companies = []
     
     # 查询当前用户可见的最近5个报销单，按更新时间倒序
     recent_expenses = []
@@ -226,7 +209,6 @@ def index():
                          now=datetime.now(),
                          recent_projects=recent_projects,
                          recent_quotations=recent_quotations,
-                         recent_companies=recent_companies,
                          recent_expenses=recent_expenses,
                          expense_monthly_stats=expense_monthly_stats,
                          expense_year_total=expense_year_total,

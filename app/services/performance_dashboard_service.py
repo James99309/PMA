@@ -285,20 +285,34 @@ class PerformanceDashboardService:
                 # 多用户模式，使用系统默认货币
                 target_currency = Config.DEFAULT_CURRENCY
 
+            # 批量预加载用户和预算数据（避免循环内N+1查询）
+            users_map = {u.id: u for u in User.query.filter(User.id.in_(target_user_ids)).all()}
+            budgets_map = {b.user_id: b for b in ExpenseBudget.query.filter(
+                ExpenseBudget.user_id.in_(target_user_ids), ExpenseBudget.year == year).all()}
+
+            # 批量预加载角色预算（对无个人预算的用户）
+            no_budget_roles = set()
+            for uid in target_user_ids:
+                if uid not in budgets_map:
+                    member_user = users_map.get(uid)
+                    if member_user and member_user.role:
+                        no_budget_roles.add(member_user.role)
+            role_budgets_map = {}
+            if no_budget_roles:
+                role_budgets_map = {rb.role_code: rb for rb in RoleExpenseBudget.query.filter(
+                    RoleExpenseBudget.role_code.in_(no_budget_roles), RoleExpenseBudget.year == year).all()}
+
             # 汇总所有目标用户的预算（支持多货币转换）
             budget_total = 0
             has_any_budget = False
 
             for uid in target_user_ids:
-                # 获取该用户的结算货币
-                member_user = User.query.get(uid)
+                member_user = users_map.get(uid)
                 member_currency = (member_user.settlement_currency if member_user else None) or Config.DEFAULT_CURRENCY
 
-                # 获取个人预算
-                user_budget = ExpenseBudget.query.filter_by(user_id=uid, year=year).first()
+                user_budget = budgets_map.get(uid)
                 if user_budget:
                     budget_amount = float(user_budget.total_budget or 0)
-                    # 如果成员货币与目标货币不同，进行汇率转换
                     if member_currency != target_currency and budget_amount > 0:
                         try:
                             budget_amount = exchange_rate_service.convert_amount(
@@ -309,14 +323,10 @@ class PerformanceDashboardService:
                     budget_total += budget_amount
                     has_any_budget = True
                 else:
-                    # 回退到角色默认预算（角色预算使用系统默认货币）
                     if member_user and member_user.role:
-                        role_budget = RoleExpenseBudget.query.filter_by(
-                            role_code=member_user.role, year=year
-                        ).first()
+                        role_budget = role_budgets_map.get(member_user.role)
                         if role_budget:
                             budget_amount = float(role_budget.total_budget or 0)
-                            # 角色预算是系统默认货币，需要转换为目标货币
                             if Config.DEFAULT_CURRENCY != target_currency and budget_amount > 0:
                                 try:
                                     budget_amount = exchange_rate_service.convert_amount(
@@ -327,59 +337,32 @@ class PerformanceDashboardService:
                             budget_total += budget_amount
                             has_any_budget = True
 
-            # 获取已报销金额（已审批通过的，包括待支付和已支付）
-            # 支持多货币转换：将所有报销单金额转换为目标用户的结算货币后汇总
-            base_currency = target_currency  # 使用目标用户的结算货币
-
-            # 🔥 修复：使用 attributed_to_id 统计费用（如果设置了归属人）
-            # 如果没有归属人，则使用 owner_id（创建人）
-            expenses = Expense.query.filter(
-                func.coalesce(Expense.attributed_to_id, Expense.owner_id).in_(target_user_ids),
-                extract('year', Expense.created_at) == year,
-                Expense.status.in_(['approved', 'awaiting_payment', 'paid']),
-                Expense.is_deleted == False
-            ).all()
-
-            expense_total = 0.0
-            for expense in expenses:
-                amount = float(expense.total_amount or 0)
-                # 如果报销单货币与系统基准货币不同，进行汇率转换
-                if expense.currency and expense.currency != base_currency:
-                    try:
-                        amount = exchange_rate_service.convert_amount(
-                            amount, expense.currency, base_currency
-                        )
-                    except Exception as conv_err:
-                        logger.warning(f"报销单 {expense.id} 货币转换失败 {expense.currency} -> {base_currency}: {conv_err}")
-                        # 转换失败时保持原值
-                expense_total += amount
+            # 先计算月度趋势（使用目标货币），然后复用其结果求总额（避免冗余全量查询）
+            monthly_trend = PerformanceDashboardService._get_expense_monthly_trend(target_user_ids, year, target_currency)
+            expense_total = sum(m['amount'] for m in monthly_trend) if monthly_trend else 0.0
 
             # 按科目统计实际报销（使用目标货币）
             by_category = PerformanceDashboardService._get_expense_by_category(target_user_ids, year, target_currency)
-
-            # 计算月度趋势（使用目标货币）
-            monthly_trend = PerformanceDashboardService._get_expense_monthly_trend(target_user_ids, year, target_currency)
 
             # 计算使用率和剩余
             remaining = budget_total - expense_total
             usage_rate = (expense_total / budget_total * 100) if budget_total > 0 else 0
 
             # 按科目预算对比（多用户模式下汇总所有用户的分类预算，支持多货币转换）
+            # 复用上面批量预加载的 users_map、budgets_map、role_budgets_map
             category_comparison = {}
             category_budgets_total = {}  # 汇总各分类预算
 
             for uid in target_user_ids:
-                # 获取该用户的结算货币
-                member_user = User.query.get(uid)
+                member_user = users_map.get(uid)
                 member_currency = (member_user.settlement_currency if member_user else None) or Config.DEFAULT_CURRENCY
                 is_role_budget = False
 
-                user_budget = ExpenseBudget.query.filter_by(user_id=uid, year=year).first()
-                effective = user_budget
+                effective = budgets_map.get(uid)
                 if not effective:
                     if member_user and member_user.role:
-                        effective = RoleExpenseBudget.query.filter_by(role_code=member_user.role, year=year).first()
-                        is_role_budget = True  # 标记为角色预算（使用系统默认货币）
+                        effective = role_budgets_map.get(member_user.role)
+                        is_role_budget = True
 
                 if effective:
                     cat_budgets = effective.get_category_budgets()
