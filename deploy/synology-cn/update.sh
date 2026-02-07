@@ -113,42 +113,29 @@ cd "$DEPLOY_DIR"
 
 if [ "$NEED_REBUILD" = true ]; then
     echo -e "\n${YELLOW}[2/4] 重建容器...${NC}"
+    # 先移除旧容器避免名称冲突，再重建
+    $DOCKER stop pma-app 2>/dev/null; $DOCKER rm pma-app 2>/dev/null
     $DOCKER_COMPOSE up -d --build pma
-
-    echo -e "\n${YELLOW}[3/4] 等待容器健康检查...${NC}"
-    MAX_WAIT=60
-    WAITED=0
-    while [ $WAITED -lt $MAX_WAIT ]; do
-        HEALTH=$($DOCKER inspect --format='{{.State.Health.Status}}' pma-app 2>/dev/null || echo "unknown")
-        if [ "$HEALTH" = "healthy" ]; then
-            echo -e "${GREEN}✓ 容器已就绪 (${WAITED}秒)${NC}"
-            break
-        fi
-        echo -e "  等待中... ($HEALTH) ${WAITED}s/${MAX_WAIT}s"
-        sleep 3
-        WAITED=$((WAITED + 3))
-    done
 else
-    echo -e "\n${YELLOW}[2/4] 重建容器（刷新文件挂载）...${NC}"
-    # 使用 force-recreate 确保 config.py 等文件级 bind mount 刷新
-    cd "$DEPLOY_DIR"
-    $DOCKER_COMPOSE up -d --force-recreate pma
-    echo -e "${GREEN}✓ 容器已重建${NC}"
-
-    echo -e "\n${YELLOW}[3/4] 等待容器健康检查...${NC}"
-    MAX_WAIT=60
-    WAITED=0
-    while [ $WAITED -lt $MAX_WAIT ]; do
-        HEALTH=$($DOCKER inspect --format='{{.State.Health.Status}}' pma-app 2>/dev/null || echo "unknown")
-        if [ "$HEALTH" = "healthy" ]; then
-            echo -e "${GREEN}✓ 容器已就绪 (${WAITED}秒)${NC}"
-            break
-        fi
-        echo -e "  等待中... ($HEALTH) ${WAITED}s/${MAX_WAIT}s"
-        sleep 3
-        WAITED=$((WAITED + 3))
-    done
+    echo -e "\n${YELLOW}[2/4] 重启容器（热重载）...${NC}"
+    # 代码通过 bind mount 已实时更新，重启 Flask 即可生效
+    $DOCKER restart pma-app
+    echo -e "${GREEN}✓ 容器已重启${NC}"
 fi
+
+echo -e "\n${YELLOW}[3/4] 等待容器健康检查...${NC}"
+MAX_WAIT=60
+WAITED=0
+while [ $WAITED -lt $MAX_WAIT ]; do
+    HEALTH=$($DOCKER inspect --format='{{.State.Health.Status}}' pma-app 2>/dev/null || echo "unknown")
+    if [ "$HEALTH" = "healthy" ]; then
+        echo -e "${GREEN}✓ 容器已就绪 (${WAITED}秒)${NC}"
+        break
+    fi
+    echo -e "  等待中... ($HEALTH) ${WAITED}s/${MAX_WAIT}s"
+    sleep 3
+    WAITED=$((WAITED + 3))
+done
 
 echo -e "\n${YELLOW}[4/4] 执行数据库迁移...${NC}"
 $DOCKER exec pma-app flask db upgrade || echo -e "${YELLOW}数据库迁移跳过（可能没有新迁移）${NC}"
