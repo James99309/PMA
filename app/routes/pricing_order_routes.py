@@ -3011,7 +3011,7 @@ def export_excel_list():
     """导出批价单/结算单Excel"""
     from flask_babel import gettext as _
     from io import BytesIO
-    from sqlalchemy.orm import joinedload
+    from sqlalchemy.orm import joinedload, subqueryload
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 
@@ -3032,11 +3032,21 @@ def export_excel_list():
     # 构建查询 - 复用权限过滤
     query = _build_pricing_order_query(current_user)
     query = query.options(
-        joinedload(PricingOrder.pricing_details),
-        joinedload(PricingOrder.settlement_details),
-        joinedload(PricingOrder.dealer),
-        joinedload(PricingOrder.distributor),
-        joinedload(PricingOrder.settlement_orders).joinedload(SettlementOrder.details).joinedload(SettlementOrderDetail.settlement_company),
+        subqueryload(PricingOrder.pricing_details),          # 1对多：子查询避免笛卡尔积
+        subqueryload(PricingOrder.settlement_details),       # 1对多：子查询避免笛卡尔积
+        joinedload(PricingOrder.dealer),                     # 1对1：JOIN高效
+        joinedload(PricingOrder.distributor),                 # 1对1：JOIN高效
+        subqueryload(PricingOrder.settlement_orders)         # 1对多：子查询避免笛卡尔积
+            .subqueryload(SettlementOrder.details)
+            .joinedload(SettlementOrderDetail.settlement_company),
+        subqueryload(PricingOrder.settlement_orders)
+            .joinedload(SettlementOrder.creator),            # 修复N+1查询
+        subqueryload(PricingOrder.settlement_orders)
+            .joinedload(SettlementOrder.project),            # 修复N+1查询
+        subqueryload(PricingOrder.settlement_orders)
+            .joinedload(SettlementOrder.dealer),             # 修复N+1查询
+        subqueryload(PricingOrder.settlement_orders)
+            .joinedload(SettlementOrder.distributor),        # 修复N+1查询
     )
 
     # 按年月筛选

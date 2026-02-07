@@ -1,0 +1,156 @@
+# PMA-SA (OVS) 群晖 NAS Docker 部署配置
+# 适用于新加坡 DS925+ (4GB+ 内存)
+# 包含 PostgreSQL + PMA 应用 + Autoheal
+#
+# 重要：cloudflared 隧道容器由现有部署管理，不在此 compose 中。
+# 通过外部网络 pma-network 与隧道容器通信。
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:17-alpine
+    container_name: pma-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pma
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pma_secure_password_2025}
+      POSTGRES_DB: pma_sa
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+      TZ: Asia/Singapore
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pma -d pma_sa"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pma-network
+
+  # PMA 应用
+  pma:
+    build:
+      context: ../..
+      dockerfile: deploy/synology-sa/Dockerfile
+    image: pma-app:latest
+    container_name: pma-app
+    restart: unless-stopped
+    ports:
+      - "${PMA_PORT:-5002}:5000"
+    environment:
+      # 数据库连接
+      DATABASE_URL: postgresql://pma:${POSTGRES_PASSWORD:-pma_secure_password_2025}@postgres:5432/pma_sa
+
+      # 数据库类型：OVS（决定货币为 USD/$）
+      SUPABASE_DB_TYPE: ovs
+
+      # Flask 配置
+      FLASK_ENV: production
+      SECRET_KEY: ${SECRET_KEY:-your-super-secret-key-change-this}
+
+      # 时区（新加坡）
+      TZ: Asia/Singapore
+
+      # NAS 智能存储管理器配置
+      NAS_STORAGE_ENABLED: "true"
+
+      # 群晖 WebDAV 存储（DS925+ 本机）
+      MEETING_STORAGE_TYPE: synology
+      SYNOLOGY_WEBDAV_URL: ${SYNOLOGY_WEBDAV_URL:-http://192.168.1.2:5005}
+      SYNOLOGY_WEBDAV_INTERNAL_URL: ${SYNOLOGY_WEBDAV_INTERNAL_URL:-http://192.168.1.2:5005}
+      SYNOLOGY_WEBDAV_EXTERNAL_URL: ${SYNOLOGY_WEBDAV_EXTERNAL_URL:-}
+      SYNOLOGY_WEBDAV_USER: ${SYNOLOGY_WEBDAV_USER:-pma-storage}
+      SYNOLOGY_WEBDAV_PASSWORD: ${SYNOLOGY_WEBDAV_PASSWORD}
+      SYNOLOGY_WEBDAV_PATH: ${SYNOLOGY_WEBDAV_PATH:-/pma-files}
+      SYNOLOGY_WEBDAV_VERIFY_SSL: "false"
+
+      # 外部访问地址（Cloudflare Tunnel 域名）
+      EXTERNAL_URL: ${EXTERNAL_URL:-https://sg-pma.jamesgpone.win}
+
+      # 外部 API Key
+      EXTERNAL_API_KEY: ${EXTERNAL_API_KEY:-stargirl-pma-integration-2024}
+
+      # AI 服务（会议纪要功能）
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+      # 邮件配置（新加坡环境使用 Gmail SMTP）
+      MAIL_SERVER: ${MAIL_SERVER:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USE_TLS: ${MAIL_USE_TLS:-true}
+      MAIL_USE_SSL: ${MAIL_USE_SSL:-false}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_DEFAULT_SENDER: ${MAIL_DEFAULT_SENDER:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+
+      # 本地存储路径
+      LOCAL_STORAGE_ROOT: /app/storage
+
+    volumes:
+      - pma_storage:/app/storage
+      - pma_logs:/app/logs
+      # 代码热重载挂载（无需重建即可更新）
+      - ${PROJECT_DIR:-/volume1/docker/pma}/app:/app/app:ro
+      - ${PROJECT_DIR:-/volume1/docker/pma}/migrations:/app/migrations:ro
+      - ${PROJECT_DIR:-/volume1/docker/pma}/config.py:/app/config.py:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 640M
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "autoheal=true"
+    networks:
+      - pma-network
+
+  # 容器健康监控 - unhealthy 时自动重启
+  autoheal:
+    image: willfarrell/autoheal
+    container_name: pma-autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: 30
+      AUTOHEAL_START_PERIOD: 120
+      AUTOHEAL_DEFAULT_STOP_TIMEOUT: 10
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      resources:
+        limits:
+          memory: 32M
+        reservations:
+          memory: 8M
+
+# 数据卷
+volumes:
+  postgres_data:
+    driver: local
+  pma_storage:
+    driver: local
+  pma_logs:
+    driver: local
+
+# 网络 - 使用外部网络与 cloudflared 隧道容器共享
+# 首次部署前需创建: docker network create pma-network
+networks:
+  pma-network:
+    external: true
+    name: pma-network

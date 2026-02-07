@@ -46,7 +46,7 @@ class Config:
     """基础配置类 - 支持动态数据库配置"""
 
     # 统一版本号（所有环境共用，基于代码而非数据库）
-    APP_VERSION = '1.21.50'
+    APP_VERSION = '1.21.51'
 
     # 基本配置
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'local-development-secret-key-pma-2025'
@@ -65,8 +65,8 @@ class Config:
     # 数据库类型检测 - 通过数据库URL中的Supabase项目ID判断
     # SP8D: iqcyimnjtnmomvfuwjzw, OVS: pqzviljbpfoqvyfulakl
     SUPABASE_DB_TYPE = os.environ.get('SUPABASE_DB_TYPE', 'local')
-    IS_SP8D = 'iqcyimnjtnmomvfuwjzw' in DATABASE_URL
-    IS_OVS = 'pqzviljbpfoqvyfulakl' in DATABASE_URL
+    IS_SP8D = 'iqcyimnjtnmomvfuwjzw' in DATABASE_URL or SUPABASE_DB_TYPE == 'sp8d'
+    IS_OVS = 'pqzviljbpfoqvyfulakl' in DATABASE_URL or SUPABASE_DB_TYPE == 'ovs'
 
     # ========== 系统货币配置（基于数据库类型，与语言设置解耦） ==========
     # 货币和单位由数据库类型决定，不随用户语言切换而改变
