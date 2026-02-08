@@ -36,8 +36,8 @@
                 extend: {
                     colors: {
                         "primary": "#137fec",
-                        "background-light": "#f6f7f8",
-                        "background-dark": "#101922",
+                        "background-light": "#faf8f6",
+                        "background-dark": "#1a1816",
                     },
                     fontFamily: {
                         "display": ["Inter", "sans-serif"]
@@ -92,7 +92,7 @@
                 {{ tw_stat_card(
                     title=card.title,
                     value=card.value,
-                    unit=card.unit,
+                    unit=card.unit ~ ' / ' ~ (card.amount|default(0)) ~ card.amount_unit if card.amount else card.unit,
                     icon=icon_map.get(card.icon, 'analytics'),
                     variant=variant_map.get(card.color, 'default')
                 ) }}

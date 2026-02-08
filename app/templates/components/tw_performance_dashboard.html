@@ -1,8 +1,6 @@
 {# 绩效看板组件 - Tailwind 版本 #}
 {# 使用 ECharts 进行数据可视化 #}
 
-{# 导入统一的选卡组件 #}
-{% from 'components/tw_tabs.html' import render_tw_alpine_tabs with context %}
 {# 导入 SVG 折线图组件 #}
 {% from 'components/tw_line_chart.html' import render_tw_line_chart, render_tw_line_chart_style, render_tw_line_chart_init_fn %}
 {# 导入表格卡片组件 #}
@@ -17,53 +15,15 @@
      x-data="performanceDashboardData({{ user_id }}, {{ year }}, '{{ dashboard_url }}')"
      x-init="init()">
 
-    {# 年份选择器 - 仅在目标达成和报销预算标签页显示（活跃度和行业分布为全局分析，不受年份影响）#}
-    <div class="flex items-center justify-between"
-         x-show="activeTab === 'goals' || activeTab === 'expense'"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:enter-start="opacity-0"
-         x-transition:enter-end="opacity-100"
-         x-transition:leave="transition ease-in duration-150"
-         x-transition:leave-start="opacity-100"
-         x-transition:leave-end="opacity-0">
-        <div class="flex items-center space-x-4">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ _('年份') }}:</label>
-            <select x-model.number="selectedYear" @change="onYearChange()"
-                    class="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm">
-                <template x-for="y in availableYears" :key="y">
-                    <option :value="y" :selected="y === selectedYear" x-text="y"></option>
-                </template>
-            </select>
-        </div>
-        <button @click="loadDashboard()"
-                class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-600">
-            <span class="material-symbols-outlined text-base mr-2" :class="{'animate-spin': loading}">refresh</span>
-            {{ _('刷新') }}
-        </button>
-    </div>
-
-    {# 全局分析提示 - 在活跃度、行业分布和客户分布标签页显示 #}
-    <div class="flex items-center text-sm text-slate-500 dark:text-slate-400"
-         x-show="activeTab === 'activity' || activeTab === 'industry' || activeTab === 'customer'"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:enter-start="opacity-0"
-         x-transition:enter-end="opacity-100"
-         x-transition:leave="transition ease-in duration-150"
-         x-transition:leave-start="opacity-100"
-         x-transition:leave-end="opacity-0">
-        <span class="material-symbols-outlined text-base mr-1">info</span>
-        <span>{{ _('显示最近12个月数据（全局分析）') }}</span>
-    </div>
-
     {# 加载状态 #}
     <div x-show="loading" class="flex justify-center py-12">
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
     </div>
 
     {# 主内容区域 #}
-    <div x-show="!loading && !error" x-cloak>
+    <div x-show="!loading && !error" x-cloak class="space-y-6">
 
-        {# 子标签页导航 - 使用统一的选卡组件 #}
+        {# 子标签页导航 + 年份选择器 - 固定在顶层标签页下方 #}
         {% set dashboard_tabs = [
             {'key': 'goals', 'label': _('目标达成'), 'icon': 'target'},
             {'key': 'expense', 'label': _('报销预算'), 'icon': 'receipt_long'},
@@ -71,7 +31,59 @@
             {'key': 'industry', 'label': _('行业分布'), 'icon': 'factory'},
             {'key': 'customer', 'label': _('客户分布'), 'icon': 'groups'}
         ] %}
-        {{ render_tw_alpine_tabs(dashboard_tabs, model='activeTab') }}
+        <div class="sticky top-[50px] z-10 bg-background-light dark:bg-black -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 pt-1">
+            <div class="flex items-end justify-between border-b border-slate-200 dark:border-slate-700">
+                {# 左侧：子标签页按钮 #}
+                <nav class="flex flex-wrap gap-2" role="tablist">
+                    {% for tab in dashboard_tabs %}
+                    <button type="button"
+                            @click="activeTab = '{{ tab.key }}'"
+                            role="tab"
+                            :aria-selected="activeTab === '{{ tab.key }}'"
+                            class="inline-flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium rounded-t-lg -mb-px transition-colors focus:outline-none"
+                            :class="activeTab === '{{ tab.key }}'
+                                ? 'text-primary border-b-2 border-primary bg-white dark:bg-black'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary border-b-2 border-transparent'">
+                        <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1,'wght' 400;font-size:20px">{{ tab.icon }}</span>
+                        <span>{{ tab.label }}</span>
+                    </button>
+                    {% endfor %}
+                </nav>
+                {# 右侧：年份选择器 + 刷新按钮（仅 goals/expense 标签页显示） #}
+                <div class="flex items-center gap-3 pb-2 shrink-0"
+                     x-show="activeTab === 'goals' || activeTab === 'expense'"
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100"
+                     x-transition:leave="transition ease-in duration-150"
+                     x-transition:leave-start="opacity-100"
+                     x-transition:leave-end="opacity-0">
+                    <select x-model.number="selectedYear" @change="onYearChange()"
+                            class="rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm py-1.5">
+                        <template x-for="y in availableYears" :key="y">
+                            <option :value="y" :selected="y === selectedYear" x-text="y"></option>
+                        </template>
+                    </select>
+                    <button @click="loadDashboard()"
+                            class="inline-flex items-center px-2.5 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-600">
+                        <span class="material-symbols-outlined text-base" :class="{'animate-spin': loading}">refresh</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {# 全局分析提示 - 在活跃度、行业分布和客户分布标签页显示 #}
+        <div class="flex items-center text-sm text-slate-500 dark:text-slate-400"
+             x-show="activeTab === 'activity' || activeTab === 'industry' || activeTab === 'customer'"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0">
+            <span class="material-symbols-outlined text-base mr-1">info</span>
+            <span>{{ _('显示最近12个月数据（全局分析）') }}</span>
+        </div>
 
         {# ======================== 目标达成标签页 ======================== #}
         <div x-show="activeTab === 'goals'" x-cloak>
@@ -130,149 +142,149 @@
     {# 已配置绩效目标时显示正常内容 #}
     <template x-if="configuredItems.length > 0">
     <div>
-    {# 目标达成趋势图 - 仪表盘样式 #}
-    <div class="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
-        {# 动态指标切换按钮 - 左对齐 #}
-        <div class="flex items-center gap-2 mb-3 flex-wrap">
-            <template x-for="metricCode in configuredItems" :key="metricCode">
-                <button @click="selectMetric(metricCode)"
-                    :class="selectedMetric === metricCode
-                        ? metricConfigs[metricCode]?.colors?.active
-                        : metricConfigs[metricCode]?.colors?.inactive"
-                    class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-sm font-medium transition-colors">
-                    <span class="material-symbols-outlined text-base" x-text="metricConfigs[metricCode]?.icon"></span>
-                    <span x-text="metricConfigs[metricCode]?.label"></span>
-                </button>
-            </template>
-        </div>
+    {# 药丸形指标按钮 #}
+    <nav class="flex flex-wrap gap-2 mb-4">
+        <template x-for="metricCode in configuredItems" :key="metricCode">
+            <button @click="selectMetric(metricCode)"
+                class="group flex items-center gap-1.5 px-3.5 py-1.5 text-sm rounded-full transition-all"
+                :class="selectedMetric === metricCode
+                    ? 'border-2 font-semibold shadow-sm'
+                    : 'border bg-white dark:bg-neutral-900 text-stone-500 dark:text-stone-400 border-stone-200 dark:border-stone-800 hover:shadow-sm'"
+                :style="selectedMetric === metricCode
+                    ? 'border-color:'+metricConfigs[metricCode]?.chartColor+';background:'+metricConfigs[metricCode]?.chartColor+';color:#fff'
+                    : ''"
+                @mouseenter="selectedMetric !== metricCode && ($el.style.borderColor=metricConfigs[metricCode]?.chartColor, $el.style.color=metricConfigs[metricCode]?.chartColor)"
+                @mouseleave="selectedMetric !== metricCode && ($el.style.borderColor='', $el.style.color='')">
+                <span class="material-symbols-outlined text-base" x-text="metricConfigs[metricCode]?.icon"></span>
+                <span x-text="metricConfigs[metricCode]?.label"></span>
+            </button>
+        </template>
+    </nav>
 
-        {# 仪表盘数据区 - 颜色跟随选中指标（动态配置） #}
-        <div class="flex items-center justify-between mb-6">
-            {# 左侧：标签 + 数值 - 颜色动态变化 #}
-            <div>
-                <p class="text-sm font-medium transition-colors"
-                   :class="metricConfigs[selectedMetric]?.textColor">{{ _('今年累计') }}</p>
+    {# 图表卡片 — 暖色调 + 大圆角 #}
+    <div class="bg-white dark:bg-neutral-900 rounded-2xl border border-stone-200/60 dark:border-stone-800 shadow-xl shadow-stone-300/15 dark:shadow-none overflow-hidden">
+        {# 内容区 #}
+        <div class="p-8 md:p-10">
 
-                {# 有团队目标时：显示双行（个人淡色 + 团队深色） #}
-                <template x-if="teamSummary && teamSummary[selectedMetric]?.target > 0">
-                    <div>
-                        {# 个人（上面，小字体，淡色） #}
-                        <p class="text-xl mt-1 transition-colors"
-                           :class="metricConfigs[selectedMetric]?.lightTextColor">
-                            <span class="text-xs text-slate-400 dark:text-slate-500 mr-1">{{ _('个人') }}</span>
-                            <span x-text="formatValue(selectedMetric, summary[selectedMetric]?.actual)"></span>
+            {# 摘要区 #}
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-10">
+                {# 左侧 #}
+                <div>
+                    <span class="text-xs font-bold uppercase tracking-widest text-stone-400 dark:text-stone-500 mb-2 block"
+                          x-text="(metricConfigs[selectedMetric]?.label || '') + ' · ' + selectedYear"></span>
+
+                    {# 大数字：完成率 or 实际值 #}
+                    <div class="flex items-baseline gap-3">
+                        <template x-if="summary[selectedMetric]?.target > 0">
+                            <h2 class="text-5xl font-bold tracking-tighter transition-colors"
+                                :style="'color:'+metricConfigs[selectedMetric]?.chartColor"
+                                x-text="(summary[selectedMetric]?.rate ?? 0) + '%'"></h2>
+                        </template>
+                        <template x-if="!summary[selectedMetric]?.target">
+                            <h2 class="text-5xl font-bold tracking-tighter transition-colors"
+                                :style="'color:'+metricConfigs[selectedMetric]?.chartColor"
+                                x-text="formatValue(selectedMetric, summary[selectedMetric]?.actual)"></h2>
+                        </template>
+                        <span class="text-2xl font-light text-stone-300 dark:text-stone-600"
+                              x-show="summary[selectedMetric]?.target > 0">
+                            / 100% {{ _('目标完成度') }}
+                        </span>
+                    </div>
+
+                    {# 个人/团队明细 #}
+                    <template x-if="teamSummary && teamSummary[selectedMetric]?.target > 0">
+                        <div class="flex items-center gap-6 mt-3 text-sm">
+                            <span class="text-stone-400">
+                                <span class="text-xs mr-1">{{ _('个人') }}</span>
+                                <span class="font-medium text-stone-600 dark:text-stone-300" x-text="formatValue(selectedMetric, summary[selectedMetric]?.actual)"></span>
+                                <span class="text-stone-300 dark:text-stone-600" x-text="' / ' + formatValue(selectedMetric, summary[selectedMetric]?.target)"></span>
+                            </span>
+                            <span class="text-stone-400">
+                                <span class="text-xs mr-1">{{ _('团队') }}</span>
+                                <span class="font-semibold" :style="'color:'+metricConfigs[selectedMetric]?.chartColor" x-text="formatValue(selectedMetric, teamSummary[selectedMetric]?.actual)"></span>
+                                <span class="text-stone-300 dark:text-stone-600" x-text="' / ' + formatValue(selectedMetric, teamSummary[selectedMetric]?.target)"></span>
+                            </span>
+                        </div>
+                    </template>
+                    <template x-if="!teamSummary || !teamSummary[selectedMetric]?.target">
+                        <div class="flex items-center gap-2 mt-3 text-sm text-stone-400">
+                            <span>{{ _('累计') }}</span>
+                            <span class="font-medium text-stone-600 dark:text-stone-300" x-text="formatValue(selectedMetric, summary[selectedMetric]?.actual)"></span>
                             <template x-if="summary[selectedMetric]?.target > 0">
-                                <span class="text-base text-slate-300 dark:text-slate-600">
-                                    / <span x-text="formatValue(selectedMetric, summary[selectedMetric]?.target)"></span>
-                                </span>
+                                <span>/ {{ _('目标') }} <span x-text="formatValue(selectedMetric, summary[selectedMetric]?.target)"></span></span>
                             </template>
-                        </p>
-                        {# 团队（下面，标准字体，深色） #}
-                        <p class="text-4xl font-bold mt-1 transition-colors"
-                           :class="metricConfigs[selectedMetric]?.textColor">
-                            <span class="text-sm font-normal text-slate-500 dark:text-slate-400 mr-1">{{ _('团队') }}</span>
-                            <span x-text="formatValue(selectedMetric, teamSummary[selectedMetric]?.actual)"></span>
-                            <span class="text-2xl text-slate-400 dark:text-slate-500">
-                                / <span x-text="formatValue(selectedMetric, teamSummary[selectedMetric]?.target)"></span>
-                            </span>
-                        </p>
-                    </div>
-                </template>
+                        </div>
+                    </template>
+                </div>
 
-                {# 无团队目标时：保持原样单行显示 #}
-                <template x-if="!teamSummary || !teamSummary[selectedMetric]?.target">
-                    <p class="text-4xl font-bold mt-1 transition-colors"
-                       :class="metricConfigs[selectedMetric]?.textColor">
-                        <span x-text="formatValue(selectedMetric, summary[selectedMetric]?.actual)"></span>
-                        {# 如果有目标，显示 /目标值 #}
-                        <template x-if="summary[selectedMetric]?.target > 0">
-                            <span class="text-2xl text-slate-400 dark:text-slate-500">
-                                / <span x-text="formatValue(selectedMetric, summary[selectedMetric]?.target)"></span>
-                            </span>
-                        </template>
-                    </p>
-                </template>
+                {# 右侧：增长率 #}
+                <div class="flex flex-col items-end gap-3 w-full md:w-auto">
+                    <div class="flex items-center justify-between w-full md:w-64">
+                        <span class="text-xs font-medium text-stone-500 dark:text-stone-400">{{ _('当前增长率') }}</span>
+                        <span class="text-sm font-bold"
+                              :style="'color:'+metricConfigs[selectedMetric]?.chartColor"
+                              x-text="getLatestGrowth()"></span>
+                    </div>
+                    <div class="w-full md:w-64 h-1.5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full transition-all duration-500"
+                             :style="'width:'+Math.min(summary[selectedMetric]?.rate ?? 0, 100)+'%;background:'+metricConfigs[selectedMetric]?.chartColor"></div>
+                    </div>
+                </div>
             </div>
 
-            {# 右侧：进度条区域 #}
-            <div class="flex flex-col gap-2">
-                {# 有团队目标时：显示双进度条（大小一致） #}
-                <template x-if="teamSummary && teamSummary[selectedMetric]?.target > 0">
-                    <div class="flex flex-col gap-1.5">
-                        {# 个人进度条（淡色） #}
-                        <template x-if="summary[selectedMetric]?.target > 0">
-                            <div class="flex items-center gap-2">
-                                <span class="text-xs text-slate-400 w-8">{{ _('个人') }}</span>
-                                <div class="w-24 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                                    <div class="h-full rounded-full transition-all duration-500"
-                                         :class="metricConfigs[selectedMetric]?.barColorLight"
-                                         :style="'width: ' + Math.min(summary[selectedMetric]?.rate ?? 0, 100) + '%'"></div>
-                                </div>
-                                <span class="text-sm font-medium transition-colors w-10 text-right"
-                                      :class="metricConfigs[selectedMetric]?.lightTextColor?.replace('/70', '')"
-                                      x-text="(summary[selectedMetric]?.rate ?? 0) + '%'"></span>
-                            </div>
-                        </template>
-                        {# 团队进度条（深色） #}
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs text-slate-500 w-8">{{ _('团队') }}</span>
-                            <div class="w-24 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                                <div class="h-full rounded-full transition-all duration-500"
-                                     :class="metricConfigs[selectedMetric]?.barColorDeep"
-                                     :style="'width: ' + Math.min(teamSummary[selectedMetric]?.rate ?? 0, 100) + '%'"></div>
-                            </div>
-                            <span class="text-sm font-medium transition-colors w-10 text-right"
-                                  :class="metricConfigs[selectedMetric]?.textColor"
-                                  x-text="(teamSummary[selectedMetric]?.rate ?? 0) + '%'"></span>
-                        </div>
-                    </div>
-                </template>
-                {# 无团队目标时：单进度条 #}
-                <template x-if="(!teamSummary || !teamSummary[selectedMetric]?.target) && summary[selectedMetric]?.target > 0">
-                    <div class="flex items-center gap-3">
-                        <div class="w-32 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                            <div class="h-full rounded-full transition-all duration-500"
-                                 :class="metricConfigs[selectedMetric]?.barColor"
-                                 :style="'width: ' + Math.min(summary[selectedMetric]?.rate ?? 0, 100) + '%'"></div>
-                        </div>
-                        <span class="text-sm font-medium transition-colors"
-                              :class="metricConfigs[selectedMetric]?.textColor"
-                              x-text="(summary[selectedMetric]?.rate ?? 0) + '%'"></span>
+            {# SVG 折线图 #}
+            {{ render_tw_line_chart(chart_id='goalTrendChart', color='#2979ff') }}
+        </div>
+
+        {# 底部图例 #}
+        <div class="bg-stone-50/80 dark:bg-stone-800/20 border-t border-stone-100 dark:border-stone-800 px-8 py-5">
+            <div class="flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
+                <template x-for="metricCode in configuredItems" :key="'legend_'+metricCode">
+                    <div class="flex items-center gap-2.5 cursor-pointer transition-opacity"
+                         :class="selectedMetric === metricCode ? 'opacity-100' : 'opacity-50 hover:opacity-80'"
+                         @click="selectMetric(metricCode)">
+                        <div class="w-3 h-3 rounded-full"
+                             :style="'background:'+metricConfigs[metricCode]?.chartColor+';box-shadow:0 0 6px '+metricConfigs[metricCode]?.chartColor+'66'"></div>
+                        <span class="text-xs font-semibold tracking-wide text-stone-700 dark:text-stone-300"
+                              x-text="metricConfigs[metricCode]?.label"></span>
                     </div>
                 </template>
             </div>
         </div>
-
-        {# SVG 折线图 #}
-        {{ render_tw_line_chart(chart_id='goalTrendChart', color='#2979ff') }}
     </div>
 
-    {# 月度数据表格 - 动态列 + 紧凑格式 #}
-    <div class="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
-        <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-            <h3 class="text-sm font-medium text-slate-900 dark:text-white">{{ _('月度数据') }}</h3>
+    {# 月度数据表格 — 暖色调呼吸感风格 #}
+    <div class="bg-white dark:bg-neutral-900 rounded-2xl border border-stone-200/60 dark:border-stone-800 shadow-sm overflow-hidden mt-6">
+        {# 标题区 #}
+        <div class="px-8 py-6 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
+            <h3 class="text-xl font-semibold text-stone-800 dark:text-stone-100 flex items-center gap-3 tracking-tight">
+                <span class="material-symbols-outlined text-2xl" :style="'color:'+metricConfigs[selectedMetric]?.chartColor">table_chart</span>
+                {{ _('月度数据') }}
+            </h3>
         </div>
-        <div class="overflow-x-auto" style="max-height: 400px;">
-            <table class="min-w-full text-sm">
-                <thead class="bg-slate-100 dark:bg-slate-700 sticky top-0 z-10">
-                    <tr>
-                        <th class="w-16 px-3 py-2 text-left font-medium text-slate-700 dark:text-slate-300">{{ _('月份') }}</th>
+        {# 表格 #}
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="text-[13px] uppercase tracking-wider text-stone-400 dark:text-stone-500 font-medium">
+                        <th class="py-5 px-8">{{ _('月份') }}</th>
                         <template x-for="item in configuredItems" :key="'th_' + item">
-                            <th class="px-4 py-2 text-right font-medium text-slate-700 dark:text-slate-300"
-                                x-text="getMetricHeaderLabel(item)"></th>
+                            <th class="py-5 px-4 text-right" x-text="getMetricHeaderLabel(item)"></th>
                         </template>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                <tbody class="divide-y divide-stone-50 dark:divide-stone-800/50">
                     <template x-for="row in goalAchievement" :key="row.month">
-                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                            <td class="w-16 px-3 py-2 text-slate-900 dark:text-white whitespace-nowrap" x-text="getMonthLabel(row.month)"></td>
+                        <tr class="transition-colors duration-150 hover:bg-[rgba(180,160,140,0.04)] dark:hover:bg-white/[0.02]">
+                            <td class="py-5 px-8 font-medium text-stone-700 dark:text-stone-300" x-text="getMonthLabel(row.month)"></td>
                             <template x-for="item in configuredItems" :key="item + '_' + row.month">
-                                <td class="px-4 py-2 text-right whitespace-nowrap">
-                                    {# 实际值/目标值 #}
-                                    <span class="text-slate-900 dark:text-white" x-text="formatMetricValue(item, row[item]?.actual)"></span>
+                                <td class="py-5 px-4 text-right whitespace-nowrap">
+                                    <span class="text-stone-800 dark:text-stone-200 font-medium" x-text="formatMetricValue(item, row[item]?.actual)"></span>
                                     <template x-if="row[item]?.target > 0">
-                                        <span class="text-slate-400 dark:text-slate-500">/<span x-text="formatMetricValue(item, row[item]?.target)"></span></span>
+                                        <span>
+                                            <span class="text-stone-300 dark:text-stone-600 mx-0.5">/</span>
+                                            <span class="text-stone-400 dark:text-stone-500 text-[13px]" x-text="formatMetricValue(item, row[item]?.target)"></span>
+                                        </span>
                                     </template>
                                 </td>
                             </template>
@@ -281,7 +293,7 @@
                     {# 无数据提示 #}
                     <template x-if="!goalAchievement || goalAchievement.length === 0">
                         <tr>
-                            <td :colspan="1 + configuredItems.length" class="px-4 py-8 text-center text-slate-400 dark:text-slate-500">
+                            <td :colspan="1 + configuredItems.length" class="px-8 py-12 text-center text-stone-400 dark:text-stone-500">
                                 <span class="material-symbols-outlined text-3xl mb-2 block">inbox</span>
                                 {{ _('暂无月度数据') }}
                             </td>
@@ -289,6 +301,12 @@
                     </template>
                 </tbody>
             </table>
+        </div>
+        {# 底部 footer #}
+        <div class="px-8 py-5 bg-stone-50/50 dark:bg-white/[0.02] border-t border-stone-100/80 dark:border-stone-800 flex justify-between items-center">
+            <p class="text-[12px] text-stone-400 dark:text-stone-500">
+                {{ _('数据自动更新') }}
+            </p>
         </div>
     </div>
     </div>
@@ -1068,8 +1086,9 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 barColor: 'bg-blue-500',
                 barColorLight: 'bg-blue-300 dark:bg-blue-400/50',
                 barColorDeep: 'bg-blue-600 dark:bg-blue-500',
-                chartColorLight: '#93c5fd',
-                chartColorDeep: '#2563eb',
+                chartColor: '#6366f1',
+                chartColorLight: '#6366f160',
+                chartColorDeep: '#6366f1',
                 isPercentage: false,
                 isAmount: true
             },
@@ -1085,8 +1104,9 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 barColor: 'bg-green-500',
                 barColorLight: 'bg-green-300 dark:bg-green-400/50',
                 barColorDeep: 'bg-green-600 dark:bg-green-500',
-                chartColorLight: '#86efac',
-                chartColorDeep: '#16a34a',
+                chartColor: '#0d9488',
+                chartColorLight: '#0d948860',
+                chartColorDeep: '#0d9488',
                 isPercentage: false,
                 isAmount: true
             },
@@ -1102,8 +1122,9 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 barColor: 'bg-purple-500',
                 barColorLight: 'bg-purple-300 dark:bg-purple-400/50',
                 barColorDeep: 'bg-purple-600 dark:bg-purple-500',
-                chartColorLight: '#d8b4fe',
-                chartColorDeep: '#9333ea',
+                chartColor: '#84a59d',
+                chartColorLight: '#84a59d60',
+                chartColorDeep: '#84a59d',
                 isPercentage: false,
                 isAmount: false
             },
@@ -1119,8 +1140,9 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 barColor: 'bg-amber-500',
                 barColorLight: 'bg-amber-300 dark:bg-amber-400/50',
                 barColorDeep: 'bg-amber-600 dark:bg-amber-500',
-                chartColorLight: '#fcd34d',
-                chartColorDeep: '#d97706',
+                chartColor: '#cc7e85',
+                chartColorLight: '#cc7e8560',
+                chartColorDeep: '#cc7e85',
                 isPercentage: false,
                 isAmount: false
             },
@@ -1136,8 +1158,9 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 barColor: 'bg-cyan-500',
                 barColorLight: 'bg-cyan-300 dark:bg-cyan-400/50',
                 barColorDeep: 'bg-cyan-600 dark:bg-cyan-500',
-                chartColorLight: '#67e8f9',
-                chartColorDeep: '#0891b2',
+                chartColor: '#d4a373',
+                chartColorLight: '#d4a37360',
+                chartColorDeep: '#d4a373',
                 isPercentage: true,
                 isAmount: false
             }
@@ -1327,6 +1350,24 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             this.initGoalTrendChart();
         },
 
+        // 计算当前指标最近月份增长率
+        getLatestGrowth() {
+            const m = this.selectedMetric;
+            const data = this.goalAchievement;
+            if (!data || data.length < 2) return '+0.0%';
+            let curr = 0, prev = 0;
+            for (let i = data.length - 1; i >= 1; i--) {
+                if (data[i][m]?.actual > 0) {
+                    curr = data[i][m].actual;
+                    prev = data[i-1][m]?.actual || 0;
+                    break;
+                }
+            }
+            if (prev === 0) return '+0.0%';
+            const g = ((curr - prev) / prev * 100).toFixed(1);
+            return (g >= 0 ? '+' : '') + g + '%';
+        },
+
         // 初始化目标趋势 SVG 折线图（支持双线：个人 + 团队）
         initGoalTrendChart() {
             if (this.goalAchievement.length < 12) return;
@@ -1347,16 +1388,13 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             // 根据选中的指标获取数据和对应颜色（使用 metricConfigs）
             const config = this.metricConfigs[this.selectedMetric];
             let personalData, teamData = null, unit;
-            const personalColor = config?.chartColorLight || '#93c5fd';
-            const teamColor = config?.chartColorDeep || '#2563eb';
+            const teamColor = config?.chartColor || config?.chartColorDeep || '#2563eb';
+            const personalColor = (config?.chartColor || '#2563eb') + '60';
 
             // 根据指标类型获取数据
             if (config?.isPercentage) {
-                // 百分比指标：客户活跃度等
-                // 由于 goalAchievement 是月度数据，而客户活跃度是实时计算的，
-                // 对于百分比指标，显示当前值作为平线
-                const currentRate = this.summary[this.selectedMetric]?.actual || 0;
-                personalData = Array(12).fill(currentRate);
+                // 百分比指标：使用 goalAchievement 中的月度数据
+                personalData = this.goalAchievement.map(r => r[this.selectedMetric]?.actual || 0);
                 unit = '%';
             } else if (config?.isAmount) {
                 // 金额指标
@@ -1370,6 +1408,16 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 unit = '{{ _("个") }}';
             }
 
+            // 当前年份只画到当前月（X轴始终1-12月，折线截止到当前月）
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth() + 1;
+
+            let activeCount = 12;
+            if (this.selectedYear == currentYear && currentMonth < 12) {
+                activeCount = currentMonth;
+            }
+
             // 检查是否有团队数据（只有销售额有团队数据）
             const hasTeamData = this.teamSummary && this.teamSummary[this.selectedMetric]?.target > 0;
 
@@ -1377,7 +1425,8 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 // 生成团队月度数据（按月度比例分配年度团队业绩）
                 // 注意：团队数据目前只有年度汇总，没有月度明细
                 // 暂时使用个人数据按比例放大作为团队数据展示
-                const personalTotal = personalData.reduce((a, b) => a + b, 0);
+                const activePersonal = personalData.slice(0, activeCount);
+                const personalTotal = activePersonal.reduce((a, b) => a + b, 0);
                 const teamTotal = this.teamSummary[this.selectedMetric]?.actual || 0;
                 const ratio = personalTotal > 0 ? teamTotal / personalTotal : 1;
                 teamData = personalData.map(v => v * ratio);
@@ -1389,7 +1438,8 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                     personalLabel: '{{ _("个人") }}',
                     teamLabel: '{{ _("团队") }}',
                     monthLabel: '{{ _("月") }}',
-                    currency: this.userCurrency
+                    currency: this.userCurrency,
+                    activeCount: activeCount
                 });
             } else if (typeof window.initSvgLineChart === 'function') {
                 // 无团队数据，使用单线图（使用深色）
@@ -1403,7 +1453,8 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                     unit: unit,
                     color: teamColor,
                     monthLabel: '{{ _("月") }}',
-                    currency: this.userCurrency
+                    currency: this.userCurrency,
+                    activeCount: activeCount
                 });
             }
         },

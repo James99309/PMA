@@ -36,20 +36,20 @@ Tailwind 标签页组件
 
 {# 标签页导航 HTML #}
 {% macro render_tw_tabs(tabs, current_tab) %}
-<nav class="flex flex-wrap gap-1 mb-6 border-b border-slate-200 dark:border-slate-700" role="tablist">
+<nav class="flex flex-wrap gap-2 mb-6 border-b border-slate-200 dark:border-slate-700" role="tablist">
     {% for tab in tabs %}
     <a href="#"
        data-tab="{{ tab.key }}"
        role="tab"
        aria-selected="{{ 'true' if tab.key == current_tab else 'false' }}"
-       class="tw-tab-item inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg -mb-px transition-colors
+       class="tw-tab-item inline-flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium rounded-t-lg -mb-px transition-colors
               {% if tab.key == current_tab %}
               text-primary border-b-2 border-primary bg-white dark:bg-black
               {% else %}
               text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary border-b-2 border-transparent
               {% endif %}">
         {% if tab.icon %}
-        <span class="material-symbols-outlined text-base {{ tab.icon_class or '' }}">{{ tab.icon }}</span>
+        <span class="material-symbols-outlined {{ tab.icon_class or '' }}" style="font-variation-settings:'FILL' 1,'wght' 400;font-size:20px">{{ tab.icon }}</span>
         {% endif %}
         <span>{{ tab.label }}</span>
         {% if tab.count is defined and tab.count is not none %}
@@ -136,18 +136,18 @@ Tailwind 标签页组件
 {# </div>                                                                       #}
 {# ============================================================================= #}
 {% macro render_tw_alpine_tabs(tabs, model='activeTab', container_class='') %}
-<nav class="flex flex-wrap gap-1 mb-6 border-b border-slate-200 dark:border-slate-700 {{ container_class }}" role="tablist">
+<nav class="flex flex-wrap gap-2 mb-6 border-b border-slate-200 dark:border-slate-700 {{ container_class }}" role="tablist">
     {% for tab in tabs %}
     <button type="button"
             @click="{{ model }} = '{{ tab.key }}'"
             role="tab"
             :aria-selected="{{ model }} === '{{ tab.key }}'"
-            class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg -mb-px transition-colors focus:outline-none"
+            class="inline-flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium rounded-t-lg -mb-px transition-colors focus:outline-none"
             :class="{{ model }} === '{{ tab.key }}'
                 ? 'text-primary border-b-2 border-primary bg-white dark:bg-black'
                 : 'text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary border-b-2 border-transparent'">
         {% if tab.icon %}
-        <span class="material-symbols-outlined text-base {{ tab.icon_class or '' }}">{{ tab.icon }}</span>
+        <span class="material-symbols-outlined {{ tab.icon_class or '' }}" style="font-variation-settings:'FILL' 1,'wght' 400;font-size:20px">{{ tab.icon }}</span>
         {% endif %}
         <span>{{ tab.label }}</span>
         {% if tab.count is defined and tab.count is not none %}

@@ -7707,6 +7707,18 @@ msgstr "No expense data"
 msgid "暂无月度数据"
 msgstr "No monthly data"
 
+msgid "目标完成度"
+msgstr "Target Completion"
+
+msgid "当前增长率"
+msgstr "Current Growth"
+
+msgid "数据自动更新"
+msgstr "Data auto-updates"
+
+msgid "累计"
+msgstr "Total"
+
 msgid "暂无行业数据"
 msgstr "No industry data"
 

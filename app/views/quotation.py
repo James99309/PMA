@@ -149,6 +149,9 @@ def list_quotations():
             else:
                 query = query.filter(Project.project_type == project_type_filter)
 
+        # 保存过滤后的查询（无 ORDER BY），用于统计聚合
+        filtered_query = query
+
         # ============================================================
         # 5. 应用排序
         # ============================================================
@@ -266,7 +269,7 @@ def list_quotations():
 
         # 计算统计数据（复用已筛选的 query，单次条件聚合替代 8 次 SQL）
         from sqlalchemy import case
-        stats_result = query.with_entities(
+        stats_result = filtered_query.with_entities(
             func.count(Quotation.id).label('total'),
             func.coalesce(func.sum(Quotation.amount), 0).label('total_amount'),
             func.count(case((Quotation.approval_status == 'approved', Quotation.id))).label('approved_count'),

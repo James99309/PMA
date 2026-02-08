@@ -81,6 +81,54 @@ def run_project_activity_correction():
         logger.error(traceback.format_exc())
 
 
+def run_monthly_activity_snapshot():
+    """
+    为所有活跃用户生成当月活跃度快照
+
+    在每日 02:00 执行，冻结当月活跃度数据。
+    时序：01:00 公司活跃度更新 → 01:30 项目活跃度更新 → 02:00 快照冻结
+    """
+    from flask import current_app
+    from app import create_app, db
+    from app.models.user import User
+    from app.services.performance_dashboard_service import PerformanceDashboardService
+
+    logger.info(f"[{datetime.now()}] 开始执行月度活跃度快照任务...")
+
+    try:
+        try:
+            app = current_app._get_current_object()
+        except RuntimeError:
+            app = create_app()
+
+        with app.app_context():
+            now = datetime.now()
+            current_year = now.year
+            current_month = now.month
+
+            # 查询所有活跃用户
+            active_users = User.query.filter_by(is_active=True).all()
+            success_count = 0
+            fail_count = 0
+
+            for user in active_users:
+                try:
+                    PerformanceDashboardService.create_monthly_activity_snapshot(
+                        user.id, current_year, current_month
+                    )
+                    success_count += 1
+                except Exception as e:
+                    fail_count += 1
+                    logger.warning(f"用户 {user.id} 快照生成失败: {e}")
+
+            logger.info(f"[{datetime.now()}] 月度活跃度快照完成: 成功 {success_count}, 失败 {fail_count}, 总计 {len(active_users)}")
+
+    except Exception as e:
+        logger.error(f"[{datetime.now()}] 月度活跃度快照任务失败: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+
+
 def _run_schedule():
     """
     调度器主循环
@@ -115,6 +163,7 @@ def start_scheduler(run_time="01:00"):
     # 设置每日定时任务
     schedule.every().day.at(run_time).do(run_activity_correction)
     schedule.every().day.at("01:30").do(run_project_activity_correction)
+    schedule.every().day.at("02:00").do(run_monthly_activity_snapshot)
 
     _scheduler_running = True
 
@@ -122,7 +171,7 @@ def start_scheduler(run_time="01:00"):
     _scheduler_thread = threading.Thread(target=_run_schedule, daemon=True)
     _scheduler_thread.start()
 
-    logger.info(f"定时任务调度器已启动，每日 {run_time} 执行客户活跃度修正，01:30 执行项目活跃度修正")
+    logger.info(f"定时任务调度器已启动，每日 {run_time} 客户活跃度修正，01:30 项目活跃度修正，02:00 活跃度快照")
 
 
 def stop_scheduler():

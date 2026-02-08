@@ -15,5 +15,7 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #1150 | 4:54 PM | 🔵 | Performance Blueprint API Endpoints Overview | ~393 |
+| #1146 | 4:52 PM | 🔵 | Performance Views Blueprint Architecture | ~568 |
 | #1009 | 12:04 PM | 🔵 | Performance Views Blueprint Structure | ~819 |
 </claude-mem-context>

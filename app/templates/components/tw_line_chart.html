@@ -297,6 +297,7 @@ window.initSvgLineChart = function(chartId, monthlyData, options = {}) {
 
     const svg = document.getElementById(chartId);
     if (!svg || !monthlyData || monthlyData.length < 12) return;
+    const activeCount = options.activeCount || monthlyData.length;
 
     // 清空之前的内容
     ['GridLines', 'YLabels', 'XLabels', 'DataPoints'].forEach(suffix => {
@@ -382,7 +383,7 @@ window.initSvgLineChart = function(chartId, monthlyData, options = {}) {
         yLabels.appendChild(text);
     });
 
-    // 生成X轴标签
+    // 生成X轴标签（始终12个月）
     const xLabels = document.getElementById(chartId + 'XLabels');
     // 动态设置X轴标签颜色
     if (xLabels) xLabels.setAttribute('fill', color);
@@ -393,8 +394,9 @@ window.initSvgLineChart = function(chartId, monthlyData, options = {}) {
         xLabels.appendChild(text);
     }
 
-    // 生成路径点
-    const points = monthlyData.map((val, i) => ({ x: getX(i), y: getY(val), val: val, month: i + 1 }));
+    // 生成所有12个月的坐标点，但路径和数据点只画到 activeCount
+    const allPoints = monthlyData.map((val, i) => ({ x: getX(i), y: getY(val), val: val, month: i + 1 }));
+    const points = allPoints.slice(0, activeCount);
 
     // 生成平滑曲线路径（使用二次贝塞尔曲线）
     function getSmoothPath(pts) {
@@ -412,7 +414,7 @@ window.initSvgLineChart = function(chartId, monthlyData, options = {}) {
     document.getElementById(chartId + 'LinePath').setAttribute('d', linePath);
 
     // 生成面积填充路径
-    const areaPath = linePath + ` L${points[11].x},${chartBottom} L${points[0].x},${chartBottom} Z`;
+    const areaPath = linePath + ` L${points[points.length - 1].x},${chartBottom} L${points[0].x},${chartBottom} Z`;
     document.getElementById(chartId + 'AreaPath').setAttribute('d', areaPath);
 
     // 生成数据点和交互
@@ -450,9 +452,11 @@ window.initSvgLineChart = function(chartId, monthlyData, options = {}) {
         pointsGroup.appendChild(g);
     });
 
-    // 最大值点添加高亮效果
-    const maxIndex = monthlyData.indexOf(Math.max(...monthlyData));
-    if (monthlyData[maxIndex] > 0) {
+    // 最大值点添加高亮效果（只在活跃数据范围内查找）
+    const activeData = monthlyData.slice(0, activeCount);
+    const maxVal2 = Math.max(...activeData);
+    const maxIndex = activeData.indexOf(maxVal2);
+    if (maxVal2 > 0 && maxIndex >= 0) {
         const maxPointGroup = pointsGroup.children[maxIndex];
         if (maxPointGroup) {
             const maxCircle = maxPointGroup.querySelector('circle');
@@ -488,6 +492,7 @@ window.initDualLineChart = function(chartId, personalData, teamData, options = {
 
     const svg = document.getElementById(chartId);
     if (!svg || !personalData || personalData.length < 12) return;
+    const activeCount = options.activeCount || personalData.length;
 
     // 清空之前的内容
     ['GridLines', 'YLabels', 'XLabels', 'DataPoints'].forEach(suffix => {
@@ -558,7 +563,7 @@ window.initDualLineChart = function(chartId, personalData, teamData, options = {
         yLabels.appendChild(text);
     });
 
-    // 生成X轴标签
+    // 生成X轴标签（始终12个月）
     const xLabels = document.getElementById(chartId + 'XLabels');
     for (let i = 0; i < 12; i++) {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -567,9 +572,11 @@ window.initDualLineChart = function(chartId, personalData, teamData, options = {
         xLabels.appendChild(text);
     }
 
-    // 生成路径点
-    const personalPoints = personalData.map((val, i) => ({ x: getX(i), y: getY(val), val: val, month: i + 1 }));
-    const teamPoints = teamData.map((val, i) => ({ x: getX(i), y: getY(val), val: val, month: i + 1 }));
+    // 生成所有12个月的坐标点，但路径只画到 activeCount
+    const allPersonalPoints = personalData.map((val, i) => ({ x: getX(i), y: getY(val), val: val, month: i + 1 }));
+    const allTeamPoints = teamData.map((val, i) => ({ x: getX(i), y: getY(val), val: val, month: i + 1 }));
+    const personalPoints = allPersonalPoints.slice(0, activeCount);
+    const teamPoints = allTeamPoints.slice(0, activeCount);
 
     function getSmoothPath(pts) {
         if (pts.length < 2) return '';
@@ -594,7 +601,7 @@ window.initDualLineChart = function(chartId, personalData, teamData, options = {
     linePathEl.setAttribute('stroke-width', '2.5');
 
     // 团队面积填充
-    const teamAreaPath = teamLinePath + ` L${teamPoints[11].x},${chartBottom} L${teamPoints[0].x},${chartBottom} Z`;
+    const teamAreaPath = teamLinePath + ` L${teamPoints[teamPoints.length - 1].x},${chartBottom} L${teamPoints[0].x},${chartBottom} Z`;
     document.getElementById(chartId + 'AreaPath').setAttribute('d', teamAreaPath);
 
     // 添加个人线路径（浅色，细线）

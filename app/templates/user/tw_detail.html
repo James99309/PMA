@@ -62,8 +62,8 @@
                 extend: {
                     colors: {
                         "primary": "#137fec",
-                        "background-light": "#f6f7f8",
-                        "background-dark": "#101922",
+                        "background-light": "#faf8f6",
+                        "background-dark": "#1a1816",
                     },
                     fontFamily: {
                         "display": ["Inter", "sans-serif"]
@@ -178,10 +178,12 @@
         {% if can_view_salary %}
         {% set tabs = tabs + [{'key': 'salary', 'label': _('薪资明细'), 'icon': 'payments'}] %}
         {% endif %}
-        {{ render_tw_tabs(tabs, 'base') }}
+        <div class="sticky top-0 z-20 bg-background-light dark:bg-black -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 pt-2 [&>nav]:mb-0">
+            {{ render_tw_tabs(tabs, 'base') }}
+        </div>
 
         <!-- 标签页内容容器 -->
-        <div id="tabContent" class="space-y-6">
+        <div id="tabContent" class="mt-6 space-y-6">
             <!-- 基本信息标签页 -->
             <div id="tab-base" class="tab-panel hidden">
                 <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">

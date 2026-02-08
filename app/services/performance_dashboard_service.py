@@ -15,6 +15,7 @@ from app.models.project import Project
 from app.services.performance_service import PerformanceService
 from app.models.salary_config import EmployeeSalaryConfig, QuarterlyPerformanceData, SalesTeamConfig
 # 2026-01-08: 废弃旧的 KPI 目标系统，不再需要导入 RolePerformanceTarget, UserPerformanceTarget, PerformanceMetricsDefinition
+from app.models.monthly_activity_snapshot import MonthlyActivitySnapshot
 from app.utils.activity_tracker import FROZEN_STAGES
 from app.services.exchange_rate_service import exchange_rate_service
 from config import Config
@@ -208,9 +209,9 @@ class PerformanceDashboardService:
             # 计算月度增长
             monthly_growth = PerformanceDashboardService._calculate_monthly_growth(yearly_stats)
 
-            # 格式化目标达成数据
+            # 格式化目标达成数据（传入配置项和user_id以支持动态指标）
             goal_achievement = PerformanceDashboardService._format_goal_achievement(
-                yearly_stats, targets_dict
+                yearly_stats, targets_dict, configured_items, user_id, year
             )
 
             # 检查是否为M级管理者并获取团队目标
@@ -631,12 +632,59 @@ class PerformanceDashboardService:
             ).count()
             project_link_rate = (linked_actions / total_actions * 100) if total_actions > 0 else 0
 
-            # 业务维度 - 客户活跃度
-            customer_activity_data = PerformanceService.calculate_customer_activity_rate(user_id)
+            # 业务维度 - 客户活跃度 & 项目活跃度
+            # 历史月份从快照取，当前月用实时计算
+            customer_activity_data = None
+            project_activity_data = None
+            if is_monthly:
+                # 统一提取年月，无论来自 year_month 还是 year+month
+                if year_month:
+                    ym_year, ym_month = map(int, year_month.split('-'))
+                else:
+                    ym_year, ym_month = year, month
+
+                # 当前月不查快照，用实时数据
+                now = datetime.now()
+                is_current_month = (ym_year == now.year and ym_month == now.month)
+
+                if not is_current_month:
+                    snapshot = MonthlyActivitySnapshot.query.filter_by(
+                        user_id=user_id, year=ym_year, month=ym_month
+                    ).first()
+                    if snapshot:
+                        customer_activity_rate = float(snapshot.customer_activity_rate)
+                        project_activity_rate = float(snapshot.project_activity_rate)
+                        customer_activity_data = {
+                            'rate': customer_activity_rate,
+                            'highly_active_count': snapshot.customer_highly_active,
+                            'active_count': snapshot.customer_active,
+                            'normal_count': snapshot.customer_normal,
+                            'to_follow_count': snapshot.customer_to_follow,
+                            'dormant_count': snapshot.customer_dormant,
+                            'churned_count': snapshot.customer_churned,
+                            'total_count': snapshot.customer_total,
+                        }
+                        project_activity_data = {
+                            'rate': project_activity_rate,
+                            'highly_active_count': snapshot.project_highly_active,
+                            'active_count': snapshot.project_active,
+                            'normal_count': snapshot.project_normal,
+                            'to_follow_count': snapshot.project_to_follow,
+                            'dormant_count': snapshot.project_dormant,
+                            'churned_count': snapshot.project_churned,
+                            'total_count': snapshot.project_total,
+                            'frozen_count': snapshot.project_frozen,
+                            'active_total': snapshot.project_total - snapshot.project_frozen,
+                            'healthy_count': snapshot.project_highly_active + snapshot.project_active + snapshot.project_normal,
+                            'stage_breakdown': {},
+                        }
+
+            if customer_activity_data is None:
+                customer_activity_data = PerformanceService.calculate_customer_activity_rate(user_id)
             customer_activity_rate = customer_activity_data['rate']
 
-            # 业务维度 - 项目活跃度
-            project_activity_data = PerformanceService.calculate_project_activity_rate(user_id)
+            if project_activity_data is None:
+                project_activity_data = PerformanceService.calculate_project_activity_rate(user_id)
             project_activity_rate = project_activity_data['rate']
 
             # 各维度得分（0-100）
@@ -1065,51 +1113,84 @@ class PerformanceDashboardService:
             return []
 
     @staticmethod
-    def _format_goal_achievement(yearly_stats, targets_dict):
-        """格式化目标达成数据（用于图表）"""
+    def _format_goal_achievement(yearly_stats, targets_dict, configured_items=None, user_id=None, year=None):
+        """格式化目标达成数据（用于图表）
+
+        Args:
+            yearly_stats: 年度统计数据（12个月）
+            targets_dict: 目标值字典 {month: {field: value}}
+            configured_items: 用户配置的绩效项目代码列表（可选，None时使用默认4指标）
+            user_id: 用户ID（可选，用于获取客户活跃度等快照指标）
+            year: 年份（可选，用于从快照表取历史数据）
+        """
         try:
             achievement = []
+
+            # yearly_stats 中可用的指标映射: item_code -> (actual_field, target_field)
+            stats_field_mapping = {
+                'implant_amount': ('implant_amount_actual', 'implant_amount_target'),
+                'sales_amount': ('sales_amount_actual', 'sales_amount_target'),
+                'new_customers': ('new_customers_actual', 'new_customers_target'),
+                'new_projects': ('new_projects_actual', 'new_projects_target'),
+            }
+
+            # 客户活跃度：优先从快照取历史数据，当前月用实时计算
+            activity_rate = None
+            activity_snapshots = {}
+            if configured_items and 'customer_activity_rate' in configured_items and user_id:
+                activity_data = PerformanceService.calculate_customer_activity_rate(user_id)
+                activity_rate = activity_data['rate']
+                stat_year = year or datetime.now().year
+                activity_snapshots = PerformanceDashboardService.get_activity_snapshots(user_id, stat_year)
+
+            # 获取目标值，兼容新格式(dict)和旧格式(PerformanceTarget对象)
+            def get_target_value(target, field, default=0, as_int=False):
+                if not target:
+                    return default
+                if isinstance(target, dict):
+                    val = target.get(field, default) or default
+                else:
+                    val = getattr(target, field, default) or default
+                return int(val) if as_int else float(val)
+
+            # 决定要处理的指标列表
+            items_to_process = configured_items if configured_items else list(stats_field_mapping.keys())
 
             for i, stats in enumerate(yearly_stats):
                 month = i + 1
                 target = targets_dict.get(month)
+                month_data = {'month': month}
 
-                # 获取目标值，兼容新格式(dict)和旧格式(PerformanceTarget对象)
-                def get_target_value(target, field, default=0, as_int=False):
-                    if not target:
-                        return default
-                    if isinstance(target, dict):
-                        val = target.get(field, default) or default
-                    else:
-                        val = getattr(target, field, default) or default
-                    return int(val) if as_int else float(val)
+                for item_code in items_to_process:
+                    if item_code in stats_field_mapping:
+                        actual_field, target_field = stats_field_mapping[item_code]
+                        actual_val = getattr(stats, actual_field, 0) or 0
+                        is_int = item_code in ('new_customers', 'new_projects')
+                        target_val = get_target_value(target, target_field, as_int=is_int)
+                        rate = (actual_val / target_val * 100) if target_val > 0 else 0
+                        month_data[item_code] = {
+                            'actual': actual_val,
+                            'target': target_val,
+                            'rate': round(rate, 1)
+                        }
+                    elif item_code == 'customer_activity_rate':
+                        # 当前月用实时值，历史月从快照取
+                        target_val = get_target_value(target, 'customer_activity_rate_target', default=0)
+                        current_year = datetime.now().year
+                        current_month = datetime.now().month
+                        is_current = (month == current_month and (year or current_year) == current_year)
 
-                month_data = {
-                    'month': month,
-                    'implant_amount': {
-                        'actual': getattr(stats, 'implant_amount_actual', 0) or 0,
-                        'target': get_target_value(target, 'implant_amount_target'),
-                    },
-                    'sales_amount': {
-                        'actual': getattr(stats, 'sales_amount_actual', 0) or 0,
-                        'target': get_target_value(target, 'sales_amount_target'),
-                    },
-                    'new_customers': {
-                        'actual': getattr(stats, 'new_customers_actual', 0) or 0,
-                        'target': get_target_value(target, 'new_customers_target', as_int=True),
-                    },
-                    'new_projects': {
-                        'actual': getattr(stats, 'new_projects_actual', 0) or 0,
-                        'target': get_target_value(target, 'new_projects_target', as_int=True),
-                    },
-                }
-
-                # 计算达成率
-                for key in ['implant_amount', 'sales_amount', 'new_customers', 'new_projects']:
-                    target_val = month_data[key]['target']
-                    actual_val = month_data[key]['actual']
-                    rate = (actual_val / target_val * 100) if target_val > 0 else 0
-                    month_data[key]['rate'] = round(rate, 1)
+                        if is_current:
+                            actual = activity_rate or 0
+                        else:
+                            snapshot = activity_snapshots.get(month)
+                            actual = float(snapshot.customer_activity_rate) if snapshot else 0
+                        rate = (actual / target_val * 100) if actual and target_val > 0 else 0
+                        month_data[item_code] = {
+                            'actual': actual,
+                            'target': target_val,
+                            'rate': round(rate, 1)
+                        }
 
                 achievement.append(month_data)
 
@@ -1299,7 +1380,17 @@ class PerformanceDashboardService:
             ).all()
 
             if not user_targets:
-                # 用户没有配置，返回空列表（前端显示"未配置绩效目标"）
+                # 当前年份无配置，回退到最近一年的配置
+                latest_target = UserPerformanceTarget.query.filter_by(
+                    user_id=user_id
+                ).order_by(UserPerformanceTarget.year.desc()).first()
+
+                if latest_target:
+                    user_targets = UserPerformanceTarget.query.filter_by(
+                        user_id=user_id, year=latest_target.year
+                    ).all()
+
+            if not user_targets:
                 return []
 
             # 转换为看板指标代码
@@ -1382,3 +1473,56 @@ class PerformanceDashboardService:
         except Exception as e:
             logger.error(f"获取团队目标失败: user_id={user_id}, year={year}, error={e}")
             return None
+
+    # === 月度活跃度快照 ===
+
+    @staticmethod
+    def create_monthly_activity_snapshot(user_id, year, month):
+        """计算并存储某月的活跃度快照（upsert）"""
+        try:
+            customer_data = PerformanceService.calculate_customer_activity_rate(user_id)
+            project_data = PerformanceService.calculate_project_activity_rate(user_id)
+
+            snapshot = MonthlyActivitySnapshot.query.filter_by(
+                user_id=user_id, year=year, month=month
+            ).first()
+            if not snapshot:
+                snapshot = MonthlyActivitySnapshot(user_id=user_id, year=year, month=month)
+                db.session.add(snapshot)
+
+            # 客户活跃度
+            snapshot.customer_total = customer_data.get('total_count', 0)
+            snapshot.customer_highly_active = customer_data.get('highly_active_count', 0)
+            snapshot.customer_active = customer_data.get('active_count', 0)
+            snapshot.customer_normal = customer_data.get('normal_count', 0)
+            snapshot.customer_to_follow = customer_data.get('to_follow_count', 0)
+            snapshot.customer_dormant = customer_data.get('dormant_count', 0)
+            snapshot.customer_churned = customer_data.get('churned_count', 0)
+            snapshot.customer_activity_rate = customer_data.get('rate', 0)
+
+            # 项目活跃度
+            snapshot.project_total = project_data.get('total_count', 0)
+            snapshot.project_highly_active = project_data.get('highly_active_count', 0)
+            snapshot.project_active = project_data.get('active_count', 0)
+            snapshot.project_normal = project_data.get('normal_count', 0)
+            snapshot.project_to_follow = project_data.get('to_follow_count', 0)
+            snapshot.project_dormant = project_data.get('dormant_count', 0)
+            snapshot.project_churned = project_data.get('churned_count', 0)
+            snapshot.project_frozen = project_data.get('frozen_count', 0)
+            snapshot.project_activity_rate = project_data.get('rate', 0)
+
+            snapshot.calculated_at = datetime.utcnow()
+            db.session.commit()
+            return snapshot
+        except Exception as e:
+            db.session.rollback()
+            logger.warning(f"创建活跃度快照失败: user_id={user_id}, {year}-{month}, error={e}")
+            return None
+
+    @staticmethod
+    def get_activity_snapshots(user_id, year):
+        """获取某用户某年的月度快照 {month: snapshot}"""
+        snapshots = MonthlyActivitySnapshot.query.filter_by(
+            user_id=user_id, year=year
+        ).order_by(MonthlyActivitySnapshot.month).all()
+        return {s.month: s for s in snapshots}

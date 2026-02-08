@@ -5,6 +5,8 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #1155 | 4:55 PM | 🔵 | Comprehensive Performance Dashboard Architecture Documentation | ~987 |
+| #1153 | 4:54 PM | 🔵 | Performance Dashboard API Implementation Details | ~684 |
 | #1012 | 12:05 PM | 🔵 | Performance Dashboard Complete Architecture Analysis | ~1037 |
 | #1011 | " | 🔵 | Performance Dashboard API Implementation | ~901 |
 </claude-mem-context>

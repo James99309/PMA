@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图表 activeCount 预览 - 2026年2月效果</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
+    h1 { font-size: 18px; margin-bottom: 20px; color: #94a3b8; }
+    h2 { font-size: 14px; margin: 16px 0 8px; color: #64748b; }
+    .chart-container { background: #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 24px; border: 1px solid #334155; }
+    .chart-title { font-size: 13px; color: #94a3b8; margin-bottom: 8px; }
+    .tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-left: 8px; }
+    .tag-green { background: #064e3b; color: #34d399; }
+    .tag-red { background: #7f1d1d; color: #fca5a5; }
+    .tag-blue { background: #1e3a5f; color: #93c5fd; }
+    .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .line-chart-point { cursor: pointer; transition: all 0.15s ease; }
+    .line-chart-point:hover circle:first-child { filter: drop-shadow(0 0 4px rgba(41, 121, 255, 0.6)); }
+    .line-chart-glow-point { filter: drop-shadow(0 0 4px rgba(41, 121, 255, 0.6)); }
+    .note { font-size: 12px; color: #64748b; margin-top: 6px; padding: 8px 12px; background: #0f172a; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<h1>activeCount 方案预览：X轴保留12月，折线只画到当前月</h1>
+
+<div class="comparison">
+    <!-- 左：当前问题 -->
+    <div class="chart-container">
+        <div class="chart-title">
+            当前实现（slice 截断）<span class="tag tag-red">问题</span>
+        </div>
+        <div class="relative" style="aspect-ratio: 3.5/1;">
+            <svg class="w-full h-full" viewBox="0 0 800 220" preserveAspectRatio="xMidYMid meet" id="chartBad" width="100%" height="100%">
+                <defs>
+                    <linearGradient id="chartBadGrad" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stop-color="#2563eb" stop-opacity="0.3"></stop>
+                        <stop offset="100%" stop-color="#2563eb" stop-opacity="0"></stop>
+                    </linearGradient>
+                </defs>
+                <g stroke="#334155" stroke-width="0.5" id="chartBadGridLines"></g>
+                <g fill="#64748b" style="font-size: 10px;" text-anchor="end" id="chartBadYLabels"></g>
+                <g fill="#94a3b8" style="font-size: 10px;" text-anchor="middle" id="chartBadXLabels"></g>
+                <path id="chartBadAreaPath" fill="url(#chartBadGrad)" opacity="0.6"></path>
+                <path id="chartBadLinePath" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                <g id="chartBadDataPoints"></g>
+                <g id="chartBadTooltip" visibility="hidden" transform="translate(620, 10)">
+                    <rect rx="4" height="28" width="140" fill="#1e232d" stroke="#2d333b" stroke-width="1"></rect>
+                    <text fill="#e2e8f0" style="font-size: 12px;" text-anchor="middle" x="70" y="18"></text>
+                </g>
+            </svg>
+        </div>
+        <div class="note">只有2个X轴标签，2个数据点铺满全宽 — 不直观</div>
+    </div>
+
+    <!-- 右：activeCount 方案 -->
+    <div class="chart-container">
+        <div class="chart-title">
+            activeCount 方案（保留12月X轴）<span class="tag tag-green">修正</span>
+        </div>
+        <div class="relative" style="aspect-ratio: 3.5/1;">
+            <svg class="w-full h-full" viewBox="0 0 800 220" preserveAspectRatio="xMidYMid meet" id="chartGood" width="100%" height="100%">
+                <defs>
+                    <linearGradient id="chartGoodGrad" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stop-color="#2563eb" stop-opacity="0.3"></stop>
+                        <stop offset="100%" stop-color="#2563eb" stop-opacity="0"></stop>
+                    </linearGradient>
+                </defs>
+                <g stroke="#334155" stroke-width="0.5" id="chartGoodGridLines"></g>
+                <g fill="#64748b" style="font-size: 10px;" text-anchor="end" id="chartGoodYLabels"></g>
+                <g fill="#94a3b8" style="font-size: 10px;" text-anchor="middle" id="chartGoodXLabels"></g>
+                <path id="chartGoodAreaPath" fill="url(#chartGoodGrad)" opacity="0.6"></path>
+                <path id="chartGoodLinePath" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                <g id="chartGoodDataPoints"></g>
+                <g id="chartGoodTooltip" visibility="hidden" transform="translate(620, 10)">
+                    <rect rx="4" height="28" width="140" fill="#1e232d" stroke="#2d333b" stroke-width="1"></rect>
+                    <text fill="#e2e8f0" style="font-size: 12px;" text-anchor="middle" x="70" y="18"></text>
+                </g>
+            </svg>
+        </div>
+        <div class="note">12个月X轴完整显示，折线只画到2月，3-12月留白</div>
+    </div>
+</div>
+
+<h2>更多示例</h2>
+<div class="comparison">
+    <!-- 活跃度（百分比平线） -->
+    <div class="chart-container">
+        <div class="chart-title">
+            客户活跃度趋势（2026年，activeCount=2）<span class="tag tag-blue">快照平线</span>
+        </div>
+        <div class="relative" style="aspect-ratio: 3.5/1;">
+            <svg class="w-full h-full" viewBox="0 0 800 220" preserveAspectRatio="xMidYMid meet" id="chartActivity" width="100%" height="100%">
+                <defs>
+                    <linearGradient id="chartActivityGrad" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stop-color="#10b981" stop-opacity="0.3"></stop>
+                        <stop offset="100%" stop-color="#10b981" stop-opacity="0"></stop>
+                    </linearGradient>
+                </defs>
+                <g stroke="#334155" stroke-width="0.5" id="chartActivityGridLines"></g>
+                <g fill="#10b981" style="font-size: 10px;" text-anchor="end" id="chartActivityYLabels"></g>
+                <g fill="#10b981" style="font-size: 10px;" text-anchor="middle" id="chartActivityXLabels"></g>
+                <path id="chartActivityAreaPath" fill="url(#chartActivityGrad)" opacity="0.6"></path>
+                <path id="chartActivityLinePath" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                <g id="chartActivityDataPoints"></g>
+                <g id="chartActivityTooltip" visibility="hidden" transform="translate(620, 10)">
+                    <rect rx="4" height="28" width="140" fill="#1e232d" stroke="#2d333b" stroke-width="1"></rect>
+                    <text fill="#e2e8f0" style="font-size: 12px;" text-anchor="middle" x="70" y="18"></text>
+                </g>
+            </svg>
+        </div>
+        <div class="note">活跃度是快照指标，1-2月显示当前值(68.5%)平线，3-12月留白</div>
+    </div>
+
+    <!-- 2025年完整 -->
+    <div class="chart-container">
+        <div class="chart-title">
+            销售额趋势（2025年，activeCount=12）<span class="tag tag-green">完整年度</span>
+        </div>
+        <div class="relative" style="aspect-ratio: 3.5/1;">
+            <svg class="w-full h-full" viewBox="0 0 800 220" preserveAspectRatio="xMidYMid meet" id="chartFull" width="100%" height="100%">
+                <defs>
+                    <linearGradient id="chartFullGrad" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stop-color="#2563eb" stop-opacity="0.3"></stop>
+                        <stop offset="100%" stop-color="#2563eb" stop-opacity="0"></stop>
+                    </linearGradient>
+                </defs>
+                <g stroke="#334155" stroke-width="0.5" id="chartFullGridLines"></g>
+                <g fill="#64748b" style="font-size: 10px;" text-anchor="end" id="chartFullYLabels"></g>
+                <g fill="#94a3b8" style="font-size: 10px;" text-anchor="middle" id="chartFullXLabels"></g>
+                <path id="chartFullAreaPath" fill="url(#chartFullGrad)" opacity="0.6"></path>
+                <path id="chartFullLinePath" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                <g id="chartFullDataPoints"></g>
+                <g id="chartFullTooltip" visibility="hidden" transform="translate(620, 10)">
+                    <rect rx="4" height="28" width="140" fill="#1e232d" stroke="#2d333b" stroke-width="1"></rect>
+                    <text fill="#e2e8f0" style="font-size: 12px;" text-anchor="middle" x="70" y="18"></text>
+                </g>
+            </svg>
+        </div>
+        <div class="note">历史年份：12个月完整显示，不受 activeCount 影响</div>
+    </div>
+</div>
+
+<script>
+// ===== 通用图表渲染函数（含 activeCount 支持）=====
+function renderChart(chartId, monthlyData, options = {}) {
+    const color = options.color || '#2563eb';
+    const unit = options.unit || '';
+    const activeCount = options.activeCount || monthlyData.length;
+
+    const svg = document.getElementById(chartId);
+    if (!svg || !monthlyData || monthlyData.length < 2) return;
+
+    const chartLeft = 30, chartRight = 790, chartTop = 20, chartBottom = 175;
+    const chartWidth = chartRight - chartLeft;
+    const chartHeight = chartBottom - chartTop;
+
+    const maxVal = Math.max(...monthlyData);
+    function getNiceMax(val) {
+        if (val <= 0) return 10;
+        const magnitude = Math.pow(10, Math.floor(Math.log10(val)));
+        const normalized = val / magnitude;
+        let nice;
+        if (normalized <= 1) nice = 1;
+        else if (normalized <= 2) nice = 2;
+        else if (normalized <= 2.5) nice = 2.5;
+        else if (normalized <= 5) nice = 5;
+        else nice = 10;
+        return nice * magnitude;
+    }
+    const niceMax = getNiceMax(maxVal);
+
+    function formatYLabel(val) {
+        if (val >= 10000) return (val / 10000).toFixed(val % 10000 === 0 ? 0 : 1) + '万';
+        if (val >= 1000) return (val / 1000).toFixed(val % 1000 === 0 ? 0 : 1) + 'k';
+        return Number.isInteger(val) ? val.toString() : val.toFixed(1);
+    }
+
+    function getY(val) { return chartBottom - (val / niceMax) * chartHeight; }
+
+    // X轴始终按12个月间距计算
+    const totalMonths = monthlyData.length;
+    function getX(i) { return chartLeft + 26 + (i * (chartWidth - 52) / (totalMonths - 1)); }
+
+    // 网格线和Y轴标签
+    const gridLines = document.getElementById(chartId + 'GridLines');
+    const yLabels = document.getElementById(chartId + 'YLabels');
+    if (yLabels) yLabels.setAttribute('fill', color);
+    [0, 0.2, 0.4, 0.6, 0.8, 1].forEach(step => {
+        const val = niceMax * step;
+        const y = getY(val);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', chartLeft); line.setAttribute('x2', chartRight);
+        line.setAttribute('y1', y); line.setAttribute('y2', y);
+        gridLines.appendChild(line);
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', '28'); text.setAttribute('y', String(y + 4));
+        text.textContent = formatYLabel(val);
+        yLabels.appendChild(text);
+    });
+
+    // X轴标签 — 始终显示所有月份
+    const xLabels = document.getElementById(chartId + 'XLabels');
+    if (xLabels) xLabels.setAttribute('fill', color);
+    for (let i = 0; i < totalMonths; i++) {
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', getX(i)); text.setAttribute('y', '200');
+        text.textContent = (i + 1) + '月';
+        // 超出 activeCount 的月份标签变淡
+        if (i >= activeCount) {
+            text.setAttribute('fill', '#334155');
+        }
+        xLabels.appendChild(text);
+    }
+
+    // 所有点计算坐标（用于X轴定位），但只取前 activeCount 个画线
+    const allPoints = monthlyData.map((val, i) => ({ x: getX(i), y: getY(val), val, month: i + 1 }));
+    const points = allPoints.slice(0, activeCount);
+
+    // 平滑曲线
+    function getSmoothPath(pts) {
+        if (pts.length < 2) return '';
+        let d = `M${pts[0].x},${pts[0].y}`;
+        for (let i = 0; i < pts.length - 1; i++) {
+            const p0 = pts[i], p1 = pts[i + 1];
+            const midX = (p0.x + p1.x) / 2;
+            d += ` C${midX},${p0.y} ${midX},${p1.y} ${p1.x},${p1.y}`;
+        }
+        return d;
+    }
+
+    const linePath = getSmoothPath(points);
+    document.getElementById(chartId + 'LinePath').setAttribute('d', linePath);
+
+    // 面积路径 — 用 points（截断后）
+    if (points.length >= 2) {
+        const areaPath = linePath + ` L${points[points.length - 1].x},${chartBottom} L${points[0].x},${chartBottom} Z`;
+        document.getElementById(chartId + 'AreaPath').setAttribute('d', areaPath);
+    }
+
+    // 数据点 — 只画前 activeCount 个
+    const pointsGroup = document.getElementById(chartId + 'DataPoints');
+    const tooltip = document.getElementById(chartId + 'Tooltip');
+    const tooltipText = tooltip.querySelector('text');
+
+    points.forEach((p, i) => {
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'line-chart-point');
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y);
+        circle.setAttribute('r', '4');
+        circle.setAttribute('fill', '#151a23');
+        circle.setAttribute('stroke', color);
+        circle.setAttribute('stroke-width', '2');
+        g.appendChild(circle);
+
+        g.addEventListener('mouseenter', () => {
+            const fv = p.val.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            tooltipText.textContent = p.month + '月: ' + fv + unit;
+            tooltip.setAttribute('visibility', 'visible');
+            circle.setAttribute('r', '5');
+        });
+        g.addEventListener('mouseleave', () => {
+            tooltip.setAttribute('visibility', 'hidden');
+            circle.setAttribute('r', '4');
+        });
+        pointsGroup.appendChild(g);
+    });
+
+    // 最大值高亮 — 只在 activeCount 范围内
+    const activeData = monthlyData.slice(0, activeCount);
+    const maxIndex = activeData.indexOf(Math.max(...activeData));
+    if (activeData[maxIndex] > 0 && pointsGroup.children[maxIndex]) {
+        const maxCircle = pointsGroup.children[maxIndex].querySelector('circle');
+        maxCircle.setAttribute('class', 'line-chart-glow-point');
+        maxCircle.setAttribute('r', '7');
+        const innerDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        innerDot.setAttribute('cx', points[maxIndex].x);
+        innerDot.setAttribute('cy', points[maxIndex].y);
+        innerDot.setAttribute('r', '2');
+        innerDot.setAttribute('fill', 'white');
+        pointsGroup.children[maxIndex].appendChild(innerDot);
+    }
+}
+
+// ===== 渲染4个示例 =====
+
+// 示例数据
+const salesData2026 = [125000, 89000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+const activityData = [68.5, 68.5, 68.5, 68.5, 68.5, 68.5, 68.5, 68.5, 68.5, 68.5, 68.5, 68.5];
+const salesData2025 = [95000, 112000, 88000, 145000, 132000, 168000, 155000, 178000, 142000, 195000, 210000, 185000];
+
+// 1. 当前问题：slice 截断（只有2个点）
+renderChart('chartBad', salesData2026.slice(0, 2), {
+    color: '#2563eb',
+    unit: '元'
+});
+
+// 2. activeCount 方案：12月X轴 + 折线到2月
+renderChart('chartGood', salesData2026, {
+    color: '#2563eb',
+    unit: '元',
+    activeCount: 2
+});
+
+// 3. 活跃度平线
+renderChart('chartActivity', activityData, {
+    color: '#10b981',
+    unit: '%',
+    activeCount: 2
+});
+
+// 4. 2025年完整
+renderChart('chartFull', salesData2025, {
+    color: '#2563eb',
+    unit: '元',
+    activeCount: 12
+});
+</script>
+</body>
+</html>

@@ -33,6 +33,7 @@ from app.models.permission_module import (
     PermissionModule, PermissionModuleFeature, RoleFeaturePermission
 )
 from app.models.ai_analysis_cache import AIAnalysisCache, UserDailyLoginRecord
+from app.models.monthly_activity_snapshot import MonthlyActivitySnapshot
 from app.models.worklog import WorkItem, WorkLog
 from app.models.worklog_read import WorklogRead
 from app.models.message import Message
@@ -69,6 +70,7 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'QuarterlyPerformanceData', 'SalaryCalculationResult',
            'PermissionModule', 'PermissionModuleFeature', 'RoleFeaturePermission',
            'AIAnalysisCache', 'UserDailyLoginRecord',
+           'MonthlyActivitySnapshot',
            'WorkItem', 'WorkLog', 'WorklogRead', 'Message',
            'Announcement', 'AnnouncementRead', 'AnnouncementAttachment',
            'ProductTest', 'ProductTestDetail', 'ProductTestSampling',

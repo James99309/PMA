@@ -306,9 +306,9 @@ def list_companies():
     # 获取实际存在的筛选器选项（传入查询对象，内部用 SQL DISTINCT）
     company_type_options, industry_options, status_options, country_options = get_existing_filter_options(base_query)
 
-    # 计算统计数据（复用已筛选的 query，无需再次 get_viewable_data + apply_filters）
+    # 计算统计数据（复用已筛选的 query，清除 ORDER BY 避免与聚合冲突）
     from sqlalchemy import case
-    stats_result = query.with_entities(
+    stats_result = query.order_by(None).with_entities(
         func.count(Company.id).label('total'),
         func.count(case(
             (Company.status.in_(['highly_active', 'active', 'normal']), Company.id)
@@ -768,7 +768,7 @@ def companies_list_ajax():
         # 计算统计数据 - 复用已构建的 query（行714+717已包含权限过滤和筛选条件）
         from sqlalchemy import case
 
-        stats_result = query.with_entities(
+        stats_result = query.order_by(None).with_entities(
             func.count(Company.id).label('total'),
             func.count(case(
                 (Company.status.in_(['highly_active', 'active', 'normal']), Company.id)

@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>目标达成标签页 — 暖色调重设计预览</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<style>
+body { font-family: 'Inter', 'Noto Sans SC', sans-serif; -webkit-font-smoothing: antialiased; }
+.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20; font-size: 20px; }
+</style>
+</head>
+<body class="bg-[#faf6f1] dark:bg-neutral-950 text-stone-800 dark:text-stone-200 min-h-screen">
+
+<!-- ====== 预览页框架 ====== -->
+<div class="max-w-5xl mx-auto p-6 lg:p-10" x-data="goalsDashboard()">
+
+    <!-- 预览说明条 -->
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-lg font-semibold text-stone-900 dark:text-white">目标达成标签页 — Anthropic 暖色调预览</h1>
+            <p class="text-xs text-stone-400 mt-1">暖灰 stone · 暖黑 neutral · 奶油底 #faf6f1 · 点击指标切换 · 支持深色模式</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <!-- 角色切换 -->
+            <button @click="hasTeam = !hasTeam"
+                class="text-xs px-3 py-1.5 rounded-full border transition-colors"
+                :class="hasTeam ? 'border-indigo-300 bg-indigo-50 text-indigo-600 dark:border-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' : 'border-stone-200 text-stone-500 dark:border-stone-700 dark:text-stone-400'"
+                x-text="hasTeam ? '管理层视角 (有团队)' : '普通员工视角'"></button>
+            <!-- 深色模式 -->
+            <button class="p-2 rounded-full border border-stone-200 dark:border-stone-700 bg-white dark:bg-neutral-800 shadow-sm hover:shadow transition-all"
+                @click="document.documentElement.classList.toggle('dark')">
+                <span class="material-symbols-outlined block dark:hidden text-stone-500">dark_mode</span>
+                <span class="material-symbols-outlined hidden dark:block text-stone-400">light_mode</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ====== 药丸形指标按钮 ====== -->
+    <nav class="flex flex-wrap gap-3 mb-6">
+        <template x-for="code in metricOrder" :key="code">
+            <button @click="selectMetric(code)"
+                class="group flex items-center gap-2.5 px-5 py-2.5 rounded-full transition-all"
+                :class="selectedMetric === code
+                    ? 'border-2 font-semibold shadow-sm'
+                    : 'border bg-white dark:bg-neutral-900 text-stone-500 dark:text-stone-400 border-stone-200 dark:border-stone-800 hover:shadow-sm'"
+                :style="selectedMetric === code
+                    ? 'border-color:'+metrics[code].chartColor+';background:'+metrics[code].chartColor+'0d;color:'+metrics[code].chartColor
+                    : ''"
+                @mouseenter="selectedMetric !== code && ($el.style.borderColor=metrics[code].chartColor, $el.style.color=metrics[code].chartColor)"
+                @mouseleave="selectedMetric !== code && ($el.style.borderColor='', $el.style.color='')">
+                <span class="material-symbols-outlined text-base" x-text="metrics[code].icon"></span>
+                <span x-text="metrics[code].label"></span>
+            </button>
+        </template>
+    </nav>
+
+    <!-- ====== 主卡片（图表区） ====== -->
+    <div class="bg-white dark:bg-neutral-900 rounded-2xl border border-stone-200/60 dark:border-stone-800 shadow-xl shadow-stone-300/15 dark:shadow-none overflow-hidden">
+
+        <!-- 摘要区 + 图表 -->
+        <div class="p-8 md:p-10">
+
+            <!-- ── 摘要区 ── -->
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-10">
+                <!-- 左侧 -->
+                <div>
+                    <span class="text-xs font-bold uppercase tracking-widest text-stone-400 dark:text-stone-500 mb-2 block"
+                          x-text="metrics[selectedMetric].label + '概览 · ' + selectedYear"></span>
+
+                    <!-- 大数字：完成率 -->
+                    <div class="flex items-baseline gap-3">
+                        <h2 class="text-5xl font-bold tracking-tighter transition-colors"
+                            :style="'color:'+metrics[selectedMetric].chartColor"
+                            x-text="getRate() + '%'"></h2>
+                        <span class="text-2xl font-light text-stone-300 dark:text-stone-600"
+                              x-show="hasTargetForMetric()">
+                            / <span x-text="getTargetRate()"></span>% 目标完成度
+                        </span>
+                    </div>
+
+                    <!-- 个人/团队明细行（管理层） -->
+                    <template x-if="hasTeam">
+                        <div class="flex items-center gap-6 mt-3 text-sm">
+                            <span class="text-stone-400">
+                                <span class="text-xs mr-1">个人</span>
+                                <span class="font-medium text-stone-600 dark:text-stone-300" x-text="personalActual()"></span>
+                                <span class="text-stone-300 dark:text-stone-600" x-text="' / ' + personalTarget()"></span>
+                            </span>
+                            <span class="text-stone-400">
+                                <span class="text-xs mr-1">团队</span>
+                                <span class="font-semibold" :style="'color:'+metrics[selectedMetric].chartColor" x-text="teamActual()"></span>
+                                <span class="text-stone-300 dark:text-stone-600" x-text="' / ' + teamTarget()"></span>
+                            </span>
+                        </div>
+                    </template>
+                    <!-- 无团队时显示累计 -->
+                    <template x-if="!hasTeam">
+                        <div class="flex items-center gap-2 mt-3 text-sm text-stone-400">
+                            <span>累计</span>
+                            <span class="font-medium text-stone-600 dark:text-stone-300" x-text="personalActual()"></span>
+                            <template x-if="hasTargetForMetric()">
+                                <span>/ 目标 <span x-text="personalTarget()"></span></span>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- 右侧：增长率 + 进度条 -->
+                <div class="flex flex-col items-end gap-3 w-full md:w-auto">
+                    <div class="flex items-center justify-between w-full md:w-64">
+                        <span class="text-xs font-medium text-stone-500 dark:text-stone-400">当前增长率</span>
+                        <span class="text-sm font-bold"
+                              :style="'color:'+metrics[selectedMetric].chartColor"
+                              x-text="getGrowth()"></span>
+                    </div>
+                    <div class="w-full md:w-64 h-1.5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full transition-all duration-500"
+                             :style="'width:'+Math.min(getRate(),100)+'%;background:'+metrics[selectedMetric].chartColor"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── SVG 趋势图 ── -->
+            <div class="relative w-full" style="aspect-ratio: 3.2/1;">
+                <svg class="w-full h-full overflow-visible" viewBox="0 0 800 250" preserveAspectRatio="xMidYMid meet"
+                     id="previewChart">
+                    <!-- 网格线 -->
+                    <g class="stroke-stone-100 dark:stroke-stone-800" stroke-dasharray="4 4" stroke-width="0.5">
+                        <line x1="30" x2="790" y1="20" y2="20"></line>
+                        <line x1="30" x2="790" y1="58.75" y2="58.75"></line>
+                        <line x1="30" x2="790" y1="97.5" y2="97.5"></line>
+                        <line x1="30" x2="790" y1="136.25" y2="136.25"></line>
+                        <line x1="30" x2="790" y1="175" y2="175"></line>
+                    </g>
+                    <!-- X轴标签 -->
+                    <g class="fill-stone-400 dark:fill-stone-500" style="font-size: 10px;" text-anchor="middle">
+                        <template x-for="(m, i) in 12" :key="'xl'+i">
+                            <text :x="56 + i * 67.1" y="200" x-text="(i+1)+'月'"></text>
+                        </template>
+                    </g>
+                    <!-- 渐变定义 -->
+                    <defs>
+                        <linearGradient id="areaGrad" x1="0" x2="0" y1="0" y2="1">
+                            <stop offset="0%" :stop-color="metrics[selectedMetric].chartColor" stop-opacity="0.15"></stop>
+                            <stop offset="100%" :stop-color="metrics[selectedMetric].chartColor" stop-opacity="0"></stop>
+                        </linearGradient>
+                    </defs>
+                    <!-- 面积 -->
+                    <path :d="areaPath" fill="url(#areaGrad)"></path>
+                    <!-- 主线 -->
+                    <path :d="linePath" fill="none" :stroke="metrics[selectedMetric].chartColor"
+                          stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+                    <!-- 数据点 -->
+                    <template x-for="(pt, i) in chartPoints" :key="'pt'+i">
+                        <g>
+                            <circle :cx="pt.x" :cy="pt.y" r="5"
+                                    class="fill-white dark:fill-neutral-900"
+                                    :stroke="metrics[selectedMetric].chartColor" stroke-width="2.5"></circle>
+                        </g>
+                    </template>
+                    <!-- 最后一个点实心 -->
+                    <template x-if="chartPoints.length > 0">
+                        <circle :cx="chartPoints[chartPoints.length-1]?.x"
+                                :cy="chartPoints[chartPoints.length-1]?.y"
+                                r="4" :fill="metrics[selectedMetric].chartColor"></circle>
+                    </template>
+                </svg>
+            </div>
+        </div>
+
+        <!-- ── 底部图例 ── -->
+        <div class="bg-stone-50/80 dark:bg-stone-800/20 border-t border-stone-100 dark:border-stone-800 px-8 py-5">
+            <div class="flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
+                <template x-for="code in metricOrder" :key="'leg_'+code">
+                    <div class="flex items-center gap-2.5 cursor-pointer transition-opacity"
+                         :class="selectedMetric === code ? 'opacity-100' : 'opacity-50 hover:opacity-80'"
+                         @click="selectMetric(code)">
+                        <div class="w-3 h-3 rounded-full"
+                             :style="'background:'+metrics[code].chartColor+';box-shadow:0 0 6px '+metrics[code].chartColor+'66'"></div>
+                        <span class="text-xs font-semibold tracking-wide text-stone-700 dark:text-stone-300"
+                              x-text="metrics[code].label"></span>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====== 月度数据表格（暖色调呼吸感风格） ====== -->
+    <div class="mt-6 bg-white dark:bg-neutral-900 rounded-2xl border border-stone-200/60 dark:border-stone-800 shadow-sm overflow-hidden">
+        <!-- 标题区 -->
+        <div class="px-8 py-6 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
+            <h3 class="text-xl font-semibold text-stone-800 dark:text-stone-100 flex items-center gap-3 tracking-tight">
+                <span class="material-symbols-outlined text-2xl" :style="'color:'+metrics[selectedMetric].chartColor">table_chart</span>
+                月度数据
+            </h3>
+        </div>
+        <!-- 表格 -->
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <!-- 表头：无背景色，小字 uppercase -->
+                <thead>
+                    <tr class="text-[13px] uppercase tracking-wider text-stone-400 dark:text-stone-500 font-medium">
+                        <th class="py-5 px-8">月份</th>
+                        <template x-for="code in metricOrder" :key="'th2_'+code">
+                            <th class="py-5 px-4 text-right" x-text="metrics[code].label"></th>
+                        </template>
+                    </tr>
+                </thead>
+                <!-- 表体：宽松行高，极淡分隔线，暖色 hover -->
+                <tbody class="divide-y divide-stone-50 dark:divide-stone-800/50">
+                    <template x-for="(row, ri) in mockMonthly" :key="'row2_'+ri">
+                        <tr class="transition-colors duration-150 hover:bg-[rgba(180,160,140,0.04)] dark:hover:bg-white/[0.02]">
+                            <td class="py-5 px-8 font-medium text-stone-700 dark:text-stone-300" x-text="(ri+1)+'月'"></td>
+                            <template x-for="code in metricOrder" :key="'td2_'+code+'_'+ri">
+                                <td class="py-5 px-4 text-right whitespace-nowrap">
+                                    <span class="text-stone-800 dark:text-stone-200 font-medium" x-text="formatCellValue(code, row[code]?.actual)"></span>
+                                    <template x-if="row[code]?.target > 0">
+                                        <span>
+                                            <span class="text-stone-300 dark:text-stone-600 mx-0.5">/</span>
+                                            <span class="text-stone-400 dark:text-stone-500 text-[13px]" x-text="formatCellValue(code, row[code]?.target)"></span>
+                                        </span>
+                                    </template>
+                                </td>
+                            </template>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+        <!-- 底部footer -->
+        <div class="px-8 py-5 bg-stone-50/50 dark:bg-white/[0.02] border-t border-stone-100/80 dark:border-stone-800 flex justify-between items-center">
+            <p class="text-[12px] text-stone-400 dark:text-stone-500">
+                数据自动更新
+            </p>
+        </div>
+    </div>
+
+    <!-- ====== 色彩对比说明 ====== -->
+    <div class="mt-10 bg-white dark:bg-neutral-900 rounded-2xl border border-stone-200/60 dark:border-stone-800 p-8">
+        <h3 class="text-base font-semibold text-stone-700 dark:text-stone-200 mb-4">Anthropic 暖色调映射说明</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+            <div>
+                <h4 class="text-xs font-bold uppercase tracking-wider text-stone-400 mb-3">浅色模式</h4>
+                <ul class="space-y-2 text-stone-600 dark:text-stone-400">
+                    <li class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded bg-[#faf6f1] border border-stone-200"></div>
+                        页面底色 <code class="text-xs bg-stone-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">#faf6f1</code> 暖奶油
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded bg-white border border-stone-200"></div>
+                        卡片底色 white · 边框 stone-200/60
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded bg-stone-50 border border-stone-200"></div>
+                        图例/footer bg-stone-50 暖灰底
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded border border-stone-200" style="background:rgba(180,160,140,0.04)"></div>
+                        表格 hover rgba(180,160,140,0.04) 暖色高亮
+                    </li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="text-xs font-bold uppercase tracking-wider text-stone-400 mb-3">暗色模式</h4>
+                <ul class="space-y-2 text-stone-600 dark:text-stone-400">
+                    <li class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded bg-neutral-950 border border-stone-700"></div>
+                        页面底色 neutral-950 暖黑
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded bg-neutral-900 border border-stone-700"></div>
+                        卡片底色 neutral-900 · 边框 stone-800
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded bg-stone-800 border border-stone-700"></div>
+                        进度条底 stone-800 暖灰
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded border border-stone-700" style="background:rgba(255,255,255,0.02)"></div>
+                        表格 hover white/2% 极淡高亮
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <div class="mt-6 pt-4 border-t border-stone-100 dark:border-stone-800">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-stone-400 mb-3">slate → stone 映射</h4>
+            <div class="flex flex-wrap gap-3">
+                <div class="flex items-center gap-1.5 text-xs text-stone-500">
+                    <span class="line-through text-stone-300">slate-200</span> → <span class="font-medium text-stone-700 dark:text-stone-300">stone-200</span>
+                </div>
+                <div class="flex items-center gap-1.5 text-xs text-stone-500">
+                    <span class="line-through text-stone-300">slate-400</span> → <span class="font-medium text-stone-700 dark:text-stone-300">stone-400</span>
+                </div>
+                <div class="flex items-center gap-1.5 text-xs text-stone-500">
+                    <span class="line-through text-stone-300">slate-800</span> → <span class="font-medium text-stone-700 dark:text-stone-300">stone-800</span>
+                </div>
+                <div class="flex items-center gap-1.5 text-xs text-stone-500">
+                    <span class="line-through text-stone-300">dark:bg-slate-900</span> → <span class="font-medium text-stone-700 dark:text-stone-300">dark:bg-neutral-900</span>
+                </div>
+                <div class="flex items-center gap-1.5 text-xs text-stone-500">
+                    <span class="line-through text-stone-300">dark:bg-slate-950</span> → <span class="font-medium text-stone-700 dark:text-stone-300">dark:bg-neutral-950</span>
+                </div>
+                <div class="flex items-center gap-1.5 text-xs text-stone-500">
+                    <span class="line-through text-stone-300">hover:bg-slate-50</span> → <span class="font-medium text-stone-700 dark:text-stone-300">rgba(180,160,140,0.04)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function goalsDashboard() {
+    // 5色方案
+    const metricDefs = {
+        'sales_amount': {
+            label: '销售额', icon: 'analytics',
+            chartColor: '#0d9488',  // Soft Teal
+            isPercentage: false, isAmount: true
+        },
+        'implant_amount': {
+            label: '植入额', icon: 'payments',
+            chartColor: '#6366f1',  // Muted Indigo
+            isPercentage: false, isAmount: true
+        },
+        'new_customers': {
+            label: '新增客户', icon: 'person_add',
+            chartColor: '#cc7e85',  // Dusty Rose
+            isPercentage: false, isAmount: false
+        },
+        'new_projects': {
+            label: '新增项目', icon: 'folder_managed',
+            chartColor: '#84a59d',  // Sage Green
+            isPercentage: false, isAmount: false
+        },
+        'customer_activity_rate': {
+            label: '客户活跃度', icon: 'query_stats',
+            chartColor: '#d4a373',  // Warm Amber
+            isPercentage: true, isAmount: false
+        }
+    };
+
+    // 模拟12个月的数据
+    const mockData = [
+        { month:1,  sales_amount:{actual:1620000,target:2000000}, implant_amount:{actual:1250000,target:1500000}, new_customers:{actual:2,target:10}, new_projects:{actual:2,target:5}, customer_activity_rate:{actual:68,target:70} },
+        { month:2,  sales_amount:{actual:570000,target:2000000},  implant_amount:{actual:1570000,target:1500000}, new_customers:{actual:12,target:10}, new_projects:{actual:2,target:5}, customer_activity_rate:{actual:75,target:70} },
+        { month:3,  sales_amount:{actual:1180000,target:2000000}, implant_amount:{actual:1530000,target:1500000}, new_customers:{actual:12,target:10}, new_projects:{actual:2,target:5}, customer_activity_rate:{actual:51,target:70} },
+        { month:4,  sales_amount:{actual:560000,target:2000000},  implant_amount:{actual:930000,target:1500000},  new_customers:{actual:13,target:10}, new_projects:{actual:3,target:5}, customer_activity_rate:{actual:45,target:70} },
+        { month:5,  sales_amount:{actual:610000,target:2000000},  implant_amount:{actual:1630000,target:1500000}, new_customers:{actual:3,target:10},  new_projects:{actual:8,target:5}, customer_activity_rate:{actual:56,target:70} },
+        { month:6,  sales_amount:{actual:1370000,target:2000000}, implant_amount:{actual:830000,target:1500000},  new_customers:{actual:10,target:10}, new_projects:{actual:6,target:5}, customer_activity_rate:{actual:77,target:70} },
+        { month:7,  sales_amount:{actual:1330000,target:2000000}, implant_amount:{actual:1770000,target:1500000}, new_customers:{actual:13,target:10}, new_projects:{actual:8,target:5}, customer_activity_rate:{actual:83,target:70} },
+        { month:8,  sales_amount:{actual:1950000,target:2000000}, implant_amount:{actual:1050000,target:1500000}, new_customers:{actual:5,target:10},  new_projects:{actual:1,target:5}, customer_activity_rate:{actual:34,target:70} },
+        { month:9,  sales_amount:{actual:1440000,target:2000000}, implant_amount:{actual:1100000,target:1500000}, new_customers:{actual:14,target:10}, new_projects:{actual:8,target:5}, customer_activity_rate:{actual:48,target:70} },
+        { month:10, sales_amount:{actual:1430000,target:2000000}, implant_amount:{actual:1060000,target:1500000}, new_customers:{actual:14,target:10}, new_projects:{actual:8,target:5}, customer_activity_rate:{actual:27,target:70} },
+        { month:11, sales_amount:{actual:1610000,target:2000000}, implant_amount:{actual:350000,target:1500000},  new_customers:{actual:4,target:10},  new_projects:{actual:2,target:5}, customer_activity_rate:{actual:38,target:70} },
+        { month:12, sales_amount:{actual:1460000,target:2000000}, implant_amount:{actual:1410000,target:1500000}, new_customers:{actual:3,target:10},  new_projects:{actual:6,target:5}, customer_activity_rate:{actual:41,target:70} },
+    ];
+
+    // 计算摘要
+    function calcSummary(metric) {
+        let totalActual = 0, totalTarget = 0;
+        mockData.forEach(r => {
+            totalActual += r[metric]?.actual || 0;
+            totalTarget += r[metric]?.target || 0;
+        });
+        const rate = totalTarget > 0 ? Math.round(totalActual / totalTarget * 1000) / 10 : 0;
+        return { actual: totalActual, target: totalTarget, rate };
+    }
+
+    // 图表坐标计算
+    const chartLeft = 56, chartRight = 790, chartTop = 20, chartBottom = 175;
+    function getX(i) { return chartLeft + i * ((chartRight - chartLeft) / 11); }
+
+    return {
+        selectedMetric: 'sales_amount',
+        selectedYear: new Date().getFullYear(),
+        hasTeam: false,
+        metricOrder: ['sales_amount', 'implant_amount', 'new_customers', 'new_projects', 'customer_activity_rate'],
+        metrics: metricDefs,
+        mockMonthly: mockData,
+
+        selectMetric(code) {
+            this.selectedMetric = code;
+        },
+
+        getRate() {
+            return calcSummary(this.selectedMetric).rate;
+        },
+        hasTargetForMetric() {
+            return calcSummary(this.selectedMetric).target > 0;
+        },
+        getTargetRate() {
+            const cfg = metricDefs[this.selectedMetric];
+            if (cfg.isPercentage) {
+                const monthlyTarget = mockData[0][this.selectedMetric]?.target || 0;
+                return monthlyTarget;
+            }
+            return 100;
+        },
+        getGrowth() {
+            const m = this.selectedMetric;
+            const curr = mockData[mockData.length - 1][m]?.actual || 0;
+            const prev = mockData[mockData.length - 2][m]?.actual || 1;
+            const g = ((curr - prev) / prev * 100).toFixed(1);
+            return (g >= 0 ? '+' : '') + g + '%';
+        },
+
+        personalActual() {
+            const s = calcSummary(this.selectedMetric);
+            return this.formatDisplayValue(this.selectedMetric, s.actual);
+        },
+        personalTarget() {
+            const s = calcSummary(this.selectedMetric);
+            return this.formatDisplayValue(this.selectedMetric, s.target);
+        },
+        teamActual() {
+            const s = calcSummary(this.selectedMetric);
+            return this.formatDisplayValue(this.selectedMetric, s.actual * 3.2);
+        },
+        teamTarget() {
+            const s = calcSummary(this.selectedMetric);
+            return this.formatDisplayValue(this.selectedMetric, s.target * 3);
+        },
+
+        formatDisplayValue(metric, val) {
+            const cfg = metricDefs[metric];
+            if (cfg.isPercentage) return val.toFixed(1) + '%';
+            if (cfg.isAmount) return (val / 10000).toFixed(1) + '万';
+            return Math.round(val) + '';
+        },
+        formatCellValue(metric, val) {
+            if (val == null) return '-';
+            const cfg = metricDefs[metric];
+            if (cfg.isPercentage) return val.toFixed(1) + '%';
+            if (cfg.isAmount) return (val / 10000).toFixed(1);
+            return Math.round(val) + '';
+        },
+
+        // ── 图表路径 ──
+        get chartPoints() {
+            const m = this.selectedMetric;
+            const vals = mockData.map(r => r[m]?.actual || 0);
+            const maxVal = Math.max(...vals) || 1;
+            const niceMax = getNiceMax(maxVal);
+            return vals.map((v, i) => ({
+                x: getX(i),
+                y: chartBottom - (v / niceMax) * (chartBottom - chartTop),
+                val: v
+            }));
+        },
+        get linePath() {
+            const pts = this.chartPoints;
+            if (pts.length < 2) return '';
+            let d = `M${pts[0].x},${pts[0].y}`;
+            for (let i = 0; i < pts.length - 1; i++) {
+                const midX = (pts[i].x + pts[i+1].x) / 2;
+                d += ` C${midX},${pts[i].y} ${midX},${pts[i+1].y} ${pts[i+1].x},${pts[i+1].y}`;
+            }
+            return d;
+        },
+        get areaPath() {
+            const pts = this.chartPoints;
+            if (pts.length < 2) return '';
+            return this.linePath + ` L${pts[pts.length-1].x},${chartBottom} L${pts[0].x},${chartBottom} Z`;
+        }
+    };
+}
+
+function getNiceMax(val) {
+    if (val <= 0) return 10;
+    const mag = Math.pow(10, Math.floor(Math.log10(val)));
+    const n = val / mag;
+    let nice;
+    if (n <= 1) nice = 1;
+    else if (n <= 2) nice = 2;
+    else if (n <= 2.5) nice = 2.5;
+    else if (n <= 5) nice = 5;
+    else nice = 10;
+    return nice * mag;
+}
+</script>
+</body>
+</html>
