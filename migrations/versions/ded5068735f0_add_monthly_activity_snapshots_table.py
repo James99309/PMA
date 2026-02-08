@@ -7,6 +7,7 @@ Create Date: 2026-02-08 15:48:23.686450
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
 revision = 'ded5068735f0'
@@ -16,6 +17,12 @@ depends_on = None
 
 
 def upgrade():
+    # 检查表是否已存在（db.create_all() 可能已创建）
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if 'monthly_activity_snapshots' in inspector.get_table_names():
+        return  # 表已存在，跳过创建
+
     op.create_table('monthly_activity_snapshots',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('user_id', sa.Integer(), nullable=False),
